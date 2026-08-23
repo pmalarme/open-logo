@@ -1356,22 +1356,29 @@ export function narrativeFindings(manifest) {
 }
 
 /**
- * No prose field anywhere in the file may contain a C0 control character.
+ * No string value anywhere in the file may contain a Unicode `Cc` control character.
  *
- * The one property of prose that IS mechanically checkable. Authoring the notes through a shell
- * whose escape character is a backtick turned `` `note` ``, `` `aliasOf` ``, `` `reserved` `` and
- * `` `excluded` `` into LF, BEL, CR and ESC bytes inside a normative `spec/` artefact: still valid
- * JSON, still Prettier-clean, still zero findings, and four words left unreadable.
+ * Authoring the notes through a shell whose escape character is a backtick turned `` `note` ``,
+ * `` `aliasOf` ``, `` `reserved` `` and `` `excluded` `` into LF, BEL, CR and ESC bytes inside a
+ * normative `spec/` artefact: still valid JSON, still Prettier-clean, still zero findings, and four
+ * words left unreadable.
+ *
+ * Every string leaf, not only the prose ones — `Object.entries` yields indexed pairs for arrays, so
+ * the bare strings inside `names[].registries[]` and `excluded[].positions[]` are reached too. `Cc`
+ * rather than C0 alone, because U+007F and U+0080-U+009F are control characters as well and the
+ * finding says "control character" without qualification.
  */
 export function controlCharacterFindings(manifest) {
   const findings = [];
+  const isControl = (character) => {
+    const code = character.codePointAt(0);
+    return code < 0x20 || (code >= 0x7f && code <= 0x9f);
+  };
   const walk = (node, path) => {
     for (const [key, value] of Object.entries(node)) {
       const at = path ? `${path}.${key}` : key;
       if (typeof value === "string") {
-        const found = [...value].filter(
-          (character) => character.codePointAt(0) < 0x20,
-        );
+        const found = [...value].filter(isControl);
         if (found.length > 0) {
           findings.push(
             `${MANIFEST_PATH}: ${at} contains control character(s) ${[
@@ -1383,7 +1390,7 @@ export function controlCharacterFindings(manifest) {
               ),
             ].join(
               ", ",
-            )} — prose is the only unguarded surface in this file, and this is the one thing about it a machine can check`,
+            )} — invisible in every view of this file, and the one property of a string here that a machine can check without a word list`,
           );
         }
       } else if (value !== null && typeof value === "object") {
@@ -1396,39 +1403,47 @@ export function controlCharacterFindings(manifest) {
 }
 
 /**
- * A registry `note` may not name the accessors the tag itself declares.
+ * A registry `note` may not name any accessor the manifest declares.
  *
  * `about` states the no-restatement rule; this is the derivable half of it, executable. The
- * comparison is against the tag's **own** `accessor` values, so there is no word list to maintain
- * and no way for it to be wrong about what counts as a restatement.
+ * comparison is against the accessor values the file itself carries, so there is no word list to
+ * maintain. Manifest-wide rather than per-tag: a foreign accessor in a note is exactly as much "a
+ * second copy that the next rename drifts", and widening costs a line and buys the whole set.
  *
- * The other half of the rule — no counts — is deliberately **not** enforced. Doing so needs a list
- * of counting words, which is a hand-maintained second list inside the check that exists to remove
- * second lists, and it fires on ordinary English: "one-word spellings" and "carved out of this one"
- * are not counts. An unfalsifiable stoplist would be a worse defect than the one it catches.
+ * The other half of the rule — no counts — is deliberately **not** enforced, and `about` must not
+ * claim it is. Doing so needs a list of counting words, which is a hand-maintained second list
+ * inside the check that exists to remove second lists, and it fires on ordinary English:
+ * "one-word spellings" and "carved out of this one" are not counts. An unfalsifiable stoplist would
+ * be a worse defect than the one it catches.
  *
  * Scoped to `note` deliberately: `invariants`, `profiles.about`, `tokenClassKeyword` and each
- * `excluded[].rationale` are normative or required as data by ADR-0021, so they are not subject to
- * it.
+ * `excluded[].rationale` are normative or required as data by ADR-0021 §2 and §3, so they are not
+ * subject to it.
  */
 export function noteRestatementFindings(manifest) {
   const findings = [];
+  const declared = [
+    ...new Set(
+      Object.values(manifest.registries)
+        .flatMap((registry) => [
+          registry.lookup?.accessor,
+          registry.enumerate?.accessor,
+          registry.aliasEnumerator,
+          registry.canonicalAccessor,
+        ])
+        .filter((accessor) => typeof accessor === "string"),
+    ),
+  ];
   for (const [tag, registry] of Object.entries(manifest.registries)) {
     if (typeof registry.note !== "string") {
       continue;
     }
-    const accessors = [
-      registry.lookup?.accessor,
-      registry.enumerate?.accessor,
-      registry.aliasEnumerator,
-      registry.canonicalAccessor,
-    ].filter((accessor) => typeof accessor === "string");
-    const echoed = [...new Set(accessors)].filter((accessor) =>
+    const echoed = declared.filter((accessor) =>
       registry.note.includes(accessor),
     );
     if (echoed.length > 0) {
       findings.push(
-        `${MANIFEST_PATH}: registries.${tag}.note names its own accessor(s) ${echoed.join(", ")} — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+        `${MANIFEST_PATH}: registries.${tag}.note names the accessor(s) ${echoed.join(", ")} — the value is carried structurally, so the prose is a second copy that the next rename drifts`,
       );
     }
   }

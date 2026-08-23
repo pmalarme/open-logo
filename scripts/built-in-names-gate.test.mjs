@@ -870,25 +870,44 @@ test("INJECTED DRIFT: a profile section spec/conformance.md names twice", () => 
   ]);
 });
 
-test("INJECTED DRIFT: a control character hidden in any prose field", () => {
+test("INJECTED DRIFT: a control character hidden in any string value", () => {
   // The defect that shipped into a normative spec/ artefact and every gate stayed green: authoring
   // notes through a shell whose escape character is a backtick turned `note`, `aliasOf`, `reserved`
   // and `excluded` into LF, BEL, CR and ESC. Valid JSON, Prettier-clean, zero findings.
   assert.deepEqual(controlCharacterFindings(REAL_MANIFEST), []);
+  const carveOutWithPositions = REAL_MANIFEST.excluded.findIndex(
+    (entry) => Array.isArray(entry.positions) && entry.positions.length > 0,
+  );
   for (const [path, mutate] of [
-    ["about", (manifest) => (manifest.about = `x\u0007y`)],
+    ["about", (manifest) => (manifest.about = "x\u0007y")],
     [
       "invariants.precedence",
-      (manifest) => (manifest.invariants.precedence = `a\u001bb`),
+      (manifest) => (manifest.invariants.precedence = "a\u001bb"),
     ],
     [
       "registries.reserved.note",
-      (manifest) => (manifest.registries.reserved.note = `a\note`),
+      (manifest) => (manifest.registries.reserved.note = "a\u000ab"),
     ],
     [
       "excluded.0.rationale",
-      (manifest) => (manifest.excluded[0].rationale = `a\rb`),
+      (manifest) => (manifest.excluded[0].rationale = "a\u000db"),
     ],
+    // Bare strings INSIDE arrays, which is where a walker that recurses into objects but never
+    // visits array elements silently stops. `Object.entries` yields indexed pairs, so these are
+    // reached — and `names[].registries[]` is the most load-bearing array in the file.
+    [
+      "names.0.registries.0",
+      (manifest) => (manifest.names[0].registries[0] = "a\u0007b"),
+    ],
+    [
+      `excluded.${carveOutWithPositions}.positions.0`,
+      (manifest) =>
+        (manifest.excluded[carveOutWithPositions].positions[0] = "a\u0007b"),
+    ],
+    // `Cc` is wider than C0: DEL and the C1 block are control characters too, and the finding says
+    // "control character" without qualification.
+    ["about", (manifest) => (manifest.about = "x\u007fy")],
+    ["about", (manifest) => (manifest.about = "x\u0085y")],
   ]) {
     const manifest = manifestCopy();
     mutate(manifest);
@@ -906,26 +925,53 @@ test("INJECTED DRIFT: a control character hidden in any prose field", () => {
   }
 });
 
-test("INJECTED DRIFT: a registry note that names the tag's own accessor", () => {
-  // `about` forbids prose restating data the file carries. This is the derivable half, compared
-  // against the tag's OWN accessor values so there is no word list to maintain.
+test("INJECTED DRIFT: a registry note naming any accessor the manifest declares", () => {
+  // `about` forbids a note restating data the file carries. This is the derivable half, compared
+  // against the accessor values the file itself carries, so there is no word list to maintain.
   assert.deepEqual(noteRestatementFindings(REAL_MANIFEST), []);
-  const manifest = manifestCopy();
-  manifest.registries.reserved.note = `The tree's accessor is ${manifest.registries.reserved.lookup.accessor}.`;
-  assert.deepEqual(noteRestatementFindings(manifest), [
-    `${MANIFEST_PATH}: registries.reserved.note names its own accessor(s) OL_KEYWORDS — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+  const own = manifestCopy();
+  own.registries.reserved.note = `The tree's accessor is ${own.registries.reserved.lookup.accessor}.`;
+  assert.deepEqual(noteRestatementFindings(own), [
+    `${MANIFEST_PATH}: registries.reserved.note names the accessor(s) OL_KEYWORDS — the value is carried structurally, so the prose is a second copy that the next rename drifts`,
   ]);
-  // An alias registry's edge accessors count too, and a note may echo more than one.
+
+  // A FOREIGN accessor is exactly as much "a second copy that the next rename drifts", so the
+  // comparison is manifest-wide rather than per-tag. Scoping it to the tag's own accessors bought
+  // nothing: the whole set is equally derived from the file, with no list to maintain either way.
+  const foreign = manifestCopy();
+  foreign.registries["data-primitive"].note =
+    "It behaves like OL_KEYWORDS in this respect.";
+  assert.deepEqual(noteRestatementFindings(foreign), [
+    `${MANIFEST_PATH}: registries.data-primitive.note names the accessor(s) OL_KEYWORDS — the value is carried structurally, so the prose is a second copy that the next rename drifts`,
+  ]);
+
+  // Edge accessors count too, and a note may echo more than one.
   const alias = manifestCopy();
   const registry = alias.registries["heritage-alias"];
   registry.note = `${registry.aliasEnumerator} and ${registry.canonicalAccessor} carry the edge.`;
   assert.deepEqual(noteRestatementFindings(alias), [
-    `${MANIFEST_PATH}: registries.heritage-alias.note names its own accessor(s) ${registry.aliasEnumerator}, ${registry.canonicalAccessor} — the value is a few lines above it, so the prose is a second copy that the next rename drifts`,
+    `${MANIFEST_PATH}: registries.heritage-alias.note names the accessor(s) ${registry.aliasEnumerator}, ${registry.canonicalAccessor} — the value is carried structurally, so the prose is a second copy that the next rename drifts`,
   ]);
+
   // A note that is not a string is the presence check's business, not this one's.
   const absent = manifestCopy();
   absent.registries.reserved.note = undefined;
   assert.deepEqual(noteRestatementFindings(absent), []);
+});
+
+test("the manifest states which checks apply to a note, and claims no more", () => {
+  // Round 4 shipped `about` enumerating "no control characters, no accessor value, and no counting
+  // word" among the checks the gate applies, in the same PR as the docstring saying the counts half
+  // is deliberately unenforced. A count in a note passes; the file must not say otherwise.
+  const counted = manifestCopy();
+  counted.registries["data-primitive"].note = "There are three of them.";
+  assert.deepEqual(runBuiltInNamesGate({ manifest: counted }).findings, []);
+  assert.equal(/and no counting word/.test(REAL_MANIFEST.about), false);
+  assert.equal(
+    REAL_MANIFEST.about.includes("deliberately not enforced"),
+    true,
+    REAL_MANIFEST.about,
+  );
 });
 
 test("INJECTED DRIFT: a declared-empty profile whose rationale is blanked to whitespace", () => {
