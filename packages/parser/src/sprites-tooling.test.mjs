@@ -158,24 +158,30 @@ test("highlight: each Sprites name takes its profile-dependent class in isolatio
   }
 });
 
-test("highlight: a profile word in a BINDING position still follows the profile", () => {
+test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
   // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
   // **including the positions where the grammar admits one as an ordinary name (`local end`,
-  // `for end from 1 to 3`, `export end`, `:p.end`)**". Those are the positions the spec names by
-  // hand, and every other test in this file uses a CALL position — so without this row a change
-  // that suppressed the profile check in exactly the binding forms would pass the whole suite.
+  // `for end from 1 to 3`, `export end`, `:p.end`)**". All four of the spec's own examples are
+  // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
+  // without this row a change that suppressed the profile check in exactly these forms would pass
+  // the whole suite (that mutant survived all 3813 tests before this row existed).
+  //
+  // "Ordinary-name position" is the spec's own framing and the wording is deliberate:
+  // `local`/`set`/`for` BIND a name, `export` REFERENCES one, and `.field` is field ACCESS. What
+  // unites them is that the grammar admits an ordinary identifier there, not that they bind.
   //
   // `{ ask: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
   // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile. Pinning
   // it here rather than only transitively is what keeps the dict-key/profile ordering honest.
-  const BINDING_SOURCES = Object.freeze({
+  const ORDINARY_NAME_SOURCES = Object.freeze({
     local: "local ask",
     "set-to": "set ask to 1",
     "for-from": "for ask from 1 to 3 [ print 1 ]",
+    export: "export ask",
     "dot-field": "print :rec.ask",
   });
   for (const { label, profiles, expected } of PROFILE_CASES) {
-    for (const [position, source] of Object.entries(BINDING_SOURCES)) {
+    for (const [position, source] of Object.entries(ORDINARY_NAME_SOURCES)) {
       const tokens = OL.highlight(source, doc, { profiles }).filter(
         (t) => t.text === "ask",
       );

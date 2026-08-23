@@ -11,10 +11,14 @@
 //      treated as reserved words *only when the Interaction & Events profile is active* — the
 //      shipped behaviour, which `spec/grammar.md:408` and `spec/interaction-events.md:43-47`
 //      retract in favour of an unconditional rule ("what a profile decides is whether a name
-//      *works*, never whether a program may declare it"); retiring the gate is #841.
-//      Slices I3–I6 already taught the Layer-2 checker to treat them as visible
+//      *works*, never whether a program may declare it"); retiring the gate is #841. The earlier
+//      "reserved only within this profile" wording is gone from `spec/` — #855 deleted it — so the
+//      assertions below lock today's GATED behaviour rather than the spec's rule, and they invert
+//      when #841 lands. Slices I3–I6 already taught the Layer-2 checker to treat them as visible
 //      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
 //      LOCKS that half with fixtures rather than re-adding it.
+//      Reservation is a *legality* question and is independent of the token class, which #740
+//      makes profile-dependent — see the highlighting note below.
 //   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
 //      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
 //      Kind-C command taking one number and a Kind-R reporter taking one prompt
@@ -190,23 +194,29 @@ test("highlight: each Interaction name takes its profile-dependent class in isol
   }
 });
 
-test("highlight: a profile word in a BINDING position still follows the profile", () => {
+test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
   // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
   // **including the positions where the grammar admits one as an ordinary name (`local end`,
-  // `for end from 1 to 3`, `export end`, `:p.end`)**". Those are the positions the spec names by
-  // hand, and every other test in this file uses a CALL position — so without this row a change
-  // that suppressed the profile check in exactly the binding forms would pass the whole suite.
+  // `for end from 1 to 3`, `export end`, `:p.end`)**". All four of the spec's own examples are
+  // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
+  // without this row a change that suppressed the profile check in exactly these forms would pass
+  // the whole suite (that mutant survived all 3813 tests before this row existed).
+  //
+  // "Ordinary-name position" is the spec's own framing and the wording is deliberate:
+  // `local`/`set`/`for` BIND a name, `export` REFERENCES one, and `.field` is field ACCESS. What
+  // unites them is that the grammar admits an ordinary identifier there, not that they bind.
   //
   // `{ when: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
   // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile.
-  const BINDING_SOURCES = Object.freeze({
+  const ORDINARY_NAME_SOURCES = Object.freeze({
     local: "local when",
     "set-to": "set when to 1",
     "for-from": "for when from 1 to 3 [ print 1 ]",
+    export: "export when",
     "dot-field": "print :rec.when",
   });
   for (const { label, profiles, expected } of PROFILE_CASES) {
-    for (const [position, source] of Object.entries(BINDING_SOURCES)) {
+    for (const [position, source] of Object.entries(ORDINARY_NAME_SOURCES)) {
       const tokens = OL.highlight(source, doc, { profiles }).filter(
         (t) => t.text === "when",
       );
