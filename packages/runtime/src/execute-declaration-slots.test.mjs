@@ -21,6 +21,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   canonicalOfHeritageAlias,
   check,
@@ -30,6 +32,7 @@ import {
   OL_PROFILE_KEYWORDS,
   parse,
   profilePrimitiveNames,
+  walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
@@ -91,14 +94,39 @@ function fullIdentity(diagnostics) {
   ]);
 }
 
+/**
+ * `fullIdentity` restricted to the two **declaration-slot** codes.
+ *
+ * A wrapper may legitimately introduce a finding of its own that has nothing to do with this rule:
+ * a comprehension body must produce a value, so `map i in [ 1 ] [ define forward end ]` also raises
+ * `ol-no-value` at check stage. Comparing raw diagnostic lists would then fail for a reason the
+ * product is not about — and dropping the comprehension wrapper to avoid it would leave a
+ * block-bearing slot uncovered, which is the defect this whole axis exists to prevent. Restricting
+ * to the codes under test keeps every slot in the product; the "exactly one diagnostic from
+ * `execute()`" assertion alongside is what stops a spurious extra finding hiding behind the filter.
+ */
+const DECLARATION_SLOT_CODES = new Set([
+  "ol-reserved-word",
+  "ol-duplicate-definition",
+]);
+
+function declarationSlotIdentity(diagnostics) {
+  return fullIdentity(diagnostics).filter(([code]) =>
+    DECLARATION_SLOT_CODES.has(code),
+  );
+}
+
 /** `fullIdentity` of `execute()` and of `check()` for one source, for direct comparison. */
 function bothStages(source) {
   const { ast } = parse(source, doc);
+  const ran = execute(source, doc);
   return {
-    fromExecute: fullIdentity(execute(source, doc).diagnostics),
-    fromCheck: fullIdentity(
+    fromExecute: declarationSlotIdentity(ran.diagnostics),
+    fromCheck: declarationSlotIdentity(
       check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics,
     ),
+    executeDiagnosticCount: ran.diagnostics.length,
+    events: ran.events.length,
   };
 }
 
@@ -137,14 +165,19 @@ function declareProcedure(name, keyword = "define") {
  * 1 is the same defect one level in: a mutant exempting only depth ≥ 2 also passed every gate. The
  * variable has to be varied, not merely introduced.
  */
-function nestInsideProcedure(declaration, depth = 1, prefix = "outer") {
+function nestInsideProcedure(
+  declaration,
+  depth = 1,
+  prefix = "outer",
+  keyword = "define",
+) {
   let nested = declaration;
   for (let level = 0; level < depth; level += 1) {
     const indented = nested
       .split("\n")
       .map((line) => `  ${line}`)
       .join("\n");
-    nested = `define ${prefix}${level}\n${indented}\nend`;
+    nested = `${keyword} ${prefix}${level}\n${indented}\nend`;
   }
   return depth === 0 ? nested : `${nested}\n${prefix}${depth - 1}`;
 }
@@ -152,7 +185,9 @@ function nestInsideProcedure(declaration, depth = 1, prefix = "outer") {
 /**
  * One declaration's full configuration as source: spelling, casing, enclosing construct and nesting
  * depth. `prefix` keeps the synthesised enclosing procedures distinct so two independently-nested
- * declarations can sit in one program without colliding with each other.
+ * declarations can sit in one program without colliding with each other, and `enclosingKeyword`
+ * varies the SPELLING of those synthesised wrappers — hard-coding `define` there would have held a
+ * third copy of the spelling axis constant.
  *
  * **Every axis is drawn per declaration, never per program.** A diagnostic about two declarations
  * has *pair-relative* properties — are they in the same construct? at the same depth? — that are
@@ -160,37 +195,110 @@ function nestInsideProcedure(declaration, depth = 1, prefix = "outer") {
  * handler bodies their own declaration scope let `define dup` + `every 1 [ define dup ]` silently
  * override across the boundary, passing all 3943 tests and 892 fixtures.
  */
-function declarationSource({ name, keyword, wrapper, depth, prefix }) {
+function declarationSource({
+  name,
+  keyword,
+  wrapper,
+  depth,
+  prefix,
+  enclosingKeyword = "define",
+}) {
   return nestInsideProcedure(
-    BLOCK_WRAPPERS[wrapper](declareProcedure(name, keyword)),
+    BLOCK_SLOT_WRAPPERS[wrapper](declareProcedure(name, keyword), prefix),
     depth,
     prefix,
+    enclosingKeyword,
   );
 }
 
 /**
- * The block-bodied constructs a declaration can sit inside, as source wrappers. `"none"` is the
- * identity so the cross-product below can treat "unwrapped" as one value of the variable rather
- * than as a special case.
+ * Every **block-bearing slot** in the AST — `(node kind, field)` pairs whose value is a `Block`, and
+ * therefore every position in the grammar where a declaration can sit.
  *
- * The four `ProfileStatement` heads are here because they are the enclosing kind an implementer is
- * most likely to special-case — "handlers run later" invites deferring their registration — and a
- * mutant exempting exactly those bodies passed every gate.
+ * **Derived, not listed.** It is computed by parsing the whole conformance corpus plus
+ * `spec/examples/` and `stdlib/` and collecting the slots that actually occur, exactly as
+ * `everyBuiltInName` is derived from the parser's registries. A hand-written wrapper list is a
+ * *sample*, and this file has already been burned twice by sampling: the `22` vs `32` residual came
+ * from a hand-picked probe list, and a hand-written seven-entry wrapper map left `while`, `for`,
+ * `forever`, comprehension bodies and — most tellingly — the **`else` branch of an `if`** un-drawn.
+ * `If.thenBody` and `If.elseBody` are the same node *kind*, so the unit of this axis is the **slot**,
+ * not the kind, and no amount of adding node kinds would have found it.
+ *
+ * Because the corpus is the stack-neutral artifact every implementation must satisfy, a construct
+ * added to the grammar arrives here as soon as it has a fixture — and {@link BLOCK_SLOT_WRAPPERS}
+ * then fails to cover it, which is the point.
  */
-const BLOCK_WRAPPERS = {
-  none: (declaration) => declaration,
-  repeat: (declaration) => `repeat 1 [ ${declaration} ]`,
-  if: (declaration) => `if true [ ${declaration} ]`,
-  when: (declaration) => `when true [ ${declaration} ]`,
-  every: (declaration) => `every 1 [ ${declaration} ]`,
-  on_key: (declaration) => `on_key "a" [ ${declaration} ]`,
-  on_click: (declaration) => `on_click [ ${declaration} ]`,
+function everyBlockSlotInTheCorpus() {
+  const slots = new Set();
+  const roots = ["tests/conformance", "spec/examples", "stdlib"];
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory)) {
+      const full = join(directory, entry);
+      if (statSync(full).isDirectory()) {
+        visit(full);
+      } else if (entry.endsWith(".logo")) {
+        const { ast, diagnostics } = parse(readFileSync(full, "utf8"), full);
+        if (diagnostics.length > 0) {
+          continue;
+        }
+        walk(ast, (node) => {
+          for (const [field, value] of Object.entries(node)) {
+            for (const item of Array.isArray(value) ? value : [value]) {
+              if (item && typeof item === "object" && item.kind === "Block") {
+                slots.add(`${node.kind}.${field}`);
+              }
+            }
+          }
+        });
+      }
+    }
+  };
+  for (const root of roots) {
+    if (existsSync(root)) {
+      visit(root);
+    }
+  }
+  return slots;
+}
+
+/**
+ * One source wrapper per block-bearing slot, plus the extra `ProfileStatement` heads.
+ *
+ * The four Interaction & Events heads and the two Sprites heads all land in the SAME slot
+ * (`ProfileStatement.body`), so covering the slot does not require all six — but they are kept
+ * because they are the constructs an implementer is most likely to special-case ("handlers run
+ * later" invites deferring their registration), and a mutant exempting exactly those bodies once
+ * passed every gate. `Program.body` is the identity wrapper, so "unwrapped" is a value of the
+ * variable rather than a special case.
+ */
+const BLOCK_SLOT_WRAPPERS = {
+  "Program.body": (declaration) => declaration,
+  "ProcedureDef.body": (declaration, unique = "") =>
+    `define wrapper_procedure${unique}\n${declaration}\nend`,
+  "Repeat.body": (declaration) => `repeat 1 [ ${declaration} ]`,
+  "If.thenBody": (declaration) => `if true [ ${declaration} ]`,
+  "If.elseBody": (declaration) =>
+    `if false [ print 1 ] else [ ${declaration} ]`,
+  "While.body": (declaration) => `while false [ ${declaration} ]`,
+  "Forever.body": (declaration) => `forever [ ${declaration} ]`,
+  "ForRange.body": (declaration) => `for i from 1 to 1 [ ${declaration} ]`,
+  "ForIn.body": (declaration) => `for i in [ 1 ] [ ${declaration} ]`,
+  "Comprehension.body": (declaration) =>
+    `print map i in [ 1 ] [ ${declaration} ]`,
+  "ProfileStatement.body": (declaration) => `when true [ ${declaration} ]`,
+  "ProfileStatement.body/every": (declaration) => `every 1 [ ${declaration} ]`,
+  "ProfileStatement.body/on_key": (declaration) =>
+    `on_key "a" [ ${declaration} ]`,
+  "ProfileStatement.body/on_click": (declaration) =>
+    `on_click [ ${declaration} ]`,
+  "ProfileStatement.body/ask": (declaration) => `ask 0 [ ${declaration} ]`,
+  "ProfileStatement.body/each": (declaration) => `each [ ${declaration} ]`,
 };
 
 /** Every declaration spelling, every nesting depth, every enclosing construct, both casings. */
 const DECLARATION_KEYWORDS = ["define", "to", "struct"];
 const NESTING_DEPTHS = [0, 1, 2];
-const WRAPPER_KINDS = Object.keys(BLOCK_WRAPPERS);
+const WRAPPER_KINDS = Object.keys(BLOCK_SLOT_WRAPPERS);
 
 // ---------------------------------------------------------------------------
 // The enumeration is real — a guard against every loop below iterating nothing
@@ -230,6 +338,62 @@ test("the derived built-in-name enumeration is non-trivial and holds the names t
 // ---------------------------------------------------------------------------
 // AC4 — "nothing shadows", enforced at runtime for EVERY built-in name
 // ---------------------------------------------------------------------------
+
+test("the wrapper axis COVERS every block-bearing slot the grammar actually has", () => {
+  // The completeness argument below rests on `(keyword, case, depth, wrapper)` characterising a
+  // declaration. That is only true if `wrapper` ENUMERATES the positions a declaration can occupy
+  // rather than sampling them. This is the assertion that makes it true, and it is derived from the
+  // corpus rather than from a list kept here — so a construct added to the grammar fails this the
+  // moment it has a fixture, instead of waiting for a reviewer to notice.
+  const required = everyBlockSlotInTheCorpus();
+  assert.ok(
+    required.size >= 10,
+    `expected the corpus to exhibit many block slots, got ${required.size}`,
+  );
+  const covered = new Set(WRAPPER_KINDS.map((kind) => kind.split("/")[0]));
+  assert.deepEqual(
+    [...required].filter((slot) => !covered.has(slot)).sort(),
+    [],
+    "every block-bearing slot needs a wrapper",
+  );
+
+  // And each wrapper really places the declaration in the slot it claims — a wrapper whose source
+  // parsed into a different slot would silently double-cover one and leave another empty.
+  for (const wrapper of WRAPPER_KINDS) {
+    const claimed = wrapper.split("/")[0];
+    if (claimed === "Program.body") {
+      continue;
+    }
+    const source = BLOCK_SLOT_WRAPPERS[wrapper](
+      "define probe_name\nend",
+      "_probe",
+    );
+    const { ast, diagnostics } = parse(source, doc);
+    assert.deepEqual(diagnostics, [], wrapper);
+    let actual = "(none)";
+    walk(ast, (node) => {
+      for (const [field, value] of Object.entries(node)) {
+        for (const item of Array.isArray(value) ? value : [value]) {
+          if (item && typeof item === "object" && item.kind === "Block") {
+            let holds = false;
+            walk(item, (inner) => {
+              if (
+                inner.kind === "ProcedureDef" &&
+                inner.name.name === "probe_name"
+              ) {
+                holds = true;
+              }
+            });
+            if (holds) {
+              actual = `${node.kind}.${field}`;
+            }
+          }
+        }
+      }
+    });
+    assert.equal(actual, claimed, wrapper);
+  }
+});
 
 test("EVERY built-in name is rejected at `define`, with `ol-reserved-word` and `params: { name }`", () => {
   // Written as one whole-list comparison rather than a filter that collects failures: a loop whose
@@ -561,8 +725,15 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
     }
   }
 
-  // The product is real, and every row ran.
-  assert.equal(rows.length, 126);
+  // The product is real, and every row ran. Derived from the axis lengths, never hand-computed —
+  // a literal cell count is a second source of truth that can disagree with the loops.
+  assert.equal(
+    rows.length,
+    DECLARATION_KEYWORDS.length *
+      2 *
+      NESTING_DEPTHS.length *
+      WRAPPER_KINDS.length,
+  );
 
   // `execute()` and `check()` agree on code, params AND span, for every cell.
   assert.deepEqual(
@@ -585,80 +756,144 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
   );
 });
 
-test("the duplicate rule is invariant across the FULL per-declaration product — every axis drawn twice", () => {
-  // Two declarations, each independently configured. This is the completeness claim, and it is
-  // checkable rather than aspirational: both diagnostics concern **at most two declarations**, each
-  // declaration is fully characterised by `(keyword, case, depth, wrapper)`, and there is no third
-  // level because there is no third declaration. Drawing all four axes INDEPENDENTLY for each of the
-  // two therefore closes the space by construction — every configuration the rule can distinguish is
-  // a cell of this product.
+// Every configuration of ONE declaration, as `{ keyword, case, depth, wrapper }`. This is the tuple
+// the completeness argument says fully characterises a declaration.
+const EVERY_DECLARATION_CONFIGURATION = DECLARATION_KEYWORDS.flatMap(
+  (keyword) =>
+    NESTING_DEPTHS.flatMap((depth) =>
+      WRAPPER_KINDS.map((wrapper) => ({ keyword, depth, wrapper })),
+    ),
+);
+
+test("the duplicate rule is invariant across the per-declaration product — every axis drawn in BOTH roles", () => {
+  // Two declarations, each independently configured. The completeness argument: both diagnostics
+  // concern **at most two declarations**, each declaration is fully characterised by
+  // `(keyword, case, depth, wrapper)`, and there is no third level because there is no third
+  // declaration. What follows draws all four axes independently for each of the two.
   //
-  // The previous revision drew one wrapper and one depth for the PAIR, so across all 252 cells the
-  // two declarations were always in the same construct at the same depth. "They sit in different
-  // constructs" was not a cell — it was outside the product. Measured: a mutant giving handler
-  // bodies their own declaration scope let `define dup` + `every 1 [ define dup ]` silently override
-  // across the boundary, passing all 3943 tests and 892 fixtures. That is issue #839's literal
-  // defect, surviving the generator written to prevent it.
-  const rows = [];
-  for (const firstKeyword of DECLARATION_KEYWORDS) {
-    for (const secondKeyword of DECLARATION_KEYWORDS) {
-      for (const laterName of ["dup", "DUP"]) {
-        for (const firstDepth of [0, 1]) {
-          for (const secondDepth of [0, 1]) {
-            for (const firstWrapper of WRAPPER_KINDS) {
-              for (const secondWrapper of WRAPPER_KINDS) {
-                const source = `${declarationSource({
-                  name: "dup",
-                  keyword: firstKeyword,
-                  wrapper: firstWrapper,
-                  depth: firstDepth,
-                  prefix: "outerA",
-                })}\n${declarationSource({
-                  name: laterName,
-                  keyword: secondKeyword,
-                  wrapper: secondWrapper,
-                  depth: secondDepth,
-                  prefix: "outerB",
-                })}`;
-                const label = `${firstKeyword}@${firstDepth}/${firstWrapper} + ${secondKeyword} ${laterName}@${secondDepth}/${secondWrapper}`;
-                const { fromExecute, fromCheck } = bothStages(source);
-                rows.push([label, fromExecute, fromCheck, laterName]);
-              }
-            }
-          }
+  // **The bound, stated plainly rather than hidden.** The unrestricted product is
+  // |config|^2 x |case| = 144^2 x 2 = 41,472 cells and takes four minutes — too slow to be run, and
+  // a test nobody runs asserts nothing. It is reduced on a stated principle, not by sampling:
+  //
+  //  1. **Every configuration appears in BOTH roles.** Each of the 144 configurations is used as the
+  //     EARLIER declaration against a fixed later one, and as the LATER declaration against a fixed
+  //     earlier one. So no configuration is unexercised in either position — which is what the
+  //     per-declaration half of the completeness argument actually requires.
+  //  2. **The one axis with a MEASURED relational defect is enumerated relationally in full.**
+  //     `wrapper x wrapper` (16 x 16) is swept completely, because that is the pair-relative axis a
+  //     mutant has actually exploited: giving handler bodies their own declaration scope let
+  //     `define dup` + `every 1 [ define dup ]` silently override across the boundary while passing
+  //     every gate. Depth is likewise swept relationally in full (3 x 3).
+  //  3. **Casing is drawn on the later declaration throughout**, since `params.name` reports the
+  //     later spelling and a fold applied only when nested survived a lowercase-only product.
+  //
+  // What that deliberately does NOT cover is a defect requiring a specific *combination* of two
+  // configurations differing in three or more axes at once. If such a mutant is ever found, this
+  // bound is where it got in, and the honest fix is to widen the sweep rather than to add its cell.
+  const fixedEarlier = { keyword: "define", depth: 0, wrapper: "Program.body" };
+  const fixedLater = { keyword: "define", depth: 0, wrapper: "Program.body" };
+
+  const pairs = [];
+  for (const configuration of EVERY_DECLARATION_CONFIGURATION) {
+    for (const laterName of ["dup", "DUP"]) {
+      pairs.push([configuration, fixedLater, laterName, "earlier role"]);
+      pairs.push([fixedEarlier, configuration, laterName, "later role"]);
+    }
+  }
+  for (const firstWrapper of WRAPPER_KINDS) {
+    for (const secondWrapper of WRAPPER_KINDS) {
+      pairs.push([
+        { keyword: "define", depth: 0, wrapper: firstWrapper },
+        { keyword: "to", depth: 0, wrapper: secondWrapper },
+        "DUP",
+        "wrapper x wrapper",
+      ]);
+    }
+  }
+  for (const firstDepth of NESTING_DEPTHS) {
+    for (const secondDepth of NESTING_DEPTHS) {
+      for (const firstKeyword of DECLARATION_KEYWORDS) {
+        for (const secondKeyword of DECLARATION_KEYWORDS) {
+          pairs.push([
+            {
+              keyword: firstKeyword,
+              depth: firstDepth,
+              wrapper: "Program.body",
+            },
+            {
+              keyword: secondKeyword,
+              depth: secondDepth,
+              wrapper: "Program.body",
+            },
+            "DUP",
+            "depth x depth x keyword x keyword",
+          ]);
         }
       }
     }
   }
 
-  // 3 keywords x 3 keywords x 2 casings x 2 depths x 2 depths x 7 wrappers x 7 wrappers.
-  assert.equal(rows.length, 3 * 3 * 2 * 2 * 2 * 7 * 7);
-
-  // `execute()` and `check()` agree on code, params AND span, in every cell.
-  assert.deepEqual(
-    rows.map(([label, fromExecute]) => [label, fromExecute]),
-    rows.map(([label, , fromCheck]) => [label, fromCheck]),
+  assert.equal(
+    pairs.length,
+    EVERY_DECLARATION_CONFIGURATION.length * 2 * 2 +
+      WRAPPER_KINDS.length * WRAPPER_KINDS.length +
+      NESTING_DEPTHS.length *
+        NESTING_DEPTHS.length *
+        DECLARATION_KEYWORDS.length *
+        DECLARATION_KEYWORDS.length,
   );
 
-  // Each cell reports exactly one `ol-duplicate-definition` naming the LATER spelling as written.
-  assert.deepEqual(
-    rows.map(([label, fromExecute]) => [
-      label,
-      fromExecute.map(([code, params]) => [code, params.name]),
-    ]),
-    rows.map(([label, , , laterName]) => [
-      label,
-      [["ol-duplicate-definition", laterName]],
-    ]),
-  );
+  const rows = pairs.map(([earlier, later, laterName, group]) => {
+    const source = `${declarationSource({
+      ...earlier,
+      name: "dup",
+      prefix: "outerA",
+      enclosingKeyword: "define",
+    })}\n${declarationSource({
+      ...later,
+      name: laterName,
+      prefix: "outerB",
+      enclosingKeyword: "to",
+    })}`;
+    const label = `[${group}] ${earlier.keyword}@${earlier.depth}/${earlier.wrapper} + ${later.keyword} ${laterName}@${later.depth}/${later.wrapper}`;
+    return [label, bothStages(source), laterName];
+  });
 
-  // …and every cell carries `original_span`, so the earlier declaration is always identified.
-  assert.deepEqual(
-    rows.map(([label, fromExecute]) => [
+  // Compared as compact per-row strings rather than nested objects: a 913-row `deepEqual` over
+  // object graphs produces a diff no one can read, which makes a real failure as good as invisible.
+  // Every row is still built and compared, so no line here goes unexecuted.
+  const describe = ([label, stages, laterName]) =>
+    [
       label,
-      fromExecute.map(([, params]) => params.original_span !== undefined),
-    ]),
-    rows.map(([label]) => [label, [true]]),
+      stages.fromExecute
+        .map(
+          ([code, params]) =>
+            `${code}:${params.name}:${params.original_span !== undefined}`,
+        )
+        .join(","),
+      stages.fromCheck
+        .map(
+          ([code, params]) =>
+            `${code}:${params.name}:${params.original_span !== undefined}`,
+        )
+        .join(","),
+      `diagnostics=${stages.executeDiagnosticCount}`,
+      `events=${stages.events}`,
+      laterName,
+    ].join(" | ");
+
+  assert.deepEqual(
+    rows.map(describe),
+    rows.map(([label, , laterName]) =>
+      [
+        label,
+        `ol-duplicate-definition:${laterName}:true`,
+        `ol-duplicate-definition:${laterName}:true`,
+        "diagnostics=1",
+        "events=0",
+        laterName,
+      ].join(" | "),
+    ),
   );
 });
 
