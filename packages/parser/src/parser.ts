@@ -550,6 +550,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * callable — `true`/`false` are literals and `map`/`filter`/`reduce` open a comprehension, none of
    * which is a `callable-name`. Hand-restating that second list here is the very drift this issue
    * fixed one layer up, so it is computed instead.
+   *
+   * **This answer is load-bearing for the Heritage `value-of-reader` (issue #830).** Because
+   * {@link parseParenthesized} consults it on the head token, `value` answering **false** here is
+   * the whole reason `( value of :d for key "a" )` reaches {@link parseValueOfKey} instead of being
+   * taken as a `parenthesized-call` on a callee named `value` — the grammar derives the reader
+   * inside parentheses (`spec/grammar.md:199,203,213,217`), and returning true for `value` makes
+   * that derivation unreachable, which is exactly the `ol-bad-token` defect #830 reported. The
+   * false comes from `value` being in {@link NON_PRIMARY_NAMES} via its presence in
+   * {@link OL_KEYWORDS} — a property #885 established when it replaced a hand-written list with
+   * that derivation, incidentally fixing #830 without naming it.
+   *
+   * Precisely: what would reopen #830 is dropping `value` from {@link OL_KEYWORDS} (it would leave
+   * {@link NON_PRIMARY_NAMES}, and the final clause would then answer true), or special-casing it
+   * to true here. Moving it into {@link EXPRESSION_INITIAL_KEYWORDS} would **not** — it would leave
+   * {@link NON_PRIMARY_NAMES}, but the final clause negates that same set, so the answer stays
+   * false. That edit breaks the *other* rule instead, #853's rejection of a bare `value` in
+   * expression position. Both cases are covered: `value-of-key-in-parentheses.test.mjs` and the two
+   * `heritage-value-of-key-reader-in-parentheses` conformance fixtures fail on the former, and that
+   * test file's bare-`value` case fails on the latter.
    */
   function isCalleeName(text: string): boolean {
     const lower = text.toLowerCase();
@@ -1108,6 +1127,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
    * `value` (never a callable: it is a keyword, `spec/grammar.md:358,371`) is
    * rejected in expression position like every other misplaced keyword (issue #853).
+   *
+   * The reader is legal **wrapped in parentheses** too — `( value of :d for key "a" )` — because
+   * `primary` (`spec/grammar.md:193-204`) offers `parenthesized-expression` (:199) and
+   * `value-of-reader` (:203) side by side. That shape arrives here through
+   * {@link parseParenthesized}'s fall-through rather than through a `parenthesized-call`; see
+   * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
     advance(); // "value"
@@ -1391,6 +1416,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const lower = head.kind === "name" ? head.text.toLowerCase() : "";
     // A parenthesized head that is a callable — including the variadic logic words `and`/`or`,
     // which are not fixed-arity callees elsewhere — gathers every operand up to the `)`.
+    //
+    // Everything this branch declines falls through to the plain `parenthesized-expression`
+    // (`spec/grammar.md:213`) below, which re-enters the full `expression` grammar — and that is
+    // how the Heritage `value-of-reader` (:203, defined :217) stays reachable inside parentheses,
+    // as `primary` (:193-204) requires (issue #830). `value` is not an `isCalleeName`, so
+    // `( value of :d for key "a" )` declines here, reaches `parseExpression()`, and lands in
+    // {@link parseNamePrimary}'s `value`-then-`of` interception. Widening this condition to admit
+    // a worded reader's head word would swallow the reader and re-open #830.
     if (
       head.kind === "name" &&
       (isCalleeName(head.text) || lower === "and" || lower === "or")
