@@ -6,8 +6,9 @@
  * ## What it buys, and what it does not
  * Two wants, one mechanism (issue #876):
  * - **A genuinely blocking `input`.** One `execute()` per run, however many questions — no
- *   re-execution, no N+1 cost, and the prefix the learner has already seen is literally the same
- *   array the run keeps extending.
+ *   re-execution, no N+1 cost, and each report **extends** the last rather than replacing it, so
+ *   what the learner has already seen is always a prefix of what comes next. (Inside the Worker it
+ *   is one growing array; what crosses the boundary is a snapshot, since structured clone copies.)
  * - **A preemptible Stop.** `@openlogo/runtime` checks `ExecuteOptions.signal` before every
  *   statement, so a flag another thread sets aborts a loop *mid* `execute()`. A same-thread studio
  *   could never do that (`run-controller.ts`'s doc comment has recorded the limitation since #126);

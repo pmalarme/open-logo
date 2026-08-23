@@ -898,7 +898,8 @@ export function createRunController(
     animation = current;
     // #769 — resume the picture instead of redrawing it. A later attempt in the same chain replays
     // the whole program, so its stream starts with everything the previous attempt already drew
-    // (under a Worker host it is literally the same growing stream). Consume that prefix silently
+    // (under a Worker host each report extends the last, so the prefix is the same either way).
+    // Consume that prefix silently
     // (no snapshot is pushed until playback proper begins, so the canvas never blanks) and let
     // paced playback carry on from the read.
     //

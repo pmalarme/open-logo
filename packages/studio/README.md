@@ -291,8 +291,11 @@ window; do not read the section above as describing a bug this removes.
 the prompt and nothing else, so a parked Worker would have no way to report what the program had
 already drawn — worse than #769, which draws the square and *then* asks.
 `ExecuteOptions.observedEvents` (#876, `@openlogo/runtime`) is a caller-supplied array the run
-appends to live; it *is* the array `ExecuteResult.events` reports at the end, so it only makes the
-stream readable earlier. `spec/interaction-events.md:108-110` explicitly permits continuing to render
+appends to live, so the stream is readable **during** execution rather than only when `execute()`
+returns. Rely on its contents, not on identity: for a program that runs it is the same array
+`ExecuteResult.events` reports, but a call returning before an execution environment exists — a
+parse failure, say — never reaches the sink and reports its own separate empty array.
+`spec/interaction-events.md:108-110` explicitly permits continuing to render
 already-emitted events while `input` waits, and this is the seam that makes that allowance reachable.
 
 **A settlement carries reduced output, not just events.** Structured clone drops class prototypes: an

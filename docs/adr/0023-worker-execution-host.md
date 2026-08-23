@@ -72,11 +72,15 @@ memory.
 current studio test". It does not. The controller was already asynchronous-by-continuation —
 `present`/`respond` callbacks, generation counters, and a paced scheduler already leave `runStatus`
 at `"running"` across many event-loop turns — so a host that settles through a callback fits the
-existing shape. All 439 pre-existing studio tests pass untouched.
+existing shape. No pre-existing studio test needed changing — the only edits to existing test files
+are appended cases.
 
 **4. `@openlogo/runtime` gains `ExecuteOptions.observedEvents`.** A caller-supplied array the run
-appends every trace event to as it is emitted; it *is* the array `ExecuteResult.events` reports at
-the end, so supplying it only makes the stream readable **earlier**. The reader is called with the
+appends every trace event to as it is emitted, so the stream is readable **during** execution rather
+than only when `execute()` returns. Rely on its *contents*, not on identity: for a program that runs
+it is the same array `ExecuteResult.events` reports, but a call returning before an execution
+environment exists — a parse failure, say — never reaches the sink and reports its own separate empty
+array. The reader is called with the
 prompt and nothing else, so without it a Worker parked inside a read cannot tell the main thread what
 the program has drawn — and the learner is asked a question over a **blank canvas**, a straight
 regression against #769, which draws the square and *then* asks.
@@ -99,9 +103,11 @@ deployment decision belongs to the maintainer.
 
 ## Consequences
 
-**A genuinely blocking read.** One `execute()` per run, however many questions. The prefix the
-learner has already seen is literally the same growing array the run keeps extending, so "attempt
-*k+1* begins with attempt *k*" stops being an argument and becomes an identity.
+**A genuinely blocking read.** One `execute()` per run, however many questions. Each report extends
+the last rather than replacing it — the events the learner has already seen are a **prefix** of every
+later report, so "attempt *k+1* begins with attempt *k*" stops being an argument about determinism
+and becomes a property of a single growing stream. (In the Worker it *is* one array; what crosses
+the boundary is a snapshot of it, since structured clone copies.)
 
 **A preemptible Stop.** The Worker's `CancellationSignal` is a getter over `Atomics.load`, so Stop
 takes effect on the interpreter's very next statement. A `repeat 100000 [ … ]` halts where it is
