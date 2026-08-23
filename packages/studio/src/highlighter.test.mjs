@@ -10,6 +10,7 @@ import { test } from "node:test";
 import {
   DEFAULT_CHECK_PROFILES,
   highlight,
+  OL_PROFILE_KEYWORDS,
   OL_TOKEN_CLASSES,
 } from "@openlogo/parser";
 import * as OL from "@openlogo/studio";
@@ -131,16 +132,14 @@ test("every token's start/end positions round-trip onto the exact source substri
 // is inactive" in `primitive`. Both directions are asserted below over the same fixture, because a
 // highlighter that ignored the profile set entirely would still satisfy either one alone.
 
-/** The seven words whose token class depends on the active profile set. */
-const PROFILE_BLOCK_HEADS = [
-  "tell",
-  "ask",
-  "each",
-  "when",
-  "every",
-  "on_key",
-  "on_click",
-];
+/**
+ * The words whose token class depends on the active profile set — derived from the parser's own
+ * registry rather than restated here, so a profile block-head added parser-side is covered by these
+ * tests automatically. That is this repo's house rule for profile-specific names (compare
+ * `packages/parser/src/profile-arity-derivation.test.mjs` and `checker-reserved-word.test.mjs`,
+ * both of which are driven off the registry rather than a hand-kept list).
+ */
+const PROFILE_BLOCK_HEADS = Object.values(OL_PROFILE_KEYWORDS).flat();
 
 /**
  * A well-formed program (zero parse diagnostics, and zero `check()` findings under the studio's
@@ -196,7 +195,7 @@ function classOf(tokens, text) {
 test("the default profile set classifies every active-profile block-head as keyword", () => {
   const tokens = createParserHighlighter()(PROFILE_BLOCK_HEAD_SOURCE);
 
-  assert.equal(PROFILE_BLOCK_HEADS.length, 7);
+  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
   for (const word of PROFILE_BLOCK_HEADS) {
     assert.equal(classOf(tokens, word), "ol-tok-keyword", word);
   }
@@ -207,7 +206,22 @@ test("an explicit Core-Language-only set classifies those same words as primitiv
     PROFILE_BLOCK_HEAD_SOURCE,
   );
 
-  assert.equal(PROFILE_BLOCK_HEADS.length, 7);
+  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
+  for (const word of PROFILE_BLOCK_HEADS) {
+    assert.equal(classOf(tokens, word), "ol-tok-primitive", word);
+  }
+});
+
+test("an explicitly empty profile set is honored, not replaced by the default", () => {
+  // `[]` is a legitimate, observable request — "no profiles active at all", which the parser
+  // supports explicitly — so `??` must not treat it like an omitted option. Without this, a
+  // `options.profiles?.length ? … : STUDIO_PROFILES` regression that silently overrode a caller's
+  // deliberate empty set would ship green.
+  const tokens = createParserHighlighter({ profiles: [] })(
+    PROFILE_BLOCK_HEAD_SOURCE,
+  );
+
+  assert.ok(PROFILE_BLOCK_HEADS.length > 0);
   for (const word of PROFILE_BLOCK_HEADS) {
     assert.equal(classOf(tokens, word), "ol-tok-primitive", word);
   }

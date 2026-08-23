@@ -181,6 +181,18 @@ test("an explicit Core-Language-only set additionally flags the profile command"
   assert.deepEqual(reportedNames(state), ["beep", "flibbertigibbet"]);
 });
 
+test("an explicitly empty profile set is honored by the checker too", () => {
+  // The `check()` half of the same guard: `[]` means "no profiles active", so even Core Language's
+  // own `print` is an unknown command. A regression that quietly substituted the studio default
+  // would report nothing here.
+  const state = createStudioState();
+  createDiagnosticsController(state, { profiles: [], semanticCheck: true });
+
+  state.setSource("print 1\nflibbertigibbet");
+
+  assert.deepEqual(reportedNames(state), ["print", "flibbertigibbet"]);
+});
+
 test("the checker and the editor agree about a profile word under the shared default", () => {
   // The contradiction #740 exists to remove, on one program: the editor paints `ask` as the keyword
   // it is while the checker, reading the same default set, treats it as an available name and

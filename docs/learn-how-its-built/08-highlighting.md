@@ -88,7 +88,7 @@ profiles this build supports, so `ask` reads as the keyword it is.
 ℹ️ **The code blocks in these docs are not colored by OpenLogo** — the `.logo` snippets you read on
 GitHub are painted by GitHub's own markdown renderer, not by OpenLogo's highlighter. The docs
 toolchain checks every one of those snippets, and runs the ones whose parts of the language are
-built yet, but it never *colors* one — so there's nothing here that needs telling which parts are
+built, but it never *colors* one — so there's nothing here that needs telling which parts are
 switched on.
 
 ℹ️ **A few classes need the tree, not just tokens** — most classes (keyword, number, primitive,
