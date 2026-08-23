@@ -117,15 +117,62 @@ function declarationSlotIdentity(diagnostics) {
   );
 }
 
-/** `fullIdentity` of `execute()` and of `check()` for one source, for direct comparison. */
+/**
+ * A value rendered with object keys in sorted order, so two structurally equal diagnostics can never
+ * differ merely by key insertion order.
+ */
+function stableText(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableText).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${key}:${stableText(value[key])}`)
+      .join(",")}}`;
+  }
+  return String(value);
+}
+
+/**
+ * The **comparable row** for one stage: every declaration-slot diagnostic rendered as one compact
+ * string carrying `code`, the WHOLE of `params`, and `source_span`.
+ *
+ * **This is the single place that decides which facets are compared, and it exists because two
+ * readability refactors quietly narrowed the comparison twice.** Both cross-products used to project
+ * the identity down to `code:params.name` in their own formatters — computing `source_span` and
+ * throwing it away, and rendering `original_span` as a mere boolean. Measured: a mutant widening the
+ * reported span **inside loop and comprehension bodies only**, and one pointing `original_span` at
+ * the later declaration when the earlier sat in a loop body, both passed the entire Definition of
+ * Done. They are round 5's and round 4's defects re-emerging in the slots round 8's derivation
+ * added, which arrived covered for code and name and blind for spans.
+ *
+ * Per-caller formatting is what re-opened this three times (NB14, NB17, and again here), so the
+ * formatting lives at the helper. A caller can choose what to *assert*; it cannot choose what a row
+ * *contains*.
+ */
+function comparableRow(diagnostics) {
+  return declarationSlotIdentity(diagnostics)
+    .map(
+      ([code, params, span]) =>
+        `${code} params=${stableText(params)} span=${stableText(span)}`,
+    )
+    .join(" ;; ");
+}
+
+/**
+ * Both stages' comparable rows for one source, plus the two count facets. Every consumer compares
+ * `fromExecuteRow` against `fromCheckRow`; nothing downstream re-projects the identity.
+ */
 function bothStages(source) {
   const { ast } = parse(source, doc);
   const ran = execute(source, doc);
+  const checked = check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics;
   return {
     fromExecute: declarationSlotIdentity(ran.diagnostics),
-    fromCheck: declarationSlotIdentity(
-      check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics,
-    ),
+    fromCheck: declarationSlotIdentity(checked),
+    fromExecuteRow: comparableRow(ran.diagnostics),
+    fromCheckRow: comparableRow(checked),
     executeDiagnosticCount: ran.diagnostics.length,
     events: ran.events.length,
   };
@@ -359,6 +406,68 @@ test("the derived built-in-name enumeration is non-trivial and holds the names t
 // ---------------------------------------------------------------------------
 // AC4 — "nothing shadows", enforced at runtime for EVERY built-in name
 // ---------------------------------------------------------------------------
+
+test("the COMPARATOR distinguishes diagnostics that differ only in a span or a param", () => {
+  // Every other guard in this file protects the ENUMERATION — that the axes are complete and the
+  // cells all run. Nothing protected the COMPARISON, and twice a readability refactor narrowed it
+  // without any test noticing: `source_span` was computed and dropped, and `original_span` was
+  // rendered as a boolean. A narrowed comparator is the exact dual of a held-constant variable —
+  // the cells vary, and the assertion cannot see it — so it needs a guard of its own.
+  const span = (startLine) => ({
+    document: doc,
+    start: [startLine, 8],
+    end: [startLine, 11],
+  });
+  const base = [
+    {
+      code: "ol-duplicate-definition",
+      params: { name: "dup", original_span: span(1) },
+      source_span: span(4),
+    },
+  ];
+  const differentSourceSpan = [{ ...base[0], source_span: span(5) }];
+  const differentOriginalSpan = [
+    { ...base[0], params: { name: "dup", original_span: span(2) } },
+  ];
+  const differentName = [
+    { ...base[0], params: { name: "DUP", original_span: span(1) } },
+  ];
+
+  assert.notEqual(
+    comparableRow(base),
+    comparableRow(differentSourceSpan),
+    "a differing source_span must change the row",
+  );
+  assert.notEqual(
+    comparableRow(base),
+    comparableRow(differentOriginalSpan),
+    "a differing original_span must change the row — not merely its presence",
+  );
+  assert.notEqual(
+    comparableRow(base),
+    comparableRow(differentName),
+    "a differing params.name must change the row",
+  );
+  // Key order must NOT change it, or every product would diff on incidental ordering.
+  assert.equal(
+    comparableRow(base),
+    comparableRow([
+      {
+        source_span: span(4),
+        params: { original_span: span(1), name: "dup" },
+        code: "ol-duplicate-definition",
+      },
+    ]),
+  );
+  // And a diagnostic outside the two declaration-slot codes stays filtered out.
+  assert.equal(
+    comparableRow([
+      ...base,
+      { code: "ol-no-value", params: {}, source_span: span(9) },
+    ]),
+    comparableRow(base),
+  );
+});
 
 test("the wrapper axis COVERS every block-bearing slot the grammar actually has", () => {
   // The completeness argument below rests on `(keyword, case, depth, wrapper)` characterising a
@@ -759,15 +868,19 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
 
   // Compared as compact per-row strings: a diff over nested object graphs at this size is
   // unreadable, and an assertion that fires while explaining nothing gets worked around rather than
-  // understood. The expected name comes from the row's own `name`, not from re-parsing the label —
-  // a label is for humans, and deriving an expectation from it makes the two drift together.
+  // understood. The row comes from `bothStages`, which decides the facets — code, the WHOLE of
+  // params, and source_span — so a formatter here cannot narrow the comparison, which is what
+  // happened twice before. The expected name comes from the row's own `name`, not from re-parsing
+  // the label: a label is for humans, and deriving an expectation from it makes the two drift.
+  assert.deepEqual(
+    rows.map(([label, stages]) => [label, stages.fromExecuteRow]),
+    rows.map(([label, stages]) => [label, stages.fromCheckRow]),
+  );
+
   const describe = ([label, stages, name]) =>
     [
       label,
       stages.fromExecute
-        .map(([code, params]) => `${code}:${params.name}`)
-        .join(","),
-      stages.fromCheck
         .map(([code, params]) => `${code}:${params.name}`)
         .join(","),
       `diagnostics=${stages.executeDiagnosticCount}`,
@@ -780,7 +893,6 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
     rows.map(([label, , name]) =>
       [
         label,
-        `ol-reserved-word:${name}`,
         `ol-reserved-word:${name}`,
         "diagnostics=1",
         "events=0",
@@ -893,19 +1005,17 @@ test("the duplicate rule is invariant across the per-declaration product — eve
     return [label, bothStages(source), laterName];
   });
 
-  // Compared as compact per-row strings rather than nested objects: a 913-row `deepEqual` over
-  // object graphs produces a diff no one can read, which makes a real failure as good as invisible.
-  // Every row is still built and compared, so no line here goes unexecuted.
+  // Cross-stage agreement on the FULL identity — code, every param including `original_span`'s
+  // value, and `source_span`. Asserted from the helper's row so no formatter here can narrow it.
+  assert.deepEqual(
+    rows.map(([label, stages]) => [label, stages.fromExecuteRow]),
+    rows.map(([label, stages]) => [label, stages.fromCheckRow]),
+  );
+
   const describe = ([label, stages, laterName]) =>
     [
       label,
       stages.fromExecute
-        .map(
-          ([code, params]) =>
-            `${code}:${params.name}:${params.original_span !== undefined}`,
-        )
-        .join(","),
-      stages.fromCheck
         .map(
           ([code, params]) =>
             `${code}:${params.name}:${params.original_span !== undefined}`,
@@ -921,7 +1031,6 @@ test("the duplicate rule is invariant across the per-declaration product — eve
     rows.map(([label, , laterName]) =>
       [
         label,
-        `ol-duplicate-definition:${laterName}:true`,
         `ol-duplicate-definition:${laterName}:true`,
         "diagnostics=1",
         "events=0",
@@ -994,8 +1103,8 @@ test("EVERY built-in name — all 148, not just the two the cross-product sample
     // asserted here too: `bothStages` filters to the two declaration-slot codes, so without the
     // count a spurious extra diagnostic would hide behind the filter.
     assert.deepEqual(
-      rows.map(([name, stages]) => [name, stages.fromExecute]),
-      rows.map(([name, stages]) => [name, stages.fromCheck]),
+      rows.map(([name, stages]) => [name, stages.fromExecuteRow]),
+      rows.map(([name, stages]) => [name, stages.fromCheckRow]),
       `depth ${depth}`,
     );
     assert.deepEqual(
