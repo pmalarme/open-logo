@@ -37,7 +37,19 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    descriptions; progressive hints / no-spoilers).
 8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`
    citation** the change writes or touches is re-derived against the current tree, or replaced by a
-   pointer at what produces it (see "Derived counts in prose" below).
+   pointer at what produces it (see "Derived counts in prose" below). **A change to any built-in
+   name is machine-gated**: `npm run built-in-names` asserts `spec/built-in-names.json` — the
+   authoritative list of every keyword and primitive, aliases included
+   ([ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against
+   `@openlogo/parser`'s registries in **both** directions, and reaches the three hand-maintained
+   prose lists that nothing used to check. Two of them are **compared**: `spec/grammar.md`'s
+   normative keyword block, against the list, and `spec/tooling.md`'s C19 mirror, against that
+   block. The third, `spec/tooling.md`'s `keyword` **token-class** enumeration (a different set from
+   the keyword list on purpose, `spec/grammar.md:378`), is **change-detected only** — an edit is
+   noticed, and nothing verifies the edited row is still correct. Adding or removing a **primitive**
+   is therefore a deliberate **two-file** change — the registry and the list — and CI is red until
+   both land; a **keyword** touches the prose lists too. The list is under `spec/`, so changing it
+   needs a maintainer review via `CODEOWNERS`.
 9. **Self-review passed before the PR** — the implementing agent ran
    [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
    the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
@@ -159,6 +171,7 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] build + type-check   - [ ] lint (+ style)   - [ ] unit   - [ ] 100% coverage (line/branch/function)
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
+- [ ] `npm run built-in-names` green (any keyword/primitive change is a two-file change: registry + `spec/built-in-names.json`)
 - [ ] docs + spec cross-links updated
 - [ ] every count and `file:line` citation re-derived against the current tree (or replaced by a pointer)
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)

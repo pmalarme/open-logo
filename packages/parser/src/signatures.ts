@@ -84,33 +84,59 @@ export function corePrimitiveArity(name: string): number | undefined {
 }
 
 /**
- * Default arities for the **Turtle & Rendering** profile's Core-spelled primitives (issue #193),
- * derived from the Turtle movement / Pen and screen tables in
- * [`spec/commands.md`](../../../spec/commands.md). Registers the canonical underscored names plus
- * the small set of Turtle & Rendering (not Heritage) aliases the spec documents inline —
- * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`), `setcolor`/`setbg` (issue #208;
- * `spec/commands.md:1521,1539`), and `setwidth` (issue #209; `spec/commands.md:1556`).
- * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely
- * **Heritage**-profile (M5) short spellings and stay out of this table — the Heritage profile's
- * short-alias list is closed by `spec/conformance.md:105-117`, and `setxy`/`seth`/`setcolor`/
- * `setbg`/`setwidth` are not members of it. Kept
- * as a separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
- * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
- * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via
- * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive
- * regardless of profile — the profile-legality decision belongs to the checker, not the reader.
+ * The **Turtle & Rendering** profile's primitives (issue #193), derived from the Turtle movement /
+ * Pen and screen tables in [`spec/commands.md`](../../../spec/commands.md). Each row is a canonical
+ * name, its arity, and — for five of them — the one-word alias spelling `spec/commands.md`
+ * documents inline: `setxy`/`seth` (issue #202; `spec/commands.md:1280,1297`), `setcolor`/`setbg`
+ * (issue #208; `spec/commands.md:1522,1540`), and `setwidth` (issue #209; `spec/commands.md:1557`).
+ *
+ * **The alias lives on its canonical's row rather than in a table beside it.** Until issue #841 the
+ * five were independent arity entries with no recorded relationship, so nothing anywhere could
+ * answer "what is `setxy` an alias *of*?" — `canonicalOfHeritageAlias("setxy")` returns `undefined`,
+ * because they are not Heritage (`spec/conformance.md:148-157` closes that list and none of them is
+ * in it). That made the edge unverifiable: `spec/built-in-names.json` records `setxy → set_xy`, and
+ * the strongest check available against an unrecorded edge was "the target is some entry of equal
+ * arity", which accepts `setxy → distance` just as happily.
+ * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §3 requires of #841 an
+ * enumerable canonical map *"consumed by the resolver, so it cannot drift"*.
+ *
+ * The map is enumerable. The **consumption** half is not satisfied, so this is the narrow claim:
+ * keeping the pair on one row removes the duplicate **arity** — both spellings take the same literal
+ * because the row holds only one — and nothing more.
+ * {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly and never consults the
+ * canonical map, so **which canonical a spelling maps to is still two facts**: this table's alias
+ * column, and the runtime's own dispatch in `packages/runtime/src/execute-internal.ts`. Move an
+ * alias column onto a different row of equal arity and update `spec/built-in-names.json` to match,
+ * and the gate agrees while the runtime still dispatches the old way. Only a hand-written pin in
+ * this slice's own `scripts/built-in-names-gate.test.mjs` notices, and **nothing compares either
+ * fact against the runtime's dispatch**. Closing that needs a real consumer of the map, which this
+ * slice does not add; the gap is recorded on #841.
+ *
+ * It does **not** change what the five mean at a call site: they remain independent spellings bound
+ * to one primitive, with no canonicalisation in either direction, which is exactly the call-site
+ * split that makes them built-in names in the first place
+ * ([LDR-0007](../../../docs/design-notes/0007-binding-vs-registration.md)).
+ *
+ * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely **Heritage**-profile (M5) short
+ * spellings and are not here. Kept as a separate table from {@link CORE_PRIMITIVE_ARITY} because
+ * the two profiles have independent visibility: the Layer-2 checker gates each on its own active
+ * profile (`spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any*
+ * recognized primitive regardless of profile — the profile-legality decision belongs to the
+ * checker, not the reader.
  */
-const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
+const TURTLE_PRIMITIVES: readonly (readonly [
+  canonical: string,
+  arity: number,
+  alias?: string,
+])[] = [
   // Turtle movement.
   ["forward", 1],
   ["back", 1],
   ["left", 1],
   ["right", 1],
   ["home", 0],
-  ["set_xy", 2],
-  ["setxy", 2], // Turtle & Rendering alias of `set_xy` (spec/commands.md:1279), not Heritage.
-  ["set_heading", 1],
-  ["seth", 1], // Turtle & Rendering alias of `set_heading` (spec/commands.md:1296), not Heritage.
+  ["set_xy", 2, "setxy"],
+  ["set_heading", 1, "seth"],
   ["xcor", 0],
   ["ycor", 0],
   ["heading", 0],
@@ -124,21 +150,60 @@ const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
   ["pen_down", 0],
   ["clear_screen", 0],
   ["clean", 0],
-  ["set_color", 1],
-  ["setcolor", 1], // Turtle & Rendering alias of `set_color` (spec/commands.md:1521), not Heritage.
-  ["set_background", 1],
-  ["setbg", 1], // Turtle & Rendering alias of `set_background` (spec/commands.md:1539), not Heritage.
-  ["set_width", 1],
-  ["setwidth", 1], // Turtle & Rendering alias of `set_width` (spec/commands.md:1556), not Heritage.
+  ["set_color", 1, "setcolor"],
+  ["set_background", 1, "setbg"],
+  ["set_width", 1, "setwidth"],
   ["fill", 0],
   ["stamp", 0],
   ["set_shape", 1],
-]);
+];
+
+/** Every Turtle & Rendering primitive name — canonical and alias spellings alike — to its arity. */
+const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map(
+  TURTLE_PRIMITIVES.flatMap(([canonical, arity, alias]): [string, number][] =>
+    alias === undefined
+      ? [[canonical, arity]]
+      : [
+          [canonical, arity],
+          [alias, arity],
+        ],
+  ),
+);
+
+/** Each one-word alias spelling to the canonical name it is a spelling of. */
+const TURTLE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map(
+  TURTLE_PRIMITIVES.flatMap(([canonical, , alias]): [string, string][] =>
+    alias === undefined ? [] : [[alias, canonical]],
+  ),
+);
 
 /**
- * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of
- * the Core-spelled turtle primitives registered in {@link TURTLE_PRIMITIVE_ARITY}. Matching is
- * case-insensitive.
+ * The canonical Turtle & Rendering name `name` is a one-word alias spelling of, or `undefined` when
+ * it is not one of the five. Matching is case-insensitive, like every other name lookup here. The
+ * Heritage counterpart is {@link canonicalOfHeritageAlias}.
+ */
+export function canonicalOfTurtleAlias(name: string): string | undefined {
+  return TURTLE_ALIAS_CANONICAL.get(name.toLowerCase());
+}
+
+/** Every Turtle & Rendering one-word alias spelling, sorted for deterministic iteration. */
+const TURTLE_ALIAS_NAMES: readonly string[] = Object.freeze(
+  [...TURTLE_ALIAS_CANONICAL.keys()].sort(),
+);
+
+/**
+ * The five Turtle & Rendering one-word alias spellings, in sorted order. The enumerable half of
+ * {@link canonicalOfTurtleAlias}, so a consumer can walk the edges rather than probe for them.
+ */
+export function turtleAliasNames(): readonly string[] {
+  return TURTLE_ALIAS_NAMES;
+}
+
+/**
+ * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of the
+ * primitives registered in {@link TURTLE_PRIMITIVE_ARITY} — which holds the canonical spellings
+ * **and** the five one-word alias spellings, each sharing its canonical's arity because they share
+ * a row in {@link TURTLE_PRIMITIVES}. Matching is case-insensitive.
  *
  * `TURTLE_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility
  * slice (issue #136) that makes turtle primitives visible to `ol-unknown-command`
@@ -156,13 +221,12 @@ export function turtlePrimitiveArity(name: string): number | undefined {
 }
 
 /**
- * Every Turtle & Rendering primitive's canonical lowercase name, sorted for deterministic
- * iteration. This is the enumerable counterpart to {@link turtlePrimitiveArity} — the checker's
- * visible-name model (`checker-names.ts`, issue #136) needs the full name *list*, gated on the
- * `turtle-rendering` profile, to make these primitives both callable without `ol-unknown-command`
- * and candidates for its did-you-mean suggestions — mirroring {@link corePrimitiveNames}'s role
- * for the Core table. Kept as a frozen array computed once so callers cannot mutate the shared
- * table.
+ * Every Turtle & Rendering primitive name — the canonical spellings and the five one-word alias
+ * spellings alike — sorted for deterministic iteration. Both belong here: `spec/tooling.md`'s
+ * `primitive` token class covers aliases explicitly, and `spec/grammar.md:414` makes every alias
+ * spelling a built-in name, so a consumer asking what the profile registers must be told about
+ * `setxy` as well as `set_xy`. The arities behind the five are shared with their canonicals rather
+ * than duplicated — see {@link TURTLE_ALIAS_CANONICAL}.
  */
 const TURTLE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
   [...TURTLE_PRIMITIVE_ARITY.keys()].sort(),

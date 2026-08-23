@@ -103,6 +103,15 @@ export {
   // rather than enumerated, and how its tests assert coverage of primitives they never name.
   activeProfilePrimitiveArityRange,
   profilePrimitiveNames,
+  // The Turtle & Rendering alias half: `setxy`/`seth`/`setcolor`/`setbg`/`setwidth` and the
+  // canonical each is a spelling of (issue #841). An `aliasOf` edge nothing exposes is an edge
+  // nothing can verify, so ADR-0021 §3 requires an enumerable canonical map "consumed by the
+  // resolver, so it cannot drift". The map is enumerable; the consumption half is NOT satisfied.
+  // Sharing a row removes the duplicate arity and nothing more — `turtlePrimitiveArity` never
+  // consults this map, so which canonical a spelling maps to remains two facts, here and in the
+  // runtime's dispatch. Closing that needs a real consumer, which this slice does not add.
+  canonicalOfTurtleAlias,
+  turtleAliasNames,
   canonicalOfHeritageAlias,
   heritageAliasNames,
   heritageAliasArity,

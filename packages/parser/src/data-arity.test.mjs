@@ -7,8 +7,19 @@ import * as OL from "@openlogo/parser";
  * F3, `spec/tooling.md:172-185`). `dict`/`keys`/`values`/`type_of`/`reverse`/`pick`/`sort` and a
  * `struct`'s constructor call must be recognized by `check()` — visibility (no
  * `ol-unknown-command`), exact arity (`ol-not-enough-inputs`/`ol-too-many-inputs`), and reserved-word
- * collision (`ol-reserved-word`) — only when the `data` profile is active; without it they are
- * unknown callees like any other undeclared name.
+ * collision (`ol-reserved-word`).
+ *
+ * **Three axes, and only two of them are the profile's to decide.** Visibility and arity are
+ * genuinely profile-scoped — `spec/tooling.md:175-176` gates which names are *available*, so
+ * without `data` a Data primitive is an unknown callee like any other undeclared name, and its
+ * arity is nobody's business. **Reserved-word collision is not.** `spec/grammar.md:408` makes the
+ * primitives of every optional profile built-in names **unconditionally** — "what a profile decides
+ * is whether a name *works*, never whether a program may declare it" — so a conforming 0.4.0
+ * implementation raises `ol-reserved-word` on `define dict` with or without the profile claimed.
+ *
+ * The shipped checker still gates that third axis, which is why the tests below assert it. That is
+ * a tracked deviation from the spec, not the rule: retiring it is issue #841's always-on
+ * built-in-names list, at which point the Core-only reserved-word cases here flip.
  */
 
 function parseClean(source) {
@@ -81,6 +92,35 @@ test("a Data primitive called (parenthesized) with too many inputs raises ol-too
 });
 
 // --- struct constructor calls ------------------------------------------------
+
+// TRIAGE NOTE — F12, raised by @testing during issue #838's review, recorded here by issue #841.
+//
+// **Under Core alone a `struct` declaration is half-registered: it BLOCKS a later `define` of the
+// same name while providing no callable constructor.** Both halves are asserted in this file — the
+// blocking half by "without the data profile active, a struct DUPLICATING a procedure is still
+// reported", the un-callable half by the test immediately below — so the split is pinned, not
+// theoretical.
+//
+// `spec/data-structures.md:304` describes registration as ONE act: a `struct` declaration registers
+// the type name and its constructor together. The shipped checker performs that act in two places
+// with different conditions: the duplicate-definition walk is profile-blind (correctly — the
+// question "did the PROGRAM declare this name twice?" has no profile in it, and
+// `spec/execution-model.md:82-88` answers it without one), while `collectVisibleNames` gates the
+// constructor on `data`. Under Core alone the learner therefore gets the worst of both: the name is
+// taken, and calling it is an unknown command.
+//
+// **This is pre-existing.** #838 did not create it; it made the first half profile-blind and so
+// made the asymmetry visible. It is NOT what issue #841 retires either: #841's subject is the
+// `ol-reserved-word` axis (may a program DECLARE a built-in name), and this is the
+// `ol-unknown-command` axis (is a name AVAILABLE), which `spec/tooling.md:175-176` genuinely does
+// gate on the profile. The open question is narrower than either: whether a Core-only `struct` is a
+// registration at all, and if it is, why its constructor is not visible.
+//
+// Recorded as a written note rather than a filed issue because issue creation is closed under the
+// maintainer's scope freeze. It is spec-adjacent — resolving it means deciding what
+// `spec/data-structures.md:304` requires when `data` is not claimed — so it needs a maintainer, and
+// it is written down here, beside the assertions that prove it, so it cannot be lost in a review
+// thread.
 
 test("with the data profile active, a struct's constructor call is a clean, known callee at its declared arity", () => {
   const ast = parseClean("struct point [ x y ]\npoint 3 4");

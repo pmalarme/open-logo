@@ -45,13 +45,26 @@
 /**
  * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
  *
- * **Adding or removing a keyword is a FIVE-PLACE edit, and none of the five is machine-gated.**
- * `spec/grammar.md:368-375` is normative; `spec/tooling.md:91-94` mirrors it byte-for-byte;
- * `spec/tooling.md:30` enumerates the `keyword` **token class**, which is this list minus the four
- * word-spelled operators plus the contextual and profile words; this array; and
- * `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`. No test reads `spec/*.md`, so nothing
- * catches a partial edit — the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
- * before #855 restored it. Adding the drift gate is #841's (issue #855, review round 7).
+ * **Adding or removing a keyword edits several places.** Deliberately listed rather than counted,
+ * because the count is itself the kind of claim nothing recomputes — and it names which gate covers
+ * each, because "gated" alone hides the difference between a comparison and a change detector:
+ *
+ * - `spec/grammar.md:368-375` — normative; `npm run built-in-names` compares its extracted words
+ *   against `spec/built-in-names.json`.
+ * - `spec/tooling.md:91-94` — mirrors that block; the same gate compares **the same extracted words
+ *   in the same order**. Not the bytes: the extractor takes the backticked words, so changing the
+ *   spacing *between* them leaves the gate green. Whitespace that breaks the paragraph does not —
+ *   a blank line inside it truncates the extraction and is a finding.
+ * - this array — reaches that comparison through `spec/built-in-names.json`, in both directions.
+ * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
+ * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
+ *   (`spec/grammar.md:378`). **Change-detected only**: a content fingerprint notices an edit, and
+ *   nothing verifies the edited row is still correct.
+ * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by the
+ *   pre-existing `npm run test`, not by `npm run built-in-names`.
+ *
+ * The gate exists because the `tooling.md` mirror had already drifted to 43 words (missing `mod`)
+ * before #855 restored it, with nothing reading `spec/*.md` to notice.
  */
 export const OL_KEYWORDS = [
   // Procedures and control transfer.

@@ -31,6 +31,7 @@ npm test             # unit tests
 npm run conformance  # stack-neutral source → events/diagnostics fixtures
 npm run coverage     # 100% line/branch/function coverage gate
 npm run examples     # runs the spec/examples/*.logo programs + every ```logo block in spec/ and docs/
+npm run built-in-names # spec/built-in-names.json matches the implementation's registries, both ways
 ```
 
 **Try a program:** the canonical square —
