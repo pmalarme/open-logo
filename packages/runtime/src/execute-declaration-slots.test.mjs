@@ -75,7 +75,35 @@ function checkIdentity(source) {
 }
 
 /**
- * The declaration `define <name> … end` with an EMPTY body. Deliberately empty: a body is source
+ * The **full** identity of a diagnostic — `code`, `params` AND `source_span`.
+ *
+ * `executeIdentity`/`checkIdentity` deliberately omit the span so their rows stay readable, but that
+ * omission is itself a variable held constant: a mutant reporting the ENCLOSING declaration's span
+ * at depth ≥ 2 (underlining `define b` instead of `forward`) passed every gate, because the only
+ * span assertions in this suite were at depth 0. Comparing the whole shape closes that by
+ * construction, and retroactively strengthens every sweep that uses it.
+ */
+function fullIdentity(diagnostics) {
+  return diagnostics.map((finding) => [
+    finding.code,
+    finding.params,
+    finding.source_span,
+  ]);
+}
+
+/** `fullIdentity` of `execute()` and of `check()` for one source, for direct comparison. */
+function bothStages(source) {
+  const { ast } = parse(source, doc);
+  return {
+    fromExecute: fullIdentity(execute(source, doc).diagnostics),
+    fromCheck: fullIdentity(
+      check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics,
+    ),
+  };
+}
+
+/**
+ * The declaration `<keyword> <name> …` with an EMPTY body. Deliberately empty: a body is source
  * too, and a body that calls a primitive is re-read against the very declaration under test — with
  * `print 1` as the body, `define print` declares a zero-parameter `print` and the body's own
  * `print 1` then leaves `1` stranded as `ol-bad-token`, which has nothing to do with the
@@ -84,12 +112,14 @@ function checkIdentity(source) {
  * `keyword` selects the declaration spelling. `spec/grammar.md`'s declaration slots are `define`,
  * the Heritage `to`, `struct`, and the first operand of `alias` — and a sweep that only ever writes
  * `define` holds the SPELLING constant, which is the same blindness that let a mixed-case defect
- * through: the corpus cannot see a variable it never varies. Both spellings reach the same
- * `ProcedureDef` node (they differ only in its `keyword` field), so a guard keyed on that field
- * would be invisible to a `define`-only sweep.
+ * through: the corpus cannot see a variable it never varies. `define` and `to` reach the same
+ * `ProcedureDef` node, differing only in its `keyword` field, so a guard keyed on that field would
+ * be invisible to a `define`-only sweep.
  */
 function declareProcedure(name, keyword = "define") {
-  return `${keyword} ${name}\nend`;
+  return keyword === "struct"
+    ? `struct ${name} [ x ]`
+    : `${keyword} ${name}\nend`;
 }
 
 /**
@@ -116,8 +146,32 @@ function nestInsideProcedure(declaration, depth = 1) {
       .join("\n");
     nested = `define outer${level}\n${indented}\nend`;
   }
-  return `${nested}\nouter${depth - 1}`;
+  return depth === 0 ? nested : `${nested}\nouter${depth - 1}`;
 }
+
+/**
+ * The block-bodied constructs a declaration can sit inside, as source wrappers. `"none"` is the
+ * identity so the cross-product below can treat "unwrapped" as one value of the variable rather
+ * than as a special case.
+ *
+ * The four `ProfileStatement` heads are here because they are the enclosing kind an implementer is
+ * most likely to special-case — "handlers run later" invites deferring their registration — and a
+ * mutant exempting exactly those bodies passed every gate.
+ */
+const BLOCK_WRAPPERS = {
+  none: (declaration) => declaration,
+  repeat: (declaration) => `repeat 1 [ ${declaration} ]`,
+  if: (declaration) => `if true [ ${declaration} ]`,
+  when: (declaration) => `when true [ ${declaration} ]`,
+  every: (declaration) => `every 1 [ ${declaration} ]`,
+  on_key: (declaration) => `on_key "a" [ ${declaration} ]`,
+  on_click: (declaration) => `on_click [ ${declaration} ]`,
+};
+
+/** Every declaration spelling, every nesting depth, every enclosing construct, both casings. */
+const DECLARATION_KEYWORDS = ["define", "to", "struct"];
+const NESTING_DEPTHS = [0, 1, 2];
+const WRAPPER_KINDS = Object.keys(BLOCK_WRAPPERS);
 
 // ---------------------------------------------------------------------------
 // The enumeration is real — a guard against every loop below iterating nothing
@@ -439,102 +493,124 @@ test("`ol-duplicate-definition` is not profile-gated — Core-only sees it too",
 // Nesting depth — the guard is depth-agnostic, and that must be asserted
 // ---------------------------------------------------------------------------
 
-test("EVERY built-in name is rejected at a NESTED `define` too — at depth 1 AND depth 2", () => {
-  // Every declaration in this repository's fixtures sat at column 1 before this slice, so a guard
-  // that quietly became top-level-only would be invisible. Measured: such a mutant passed the whole
-  // Definition of Done while a nested `define forward` ran silently — and so did a second mutant
-  // exempting only depth >= 2, which is why the sweep runs at two depths rather than one.
-  for (const depth of [1, 2]) {
-    assert.deepEqual(
-      everyBuiltInName.map((name) => [
-        name,
-        executeIdentity(nestInsideProcedure(declareProcedure(name), depth)),
-      ]),
-      everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
-      `depth ${depth}`,
-    );
+// ---------------------------------------------------------------------------
+// The declaration-slot rule is INVARIANT under spelling, case, depth and
+// enclosing construct — asserted as a generated cross-product, not a table
+// ---------------------------------------------------------------------------
+//
+// Five review rounds each found the same defect one cell further in: the suite named a variable and
+// then held it at a single value. Rows were added; the next cell was empty again. What follows
+// states the rule once, as what it actually is — an invariance — and generates the product, so a
+// cell neither author nor reviewer thought of is covered without anyone enumerating it.
+//
+// The axes, and the mutant that proved each one was load-bearing:
+//
+// | axis                  | values                                          | mutant it kills |
+// |---|---|---|
+// | declaration spelling  | `define`, `to`, `struct`                        | exempt `to` (round 3) |
+// | name casing           | `forward`, `FORWARD`                            | fold `params.name` (rounds 1, 5) |
+// | nesting depth         | 0, 1, 2                                         | top-level-only; depth >= 2 (rounds 4, 5) |
+// | enclosing construct   | none, `repeat`, `if`, `when`, `every`, `on_key`, `on_click` | exempt handler bodies (round 5) |
+// | assertion facet       | `code`, `params`, `source_span`                 | wrong span at depth >= 2 (round 5) |
+//
+// 3 x 2 x 3 x 7 = 126 programs, each asserted to produce ONE `ol-reserved-word` naming the declared
+// spelling at the declared span, identically from `check()` and `execute()`, with nothing executed.
+
+test("the built-in-name rule is invariant across spelling x case x depth x enclosing construct", () => {
+  const rows = [];
+  for (const keyword of DECLARATION_KEYWORDS) {
+    for (const name of ["forward", "FORWARD"]) {
+      for (const depth of NESTING_DEPTHS) {
+        for (const wrapper of WRAPPER_KINDS) {
+          const source = nestInsideProcedure(
+            BLOCK_WRAPPERS[wrapper](declareProcedure(name, keyword)),
+            depth,
+          );
+          const label = `${keyword} ${name} @depth ${depth} in ${wrapper}`;
+          const { fromExecute, fromCheck } = bothStages(source);
+          rows.push([
+            label,
+            fromExecute,
+            fromCheck,
+            execute(source, doc).events.length,
+          ]);
+        }
+      }
+    }
   }
+
+  // The product is real, and every row ran.
+  assert.equal(rows.length, 126);
+
+  // `execute()` and `check()` agree on code, params AND span, for every cell.
+  assert.deepEqual(
+    rows.map(([label, fromExecute]) => [label, fromExecute]),
+    rows.map(([label, , fromCheck]) => [label, fromCheck]),
+  );
+
+  // Each cell reports exactly one `ol-reserved-word` naming the spelling as written, and runs nothing.
+  assert.deepEqual(
+    rows.map(([label, fromExecute, , events]) => [
+      label,
+      fromExecute.map(([code, params]) => [code, params.name]),
+      events,
+    ]),
+    rows.map(([label]) => [
+      label,
+      [["ol-reserved-word", label.split(" ")[1]]],
+      0,
+    ]),
+  );
 });
 
-test("a NESTED declaration collides exactly as a top-level one does, in every form", () => {
-  // Both codes, all three declaration spellings, and — crucially — every kind of enclosing body.
-  // A depth guard could plausibly key on the ENCLOSING NODE KIND rather than on depth, so inline
-  // blocks (`repeat`, `if`) are not enough: the Interaction & Events handler bodies are the ones an
-  // implementer is most likely to special-case, because "handlers run later" invites deferring
-  // registration. A mutant exempting `ProfileStatement` bodies passed every gate — and in the
-  // `when` case surfaced an unrelated `ol-type` rather than merely staying silent.
-  const nested = {
-    "nested built-in define": [
-      "define outer\n  define forward\n  end\nend\nouter",
-      "ol-reserved-word",
-    ],
-    "nested built-in to": [
-      "define outer\n  to forward\n  end\nend\nouter",
-      "ol-reserved-word",
-    ],
-    "nested built-in struct": [
-      "define outer\n  struct forward [ x ]\nend\nouter",
-      "ol-reserved-word",
-    ],
-    "built-in at depth 2": [
-      "define a\n  define b\n    define forward\n    end\n  end\nend\na",
-      "ol-reserved-word",
-    ],
-    "built-in at depth 3": [
-      "define a\n  define b\n    define c\n      define forward\n      end\n    end\n  end\nend\na",
-      "ol-reserved-word",
-    ],
-    "built-in inside repeat": [
-      "repeat 1 [ define forward\nend ]",
-      "ol-reserved-word",
-    ],
-    "built-in inside if": [
-      "if true [ define forward\nend ]",
-      "ol-reserved-word",
-    ],
-    "built-in inside when handler": [
-      "when true [ define forward\nend ]",
-      "ol-reserved-word",
-    ],
-    "built-in inside every block": [
-      "every 1 [ define forward\nend ]",
-      "ol-reserved-word",
-    ],
-    "built-in inside on_key block": [
-      'on_key "a" [ define forward\nend ]',
-      "ol-reserved-word",
-    ],
-    "built-in inside on_click block": [
-      "on_click [ define forward\nend ]",
-      "ol-reserved-word",
-    ],
-    "duplicate both nested": [
-      "define outer\n  define dup\n  end\n  define dup\n  end\nend\nouter",
-      "ol-duplicate-definition",
-    ],
-    "duplicate both at depth 2": [
-      "define a\n  define b\n    define dup\n    end\n    define dup\n    end\n  end\nend\na",
-      "ol-duplicate-definition",
-    ],
-    "duplicate inside every block": [
-      "every 1 [ define dup\nend\ndefine dup\nend ]",
-      "ol-duplicate-definition",
-    ],
-  };
-  for (const [label, [source, code]] of Object.entries(nested)) {
-    const identity = executeIdentity(source);
-    assert.deepEqual(
-      identity.map(([reported]) => reported),
-      [code],
-      label,
-    );
-    assert.deepEqual(identity, checkIdentity(source), label);
-    assert.deepEqual(
-      execute(source, doc).events,
-      [],
-      `${label} must halt before anything runs`,
-    );
+test("the duplicate rule is invariant across spelling x case x depth x enclosing construct", () => {
+  // The same product for `ol-duplicate-definition`: two declarations of one name, varying BOTH
+  // spellings independently so a cross-kind guard cannot hide, and varying the later declaration's
+  // casing so a fold applied only when nested cannot hide either.
+  const rows = [];
+  for (const first of DECLARATION_KEYWORDS) {
+    for (const second of DECLARATION_KEYWORDS) {
+      for (const laterName of ["dup", "DUP"]) {
+        for (const depth of [0, 1]) {
+          for (const wrapper of WRAPPER_KINDS) {
+            const pair = `${declareProcedure("dup", first)}\n${declareProcedure(laterName, second)}`;
+            const source = nestInsideProcedure(
+              BLOCK_WRAPPERS[wrapper](pair),
+              depth,
+            );
+            const label = `${first}+${second} ${laterName} @depth ${depth} in ${wrapper}`;
+            const { fromExecute, fromCheck } = bothStages(source);
+            rows.push([
+              label,
+              fromExecute,
+              fromCheck,
+              execute(source, doc).events.length,
+            ]);
+          }
+        }
+      }
+    }
   }
+
+  assert.equal(rows.length, 252);
+
+  assert.deepEqual(
+    rows.map(([label, fromExecute]) => [label, fromExecute]),
+    rows.map(([label, , fromCheck]) => [label, fromCheck]),
+  );
+
+  assert.deepEqual(
+    rows.map(([label, fromExecute, , events]) => [
+      label,
+      fromExecute.map(([code, params]) => [code, params.name]),
+      events,
+    ]),
+    rows.map(([label]) => [
+      label,
+      [["ol-duplicate-definition", label.split(" ")[1]]],
+      0,
+    ]),
+  );
 });
 
 test("a cross-depth duplicate is reported in BOTH orientations, always naming the earlier one", () => {
@@ -569,7 +645,7 @@ test("a cross-depth duplicate is reported in BOTH orientations, always naming th
 });
 
 test("a legal NESTED declaration still registers and is callable — the guard rejects, it does not disable", () => {
-  // The other half, and what makes the mutant above non-trivial: nested declarations are genuinely
+  // The other half, and what makes every mutant above non-trivial: nested declarations are genuinely
   // registered by the same walk, so the guard riding on it is load-bearing rather than decorative.
   const result = execute(
     "define outer\n  define helper\n    print 42\n  end\nend\nhelper",
@@ -582,6 +658,23 @@ test("a legal NESTED declaration still registers and is callable — the guard r
       .map((event) => event.payload.values[0]),
     [42],
   );
+});
+
+test("EVERY built-in name — all 148, not just the two the cross-product samples — is rejected when NESTED", () => {
+  // The invariance product varies every axis but samples only `forward`/`FORWARD` for the name, so
+  // it proves the RULE is depth-invariant without proving the NAME SET is. This sweep is the other
+  // projection: the whole registry, at depth 1 and depth 2. Keeping both is deliberate — each is
+  // blind to what the other varies, which is the entire lesson of this slice.
+  for (const depth of [1, 2]) {
+    assert.deepEqual(
+      everyBuiltInName.map((name) => [
+        name,
+        executeIdentity(nestInsideProcedure(declareProcedure(name), depth)),
+      ]),
+      everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+      `depth ${depth}`,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
