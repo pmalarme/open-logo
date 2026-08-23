@@ -260,9 +260,14 @@ export function declarationSlotRule(
   const diagnostics: Diagnostic[] = [];
   /**
    * The span of the **first** declaration of each name, across both declaration kinds. Only ever
-   * written when absent, so the third declaration of a name still names the first — and so a
-   * built-in name is never recorded at all, which is what keeps `define forward` twice reporting
-   * two `ol-reserved-word`s rather than degrading the second into a duplicate.
+   * written when absent, so the third declaration of a name still names the first.
+   *
+   * A built-in name never reaches this map, because the built-in check returns first — and it is
+   * that early `return`, not the absence of a recording, that keeps `define forward` twice
+   * reporting two `ol-reserved-word`s rather than degrading the second into a duplicate. The
+   * non-recording is a consequence, not the mechanism: recording built-ins here changes no
+   * observable behaviour while the checks stay in this order (measured — the conformance corpus and
+   * the unit suite are both unmoved by it).
    */
   const firstDeclaration = new Map<string, SourceSpan>();
 

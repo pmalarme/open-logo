@@ -282,11 +282,13 @@ the gaps it found rather than rubber-stamping them:
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
   source both ways. It originally pinned four `define`s raising `ol-reserved-word` under the
   active profile and checking clean under Core Language alone; since issue #841 both halves raise,
-  so the pair now pins the reservation as invariant under the profile set rather than scoped by it. This is the same gap class the Sprites terminal slice #679 found for its
+  so the pair now pins the reservation as invariant under the profile set rather than scoped by
+  it. This is the same gap class the Sprites terminal slice #679 found for its
   own `ol-reserved-word` rule. (The recorded `message` used to read "when is already a reserved, so
   it can't be redefined here." — an ungrammatical template filed as issue #883 and **fixed by issue
   #838**, which replaced it with the one category-free sentence `spec/error-model.md:125` requires
-  and dropped the `namespace` param both halves of that message depended on. The scope originally pinned here did not survive:
+  and dropped the `namespace` param both halves of that message depended on. The scope originally
+  pinned here did not survive:
   `spec/grammar.md:408` makes profile words built-in unconditionally, and issue #841 retired the
   gate, flipping `block-heads-free-core-only` from clean to four diagnostics.)
 
