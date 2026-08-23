@@ -112,16 +112,26 @@ test("isKeyword stays case-insensitive for Core words", () => {
 });
 
 test("Core-only callers do not match any profile block-head (AC 3)", () => {
+  // The PAINT axis only. `isKeyword` answers "does this word paint/parse as a keyword right now",
+  // and under Core alone the answer is no — which is `spec/tooling.md:30`'s "while their profile is
+  // active" clause. It is NOT a statement that the word is an ordinary name: since issue #841
+  // `define ask` is `ol-reserved-word` under Core too, and `isKeywordInAnyProfile` is the predicate
+  // that says so.
   for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
     assert.equal(
       OL.isKeyword(word),
       false,
-      `${word} must be an ordinary name in Core`,
+      `${word} must not paint as a keyword in Core`,
     );
     assert.equal(
       OL.isKeyword(word, ["core-language"]),
       false,
-      `${word} must be an ordinary name with only core-language active`,
+      `${word} must not paint as a keyword with only core-language active`,
+    );
+    assert.equal(
+      OL.isKeywordInAnyProfile(word),
+      true,
+      `${word} is still a name Core-only programs may not declare`,
     );
   }
 });

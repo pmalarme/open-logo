@@ -109,7 +109,7 @@ test("a Data primitive called (parenthesized) with too many inputs raises ol-too
 // taken, and calling it is an unknown command.
 //
 // **This is pre-existing.** #838 did not create it; it made the first half profile-blind and so
-// made the asymmetry visible. It is NOT what issue #841 retires either: #841's subject is the
+// made the asymmetry visible. It is NOT what issue #841 retired either: #841's subject was the
 // `ol-reserved-word` axis (may a program DECLARE a built-in name), and this is the
 // `ol-unknown-command` axis (is a name AVAILABLE), which `spec/tooling.md:175-176` genuinely does
 // gate on the profile. The open question is narrower than either: whether a Core-only `struct` is a
