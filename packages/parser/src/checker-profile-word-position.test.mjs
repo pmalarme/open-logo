@@ -279,8 +279,9 @@ test("both profiles active at once — each word answers to its own profile", ()
 
 test("without its profile, a profile word stays an ordinary name in VALUE position — no ol-bad-token", () => {
   // The gate that keeps THIS rule (issue #864's position rule) profile-scoped, which #841 did not
-  // touch: `ol-bad-token` is about a profile word used as a block head where the profile is
-  // inactive, and Core-only `when` in value position is simply a name nothing declares, so
+  // touch: `ol-bad-token` fires when a profile word appears where the word's own ACTIVE profile
+  // gives it no callable form. With the profile inactive it has no structural role to be out of,
+  // so Core-only `when` in value position is simply a name nothing declares and
   // `checker-unknown-command.ts` reports it exactly as before.
   //
   // The DECLARATION half is the opposite and is asserted below: since #841 a Core-only

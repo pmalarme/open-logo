@@ -23,8 +23,11 @@
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
 //      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a keyword
 //      decides which BRANCH of the checker reports a redefinition, not
-//      whether it is reportable at all (`spec/tooling.md:185`), so `define who` now collides under
-//      an active profile exactly as `define grid`/`define wait` do — and stays legal without it.
+//      whether it is reportable at all (`spec/tooling.md:185`), so `define who` collides under
+//      an active profile exactly as `define grid`/`define wait` do — and, since issue #841 retired
+//      the profile gate on declarations, without the profile too. Only CALL visibility is still
+//      profile-gated: `who` under Core alone is `ol-unknown-command` at a call and
+//      `ol-reserved-word` at a `define`.
 //      (Issue #838 removed the `namespace` param that used to make the branch visible in the
 //      diagnostic; the branches remain, the label does not.)
 //

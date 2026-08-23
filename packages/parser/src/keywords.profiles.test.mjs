@@ -112,11 +112,12 @@ test("isKeyword stays case-insensitive for Core words", () => {
 });
 
 test("Core-only callers do not match any profile block-head (AC 3)", () => {
-  // The PAINT axis only. `isKeyword` answers "does this word paint/parse as a keyword right now",
-  // and under Core alone the answer is no — which is `spec/tooling.md:30`'s "while their profile is
-  // active" clause. It is NOT a statement that the word is an ordinary name: since issue #841
-  // `define ask` is `ol-reserved-word` under Core too, and `isKeywordInAnyProfile` is the predicate
-  // that says so.
+  // The PAINT axis only. `isKeyword` answers "does this word classify as a keyword right now" —
+  // it is what `highlight.ts` consults for the `keyword` token class — and under Core alone the
+  // answer is no, which is `spec/tooling.md:30`'s "while their profile is active" clause. The
+  // reader never calls it: `parser.ts` is profile-blind by design. Nor is a `false` here a
+  // statement that the word is an ordinary name — since issue #841 `define ask` is
+  // `ol-reserved-word` under Core too, and `isKeywordInAnyProfile` is the predicate that says so.
   for (const word of [...SPRITES_WORDS, ...INTERACTION_WORDS]) {
     assert.equal(
       OL.isKeyword(word),
@@ -214,9 +215,10 @@ test("OL_PROFILE_KEYWORDS maps exactly the two contributing profiles to their sp
 });
 
 // --- Checker-level end-to-end proof of the three acceptance criteria (issue #663). ---
-// A profile block-head declared by `define`/`struct` raises `ol-reserved-word` only when its
-// profile is active. Verified through the public `check()` surface, mirroring name-resolution's
-// `checkSource` shape.
+// A profile block-head declared by `define`/`struct` raises `ol-reserved-word` under EVERY profile
+// set: `spec/grammar.md:408` makes profile words built-in names unconditionally, and issue #841
+// removed the gate that once made this answer depend on the active profile. Verified through the
+// public `check()` surface, mirroring name-resolution's `checkSource` shape.
 
 function checkSource(source, profiles = ["core-language"]) {
   const { ast, diagnostics: parseDiagnostics } = OL.parse(source, "unit.logo");

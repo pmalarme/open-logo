@@ -29,8 +29,10 @@
  * `define ask … end` and then calls `ask` is **not** legal — since issue #841 the declaration is
  * `ol-reserved-word` in every profile set — but the reader must still shape it as the learner wrote
  * it, so that the diagnostic lands on the declaration rather than on a mis-shaped
- * `ProfileStatement` (pinned by the conformance fixture
- * `interaction-events/block-heads-free-core-only`, whose expectation #841 inverted). A
+ * `ProfileStatement`. That shaping is pinned by `parse.profile-statement.test.mjs` (a declared head
+ * followed by its call parses as `ProcedureDef` + `Call`); the conformance fixture
+ * `interaction-events/block-heads-free-core-only` pins the declaration diagnostic itself, which
+ * #841 inverted from clean to four `ol-reserved-word`s. A
  * profile-blind reader therefore cannot tell `ask`-the-block-head from
  * `ask`-the-learner's-procedure. The **checker** can, because it is handed
  * the active profile set (`spec/tooling.md:175-176` — a semantic rule "MUST use the active
