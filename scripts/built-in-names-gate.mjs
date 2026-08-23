@@ -721,10 +721,16 @@ export function profilePrimitiveSweepFindings(manifest, api) {
 }
 
 /**
- * Alias edges, checked against the edge the implementation actually resolves, **in both directions**.
+ * Alias edges, checked against the edge the implementation's **own accessors** resolve, in both
+ * directions.
  *
- * `aliasOf` is an edge rather than a parallel list so it cannot drift from its target. Two registries
- * carry edges and each names its own resolver and enumerator in the manifest:
+ * `aliasOf` is an edge rather than a parallel list, so it cannot drift from the target *the manifest
+ * records* — the edge is that target, and there is no second copy of it here. It says nothing about
+ * whether the target is the one the **runtime** dispatches to: nothing in this gate compares either
+ * against `packages/runtime/src/execute-internal.ts`, which hardcodes its own mapping. See
+ * {@link canonicalOfTurtleAlias}'s note in `@openlogo/parser` and the gap recorded on #841.
+ *
+ * Two registries carry edges and each names its own resolver and enumerator in the manifest:
  * `heritageAliasNames`/`canonicalOfHeritageAlias` for the Heritage short spellings, and
  * `turtleAliasNames`/`canonicalOfTurtleAlias` for the Turtle & Rendering one-word spellings. The
  * turtle pair is added by this slice — ADR-0021 §3 requires it — and supersedes the equal-arity
@@ -1134,9 +1140,11 @@ export function rowFingerprintFindings(manifest, row) {
  * Two are compared **derivedly**, by computing the expected words from the manifest and the
  * implementation: `spec/grammar.md`'s normative keyword block, and `spec/tooling.md`'s C19 mirror,
  * which must carry the same words in the same order. The comparison is on the **extracted words**,
- * not the bytes, so changing the spacing *between* them is not a finding — though whitespace that
- * breaks the paragraph is, because the extraction stops there. That pair is the one that caught the
- * drift which actually happened — the mirror silently losing `mod` and standing at 43 words.
+ * not the bytes, so changing the spacing *between* them is not a finding. A blank line inside the
+ * **mirror** paragraph is, because its extraction ends at the paragraph; `spec/grammar.md`'s block
+ * is inside a fence, which a blank line does not close, so it survives one. That pair is the one
+ * that caught the drift which actually happened — the mirror silently losing `mod` and standing at
+ * 43 words.
  *
  * The third, `spec/tooling.md`'s `keyword` **token-class** row, is only **change-detected**; see
  * {@link rowFingerprintFindings} for why, and issue #841 for the three mechanisms that tried for
@@ -1362,9 +1370,8 @@ export function narrativeFindings(manifest) {
  *
  * Authoring the notes through a shell whose escape character is a backtick turned `` `note` ``,
  * `` `aliasOf` ``, `` `reserved` `` and `` `excluded` `` into LF, BEL, CR and ESC **code points in
- * the decoded strings** inside a normative `spec/` artefact — carried, as a conforming JSON file
- * must, as visible escapes. Still valid JSON, still Prettier-clean, still zero findings, and four
- * words left unreadable.
+ * the decoded strings** inside a normative `spec/` artefact. Still valid JSON, still Prettier-clean,
+ * still zero findings, and four words left unreadable.
  *
  * Every string leaf, not only the prose ones — `Object.entries` yields indexed pairs for arrays, so
  * the bare strings inside `names[].registries[]` and `excluded[].positions[]` are reached too. `Cc`
