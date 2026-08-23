@@ -266,21 +266,32 @@ function declarationSource({
 }
 
 /**
- * Every **block-bearing slot** in the AST — `(node kind, field)` pairs whose value is a `Block`, and
- * therefore every position in the grammar where a declaration can sit.
+ * Every **block-bearing field** in the AST — `(node kind, field)` pairs whose value is a `Block`.
+ *
+ * **What this is and is not.** It enumerates the AST *fields* that hold a block, which is the unit
+ * the declaration-slot guard actually turns on — `If.thenBody` and `If.elseBody` are the same node
+ * *kind*, and a mutant exempting only the else branch passed every gate, so keying on kinds would
+ * have missed it. It is **not** an enumeration of every grammar position: `(kind, field)` collapses
+ * discriminants the field does not carry, so `define` and `to` share `ProcedureDef.body`, and
+ * `map`/`filter`/`reduce` share `Comprehension.body`. Those discriminants are varied on the
+ * *declaration* axes instead (`DECLARATION_KEYWORDS`); the comprehension kind is not varied, which
+ * is a stated gap rather than a covered one.
  *
  * **Derived, not listed.** It is computed by parsing the whole conformance corpus plus
- * `spec/examples/` and `stdlib/` and collecting the slots that actually occur, exactly as
+ * `spec/examples/` and `stdlib/` and collecting the fields that actually occur, exactly as
  * `everyBuiltInName` is derived from the parser's registries. A hand-written wrapper list is a
  * *sample*, and this file has already been burned twice by sampling: the `22` vs `32` residual came
  * from a hand-picked probe list, and a hand-written seven-entry wrapper map left `while`, `for`,
- * `forever`, comprehension bodies and — most tellingly — the **`else` branch of an `if`** un-drawn.
- * `If.thenBody` and `If.elseBody` are the same node *kind*, so the unit of this axis is the **slot**,
- * not the kind, and no amount of adding node kinds would have found it.
+ * `forever`, comprehension bodies and the **`else` branch of an `if`** un-drawn.
+ *
+ * Files that fail to parse are skipped — roughly 49 of the ~911 discovered, which are the corpus's
+ * deliberate parse-error fixtures. They cannot contribute a field, so skipping them is correct, but
+ * it does mean this set is derived from the *parseable* corpus rather than from all of it.
  *
  * Because the corpus is the stack-neutral artifact every implementation must satisfy, a construct
  * added to the grammar arrives here as soon as it has a fixture — and {@link BLOCK_SLOT_WRAPPERS}
- * then fails to cover it, which is the point.
+ * then fails to cover it, which is the point. `@testing` independently derived the same ten fields
+ * from `packages/parser/src/ast.ts`'s `BlockNode`-typed declarations; the sets coincide.
  *
  * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
@@ -927,111 +938,117 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
   );
 });
 
-// Every configuration of ONE declaration, as `{ keyword, case, depth, wrapper }`. This is the tuple
-// the completeness argument says fully characterises a declaration.
-const EVERY_DECLARATION_CONFIGURATION = DECLARATION_KEYWORDS.flatMap(
-  (keyword) =>
-    NESTING_DEPTHS.flatMap((depth) =>
-      WRAPPER_KINDS.map((wrapper) => ({ keyword, depth, wrapper })),
+/**
+ * The axes of ONE declaration, and the value each takes when it is not the axis under test.
+ *
+ * **All five are per-declaration**, including `name`'s casing and the spelling of the synthesised
+ * enclosing procedure. An earlier revision listed `case` in its prose and omitted it from the tuple:
+ * every *earlier* declaration was lowercase and only the later one varied, so `define FOO` followed
+ * by `define foo` was generated nowhere. That matters — an implementation storing the first
+ * declaration under its SURFACE spelling while looking up the FOLDED one reports the duplicate for
+ * `foo`/`FOO` and silently overrides for `FOO`/`foo`, and only the second order exposes it.
+ */
+const DECLARATION_AXES = {
+  keyword: DECLARATION_KEYWORDS,
+  depth: NESTING_DEPTHS,
+  wrapper: WRAPPER_KINDS,
+  name: ["dup", "DUP"],
+  enclosingKeyword: DECLARATION_KEYWORDS.filter((k) => k !== "struct"),
+};
+const AXIS_NAMES = Object.keys(DECLARATION_AXES);
+const DEFAULT_CONFIGURATION = {
+  keyword: "define",
+  depth: 0,
+  wrapper: "Program.body",
+  name: "dup",
+  enclosingKeyword: "define",
+};
+
+/** Every full configuration of one declaration — the product of all five axes. */
+const EVERY_DECLARATION_CONFIGURATION = AXIS_NAMES.reduce(
+  (configurations, axis) =>
+    configurations.flatMap((configuration) =>
+      DECLARATION_AXES[axis].map((value) => ({
+        ...configuration,
+        [axis]: value,
+      })),
     ),
+  [{ ...DEFAULT_CONFIGURATION }],
 );
 
-test("the duplicate rule is invariant across the per-declaration product — every axis drawn in BOTH roles", () => {
-  // Two declarations, each independently configured. The completeness argument: both diagnostics
-  // concern **at most two declarations**, each declaration is fully characterised by
-  // `(keyword, case, depth, wrapper)`, and there is no third level because there is no third
-  // declaration. What follows draws all four axes independently for each of the two.
-  //
-  // **The bound, stated plainly rather than hidden.** The unrestricted product is
-  // |config|^2 x |case| = 144^2 x 2 = 41,472 cells and takes four minutes — too slow to be run, and
-  // a test nobody runs asserts nothing. It is reduced on a stated principle, not by sampling:
-  //
-  //  1. **Every configuration appears in BOTH roles.** Each of the 144 configurations is used as the
-  //     EARLIER declaration against a fixed later one, and as the LATER declaration against a fixed
-  //     earlier one. So no configuration is unexercised in either position — which is what the
-  //     per-declaration half of the completeness argument actually requires.
-  //  2. **The one axis with a MEASURED relational defect is enumerated relationally in full.**
-  //     `wrapper x wrapper` (16 x 16) is swept completely, because that is the pair-relative axis a
-  //     mutant has actually exploited: giving handler bodies their own declaration scope let
-  //     `define dup` + `every 1 [ define dup ]` silently override across the boundary while passing
-  //     every gate. Depth is likewise swept relationally in full (3 x 3).
-  //  3. **Casing is drawn on the later declaration throughout**, since `params.name` reports the
-  //     later spelling and a fold applied only when nested survived a lowercase-only product.
-  //
-  // What that deliberately does NOT cover is a defect requiring a specific *combination* of two
-  // configurations differing in three or more axes at once. If such a mutant is ever found, this
-  // bound is where it got in, and the honest fix is to widen the sweep rather than to add its cell.
-  const fixedEarlier = { keyword: "define", depth: 0, wrapper: "Program.body" };
-  const fixedLater = { keyword: "define", depth: 0, wrapper: "Program.body" };
+const configurationLabel = (configuration) =>
+  AXIS_NAMES.map((axis) => `${axis}=${configuration[axis]}`).join(",");
 
+test("the duplicate rule is invariant across the per-declaration product, with every cross-role AXIS PAIR covered", () => {
+  // Two declarations, each independently configured across all five axes. The completeness argument:
+  // both diagnostics concern **at most two declarations**; each declaration is fully characterised by
+  // `(keyword, case, depth, wrapper, enclosing spelling)`; there is no third level because there is
+  // no third declaration.
+  //
+  // **The bound, stated exactly rather than generously.** The unrestricted product is
+  // |config|^2 = 576^2 = 331,776 cells and is not runnable, so it is reduced on two stated
+  // principles — and the reduction is *pairwise*, not the "three or more axes" the previous revision
+  // claimed. That claim was wrong: it excluded ordinary TWO-axis cross-role interactions, such as an
+  // earlier `define` in an `every` handler against a later top-level `struct`, which no sweep
+  // generated. Both a cross-kind defect and a handler-scope defect have actually been measured here,
+  // so their combination was plausible rather than contrived.
+  //
+  //  1. **Every configuration appears in BOTH roles** — as the earlier declaration against a default
+  //     later one, and as the later against a default earlier one. No configuration is unexercised
+  //     in either position.
+  //  2. **Every cross-role AXIS PAIR is covered exhaustively** — for each ordered pair of axes, one
+  //     drawn on the earlier declaration and one on the later, every combination of their values
+  //     appears with the remaining axes at their defaults. So any defect expressible as "this
+  //     property of the earlier declaration together with that property of the later" is generated.
+  //
+  // What remains outside: a defect requiring **three or more** axis values to coincide across the
+  // two declarations simultaneously. That is the honest boundary, and if a mutant is ever found
+  // there, the fix is to widen this sweep — not to add its cell.
   const pairs = [];
   for (const configuration of EVERY_DECLARATION_CONFIGURATION) {
-    for (const laterName of ["dup", "DUP"]) {
-      pairs.push([configuration, fixedLater, laterName, "earlier role"]);
-      pairs.push([fixedEarlier, configuration, laterName, "later role"]);
-    }
+    pairs.push([configuration, DEFAULT_CONFIGURATION, "earlier role"]);
+    pairs.push([DEFAULT_CONFIGURATION, configuration, "later role"]);
   }
-  for (const firstWrapper of WRAPPER_KINDS) {
-    for (const secondWrapper of WRAPPER_KINDS) {
-      pairs.push([
-        { keyword: "define", depth: 0, wrapper: firstWrapper },
-        { keyword: "to", depth: 0, wrapper: secondWrapper },
-        "DUP",
-        "wrapper x wrapper",
-      ]);
-    }
-  }
-  for (const firstDepth of NESTING_DEPTHS) {
-    for (const secondDepth of NESTING_DEPTHS) {
-      for (const firstKeyword of DECLARATION_KEYWORDS) {
-        for (const secondKeyword of DECLARATION_KEYWORDS) {
+  for (const earlierAxis of AXIS_NAMES) {
+    for (const laterAxis of AXIS_NAMES) {
+      for (const earlierValue of DECLARATION_AXES[earlierAxis]) {
+        for (const laterValue of DECLARATION_AXES[laterAxis]) {
           pairs.push([
-            {
-              keyword: firstKeyword,
-              depth: firstDepth,
-              wrapper: "Program.body",
-            },
-            {
-              keyword: secondKeyword,
-              depth: secondDepth,
-              wrapper: "Program.body",
-            },
-            "DUP",
-            "depth x depth x keyword x keyword",
+            { ...DEFAULT_CONFIGURATION, [earlierAxis]: earlierValue },
+            { ...DEFAULT_CONFIGURATION, [laterAxis]: laterValue },
+            `${earlierAxis} x ${laterAxis}`,
           ]);
         }
       }
     }
   }
 
+  // Derived from the axis lengths, never hand-computed.
+  const axisValueTotal = AXIS_NAMES.reduce(
+    (total, axis) => total + DECLARATION_AXES[axis].length,
+    0,
+  );
   assert.equal(
     pairs.length,
-    EVERY_DECLARATION_CONFIGURATION.length * 2 * 2 +
-      WRAPPER_KINDS.length * WRAPPER_KINDS.length +
-      NESTING_DEPTHS.length *
-        NESTING_DEPTHS.length *
-        DECLARATION_KEYWORDS.length *
-        DECLARATION_KEYWORDS.length,
+    EVERY_DECLARATION_CONFIGURATION.length * 2 +
+      axisValueTotal * axisValueTotal,
   );
 
-  const rows = pairs.map(([earlier, later, laterName, group]) => {
+  const rows = pairs.map(([earlier, later, group]) => {
     const source = `${declarationSource({
       ...earlier,
-      name: "dup",
       prefix: "outerA",
-      enclosingKeyword: "define",
     })}\n${declarationSource({
       ...later,
-      name: laterName,
       prefix: "outerB",
-      enclosingKeyword: "to",
     })}`;
-    const label = `[${group}] ${earlier.keyword}@${earlier.depth}/${earlier.wrapper} + ${later.keyword} ${laterName}@${later.depth}/${later.wrapper}`;
-    return [label, bothStages(source), laterName];
+    const label = `[${group}] ${configurationLabel(earlier)} + ${configurationLabel(later)}`;
+    return [label, bothStages(source), later.name];
   });
 
-  // Cross-stage agreement on the FULL identity — code, every param including `original_span`'s
-  // value, and `source_span`. Asserted from the helper's row so no formatter here can narrow it.
+  // Cross-stage agreement on the FULL identity — code, severity, every param including
+  // `original_span`'s value, and `source_span`. Asserted from the helper's row so no formatter here
+  // can narrow it.
   assert.deepEqual(
     rows.map(([label, stages]) => [label, stages.fromExecuteRow]),
     rows.map(([label, stages]) => [label, stages.fromCheckRow]),
