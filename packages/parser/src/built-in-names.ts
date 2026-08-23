@@ -21,7 +21,8 @@
  * composition. The two were built differently and disagreed: the runtime derived its primitive set
  * from the profile registry (`OL_CHECK_PROFILES.flatMap(profilePrimitiveNames)`) and so reached
  * every profile unconditionally, while the checker kept hand-composed `profiles.includes(…)` gates
- * over six profiles that `spec/grammar.md:408` does not gate. One predicate called by both is what
+ * that `spec/grammar.md:408` does not sanction — see `checker-reserved-word.ts`'s module doc for
+ * the shape they had. One predicate called by both is what
  * removes the possibility rather than the instance; whether the registries it composes agree with
  * the normative `spec/built-in-names.json` is a separate question, and `npm run built-in-names` is
  * what asks it — **of those registries, not of this predicate**, which the gate never calls.

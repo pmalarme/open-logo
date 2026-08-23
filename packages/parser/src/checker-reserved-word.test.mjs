@@ -461,11 +461,12 @@ test("#742: the four Core-backed aliases are rejected, with the surface spelling
 test("#841: no Heritage alias depends on a profile gate any more", () => {
   // The boundary #838 deliberately left standing, now removed, asserted so neither half can be
   // mistaken for an oversight. `spec/grammar.md:408` makes profile words built-in unconditionally,
-  // and #838 delivered that for the 45 names it had MEASURED — which is why the nine turtle aliases
-  // raised Core-only first. `pr`/`bf`/`bl`/`se` resolve to CORE canonicals that were reached through
-  // the profile-gated branch, so they stayed free without `heritage` until issue #841 deleted that
-  // branch. Sweeping the whole registry rather than the two groups separately is the point: a future
-  // alias is covered without editing this test, and the two groups can no longer diverge.
+  // and #838 delivered that for the names it had MEASURED — which is why the turtle aliases in
+  // `HERITAGE_TURTLE_ALIASES` raised Core-only first. `pr`/`bf`/`bl`/`se` resolve to CORE canonicals
+  // that were reached through the profile-gated branch, so they stayed free without `heritage` until
+  // issue #841 deleted that branch. Sweeping the whole registry rather than the two groups
+  // separately is the point: a future alias is covered without editing this test, and the two groups
+  // can no longer diverge.
   for (const alias of OL.heritageAliasNames()) {
     assert.ok(
       collides(alias, CORE_ONLY),

@@ -370,13 +370,15 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  * component alike, and `ol-unknown-command` says so.
  *
  * **Issue #841's `built-in-names.ts` now exists, and this rule deliberately does not consume it
- * yet.** Measured at the time #841 landed, the two predicates agree exactly: over a **152**-name
- * universe — the 148 names of `spec/built-in-names.json` plus the four contextual words
- * `spec/grammar.md:380` says are *not* built-in names (`empty`, `member`, `of`, `a`) — neither side
- * classified a name the other did not: **0 lost, 0 gained**. Every other source is already a subset
- * of the manifest, which is the more useful half of that measurement: each of
- * {@link heritageSurfaceSpellings}, {@link OL_KEYWORDS}, `OL_PROFILE_KEYWORDS` and every profile's
- * primitive table added **zero** names the manifest did not already carry.
+ * yet.** Measured at the time #841 landed, the two predicates agree exactly: over a universe of
+ * every name in `spec/built-in-names.json` plus the four contextual words `spec/grammar.md:380`
+ * says are *not* built-in names (`empty`, `member`, `of`, `a`), neither side classified a name the
+ * other did not — **0 lost, 0 gained**. Every other source proved to be a subset of the manifest,
+ * which is the more useful half of that measurement: each of {@link heritageSurfaceSpellings},
+ * {@link OL_KEYWORDS}, `OL_PROFILE_KEYWORDS` and every profile's primitive table contributed
+ * **zero** names the manifest did not already carry. (The set sizes are deliberately not restated
+ * here; they are the registries' own lengths, and a count in prose is a second source of truth
+ * nothing recomputes.)
  *
  * So the substitution is available and behaviour-preserving today. What it is not is *proven*
  * equivalent: the third source here is {@link heritageSurfaceSpellings}, which carries Heritage
