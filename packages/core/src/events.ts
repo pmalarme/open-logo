@@ -236,7 +236,7 @@ export interface PrintPayload {
 /**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
- * default applied when the caller omitted them (`spec/execution-model.md:606-648`'s worked
+ * default applied when the caller omitted them (`spec/execution-model.md:775-813`'s worked
  * recursive-call trace, e.g. `{name:"countdown", args:[2]}`).
  */
 export interface ProcedureEnterPayload {
@@ -246,9 +246,9 @@ export interface ProcedureEnterPayload {
 
 /**
  * Payload for a `procedure-exit` event: the callee's canonical name and its result
- * (`spec/execution-model.md:606-648`, e.g. `{name:"countdown", result:0}`). `result` is `null`
+ * (`spec/execution-model.md:775-813`, e.g. `{name:"countdown", result:0}`). `result` is `null`
  * when the invocation is a command — it finished (or `stop`ped) without reaching `return`
- * (`spec/execution-model.md:346-349`) — rather than `0`/`false`/an empty list, which are
+ * (`spec/execution-model.md:368-374`) — rather than `0`/`false`/an empty list, which are
  * themselves ordinary result values.
  */
 export interface ProcedureExitPayload {
@@ -258,7 +258,7 @@ export interface ProcedureExitPayload {
 
 /**
  * Payload for a `return` event: the value supplied to `return`/`output`/`op`
- * (`spec/execution-model.md:606-648`, e.g. `{value:0}`). Emitted only when a procedure actually
+ * (`spec/execution-model.md:775-813`, e.g. `{value:0}`). Emitted only when a procedure actually
  * reaches a `return`; a command invocation (falls through, or `stop`s) never emits one.
  */
 export interface ReturnPayload {

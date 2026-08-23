@@ -1154,11 +1154,12 @@ export function isSupportedExpression(
  * them through this one-argument wrapper keeps the hot `executeStatements` recursion frame narrow —
  * each call site loads only the `environment` it already holds, instead of re-materialising both
  * `environment.procedures` and `environment.structs` inline. That matters because
- * `executeStatements` recurses once per procedure call, and the 600-deep `recursionDepthLimit: 1000`
- * regression test (`execution-budget.test.mjs`) runs under `--experimental-test-coverage`, where
- * V8 leaves the frame unoptimised: every inline property temporary widens it, and enough of them
- * push that test over the native call-stack limit (see the frame-width notes on
- * {@link executeShowCall} and its siblings).
+ * `executeStatements` recurses once per procedure call, and the deep-recursion budget test of the
+ * day (see `execute-internal.ts`'s `executeTurtleMoveCall` canonical frame-width note for its
+ * numbers, then and now) runs under `--experimental-test-coverage`, where V8 leaves the frame
+ * unoptimised: every inline property temporary widens it, and enough of them push that test over
+ * the native call-stack limit (see the frame-width notes on {@link executeShowCall} and its
+ * siblings).
  */
 export function isSupportedArgument(
   node: ExpressionNode,
