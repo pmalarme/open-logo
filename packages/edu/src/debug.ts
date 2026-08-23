@@ -31,6 +31,7 @@ import {
   type PenState,
   type Point,
   type ProcedureEnterPayload,
+  type SpawnTurtlePayload,
   type TraceEvent,
   type TurnPayload,
   type TurtleId,
@@ -380,21 +381,59 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
 }
 
 /**
+ * How many turtles the trace shows to be alive: the main turtle, which every program starts with,
+ * plus one per `spawn-turtle` event (`spec/turtles-and-sprites.md`'s "Turtle creation" — the event
+ * `new_turtle` emits, whose payload "MUST identify the newly created turtle"). Turtles are never
+ * destroyed in v0.1, so a spawn seen anywhere in the trace means that turtle is still in play at
+ * the end of it.
+ *
+ * This is the *world* population, deliberately not "how many turtles changed state". The two
+ * differ exactly where it matters: `:a = new_turtle` / `ask :a [ forward 5 ]` gives one turtle
+ * state but two live turtles, and it is the reported turtle's **identity** that a learner needs
+ * there — otherwise `debug` prints the same sentence it prints for a bare `forward 5`, which
+ * describes a different turtle.
+ */
+function countLiveTurtles(events: readonly TraceEvent[]): number {
+  const liveTurtleIds = new Set<TurtleId>([MAIN_TURTLE_ID]);
+  for (const event of events) {
+    if (event.kind === "spawn-turtle") {
+      liveTurtleIds.add((event.payload as SpawnTurtlePayload).turtle_id);
+    }
+  }
+  return liveTurtleIds.size;
+}
+
+/**
  * The turtle-state segment `debug` reports (`spec/educational-model.md:520`), naming **which**
- * turtle each state belongs to once more than one turtle has any.
+ * turtle each state belongs to as soon as there is more than one turtle it could be.
  *
  * Three shapes, all sharing the `Turtle state so far:` opening so a consumer can still find the
  * segment by that prefix:
  *
  * - No turtle has any state to report — no segment at all.
- * - Exactly one turtle does: its fields alone, unnamed. There is no other turtle to confuse it
- *   with, so naming it would add nothing — and this keeps every Turtle & Rendering program's
- *   wording byte-identical to what it was before `debug` became per-turtle.
- * - Two or more: one clause per turtle, `turtle #<id>` in **ascending id** order.
+ * - One turtle's state in a **one-turtle world**: its fields alone, unnamed. Nothing exists to
+ *   confuse it with, so naming it would add nothing — and since such a world can only ever be the
+ *   main turtle, every Turtle & Rendering program's wording stays byte-identical to what it was
+ *   before `debug` became per-turtle.
+ * - Otherwise: one clause per turtle, `turtle #<id>` in **ascending id** order.
  *
- * `turtle #<id>` is the same identity tag a turtle value prints as (`spec/turtles-and-sprites.md:13`,
- * `spec/execution-model.md:540`), so a learner can line `debug`'s clauses up against what
- * `print who` or `print turtles` just showed them.
+ * The trigger is the **live-turtle count** ({@link countLiveTurtles}), not the number of turtles
+ * with state. Keying it on state alone made `:a = new_turtle` / `ask :a [ forward 5 ]` — the
+ * simplest Sprites program there is — report `position (0, 5)` unnamed, the exact sentence a bare
+ * `forward 5` produces for the *main* turtle, even though the turtle that moved was `#1` and the
+ * main turtle had not moved at all. `spec/rendering.md:193` makes identification a MUST in that
+ * situation ("Implementations with multiple turtles MUST identify the active turtle or addressed
+ * turtle set"), and `@openlogo/turtle`'s accessible state region already names turtles on this
+ * same trigger — "once the world holds more than one live turtle" (`a11y.ts`, issue #749) — so
+ * keying `debug` on anything else would have the two describers of one stream disagree about who
+ * is where. A second clause is also emitted whenever two turtles have state, which covers a host
+ * that feeds `debug` per-turtle events without the `spawn-turtle` that produced them.
+ *
+ * `turtle #<id>` is the identity a turtle value prints as — `@openlogo/runtime`'s `printedForm`
+ * renders `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id` — so `debug`'s clauses match what
+ * `print who` or `print :friend` just showed the learner (`spec/turtles-and-sprites.md:39`, `:85`).
+ * The tag is not spelled out in `spec/*.md`; the runtime is its normative source here, and the
+ * test alongside this reads it back through `printedForm` so the two cannot drift apart.
  *
  * Ordering by id rather than by when each turtle last acted is deliberate.
  * `spec/turtles-and-sprites.md:113` requires that "the result never depends on the order the
@@ -424,7 +463,7 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
     return undefined;
   }
 
-  if (described.length === 1) {
+  if (described.length === 1 && countLiveTurtles(events) < 2) {
     return `Turtle state so far: ${first[1]}.`;
   }
 

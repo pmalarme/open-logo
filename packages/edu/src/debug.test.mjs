@@ -322,17 +322,79 @@ test("debug reports every addressed turtle a clear_screen homed, not just one", 
   );
 });
 
-test("debug leaves a lone turtle unnamed, however it was addressed", () => {
-  // With only one turtle in play there is nothing to disambiguate, so the clause stays unnamed —
-  // which is also what keeps every Turtle & Rendering program's wording byte-identical to the
-  // pre-#891 output. `tell [ :a ]` (identified) and a bare `forward` (unidentified) agree on shape.
-  assert.equal(
-    turtleStateOf(":a = new_turtle\ntell [ :a ]\nforward 30"),
-    "Turtle state so far: position (0, 30), heading 0.",
-  );
+test("debug leaves a turtle unnamed only in a one-turtle world", () => {
+  // Nothing exists to confuse it with, and such a world can only ever be the main turtle — which
+  // is what keeps every Turtle & Rendering program's wording byte-identical to the pre-#891 output.
   assert.equal(
     turtleStateOf("forward 30\nright 90"),
     "Turtle state so far: position (0, 30), heading 90.",
+  );
+  // `tell [ who ]` addresses the main turtle explicitly, so its events carry `turtle_id: 0`, but
+  // the world still holds exactly one turtle — still unnamed.
+  assert.equal(
+    turtleStateOf("tell [ who ]\nforward 5"),
+    "Turtle state so far: position (0, 5), heading 0.",
+  );
+});
+
+test("debug names the moving turtle as soon as a second turtle exists, even though only one moved", () => {
+  // The simplest Sprites program there is. Only turtle #1 has state, so counting turtles-with-state
+  // would print `position (0, 5), heading 0.` — byte-identical to what a bare `forward 5` prints
+  // for the MAIN turtle, which here has not moved at all. `spec/rendering.md:193`: "Implementations
+  // with multiple turtles MUST identify the active turtle or addressed turtle set."
+  assert.equal(
+    turtleStateOf(":a = new_turtle\nask :a [ forward 5 ]"),
+    "Turtle state so far: turtle #1 — position (0, 5), heading 0.",
+  );
+  assert.notEqual(
+    turtleStateOf(":a = new_turtle\nask :a [ forward 5 ]"),
+    turtleStateOf("forward 5"),
+  );
+  assert.equal(
+    turtleStateOf(":a = new_turtle\ntell [ :a ]\nforward 30"),
+    "Turtle state so far: turtle #1 — position (0, 30), heading 0.",
+  );
+});
+
+test("debug names the main turtle #0 when it is the only one that moved but another turtle exists", () => {
+  // The mirror image of the case above, and the one a rule keyed on "is the sole reported turtle
+  // the main turtle?" would still get wrong: `:a` exists but never acted, so the main turtle is the
+  // only turtle with state — and naming it is exactly what distinguishes this from a lone `forward`.
+  assert.equal(
+    turtleStateOf(":a = new_turtle\nforward 10"),
+    "Turtle state so far: turtle #0 — position (0, 10), heading 0.",
+  );
+});
+
+test("debug names turtles when two have state even if the trace never showed them being created", () => {
+  // A host may feed `debug` per-turtle events without the `spawn-turtle` that produced them, so the
+  // live-turtle count is 1 while two turtles plainly have state. The second clause must still be
+  // named, or one turtle's state would be reported as if it were the other's.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const moveEvent = (seq, turtleId, y) => ({
+    seq,
+    kind: "move",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 10]),
+    turtle_id: turtleId,
+    payload: { from: [0, 0], to: [0, y], heading: 0 },
+  });
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [moveEvent(0, 3, 7), moveEvent(1, 5, 9)],
+    diagnostics: [],
+    level: "3",
+  });
+  assert.ok(
+    output.segments.includes(
+      "Turtle state so far: turtle #3 — position (0, 7), heading 0; " +
+        "turtle #5 — position (0, 9), heading 0.",
+    ),
+    `unexpected segments: ${JSON.stringify(output.segments)}`,
   );
 });
 
@@ -462,6 +524,10 @@ test("debug omits a turtle whose events described no state at all, rather than e
     diagnostics: [],
     level: "3",
   });
+  assert.ok(
+    output.segments.length > 0,
+    "the absence check below is only meaningful over a non-empty segment list",
+  );
   assert.ok(
     !output.segments.some((segment) => segment.startsWith("Turtle state")),
     `expected no turtle-state segment, got: ${JSON.stringify(output.segments)}`,
