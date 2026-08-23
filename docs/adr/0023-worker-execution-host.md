@@ -72,8 +72,8 @@ memory.
 current studio test". It does not. The controller was already asynchronous-by-continuation —
 `present`/`respond` callbacks, generation counters, and a paced scheduler already leave `runStatus`
 at `"running"` across many event-loop turns — so a host that settles through a callback fits the
-existing shape. No pre-existing studio test needed changing — the only edits to existing test files
-are appended cases.
+existing shape. No pre-existing studio test was changed — the two existing test files this slice
+touches gain appended cases and two import lines, and delete nothing.
 
 **4. `@openlogo/runtime` gains `ExecuteOptions.observedEvents`.** A caller-supplied array the run
 appends every trace event to as it is emitted, so the stream is readable **during** execution rather

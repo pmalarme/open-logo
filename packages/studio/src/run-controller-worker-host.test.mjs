@@ -16,6 +16,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import { INITIAL_TURTLE_WORLD_STATE } from "@openlogo/turtle";
 
 /** A prompt host that either holds the question open or answers it synchronously. */
 function createTestPromptHost(answer) {
@@ -244,18 +245,54 @@ test("a new Run clears the tutor pane's per-run output, so an early Stop cannot 
   assert.equal(pane.getEntries().length, afterFirstRun);
 });
 
-test("a new Run clears the canvas, so an early Stop cannot leave the previous drawing up", () => {
-  const drawn = settlementFor("repeat 4 [ forward 100 right 90 ]");
-  const store = OL.createStudioState({
-    source: "repeat 4 [ forward 100 right 90 ]",
-  });
+test("a new Run clears every field the previous run owned, so an early Stop leaves nothing behind", () => {
+  // Deliberately fixtured with a program that produces a drawing **and** tutor output **and** a
+  // diagnostic **and** an instruction span. The earlier version of this test used
+  // `repeat 4 [ forward 100 right 90 ]`, which produces neither tutor output nor diagnostics — so
+  // its `deepEqual(…, [])` assertions compared `[]` to `[]` and held whether or not the clears ran.
+  // Coverage cannot see that: the lines execute either way, so the file still reported 100%.
+  //
+  // The second `run()` deliberately does NOT call `setSource()` first, because `setSource()`
+  // already nulls `currentInstructionSourceSpan` — which would hide whether the chain-start clear
+  // does. Measured consequence of leaving it: the editor keeps highlighting a line as "currently
+  // executing" for a run that never executed it, permanently, because a cancelled run never settles.
+  const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint :nope";
+  const settled = settlementFor(source);
+  assert.equal(
+    settled.diagnostics.length > 0,
+    true,
+    "fixture must produce a diagnostic",
+  );
+  assert.equal(
+    settled.tutorOutput.length > 0,
+    true,
+    "fixture must produce tutor output",
+  );
+
+  const store = OL.createStudioState({ source });
   const deferred = createDeferredHost();
+  const repaints = { count: 0 };
   const controller = OL.createRunController(store, {
     executionHost: deferred.host,
+    canvasView: {
+      repaint() {
+        repaints.count += 1;
+      },
+    },
   });
   controller.run();
-  deferred.report({ events: drawn.events, output: drawn.output });
+  deferred.report({
+    events: settled.events,
+    output: settled.output,
+    tutorOutput: settled.tutorOutput,
+    diagnostics: settled.diagnostics,
+  });
+
   assert.equal(store.getState().turtleScene.items.length, 4);
+  assert.equal(store.getState().tutorOutput.length > 0, true);
+  assert.equal(store.getState().diagnostics.length > 0, true);
+  assert.notEqual(store.getState().currentInstructionSourceSpan, null);
+  const repaintsBefore = repaints.count;
 
   controller.run();
   controller.stop();
@@ -263,6 +300,35 @@ test("a new Run clears the canvas, so an early Stop cannot leave the previous dr
   assert.equal(store.getState().turtleScene.items.length, 0);
   assert.deepEqual(store.getState().tutorOutput, []);
   assert.deepEqual(store.getState().diagnostics, []);
+  assert.equal(store.getState().currentInstructionSourceSpan, null);
+  // The world is restored to `@openlogo/turtle`'s canonical program-start object, not merely to
+  // something that looks like it — a run replaces it with the animation's own folded snapshot, so
+  // identity is what distinguishes "cleared" from "left as it was".
+  assert.equal(store.getState().turtleWorld, INITIAL_TURTLE_WORLD_STATE);
+  // The Canvas pane is push-based (`RunControllerOptions.canvasView`), so clearing the store's
+  // scene without repainting leaves the previous drawing on screen — the exact visible symptom
+  // this clear exists to prevent.
+  assert.equal(
+    repaints.count > repaintsBefore,
+    true,
+    "starting a run must repaint, or the pixels keep showing the run before it",
+  );
+});
+
+test("Reset releases the in-flight guard too, so a later step is not wedged forever", () => {
+  // The sibling of the `stop()` case below. Without it, Step is permanently dead after a Reset
+  // during an in-flight Worker run: measured `runCommands 1 → 1`, `status idle`, step a no-op.
+  const store = OL.createStudioState({ source: "forward 1" });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+  controller.run();
+  controller.reset();
+
+  controller.step();
+
+  assert.equal(deferred.calls.runs.length, 2);
 });
 
 test("under an asynchronous host, answering routes back into the SAME suspended run", () => {
@@ -279,7 +345,11 @@ test("under an asynchronous host, answering routes back into the SAME suspended 
   });
   controller.run();
 
-  deferred.report({ output: ["before"], pendingPrompt: "what is your name?" });
+  deferred.report({
+    events: settlementFor('print "before"').events,
+    output: ["before"],
+    pendingPrompt: "what is your name?",
+  });
 
   assert.deepEqual(prompt.prompts, ["what is your name?"]);
   assert.deepEqual(deferred.calls.resolved, ["Ada"]);
@@ -303,7 +373,11 @@ test("under an asynchronous host, dismissing also routes back into the suspended
   });
   controller.run();
 
-  deferred.report({ output: ["before"], pendingPrompt: "what is your name?" });
+  deferred.report({
+    events: settlementFor('print "before"').events,
+    output: ["before"],
+    pendingPrompt: "what is your name?",
+  });
 
   assert.deepEqual(deferred.calls.resolved, [undefined]);
   assert.equal(deferred.calls.runs.length, 1);
@@ -351,7 +425,10 @@ test("Stop before the first settlement records THIS run, not the one before it",
   });
   const log = OL.createRunLogController(store);
   controller.run();
-  deferred.report({ output: ["old"] });
+  deferred.report({
+    events: settlementFor('print "old"').events,
+    output: ["old"],
+  });
   assert.deepEqual(store.getState().output, ["old"]);
 
   store.setSource("forever [ forward 1 ]");
@@ -413,7 +490,7 @@ test("a settled attempt releases the in-flight guard, so stepping still works af
     executionHost: deferred.host,
   });
   controller.step();
-  deferred.report({});
+  deferred.report({ events: settlementFor("forward 1").events });
 
   controller.step();
 
