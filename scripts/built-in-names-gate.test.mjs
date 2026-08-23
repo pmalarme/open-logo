@@ -43,9 +43,12 @@ import {
   implementationFindings,
   isStdlibSource,
   loadManifest,
+  currentRowFingerprint,
   narrativeFindings,
+  numberWord,
   parseArgs,
   profileCoverageFindings,
+  rowFingerprint,
   rowFingerprintFindings,
   profileInventoryFindings,
   profilePrimitiveSweepFindings,
@@ -105,14 +108,26 @@ function tinyFixture() {
     profilesWithoutPrimitives: {},
     profiles: { ids: { "core-language": "Core Language" } },
     tokenClassKeyword: {
+      about: "a tiny fixture",
+      omitsReason: "x",
+      addsExcludedReason: "x",
+      addsProfileKeywordsReason: "x",
+      addsProfileKeywordsCoverageReason: "x",
+      rowSplitAnchorReason: "x",
+      rowFingerprintReason: "x",
       omitsKeywords: [],
       addsExcluded: [],
       addsProfileKeywords: false,
       addsProfileKeywordsNamedIndividually: [],
       addsProfileKeywordsCoveredByClause: [],
-      rowSplitAnchor: "not in the class:",
+      rowSplitAnchor: "The word-spelled operators",
+      rowExclusionEndAnchor: "are **not** in this class",
+      deltaSentence: "omits {omits}, adds {adds}",
+      independenceClause: "independent",
+      paintIndependenceClause: "never paints",
+      rowTableHeader: "| H |",
       rowFingerprint:
-        "ea8530598721b6a5d2c8c57b4b6e3c7cce36f885ae0157e2e31eb44b1e997222",
+        "a889cdb4032e110d26522de4e3b980dbd26c82dde364fb471da1066825f61f2d",
     },
     names: [
       {
@@ -1327,6 +1342,207 @@ test("the stdlib check is case-sensitive, so its verdict does not depend on the 
   assert.equal(isStdlibSource("STDLIB/geometry/polygon.logo", REAL_IO), false);
 });
 
+test("INJECTED DRIFT: the row kept verbatim but no longer a live normative table row", () => {
+  // The digest covers the row's BYTES, not its CONTEXT. Measured green before this: the row wrapped
+  // in an HTML comment, moved into a code fence, or relocated verbatim under a fabricated
+  // "no longer normative" heading with a different table header — all with the digest intact.
+  const header = REAL_MANIFEST.tokenClassKeyword.rowTableHeader;
+  for (const [label, mutate] of [
+    [
+      "commented out",
+      (text) => text.replace(/^(\| `keyword` \|.*)$/m, "<!--\n$1\n-->"),
+    ],
+    [
+      "fenced",
+      (text) => text.replace(/^(\| `keyword` \|.*)$/m, "```\n$1\n```"),
+    ],
+    [
+      "table header deprecated",
+      (text) => text.replace(header, "| Class (DEPRECATED) | Meaning |"),
+    ],
+  ]) {
+    const io = proseIo(TOOLING_PATH, (text) => {
+      const next = mutate(text);
+      assert.notEqual(next, text, `${label}: probe did nothing`);
+      return next;
+    });
+    const findings = proseFindings(REAL_MANIFEST, io);
+    assert.equal(
+      findings.some((finding) =>
+        finding.includes("stopped being a live table row"),
+      ),
+      true,
+      `${label} survived: ${findings.join("\n")}`,
+    );
+  }
+});
+
+test("INJECTED DRIFT: a contradicted claim survives the digest being bumped", () => {
+  // This is what the fingerprint alone cannot do. It detects that the row CHANGED, and its remedy is
+  // "re-derive and record the new digest" — a green button if taken carelessly. The three derived
+  // claims compute their expectation from the manifest, so they still fire on a bumped digest.
+  for (const [label, from, to] of [
+    [
+      "delta counts",
+      "it omits four reserved words, adds four non-reserved ones",
+      "it omits seven reserved words, adds nine non-reserved ones",
+    ],
+    [
+      "independence polarity",
+      "This class is **not derived from** the reserved list",
+      "This class is **derived from** the reserved list",
+    ],
+    [
+      "paint polarity",
+      "reserved-list membership never decides how a token is painted",
+      "reserved-list membership always decides how a token is painted",
+    ],
+  ]) {
+    const manifest = manifestCopy();
+    let mutated;
+    const io = proseIo(TOOLING_PATH, (text) => {
+      assert.equal(text.includes(from), true, `${label}: needle absent`);
+      mutated = text.replace(from, to);
+      return mutated;
+    });
+    // Bump the digest exactly as a careless contributor would, so the fingerprint is satisfied.
+    manifest.tokenClassKeyword.rowFingerprint = rowFingerprint(
+      extractToolingKeywordRow(
+        io.readText(TOOLING_PATH),
+        manifest.tokenClassKeyword.rowTableHeader,
+      ),
+    );
+    const findings = proseFindings(manifest, io);
+    assert.equal(
+      findings.some((finding) =>
+        finding.includes("This is not a request to update a hash"),
+      ),
+      false,
+      `${label}: the digest should be satisfied, or this proves nothing`,
+    );
+    assert.equal(
+      findings.length > 0,
+      true,
+      `${label} survived a bumped digest: ${findings.join("\n")}`,
+    );
+  }
+});
+
+test("the fingerprint failure hands out no digest to paste", () => {
+  const findings = rowFingerprintFindings(
+    { ...REAL_MANIFEST.tokenClassKeyword },
+    "| `keyword` | changed |",
+  );
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].includes("re-derive the class"), true);
+  assert.equal(findings[0].includes("--print-fingerprint"), true);
+  assert.equal(
+    /[0-9a-f]{64}/.test(findings[0]),
+    false,
+    "a diagnostic that hands out the value invites pasting it",
+  );
+});
+
+test("INJECTED DRIFT: an exclusion clause naming a word the manifest does not omit", () => {
+  const io = proseIo(TOOLING_PATH, (text) =>
+    text.replace(
+      "`and`, `or`, `not`, and `mod` are **not** in this class",
+      "`and`, `or`, `not`, `mod`, and `repeat` are **not** in this class",
+    ),
+  );
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.rowFingerprint = rowFingerprint(
+    extractToolingKeywordRow(
+      io.readText(TOOLING_PATH),
+      manifest.tokenClassKeyword.rowTableHeader,
+    ),
+  );
+  const findings = proseFindings(manifest, io);
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the row's exclusion clause names repeat, which ${MANIFEST_PATH} does not omit from the class`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a split anchor that does not bound the exclusion names", () => {
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.rowSplitAnchor = "which takes no block";
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.some(
+      (finding) =>
+        finding.includes("does not close the exclusion clause") ||
+        finding.includes("is not bounding the words the clause excludes") ||
+        finding.includes("not a bare list of names"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: narrative fields blanked with a single space", () => {
+  const manifest = manifestCopy();
+  manifest.about = " ";
+  manifest.invariants.bothDirections = " ";
+  manifest.tokenClassKeyword.rowFingerprintReason = " ";
+  const findings = narrativeFindings(manifest);
+  assert.deepEqual(findings, [
+    `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
+    `${MANIFEST_PATH}: invariants.bothDirections is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
+    `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprintReason is missing or empty — it records why a delta or an anchor is what it is, which nothing else in the file says`,
+  ]);
+});
+
+test("INJECTED DRIFT: a derived claim blanked, or a template that cannot interpolate", () => {
+  const manifest = manifestCopy();
+  manifest.tokenClassKeyword.independenceClause = "  ";
+  manifest.tokenClassKeyword.deltaSentence = "it omits some words";
+  const findings = proseFindings(manifest, REAL_IO);
+  assert.equal(
+    findings.includes(
+      `${MANIFEST_PATH}: tokenClassKeyword.independenceClause is empty — an empty claim matches everything, so the check it guards is switched off rather than satisfied`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+  for (const placeholder of ["{omits}", "{adds}"]) {
+    assert.equal(
+      findings.includes(
+        `${MANIFEST_PATH}: tokenClassKeyword.deltaSentence must contain ${placeholder} exactly once, or the count it claims is not the count this file holds`,
+      ),
+      true,
+      findings.join("\n"),
+    );
+  }
+});
+
+test("numberWord spells small counts and falls back to digits", () => {
+  assert.equal(numberWord(0), "zero");
+  assert.equal(numberWord(4), "four");
+  assert.equal(numberWord(12), "twelve");
+  assert.equal(numberWord(13), "13");
+});
+
+test("--print-fingerprint is a deliberate act, and reports a missing row rather than a digest", () => {
+  assert.equal(parseArgs(["--print-fingerprint"]).printFingerprint, true);
+  assert.equal(parseArgs([]).printFingerprint, undefined);
+  assert.equal(
+    currentRowFingerprint(),
+    REAL_MANIFEST.tokenClassKeyword.rowFingerprint,
+  );
+  const io = {
+    ...REAL_IO,
+    readText: (path) => (path === TOOLING_PATH ? "" : REAL_IO.readText(path)),
+  };
+  assert.equal(
+    currentRowFingerprint({ io }),
+    `no single live \`keyword\` row found under ${REAL_MANIFEST.tokenClassKeyword.rowTableHeader}`,
+  );
+});
+
 test("a moved prose anchor is a finding, never a silent skip", () => {
   const grammarless = proseFindings(
     REAL_MANIFEST,
@@ -1335,7 +1551,7 @@ test("a moved prose anchor is a finding, never a silent skip", () => {
   assert.deepEqual(grammarless, [
     `${GRAMMAR_PATH}: could not find the fenced keyword block after "The normative OpenLogo keyword list is:" — the anchor this gate reads has moved`,
     `${TOOLING_PATH}: could not find the C19 mirror paragraph after "this is the C19 registry repeated" — the anchor this gate reads has moved`,
-    `${TOOLING_PATH}: could not find the \`keyword\` token-class row — the anchor this gate reads has moved`,
+    `${TOOLING_PATH}: could not find exactly one \`keyword\` token-class row under the declared table header, outside any code fence or HTML comment — the row this gate reads has moved, been duplicated, or stopped being a live table row`,
   ]);
 });
 
@@ -1744,10 +1960,39 @@ test("the prose extractors fail closed on a truncated document", () => {
     ),
     ["define", "to", "end"],
   );
-  assert.equal(extractToolingKeywordRow("| `primitive` | x |"), null);
+  assert.equal(extractToolingKeywordRow("| `primitive` | x |", "| H |"), null);
   assert.equal(
-    extractToolingKeywordRow("| `keyword` | x |"),
+    extractToolingKeywordRow("| H |\n|---|\n| `keyword` | x |", "| H |"),
     "| `keyword` | x |",
+  );
+  assert.equal(
+    extractToolingKeywordRow("| Other |\n|---|\n| `keyword` | x |", "| H |"),
+    null,
+    "a row under a different table header is not this table's row",
+  );
+  assert.equal(
+    extractToolingKeywordRow(
+      "| H |\n|---|\n<!--\n| `keyword` | x |\n-->\n",
+      "| H |",
+    ),
+    null,
+    "a row commented out is not a live row",
+  );
+  assert.equal(
+    extractToolingKeywordRow(
+      "| H |\n|---|\n```\n| `keyword` | x |\n```\n",
+      "| H |",
+    ),
+    null,
+    "a row inside a fence is not a live row",
+  );
+  assert.equal(
+    extractToolingKeywordRow(
+      "| H |\n|---|\n| `keyword` | a |\n| `keyword` | b |",
+      "| H |",
+    ),
+    null,
+    "two rows means there is no single row to compare",
   );
 });
 
@@ -1790,7 +2035,7 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\n| `keyword` | `define` not in the class: |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\n| H |\n|---|\n| `keyword` | `define` The word-spelled operators are **not** in this class. omits zero, adds zero. independent. never paints. |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });
