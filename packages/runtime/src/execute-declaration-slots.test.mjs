@@ -92,6 +92,25 @@ function declareProcedure(name, keyword = "define") {
   return `${keyword} ${name}\nend`;
 }
 
+/**
+ * The same declaration, wrapped inside an enclosing `define … end` so it sits at nesting depth 1.
+ *
+ * `spec/grammar.md:93-94,147-148` makes a declaration an ordinary `statement` and a body a sequence
+ * of statements, so declarations nest by construction — and `registerDeclarations` uses a
+ * whole-program `walk`, which is depth-agnostic for free. **"For free" is exactly why it needs
+ * pinning:** nothing about the guard mentions depth, so a change that started visiting only
+ * `program.body` would look local and correct, and every one of this repository's 886 fixtures and
+ * 3915 tests declares at column 1. Measured: a mutant exempting non-top-level declarations from both
+ * guards passed the entire Definition of Done while making a nested `define forward` run silently.
+ */
+function nestInsideProcedure(declaration) {
+  const indented = declaration
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
+  return `define outer\n${indented}\nend\nouter`;
+}
+
 // ---------------------------------------------------------------------------
 // The enumeration is real — a guard against every loop below iterating nothing
 // ---------------------------------------------------------------------------
@@ -186,12 +205,22 @@ test("`execute()` and `check()` report the SAME identity for every built-in name
 });
 
 test("`execute()` and `check()` agree on the SPAN, not merely the code and params", () => {
-  for (const name of ["forward", "fd", "hint", "dict", "if"]) {
-    const source = declareProcedure(name);
+  // Swept across all three declaration spellings, not just `define`: `to` is three characters where
+  // the others are six, so the reported column differs, and a `define`-only span sweep would be
+  // pinned to the widths that happen to coincide.
+  for (const source of [
+    "define forward\nend",
+    "define fd\nend",
+    "define if\nend",
+    "to forward\nend",
+    "to fd\nend",
+    "struct forward [ x ]",
+    "struct dict [ x ]",
+  ]) {
     const { ast } = parse(source, doc);
     const [fromCheck] = check(ast, { profiles: OL_CHECK_PROFILES }).diagnostics;
     const [fromExecute] = execute(source, doc).diagnostics;
-    assert.deepEqual(fromExecute.source_span, fromCheck.source_span, name);
+    assert.deepEqual(fromExecute.source_span, fromCheck.source_span, source);
   }
 });
 
@@ -305,6 +334,7 @@ const duplicateForms = {
   "to then define":
     "to foo\n  print 111\nend\ndefine foo\n  print 222\nend\nfoo",
   "to then struct": "to pair\n  print 1\nend\nstruct pair [ x ]",
+  "struct then to": "struct pair [ x ]\nto pair\n  print 1\nend",
   // Mixed case on purpose. An all-lowercase corpus is exactly how issue #874's `params.callable`
   // question stayed unadjudicated for 57 fixtures: the rule under test never varied. Applied at
   // more than one declaration kind, because holding the KIND constant at the mixed-case site hides
@@ -394,6 +424,89 @@ test("`ol-duplicate-definition` is not profile-gated — Core-only sees it too",
   assert.deepEqual(
     executeIdentity(source).map(([code]) => code),
     ["ol-duplicate-definition"],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Nesting depth — the guard is depth-agnostic, and that must be asserted
+// ---------------------------------------------------------------------------
+
+test("EVERY built-in name is rejected at a NESTED `define` too — depth is not the variable", () => {
+  // Every declaration in this repository's 886 fixtures and 3915 tests sits at column 1, so a guard
+  // that quietly became top-level-only would be invisible. Measured: such a mutant passed the whole
+  // Definition of Done while a nested `define forward` ran silently.
+  assert.deepEqual(
+    everyBuiltInName.map((name) => [
+      name,
+      executeIdentity(nestInsideProcedure(declareProcedure(name))),
+    ]),
+    everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+  );
+});
+
+test("a NESTED declaration collides exactly as a top-level one does, in every form", () => {
+  // Both codes, both declaration spellings, and a struct — inside a procedure body, inside a
+  // `repeat` block, and inside an `if` block, because a depth guard could plausibly key on the
+  // enclosing node kind rather than on depth itself.
+  const nested = {
+    "nested built-in define": [
+      "define outer\n  define forward\n  end\nend\nouter",
+      "ol-reserved-word",
+    ],
+    "nested built-in to": [
+      "define outer\n  to forward\n  end\nend\nouter",
+      "ol-reserved-word",
+    ],
+    "nested built-in struct": [
+      "define outer\n  struct forward [ x ]\nend\nouter",
+      "ol-reserved-word",
+    ],
+    "built-in inside repeat": [
+      "repeat 1 [ define forward\nend ]",
+      "ol-reserved-word",
+    ],
+    "built-in inside if": [
+      "if true [ define forward\nend ]",
+      "ol-reserved-word",
+    ],
+    "duplicate both nested": [
+      "define outer\n  define dup\n  end\n  define dup\n  end\nend\nouter",
+      "ol-duplicate-definition",
+    ],
+    "duplicate top-level then nested": [
+      "define dup\nend\ndefine outer\n  define dup\n  end\nend\nouter",
+      "ol-duplicate-definition",
+    ],
+  };
+  for (const [label, [source, code]] of Object.entries(nested)) {
+    const identity = executeIdentity(source);
+    assert.deepEqual(
+      identity.map(([reported]) => reported),
+      [code],
+      label,
+    );
+    assert.deepEqual(identity, checkIdentity(source), label);
+    assert.deepEqual(
+      execute(source, doc).events,
+      [],
+      `${label} must halt before anything runs`,
+    );
+  }
+});
+
+test("a legal NESTED declaration still registers and is callable — the guard rejects, it does not disable", () => {
+  // The other half, and what makes the mutant above non-trivial: nested declarations are genuinely
+  // registered by the same walk, so the guard riding on it is load-bearing rather than decorative.
+  const result = execute(
+    "define outer\n  define helper\n    print 42\n  end\nend\nhelper",
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values[0]),
+    [42],
   );
 });
 

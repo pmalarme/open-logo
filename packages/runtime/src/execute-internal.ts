@@ -4210,7 +4210,7 @@ const ANY_PROFILE_PRIMITIVE_NAMES: ReadonlySet<string> = new Set(
  *
  * An alias is resolved to its canonical spelling and looked up again rather than given a table of
  * its own, the construction `checker-reserved-word.ts` uses: Heritage is "alternate spellings only,
- * no new semantics" (`spec/conformance.md:146`), so `define pr` must be exactly as illegal as
+ * no new semantics" (`spec/conformance.md:150`), so `define pr` must be exactly as illegal as
  * `define print`, and re-entering the same lookup makes that hold by construction. The recursion is
  * depth-1 because no canonical spelling is itself an alias, which
  * `execute-declaration-slots.test.mjs` pins directly off the registry.
@@ -4242,23 +4242,33 @@ function isBuiltInName(name: string): boolean {
  *
  * It answers the one question a declaration slot asks — *is this name already taken, and by whom?* —
  * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and
- * `execute()` agree on code, params and spans (issue #839):
+ * `execute()` agree on code, params and spans **when every profile is active** (issue #839). That
+ * qualifier is load-bearing: `checker-reserved-word.ts` still gates some profiles, so under a
+ * Core-only `check()` there is a measured residual in the opposite direction, recorded in
+ * `tests/conformance/sprites/define-profile-keyword-reserved-at-runtime/` and owned by issue #841.
  *
  * - `ol-reserved-word` when OpenLogo owns the name ({@link isBuiltInName});
- * - otherwise `ol-duplicate-definition` when an earlier `define`/`struct` already declared it,
+ * - otherwise `ol-duplicate-definition` when an earlier declaration already registered the name,
  *   carrying that earlier declaration's span in `params.original_span`.
  *
- * Built-in wins, so a name that is both is reported once, as the thing the learner cannot change —
- * and a built-in name is never recorded as a first declaration, which is what keeps `define forward`
- * twice reporting `ol-reserved-word` rather than degrading the second one into a duplicate.
+ * Built-in wins, so a name that is both is reported once, as the thing the learner cannot change.
+ * (A built-in name is also never recorded as a first declaration. That is deliberate for the
+ * checker, which reports every finding; here it is **unobservable**, because the run halts at the
+ * first collision and the map is never read again — a mutant that records it passes every gate.
+ * Kept for parity with `declarationSlotRule` rather than for any behaviour of this function.)
  *
- * **Both declaration kinds share one first-declaration map**, so a name's first declaration wins
- * whichever kind it is and every later one names *that* span. Splitting them would make
- * `struct f` / `define f` / `define f` point the third declaration at the second, and "earlier" is a
- * property of the program, not of the node kind.
+ * **Both declaration kinds share one first-declaration map**, and every later declaration of a name
+ * — whichever kind, whichever spelling, at whatever nesting depth — is reported against the first.
+ * One map is the chosen implementation, not a conclusion the observable behaviour forces: two maps
+ * with a correct cross-kind lookup would be indistinguishable from source, which is why no fixture
+ * here claims otherwise. What *is* observable, and is pinned, is that a `define`/`struct` collision
+ * is reported in **both** orders and that `original_span` names the earlier declaration.
  *
- * **Neither kind is profile-gated.** `spec/execution-model.md:82-88` makes phase-1 registration
- * unconditional, and `execute()` has no active profile set to gate on in any case.
+ * **Neither kind is profile-gated, and neither is depth-gated.** `spec/execution-model.md:82-88`
+ * makes phase-1 registration unconditional, `execute()` has no active profile set to gate on in any
+ * case, and the `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148`
+ * makes a declaration an ordinary statement, so `define outer / define forward / end / end` is a
+ * collision exactly as the top-level form is.
  *
  * The first collision found in source order halts the whole program — nothing runs, so the
  * `define foo` twice that used to print the *second* body prints nothing at all.
@@ -4781,7 +4791,7 @@ function executeStatements(
 ): ExecSignal {
   for (const rawStatement of statements) {
     // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
-    // no new semantics" (`spec/conformance.md:146`): the reader recorded the Core name the alias
+    // no new semantics" (`spec/conformance.md:150`): the reader recorded the Core name the alias
     // spells on the node's `canonical` field. Normalizing the callee to that Core name ONCE here —
     // the single dispatch chokepoint — makes every downstream `is*Call` predicate and executor,
     // plus every emitted event payload (`instruction`, `primitive`, `procedure-enter/exit`), fire

@@ -233,7 +233,7 @@ test("#787: the reporter-position crash repro is now rejected at registration", 
 test("#787: a reporter-position alias over a BUILT-IN canonical still behaves exactly like that canonical", () => {
   // What survives of #787's rule once the user-procedure route is gone: `fd` in reporter position
   // must be indistinguishable from `forward` there — same events, same diagnostics — because
-  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:146`). Asserted
+  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`). Asserted
   // as full-result equivalence rather than against a named diagnostic, because these calls do not
   // currently produce one: a command in reporter position is accepted leniently and yields no value,
   // no `print` event and no `ol-*` code at all. That leniency is NOT this slice's to change (it is

@@ -1310,7 +1310,7 @@ function evaluateDictLit(
  * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
  * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
  * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
- * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:146`), so
+ * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
  * rather than restating that read it calls the very same {@link resolveDictSegment} the Core
  * `:d.key` and `:d[key]` selectors call — the reader builds no dict-read diagnostic of its own, so
  * there is no second copy to drift out of step with Core, which is how issue #784 happened.

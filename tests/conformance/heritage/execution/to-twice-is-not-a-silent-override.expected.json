@@ -1,0 +1,27 @@
+{
+  "description": "Issue #839 AC1, in the HERITAGE `to` spelling of the declaration slot. `spec/grammar.md` gives the grammar four declaration slots and `to` is one of them; `spec/conformance.md:150` makes Heritage \"alternate spellings only. It does not add new semantics\", so `to foo` twice must be exactly as illegal as `define foo` twice — same code, same params, same spans, differing only where the shorter keyword moves the column (`to` is three characters, so the name starts at column 4 rather than 8). This fixture exists because the corpus contained ZERO `to` declarations of any kind: measured, a mutant exempting `to` from the duplicate guard reproduced issue #839's ORIGINAL defect verbatim — this exact program printed `222` with no diagnostic while `check()` reported the collision — and passed all 886 fixtures, 3912 tests, examples and markdown. The corpus is the stack-neutral artifact another implementation must satisfy, so a `to`-slot rule pinned only in `packages/runtime` would not be portable. The two bodies print different values so the fixture discriminates between last-wins, first-wins and the ruling's rule.",
+  "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "heritage/execution/to-twice-is-not-a-silent-override",
+        "start": [4, 4],
+        "end": [4, 7]
+      },
+      "params": {
+        "name": "foo",
+        "original_span": {
+          "document": "heritage/execution/to-twice-is-not-a-silent-override",
+          "start": [1, 4],
+          "end": [1, 7]
+        }
+      },
+      "message": "you already defined foo on line 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

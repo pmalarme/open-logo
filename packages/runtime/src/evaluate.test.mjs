@@ -442,7 +442,7 @@ test("`value of <dict> for key <key>` reports a numeric key bare (unquoted) in t
   assert.equal(result.diagnostic.message, "this dict has no key 5.");
 });
 
-// The Heritage-contract twin tests (issue #670, `spec/conformance.md:146` — alternate spellings,
+// The Heritage-contract twin tests (issue #670, `spec/conformance.md:150` — alternate spellings,
 // no new semantics): the reader `value of D for key K` must produce a result byte-identical to its
 // Core twin on the same operands — the same value on success, and on failure the same diagnostic
 // `code`, `params`, `message`, `stage`, and `severity`. Only the `source_span` may differ (it points
