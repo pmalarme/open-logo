@@ -93,22 +93,30 @@ function declareProcedure(name, keyword = "define") {
 }
 
 /**
- * The same declaration, wrapped inside an enclosing `define … end` so it sits at nesting depth 1.
+ * The same declaration, wrapped in `depth` enclosing `define … end` procedures.
  *
  * `spec/grammar.md:93-94,147-148` makes a declaration an ordinary `statement` and a body a sequence
  * of statements, so declarations nest by construction — and `registerDeclarations` uses a
  * whole-program `walk`, which is depth-agnostic for free. **"For free" is exactly why it needs
  * pinning:** nothing about the guard mentions depth, so a change that started visiting only
- * `program.body` would look local and correct, and every one of this repository's 886 fixtures and
- * 3915 tests declares at column 1. Measured: a mutant exempting non-top-level declarations from both
- * guards passed the entire Definition of Done while making a nested `define forward` run silently.
+ * `program.body` would look local and correct, and every declaration in this repository's fixtures
+ * sat at column 1 until this slice. Measured: a mutant exempting non-top-level declarations passed
+ * the entire Definition of Done while a nested `define forward` ran silently.
+ *
+ * **`depth` is a parameter, not a constant, and callers must use more than one value.** Fixing it at
+ * 1 is the same defect one level in: a mutant exempting only depth ≥ 2 also passed every gate. The
+ * variable has to be varied, not merely introduced.
  */
-function nestInsideProcedure(declaration) {
-  const indented = declaration
-    .split("\n")
-    .map((line) => `  ${line}`)
-    .join("\n");
-  return `define outer\n${indented}\nend\nouter`;
+function nestInsideProcedure(declaration, depth = 1) {
+  let nested = declaration;
+  for (let level = 0; level < depth; level += 1) {
+    const indented = nested
+      .split("\n")
+      .map((line) => `  ${line}`)
+      .join("\n");
+    nested = `define outer${level}\n${indented}\nend`;
+  }
+  return `${nested}\nouter${depth - 1}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -431,23 +439,30 @@ test("`ol-duplicate-definition` is not profile-gated — Core-only sees it too",
 // Nesting depth — the guard is depth-agnostic, and that must be asserted
 // ---------------------------------------------------------------------------
 
-test("EVERY built-in name is rejected at a NESTED `define` too — depth is not the variable", () => {
-  // Every declaration in this repository's 886 fixtures and 3915 tests sits at column 1, so a guard
+test("EVERY built-in name is rejected at a NESTED `define` too — at depth 1 AND depth 2", () => {
+  // Every declaration in this repository's fixtures sat at column 1 before this slice, so a guard
   // that quietly became top-level-only would be invisible. Measured: such a mutant passed the whole
-  // Definition of Done while a nested `define forward` ran silently.
-  assert.deepEqual(
-    everyBuiltInName.map((name) => [
-      name,
-      executeIdentity(nestInsideProcedure(declareProcedure(name))),
-    ]),
-    everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
-  );
+  // Definition of Done while a nested `define forward` ran silently — and so did a second mutant
+  // exempting only depth >= 2, which is why the sweep runs at two depths rather than one.
+  for (const depth of [1, 2]) {
+    assert.deepEqual(
+      everyBuiltInName.map((name) => [
+        name,
+        executeIdentity(nestInsideProcedure(declareProcedure(name), depth)),
+      ]),
+      everyBuiltInName.map((name) => [name, [["ol-reserved-word", { name }]]]),
+      `depth ${depth}`,
+    );
+  }
 });
 
 test("a NESTED declaration collides exactly as a top-level one does, in every form", () => {
-  // Both codes, both declaration spellings, and a struct — inside a procedure body, inside a
-  // `repeat` block, and inside an `if` block, because a depth guard could plausibly key on the
-  // enclosing node kind rather than on depth itself.
+  // Both codes, all three declaration spellings, and — crucially — every kind of enclosing body.
+  // A depth guard could plausibly key on the ENCLOSING NODE KIND rather than on depth, so inline
+  // blocks (`repeat`, `if`) are not enough: the Interaction & Events handler bodies are the ones an
+  // implementer is most likely to special-case, because "handlers run later" invites deferring
+  // registration. A mutant exempting `ProfileStatement` bodies passed every gate — and in the
+  // `when` case surfaced an unrelated `ol-type` rather than merely staying silent.
   const nested = {
     "nested built-in define": [
       "define outer\n  define forward\n  end\nend\nouter",
@@ -461,6 +476,14 @@ test("a NESTED declaration collides exactly as a top-level one does, in every fo
       "define outer\n  struct forward [ x ]\nend\nouter",
       "ol-reserved-word",
     ],
+    "built-in at depth 2": [
+      "define a\n  define b\n    define forward\n    end\n  end\nend\na",
+      "ol-reserved-word",
+    ],
+    "built-in at depth 3": [
+      "define a\n  define b\n    define c\n      define forward\n      end\n    end\n  end\nend\na",
+      "ol-reserved-word",
+    ],
     "built-in inside repeat": [
       "repeat 1 [ define forward\nend ]",
       "ol-reserved-word",
@@ -469,12 +492,32 @@ test("a NESTED declaration collides exactly as a top-level one does, in every fo
       "if true [ define forward\nend ]",
       "ol-reserved-word",
     ],
+    "built-in inside when handler": [
+      "when true [ define forward\nend ]",
+      "ol-reserved-word",
+    ],
+    "built-in inside every block": [
+      "every 1 [ define forward\nend ]",
+      "ol-reserved-word",
+    ],
+    "built-in inside on_key block": [
+      'on_key "a" [ define forward\nend ]',
+      "ol-reserved-word",
+    ],
+    "built-in inside on_click block": [
+      "on_click [ define forward\nend ]",
+      "ol-reserved-word",
+    ],
     "duplicate both nested": [
       "define outer\n  define dup\n  end\n  define dup\n  end\nend\nouter",
       "ol-duplicate-definition",
     ],
-    "duplicate top-level then nested": [
-      "define dup\nend\ndefine outer\n  define dup\n  end\nend\nouter",
+    "duplicate both at depth 2": [
+      "define a\n  define b\n    define dup\n    end\n    define dup\n    end\n  end\nend\na",
+      "ol-duplicate-definition",
+    ],
+    "duplicate inside every block": [
+      "every 1 [ define dup\nend\ndefine dup\nend ]",
       "ol-duplicate-definition",
     ],
   };
@@ -491,6 +534,37 @@ test("a NESTED declaration collides exactly as a top-level one does, in every fo
       [],
       `${label} must halt before anything runs`,
     );
+  }
+});
+
+test("a cross-depth duplicate is reported in BOTH orientations, always naming the earlier one", () => {
+  // The declaration ORDER across depths is its own variable. A two-pass registration — top-level
+  // first, then descend, a plausible "so forward references resolve" refactor — preserves the
+  // top-level-first orientation and INVERTS the other: it flags the earlier declaration as the
+  // duplicate and names the later one as the original, so the learner stands on line 2 and is told
+  // "you already defined foo on line 5". `spec/execution-model.md:86-87` requires the opposite:
+  // it is "a name an EARLIER declaration in the program already registered" that raises. Measured:
+  // that mutant passed every gate while only the top-level-first orientation was pinned.
+  const orientations = {
+    "top-level first, nested second": [
+      "define foo\nend\ndefine outer\n  define foo\n  end\nend",
+      [4, 10],
+      [1, 8],
+    ],
+    "nested first, top-level second": [
+      "define outer\n  define foo\n  end\nend\ndefine foo\nend",
+      [5, 8],
+      [2, 10],
+    ],
+  };
+  for (const [label, [source, later, earlier]] of Object.entries(
+    orientations,
+  )) {
+    const [diagnostic] = execute(source, doc).diagnostics;
+    assert.equal(diagnostic.code, "ol-duplicate-definition", label);
+    assert.deepEqual(diagnostic.source_span.start, later, label);
+    assert.deepEqual(diagnostic.params.original_span.start, earlier, label);
+    assert.deepEqual(executeIdentity(source), checkIdentity(source), label);
   }
 });
 
@@ -540,6 +614,16 @@ test("the first collision in source order halts the run, whichever code it carri
     "ol-duplicate-definition",
   );
   assert.equal(executeIdentity(builtInFirst)[0][0], "ol-reserved-word");
+
+  // Depth-mixed, because both rows above are entirely at depth 0 and a two-pass registration that
+  // visited every top-level declaration before descending would reorder exactly this: the NESTED
+  // built-in on line 2 comes first in source order, so it is what halts the run — a top-level-first
+  // pass would instead reach the depth-0 duplicate on line 7 and report the wrong code entirely.
+  const nestedBuiltInBeforeTopLevelDuplicate =
+    "define outer\n  define forward\n  end\nend\ndefine dup\nend\ndefine dup\nend";
+  assert.deepEqual(executeIdentity(nestedBuiltInBeforeTopLevelDuplicate), [
+    ["ol-reserved-word", { name: "forward" }],
+  ]);
 });
 
 // ---------------------------------------------------------------------------
