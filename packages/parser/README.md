@@ -14,13 +14,22 @@ and the syntax + semantic **checker** (parse/semantic lint + `ol-style-*` style 
 
 ## Semantic tokens (LSP contract) for studio
 
-`highlight(source, document)` classifies tokens into the 15 normative token classes + 5 bracket
-roles from [`tooling.md`](../../spec/tooling.md#L28-L84). `semanticTokens(source, document)`
-(`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on top of
-that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a `modifiers`
-array drawn from the modifier vocabulary in
-[`tooling.md:277`](../../spec/tooling.md#L277) — `declaration`, `reference`, `readonly`,
+`highlight(source, document, options)` classifies tokens into the 15 normative token classes + 5
+bracket roles from [`tooling.md`](../../spec/tooling.md#L28-L84). `semanticTokens(source, document,
+options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on
+top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
+`modifiers` array drawn from the modifier vocabulary in
+[`tooling.md:278-280`](../../spec/tooling.md#L278-L280) — `declaration`, `reference`, `readonly`,
 `defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
+
+`options` is optional on both (`HighlightOptions`). Its one field, `profiles`, is the **active
+profile set**, in the same vocabulary `check()` uses. It decides a single thing: a profile
+block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, Interaction's
+`when`/`every`/`on_key`/`on_click` — is `keyword` while its profile is active
+([`tooling.md:30`](../../spec/tooling.md#L30)) and `primitive` without it
+([`:31`](../../spec/tooling.md#L31)). Profile *primitives* (the Sound commands, `wait`, `input`,
+the Sprites reporters) are `primitive` under every profile set. Omit `options` and both APIs read
+as Core Language alone, which is exactly what callers saw before the option existed.
 
 A future `@openlogo/studio` editor pane (or any other LSP-style client) should call
 `semanticTokens()` instead of `highlight()` directly whenever it needs modifier-aware

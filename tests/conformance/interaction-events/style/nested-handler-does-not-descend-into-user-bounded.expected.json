@@ -1,0 +1,24 @@
+{
+  "description": "exactly ONE finding, naming the on_key registration, even though an every appears inside it. The on_key registration is what accumulates - one more per tick - while the inner every 10 is guarded by a key press and only misbehaves because the outer already did; fix the outer and it disappears. Reporting both would put two warnings on one line for a single defect and would teach that the guarded inner form is itself suspect, contradicting the user-bounded carve-out",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-nested-handler",
+      "source_span": {
+        "document": "interaction-events/style/nested-handler-does-not-descend-into-user-bounded",
+        "start": [1, 11],
+        "end": [1, 46]
+      },
+      "params": {
+        "outer": "every",
+        "inner": "on_key"
+      },
+      "message": "every runs again and again, so this on_key can add another handler each time. register it once, outside the every.",
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

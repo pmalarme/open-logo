@@ -1,0 +1,37 @@
+{
+  "description": "ol-style-nested-handler is gated on the interaction-events profile, and this pins that gate STACK-NEUTRALLY rather than only in a unit test. Core-only, every is not a visible block-head at all, so the program yields ol-unknown-command for each every and no style finding whatsoever - a rule must consult the active profile set rather than assume every optional profile is on. Without this fixture, dropping the profile gate left all 856 fixtures passing and died only in a package-local unit test, which is exactly the survivable-mutation shape this corpus exists to prevent. Follows the convention of set-tempo-without-sound-profile, explain-without-educational-profile, and the other *-without-*-profile siblings; note the fixture's DIRECTORY is what pins its profile set, so this one must live under core-language/ and not beside the interaction-events/style fixtures it complements",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/style/nested-handler-without-interaction-profile",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "name": "every"
+      },
+      "message": "i don't know how to every. check the spelling, or define it with 'define'.",
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/style/nested-handler-without-interaction-profile",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "params": {
+        "name": "every"
+      },
+      "message": "i don't know how to every. check the spelling, or define it with 'define'.",
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -11,10 +11,14 @@
 //      treated as reserved words *only when the Interaction & Events profile is active* — the
 //      shipped behaviour, which `spec/grammar.md:408` and `spec/interaction-events.md:43-47`
 //      retract in favour of an unconditional rule ("what a profile decides is whether a name
-//      *works*, never whether a program may declare it"); retiring the gate is #841.
-//      Slices I3–I6 already taught the Layer-2 checker to treat them as visible
+//      *works*, never whether a program may declare it"); retiring the gate is #841. The earlier
+//      "reserved only within this profile" wording is gone from `spec/` — #855 deleted it — so the
+//      assertions below lock today's GATED behaviour rather than the spec's rule, and they invert
+//      when #841 lands. Slices I3–I6 already taught the Layer-2 checker to treat them as visible
 //      command names (`interactionEventsBlockHeadNames` in `collectVisibleNames`), so this slice
 //      LOCKS that half with fixtures rather than re-adding it.
+//      Reservation is a *legality* question and is independent of the token class, which #740
+//      makes profile-dependent — see the highlighting note below.
 //   2. `wait` and `input` are the profile's two ordinary calls (`spec/interaction-events.md:65`:
 //      "`input` and `wait` are ordinary calls and take no block") and live in the arity table — a
 //      Kind-C command taking one number and a Kind-R reporter taking one prompt
@@ -37,20 +41,24 @@
 // active profile and is STILL `ol-unknown-command` without one — so the profile gate this file
 // guards is proven in both directions for every name.
 //
-// Highlighting is currently **profile-blind**: `highlight()`/`semanticTokens()` take no active-
-// profile argument, so they emit the profile-neutral fallback `primitive` for all six names. Note
-// this is a KNOWN DEVIATION from the normative token-class model, not the final word:
-// `spec/tooling.md:30` puts "profile block-heads when their profile is active" in the `keyword`
-// class, so under an active `interaction-events` profile the four block-heads SHOULD ultimately be
-// `keyword`. The parser cannot express that yet — giving the highlighter a profile set changes one
-// of the four shared cross-package contracts and is tracked as its own serialized slice, issue
-// #740. `wait` and `input` are unaffected either way: they are ordinary primitives, so `primitive`
-// is their correct final class (as it is for the Sound commands, `spec/interaction-events.md`:
-// "Sound command names are ordinary primitive names when the Sound profile is present").
+// Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
+// active-profile set. `spec/tooling.md:30` puts the profile block-heads in the `keyword` class
+// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// `primitive`. So the six names split, and the split is the point of this file's highlighting
+// half: the four BLOCK-HEADS `when`/`every`/`on_key`/`on_click` are `keyword` with
+// `interaction-events` claimed and `primitive` without it, while `wait` and `input` are
+// `primitive` either way — they are ordinary primitives (`:31`, "profile primitives when
+// enabled"), the same control case `sound-tooling.test.mjs` locks for the Sound commands.
+// `spec/interaction-events.md:47` states it directly: "`input` and `wait` are ordinary primitives
+// rather than block-heads, as are the Sound command names; all of them are built-in names on the
+// same unconditional terms, and their profile decides only whether they work" — so declaring one
+// IS blocked while its token class stays `primitive`. Legality and classification are different
+// questions and the highlighting half of this file answers only the second.
 //
-// The assertions below therefore lock TODAY's profile-neutral fallback so the behavior is
-// intentional and visible rather than accidental — matching `sound-tooling.test.mjs` and
-// `sprites-tooling.test.mjs`. #740 updates all three together.
+// Both directions are asserted for every name. Before #740 this file asserted only the
+// profile-neutral `primitive` reading and carried a KNOWN DEVIATION note saying the parser could
+// not express the other one; it can now, so the note is retired. Nothing here is inverted — the
+// old assertions were the INACTIVE half of the pair and remain true; the ACTIVE half is new.
 //
 // Every name is exercised in **awkward positions** — inside a `[ … ]` instruction block, inside
 // `repeat`, inside an `if`, and nested in a procedure body — via one shared whole-program constant,
@@ -120,100 +128,259 @@ const NESTED_INTERACTION_PROGRAM = [
   "arm",
 ].join("\n");
 
-// --- Highlighting: every Interaction name classifies as primitive (profile-blind) --------------
+// --- Highlighting: block-heads move with the profile, primitives never do ----------------------
 
-test("highlight: each Interaction block-head and primitive classifies as primitive (profile-blind)", () => {
+/**
+ * The class each of the six names takes, written as DATA for both profile settings rather than
+ * computed from the same rule the classifier implements — a helper that re-derives the rule would
+ * agree with a broken classifier. Read down the two columns and the asymmetry #740 exists to
+ * create is visible at a glance: only the four block-heads move; `wait` and `input` never do.
+ */
+const EXPECTED_CLASS = Object.freeze({
+  inactive: Object.freeze({
+    when: "primitive",
+    every: "primitive",
+    on_key: "primitive",
+    on_click: "primitive",
+    wait: "primitive",
+    input: "primitive",
+  }),
+  active: Object.freeze({
+    when: "keyword",
+    every: "keyword",
+    on_key: "keyword",
+    on_click: "keyword",
+    wait: "primitive",
+    input: "primitive",
+  }),
+});
+
+/** The two profile settings under test, paired with the expectation table above. */
+const PROFILE_CASES = Object.freeze([
+  {
+    label: "interaction INACTIVE",
+    profiles: CORE_PROFILES,
+    expected: "inactive",
+  },
+  {
+    label: "interaction ACTIVE",
+    profiles: INTERACTION_PROFILES,
+    expected: "active",
+  },
+]);
+
+test("highlight: each Interaction name takes its profile-dependent class in isolation", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [name, source] of [
+      ...Object.entries(INTERACTION_BLOCK_HEADS),
+      ...Object.entries(INTERACTION_PRIMITIVES),
+    ]) {
+      const tokens = OL.highlight(source, doc, { profiles }).filter(
+        (t) => t.text === name,
+      );
+      // Assert the token EXISTS before asserting its class: a `filter(...).every(...)` over an
+      // empty list passes vacuously, which would hide the very regression this test guards.
+      assert.equal(
+        tokens.length,
+        1,
+        `expected exactly one ${name} token in ${JSON.stringify(source)} (${label})`,
+      );
+      assert.equal(
+        tokens[0].class,
+        EXPECTED_CLASS[expected][name],
+        `${name} in ${JSON.stringify(source)} with ${label}`,
+      );
+    }
+  }
+});
+
+test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
+  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
+  // **including the positions where the grammar admits one as an ordinary name (`local end`,
+  // `for end from 1 to 3`, `export end`, `:p.end`)**". All four of the spec's own examples are
+  // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
+  // without this row a change that suppressed the profile check in exactly these forms would pass
+  // the whole suite (that mutant survived all 3813 tests before this row existed).
+  //
+  // "Ordinary-name position" is the spec's own framing and the wording is deliberate:
+  // `local`/`set`/`for` BIND a name, `export` REFERENCES one, and `.field` is field ACCESS. What
+  // unites them is that the grammar admits an ordinary identifier there, not that they bind.
+  //
+  // `{ when: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
+  // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile.
+  const ORDINARY_NAME_SOURCES = Object.freeze({
+    local: "local when",
+    "set-to": "set when to 1",
+    "for-from": "for when from 1 to 3 [ print 1 ]",
+    export: "export when",
+    "dot-field": "print :rec.when",
+  });
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [position, source] of Object.entries(ORDINARY_NAME_SOURCES)) {
+      const tokens = OL.highlight(source, doc, { profiles }).filter(
+        (t) => t.text === "when",
+      );
+      assert.equal(
+        tokens.length,
+        1,
+        `expected one when in ${position} (${label})`,
+      );
+      assert.equal(
+        tokens[0].class,
+        EXPECTED_CLASS[expected].when,
+        `when in ${position} with ${label}`,
+      );
+    }
+    const dictKey = OL.highlight("print { when: 1 }", doc, { profiles }).filter(
+      (t) => t.text === "when",
+    );
+    assert.equal(dictKey.length, 1, `expected one when dict key (${label})`);
+    assert.equal(
+      dictKey[0].class,
+      "dict-key",
+      `a bare dict key is dict-key on grammatical grounds alone, in both directions (${label})`,
+    );
+  }
+});
+
+test("highlight: the profile-dependent class survives nesting in a whole program", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    const tokens = OL.highlight(NESTED_INTERACTION_PROGRAM, doc, { profiles });
+    for (const name of INTERACTION_NAMES) {
+      const nameTokens = tokens.filter((t) => t.text === name);
+      assert.equal(
+        nameTokens.length,
+        1,
+        `expected exactly one ${name} token in the nested program (${label})`,
+      );
+      assert.equal(
+        nameTokens[0].class,
+        EXPECTED_CLASS[expected][name],
+        `nested ${name} with ${label}`,
+      );
+    }
+  }
+});
+
+test("highlight: omitting the profile set reads as Core-only, so it matches the INACTIVE column", () => {
+  // The parameter is optional and defaults to `DEFAULT_CHECK_PROFILES`. This is what kept #740
+  // additive rather than breaking: every pre-existing caller asserts the inactive reading, which
+  // is still correct. Asserted rather than assumed, because it is the whole compatibility claim.
   for (const [name, source] of [
     ...Object.entries(INTERACTION_BLOCK_HEADS),
     ...Object.entries(INTERACTION_PRIMITIVES),
   ]) {
-    const tokens = OL.highlight(source, doc).filter((t) => t.text === name);
-    // Assert the token EXISTS before asserting its class: a `filter(...).every(...)` over an empty
-    // list passes vacuously, which would hide the very regression this test guards against.
-    assert.equal(
-      tokens.length,
-      1,
-      `expected exactly one ${name} token in ${JSON.stringify(source)}`,
+    const omitted = OL.highlight(source, doc).filter((t) => t.text === name);
+    const explicit = OL.highlight(source, doc, {
+      profiles: CORE_PROFILES,
+    }).filter((t) => t.text === name);
+    assert.equal(omitted.length, 1, `expected a ${name} token`);
+    assert.deepEqual(
+      omitted.map((t) => t.class),
+      explicit.map((t) => t.class),
     );
-    assert.equal(
-      tokens[0].class,
-      "primitive",
-      `${name} should highlight as primitive in ${JSON.stringify(source)}`,
-    );
+    assert.equal(omitted[0].class, EXPECTED_CLASS.inactive[name]);
   }
 });
 
-test("highlight: every Interaction name stays primitive nested in a whole program (block, repeat, procedure body)", () => {
-  const tokens = OL.highlight(NESTED_INTERACTION_PROGRAM, doc);
-  for (const name of INTERACTION_NAMES) {
-    const nameTokens = tokens.filter((t) => t.text === name);
-    assert.equal(
-      nameTokens.length,
-      1,
-      `expected exactly one ${name} token in the nested program`,
-    );
-    assert.equal(
-      nameTokens[0].class,
-      "primitive",
-      `${name} should highlight as primitive even when nested`,
-    );
-  }
-});
-
-test("highlight: keywords are case-insensitive — an upper-case Interaction name is still primitive", () => {
+test("highlight: matching stays case-insensitive in BOTH profile directions", () => {
   // `spec/tooling.md:23`: tokenization is case-insensitive for keywords and built-in primitives.
-  for (const name of INTERACTION_NAMES) {
-    const upper = name.toUpperCase();
-    const [token] = OL.highlight(upper, doc);
-    assert.equal(
-      token.class,
-      "primitive",
-      `${upper} should highlight as primitive`,
-    );
+  // Note what this does and does not pin: `highlight.ts` lowercases once before either lookup, so
+  // both share that normalization and this test cannot detect `isProfileKeyword` losing its own
+  // `.toLowerCase()` — `keywords.profiles.test.mjs`'s "Sprites keyword matching is
+  // case-insensitive" is what pins that. What this DOES pin is that an upper-case spelling still
+  // reaches the profile-aware branch at all, in both directions.
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const name of INTERACTION_NAMES) {
+      const upper = name.toUpperCase();
+      const [token] = OL.highlight(upper, doc, { profiles });
+      assert.equal(
+        token.class,
+        EXPECTED_CLASS[expected][name],
+        `${upper} with ${label}`,
+      );
+    }
   }
 });
 
 test("highlight: `wait` is never a keyword — a same-named procedure highlights as procedure-name", () => {
-  // `wait` is an ordinary primitive, not a reserved word in any profile
-  // (`spec/interaction-events.md` reserves only the four block-heads), so it never reaches the
-  // `keyword` class: the profile-blind highlighter resolves a user `define wait` to
-  // `procedure-name` at its call site, unlike a Core reserved word which stays `keyword` no matter
-  // what. This is purely a *token-class* statement — the checker separately reports that
-  // redefinition as `ol-reserved-word` (asserted below), which is a
-  // legality question the highlighter deliberately does not answer.
+  // `wait` is an ordinary primitive, not a block-head, so it never reaches the `keyword` class in
+  // either direction — `spec/interaction-events.md:47` puts `input`/`wait` and the Sound names in
+  // that category. It is still a built-in name there, "on the same unconditional terms", so the
+  // checker separately reports this redefinition as `ol-reserved-word` (asserted below) — a
+  // legality question the highlighter does not answer.
   const source = "define wait\nend\nwait";
-  const tokens = OL.highlight(source, doc).filter((t) => t.text === "wait");
-  assert.equal(tokens.length, 2);
-  assert.ok(tokens.every((t) => t.class === "procedure-name"));
-});
-
-// --- Semantic tokens: every Interaction name carries defaultLibrary -----------------------------
-
-test("semanticTokens: each Interaction block-head and primitive call carries the defaultLibrary modifier", () => {
-  for (const [name, source] of [
-    ...Object.entries(INTERACTION_BLOCK_HEADS),
-    ...Object.entries(INTERACTION_PRIMITIVES),
-  ]) {
-    const token = OL.semanticTokens(source, doc).find((t) => t.text === name);
-    assert.ok(token, `expected a semantic token for ${name}`);
-    assert.equal(token.class, "primitive");
+  for (const { label, profiles } of PROFILE_CASES) {
+    const tokens = OL.highlight(source, doc, { profiles }).filter(
+      (t) => t.text === "wait",
+    );
+    assert.equal(tokens.length, 2, label);
     assert.ok(
-      token.modifiers.includes("defaultLibrary"),
-      `${name} should be a defaultLibrary primitive`,
+      tokens.every((t) => t.class === "procedure-name"),
+      label,
     );
   }
 });
 
-test("semanticTokens: every Interaction name carries defaultLibrary when nested in a whole program", () => {
-  const tokens = OL.semanticTokens(NESTED_INTERACTION_PROGRAM, doc);
-  for (const name of INTERACTION_NAMES) {
-    const token = tokens.find((t) => t.text === name);
-    assert.ok(token, `expected a semantic token for nested ${name}`);
-    assert.equal(token.class, "primitive");
-    assert.ok(
-      token.modifiers.includes("defaultLibrary"),
-      `nested ${name} should be a defaultLibrary primitive`,
-    );
+test("highlight: symbol discovery still demotes a BLOCK-HEAD under an active profile", () => {
+  // `spec/tooling.md:30` — "[Disambiguating identifiers] is what demotes a token to
+  // `procedure-name`, `type-name`, or `field-name` once parsing or symbol discovery resolves it."
+  // So the profile check must run AFTER discovery, not before. Hoisting it would silently paint
+  // this learner's own procedure `keyword`, and nothing else in the suite would notice.
+  const source = "define when\n  print 1\nend\nwhen";
+  const tokens = OL.highlight(source, doc, {
+    profiles: INTERACTION_PROFILES,
+  }).filter((t) => t.text === "when");
+  assert.equal(tokens.length, 2);
+  assert.ok(tokens.every((t) => t.class === "procedure-name"));
+});
+
+// --- Semantic tokens: defaultLibrary follows the class, not the name ---------------------------
+
+test("semanticTokens: a primitive keeps defaultLibrary in both directions; a block-head loses it when active", () => {
+  // `defaultLibrary` is scoped to the `primitive` class, so an active block-head sheds it purely
+  // by becoming `keyword` — #740's step 3 falls out of the classification instead of needing its
+  // own rule. (That the INACTIVE fallback still carries `defaultLibrary` at all is the separate,
+  // tracked defect #831; this file pins today's behaviour either way.)
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [name, source] of [
+      ...Object.entries(INTERACTION_BLOCK_HEADS),
+      ...Object.entries(INTERACTION_PRIMITIVES),
+    ]) {
+      const token = OL.semanticTokens(source, doc, { profiles }).find(
+        (t) => t.text === name,
+      );
+      assert.ok(token, `expected a semantic token for ${name} (${label})`);
+      const expectedClass = EXPECTED_CLASS[expected][name];
+      assert.equal(token.class, expectedClass, `${name} (${label})`);
+      assert.equal(
+        token.modifiers.includes("defaultLibrary"),
+        expectedClass === "primitive",
+        `${name} (${label}) defaultLibrary must follow the class`,
+      );
+    }
+  }
+});
+
+test("semanticTokens: the same split holds when nested in a whole program", () => {
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    const tokens = OL.semanticTokens(NESTED_INTERACTION_PROGRAM, doc, {
+      profiles,
+    });
+    for (const name of INTERACTION_NAMES) {
+      const token = tokens.find((t) => t.text === name);
+      assert.ok(
+        token,
+        `expected a semantic token for nested ${name} (${label})`,
+      );
+      const expectedClass = EXPECTED_CLASS[expected][name];
+      assert.equal(token.class, expectedClass, `nested ${name} (${label})`);
+      assert.equal(
+        token.modifiers.includes("defaultLibrary"),
+        expectedClass === "primitive",
+        `nested ${name} (${label}) defaultLibrary must follow the class`,
+      );
+    }
   }
 });
 
@@ -330,7 +497,7 @@ test("check: `input` checks clean under an active profile now that its slice (#6
 });
 
 test("check: `input` is STILL ol-unknown-command without the profile — it is not a Core name", () => {
-  // The other direction of the same gate: `spec/conformance.md:167-169` puts `input` in Interaction &
+  // The other direction of the same gate: `spec/conformance.md:169-173` puts `input` in Interaction &
   // Events, and `spec/interaction-events.md:11` is explicit that "OpenLogo **Core** remains
   // non-interactive: `input` is defined here, not in Core". A Core-only program that calls it must
   // still be told the name is unknown. Written as a bare call (with an argument the profile-blind
@@ -342,14 +509,19 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
   assert.equal(diagnostics[0].params.name, "input");
 });
 
-// --- Reserved-word gating: block-heads only, and only under an active profile -------------------
+// --- Reserved-word gating: what the CHECKER does today, which is #841's tracked deviation -------
 
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
+  // Read this section as a lock on TODAY's checker, not as a statement of the rule.
   // `when`/`every`/`on_key`/`on_click` are **treated as** reserved only when Interaction & Events
   // is active (C1 #663) — shipped behaviour that `spec/grammar.md:408` and
-  // `spec/interaction-events.md:43-47` make unconditional; retiring the gate is #841. `wait` is NOT
-  // a block-head — asserted by the redefinition test below and the `wait` procedure highlight test
-  // above.
+  // `spec/interaction-events.md:43-47` make unconditional ("reserved **unconditionally**: every
+  // implementation reserves them whether or not it claims this profile"), for `wait`/`input` and
+  // the Sound names too; retiring the gate is #841. So under Core-only the checker accepts
+  // declarations the spec says must be rejected, and the Core-only expectations below will INVERT
+  // when #841 lands. They are asserted rather than skipped so the deviation stays visible and
+  // dated instead of silent. `wait` is NOT a block-head — asserted by the redefinition test below
+  // and the `wait` procedure highlight test above.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     const diagnostics = checkDiagnostics(
       `define ${head}\nend`,
@@ -363,12 +535,12 @@ test("check: redefining an Interaction block-head under an active profile raises
   }
 });
 
-test("check: redefining an Interaction block-head is allowed under Core-only (no interaction-specific diagnostic)", () => {
+test("check: redefining an Interaction block-head is accepted under Core-only — the #841 deviation", () => {
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
     assert.deepEqual(
       checkDiagnostics(`define ${head}\nend`, CORE_PROFILES),
       [],
-      `${head} is an ordinary name under Core-only and may be redefined`,
+      `${head} is accepted under Core-only today; spec/interaction-events.md:43-47 says it should not be (#841)`,
     );
   }
 });
@@ -378,9 +550,10 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
-  // `spec/error-model.md:125` gives the code `params: { name }` only, because whether the taken
-  // name is a keyword or a primitive "is an implementation distinction the learner never has to
-  // learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
+  // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
+  // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
+  // `spec/error-model.md:136` puts it, that is "an implementation distinction the learner never has
+  // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
@@ -397,15 +570,17 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   }
 });
 
-test("check: `wait` may be redefined under Core-only — it is not visible, so it collides with nothing", () => {
+test("check: `wait` is accepted under Core-only — the same #841 deviation", () => {
   // The profile gate cuts both ways: with `interaction-events` inactive `wait` registers no
   // primitive at all (`collectVisibleNames`), so a Core-only program is free to `define wait`,
-  // exactly as it is free to `define grid` without Geometry.
+  // exactly as it is free to `define grid` without Geometry. `spec/interaction-events.md:47` says
+  // it should not be — `input`/`wait` "are built-in names on the same unconditional terms" — so
+  // this expectation, like its block-head twin above, INVERTS when #841 lands.
   for (const primitive of Object.keys(INTERACTION_PRIMITIVES)) {
     assert.deepEqual(
       checkDiagnostics(`define ${primitive}\nend`, CORE_PROFILES),
       [],
-      `${primitive} is an ordinary name under Core-only and may be redefined`,
+      `${primitive} is accepted under Core-only today; spec says it should not be (#841)`,
     );
   }
 });
@@ -413,8 +588,9 @@ test("check: `wait` may be redefined under Core-only — it is not visible, so i
 // --- Static arity: `wait` is strictly fixed-arity, gated on the same profile --------------------
 
 test("check: a `wait` call short of its one input raises ol-not-enough-inputs at stage=semantic", () => {
-  // `wait <n>` is Kind-C taking exactly one number, so a bare `wait` that ran out of line is
-  // statically short (`spec/tooling.md:181`). Before I8 this checked clean, because `wait` had no
+  // `wait <n>` is Kind-C taking exactly one number (`spec/interaction-events.md:31`), so a bare
+  // `wait` that ran out of line is statically short — `spec/tooling.md:182`, "Not enough inputs for
+  // a fixed-arity or selected call form". Before I8 this checked clean, because `wait` had no
   // static arity range — the same shape Sound's `set_tempo` already had via #689.
   const [finding, ...rest] = checkDiagnostics("wait", INTERACTION_PROFILES);
   assert.deepEqual(rest, []);
