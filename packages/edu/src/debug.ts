@@ -21,6 +21,7 @@
 
 import {
   isDiagnosticCode,
+  isTurtleSpecificEventKind,
   type Diagnostic,
   type DiagnosticCode,
   type ColorChangePayload,
@@ -240,6 +241,23 @@ interface FoldedTurtleState {
 type TurtleStatesByIdentity = ReadonlyMap<TurtleId, FoldedTurtleState>;
 
 /**
+ * The turtle an event's envelope identifies, for every consumer in this file: the `turtle_id` when
+ * it actually identifies a turtle, and {@link MAIN_TURTLE_ID} otherwise.
+ *
+ * `Number.isFinite` — never the global `isFinite`, which coerces, so `isFinite("1")` is `true`. An
+ * id that is `NaN`, an infinity, or not a number at all names no turtle, so it is treated exactly
+ * like an **absent** id, which this file already resolves to the single default turtle. Applying
+ * that test in one place is the point: while the fold admitted any id and only the population
+ * count screened them, the two disagreed about what an identity is, and a `NaN` key leaked into
+ * the report as `turtle #NaN` — and, worse, into the clause sort, where `left - right` returns
+ * `NaN`, making the comparator non-transitive and scrambling the order of the perfectly
+ * legitimate turtles around it. One admission rule removes all of that by construction.
+ */
+function identifiedTurtle(turtleId: TurtleId | undefined): TurtleId {
+  return Number.isFinite(turtleId) ? (turtleId as TurtleId) : MAIN_TURTLE_ID;
+}
+
+/**
  * The reserved id of the **main turtle** — the single default turtle every program starts with,
  * the one Turtle & Rendering commands drive before any `new_turtle`. It is `0` to match
  * `@openlogo/runtime`'s `MAIN_TURTLE_ID` (the allocator that seeds the `turtle_id` this fold
@@ -302,13 +320,13 @@ function foldTurtleStatesByIdentity(
   const turtleStates = new Map<TurtleId, FoldedTurtleState>();
 
   /**
-   * The bucket `event` belongs to, created on first use. `??` (nullish), never `||` (falsy): `0`
-   * is a real `turtle_id` — the main turtle's, which a `tell [ who ]` stamps onto its events — so
-   * a falsy default would misfile turtle `0`'s own effects as unaddressed. Both spellings of the
-   * main turtle, stamped `0` and unstamped, resolve to the same bucket.
+   * The bucket `event` belongs to, created on first use. Every id goes through
+   * {@link identifiedTurtle}, so an absent id and one that names no turtle land in the same
+   * place — the single default turtle — and `0`, a real id (the main turtle's, which a
+   * `tell [ who ]` stamps), is preserved rather than coerced away as a falsy value would be.
    */
   const stateFor = (turtleId: TurtleId | undefined): FoldedTurtleState => {
-    const key = turtleId ?? MAIN_TURTLE_ID;
+    const key = identifiedTurtle(turtleId);
     let state = turtleStates.get(key);
     if (state === undefined) {
       state = {};
@@ -382,12 +400,11 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
 
 /**
  * How many turtles the trace shows to be in play: the main turtle, which every program starts
- * with, plus every turtle the stream names — through a `spawn-turtle` event
- * (`spec/turtles-and-sprites.md`'s "Turtle creation" — the event `new_turtle` emits, whose payload
- * "MUST identify the newly created turtle") or by acting, via `observedTurtleIds`, the identities
- * {@link foldTurtleStatesByIdentity} actually saw. Turtles are never destroyed in v0.1 — the
- * runtime's `TurtleWorld` exposes no removal at all — so a turtle named anywhere in the trace is
- * still in play at the end of it.
+ * with, plus every turtle the stream names — by acting (any turtle-specific event carrying its
+ * identity) or by being created (a `spawn-turtle` event, `spec/turtles-and-sprites.md`'s "Turtle
+ * creation", whose payload "MUST identify the newly created turtle"). Turtles are never destroyed
+ * in v0.1 — the runtime's `TurtleWorld` exposes no removal at all — so a turtle named anywhere in
+ * the trace is still in play at the end of it.
  *
  * This is the *world* population, deliberately not "how many turtles changed state". The two
  * differ exactly where it matters: `:a = new_turtle` / `ask :a [ forward 5 ]` gives one turtle
@@ -397,36 +414,25 @@ function describeFoldedTurtleState(state: FoldedTurtleState): string {
  *
  * Both sources are needed, because `debug` reads whatever stream a host hands it, not only this
  * runtime's. Counting spawns alone would miss a turtle that acts without the trace showing its
- * creation; counting observed actors alone would miss a turtle that exists but never acted. A
- * spawn id that is not a real number is ignored rather than counted, so an off-contract payload
- * cannot invent a second turtle — the same distrust of payload contents the fold applies when it
- * drops a turtle that describes nothing.
+ * creation; counting actors alone would miss a turtle that exists but has never acted. The actor
+ * scan spans **every** turtle-specific kind (`@openlogo/core`'s {@link isTurtleSpecificEventKind},
+ * the shared classification issue #764 exists to stop each consumer re-deriving), not merely the
+ * five kinds this file folds into reported fields: a `shape-change` or a `stamp` names its turtle
+ * just as surely as a `move` does, even though `debug` reports no shape.
+ *
+ * Every id is screened by {@link identifiedTurtle}, the same admission rule the fold uses, so an
+ * off-contract id can neither invent a second turtle here nor become a bucket there.
  */
-function countLiveTurtles(
-  events: readonly TraceEvent[],
-  observedTurtleIds: Iterable<TurtleId>,
-): number {
+function countLiveTurtles(events: readonly TraceEvent[]): number {
   const liveTurtleIds = new Set<TurtleId>([MAIN_TURTLE_ID]);
-
-  /**
-   * Admits an id only if it actually identifies a turtle. `Number.isFinite` — never the global
-   * `isFinite`, which coerces, so `isFinite("1")` is `true` — so a `NaN`, an infinity, or a
-   * non-number from an off-contract producer names nothing and cannot inflate the population into
-   * renaming a genuinely lone turtle. Every source goes through here: guarding the spawn events
-   * but not the observed actors would just move the same hole one line over.
-   */
-  const admitIfIdentified = (turtleId: TurtleId): void => {
-    if (Number.isFinite(turtleId)) {
-      liveTurtleIds.add(turtleId);
-    }
-  };
-
-  for (const observedTurtleId of observedTurtleIds) {
-    admitIfIdentified(observedTurtleId);
-  }
   for (const event of events) {
+    if (isTurtleSpecificEventKind(event.kind)) {
+      liveTurtleIds.add(identifiedTurtle(event.turtle_id));
+    }
     if (event.kind === "spawn-turtle") {
-      admitIfIdentified((event.payload as SpawnTurtlePayload).turtle_id);
+      liveTurtleIds.add(
+        identifiedTurtle((event.payload as SpawnTurtlePayload).turtle_id),
+      );
     }
   }
   return liveTurtleIds.size;
@@ -456,8 +462,8 @@ function countLiveTurtles(
  * same trigger — "once the world holds more than one live turtle" (`a11y.ts`, issue #749) — so
  * keying `debug` on anything else would have the two describers of one stream disagree about who
  * is where. The population counts every identity the trace names, whether by a `spawn-turtle` or
- * by acting, so a host that feeds `debug` per-turtle events without the spawns that produced them
- * still gets named clauses.
+ * by any turtle-specific event, so a host that feeds `debug` per-turtle events without the spawns
+ * that produced them still gets named clauses.
  *
  * `turtle #<id>` is the identity a turtle value prints as — `@openlogo/runtime`'s `printedForm`
  * renders `turtle #<id>` from `@openlogo/core`'s `OLTurtle.id` — so `debug`'s clauses match what
@@ -480,8 +486,7 @@ function countLiveTurtles(
  * an empty clause.
  */
 function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
-  const turtleStates = foldTurtleStatesByIdentity(events);
-  const described = [...turtleStates]
+  const described = [...foldTurtleStatesByIdentity(events)]
     .map(([turtleId, state]): readonly [TurtleId, string] => [
       turtleId,
       describeFoldedTurtleState(state),
@@ -494,16 +499,10 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
     return undefined;
   }
 
-  // The population is read from every identity the fold saw, not just the ones that described
-  // something, so a turtle whose only event carried an unusable payload still counts as a second
-  // turtle and keeps the surviving clause named. The `described.length === 1` conjunct is not
-  // redundant against that count: an identity the population deliberately ignored (a non-finite
-  // id from an off-contract producer) can still describe state, and dropping the conjunct would
-  // then report the first turtle's fields alone and silently discard the other's.
-  if (
-    described.length === 1 &&
-    countLiveTurtles(events, turtleStates.keys()) < 2
-  ) {
+  // The count alone decides this. Every bucket key is an admitted identity, so a population of one
+  // means every event resolved to the main turtle and `described` holds exactly this one entry —
+  // no separate length check is needed, and adding one back would only hide that invariant.
+  if (countLiveTurtles(events) < 2) {
     return `Turtle state so far: ${first[1]}.`;
   }
 

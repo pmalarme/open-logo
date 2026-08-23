@@ -527,12 +527,75 @@ test("debug does not let an off-contract turtle_id on an acting event invent a s
   );
 });
 
-test("debug still names both turtles when an unidentifiable one describes real state", () => {
-  // Pins the `described.length === 1` conjunct, which the live-turtle count alone does NOT imply:
-  // a non-finite id is deliberately excluded from the population (so the count is 1) yet can still
-  // describe real state. Keying only on the count would report one turtle's fields alone and
-  // silently discard the other's — the under-identification direction again. Asserted by shape
-  // rather than an exact string, because ordering against a `NaN` key is not meaningful.
+test("debug treats an unusable turtle_id as naming no turtle, not as `turtle #NaN`", () => {
+  // An id that identifies nothing is handled exactly like an ABSENT one — it resolves to the
+  // single default turtle — rather than being rendered as a fabricated identity. Keeping the fold
+  // and the population count on one admission rule is what removes three separate faults at once:
+  // the bare-form ambiguity (a lone turtle reported unnamed because its id was counted by neither),
+  // the literal `turtle #NaN` label, and — the worst — a `NaN` key reaching the clause sort, where
+  // `left - right` is `NaN`, making the comparator non-transitive and scrambling the order of the
+  // perfectly legitimate turtles around it.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const moveEvent = (seq, turtleId, y) => ({
+    seq,
+    kind: "move",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 10]),
+    turtle_id: turtleId,
+    payload: { from: [0, 0], to: [0, y], heading: 0 },
+  });
+  const segmentFor = (events) => {
+    const segment = OL.debug({
+      command: "debug",
+      program,
+      events,
+      diagnostics: [],
+      level: "3",
+    }).segments.find((line) => line.startsWith("Turtle state so far:"));
+    assert.ok(segment !== undefined, "expected a turtle-state segment");
+    return segment;
+  };
+
+  // A lone turtle whose only id is unusable stays the default turtle, and no `#NaN` is invented.
+  for (const unusableId of [Number.NaN, Number.POSITIVE_INFINITY, "1"]) {
+    const segment = segmentFor([moveEvent(0, unusableId, 5)]);
+    assert.equal(segment, "Turtle state so far: position (0, 5), heading 0.");
+    assert.ok(!segment.includes("#"), `invented an identity: ${segment}`);
+  }
+
+  // And an unusable id among well-formed turtles must not disturb THEIR ordering. These two
+  // streams differ only in where the unusable event sits; a NaN sort key made the answer depend
+  // on that, which is exactly the order-independence spec/turtles-and-sprites.md:113 requires.
+  const withUnusableFirst = segmentFor([
+    moveEvent(0, Number.NaN, 9),
+    moveEvent(1, 3, 3),
+    moveEvent(2, 1, 1),
+    moveEvent(3, 2, 2),
+  ]);
+  const withUnusableLate = segmentFor([
+    moveEvent(0, 3, 3),
+    moveEvent(1, 1, 1),
+    moveEvent(2, Number.NaN, 9),
+    moveEvent(3, 2, 2),
+  ]);
+  assert.equal(withUnusableFirst, withUnusableLate);
+  assert.equal(
+    withUnusableLate,
+    "Turtle state so far: turtle #0 — position (0, 9), heading 0; " +
+      "turtle #1 — position (0, 1), heading 0; " +
+      "turtle #2 — position (0, 2), heading 0; " +
+      "turtle #3 — position (0, 3), heading 0.",
+  );
+});
+
+test("debug counts a turtle that acted through an event kind it does not report", () => {
+  // The population spans EVERY turtle-specific kind, not just the five this file folds into
+  // reported fields: a `shape-change` names its turtle as surely as a `move` does, even though
+  // `debug` reports no shape. Without that, turtle #1 would be invisible to the count and the main
+  // turtle's clause would print in the bare form that means "the only turtle here".
   const program = {
     kind: "Program",
     source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
@@ -544,10 +607,10 @@ test("debug still names both turtles when an unidentifiable one describes real s
     events: [
       {
         seq: 0,
-        kind: "move",
+        kind: "shape-change",
         source_span: Core.makeSpan("main.logo", [1, 1], [1, 10]),
-        turtle_id: Number.NaN,
-        payload: { from: [0, 0], to: [0, 9], heading: 0 },
+        turtle_id: 1,
+        payload: { to: "arrow" },
       },
       {
         seq: 1,
@@ -559,12 +622,12 @@ test("debug still names both turtles when an unidentifiable one describes real s
     diagnostics: [],
     level: "3",
   });
-  const segment = output.segments.find((line) =>
-    line.startsWith("Turtle state so far:"),
+  assert.ok(
+    output.segments.includes(
+      "Turtle state so far: turtle #0 — position (0, 5), heading 0.",
+    ),
+    `unexpected segments: ${JSON.stringify(output.segments)}`,
   );
-  assert.ok(segment !== undefined, "expected a turtle-state segment");
-  assert.match(segment, /turtle #0 — position \(0, 5\), heading 0/);
-  assert.match(segment, /position \(0, 9\), heading 0/);
 });
 
 test("debug folds the main turtle's addressed and unaddressed movement into one turtle", () => {
