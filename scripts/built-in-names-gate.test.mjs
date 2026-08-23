@@ -106,23 +106,7 @@ function tinyFixture() {
     profiles: { ids: { "core-language": "Core Language" } },
     tokenClassKeyword: {
       about: "a tiny fixture",
-      omitsReason: "x",
-      addsExcludedReason: "x",
-      addsProfileKeywordsReason: "x",
-      addsProfileKeywordsCoverageReason: "x",
-      rowSplitAnchorReason: "x",
       rowFingerprintReason: "x",
-      omitsKeywords: [],
-      addsExcluded: [],
-      addsProfileKeywords: false,
-      addsProfileKeywordsNamedIndividually: [],
-      addsProfileKeywordsCoveredByClause: [],
-      rowSplitAnchor: "The word-spelled operators",
-      rowExclusionEndAnchor: "are **not** in this class",
-      deltaSentence: "omits {omits}, adds {adds}",
-      independenceClause: "independent",
-      paintIndependenceClause: "never paints",
-      rowTableHeader: "| H |",
       rowFingerprint:
         "a889cdb4032e110d26522de4e3b980dbd26c82dde364fb471da1066825f61f2d",
     },
@@ -1115,6 +1099,72 @@ test("the token-class failure states what it does NOT guarantee", () => {
     true,
   );
   assert.equal(findings[0].includes("Re-derive the token class"), true);
+});
+
+test("INJECTED DRIFT: a name a Record registry lists under two profiles at once", () => {
+  // `registryMembers` flattens a Record into a Map, which is last-write-wins, so a name under two
+  // profiles collapsed silently and every entry still matched — the flattened map only remembered
+  // one owner. Found by attacking the part that had been clean for six rounds.
+  const api = {
+    ...realParserApi,
+    OL_PROFILE_KEYWORDS: {
+      ...realParserApi.OL_PROFILE_KEYWORDS,
+      sprites: [...realParserApi.OL_PROFILE_KEYWORDS.sprites, "when"],
+    },
+  };
+  assert.equal(api.OL_PROFILE_KEYWORDS.sprites.includes("when"), true);
+  assert.equal(
+    api.OL_PROFILE_KEYWORDS["interaction-events"].includes("when"),
+    true,
+  );
+  const result = runBuiltInNamesGate({ api });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      "when: OL_PROFILE_KEYWORDS lists it under sprites and interaction-events — a name has one owning profile, and flattening two of them keeps only the last",
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a keyword duplicated in BOTH normative lists at once", () => {
+  // `missing`/`extra` are set semantics and the mirror compares joined strings, so duplicating a
+  // word in the grammar block AND the C19 mirror satisfied all three checks: the normative keyword
+  // list shipped 45 entries with 44 unique and the gate said nothing. That is this module's own
+  // founding defect with the opposite sign — the mirror silently standing at 43 words.
+  const grammar = REAL_IO.readText(GRAMMAR_PATH).replace(
+    "is between strictly",
+    "is between strictly strictly",
+  );
+  const tooling = REAL_IO.readText(TOOLING_PATH).replace(
+    "`is`, `between`, `strictly`, `struct`",
+    "`is`, `between`, `strictly`, `strictly`, `struct`",
+  );
+  const both = {
+    readText: (path) => (path === GRAMMAR_PATH ? grammar : tooling),
+    exists: REAL_IO.exists,
+    isStdlibFile: REAL_IO.isStdlibFile,
+  };
+  // Sanity: both lists really are 45-with-44-unique, or this proves nothing.
+  assert.equal(extractGrammarKeywordBlock(grammar).length, 45);
+  assert.equal(new Set(extractGrammarKeywordBlock(grammar)).size, 44);
+  assert.equal(extractToolingC19Mirror(tooling).length, 45);
+  const findings = proseFindings(REAL_MANIFEST, both);
+  assert.equal(
+    findings.includes(
+      `${GRAMMAR_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+    ),
+    true,
+    findings.join("\n"),
+  );
+  assert.equal(
+    findings.includes(
+      `${TOOLING_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+    ),
+    true,
+    findings.join("\n"),
+  );
 });
 
 test("a moved prose anchor is a finding, never a silent skip", () => {

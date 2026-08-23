@@ -175,10 +175,14 @@ ADRs in sync as the toolchain evolves.
 spec ([ADR-0021](docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against `@openlogo/parser`'s
 registries **in both directions**, comparing structured entries rather than a flat name set. It also
 gates the three hand-maintained prose lists that used to have nothing checking them: the normative
-keyword block in `spec/grammar.md`, the C19 mirror in `spec/tooling.md`, and `spec/tooling.md`'s
-`keyword` **token-class** enumeration — a different set from the keyword list on purpose
-(`spec/grammar.md:378`), which is why the manifest records only its *deltas* and the gate computes
-membership from them. **Adding a primitive is deliberately a two-file change** (the registry and the
+keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both compared
+**derivedly** — the expected words are computed from the manifest, and the mirror must be
+byte-order-identical to the block — plus `spec/tooling.md`'s `keyword` **token-class** row, which is
+only **change-detected**. That row is a different set from the keyword list on purpose
+(`spec/grammar.md:378`) and is deliberately underivable, so the gate fingerprints it: a change to it
+cannot pass unseen, and whether the new row is *correct* is maintainer-reviewed under `CODEOWNERS`.
+Issue #841 records the three stronger mechanisms that were tried and why each was withdrawn.
+**Adding a primitive is deliberately a two-file change** (the registry and the
 list) and this is the half that fails until both land. The list is under `spec/`, so it is
 maintainer-owned via `CODEOWNERS` like the rest of the contract.
 

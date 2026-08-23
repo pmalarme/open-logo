@@ -64,17 +64,22 @@
  *    token-class enumeration. Gating only the first would leave the newer list unguarded, which is
  *    the exact defect family this epic exists to close.
  *
- * ## Why the token-class list is gated rather than derived
+ * ## Why the token-class row is change-detected rather than derived
  *
  * `spec/grammar.md:378` states that the `keyword` **token class** and the keyword **list** are
  * "different sets on purpose, and neither one determines the other". Measured against shipped
- * output, the class omits four keywords (`and`/`or`/`not`/`mod` are `operator`), adds four words
- * that are not built-in names at all (`empty`/`member`/`of`/`a`), and adds the profile words. Issue
- * #855 tried two derivations and both were falsified by measurement: a **positional** rule is
- * refuted by `local end`, `export end` and `:p.end` all emitting `keyword`, and *"the keyword list
- * minus four"* re-derives paint from the declaration list, which `:378` forbids. So it is an
- * enumeration — and an enumeration needs a gate. The file records only the **deltas**, and this
- * module computes the membership from them, so there is still no second list to keep in step.
+ * output, the class omits the word-spelled operators (`and`/`or`/`not`/`mod`, which are
+ * `operator`), adds the contextual words that are not built-in names at all
+ * (`empty`/`member`/`of`/`a`), and adds the profile words. Issue #855 tried two derivations and both
+ * were falsified by measurement: a **positional** rule is refuted by `local end`, `export end` and
+ * `:p.end` all emitting `keyword`, and *"the keyword list minus the operators"* re-derives paint
+ * from the declaration list, which `:378` forbids.
+ *
+ * So the row is **change-detected**, not derived. {@link rowFingerprintFindings} records exactly
+ * what that does and does not guarantee, and issue #841 records the three mechanisms that tried for
+ * more across six review rounds and each overstated what they checked. The two lists this module
+ * *does* compare derivedly are `spec/grammar.md`'s normative keyword block and `spec/tooling.md`'s
+ * C19 mirror.
  *
  * ## Fail-closed
  *
@@ -116,7 +121,7 @@ export const CONFORMANCE_PATH = join("spec", "conformance.md");
 export const ACCESSOR_STATUSES = ["present", "declared"];
 
 /**
- * How an accessor is adapted to each of the two roles. The eight `*PrimitiveArity` functions are
+ * How an accessor is adapted to each of the two roles. The nine `*PrimitiveArity` functions are
  * lookups only (`arity`), `OL_KEYWORDS` is an `array` and `OL_PROFILE_KEYWORDS` a `record`, so
  * neither is a callable predicate and the lookup side scans them. A `profile-enumerator` is called
  * with the registry's own `profile` — `profilePrimitiveNames(profile)` (issue #874) is one derived
@@ -986,6 +991,28 @@ export function proseFindings(manifest, io) {
     .filter((entry) => entry.registries.includes("reserved"))
     .map((entry) => entry.name);
 
+  // Cardinality, not just membership. `missing`/`extra` use set semantics and the mirror compares
+  // joined strings, so a word duplicated in BOTH lists satisfies all three: measured, the normative
+  // keyword list shipped 45 entries with 44 unique and the gate said nothing. That is the module's
+  // own founding defect with the opposite sign — the mirror silently standing at 43 words is why
+  // this file exists — and a duplicate is a realistic hand-edit in a 44-word list over eight lines.
+  for (const [path, words] of [
+    [GRAMMAR_PATH, grammarWords],
+    [TOOLING_PATH, mirrorWords],
+  ]) {
+    if (words === null) {
+      continue;
+    }
+    const duplicated = words.filter(
+      (word, index) => words.indexOf(word) !== index,
+    );
+    if (duplicated.length > 0) {
+      findings.push(
+        `${path}: the keyword list names ${[...new Set(duplicated)].join(", ")} more than once — ${words.length} entries, ${new Set(words).size} unique`,
+      );
+    }
+  }
+
   if (grammarWords !== null) {
     const missing = coreKeywords.filter((word) => !grammarWords.includes(word));
     const extra = grammarWords.filter((word) => !coreKeywords.includes(word));
@@ -1114,13 +1141,51 @@ export function narrativeFindings(manifest) {
       );
     }
   }
-  // The token-class block's own prose. Every `*Reason` field explains a decision that is otherwise
-  // only visible as data, and all seven could be blanked — or deleted outright — unnoticed.
+  // The token-class block's own prose. Each field below explains a decision that is otherwise
+  // only visible as data, and both could be blanked — or deleted outright — unnoticed.
   for (const key of ["about", "rowFingerprintReason"]) {
     if (blank(manifest.tokenClassKeyword?.[key])) {
       findings.push(
         `${MANIFEST_PATH}: tokenClassKeyword.${key} is missing or empty — it records what the token-class fingerprint does and does not guarantee, which nothing else in the file says`,
       );
+    }
+  }
+  return findings;
+}
+
+/**
+ * Names a `record` registry lists under more than one key.
+ *
+ * `registryMembers` flattens a Record into a Map, which is last-write-wins, so a name appearing
+ * under two profiles collapses silently: injecting `when` into `OL_PROFILE_KEYWORDS.sprites` while
+ * it stayed under `interaction-events` was green, and every entry still matched — because the
+ * flattened map only remembered one owner. A name has one owning profile; two is a registry defect,
+ * not a shape the manifest can express.
+ */
+export function recordRegistryFindings(manifest, api) {
+  const findings = [];
+  for (const registry of Object.values(manifest.registries)) {
+    if (registry.enumerate.kind !== "record") {
+      continue;
+    }
+    // No `undefined` guard: a `record` registry's accessor is checked to resolve by
+    // `accessorFindings`, so an unresolvable one is already a finding and guarding it here would be
+    // an unreachable branch — invisible to the 100% coverage gate, which is how two dead clauses
+    // survived earlier in this file's history.
+    const owners = new Map();
+    for (const [profile, words] of Object.entries(
+      resolveAccessor(api, registry.enumerate.accessor),
+    )) {
+      for (const word of words) {
+        owners.set(word, [...(owners.get(word) ?? []), profile]);
+      }
+    }
+    for (const [word, profiles] of owners) {
+      if (profiles.length > 1) {
+        findings.push(
+          `${word}: ${registry.enumerate.accessor} lists it under ${profiles.join(" and ")} — a name has one owning profile, and flattening two of them keeps only the last`,
+        );
+      }
     }
   }
   return findings;
@@ -1164,6 +1229,7 @@ export function runBuiltInNamesGate({
     ...versionFindings(resolved, api),
     ...narrativeFindings(resolved),
     ...accessorFindings(resolved, api),
+    ...recordRegistryFindings(resolved, api),
     ...entryFindings(resolved, api),
     ...implementationFindings(resolved, api),
     ...profilePrimitiveSweepFindings(resolved, api),
