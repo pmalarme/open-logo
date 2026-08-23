@@ -645,12 +645,15 @@ test("a read inside `repeat` draws from the same FIFO on every pass", () => {
 test("a read inside a procedure body draws from the same FIFO on every call", () => {
   const store = OL.createStudioState({
     source: [
-      "define ask",
+      // `ask` is a Sprites keyword and so a built-in name; issue #839 makes declaring one
+      // `ol-reserved-word`. The name here is incidental to what this test pins (input replay),
+      // so it is renamed rather than inverted.
+      "define ask_value",
       '  :value = input "value?"',
       "  print :value",
       "end",
-      "ask",
-      "ask",
+      "ask_value",
+      "ask_value",
     ].join("\n"),
   });
   const given = ["x", "y"];

@@ -1,0 +1,20 @@
+{
+  "description": "Issue #839 AC4, the Turtle & Rendering half of \"nothing shadows\", and the sharpest of the three shadowing outcomes `docs/design-notes/0007-binding-vs-registration.md` measured: `define forward :n … print 999 … end` then `forward 10` used to run the LEARNER's procedure — printing `999` and emitting ZERO `move` events, so the turtle silently stopped moving and neither stage said anything. Phase-1 registration now raises `ol-reserved-word` (`spec/error-model.md:125`), matching what `check()` already reported. The empty event stream is the assertion that matters: a `print` payload of `999` would mean the shadow is back, and a `move` payload would mean the primitive silently won instead.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "turtle-rendering/movement/define-forward-does-not-silently-stop-the-turtle",
+        "start": [1, 8],
+        "end": [1, 15]
+      },
+      "params": { "name": "forward" },
+      "message": "forward is already part of OpenLogo. choose another name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

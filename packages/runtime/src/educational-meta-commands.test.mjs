@@ -82,13 +82,13 @@ test("hint after a preceding statement targets that statement, not the whole pro
 // --- to the whole-program span, not the enclosing `procedure-enter` start event ----------------
 
 test("`hint` as the first statement in a called procedure falls back to the whole-program span, not the call site", () => {
-  const source = "define ask\nhint\nend\nask";
+  const source = "define helper\nhint\nend\nhelper";
   const result = execute(source, doc);
   assert.deepEqual(result.diagnostics, []);
   const [event] = tutorEvents(result);
   assert.equal(event.payload.command, "hint");
   // The whole-program span always starts at [1, 1] regardless of where `hint` itself sits in the
-  // source; if this instead resolved the enclosing `procedure-enter` event (the `ask` call site
+  // source; if this instead resolved the enclosing `procedure-enter` event (the `helper` call site
   // on line 4), the target would start at line 4, not the program's own start.
   const { ast: program } = parse(source, doc);
   assert.deepEqual(event.payload.target_source_span, program.source_span);
@@ -96,7 +96,7 @@ test("`hint` as the first statement in a called procedure falls back to the whol
 
 for (const command of ["explain", "why", "debug"]) {
   test(`\`${command}\` as the first statement in a called procedure omits target_source_span, not the call site`, () => {
-    const result = execute(`define ask\n${command}\nend\nask`, doc);
+    const result = execute(`define helper\n${command}\nend\nhelper`, doc);
     assert.deepEqual(result.diagnostics, []);
     const [event] = tutorEvents(result);
     assert.equal(event.payload.target_source_span, undefined);
@@ -180,32 +180,41 @@ test("`Explain`/`WHY`/`Hint`/`DEBUG` are recognized case-insensitively", () => {
   assert.deepEqual(commands, ["explain", "why", "hint", "debug"]);
 });
 
-// --- a user-defined procedure named `explain` shadows the meta-command (matching the existing --
-// --- Turtle/Data shadowing convention) ---------------------------------------------------------
+// --- INVERTED (issue #839, ruling #833 rule 3 "nothing shadows"): a user-defined procedure ------
+// --- named after a meta-command is rejected at phase-1 registration; it can no longer shadow ----
 
-test("a user-defined procedure named `explain` shadows the baseline meta-command", () => {
+test("a user-defined procedure named `explain` is rejected at registration, not allowed to shadow the meta-command", () => {
+  // Until #839 this program ran and the user's `explain` shadowed the baseline meta-command,
+  // matching the then-current Turtle/Data shadowing convention. `spec/grammar.md`'s declaration-slot
+  // rule (ruling #833 rule 3) removes shadowing entirely: `explain` is an Educational primitive, so
+  // declaring it is `ol-reserved-word` and NOTHING runs. Kept as an inversion rather than deleted so
+  // that re-legalising the declaration re-reddens the assertion that used to guard the shadow path.
   const result = execute("define explain\nprint 42\nend\nexplain", doc);
-  assert.deepEqual(result.diagnostics, []);
+  const [diagnostic] = result.diagnostics;
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(diagnostic.code, "ol-reserved-word");
+  assert.deepEqual(diagnostic.params, { name: "explain" });
   assert.deepEqual(tutorEvents(result), []);
-  const printed = result.events.filter((event) => event.kind === "print");
-  assert.equal(printed.length, 1);
-  assert.equal(printed[0].payload.values[0], 42);
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+    "the program halts at registration, so the shadowing body never runs",
+  );
 });
 
-// --- regression (rubber-duck review, PR #371): a shadowed meta-command NAME must still count --
-// --- as a real preceding sibling for target resolution — it ran as an ordinary procedure call, --
-// --- not as a meta-command, so a LATER unshadowed meta-command must not skip past it -----------
+// --- INVERTED (issue #839). Was: a shadowed meta-command NAME must still count as a real --------
+// --- preceding sibling for target resolution (rubber-duck review, PR #371). `define hint` is -----
+// --- now `ol-reserved-word`, so no call can be a shadowed meta-command in the first place --------
 
-test("a shadowed `hint` procedure call counts as a real preceding sibling, not a skipped meta-command", () => {
+test("a procedure named `hint` is rejected at registration, so no call can be a shadowed meta-command", () => {
   const source = "define hint\nprint 1\nend\nforward 10\nhint\nexplain";
   const result = execute(source, doc);
-  assert.deepEqual(result.diagnostics, []);
-  const [event] = tutorEvents(result);
-  assert.equal(event.payload.command, "explain");
-  // The immediately preceding sibling is line 5's shadowed `hint` procedure call, NOT line 4's
-  // `forward 10` — without the shadowing fix, `findPrecedingSiblingStatement` would wrongly
-  // treat line 5 as a meta-command to skip past, targeting `forward 10` instead.
-  assert.equal(event.payload.target_source_span.start[0], 5);
-  const printed = result.events.filter((e) => e.kind === "print");
-  assert.equal(printed.length, 1);
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-reserved-word");
+  assert.deepEqual(result.diagnostics[0].params, { name: "hint" });
+  assert.deepEqual(tutorEvents(result), []);
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+  );
 });

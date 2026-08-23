@@ -64,15 +64,12 @@ import type {
   StructDefNode,
 } from "@openlogo/parser";
 import {
-  corePrimitiveArity,
-  dataPrimitiveArity,
-  educationalPrimitiveArity,
-  geometryPrimitiveArity,
-  interactionPrimitiveArity,
+  canonicalOfHeritageAlias,
   isKeyword,
+  OL_CHECK_PROFILES,
+  OL_PROFILE_KEYWORDS,
   parse,
-  soundPrimitiveArity,
-  turtlePrimitiveArity,
+  profilePrimitiveNames,
   walk,
 } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
@@ -4148,95 +4145,137 @@ function halt(diagnostic: Diagnostic): ExecSignal {
 }
 
 /**
- * Every `ProcedureDef` in `program`, keyed by its lowercased name — a whole-program scan (not
- * just the top-level statement list) so a procedure may be called before its textual `define`
- * (`spec/execution-model.md:328-333`), mirroring the static checker's `collectProcedureArities`/
- * `collectVisibleNames` (`packages/parser/src/checker-arity.ts`) exactly, including "a later
- * `define` of the same name overwrites the earlier one here" — redefinition itself is
- * `ol-reserved-word`'s concern (issue #113), not this collection's.
+ * Phase-1 registration (`spec/execution-model.md:82-89`) for the whole program: every
+ * `define`/`to` procedure and every `struct` declaration, collected in one pre-order walk before
+ * any statement runs, so a callable may be used before its textual declaration and `type_of`/`is_a?`
+ * see every struct type up front. Either the two registries, or the first collision in source order.
  */
-function collectProcedures(program: ProgramNode): ProcedureRegistry {
-  const procedures = new Map<string, ProcedureDefNode>();
-  walk(program, (node) => {
-    if (node.kind === "ProcedureDef") {
-      procedures.set(node.name.name.toLowerCase(), node);
+type DeclarationRegistration =
+  | {
+      readonly ok: true;
+      readonly procedures: ProcedureRegistry;
+      readonly structs: StructRegistry;
     }
-  });
-  return procedures;
-}
-
-/** The outcome of {@link collectStructs}: either the built registry, or the first collision found. */
-type StructCollection =
-  | { readonly ok: true; readonly structs: StructRegistry }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
- * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
- * Core, Turtle, Data, Educational, the Geometry overlay (`grid`/`axes`/`measure`), the
- * Interaction & Events `wait`, or Sound (`set_tempo`/`beep`) — is a collision regardless of which
- * profiles a given program happens to touch, mirroring how {@link runProgram} runs every profile's
- * primitives unconditionally (`execute()` does not gate by profile).
+ * Every profile keyword's contributing profile, straight off `OL_PROFILE_KEYWORDS`'s own keys, so
+ * {@link isBuiltInName} counts `ask`/`when`/`on_key`… without restating one of them and a profile
+ * that starts contributing keywords is covered without editing this file.
+ *
+ * `execute()` has no notion of an active profile set — it runs every profile's primitives
+ * unconditionally — and `spec/grammar.md:408` wants exactly that of a declaration slot anyway:
+ * "what a profile decides is whether a name works, never whether a program may declare it".
+ */
+const ALL_KEYWORD_PROFILES: readonly string[] = Object.keys(OL_PROFILE_KEYWORDS);
+
+/**
+ * Every primitive name any profile registers, derived from `signatures.ts`'s profile-keyed registry
+ * by walking `OL_CHECK_PROFILES` — never a list of names kept here. That is the point: issue #839's
+ * AC4 requires the runtime to enforce *every* built-in name rather than the handful an earlier
+ * hand-composed lookup happened to consult, and a runtime copy of the list is precisely what let
+ * `execute()` and `check()` drift apart in the first place (`docs/adr/0021-built-in-names-list-and-ci-gate.md`).
+ * A profile that gains a table, or a table that gains a name, is covered here the moment it lands.
+ */
+const ANY_PROFILE_PRIMITIVE_NAMES: ReadonlySet<string> = new Set(
+  OL_CHECK_PROFILES.flatMap((profile) => profilePrimitiveNames(profile)),
+);
+
+/**
+ * Is `name` a primitive of any profile, including every Heritage short-alias spelling of one?
+ *
+ * An alias is resolved to its canonical spelling and looked up again rather than given a table of
+ * its own, the construction `checker-reserved-word.ts` uses: Heritage is "alternate spellings only,
+ * no new semantics" (`spec/conformance.md:146`), so `define pr` must be exactly as illegal as
+ * `define print`, and re-entering the same lookup makes that hold by construction. The recursion is
+ * depth-1 because no canonical spelling is itself an alias, which
+ * `execute-declaration-slots.test.mjs` pins directly off the registry.
  */
 function isPrimitiveName(name: string): boolean {
-  return (
-    corePrimitiveArity(name) !== undefined ||
-    turtlePrimitiveArity(name) !== undefined ||
-    dataPrimitiveArity(name) !== undefined ||
-    educationalPrimitiveArity(name) !== undefined ||
-    geometryPrimitiveArity(name) !== undefined ||
-    interactionPrimitiveArity(name) !== undefined ||
-    soundPrimitiveArity(name) !== undefined
-  );
+  const lower = name.toLowerCase();
+  if (ANY_PROFILE_PRIMITIVE_NAMES.has(lower)) {
+    return true;
+  }
+  const canonical = canonicalOfHeritageAlias(lower);
+  return canonical !== undefined && isPrimitiveName(canonical);
 }
 
 /**
- * The runtime phase-1 struct registration guard (issue #329): every top-level `struct <name>
- * [ field… ]` registers its type name → declaration in the callable namespace BEFORE any statement
- * runs, so a struct may be constructed before its textual declaration and so `type_of`/`is_a?` see
- * every struct type up front — exactly mirroring {@link collectProcedures}'s whole-program pre-scan
- * for `define`. Unlike procedures, a struct name that collides with a keyword, a primitive
- * (any profile), an already-collected procedure, or an earlier `struct` of the same name raises
- * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:323`), at `stage: "runtime"` —
- * because `execute()` runs `parse()` only, never `check()`, so the parser's `checker-reserved-word`
- * rule never runs. The `namespace` priority (`reserved` → `primitive` → `procedure` → `struct`)
- * matches that checker's "more fundamental category wins" ordering, extended with `struct` for a
- * duplicate type name. The first collision found (in source order) halts the whole program.
+ * Does OpenLogo itself own `name` — as a keyword or as a primitive of any profile, alias spellings
+ * included? This is `ol-reserved-word`'s whole subject (`spec/error-model.md:125`), and the runtime
+ * half of the parser's `isBuiltInName` with every profile active.
  */
-function collectStructs(
-  program: ProgramNode,
-  procedures: ProcedureRegistry,
-): StructCollection {
+function isBuiltInName(name: string): boolean {
+  return isKeyword(name, ALL_KEYWORD_PROFILES) || isPrimitiveName(name);
+}
+
+/**
+ * The runtime's phase-1 registration guard, over the grammar's **declaration slots** — `define`/`to`
+ * and `struct`, and only those (`spec/grammar.md:58-59,165`; issue #833's maintainer ruling).
+ *
+ * It answers the one question a declaration slot asks — *is this name already taken, and by whom?* —
+ * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and
+ * `execute()` agree on code, params and spans (issue #839):
+ *
+ * - `ol-reserved-word` when OpenLogo owns the name ({@link isBuiltInName});
+ * - otherwise `ol-duplicate-definition` when an earlier `define`/`struct` already declared it,
+ *   carrying that earlier declaration's span in `params.original_span`.
+ *
+ * Built-in wins, so a name that is both is reported once, as the thing the learner cannot change —
+ * and a built-in name is never recorded as a first declaration, which is what keeps `define forward`
+ * twice reporting `ol-reserved-word` rather than degrading the second one into a duplicate.
+ *
+ * **Both declaration kinds share one first-declaration map**, so a name's first declaration wins
+ * whichever kind it is and every later one names *that* span. Splitting them would make
+ * `struct f` / `define f` / `define f` point the third declaration at the second, and "earlier" is a
+ * property of the program, not of the node kind.
+ *
+ * **Neither kind is profile-gated.** `spec/execution-model.md:82-88` makes phase-1 registration
+ * unconditional, and `execute()` has no active profile set to gate on in any case.
+ *
+ * The first collision found in source order halts the whole program — nothing runs, so the
+ * `define foo` twice that used to print the *second* body prints nothing at all.
+ */
+function registerDeclarations(program: ProgramNode): DeclarationRegistration {
+  const procedures = new Map<string, ProcedureDefNode>();
   const structs = new Map<string, StructDefNode>();
+  const firstDeclaration = new Map<string, SourceSpan>();
   let collision: Diagnostic | undefined;
+
   walk(program, (node) => {
-    if (collision !== undefined || node.kind !== "StructDef") {
+    if (collision !== undefined) {
       return;
     }
-    const name = node.name.name;
-    const namespace = isKeyword(name)
-      ? "reserved"
-      : isPrimitiveName(name)
-        ? "primitive"
-        : procedures.has(name.toLowerCase())
-          ? "procedure"
-          : structs.has(name.toLowerCase())
-            ? "struct"
-            : undefined;
-    if (namespace !== undefined) {
-      collision = runtimeDiag.reservedWord(
-        node.name.source_span,
-        name,
-        namespace,
+    if (node.kind !== "ProcedureDef" && node.kind !== "StructDef") {
+      return;
+    }
+    const declared = node.name;
+    const key = declared.name.toLowerCase();
+    if (isBuiltInName(key)) {
+      collision = runtimeDiag.reservedWord(declared.source_span, declared.name);
+      return;
+    }
+    const originalSpan = firstDeclaration.get(key);
+    if (originalSpan !== undefined) {
+      collision = runtimeDiag.duplicateDefinition(
+        declared.source_span,
+        declared.name,
+        originalSpan,
       );
       return;
     }
-    structs.set(name.toLowerCase(), node);
+    firstDeclaration.set(key, declared.source_span);
+    if (node.kind === "ProcedureDef") {
+      procedures.set(key, node);
+    } else {
+      structs.set(key, node);
+    }
   });
+
   if (collision !== undefined) {
     return { ok: false, diagnostic: collision };
   }
-  return { ok: true, structs };
+  return { ok: true, procedures, structs };
 }
 
 /**
@@ -5546,16 +5585,15 @@ export function runProgram(
       return { events: [], diagnostics };
     }
 
-    const procedures = collectProcedures(program);
-    const structResult = collectStructs(program, procedures);
-    if (!structResult.ok) {
-      return { events: [], diagnostics: [structResult.diagnostic] };
+    const registration = registerDeclarations(program);
+    if (!registration.ok) {
+      return { events: [], diagnostics: [registration.diagnostic] };
     }
 
     environment = createExecutionEnvironment(
       program,
-      procedures,
-      structResult.structs,
+      registration.procedures,
+      registration.structs,
       foreverIterationLimit,
       options,
       source,

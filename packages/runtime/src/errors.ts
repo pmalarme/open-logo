@@ -1172,26 +1172,51 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-reserved-word`: a top-level `struct` declaration's type name collides with a reserved
-   * word, a primitive, an existing procedure, or an earlier `struct` of the same name
-   * (`spec/data-structures.md:264`, `spec/error-model.md:123`). Same `{ name, namespace }` params
-   * shape as the parser's `checker-reserved-word.ts` semantic rule (issue #113) so both stages
-   * agree on identity — raised here at `stage: "runtime"` (the registry default is `semantic`)
-   * because `execute()` runs `parse()` only, never `check()`, so there is no double-report. This
-   * is the runtime's phase-1 registration guard (issue #329): a `struct` type name registers a
-   * constructor in the callable namespace, so a collision there is caught before any statement
-   * runs.
+   * `ol-reserved-word`: a declaration slot — `define`/`to` or `struct` — names something OpenLogo
+   * itself owns (`spec/error-model.md:125`). This is the runtime half of the phase-1 registration
+   * guard `spec/execution-model.md:82-89` requires, raised at `stage: "runtime"` (the registry
+   * default is `semantic`) because `execute()` runs `parse()` only, never `check()`, so there is
+   * no double-report.
+   *
+   * `params` is `{ name }` and nothing else, matching the parser's `checker-reserved-word.ts`
+   * exactly so both stages agree on identity (issue #839). The `namespace` param this constructor
+   * used to carry is **gone** (issue #833 rule 5): `"reserved"`/`"primitive"` collapsed into this
+   * one meaning — *OpenLogo owns this name* — while `"procedure"`/`"struct"` moved to
+   * {@link runtimeDiag.duplicateDefinition}. The message is the single learner-facing sentence
+   * `spec/error-model.md:125` prescribes, and the words *keyword*, *primitive* and *alias* MUST NOT
+   * appear in it.
    */
-  reservedWord(
-    source_span: SourceSpan,
-    name: string,
-    namespace: "reserved" | "primitive" | "procedure" | "struct",
-  ): Diagnostic {
+  reservedWord(source_span: SourceSpan, name: string): Diagnostic {
     return runtimeError(
       "ol-reserved-word",
       source_span,
-      { name, namespace },
-      `${name} is already a ${namespace}, so it can't be redefined here.`,
+      { name },
+      `${name} is already part of OpenLogo. choose another name.`,
+    );
+  },
+
+  /**
+   * `ol-duplicate-definition`: a declaration slot names something an **earlier declaration in the
+   * same program** already registered — a procedure defined twice, a struct declared twice, or a
+   * procedure and a struct in either order (`spec/error-model.md:126`, `spec/execution-model.md:86-88`,
+   * which makes it an error that "MUST NOT be a silent override").
+   *
+   * `source_span` points at the later declaration and `params.original_span` at the earlier one:
+   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:143-146`
+   * requires supplying `original_span` rather than folding the earlier location into the prose.
+   * Same code, params and spans as the parser's `checker-reserved-word.ts` (issue #839) — only
+   * `stage` differs, `"runtime"` here for the same reason {@link runtimeDiag.reservedWord} gives.
+   */
+  duplicateDefinition(
+    source_span: SourceSpan,
+    name: string,
+    original_span: SourceSpan,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-duplicate-definition",
+      source_span,
+      { name, original_span },
+      `you already defined ${name} on line ${original_span.start[0]}.`,
     );
   },
 

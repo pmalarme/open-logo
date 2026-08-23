@@ -52,16 +52,33 @@ test("recursion within the depth limit still completes normally and returns the 
   assert.deepEqual(printed, [0]);
 });
 
-test("a later define of the same name wins over an earlier one (redefinition, matches the static checker)", () => {
+test("a later define of the same name is ol-duplicate-definition, not a silent override (issue #839)", () => {
+  // Was: "a later define wins over an earlier one (matches the static checker)". It never matched
+  // the checker — `check()` reported the collision while `execute()` ran the SECOND body and
+  // printed `2`, the exact silent override `spec/execution-model.md:86-88` forbids. The two bodies
+  // differ deliberately (`return 1` vs `return 2`): under the old rule this printed `2`, under a
+  // first-wins rule it would print `1`, and only the ruling's rule prints nothing at all.
   const result = execute(
     "define f\n  return 1\nend\ndefine f\n  return 2\nend\nprint f",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  const printed = result.events
-    .filter((event) => event.kind === "print")
-    .map((event) => event.payload.values[0]);
-  assert.deepEqual(printed, [2]);
+  assert.equal(result.diagnostics.length, 1);
+  const [diagnostic] = result.diagnostics;
+  assert.equal(diagnostic.code, "ol-duplicate-definition");
+  assert.deepEqual(diagnostic.params, {
+    name: "f",
+    original_span: { document: doc, start: [1, 8], end: [1, 9] },
+  });
+  assert.deepEqual(diagnostic.source_span, {
+    document: doc,
+    start: [4, 8],
+    end: [4, 9],
+  });
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+    "neither body ran",
+  );
 });
 
 test("a zero-param, zero-arg procedure call binds no parameters (empty-array binder loop)", () => {

@@ -164,45 +164,42 @@ test("aliases and Core spellings intermixed in one program are equivalent statem
 });
 
 // ---------------------------------------------------------------------------
-// A user procedure named like an alias SHADOWS the alias (the chokepoint must
-// never hijack a user's `define fd :x … end`)
+// INVERTED by issue #839 (maintainer ruling #833 rule 3, "nothing shadows"):
+// a user procedure can no longer be NAMED like an alias, nor like an alias's
+// canonical, so neither shadowing direction is reachable any more.
 // ---------------------------------------------------------------------------
+//
+// These tests are kept — not deleted — as regression locks pointing the other way. Each still runs
+// the exact program that used to exercise the shadow path, and asserts that phase-1 registration
+// (`spec/execution-model.md:82-89`) now rejects the declaration outright with `ol-reserved-word`
+// (`spec/error-model.md:125`). If anyone ever re-legalises `define fd` / `define forward`, these go
+// red again and the reader is led straight back to why the shadow paths existed.
 
-test("a user procedure whose name is an alias shadows the alias, exactly as an ordinary name would", () => {
-  // `define fd :x … end` makes `fd` the user's procedure — the chokepoint must NOT rewrite `fd` to
-  // `forward` and run the turtle, which would silently invent a semantic difference from what the
-  // learner wrote (and would fire even with Heritage inactive, since the reader sets `canonical`
-  // profile-blind). Proof: the alias-named procedure behaves identically to the same program written
-  // with an ordinary (non-alias) procedure name — same event kinds and same payloads once the
-  // procedure's own name (necessarily `fd` vs `foo`) is disregarded.
-  const shadow = eventsOf("define fd :x\n  print :x\nend\nfd 99\n");
-  const ordinary = eventsOf("define foo :x\n  print :x\nend\nfoo 99\n");
-  const stripNames = (events) =>
-    withoutSpans(events).map(({ payload, ...rest }) => ({
-      ...rest,
-      payload:
-        rest.kind === "procedure-enter" || rest.kind === "procedure-exit"
-          ? { ...payload, name: "·" }
-          : payload,
-    }));
-  assert.deepEqual(stripNames(shadow), stripNames(ordinary));
-  // Concretely: the user's `print` ran and NO `move` was emitted (the alias did not reach `forward`).
-  assert.ok(shadow.some((e) => e.kind === "print"));
-  assert.ok(!shadow.some((e) => e.kind === "move"));
+test("a user procedure whose name is an alias is rejected at registration, so it can never shadow the alias", () => {
+  // Was: `define fd :x … end` made `fd` the user's procedure and the statement chokepoint had to
+  // avoid rewriting `fd` to `forward`. `fd` is an alias spelling of a primitive, so declaring it is
+  // now `ol-reserved-word` — the shadow the guard protected against cannot be created.
+  const result = execute("define fd :x\n  print :x\nend\nfd 99\n", doc);
+  assert.deepEqual(
+    result.diagnostics.map((d) => [d.code, d.params]),
+    [["ol-reserved-word", { name: "fd" }]],
+  );
+  assert.deepEqual(result.events, [], "nothing runs");
 });
 
-test("an alias whose CANONICAL name is a user procedure dispatches to that procedure", () => {
-  // The mirror case: the user overrides `forward` itself. `fd` should then dispatch to the user's
-  // `forward` (the alias means "whatever `forward` means"), not a built-in turtle move — and
-  // identically to writing `forward` directly, since both resolve to the same procedure.
-  const alias = eventsOf("define forward :x\n  print :x\nend\nfd 7\n");
-  const core = eventsOf("define forward :x\n  print :x\nend\nforward 7\n");
-  assert.deepEqual(withoutSpans(alias), withoutSpans(core));
-  assert.ok(!alias.some((e) => e.kind === "move"));
+test("an alias whose CANONICAL name is declared is rejected at registration, so the alias can never reach a user procedure", () => {
+  // The mirror case: overriding `forward` itself so `fd` would dispatch to the user's procedure.
+  // `forward` is a Turtle & Rendering primitive, so the declaration is rejected first.
+  const result = execute("define forward :x\n  print :x\nend\nfd 7\n", doc);
+  assert.deepEqual(
+    result.diagnostics.map((d) => [d.code, d.params]),
+    [["ol-reserved-word", { name: "forward" }]],
+  );
+  assert.deepEqual(result.events, []);
 });
 
 // ---------------------------------------------------------------------------
-// The same, from REPORTER position — issue #787's host crash
+// The same, from REPORTER position — issue #787's host crash, now unreachable
 // ---------------------------------------------------------------------------
 //
 // Statement position has its own chokepoint (`canonicalizeHeritageAliasCall`, which rewrites the
@@ -211,60 +208,38 @@ test("an alias whose CANONICAL name is a user procedure dispatches to that proce
 // `runProcedureBody` re-derives its lookup key from `node.callee.name`. The two disagreed, so a
 // reporter-position alias over a user-defined canonical looked up `fd`, found `undefined`, and
 // dereferenced it: a raw host `TypeError` escaping to the embedder with no `ol-*` diagnostic at all,
-// which `spec/error-model.md` never admits as an outcome. `withResolvedCallee` closes it by
-// rewriting the node here too, so both chokepoints behave the same way.
+// which `spec/error-model.md` never admits as an outcome. `withResolvedCallee` closed it by
+// rewriting the node there too.
 //
-// Note this is reachable ONLY through `execute()`: it runs `parse()` and never `check()`, so no
-// checker rule can stand in for these tests (the same cross-stage split as #741).
+// #839 removes the *precondition* instead: a reporter-position alias can no longer have a
+// user-defined canonical, because `define forward` is `ol-reserved-word`. The crash repro below is
+// therefore kept verbatim and inverted — it is the cheapest possible guard against the precondition
+// coming back without `withResolvedCallee`'s fix coming with it.
 
-test("#787: a reporter-position alias over a user-defined canonical does not crash the host", () => {
-  // The literal crash repro from the issue. It must produce a value, not a `TypeError`.
-  const alias = eventsOf("define forward\n  return 55\nend\nprint fd\n");
-  const core = eventsOf("define forward\n  return 55\nend\nprint forward\n");
-  assert.deepEqual(withoutSpans(alias), withoutSpans(core));
+test("#787: the reporter-position crash repro is now rejected at registration", () => {
+  // The literal crash repro from the issue: `define forward … end` then `print fd`.
+  const result = execute("define forward\n  return 55\nend\nprint fd\n", doc);
   assert.deepEqual(
-    alias.filter((e) => e.kind === "print").map((e) => e.payload),
-    [{ values: [55] }],
+    result.diagnostics.map((d) => [d.code, d.params]),
+    [["ol-reserved-word", { name: "forward" }]],
+  );
+  assert.deepEqual(
+    result.events.filter((e) => e.kind === "print"),
+    [],
+    "the program halts before `print fd` could reach the crash",
   );
 });
 
-test("#787: the reporter path's procedure events carry the CANONICAL name, never the surface alias", () => {
-  // Canonicalization must be total, not just enough to stop the crash: a surface spelling reaching
-  // an event payload is the same class of defect as one reaching a diagnostic's params.
-  const events = eventsOf("define forward\n  return 55\nend\nprint fd\n");
-  const names = events
-    .filter((e) => e.kind === "procedure-enter" || e.kind === "procedure-exit")
-    .map((e) => e.payload.name);
-  assert.deepEqual(names, ["forward", "forward"]);
-});
-
-test("#787: the reporter path's spans still point at the alias the learner wrote", () => {
-  // Canonicalizing the dispatch name must not canonicalize the span — `withResolvedCallee` keeps
-  // `callee.source_span`. `fd` occupies two columns, so `procedure-enter` spans [4,7]–[4,9], not the
-  // seven columns `forward` would.
-  const events = eventsOf("define forward\n  return 55\nend\nprint fd\n");
-  const enter = events.find((e) => e.kind === "procedure-enter");
-  assert.deepEqual(enter.source_span.start, [4, 7]);
-  assert.deepEqual(enter.source_span.end, [4, 9]);
-});
-
-test("#787: the reporter path reaches the user procedure's arity and no-output guards", () => {
-  // Both were unreachable before the fix — the undefined lookup blew up on the line before them.
-  // `params.callable`/`params.procedure` must carry the CANONICAL name (#670/#733/#741's rule), and
-  // must be byte-identical to what the Core spelling reports.
+test("#787: the reporter path's arity and no-output guards are still reached — through the PRIMITIVE, and still canonically", () => {
+  // The surviving half of #787's rule, and the half that actually mattered: a Heritage alias in
+  // reporter position must report `params.callable`/`params.procedure` byte-identically to its Core
+  // twin, with no structured param ever carrying the surface spelling. That is now proven against
+  // the built-in `forward` rather than a user procedure of the same name, because the latter can no
+  // longer be declared. The alias→canonical resolution under test is unchanged; only the callee's
+  // provenance is.
   for (const [aliasSource, coreSource] of [
-    [
-      "define forward\n  return 55\nend\nprint (fd 1 2)\n",
-      "define forward\n  return 55\nend\nprint (forward 1 2)\n",
-    ],
-    [
-      "define forward :x\n  return 55\nend\nprint (fd)\n",
-      "define forward :x\n  return 55\nend\nprint (forward)\n",
-    ],
-    [
-      "define forward\n  print 1\nend\nprint fd\n",
-      "define forward\n  print 1\nend\nprint forward\n",
-    ],
+    ["print (fd 1 2)\n", "print (forward 1 2)\n"],
+    ["print fd\n", "print forward\n"],
   ]) {
     const alias = execute(aliasSource, doc).diagnostics;
     const core = execute(coreSource, doc).diagnostics;
@@ -284,21 +259,19 @@ test("#787: the reporter path reaches the user procedure's arity and no-output g
   }
 });
 
-test("#787: a user procedure named like the alias still shadows it in reporter position too", () => {
-  // The statement chokepoint's shadowing guard has an expression-position twin, and
-  // `withResolvedCallee` must not disturb it: when the SURFACE name is itself a registered
-  // procedure, `resolveHeritageAliasName` returns the surface name and the node is returned
-  // unchanged. `define fd` must therefore reach the learner's own `fd`, not `forward`.
-  const events = eventsOf("define fd\n  return 55\nend\nprint fd\n");
+test("#787: a user procedure named like the alias is rejected in reporter position too", () => {
+  // The expression-position twin of the statement chokepoint's shadowing guard: when the SURFACE
+  // name was itself a registered procedure, `resolveHeritageAliasName` returned the surface name.
+  // `define fd` is now `ol-reserved-word`, so that guard's precondition is gone from this direction
+  // as well.
+  const result = execute("define fd\n  return 55\nend\nprint fd\n", doc);
   assert.deepEqual(
-    events
-      .filter((e) => e.kind === "procedure-enter")
-      .map((e) => e.payload.name),
-    ["fd"],
+    result.diagnostics.map((d) => [d.code, d.params]),
+    [["ol-reserved-word", { name: "fd" }]],
   );
   assert.deepEqual(
-    events.filter((e) => e.kind === "print").map((e) => e.payload),
-    [{ values: [55] }],
+    result.events.filter((e) => e.kind === "print"),
+    [],
   );
 });
 

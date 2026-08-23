@@ -1,79 +1,18 @@
 {
-  "description": "Issue #787: the reporter-position Heritage-alias path reaching the user procedure's NO-OUTPUT guard, EXECUTED. `define forward … print 1 … end` is a COMMAND — it never reaches `return` — so using it as a reporter via `print fd` is `ol-no-output` (`spec/execution-model.md:365-368`). Fixtured separately from its two siblings because this diagnostic carries `params.procedure`, a DIFFERENT param name from the arity diagnostics' `params.callable`, and params on this path are exactly what this saga has gotten wrong five times (#670 `operation`, #733/#734 `callable`, #737/#747 and #741/#762 `keyword`): asserting one param name leaves the other unpinned, which is the M4 audit's F3 finding — an unasserted field is an unprotected one. The value is the CANONICAL `\"forward\"`, byte-identical to what `print forward` reports, never the surface `\"fd\"`; the `source_span` still covers the two columns of `fd` the learner wrote, so canonicalizing the param did not canonicalize the span. Note the event stream is NOT empty: the procedure genuinely runs — `procedure-enter`, its own `print 1`, then `procedure-exit` with `result: null` — and only then does the reporter position reject the absent value, which is what distinguishes this from the arity fixture, where the call is rejected before the body ever runs. Before the fix this program raised a raw host `TypeError` instead, exactly like its siblings. `\"execute\": true` because `execute()` runs `parse()` only and never `check()`. TRANSITIONAL FIXTURE (ruling #833, slice #839): like both siblings, this needs a user procedure registered under a Heritage alias's canonical name, and every one of the thirteen canonicals is a built-in name that #833 rules may never be registered — so once #839 lands, `define forward` halts at phase 1 and this stops being expressible as source→events. See `heritage-reporter-alias-reaches-canonical-user-procedure` for why the production fix is nonetheless not transitional, and for the request to carry these regressions forward as lower-level evaluator tests rather than deleting them.",
+  "description": "INVERTED by issue #839 (maintainer ruling #833 rule 3, \"nothing shadows\"). The program is unchanged — `define forward … print 1 … end` then `print fd` — but its outcome is not. Issue #787 authored this as the NO-OUTPUT half of a host-crash regression: a reporter-position Heritage alias over a user procedure that never reaches `return` had to report `ol-no-output` with `params.procedure` carrying the canonical `\"forward\"`, a DIFFERENT param name from the arity siblings' `params.callable`, so that asserting one did not leave the other unpinned. It was marked TRANSITIONAL when it landed, because it needs a user procedure registered under a Heritage alias's canonical name and every one of the thirteen canonicals is a built-in name. #839's runtime phase-1 registration guard (`spec/execution-model.md:82-89`) now raises `ol-reserved-word` (`spec/error-model.md:125`) at the declaration, so the procedure never runs: the previously non-empty event stream (`procedure-enter`, its own `print 1`, `procedure-exit`) is now empty, which is itself the strongest evidence the halt happens at registration rather than at the reporter position. Kept and inverted rather than deleted, so re-legalising `define forward` reddens this and leads the next reader to #787. The evaluator-level invariant is carried forward in `packages/runtime/src/heritage-alias-chokepoint.test.mjs`.",
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [6, 1],
-        "end": [8, 4]
-      },
-      "payload": { "statement_kind": "ProcedureDef" }
-    },
-    {
-      "seq": 1,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [9, 1],
-        "end": [9, 9]
-      },
-      "payload": { "statement_kind": "Call" }
-    },
-    {
-      "seq": 2,
-      "kind": "procedure-enter",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [9, 7],
-        "end": [9, 9]
-      },
-      "payload": { "name": "forward", "args": [] }
-    },
-    {
-      "seq": 3,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [7, 3],
-        "end": [7, 10]
-      },
-      "payload": { "statement_kind": "Call" }
-    },
-    {
-      "seq": 4,
-      "kind": "print",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [7, 3],
-        "end": [7, 10]
-      },
-      "payload": { "values": [1] }
-    },
-    {
-      "seq": 5,
-      "kind": "procedure-exit",
-      "source_span": {
-        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [9, 7],
-        "end": [9, 9]
-      },
-      "payload": { "name": "forward", "result": null }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
-      "code": "ol-no-output",
+      "code": "ol-reserved-word",
       "source_span": {
         "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
-        "start": [9, 7],
-        "end": [9, 9]
+        "start": [6, 8],
+        "end": [6, 15]
       },
-      "params": { "procedure": "forward" },
-      "message": "forward doesn't report a value here — it never reaches return.",
+      "params": { "name": "forward" },
+      "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"
     }

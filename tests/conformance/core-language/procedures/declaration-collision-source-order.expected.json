@@ -1,0 +1,27 @@
+{
+  "description": "Issue #839: when a program contains BOTH kinds of declaration-slot collision, the first one in SOURCE ORDER halts it. Here a duplicate `tally` on line 4 precedes a built-in `define forward` on line 7, and the duplicate is what is reported — the run stops there, so the later `ol-reserved-word` is never produced. This is the ordering property, deliberately separated from the *priority* property (`ol-reserved-word` beats `ol-duplicate-definition` when ONE name is both), which is a check-stage concern because `check()` reports every finding while `execute()` stops at the first. Reversing the two blocks would report `ol-reserved-word` at line 7 instead, so the fixture is sensitive to the order rather than to the mere presence of two collisions.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "core-language/procedures/declaration-collision-source-order",
+        "start": [4, 8],
+        "end": [4, 13]
+      },
+      "params": {
+        "name": "tally",
+        "original_span": {
+          "document": "core-language/procedures/declaration-collision-source-order",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
+      },
+      "message": "you already defined tally on line 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

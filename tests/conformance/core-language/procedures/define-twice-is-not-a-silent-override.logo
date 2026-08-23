@@ -1,0 +1,7 @@
+define foo
+  print 111
+end
+define foo
+  print 222
+end
+foo

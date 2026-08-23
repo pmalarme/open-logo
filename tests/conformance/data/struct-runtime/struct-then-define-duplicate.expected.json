@@ -1,0 +1,27 @@
+{
+  "description": "Issue #839 AC2, the cross-kind collision in the STRUCT-FIRST direction: `struct tally [ x y ]` then `define tally`. Its mirror (`define` then `struct`) is `struct-reserved-word-procedure`; both must report `ol-duplicate-definition` naming the FIRST declaration, which is what proves the runtime keeps ONE first-declaration map across both declaration kinds rather than one map per kind. With separate maps this direction would report nothing at all, because the `define` would be the procedure map's first entry — the defect the checker's own equivalent had before issue #838's review. `spec/error-model.md:126` covers exactly this case: \"a procedure and a struct with the same name in either order\".",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "data/struct-runtime/struct-then-define-duplicate",
+        "start": [2, 8],
+        "end": [2, 13]
+      },
+      "params": {
+        "name": "tally",
+        "original_span": {
+          "document": "data/struct-runtime/struct-then-define-duplicate",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
+      },
+      "message": "you already defined tally on line 1.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

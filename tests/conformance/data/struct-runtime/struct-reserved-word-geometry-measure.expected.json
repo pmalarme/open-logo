@@ -1,5 +1,5 @@
 {
-  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `measure` raises ol-reserved-word at phase-1 registration. Issue #403.",
+  "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `measure` raises `ol-reserved-word` at phase-1 registration. Issue #403; issue #839 dropped the `namespace` param (`spec/error-model.md:125`).",
   "profiles": ["core-language", "data", "geometry"],
   "execute": true,
   "events": [],
@@ -12,10 +12,9 @@
         "end": [1, 15]
       },
       "params": {
-        "name": "measure",
-        "namespace": "primitive"
+        "name": "measure"
       },
-      "message": "measure is already a primitive, so it can't be redefined here.",
+      "message": "measure is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"
     }
