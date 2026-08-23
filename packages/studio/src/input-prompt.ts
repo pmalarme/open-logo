@@ -36,9 +36,10 @@
  * 500,000 questions to the learner at the default budget while replaying quadratically many reads
  * to get there. It presents as a hang too. Neither is defended against in code,
  * because no library can defend against a callback that unconditionally re-invokes the operation it
- * was called back from, and because the retry cap `run-controller.ts` used to carry would not have
- * caught either: that cap counted attempts *within one chain* that made no progress, and both of
- * these make progress on every attempt. Restarting in response to a *learner action* is fine; doing
+ * was called back from, and because the retry cap `run-controller.ts` used to carry counted
+ * no-progress attempts *within one chain*: the unbounded-reads program makes progress on every
+ * attempt, and the host-restart loop never has a second attempt in any chain for the counter to
+ * reach. Restarting in response to a *learner action* is fine; doing
  * it on every presentation is not.
  *
  * ## `dismiss()` — withdrawing a question nobody will answer
