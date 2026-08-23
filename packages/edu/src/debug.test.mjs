@@ -243,6 +243,159 @@ test("debug follows the addressed turtle's own homing under tell", () => {
   assert.match(segment, /heading 0/);
 });
 
+/**
+ * Issue #891: `turtleStateSegment` used to fold every event through one set of variables, so under
+ * Sprites an addressed set of several turtles collapsed into a single *blended* state — last write
+ * wins per field — that no turtle ever actually had. `spec/turtles-and-sprites.md:113` requires the
+ * per-event identities to exist precisely "so animation, stepping, `why`, and `debug` can explain
+ * which turtle moved or changed", and names `debug` among the consumers the rule exists for.
+ *
+ * The test above is deliberately scoped to a SINGLE addressed turtle (issue #738), so it never
+ * locked the blend in; these widen it to the multi-turtle cases it left open.
+ */
+const turtleStateOf = (source) => {
+  const segment = OL.debug(contextFromSource(source, {})).segments.find(
+    (line) => line.startsWith("Turtle state so far:"),
+  );
+  assert.ok(segment !== undefined, `no turtle-state segment for: ${source}`);
+  return segment;
+};
+
+test("debug reports each addressed turtle's own state instead of one blended state", () => {
+  // :a ends at (0, 30) heading 0 in red; :b at (10, ~0) heading 90 with width 7. The old fold
+  // reported ONE line taking position+heading from :b and color from :a — a state neither turtle
+  // was ever in. Each field must now be attributed to the turtle it actually belongs to.
+  const segment = turtleStateOf(
+    ':a = new_turtle\n:b = new_turtle\nask :a [ forward 30 set_color "red" ]\nask :b [ right 90 forward 10 set_width 7 ]\ntell [ :a :b ]',
+  );
+  assert.equal(
+    segment,
+    "Turtle state so far: turtle 1 — position (0, 30), heading 0, color `red`; " +
+      "turtle 2 — position (10, 6.123233995736766e-16), heading 90, width 7.",
+  );
+  // The blend was not merely incomplete, it was a state no turtle had: :a's color never belonged
+  // with :b's width on one turtle.
+  assert.ok(!/color `red`, width 7/.test(segment));
+});
+
+test("debug reports a position per addressed turtle when one command moved them all", () => {
+  // The issue's headline symptom: `tell [ :a :b ]` + a single `forward` moves two turtles to two
+  // different places (:a was pre-turned), and `debug` used to report only the last one.
+  assert.equal(
+    turtleStateOf(
+      ":a = new_turtle\n:b = new_turtle\nask :a [ right 90 ]\ntell [ :a :b ]\nforward 10",
+    ),
+    "Turtle state so far: turtle 1 — position (10, 6.123233995736766e-16), heading 90; " +
+      "turtle 2 — position (0, 10), heading 0.",
+  );
+});
+
+test("debug's turtle state does not depend on the order the turtles were addressed in", () => {
+  // `spec/turtles-and-sprites.md:113`: "the result never depends on the order the turtles were
+  // listed in: `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles". Those two forms
+  // genuinely emit their per-turtle events in OPPOSITE orders, so reporting the turtle that acted
+  // last — the obvious alternative to reporting per turtle — would make `debug` contradict this.
+  const program = (order) =>
+    `:a = new_turtle\n:b = new_turtle\nask :a [ right 90 ]\ntell [ ${order} ]\nforward 10`;
+  assert.equal(
+    turtleStateOf(program(":a :b")),
+    turtleStateOf(program(":b :a")),
+  );
+});
+
+test("debug reports every addressed turtle a clear_screen homed, not just one", () => {
+  // The multi-turtle widening of the single-turtle homing test above: `clear_screen` homes EVERY
+  // addressed turtle (issue #889), and each homing arrives as that turtle's own `move`/`turn`.
+  assert.equal(
+    turtleStateOf(
+      ":a = new_turtle\n:b = new_turtle\nask :a [ forward 30 ]\nask :b [ right 90 forward 10 ]\ntell [ :a :b ]\nclear_screen",
+    ),
+    "Turtle state so far: turtle 1 — position (0, 0), heading 0; " +
+      "turtle 2 — position (0, 0), heading 0.",
+  );
+});
+
+test("debug names the turtle even when only one is addressed", () => {
+  // With an identity in the trace, `debug` reports it: :113's requirement exists so `debug` can say
+  // WHICH turtle, and that answer is useful before a second turtle exists.
+  assert.equal(
+    turtleStateOf(":a = new_turtle\ntell [ :a ]\nforward 30"),
+    "Turtle state so far: turtle 1 — position (0, 30), heading 0.",
+  );
+});
+
+test("debug treats turtle 0 as a real identity, not as an unaddressed turtle", () => {
+  // The main turtle's id is `0`. `tell [ who ]` addresses it explicitly, so its events carry
+  // `turtle_id: 0` — and a falsy identity check (`if (event.turtle_id)`) would silently file them
+  // under the unaddressed default and report the pre-#891 unnamed wording.
+  assert.equal(
+    turtleStateOf("tell [ who ]\nforward 5"),
+    "Turtle state so far: turtle 0 — position (0, 5), heading 0.",
+  );
+});
+
+test("debug keeps the unaddressed default turtle distinct from an addressed one", () => {
+  // `:friend` moves under `ask` (so its events carry its id); the trailing `forward 3` runs with no
+  // explicit addressing in force, so its event carries NO id — `spec/turtles-and-sprites.md`'s
+  // "single default turtle". The old fold blended the two into `position (0, 3)`, losing :friend
+  // entirely. `debug` must not invent an id for the unattributed one: the spec pins none.
+  assert.equal(
+    turtleStateOf(":friend = new_turtle\nask :friend [ forward 7 ]\nforward 3"),
+    "Turtle state so far: the turtle — position (0, 3), heading 0; " +
+      "turtle 1 — position (0, 7), heading 0.",
+  );
+});
+
+test("debug keeps the unnamed wording for a program with no turtle identities at all", () => {
+  // The whole non-Sprites world: no `tell`/`ask`/`each`, so no event carries a `turtle_id` and
+  // there is no identity to report. This wording must stay byte-identical to the pre-#891 output.
+  assert.equal(
+    turtleStateOf("forward 30\nright 90"),
+    "Turtle state so far: position (0, 30), heading 90.",
+  );
+});
+
+test("debug reports addressed turtles in ascending id order, not the order they were listed", () => {
+  // `tell [ :c :a :b ]` emits its per-turtle events in the listed order, so an event-order report
+  // would start at :c. `spec/turtles-and-sprites.md:113` requires the result not to depend on the
+  // listing order, so the clauses are sorted by id — three turtles make the sort observable in a
+  // way two cannot (a two-element reversal is also a swap).
+  assert.equal(
+    turtleStateOf(
+      ":a = new_turtle\n:b = new_turtle\n:c = new_turtle\ntell [ :c :a :b ]\nforward 10",
+    ),
+    "Turtle state so far: turtle 1 — position (0, 10), heading 0; " +
+      "turtle 2 — position (0, 10), heading 0; " +
+      "turtle 3 — position (0, 10), heading 0.",
+  );
+});
+
+test("debug reports the default turtle twice when it is later addressed by id, rather than inventing its identity", () => {
+  // The accepted consequence documented on `turtleStateSegment`. `forward 10` runs with no explicit
+  // addressing, so its event carries no `turtle_id`; `tell [ who ]` then addresses that SAME turtle
+  // explicitly, so `forward 5` carries `turtle_id: 0`. Nothing in the stream says the two are one
+  // turtle, and `spec/turtles-and-sprites.md` pins no id for "the single default turtle" — so
+  // merging them would have `debug` assert a fact it was never given. Pinned so the trade-off is
+  // decided and visible, not accidental.
+  assert.equal(
+    turtleStateOf("forward 10\ntell [ who ]\nforward 5"),
+    "Turtle state so far: the turtle — position (0, 10), heading 0; " +
+      "turtle 0 — position (0, 15), heading 0.",
+  );
+});
+
+test("debug reports only the fields each turtle actually changed", () => {
+  // Per-turtle folding must not leak one turtle's field onto another: :a only lifted its pen and
+  // :b only set a color, so neither clause may mention the other's field (nor a position, since
+  // neither moved). The old single-variable fold reported both fields on one line.
+  assert.equal(
+    turtleStateOf(
+      ':a = new_turtle\n:b = new_turtle\nask :a [ pen_up ]\nask :b [ set_color "blue" ]',
+    ),
+    "Turtle state so far: turtle 1 — pen up; turtle 2 — color `blue`.",
+  );
+});
+
 test("debug shows a friendly call path for a procedure still open at the point of failure", () => {
   const program = {
     kind: "Program",
