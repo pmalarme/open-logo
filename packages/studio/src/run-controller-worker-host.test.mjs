@@ -135,6 +135,50 @@ function createDeferredHost() {
   };
 }
 
+test("under an asynchronous host, answering routes back into the SAME suspended run", () => {
+  // The behaviour that makes this a blocking read rather than a replay, asserted at the seam the
+  // controller actually uses: the answer goes to `resolveRead`, and no second execution is started.
+  // The synchronous harness below proves the end-to-end effect; this proves the routing, across
+  // event-loop turns, which is where a real Worker lives.
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const deferred = createDeferredHost();
+  const prompt = createTestPromptHost(() => "Ada");
+  const controller = OL.createRunController(store, {
+    inputPrompt: prompt,
+    executionHost: deferred.host,
+  });
+  controller.run();
+
+  deferred.report({ output: ["before"], pendingPrompt: "what is your name?" });
+
+  assert.deepEqual(prompt.prompts, ["what is your name?"]);
+  assert.deepEqual(deferred.calls.resolved, ["Ada"]);
+  assert.equal(
+    deferred.calls.runs.length,
+    1,
+    "answering continues the suspended run — it does not start another",
+  );
+  assert.equal(store.getState().runStatus, "running");
+});
+
+test("under an asynchronous host, dismissing also routes back into the suspended run", () => {
+  // Both endings are the same operation once a read genuinely blocks: hand the outcome back and let
+  // the run report what happened next. `undefined` is the runtime reader's own "cannot answer".
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  const deferred = createDeferredHost();
+  const prompt = createTestPromptHost(() => undefined);
+  const controller = OL.createRunController(store, {
+    inputPrompt: prompt,
+    executionHost: deferred.host,
+  });
+  controller.run();
+
+  deferred.report({ output: ["before"], pendingPrompt: "what is your name?" });
+
+  assert.deepEqual(deferred.calls.resolved, [undefined]);
+  assert.equal(deferred.calls.runs.length, 1);
+});
+
 test("Stop reaches the host, so a Worker's running interpreter is actually cancelled", () => {
   // The single link the whole "Stop preempts a running loop" claim rests on. Without it a Stop does
   // not stop, a Worker parked on a question is never woken, and the abandoned run repaints the
