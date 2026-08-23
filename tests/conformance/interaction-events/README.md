@@ -280,11 +280,11 @@ the gaps it found rather than rubber-stamping them:
   fixture at all: `redefine-wait-reserved` covers only `wait`, which is a *primitive* name,
   not a reserved block-head. The new pair
   `block-heads-reserved-under-profile` / `block-heads-free-core-only` runs the **byte-identical**
-  source both ways: four `define`s raising `ol-reserved-word` under the active profile, and the same
-  four under Core Language alone. Either fixture alone is satisfied by an implementation that
-  answers the same way for the wrong reason; only the pair pins the rule as invariant under the
-  profile set. This is the same gap class the Sprites terminal slice #679 found for its own
-  `ol-reserved-word` rule. (The recorded `message` is one category-free sentence per
+  source both ways: the same `define`s raising `ol-reserved-word` under the active profile, and the
+  same diagnostics under Core Language alone. Either fixture alone is satisfied by an
+  implementation that answers the same way for the wrong reason; only the pair pins the rule as
+  invariant under the profile set. This is the same gap class the Sprites terminal slice #679 found
+  for its own `ol-reserved-word` rule. (The recorded `message` is one category-free sentence per
   `spec/error-model.md:125`, and the code carries `params: { name }` only — no `namespace`.)
 
   Both fixtures of that pair use `define`, which issue #837 confirmed is the right slot: maintainer

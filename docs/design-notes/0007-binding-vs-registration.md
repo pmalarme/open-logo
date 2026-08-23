@@ -376,10 +376,10 @@ beginner can predict what a line does.
   the runtime stop disagreeing: at `1499e1e` `struct forward [ x y ]` passed `check()` and halted at
   `execute()`, and `define foo` twice was flagged by `check()` yet silently overridden by
   `execute()`. Issue #838 closed the first split at the checker and issue #839 closed the second at
-  the runtime. A third, narrower disagreement outlived both, and it is closed the same way: both
-  stages now call one predicate — `@openlogo/parser`'s `isBuiltInName` — rather than each composing
-  its own answer to *what is a built-in name*. Two compositions of one rule drift apart silently,
-  because nothing compares them.
+  the runtime. A third, narrower disagreement is closed the same way: both stages call one
+  predicate — `@openlogo/parser`'s `isBuiltInName` — rather than each composing its own answer to
+  *what is a built-in name*. Two compositions of one rule drift apart silently, because nothing
+  compares them.
 - **Every ordinary English word stays available for data.** `:end`, `:count`, `:value`,
   `for end from 1 to 3`, `map value in :xs [ … ]`, `{ end: 1 }`, `struct point [ repeat y ]` — all
   legal, with no carve-outs to memorize. This reverses the binding restriction that issue #739
