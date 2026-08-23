@@ -22,7 +22,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canonicalOfHeritageAlias,
   check,
@@ -227,10 +228,30 @@ function declarationSource({
  * Because the corpus is the stack-neutral artifact every implementation must satisfy, a construct
  * added to the grammar arrives here as soon as it has a fixture — and {@link BLOCK_SLOT_WRAPPERS}
  * then fails to cover it, which is the point.
+ *
+ * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
+ * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
+ * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. A node kind
+ * omitted from its parent's case would be invisible to *both*: declarations inside it would never be
+ * registered, and its slot would never enter this set, so this test would stay green about its own
+ * gap. The instrument and the subject share a traversal. It is narrow (every field of every node
+ * `walk` reaches is read, so only a kind `walk` never reaches at all hides), and all ten of today's
+ * slots are reached — but it is the one assumption underneath the enumeration.
+ *
+ * Paths resolve from this file, not from `process.cwd()`: a package-scoped run
+ * (`cd packages/runtime && node --test src/…`) would otherwise find no corpus at all.
  */
 function everyBlockSlotInTheCorpus() {
   const slots = new Set();
-  const roots = ["tests/conformance", "spec/examples", "stdlib"];
+  const repositoryRoot = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+  );
+  const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
+    join(repositoryRoot, root),
+  );
   const visit = (directory) => {
     for (const entry of readdirSync(directory)) {
       const full = join(directory, entry);
@@ -346,11 +367,17 @@ test("the wrapper axis COVERS every block-bearing slot the grammar actually has"
   // corpus rather than from a list kept here — so a construct added to the grammar fails this the
   // moment it has a fixture, instead of waiting for a reviewer to notice.
   const required = everyBlockSlotInTheCorpus();
-  assert.ok(
-    required.size >= 10,
-    `expected the corpus to exhibit many block slots, got ${required.size}`,
-  );
+  // The floor is derived from the wrapper map's own distinct slots, not a literal — a hand-written
+  // `>= 10` is the last remaining second source of truth in a file that spent a round removing them,
+  // and it would go stale the day a slot is added.
   const covered = new Set(WRAPPER_KINDS.map((kind) => kind.split("/")[0]));
+  const coveredBlockSlots = new Set(
+    [...covered].filter((slot) => slot !== "Program.body"),
+  );
+  assert.ok(
+    required.size >= coveredBlockSlots.size,
+    `expected the corpus to exhibit at least the ${coveredBlockSlots.size} slots the wrappers cover, got ${required.size}`,
+  );
   assert.deepEqual(
     [...required].filter((slot) => !covered.has(slot)).sort(),
     [],
@@ -713,13 +740,8 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
             prefix: "outer",
           });
           const label = `${keyword} ${name} @depth ${depth} in ${wrapper}`;
-          const { fromExecute, fromCheck } = bothStages(source);
-          rows.push([
-            label,
-            fromExecute,
-            fromCheck,
-            execute(source, doc).events.length,
-          ]);
+          const stages = bothStages(source);
+          rows.push([label, stages, name]);
         }
       }
     }
@@ -735,24 +757,36 @@ test("the built-in-name rule is invariant across spelling x case x depth x enclo
       WRAPPER_KINDS.length,
   );
 
-  // `execute()` and `check()` agree on code, params AND span, for every cell.
-  assert.deepEqual(
-    rows.map(([label, fromExecute]) => [label, fromExecute]),
-    rows.map(([label, , fromCheck]) => [label, fromCheck]),
-  );
+  // Compared as compact per-row strings: a diff over nested object graphs at this size is
+  // unreadable, and an assertion that fires while explaining nothing gets worked around rather than
+  // understood. The expected name comes from the row's own `name`, not from re-parsing the label —
+  // a label is for humans, and deriving an expectation from it makes the two drift together.
+  const describe = ([label, stages, name]) =>
+    [
+      label,
+      stages.fromExecute
+        .map(([code, params]) => `${code}:${params.name}`)
+        .join(","),
+      stages.fromCheck
+        .map(([code, params]) => `${code}:${params.name}`)
+        .join(","),
+      `diagnostics=${stages.executeDiagnosticCount}`,
+      `events=${stages.events}`,
+      name,
+    ].join(" | ");
 
-  // Each cell reports exactly one `ol-reserved-word` naming the spelling as written, and runs nothing.
   assert.deepEqual(
-    rows.map(([label, fromExecute, , events]) => [
-      label,
-      fromExecute.map(([code, params]) => [code, params.name]),
-      events,
-    ]),
-    rows.map(([label]) => [
-      label,
-      [["ol-reserved-word", label.split(" ")[1]]],
-      0,
-    ]),
+    rows.map(describe),
+    rows.map(([label, , name]) =>
+      [
+        label,
+        `ol-reserved-word:${name}`,
+        `ol-reserved-word:${name}`,
+        "diagnostics=1",
+        "events=0",
+        name,
+      ].join(" | "),
+    ),
   );
 });
 
@@ -950,24 +984,33 @@ test("EVERY built-in name — all 148, not just the two the cross-product sample
   // projection: the whole registry, at depth 1 and depth 2. Keeping both is deliberate — each is
   // blind to what the other varies, which is the entire lesson of this slice.
   for (const depth of [1, 2]) {
-    const rows = everyBuiltInName.map((name) => {
-      const source = nestInsideProcedure(declareProcedure(name), depth);
-      const { fromExecute, fromCheck } = bothStages(source);
-      return [name, fromExecute, fromCheck];
-    });
-    // Compared on the FULL identity, span included — `executeIdentity` omits the span, and an
-    // omitted facet is a variable held constant across every table that uses the helper.
+    const rows = everyBuiltInName.map((name) => [
+      name,
+      bothStages(nestInsideProcedure(declareProcedure(name), depth)),
+    ]);
+    // Compared on the FULL identity, span included — an omitted facet is a variable held constant
+    // across every table that uses the helper, which is why `fullIdentity` replaced the
+    // params-only comparison everywhere rather than at one site. `diagnostics` and `events` are
+    // asserted here too: `bothStages` filters to the two declaration-slot codes, so without the
+    // count a spurious extra diagnostic would hide behind the filter.
     assert.deepEqual(
-      rows.map(([name, fromExecute]) => [name, fromExecute]),
-      rows.map(([name, , fromCheck]) => [name, fromCheck]),
+      rows.map(([name, stages]) => [name, stages.fromExecute]),
+      rows.map(([name, stages]) => [name, stages.fromCheck]),
       `depth ${depth}`,
     );
     assert.deepEqual(
-      rows.map(([name, fromExecute]) => [
+      rows.map(([name, stages]) => [
         name,
-        fromExecute.map(([code, params]) => [code, params.name]),
+        stages.fromExecute.map(([code, params]) => [code, params.name]),
+        stages.executeDiagnosticCount,
+        stages.events,
       ]),
-      everyBuiltInName.map((name) => [name, [["ol-reserved-word", name]]]),
+      everyBuiltInName.map((name) => [
+        name,
+        [["ol-reserved-word", name]],
+        1,
+        0,
+      ]),
       `depth ${depth}`,
     );
   }
