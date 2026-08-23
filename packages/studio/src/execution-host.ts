@@ -1,0 +1,337 @@
+/**
+ * The **execution host** seam (#876) — the one decision about *where* a studio run's `execute()`
+ * happens, and therefore about how an `input` read is reconciled with a browser prompt.
+ *
+ * `run-controller.ts` composes a host rather than calling `@openlogo/runtime`'s `execute()` itself.
+ * Everything the controller does around a run — reducing output, driving the turtle animation,
+ * committing `runStatus`, presenting the question — is identical whichever host is installed,
+ * because a host's whole contract is "settle with an {@link ExecutionSettlement}".
+ *
+ * ## The two hosts, and why both exist
+ * - {@link createInProcessExecutionHost} is the default and carries **#769's replay** unchanged: the
+ *   runtime reader is synchronous, so a read with no recorded answer returns `undefined` (cancelling
+ *   that attempt at the waiting `input`), and the controller re-executes the captured source with
+ *   the new answer appended. N reads cost N+1 executions.
+ * - `worker-execution-host.ts` runs the interpreter in a Worker and **genuinely blocks** inside the
+ *   read on `Atomics.wait`. One execution, however many questions.
+ *
+ * The replay is the **degraded mode, not dead code**: `SharedArrayBuffer` requires COOP/COEP
+ * cross-origin isolation, which is a deployment posture not every host has. `web/main.ts`
+ * feature-detects it and picks; see `docs/adr/0023-worker-execution-host.md`.
+ *
+ * ## Where the bound lives
+ * #881 deleted the replay chain's no-progress retry cap, having proved the situation it guarded
+ * unreachable. Its reviewers carried forward the consequence: with the cap gone, a reintroduction of
+ * replay divergence would be an unbounded loop rather than a bounded test failure. A Worker host
+ * answers that structurally rather than with another counter — **it never replays**, so there is no
+ * attempt sequence to diverge and nothing for a cap to count. That invariant is pinned directly
+ * (`worker-execution-host.test.mjs` asserts one run command for a program with several reads), and
+ * the wait itself is separately bounded in `blocking-input-channel.ts`.
+ *
+ * ## Why a settlement carries reduced output rather than only events
+ * Trace events cross a Worker boundary by structured clone, which **drops class prototypes**: an
+ * `OLDict` arrives as a plain object and `@openlogo/runtime`'s `printedForm` then throws
+ * (`TypeError: record.fields is not a function`, measured on `print { a: 1 b: 2 }`). So the
+ * reduction to learner-visible text happens on whichever thread produced the values, and a
+ * settlement carries the finished `output`/`tutorOutput` alongside the events. The events
+ * themselves are consumed only by `@openlogo/turtle`'s animation and by the instruction-span
+ * lookup, both of which read plain data — but keeping the reduction with the values is what makes
+ * that a rule rather than a coincidence.
+ */
+
+import { execute, printedForm } from "@openlogo/runtime";
+import type { CancellationSignal, ExecuteOptions } from "@openlogo/runtime";
+import type {
+  Diagnostic,
+  PrintPayload,
+  TraceEvent,
+  TutorOutputPayload,
+} from "@openlogo/core";
+import { eduTutorTemplate } from "./tutor-output-pane.js";
+
+/**
+ * One answer the learner has already given during the current chain (#769), remembered **with the
+ * question it answered**. Binding answers by position alone would, if a replay ever reached a
+ * different question at the same position, hand an answer to a question the learner was never
+ * shown. Pairing each answer with its prompt is what makes that impossible; see
+ * {@link resolveRecordedAnswer}.
+ */
+export interface RecordedAnswer {
+  /** The question, exactly as the learner was shown it. */
+  readonly prompt: string;
+  /** The text they submitted for it. */
+  readonly answer: string;
+}
+
+/** {@link resolveRecordedAnswer}'s verdict for a single read. */
+export interface RecordedAnswerResolution {
+  /**
+   * The learner's own answer to **this exact question**, or `undefined` when there is none and the
+   * question must be put to them.
+   */
+  readonly answer: string | undefined;
+  /**
+   * The answers the chain keeps. The same list, except when the replay diverged: then every entry
+   * from `cursor` on is dropped, because those answer questions this attempt is not asking.
+   */
+  readonly retained: readonly RecordedAnswer[];
+}
+
+/**
+ * Decide how the read at position `cursor` is answered from the chain's accumulated answers (#769)
+ * — the one tested place that owns this decision, extracted from the in-process host's reader so it
+ * can be proven directly rather than only through a replay whose divergence needs nondeterminism to
+ * provoke.
+ *
+ * An answer is used **only** when the entry at this position was given for this same `prompt`.
+ * "This same question" means **this prompt text at this FIFO position**. Otherwise the read cannot
+ * be answered: the chain has no answer for this position yet, or — the case this pairing exists to
+ * make impossible — a replay reached a different question here than the learner was shown. In that
+ * second case every remaining answer is dropped as well, since handing one to the wrong question
+ * would silently apply a learner's answer to something they never saw.
+ *
+ * Since **#881** pinned one `ExecuteOptions.randomSeed` per chain (see `run-controller.ts`'s doc
+ * comment), a replay the run controller itself drives is bit-identical up to the newest read, so the
+ * divergence arm is unreachable through `run()`: position is now a stable read identity, which is
+ * exactly what lets **two distinct `input` sites asking the identical prompt text** each receive
+ * their own answer. This function is nonetheless kept, exported, and directly tested — it is what
+ * makes "an answer never reaches a question it did not answer" hold **by construction** rather than
+ * by trusting that determinism argument, and it costs one comparison per read.
+ *
+ * A Worker host (#876) never consults it at all, because it never replays.
+ */
+export function resolveRecordedAnswer(
+  answers: readonly RecordedAnswer[],
+  cursor: number,
+  prompt: string,
+): RecordedAnswerResolution {
+  const recorded = answers[cursor];
+  if (recorded?.prompt === prompt) {
+    return { answer: recorded.answer, retained: answers };
+  }
+  return { answer: undefined, retained: answers.slice(0, cursor) };
+}
+
+/**
+ * One attempt to run a program, as a host receives it. Every field is plain data so the whole
+ * request can cross a Worker boundary by structured clone — in particular there is no
+ * `CancellationSignal` here, because an object's mutation is invisible across threads: a Worker host
+ * cancels through shared memory instead (`blocking-input-channel.ts`), and the in-process host is
+ * handed the controller's own signal at construction.
+ */
+export interface ExecutionRequest {
+  /** The program text — captured once per chain, so a mid-question edit cannot swap it. */
+  readonly source: string;
+  /** The document identifier `execute()` stamps diagnostics with. */
+  readonly document: string;
+  /** The chain's pinned `ExecuteOptions.randomSeed` (#865/#881). */
+  readonly randomSeed: number;
+  /** Overrides `ExecuteOptions.instructionBudget` when set. */
+  readonly instructionBudget?: number;
+  /** Overrides `ExecuteOptions.recursionDepthLimit` when set. */
+  readonly recursionDepthLimit?: number;
+  /**
+   * Whether an `input` read may be put to the learner at all. `false` installs no
+   * `ExecuteOptions.hostInput` — exactly what `step()`'s lazy preparation wants, since stepping is a
+   * scrubber over an already-produced stream with no execution for a read to block.
+   */
+  readonly acceptsReads: boolean;
+  /**
+   * The chain's accumulated answers, oldest first. Only a replaying host consults these; a Worker
+   * host resumes the suspended read in place and never re-reads the FIFO.
+   */
+  readonly answers: readonly RecordedAnswer[];
+}
+
+/**
+ * One settled view of a run: everything `run-controller.ts` needs to surface it, whether the run has
+ * finished or is suspended on a question.
+ *
+ * A host may settle **more than once** for a single {@link ExecutionHost.execute} call — a Worker
+ * host settles once per outstanding read (a prefix, with the question) and once at completion.
+ * Successive settlements only ever **extend** the previous one's `events`, which is what lets the
+ * controller replace output and re-drive the canvas wholesale without the learner seeing a rewind.
+ */
+export interface ExecutionSettlement {
+  /** The trace events emitted so far, in order. */
+  readonly events: readonly TraceEvent[];
+  /** One learner-visible line per `print` event, already in `printedForm` — never re-formatted. */
+  readonly output: readonly string[];
+  /** Every `explain`/`why`/`hint`/`debug` payload emitted so far, in order. */
+  readonly tutorOutput: readonly TutorOutputPayload[];
+  /** The run's diagnostics. Empty while a question is outstanding — the run has not failed. */
+  readonly diagnostics: readonly Diagnostic[];
+  /** The question the run is suspended on, or `null` when this settlement is a finished run. */
+  readonly pendingPrompt: string | null;
+  /** The answers the chain keeps — see {@link RecordedAnswerResolution.retained}. */
+  readonly retainedAnswers: readonly RecordedAnswer[];
+}
+
+/** How a host reports a settled view of the run it was given. */
+export type ExecutionSettle = (settlement: ExecutionSettlement) => void;
+
+/** Where a studio run's `execute()` happens — see this module's doc comment. */
+export interface ExecutionHost {
+  /**
+   * Run `request`, settling once (in-process) or once per read plus once at completion (Worker).
+   * The same `settle` is used for every settlement of that run.
+   */
+  execute(request: ExecutionRequest, settle: ExecutionSettle): void;
+  /**
+   * Abandon the current run: Stop or Reset. A host must **not** settle again afterwards — the
+   * controller has already decided the run's outcome.
+   */
+  cancel(): void;
+  /**
+   * End the outstanding read in place, with the learner's answer or `undefined` for a dismissal.
+   *
+   * **Present only on a host that genuinely suspends a read.** Its absence is what tells
+   * `run-controller.ts` that this host replays instead: the controller then records the answer in
+   * the chain's FIFO and asks for another attempt, exactly as it has since #769. Modelling the
+   * difference as a missing method rather than a boolean keeps a replaying host from carrying a
+   * no-op it can never honour.
+   */
+  readonly resolveRead?: (answer: string | undefined) => void;
+}
+
+function isPrintEvent(
+  event: TraceEvent,
+): event is TraceEvent<PrintPayload> & { readonly kind: "print" } {
+  return event.kind === "print";
+}
+
+/**
+ * Reduce a trace-event stream down to one learner-visible output line per `print` event. Runs on
+ * whichever thread produced the values — see this module's doc comment for why that matters.
+ */
+export function collectOutput(events: readonly TraceEvent[]): string[] {
+  const output: string[] = [];
+  for (const event of events) {
+    if (isPrintEvent(event)) {
+      output.push(
+        event.payload.values.map((value) => printedForm(value)).join(" "),
+      );
+    }
+  }
+  return output;
+}
+
+function isTutorOutputEvent(
+  event: TraceEvent,
+): event is TraceEvent<TutorOutputPayload> & { readonly kind: "tutor-output" } {
+  return event.kind === "tutor-output";
+}
+
+/**
+ * Reduce a trace-event stream down to the ordered `tutor-output` payloads it carries (#334) —
+ * every `explain`/`why`/`hint`/`debug` invocation's result, in emission order. Mirrors
+ * {@link collectOutput}'s reduction pattern for `print` events above.
+ */
+export function collectTutorOutput(
+  events: readonly TraceEvent[],
+): TutorOutputPayload[] {
+  const tutorOutput: TutorOutputPayload[] = [];
+  for (const event of events) {
+    if (isTutorOutputEvent(event)) {
+      tutorOutput.push(event.payload);
+    }
+  }
+  return tutorOutput;
+}
+
+/**
+ * Assemble the `ExecuteOptions` a request describes — the single place that turns the plain,
+ * cloneable {@link ExecutionRequest} back into the runtime's own option shape, so the in-process
+ * host and the Worker-side runner cannot drift apart on what a run is configured with.
+ *
+ * `tutorTemplates` is always `@openlogo/edu`'s real curriculum prose (#334): studio composes the
+ * host's template into every run, it never chooses that pedagogy itself.
+ */
+export function toExecuteOptions(
+  request: ExecutionRequest,
+  signal: CancellationSignal,
+  read: ((prompt: string) => string | undefined) | undefined,
+): ExecuteOptions {
+  return {
+    signal,
+    tutorTemplates: eduTutorTemplate,
+    randomSeed: request.randomSeed,
+    ...(read === undefined ? {} : { hostInput: { read } }),
+    ...(request.instructionBudget !== undefined
+      ? { instructionBudget: request.instructionBudget }
+      : {}),
+    ...(request.recursionDepthLimit !== undefined
+      ? { recursionDepthLimit: request.recursionDepthLimit }
+      : {}),
+  };
+}
+
+/** Construction options for {@link createInProcessExecutionHost}. */
+export interface InProcessExecutionHostOptions {
+  /**
+   * The cancellation signal `run-controller.ts` owns and flips through `stop()`/`reset()`. It is
+   * checked before every statement *within* one `execute()` call, so it cancels a loop already in
+   * progress — but `execute()` is synchronous and never yields, so a same-thread caller cannot flip
+   * it mid-run. That limitation is exactly what a Worker host removes.
+   */
+  readonly signal: CancellationSignal;
+}
+
+/**
+ * The default host: `execute()` on the calling thread, with #769's replay reader. Settles exactly
+ * once, **synchronously**, before `execute()` returns — which is why installing this seam changed
+ * no existing behaviour and no existing test.
+ *
+ * It exposes no `resolveRead`, so `run-controller.ts` keeps driving the attempt chain: see
+ * {@link ExecutionHost.resolveRead}.
+ */
+export function createInProcessExecutionHost(
+  options: InProcessExecutionHostOptions,
+): ExecutionHost {
+  return {
+    execute(request, settle) {
+      // One cursor per attempt over the chain's accumulated answers. A read is answered from the
+      // FIFO only when the recorded answer at this position was given for **this same question**.
+      let answerCursor = 0;
+      let retainedAnswers = request.answers;
+      let pendingPrompt: string | null = null;
+
+      const read = request.acceptsReads
+        ? (prompt: string): string | undefined => {
+            const resolution = resolveRecordedAnswer(
+              retainedAnswers,
+              answerCursor,
+              prompt,
+            );
+            retainedAnswers = resolution.retained;
+            if (resolution.answer !== undefined) {
+              answerCursor += 1;
+              return resolution.answer;
+            }
+            pendingPrompt = prompt;
+            return undefined;
+          }
+        : undefined;
+
+      const result = execute(
+        request.source,
+        request.document,
+        toExecuteOptions(request, options.signal, read),
+      );
+
+      settle({
+        events: result.events,
+        output: collectOutput(result.events),
+        tutorOutput: collectTutorOutput(result.events),
+        diagnostics: result.diagnostics,
+        pendingPrompt,
+        retainedAnswers,
+      });
+    },
+    cancel() {
+      // Nothing to abandon: `execute()` has already returned by the time any caller can reach this,
+      // and the signal this host was constructed with is the controller's own — `stop()` flips it
+      // directly, and only `reset()` re-arms it.
+    },
+  };
+}

@@ -24,6 +24,7 @@ import type { Diagnostic, DiagnosticSeverity, Position } from "@openlogo/core";
 import type { Scheduler } from "@openlogo/turtle";
 import type { AnnouncementPoliteness } from "./a11y.js";
 import { toDiagnosticsView } from "./diagnostics.js";
+import type { ExecutionHost } from "./execution-host.js";
 import type { StorageAdapter } from "./persistence.js";
 
 /**
@@ -277,6 +278,57 @@ export const ANNOUNCER_POLITE_ELEMENT_ID = "announcer-polite";
  * a `politeness: "assertive"` {@link Announcement} to. `index.html` (#279) declares it, always
  * empty at rest. */
 export const ANNOUNCER_ASSERTIVE_ELEMENT_ID = "announcer-assertive";
+
+/**
+ * What a page must have for the blocking Worker execution host (#876) to be installable: a
+ * `SharedArrayBuffer` constructor **and** cross-origin isolation, since a non-isolated document
+ * does not expose one at all (and `Atomics.wait` would have nothing shared to park on).
+ *
+ * `web/main.ts` reads both from the real globals and forwards them; the decision stays here so the
+ * browser entry is branch-free, per issue #278's "logic stays in a tested `src/` helper" rule.
+ */
+export interface SharedMemoryCapability {
+  /** `window.crossOriginIsolated` — true only under COOP/COEP response headers. */
+  readonly crossOriginIsolated: boolean;
+  /** Whether a `SharedArrayBuffer` constructor exists in this realm. */
+  readonly hasSharedArrayBuffer: boolean;
+}
+
+/**
+ * Whether this page can run the blocking, Worker-backed execution host (#876), or must fall back to
+ * #769's in-process replay.
+ *
+ * Both conditions are checked rather than just one: cross-origin isolation is the *policy* that
+ * makes shared memory available, and the constructor's presence is the *fact*. A deployment can
+ * have neither, and a browser could in principle expose one without the other — treating the pair
+ * as one capability is what keeps the fallback honest instead of throwing at run time. Enabling the
+ * isolated path is a deployment decision (the COOP/COEP response headers), deliberately not baked
+ * into this package — see `docs/adr/0023-worker-execution-host.md`.
+ */
+export function supportsBlockingExecutionHost(
+  capability: SharedMemoryCapability,
+): boolean {
+  return capability.crossOriginIsolated && capability.hasSharedArrayBuffer;
+}
+
+/**
+ * Pick the {@link ExecutionHost} a page can actually run (#876): the blocking Worker-backed one when
+ * shared memory is available, or `undefined` — which leaves `createRunController` on its default
+ * in-process host and therefore on #769's replay.
+ *
+ * `createBlockingHost` is a **factory**, not a host, so a non-isolated page never constructs a
+ * Worker it could not use. Keeping the choice here rather than as a ternary in `web/main.ts` is what
+ * keeps the browser entry branch-free, per issue #278's "logic stays in a tested `src/` helper"
+ * rule — and it is why the fallback is exercised by tests rather than only by deployment.
+ */
+export function selectExecutionHost(
+  capability: SharedMemoryCapability,
+  createBlockingHost: () => ExecutionHost,
+): ExecutionHost | undefined {
+  return supportsBlockingExecutionHost(capability)
+    ? createBlockingHost()
+    : undefined;
+}
 
 /**
  * Chooses which of the two always-live `aria-live` regions an {@link Announcement} should render

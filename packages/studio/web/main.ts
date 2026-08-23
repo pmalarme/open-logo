@@ -70,6 +70,7 @@ import {
   createTimeoutScheduler,
   createTurtleStateRegion,
   createTutorOutputController,
+  createWorkerExecutionHost,
   decideExternalSync,
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
@@ -86,6 +87,7 @@ import {
   mountTutorOutputPane,
   reconcileExternalSyncQueue,
   selectAnnouncerElementId,
+  selectExecutionHost,
   selectScheduler,
   setDiagnosticsEffect,
   SPEED_SLIDER_MAX,
@@ -98,6 +100,7 @@ import {
 import type {
   DiagnosticListItem,
   Canvas2DContext,
+  ExecutionWorkerReport,
   InputPromptView,
   LessonPaneView,
   RunLogEntry,
@@ -440,8 +443,47 @@ const scheduler = selectScheduler(
  * already made in `src/input-prompt.ts`, so this file only assigns them.
  */
 const inputPromptController = createInputPromptController();
+/**
+ * #876 — where each run's `execute()` happens. When the page is cross-origin isolated (COOP/COEP),
+ * the interpreter runs in a Worker that **genuinely blocks** inside `input` on `Atomics.wait`, which
+ * also gives Stop something to preempt mid-run; otherwise this is `undefined` and
+ * `createRunController` keeps its default in-process host, i.e. #769's replay. `selectExecutionHost`
+ * owns that choice and takes a factory, so a page without shared memory never constructs a Worker
+ * it could not use — the branch lives in `src/web-bootstrap.ts`, not here.
+ *
+ * Enabling the isolated path is a **deployment** decision (the two response headers
+ * `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`),
+ * deliberately not baked into this package. See `docs/adr/0023-worker-execution-host.md`.
+ */
+const executionHost = selectExecutionHost(
+  {
+    crossOriginIsolated: globalThis.crossOriginIsolated === true,
+    hasSharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
+  },
+  () => {
+    const worker = new Worker(
+      new URL("./execution-worker.ts", import.meta.url),
+      { type: "module" },
+    );
+    return createWorkerExecutionHost({
+      port: {
+        postMessage: (command) => {
+          worker.postMessage(command);
+        },
+        onReport: (listener) => {
+          worker.addEventListener("message", (event: MessageEvent) => {
+            listener(event.data as ExecutionWorkerReport);
+          });
+        },
+      },
+      allocateBuffer: (byteLength) => new SharedArrayBuffer(byteLength),
+      notify: (control, index) => Atomics.notify(control, index),
+    });
+  },
+);
 const runController = createRunController(state, {
   canvasView,
+  executionHost,
   inputPrompt: inputPromptController,
   scheduler,
   reducedMotion: prefersReducedMotion,

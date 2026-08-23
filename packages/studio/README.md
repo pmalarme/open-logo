@@ -249,8 +249,74 @@ shapes with an **attempt chain**.
 - **What is still outstanding.** Not correctness but mechanism: the read is *reconciled* rather than
   genuinely blocking, and N reads still cost N+1 executions.
   [#876](https://github.com/pmalarme/open-logo/issues/876) (a Worker + `Atomics.wait` execution
-  host) is that mechanism; the replay stays as the degraded mode wherever `SharedArrayBuffer` is
-  unavailable for want of COOP/COEP cross-origin isolation.
+  host) is that mechanism — delivered below; the replay stays as the degraded mode wherever
+  `SharedArrayBuffer` is unavailable for want of COOP/COEP cross-origin isolation.
+
+## The execution host: a genuinely blocking `input`, and a preemptible Stop (#876)
+
+`createRunController` no longer calls `@openlogo/runtime`'s `execute()` itself. It composes an
+**`ExecutionHost`**, whose whole contract is to settle with an `ExecutionSettlement` — the events so
+far, their already-reduced `output`/`tutorOutput`, the diagnostics, and the question the run is
+suspended on (or `null`). Everything the controller does around a run is identical whichever host is
+installed. See [ADR-0023](../../docs/adr/0023-worker-execution-host.md).
+
+**This is a mechanism change, not a correctness fix.** #881 already closed the replay's divergence
+window; do not read the section above as describing a bug this removes.
+
+- `createInProcessExecutionHost({ signal })` — the **default**. Runs `execute()` on the calling
+  thread with #769's replay reader and settles **synchronously, inside `execute()`**. Omitting
+  `RunControllerOptions.executionHost` therefore changes nothing at all: every pre-#876 studio test
+  passes untouched.
+- `createWorkerExecutionHost({ port, allocateBuffer, notify })` — the **blocking** host. The
+  interpreter runs in a Worker and parks *inside* the read on `Atomics.wait`, so **one execution
+  answers however many questions**, and its `CancellationSignal` is a getter over `Atomics.load`, so
+  Stop aborts a loop *mid*-`execute()`. `repeat 100000 [ … ]` halts where it is rather than at the
+  instruction budget — the caveat `run-controller.ts` has carried since #126, finally answered.
+- `blocking-input-channel.ts` is the protocol: straight-line logic over an `Int32Array` control block
+  and a `Uint16Array` answer region (UTF-16 code units, so no `TextEncoder` seam is needed and
+  surrogate pairs round-trip unchanged), with `wait`/`notify` **injected**. A primitive that throws
+  on a browser's main thread and cannot be scheduled deterministically therefore stays fully covered
+  by `node:test`, with no timing dependence at all.
+- `runExecutionWorkerCommand` (`execution-worker-runner.ts`) is the Worker side; `web/execution-worker.ts`
+  supplies the real `Atomics.wait` and does nothing else.
+- `selectExecutionHost` picks between them from `crossOriginIsolated` + the presence of a
+  `SharedArrayBuffer` constructor. It takes a **factory**, so a page without shared memory never
+  constructs a Worker it could not use, and `web/main.ts` stays branch-free.
+
+**The learner is never asked a question over a blank canvas.** The runtime's reader is called with
+the prompt and nothing else, so a parked Worker would have no way to report what the program had
+already drawn — worse than #769, which draws the square and *then* asks.
+`ExecuteOptions.observedEvents` (#876, `@openlogo/runtime`) is a caller-supplied array the run
+appends to live; it *is* the array `ExecuteResult.events` reports at the end, so it only makes the
+stream readable earlier. `spec/interaction-events.md:108-110` explicitly permits continuing to render
+already-emitted events while `input` waits, and this is the seam that makes that allowance reachable.
+
+**A settlement carries reduced output, not just events.** Structured clone drops class prototypes: an
+`OLDict` arrives as a plain object and `printedForm` throws (`TypeError: record.fields is not a
+function`, measured on `print { a: 1 b: 2 }`). Values are therefore reduced to text on the thread
+that produced them, and the controller never re-reduces a stream it did not produce in-process.
+
+**The bound.** #881 deleted the replay chain's no-progress retry cap and its reviewers carried the
+consequence forward: with the cap gone, a reintroduction of divergence would be an unbounded loop.
+A Worker host answers that **structurally** — it never replays, so there is no attempt sequence to
+diverge and nothing for a counter to count (asserted directly: one run command for a program with
+several reads). Separately, no wait is ever indefinite: `awaitBlockingRead` parks with a timeout and
+re-reads the control block, so a Stop is observed within one poll interval even if its wake-up were
+missed entirely. What remains unbounded is unchanged and still a host contract: a prompt host that
+restarts the run from inside `present()` on *every* presentation, since each restart brings a fresh
+`instructionBudget`.
+
+**An over-long answer is refused, never truncated.** The shared answer region is fixed for a run's
+lifetime and a blocked Worker's buffer cannot grow, so an answer that does not fit ends the read
+unanswered: the run cancels with the runtime's own diagnostic, which is visible and recoverable,
+rather than handing the program text the learner did not type. `answerCapacity` is a construction
+option so a deployment can put that out of reach.
+
+**Enabling it is a deployment decision.** `SharedArrayBuffer` requires cross-origin isolation, which
+a page only gets from `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` response headers. This package adds neither, in dev or
+in production: until they are served (for local development, via `packages/studio/vite.config.ts`),
+`selectExecutionHost` returns `undefined` and the studio keeps the replay.
 
 ## Friendlier run-status labels (#311)
 
