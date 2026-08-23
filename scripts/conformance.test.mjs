@@ -2644,18 +2644,22 @@ test("runHarness handles self-test that wrongly matches", () => {
 // spec/conformance.md's profile DAG (the spec, not the issue summary, is authoritative), and
 // prove that an empty M5 fixture set keeps the suite green.
 
-test("PROFILE_DEPS registers heritage with core-language + data (spec DAG)", () => {
+test("PROFILE_DEPS registers heritage with core-language + data + turtle-rendering (spec DAG)", () => {
   // spec/conformance.md#heritage + the DAG: Heritage is alternate spellings only and depends on
-  // Core Language AND Data (its `value of … for key` reader operates on dicts). It does NOT depend
-  // on Turtle & Rendering — the short aliases fd/bk/lt/rt/pu/pd/st/ht/cs/pr are spellings of
-  // Core-declared behavior and add no profile edge.
-  assert.deepEqual(PROFILE_DEPS.heritage, ["core-language", "data"]);
+  // Core Language, on Data (its `value of … for key` reader operates on dicts), AND on Turtle &
+  // Rendering (issue #860): nine of its thirteen alias spellings — fd/bk/lt/rt/pu/pd/st/ht/cs —
+  // spell Turtle & Rendering primitives, so owing those aliases means owning what they spell.
+  assert.deepEqual(PROFILE_DEPS.heritage, [
+    "core-language",
+    "data",
+    "turtle-rendering",
+  ]);
   const closure = closureOf("heritage");
   assert.ok(closure.has("heritage"));
   assert.ok(closure.has("core-language"));
   assert.ok(closure.has("data"));
-  assert.ok(!closure.has("turtle-rendering"));
-  assert.equal(closure.size, 3);
+  assert.ok(closure.has("turtle-rendering"));
+  assert.equal(closure.size, 4);
 });
 
 test("PROFILE_DEPS registers sprites with turtle-rendering (spec DAG)", () => {

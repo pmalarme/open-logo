@@ -222,8 +222,9 @@ function collectFillPath(
   return points;
 }
 
-/** Recognized avatar shape words (`spec/rendering.md`: "SHOULD support a small portable set
- * such as `"turtle"`, `"triangle"`, `"arrow"`, and `"circle"`"). Any other shape word — already
+/** Recognized avatar shape words (`spec/rendering.md`: implementations "MUST support at least the
+ * default shape and MUST support the portable shape words below" — `"turtle"`, `"triangle"`,
+ * `"arrow"`, and `"circle"`, raised from SHOULD by issue #851). Any other shape word — already
  * validated as a command-level error elsewhere — falls back to the default `"turtle"` look
  * rather than throwing a renderer-local diagnostic. */
 type KnownShape = "turtle" | "triangle" | "arrow" | "circle";

@@ -29,9 +29,13 @@ import {
 const doc = "heritage-aliases.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-// Heritage active needs only Core + Data (its declared dependency, spec/conformance.md#heritage) to
-// make the aliases visible — deliberately NOT turtle-rendering, proving the aliases add no turtle
-// profile edge (the alias SPELLINGS are gated on `heritage`, never their Core turtle targets).
+// `heritage` ALONE makes these aliases VISIBLE — deliberately NOT turtle-rendering: the alias
+// SPELLINGS are gated on `heritage`, never on their canonical targets' profile. Data is not one of
+// their requirements either; it is in the set below only to stay uniform with the other Heritage
+// test files, and the positive test isolates that by re-checking under ["core-language",
+// "heritage"]. That checker-gating fact is unchanged by issue #860, which added Heritage's
+// normative Turtle & Rendering DAG edge (a conformance-claim requirement: a claimant owing `fd`
+// must own `forward`). Profile sets here are activation sets, not conformance claims.
 const HERITAGE_ACTIVE = ["core-language", "data", "heritage"];
 const CORE_ONLY = ["core-language", "turtle-rendering"];
 
@@ -209,9 +213,15 @@ test("an alias inside a procedure body carries canonical, like its Core twin", (
 // The profile gate (visible-name based, no net-new checker rule)
 // ---------------------------------------------------------------------------
 
-test("Heritage active accepts all ten aliases silently (needs only Core + Data)", () => {
+test("Heritage active accepts all ten aliases silently (needs only Core + Heritage)", () => {
   const source = "fd 10\nbk 10\nlt 90\nrt 90\npu\npd\nst\nht\ncs\npr 7\n";
   assert.deepEqual(checkSource(source, HERITAGE_ACTIVE), []);
+  // And with Data DEACTIVATED, which is what makes the name a measurement rather than a claim:
+  // the negative below uses Core + Turtle & Rendering, so without this line nothing rules out
+  // Data as the profile doing the admitting. `heritage` alone is what makes the spellings
+  // visible — the nine turtle aliases resolve here with turtle-rendering INACTIVE too, which is
+  // exactly why issue #860's DAG edge is a conformance-claim requirement and not a checker gate.
+  assert.deepEqual(checkSource(source, ["core-language", "heritage"]), []);
 });
 
 test("Core rejects every alias with ol-unknown-command, one diagnostic each", () => {

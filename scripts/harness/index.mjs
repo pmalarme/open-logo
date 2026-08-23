@@ -26,7 +26,7 @@ export const PROFILE_DEPS = {
   geometry: ["turtle-rendering", "data"],
   sprites: ["turtle-rendering"],
   data: ["core-language"],
-  heritage: ["core-language", "data"],
+  heritage: ["core-language", "data", "turtle-rendering"],
   "interaction-events": ["core-language"],
   sound: ["core-language"],
   modules: ["core-language"],

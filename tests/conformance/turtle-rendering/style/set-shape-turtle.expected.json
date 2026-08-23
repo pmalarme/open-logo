@@ -1,0 +1,58 @@
+{
+  "description": "issue #851: `set_shape \"turtle\"` is ACCEPTED as an argument, not merely present as the default. The other three portable-word fixtures only ever show `\"turtle\"` as the `from` of a shape-change, which pins the initial state and proves nothing about whether the word may be passed to `set_shape` - an implementation could reject `set_shape \"turtle\"` and still pass all of them, while violating the MUST that `spec/rendering.md:119` now states. So this fixture moves away first (`\"triangle\"`) and back, and the second `shape-change` ({from: \"triangle\", to: \"turtle\"}) is the acceptance no other fixture records.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-turtle",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-turtle",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "triangle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-turtle",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "turtle-rendering/style/set-shape-turtle",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "from": "triangle",
+        "to": "turtle"
+      }
+    }
+  ],
+  "diagnostics": []
+}
