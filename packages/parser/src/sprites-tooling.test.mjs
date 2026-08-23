@@ -29,13 +29,17 @@
 //      diagnostic; the branches remain, the label does not.)
 //
 // Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
-// active-profile set. `spec/tooling.md:30` puts the profile block-heads in the `keyword` class
-// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
-// `primitive`. So the six names split, and the split is the point of this file's highlighting
-// half: the three BLOCK-HEADS `tell`/`ask`/`each` are `keyword` with `sprites` claimed and
+// active-profile set. `spec/tooling.md:30` puts in the `keyword` class, "while their profile is
+// active", "the profile block-heads together with the Sprites mode-switch command `tell`, which
+// takes no block" — so precisely: `ask` and `each` are the block-heads and `tell` is the
+// mode-switch command, and all three move. `:31` puts "a profile word whose profile is inactive"
+// in `primitive`. So the six names split, and the split is the point of this file's highlighting
+// half: `tell`/`ask`/`each` are `keyword` with `sprites` claimed and
 // `primitive` without it, while the three REPORTERS `new_turtle`/`who`/`turtles` are `primitive`
 // either way — they are ordinary primitives (`:31`, "profile primitives when enabled"), which is
 // the same control case `sound-tooling.test.mjs` locks for the Sound commands.
+// (Elsewhere this file uses "block-head" as long-standing shorthand for all three forms, which
+// predates #740 and is left as-is; `spec/tooling.md:30` is the precise wording.)
 //
 // Both directions are asserted for every name. Before #740 this file asserted only the
 // profile-neutral `primitive` reading and carried a KNOWN DEVIATION note saying the parser could
@@ -101,7 +105,7 @@ const NESTED_SPRITES_PROGRAM = [
  * The class each of the six names takes, written as DATA for both profile settings rather than
  * computed from the same rule the classifier implements — a helper that re-derives the rule would
  * agree with a broken classifier. Read down the two columns and the asymmetry #740 exists to
- * create is visible at a glance: only the three block-heads move.
+ * create is visible at a glance: only `tell`/`ask`/`each` move.
  */
 const EXPECTED_CLASS = Object.freeze({
   inactive: Object.freeze({
@@ -138,6 +142,10 @@ test("highlight: each Sprites name takes its profile-dependent class in isolatio
         const tokens = OL.highlight(source, doc, { profiles }).filter(
           (t) => t.text === name,
         );
+        // A `for … of` over an empty filter passes vacuously, and most (source, name) pairs here
+        // ARE empty by construction — each source contains only its own name. The nested test
+        // below is what pins presence (`length === 1` per name); this loop only pins that no
+        // occurrence, wherever it appears, takes the wrong class.
         for (const token of tokens) {
           assert.equal(
             token.class,
@@ -147,6 +155,50 @@ test("highlight: each Sprites name takes its profile-dependent class in isolatio
         }
       }
     }
+  }
+});
+
+test("highlight: a profile word in a BINDING position still follows the profile", () => {
+  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
+  // **including the positions where the grammar admits one as an ordinary name (`local end`,
+  // `for end from 1 to 3`, `export end`, `:p.end`)**". Those are the positions the spec names by
+  // hand, and every other test in this file uses a CALL position — so without this row a change
+  // that suppressed the profile check in exactly the binding forms would pass the whole suite.
+  //
+  // `{ ask: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
+  // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile. Pinning
+  // it here rather than only transitively is what keeps the dict-key/profile ordering honest.
+  const BINDING_SOURCES = Object.freeze({
+    local: "local ask",
+    "set-to": "set ask to 1",
+    "for-from": "for ask from 1 to 3 [ print 1 ]",
+    "dot-field": "print :rec.ask",
+  });
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [position, source] of Object.entries(BINDING_SOURCES)) {
+      const tokens = OL.highlight(source, doc, { profiles }).filter(
+        (t) => t.text === "ask",
+      );
+      assert.equal(
+        tokens.length,
+        1,
+        `expected one ask in ${position} (${label})`,
+      );
+      assert.equal(
+        tokens[0].class,
+        EXPECTED_CLASS[expected].ask,
+        `ask in ${position} with ${label}`,
+      );
+    }
+    const dictKey = OL.highlight("print { ask: 1 }", doc, { profiles }).filter(
+      (t) => t.text === "ask",
+    );
+    assert.equal(dictKey.length, 1, `expected one ask dict key (${label})`);
+    assert.equal(
+      dictKey[0].class,
+      "dict-key",
+      `a bare dict key is dict-key on grammatical grounds alone, in both directions (${label})`,
+    );
   }
 });
 

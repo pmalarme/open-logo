@@ -44,7 +44,7 @@ import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { DEFAULT_CHECK_PROFILES } from "./check.js";
 import { parse } from "./parser.js";
-import { isKeyword, isProfileKeyword } from "./keywords.js";
+import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
 import { tokenize } from "./tokens.js";
 
@@ -143,12 +143,15 @@ function isAtOrBefore(a: Position, b: Position): boolean {
  *
  * `profiles` is the **active profile set**, in the same vocabulary `check()` uses
  * (`check.ts`'s `OL_CHECK_PROFILES`), because a learner's program has exactly one profile set and
- * it would be a trap for the checker and the highlighter to name it differently. It decides the
- * class of the profile block-heads and the Sprites mode-switch `tell`: `spec/tooling.md:30` puts
- * them in `keyword` "while their profile is active", and `:31` puts "a profile word whose profile
- * is inactive" in `primitive`. Omitted, it defaults to {@link DEFAULT_CHECK_PROFILES}
- * (Core Language alone) — the profile-neutral reading, and exactly what every caller saw before
- * this option existed.
+ * it would be a trap for the checker and the highlighter to name it differently.
+ *
+ * `options.profiles` decides the class of the profile block-heads and the Sprites mode-switch
+ * command `tell`: `spec/tooling.md:30` puts them in `keyword` "while their profile is active",
+ * and `:31` puts "a profile word whose profile is inactive" in `primitive`. Omitted, it defaults
+ * to {@link DEFAULT_CHECK_PROFILES} (Core Language alone) — the profile-neutral reading, and
+ * exactly what every caller saw before this option existed. Profile *primitives* — the Sound
+ * commands, Interaction's `wait`/`input`, the Sprites reporters — are `primitive` under every
+ * profile set (`:31`, "profile primitives when enabled"), so this option never moves them.
  */
 export interface HighlightOptions {
   readonly profiles?: readonly CheckProfile[];
@@ -164,7 +167,8 @@ export interface HighlightOptions {
  *
  * `options.profiles` is the active profile set — see {@link HighlightOptions}. It is the only
  * input that changes a class here, and it changes exactly one thing: whether a profile
- * block-head is `keyword` or `primitive`.
+ * block-head — or the Sprites mode-switch command `tell`, which takes no block — is `keyword`
+ * or `primitive`. Profile *primitives* never move.
  */
 export function highlight(
   source: string,
@@ -691,13 +695,17 @@ export function highlight(
         source_span: token.source_span,
       };
     }
-    // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, and
-    // Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but only
-    // WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "and, while their profile is active,
+    // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, which takes
+    // no block, and Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but
+    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "and, while their profile is active,
     // the profile block-heads together with the Sprites mode-switch command `tell`"). With the
-    // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile
-    // word whose profile is inactive". Those two clauses are the whole rule, and they are why
-    // this classifier needs an active-profile set at all (issue #740).
+    // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile word
+    // whose profile is inactive". Those two clauses are the whole rule, and they are why this
+    // classifier needs an active-profile set at all (issue #740).
+    //
+    // `isKeyword`'s two-argument form IS this rule — `keywords.ts` defines it as the Core list OR
+    // an active profile's words — so the registry stays the single entry point rather than this
+    // file re-deriving the disjunction.
     //
     // Deliberately checked HERE, after symbol discovery rather than before it: `spec/tooling.md:30`
     // says "[Disambiguating identifiers] is what demotes a token to `procedure-name`, `type-name`,
@@ -707,8 +715,8 @@ export function highlight(
     //
     // Profile *primitives* are NOT affected and must not be: the Sound commands, Interaction's
     // `wait`/`input`, and the Sprites reporters are ordinary primitives under every profile set
-    // (`:31`, "profile primitives when enabled"). Only the block-heads move.
-    if (isKeyword(lower) || isProfileKeyword(lower, activeProfiles)) {
+    // (`:31`, "profile primitives when enabled"). Only the block-heads and `tell` move.
+    if (isKeyword(lower, activeProfiles)) {
       return {
         class: "keyword",
         text: token.text,

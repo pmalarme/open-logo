@@ -44,8 +44,12 @@
 // half: the four BLOCK-HEADS `when`/`every`/`on_key`/`on_click` are `keyword` with
 // `interaction-events` claimed and `primitive` without it, while `wait` and `input` are
 // `primitive` either way — they are ordinary primitives (`:31`, "profile primitives when
-// enabled"), the same control case `sound-tooling.test.mjs` locks for the Sound commands
-// ("Sound command names are ordinary primitive names when the Sound profile is present").
+// enabled"), the same control case `sound-tooling.test.mjs` locks for the Sound commands.
+// `spec/interaction-events.md:47` states it directly: "`input` and `wait` are ordinary primitives
+// rather than block-heads, as are the Sound command names; all of them are built-in names on the
+// same unconditional terms, and their profile decides only whether they work" — so declaring one
+// IS blocked while its token class stays `primitive`. Legality and classification are different
+// questions and the highlighting half of this file answers only the second.
 //
 // Both directions are asserted for every name. Before #740 this file asserted only the
 // profile-neutral `primitive` reading and carried a KNOWN DEVIATION note saying the parser could
@@ -186,6 +190,49 @@ test("highlight: each Interaction name takes its profile-dependent class in isol
   }
 });
 
+test("highlight: a profile word in a BINDING position still follows the profile", () => {
+  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
+  // **including the positions where the grammar admits one as an ordinary name (`local end`,
+  // `for end from 1 to 3`, `export end`, `:p.end`)**". Those are the positions the spec names by
+  // hand, and every other test in this file uses a CALL position — so without this row a change
+  // that suppressed the profile check in exactly the binding forms would pass the whole suite.
+  //
+  // `{ when: 1 }` is the deliberate exception and is asserted alongside: a bare dict key is
+  // `dict-key` "on grammatical grounds alone" (`:30`), so it must NOT follow the profile.
+  const BINDING_SOURCES = Object.freeze({
+    local: "local when",
+    "set-to": "set when to 1",
+    "for-from": "for when from 1 to 3 [ print 1 ]",
+    "dot-field": "print :rec.when",
+  });
+  for (const { label, profiles, expected } of PROFILE_CASES) {
+    for (const [position, source] of Object.entries(BINDING_SOURCES)) {
+      const tokens = OL.highlight(source, doc, { profiles }).filter(
+        (t) => t.text === "when",
+      );
+      assert.equal(
+        tokens.length,
+        1,
+        `expected one when in ${position} (${label})`,
+      );
+      assert.equal(
+        tokens[0].class,
+        EXPECTED_CLASS[expected].when,
+        `when in ${position} with ${label}`,
+      );
+    }
+    const dictKey = OL.highlight("print { when: 1 }", doc, { profiles }).filter(
+      (t) => t.text === "when",
+    );
+    assert.equal(dictKey.length, 1, `expected one when dict key (${label})`);
+    assert.equal(
+      dictKey[0].class,
+      "dict-key",
+      `a bare dict key is dict-key on grammatical grounds alone, in both directions (${label})`,
+    );
+  }
+});
+
 test("highlight: the profile-dependent class survives nesting in a whole program", () => {
   for (const { label, profiles, expected } of PROFILE_CASES) {
     const tokens = OL.highlight(NESTED_INTERACTION_PROGRAM, doc, { profiles });
@@ -228,8 +275,11 @@ test("highlight: omitting the profile set reads as Core-only, so it matches the 
 
 test("highlight: matching stays case-insensitive in BOTH profile directions", () => {
   // `spec/tooling.md:23`: tokenization is case-insensitive for keywords and built-in primitives.
-  // Checked under an active profile too, since that path is a different lookup (`isProfileKeyword`)
-  // from the Core one and could lose case-insensitivity without any Core test noticing.
+  // Note what this does and does not pin: `highlight.ts` lowercases once before either lookup, so
+  // both share that normalization and this test cannot detect `isProfileKeyword` losing its own
+  // `.toLowerCase()` — `keywords.profiles.test.mjs`'s "Sprites keyword matching is
+  // case-insensitive" is what pins that. What this DOES pin is that an upper-case spelling still
+  // reaches the profile-aware branch at all, in both directions.
   for (const { label, profiles, expected } of PROFILE_CASES) {
     for (const name of INTERACTION_NAMES) {
       const upper = name.toUpperCase();
@@ -244,10 +294,11 @@ test("highlight: matching stays case-insensitive in BOTH profile directions", ()
 });
 
 test("highlight: `wait` is never a keyword — a same-named procedure highlights as procedure-name", () => {
-  // `wait` is an ordinary primitive, not a block-head in any profile
-  // (`spec/interaction-events.md` reserves only the four block-heads), so it never reaches the
-  // `keyword` class in either direction. The checker separately reports that redefinition as
-  // `ol-reserved-word` (asserted below) — a legality question the highlighter does not answer.
+  // `wait` is an ordinary primitive, not a block-head, so it never reaches the `keyword` class in
+  // either direction — `spec/interaction-events.md:47` puts `input`/`wait` and the Sound names in
+  // that category. It is still a built-in name there, "on the same unconditional terms", so the
+  // checker separately reports this redefinition as `ol-reserved-word` (asserted below) — a
+  // legality question the highlighter does not answer.
   const source = "define wait\nend\nwait";
   for (const { label, profiles } of PROFILE_CASES) {
     const tokens = OL.highlight(source, doc, { profiles }).filter(
