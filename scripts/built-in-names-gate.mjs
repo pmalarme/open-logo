@@ -2,116 +2,52 @@
  * Logic module for the **built-in names** Definition-of-Done gate (issue #841, epic #834).
  * Extracted so tests can import it directly for 100% coverage, keeping
  * `scripts/check-built-in-names.mjs` a thin CLI shell — the same shape
- * `scripts/examples-gate.mjs` + `scripts/check-examples.mjs` and `scripts/markdown-examples-gate.mjs`
- * + `scripts/check-markdown-examples.mjs` already have. A CLI shell is exercised through a
- * subprocess, so it stays outside the loaded-module coverage set
- * [ADR-0009](../docs/adr/0009-test-layout.md) defines.
+ * `scripts/examples-gate.mjs` and `scripts/markdown-examples-gate.mjs` already have, and outside the
+ * loaded-module coverage set [ADR-0009](../docs/adr/0009-test-layout.md) defines.
  *
  * **Why this exists.** `spec/grammar.md:414` versions the built-in names with the specification —
- * *"there is no second list to keep in step"* — and `spec/grammar.md:363` governs them with one
- * rule: a program may not **declare** a built-in name, and may **bind** a value to any name. Until
- * this gate there was no artifact stating what that set is, and nothing compared the spec to the
- * implementation. The result was the bug class ruling #833 exists to close: 45 built-in names were
- * free at `define`, spread across every profile's arity table plus three Heritage registries, and no
- * single document would have revealed it.
+ * *"there is no second list to keep in step"* — and `:363` governs them with one rule: a program may
+ * not **declare** a built-in name, and may **bind** a value to any name. Nothing stated what that
+ * set is, and nothing compared the spec to the implementation.
+ * [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md) makes
+ * `spec/built-in-names.json` authoritative; this module is the assertion that the implementation
+ * equals it.
  *
- * [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md) decides the direction:
- * **`spec/built-in-names.json` is authoritative** and CI asserts the implementation equals it,
- * exactly, in both directions. This module is that assertion.
+ * ## What this gate catches is recorded in `built-in-names-gate.test.mjs`, not here
  *
- * **The drift is demonstrated, not hypothetical.** `spec/tooling.md`'s C19 mirror had already
- * silently drifted to 43 words — it was missing `mod` — before issue #855 restored it, because a
- * keyword is a five-place edit and none of the five was machine-gated.
+ * Every `INJECTED DRIFT:` test title names one drift this module detects, and the test either fires
+ * or it does not. That is deliberate, and it is the outcome of this slice's review: across ten rounds
+ * essentially every finding was *"a gate green while checking less than it claimed"* — and the claims
+ * were in prose here, where **nothing recomputes them**. One paragraph described machinery this same
+ * commit had replaced; another asserted a branch was unreachable, and it threw.
  *
- * ## What it checks
+ * **A claim that must be executable cannot overstate.** So the capability claims live in the test
+ * names. Read them for what is covered; the comments below say only what the code does and why it is
+ * shaped that way.
  *
- * 1. **`specVersion` matches `openlogo.version`** — the file ships *with* a spec version or the
- *    claim in ADR-0021 §1 is decorative.
- * 2. **Every accessor the file names resolves, per accessor** ({@link accessorFindings}).
- *    `present` must resolve as a public export of `@openlogo/parser`; `declared` must **not**, and
- *    fails the moment it does — that is what makes a not-yet-built accessor self-healing instead of
- *    a hard-coded exception list, which would be the second list this gate exists to remove. Status
- *    attaches per **accessor**, not per tag, because a tag can be split: one registry's `lookup` can
- *    resolve while its `enumerate` does not exist. At `0.1.0` no tag is split and every accessor is
- *    `present` — the mechanism is there for the next one that is not.
- * 3. **Entry equality in both directions** ({@link entryFindings}, {@link implementationFindings}).
- *    Structured entries, never a flat name set: `registries` is compared **set-equal** against the
- *    tags whose `lookup` actually answers yes, and `category`/`profile` are re-derived from that
- *    membership under the file's stated precedence and compared. Comparing names alone would accept
- *    `mod` implemented as a primitive, `forward` filed under the wrong profile, or a name that
- *    quietly lost one of its two registrations.
- * 4. **Cardinality, on every set-valued list this gate reads**
- *    ({@link duplicateRegistrationFindings}, {@link duplicatedNames}). Set semantics are blind to
- *    count, so a name listed twice on *both* sides of a comparison satisfies it. Measured green on
- *    three of four accessor kinds and on `spec/conformance.md`'s section inventory; measured green
- *    for `OL_KEYWORDS` duplicating a word that `spec/grammar.md` duplicating the *same* word failed
- *    on — a gate asymmetric about its own subject. The manifest's own `names`, `excluded`,
- *    `registries` per entry and `positions` per carve-out, plus `OL_CHECK_PROFILES`, are covered too.
- * 5. **A registry whose two accessors are read independently must agree**
- *    ({@link directionAgreementFindings}). **Narrow, and deliberately stated as such.** For the nine
- *    primitive tags the two roles are *one source read twice* — `PROFILE_PRIMITIVE_NAMES` is
- *    `[...tables.arity.keys()]` (`packages/parser/src/signatures.ts`), and the arity lookup reads the
- *    same Map — so a genuine membership disagreement cannot arise there, and a mutation that invents
- *    one describes an api shape the implementation cannot produce. What the check really catches is
- *    **case-normalisation mismatch**: the lookup lowercases its argument and the enumerator does not,
- *    so a non-lowercase key answers one and not the other. That is its measured capability, and this
- *    sentence is the whole of the claim.
- * 6. **Alias edges** ({@link aliasFindings}). Both edge-carrying registries name a resolver, and each
- *    alias is checked against the edge the implementation actually resolves — `canonicalOfHeritageAlias`
- *    for Heritage, and `canonicalOfTurtleAlias` for the five Turtle & Rendering one-word spellings,
- *    which this slice added precisely so that edge stops being unverifiable. ADR-0021 §3 records the
- *    earlier limit in the past tense; the equal-arity fallback it describes is superseded, not current.
- *    **Arity *values* are out of scope for a names gate** — `registryHas` asks presence, never
- *    number, and `spec/commands.md` owns the numbers.
- * 7. **Carve-outs** ({@link carveOutFindings}). Every `reason: "library"` entry names a real
- *    `stdlib/*.logo` file, every `contextual-keyword` records the positions that make it structural,
- *    and no excluded name also appears in `names`. Deleting `stdlib/geometry/polygon.logo`, or
- *    "helpfully" promoting `polygon` to a built-in, fails the build.
- * 8. **No unregistered profile** ({@link profileInventoryFindings},
- *    {@link profileCoverageFindings}). The profile inventory is tied across three surfaces —
- *    `spec/conformance.md`'s sections (the normative inventory), the manifest's id map, and the
- *    checker's `OL_CHECK_PROFILES` — and then every profile either has at least one `primitive`
- *    entry backed by a real registry, or is declared in `profilesWithoutPrimitives` **with a
- *    reason**; a declared-empty profile that later ships a primitive fails too. Enumerating
- *    profiles from the implementation alone would leave a profile the spec adds and the checker has
- *    never heard of invisible. This is the clause that would have caught Tutor (AI) having
- *    no registry at all, and it is why the gate is not a plain diff of whatever tables exist: a
- *    missing table must be a failure, not an empty set that trivially matches.
- * 9. **Prose drift, across both hand-maintained lists in `spec/tooling.md`** ({@link proseFindings}).
- *    Two of the three are compared **derivedly**: `spec/grammar.md`'s normative keyword block
- *    against the manifest, and `spec/tooling.md`'s C19 mirror against that block. The third,
- *    `spec/tooling.md`'s `keyword` token-class enumeration, is **change-detected only** — see below.
- *    Gating the mirror alone would leave the newer list entirely unguarded, which is the exact
- *    defect family this epic exists to close.
+ * ## Two constraints that are not claims
  *
- * ## Why the token-class row is change-detected rather than derived
- *
- * `spec/grammar.md:378` states that the `keyword` **token class** and the keyword **list** are
- * "different sets on purpose, and neither one determines the other". Measured against shipped
- * output, the class omits the word-spelled operators (`and`/`or`/`not`/`mod`, which are
- * `operator`), adds the contextual words that are not built-in names at all
- * (`empty`/`member`/`of`/`a`), and adds the profile words. Issue #855 tried two derivations and both
- * were falsified by measurement: a **positional** rule is refuted by `local end`, `export end` and
- * `:p.end` all emitting `keyword`, and *"the keyword list minus the operators"* re-derives paint
- * from the declaration list, which `:378` forbids.
- *
- * So the row is **change-detected**, not derived. {@link rowFingerprintFindings} records exactly
- * what that does and does not guarantee, and issue #841 records the three mechanisms that tried for
- * more across six review rounds and each overstated what they checked. The two lists this module
- * *does* compare derivedly are `spec/grammar.md`'s normative keyword block and `spec/tooling.md`'s
- * C19 mirror.
- *
- * ## Fail-closed
- *
- * Every prose anchor, accessor kind and status value is validated before use. An anchor that stops
- * matching, a kind this module does not know, or a status outside the closed vocabulary is a
- * **finding**, never a silent skip — a gate that quietly checks nothing is worse than no gate,
- * because it also removes the human who was checking.
+ * **Fail closed.** A moved prose anchor, an accessor kind this module does not know, or a status
+ * outside the closed vocabulary is a **finding**, never a silent skip: a gate that quietly checks
+ * nothing is worse than no gate, because it also removes the human who was checking.
  *
  * **`spec/` is maintainer-owned** (AGENTS.md), so this gate must never add markers, tags or
  * annotations to the documents it reads — the same constraint that keeps
- * `scripts/examples-profiles.json` out of `spec/examples/`. It anchors on the prose that is already
- * there.
+ * `scripts/examples-profiles.json` out of `spec/examples/`. It anchors on prose already there.
+ *
+ * ## The one limit worth stating in full
+ *
+ * `spec/tooling.md`'s `keyword` token-class row is **change-detected, not derived** — a content
+ * fingerprint tells you it moved; **nothing verifies it is still true.** It cannot be derived:
+ * `spec/grammar.md:378` says the token class and the keyword list are "different sets on purpose,
+ * and neither one determines the other", and measurement agrees — the class omits the word-spelled
+ * operators (`and`/`or`/`not`/`mod`), adds contextual words that are not built-in names at all
+ * (`empty`/`member`/`of`/`a`), and adds the profile words. A positional rule is refuted by
+ * `local end` / `export end` / `:p.end` all emitting `keyword`. Issue #841 records the three
+ * mechanisms that tried for more and each overstated what it checked.
+ *
+ * `spec/tooling.md`'s C19 mirror, by contrast, **is** derived — compared word-for-word against
+ * `spec/grammar.md`'s normative block, which is compared against this manifest.
  */
 
 import { createHash } from "node:crypto";
@@ -177,14 +113,10 @@ export const CONTEXTUAL_POSITIONS = ["is-predicate", "value-of-reader"];
 /**
  * Is `source` a `.logo` file the manifest may point a `library` carve-out at?
  *
- * This has been wrong twice, each time in the same shape, so it is worth naming. Round 1 checked
- * only that the file **existed** — `package.json` passed. Round 2 checked that its **string**
- * started with `stdlib/` — `stdlib/../spec/examples/01-movement.logo` passed, a *prefix* test
- * wearing a containment test's clothes. **A correction inherits the reasoning that produced the
- * defect** unless the reasoning is deliberately changed, so the spelling is no longer inspected at
- * all: {@link REAL_IO.isStdlibFile} resolves the real path, requires it to be a real **file**, and
- * requires it to remain beneath the real `stdlib/` root — which a symlink escaping the directory
- * does not, and a directory named `example.logo` is not.
+ * The spelling is not inspected at all: {@link REAL_IO.isStdlibFile} resolves the real path,
+ * requires it to be a real **file**, and requires it to remain beneath the real `stdlib/` root —
+ * which a symlink escaping the directory does not, and a directory named `example.logo` is not. A
+ * lexical prefix test is a containment test's clothes without its body.
  *
  * The extension is checked here because it is a statement about the manifest, not the filesystem.
  */
@@ -210,15 +142,13 @@ export function isStdlibSource(source, io) {
  * correctness when both sides can move together.
  */
 export function isCanonicalName(name) {
-  return typeof name === "string" && /^[a-z][a-z0-9_]*[?!]?$/.test(name);
+  return typeof name === "string" && /^[a-z_][a-z0-9_]*[?!]?$/.test(name);
 }
 
 /**
  * Does `source` define an OpenLogo procedure literally named `name`?
  *
- * The path check above proves a *file* exists; it does not bind the carve-out's `name` to it.
- * Measured: renaming a `library` carve-out to `"zzz-not-a-real-procedure"` while keeping its real
- * source was green — the one field the carve-out is entirely about was attached to nothing.
+ * The path check above proves a *file* exists; this binds the carve-out's `name` to it.
  *
  * Deliberately a lexical scan for the `define` header rather than a parse: this module reads `spec/`
  * and `stdlib/` as text and must not acquire a dependency on the runtime it is auditing. Tokenised
@@ -231,10 +161,18 @@ export function definesProcedure(text, name) {
   if (typeof text !== "string") {
     return false;
   }
-  return text.split(/\r?\n/).some((line) => {
-    const words = line.trim().split(/\s+/);
-    return words[0] === "define" && words[1] === name;
-  });
+  // Multi-line string literals are `"""…"""` (spec/grammar.md:19), and a `define` header written
+  // inside one is prose, not a declaration. Splitting on the delimiter leaves the OUTSIDE regions at
+  // even indices; scanning the raw text without this read documentation as source.
+  return text
+    .split('"""')
+    .filter((_, index) => index % 2 === 0)
+    .join("\n")
+    .split(/\r?\n/)
+    .some((line) => {
+      const words = line.trim().split(/\s+/);
+      return words[0] === "define" && words[1] === name;
+    });
 }
 
 /** Default filesystem port, so tests can drive every branch without touching disk. */
@@ -280,10 +218,7 @@ export function resolveAccessor(api, accessor) {
  * when it does not.
  *
  * A `status` says whether an export *should* exist; it says nothing about whether what came back is
- * usable. Measured: `corePrimitiveArity: null` reported **zero findings** — the arity lookup read as
- * unreachable and every consumer politely skipped it — while `profilePrimitiveNames: null` and
- * `canonicalOfTurtleAlias: null` threw `TypeError` from consumers that call them directly. Same
- * broken export, three different outcomes, none of them a clear finding.
+ * usable, and the consumers here call what they are given.
  */
 export const ACCESSOR_SHAPES = {
   array: "an array",
@@ -309,8 +244,11 @@ export function hasAccessorShape(resolved, kind) {
     case "profile-enumerator":
       return typeof resolved === "function";
     default:
-      // An unknown kind is already a finding of its own; do not also claim a shape verdict about it.
-      return true;
+      // An unknown kind has no shape this module can verify, so nothing may be assumed usable.
+      // Returning `true` here read as "fine" and let consumers call it: three of four registries
+      // crashed on a one-character typo in `kind`, replacing `accessorFindings`' own correct
+      // vocabulary finding with a stack trace.
+      return false;
   }
 }
 
@@ -357,11 +295,9 @@ export function accessorFindings(manifest, api) {
           `registry ${tag}.${role}: kind ${JSON.stringify(spec.kind)} is outside the closed vocabulary [${ACCESSOR_KINDS.join(", ")}]`,
         );
       }
-      // Checked before `status`, because a status is a claim ABOUT an accessor and an entry with no
-      // accessor name has nothing to claim. Measured: `{ kind, status: "declared" }` with no
-      // `accessor` reported zero findings and silently disabled that whole direction — `resolveAccessor`
-      // reads `api[undefined]`, which is `undefined`, which is exactly what a `declared` accessor is
-      // supposed to look like. Invariants 4 and 5 both depend on this.
+      // Checked before `status`, because a status is a claim ABOUT an accessor, and an entry with
+      // no accessor name has nothing to claim: `resolveAccessor` would read `api[undefined]`, which
+      // is indistinguishable from a `declared` accessor's expected absence.
       if (typeof spec.accessor !== "string" || spec.accessor.length === 0) {
         findings.push(
           `registry ${tag}.${role}: no accessor named — a status is a claim about an accessor, so an entry with no name silently disables this direction`,
@@ -381,12 +317,12 @@ export function accessorFindings(manifest, api) {
         );
       } else if (
         spec.status === "present" &&
+        ACCESSOR_KINDS.includes(spec.kind) &&
         !hasAccessorShape(resolved, spec.kind)
       ) {
-        // Shape, not merely presence. Measured: `corePrimitiveArity: null` passed with zero
-        // findings, and `profilePrimitiveNames: null` / `canonicalOfTurtleAlias: null` threw
-        // TypeErrors from their direct consumers. Checking only `!== undefined` let a broken export
-        // read as a working one for a whole registry.
+        // Skipped for an unknown `kind`, whose own vocabulary finding above is the actionable one —
+        // but `hasAccessorShape` still answers `false` there, so consumers read it as unreachable
+        // instead of calling it.
         findings.push(
           `registry ${tag}.${role}: ${spec.accessor} is declared "present" with kind ${JSON.stringify(spec.kind)}, but it is ${describeAccessor(resolved)} rather than ${ACCESSOR_SHAPES[spec.kind]}`,
         );
@@ -416,7 +352,7 @@ export function accessorFindings(manifest, api) {
  */
 export function registryHas(registry, api, name) {
   const spec = registry.lookup;
-  if (spec.status !== "present") {
+  if (spec === undefined || spec.status !== "present") {
     return null;
   }
   const accessor = resolveAccessor(api, spec.accessor);
@@ -462,7 +398,7 @@ function enumeratedNames(spec, accessor, profile) {
  */
 export function registryMembers(registry, api) {
   const spec = registry.enumerate;
-  if (spec.status !== "present") {
+  if (spec === undefined || spec.status !== "present") {
     return null;
   }
   const accessor = resolveAccessor(api, spec.accessor);
@@ -484,21 +420,7 @@ export function registryMembers(registry, api) {
   return members;
 }
 
-/**
- * The names a sequence lists more than once, in first-appearance order.
- *
- * **Cardinality is the axis every set comparison in this file is blind to.** `missing`/`extra`
- * reduce both sides to membership and the C19 mirror compares joined strings, so a word duplicated
- * on *both* sides satisfies all three. Measured on the two sides of the very contract this gate
- * exists to enforce, with opposite verdicts:
- *
- * ```text
- * SPEC side  spec/grammar.md duplicates "define"  45 entries / 44 unique  -> RED
- * IMPL side  OL_KEYWORDS     duplicates "define"  45 entries / 44 unique  -> GREEN
- * ```
- *
- * A gate that is asymmetric about its own subject is not a gate, so both sides run through here.
- */
+/** The names a sequence lists more than once, in first-appearance order. */
 export function duplicatedNames(names) {
   return [
     ...new Set(names.filter((name, index) => names.indexOf(name) !== index)),
@@ -506,14 +428,12 @@ export function duplicatedNames(names) {
 }
 
 /**
- * Re-derive `category` and `profile` from a name's registry membership under the file's stated
- * precedence: **`keyword` before `primitive`**, running in the key order of `registries`.
+ * Re-derive `category` and `profile` from a name's registry membership, under the two-level
+ * precedence `invariants.precedence` states: `keyword` beats `primitive` by category, then the
+ * earlier key in `registries` wins among tags of the same category.
  *
- * That precedence is not a convention this gate invents — it mirrors the one the checker already
- * applies, and it is what files `to` under `core-language` rather than `heritage` even though `to`
- * is in a Heritage registry too. Six names at `0.1.0` are reachable from two registries, and a
- * single-valued summary cannot express that, which is why the full membership stays in `registries`
- * and only the summary is derived here.
+ * Only the summary is derived; the full membership stays on the entry, because six names at `0.1.0`
+ * are reachable from two registries and one `category`/`profile` pair cannot express that.
  */
 export function deriveSummary(manifest, tags, profileByTag) {
   const ordered = Object.keys(manifest.registries).filter((tag) =>
@@ -532,10 +452,6 @@ export function deriveSummary(manifest, tags, profileByTag) {
  * The **file -> implementation** direction, entry by entry: every tag an entry claims must answer
  * yes, the claimed set must be **set-equal** to the tags that actually answer yes, and the derived
  * `category`/`profile` must match what the entry records.
- *
- * Set equality is the load-bearing part. Drop `thing` from `corePrimitiveArity`, or `make` from
- * `heritageFormHeadNames()`, and a precedence-based check would still see a matching keyword entry
- * and report green.
  */
 export function entryFindings(manifest, api) {
   const findings = [];
@@ -560,7 +476,7 @@ export function entryFindings(manifest, api) {
 
     if (!isCanonicalName(entry.name)) {
       findings.push(
-        `${entry.name}: is not a canonical OpenLogo name — lowercase ASCII letters, digits, \`_\` and \`?\`/\`!\` only (spec/grammar.md). A manifest and an implementation that agree on a non-canonical spelling agree about something the language does not allow`,
+        `${entry.name}: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII. A manifest and an implementation that agree on a non-canonical spelling agree about something the language does not allow`,
       );
     }
     const repeatedTags = duplicatedNames(entry.registries);
@@ -632,9 +548,8 @@ export function entryFindings(manifest, api) {
  * The **implementation -> file** direction: every name any registry enumerates must have an entry
  * that records that registry.
  *
- * A registry whose enumerator is still `declared` cannot be walked, so names reachable only through
- * it are invisible in this direction. That is reported explicitly in the run summary rather than
- * passed over — an unreachable direction is a real limit of the gate, not a clean result.
+ * A registry whose enumerator is still `declared` cannot be walked; the run summary reports that
+ * direction as unreachable rather than passing over it.
  */
 export function implementationFindings(manifest, api) {
   const findings = [];
@@ -666,19 +581,13 @@ export function implementationFindings(manifest, api) {
 }
 
 /**
- * One registry, **both of its accessors, on the same name** — where the two are read independently.
+ * One registry's `lookup` and `enumerate` compared on the same name.
  *
- * **What this does NOT prove.** For the nine primitive tags the two roles are one source read twice:
- * `PROFILE_PRIMITIVE_NAMES` is built as `[...tables.arity.keys()]` and `<X>PrimitiveArity` reads that
- * same Map (`packages/parser/src/signatures.ts`). A membership disagreement therefore cannot arise
- * from any source edit — measured: removing a name is caught by {@link entryFindings}, adding one by
- * {@link implementationFindings}, and *this* check reports nothing in either case. The mutation that
- * motivated it — an arity table answering for a name its enumerator omits — describes an api shape
- * the implementation cannot produce.
- *
- * **What it does prove, and the whole of the claim:** the lookup lowercases its argument and the
- * enumerator does not, so a **non-lowercase key** answers one side and not the other. That asymmetry
- * is real, it is invisible to every other check here, and it is what this reports.
+ * **Scope, because it is narrower than it looks.** For the nine primitive tags the two roles are one
+ * source read twice — `PROFILE_PRIMITIVE_NAMES` is `[...tables.arity.keys()]` and `<X>PrimitiveArity`
+ * reads that same Map (`packages/parser/src/signatures.ts`) — so no source edit can make them
+ * disagree about *membership*. What differs is normalisation: the lookup lowercases its argument and
+ * the enumerator does not.
  */
 export function directionAgreementFindings(manifest, api) {
   const findings = [];
@@ -709,21 +618,12 @@ export function directionAgreementFindings(manifest, api) {
 }
 
 /**
- * The whole profile-keyed registry, swept **profile by profile** rather than tag by tag.
+ * The profile-keyed primitive registry, swept **profile by profile** over `OL_CHECK_PROFILES` rather
+ * than tag by tag, so a tenth profile is covered the moment `PROFILE_PRIMITIVES` gains its entry —
+ * with no manifest edit, and with `tsc` forcing that entry because the registry is a mapped type
+ * over `CheckProfile` (#874).
  *
- * {@link implementationFindings} walks the registries the manifest names, so it can only see a
- * profile that already has a tag. This walks `OL_CHECK_PROFILES` instead, which is what makes the
- * gate cover a **tenth** profile the moment `PROFILE_PRIMITIVES` gains its entry — with no manifest
- * edit at all, and with `tsc` forcing that entry because the registry is a mapped type over
- * `CheckProfile` (issue #874). A gate that detects drift is good; one that cannot drift is better.
- *
- * It also pins the `profile` a name is filed under against the profile whose table actually holds
- * it, which no per-name lookup can do: `corePrimitiveArity("forward")` is `undefined` either way.
- *
- * Matching the `profile` alone was not enough. A name can reach a profile through a registry that is
- * not a primitive table at all, so injecting `fd` into `profilePrimitiveNames("heritage")` passed:
- * `fd` is already filed under `heritage` via `heritage-alias`, and nothing required the enumerated
- * name to record the *primitive* tag for that profile — or required the profile to have one.
+ * Each enumerated name must record that profile's primitive tag, and the profile must have one.
  */
 export function profilePrimitiveSweepFindings(manifest, api) {
   const findings = [];
@@ -779,24 +679,14 @@ export function profilePrimitiveSweepFindings(manifest, api) {
 }
 
 /**
- * Alias edges, checked **against the edge the implementation actually resolves, in both
- * directions**.
+ * Alias edges, checked against the edge the implementation actually resolves, **in both directions**.
  *
- * `aliasOf` is an edge rather than a parallel list precisely so it cannot drift from its target,
- * but an edge is only as good as the accessor that can confirm it. Two registries carry edges and
- * each names its own resolver in the manifest: `heritageAliasNames`/`canonicalOfHeritageAlias` for
- * the 13 Heritage short spellings, and `turtleAliasNames`/`canonicalOfTurtleAlias` for the five
- * Turtle & Rendering one-word spellings.
- *
- * **The turtle accessor did not exist before this slice**, and its absence made the check
- * decorative on the ADR's own worked example: with only "the target is an entry of equal arity"
- * available, `setxy → distance` and `setxy → towards` both passed. `spec/commands.md` gives those
- * five as alias spellings, so ADR-0021 §3 requires the map — **consumed by the resolver, so it
- * cannot drift** — as part of the public-API addition §4 already asks of #841.
- *
- * Both directions matter. An entry claiming an edge the implementation does not resolve is drift;
- * so is an entry silently dropping an edge the implementation still has, which the forward loop
- * cannot see because `aliasOf` is optional.
+ * `aliasOf` is an edge rather than a parallel list so it cannot drift from its target. Two registries
+ * carry edges and each names its own resolver and enumerator in the manifest:
+ * `heritageAliasNames`/`canonicalOfHeritageAlias` for the 13 Heritage short spellings, and
+ * `turtleAliasNames`/`canonicalOfTurtleAlias` for the five Turtle & Rendering one-word spellings.
+ * The turtle pair is added by this slice — ADR-0021 §3 requires it, consumed by the resolver so it
+ * cannot drift, and it supersedes the equal-arity fallback that ADR records in the past tense.
  */
 export function aliasFindings(manifest, api) {
   const findings = [];
@@ -812,9 +702,8 @@ export function aliasFindings(manifest, api) {
       continue;
     }
     if (carrying.length === 0) {
-      // Measured: `define.aliasOf = "end"` used to pass, because a keyword registry has no arity
-      // lookup and the check simply skipped it. An alias edge on a registry that carries no edges
-      // is meaningless, and meaningless is not the same as absent.
+      // An alias edge on a registry that carries no edges is meaningless, and meaningless is not
+      // the same as absent.
       findings.push(
         `${entry.name}: records aliasOf "${entry.aliasOf}" but none of its registries (${entry.registries.join(", ")}) carries alias edges`,
       );
@@ -854,11 +743,9 @@ export function aliasFindings(manifest, api) {
     // one cannot see; where it can see the same thing, this one says nothing.
   }
 
-  // The three domains must agree **as sets**, walked over the registry's whole membership rather
-  // than over any one of them. Measured: `canonicalOfTurtleAlias("forward") → "back"` while
-  // `turtleAliasNames()` omitted `forward` was green, because the forward loop visits only entries
-  // that already claim an edge and the reverse loop visits only names the enumerator already lists
-  // — so an edge the RESOLVER invented, in neither list, was seen by neither.
+  // The three domains must agree **as sets**, walked over a universe wider than any one of them:
+  // the forward loop visits only entries that already claim an edge and the enumerator lists only
+  // names it already knows, so an edge the RESOLVER invents belongs to neither.
   for (const [tag, registry] of Object.entries(manifest.registries)) {
     if (registry.canonicalAccessor === undefined) {
       continue;
@@ -876,7 +763,15 @@ export function aliasFindings(manifest, api) {
       );
       continue;
     }
-    const enumerated = new Set(names());
+    const enumeratedNames = names();
+    // Cardinality, before the Set below collapses it.
+    const repeated = duplicatedNames(enumeratedNames);
+    if (repeated.length > 0) {
+      findings.push(
+        `${registry.aliasEnumerator} lists ${repeated.join(", ")} more than once — ${enumeratedNames.length} entries, ${new Set(enumeratedNames).size} unique`,
+      );
+    }
+    const enumerated = new Set(enumeratedNames);
     // The universe is every name the gate knows about, not just this registry's members. Probing
     // `members ∪ enumerated` left an edge the RESOLVER invented on a name outside the registry —
     // `canonicalOfTurtleAlias("print") → "forward"` — visible to nothing, because `print` is in the
@@ -933,7 +828,7 @@ export function carveOutFindings(manifest, io) {
     seen.add(entry.name);
     if (!isCanonicalName(entry.name)) {
       findings.push(
-        `excluded ${entry.name}: is not a canonical OpenLogo name — lowercase ASCII letters, digits, \`_\` and \`?\`/\`!\` only (spec/grammar.md)`,
+        `excluded ${entry.name}: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is \`[a-z_][a-z0-9_]*[?!]?\`, and built-in keywords and primitives are lowercase ASCII`,
       );
     }
     if (listed.has(entry.name)) {
@@ -950,9 +845,7 @@ export function carveOutFindings(manifest, io) {
       );
     }
     if (entry.reason !== "library" && entry.source !== undefined) {
-      // Measured: relabelling `arc` from `library` to `contextual-keyword` kept its `source` and
-      // stopped it being existence-checked, so a carve-out could escape clause 3 by changing one
-      // word. A `source` that nothing checks is worse than no `source`.
+      // Only a `library` carve-out has a `source`; a `source` nothing checks is worse than none.
       findings.push(
         `excluded ${entry.name}: reason "${entry.reason}" carries a source (${entry.source}) that nothing checks — only a "library" carve-out has one`,
       );
@@ -965,9 +858,7 @@ export function carveOutFindings(manifest, io) {
           );
           break;
         }
-        // The path being real proves a file exists; it does not bind the NAME to it. Measured:
-        // renaming the carve-out to "zzz-not-a-real-procedure" while keeping the same real source
-        // was green, so the field the whole carve-out is about was attached to nothing.
+        // The path being real proves a file exists; this binds the NAME to it.
         if (!definesProcedure(io.readText(entry.source), entry.name)) {
           findings.push(
             `excluded ${entry.name}: ${entry.source} is a real ${STDLIB_DIR} file but defines no procedure named "${entry.name}" — the carve-out claims this name IS that library source, so the path alone proves nothing`,
@@ -1123,10 +1014,8 @@ export function extractToolingC19Mirror(text) {
   if (paragraph.length === 0) {
     return null;
   }
-  // Every code span must be a single keyword identifier. Removing all spans and checking the
-  // residue accepted a span that is not a word at all: appending `` `not a complete list` `` left
-  // extraction at 44 words and the gate green, because the residue check saw a code span and the
-  // word extractor skipped it for not matching an identifier. A word list is words.
+  // Every code span must be a single keyword identifier: removing all spans and checking the residue
+  // accepts a span that is not a word at all. A word list is words.
   const spans = [...paragraph.join(" ").matchAll(/`([^`]*)`/g)].map(
     (match) => match[1],
   );
@@ -1237,11 +1126,8 @@ export function proseFindings(manifest, io) {
     .filter((entry) => entry.registries.includes("reserved"))
     .map((entry) => entry.name);
 
-  // Cardinality, not just membership. `missing`/`extra` use set semantics and the mirror compares
-  // joined strings, so a word duplicated in BOTH lists satisfies all three: measured, the normative
-  // keyword list shipped 45 entries with 44 unique and the gate said nothing. That is the module's
-  // own founding defect with the opposite sign — the mirror silently standing at 43 words is why
-  // this file exists — and a duplicate is a realistic hand-edit in a 44-word list over eight lines.
+  // Cardinality, not just membership: `missing`/`extra` use set semantics and the mirror compares
+  // joined strings, so a word duplicated in BOTH lists satisfies all three.
   for (const [path, words] of [
     [GRAMMAR_PATH, grammarWords],
     [TOOLING_PATH, mirrorWords],
@@ -1382,77 +1268,65 @@ export function profileInventoryFindings(manifest, api, io) {
 }
 
 /**
- * The file's own prose must be present. Small, but it is the part a reader relies on to understand
- * what the data means, and blanking it left the gate green — a manifest that validates 148 entries
- * and not its own contract statement is asserting the wrong things about itself.
+ * The file's own prose must be present. A manifest that validates 148 entries and not its own
+ * contract statement is asserting the wrong things about itself.
  */
 export function narrativeFindings(manifest) {
-  const findings = [];
   // `.trim()`, not `.length`: a single space is as satisfying to a presence check as an empty
-  // string, which is the defect that defeated every row anchor a round earlier. It was fixed for
-  // the anchors and not for the presence check that outlived them.
+  // string, which is the defect that defeated every row anchor a round earlier.
   const blank = (value) =>
     typeof value !== "string" || value.trim().length === 0;
-  if (blank(manifest.about)) {
-    findings.push(
-      `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
+  // One sweep over a list the file DERIVES from itself, rather than four hand-written loops. The
+  // previous shape was fixed in one location and not its neighbours three rounds running, which is
+  // the second-list problem in miniature: the registry notes below come from `registries`, so a
+  // fifteenth registry is covered without editing anything here.
+  const required = [
+    ["about", manifest.about],
+    ["profiles.about", manifest.profiles?.about],
+    ...[
+      "unconditional",
+      "precedence",
+      "bothDirections",
+      "accessorStatus",
+      "derivedEnumeration",
+    ].map((key) => [`invariants.${key}`, manifest.invariants?.[key]]),
+    ...["about", "rowFingerprintReason"].map((key) => [
+      `tokenClassKeyword.${key}`,
+      manifest.tokenClassKeyword?.[key],
+    ]),
+    // A `note` is optional — six registries have nothing to say beyond their data, and demanding one
+    // would produce filler. But one that EXISTS must say something.
+    ...Object.entries(manifest.registries)
+      .filter(([, registry]) => registry.note !== undefined)
+      .map(([tag, registry]) => [`registries.${tag}.note`, registry.note]),
+  ];
+  return required
+    .filter(([, value]) => blank(value))
+    .map(
+      ([path]) =>
+        `${MANIFEST_PATH}: ${path} is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
     );
-  }
-  for (const key of [
-    "unconditional",
-    "precedence",
-    "bothDirections",
-    "accessorStatus",
-    "derivedEnumeration",
-  ]) {
-    if (blank(manifest.invariants?.[key])) {
-      findings.push(
-        `${MANIFEST_PATH}: invariants.${key} is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
-      );
-    }
-  }
-  // The token-class block's own prose. Each field below explains a decision that is otherwise
-  // only visible as data, and both could be blanked — or deleted outright — unnoticed.
-  for (const key of ["about", "rowFingerprintReason"]) {
-    if (blank(manifest.tokenClassKeyword?.[key])) {
-      findings.push(
-        `${MANIFEST_PATH}: tokenClassKeyword.${key} is missing or empty — it records what the token-class fingerprint does and does not guarantee, which nothing else in the file says`,
-      );
-    }
-  }
-  return findings;
 }
 
 /**
- * Names a registry's enumerator yields **more than once** — under two keys, or twice under one.
+ * Names a registry's enumerator yields **more than once** — under two keys, or twice under one, for
+ * every accessor kind.
  *
- * `registryMembers` flattens every enumeration into a `Map`, which is last-write-wins, and
- * `registryHas` answers with `.includes`. Both destroy cardinality, so a duplicate registration is
- * invisible to every other check in this file: injecting `when` into `OL_PROFILE_KEYWORDS.sprites`
- * while it stayed under `interaction-events` was green, and every entry still matched, because the
- * flattened map only remembered one owner.
- *
- * Round 8 fixed that for `record` accessors alone, which is **one** registry of fourteen. The other
- * three kinds shipped the same defect green — `OL_KEYWORDS` at 45 entries / 44 unique,
- * `heritageAliasNames` at 14 / 13, and `profilePrimitiveNames` at 31 / 30, the last being a shape
- * that was a real bug in this review's second round. So this walks **every** kind: a check scoped to
- * the one instance that happened to be measured is the defect it is fixing, one level up.
- *
- * A name has one owning profile and one registration per registry; two of either is a registry
- * defect, not a shape the manifest can express.
+ * `registryMembers` flattens each enumeration into a `Map` (last-write-wins) and `registryHas`
+ * answers with `.includes`, so cardinality is invisible to every other check here. A name has one
+ * owning profile and one registration per registry; two of either is a registry defect, not a shape
+ * the manifest can express.
  */
 export function duplicateRegistrationFindings(manifest, api) {
   const findings = [];
   for (const registry of Object.values(manifest.registries)) {
     const spec = registry.enumerate;
-    if (spec.status !== "present") {
+    if (spec === undefined || spec.status !== "present") {
       continue;
     }
-    // A `declared` accessor is absent by design and a `present` one of the wrong shape is already
-    // reported by `accessorFindings` — but *computing* that finding does not *prevent* this line
-    // dereferencing it, because the findings list is an eager array literal. Round 8 carried a
-    // comment claiming this branch was unreachable for that reason; it was reachable, and it threw.
-    // A comment asserting a property the code does not have is this module's own subject.
+    // A wrong-shaped or absent accessor reads as unreachable here rather than being called. The
+    // findings list is an eager array literal, so `accessorFindings` *computing* a finding about it
+    // does not *prevent* this line dereferencing it.
     const accessor = resolveAccessor(api, spec.accessor);
     if (!hasAccessorShape(accessor, spec.kind)) {
       continue;

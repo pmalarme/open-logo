@@ -111,7 +111,10 @@ function tinyFixture() {
       },
     },
     profilesWithoutPrimitives: {},
-    profiles: { ids: { "core-language": "Core Language" } },
+    profiles: {
+      about: "a tiny fixture",
+      ids: { "core-language": "Core Language" },
+    },
     tokenClassKeyword: {
       about: "a tiny fixture",
       rowFingerprintReason: "x",
@@ -937,8 +940,10 @@ test("an accessor's SHAPE is checked, not merely its presence", () => {
     assert.equal(hasAccessorShape(duplicatedNames, kind), true);
     assert.equal(hasAccessorShape(null, kind), false);
   }
-  // An unknown kind is already its own finding; this predicate makes no second claim about it.
-  assert.equal(hasAccessorShape(null, "not-a-kind"), true);
+  // An unknown kind has no verifiable shape, so nothing is assumed usable and consumers skip it
+  // rather than calling it.
+  assert.equal(hasAccessorShape(null, "not-a-kind"), false);
+  assert.equal(hasAccessorShape(duplicatedNames, "not-a-kind"), false);
 
   assert.equal(describeAccessor(null), "exported as null");
   assert.equal(describeAccessor([]), "an array");
@@ -1060,7 +1065,7 @@ test("INJECTED DRIFT: a carve-out spelled non-canonically", () => {
   manifest.excluded[0].name = "Polygon";
   assert.equal(
     carveOutFindings(manifest, REAL_IO).includes(
-      "excluded Polygon: is not a canonical OpenLogo name — lowercase ASCII letters, digits, `_` and `?`/`!` only (spec/grammar.md)",
+      "excluded Polygon: is not a canonical OpenLogo name — spec/grammar.md:15's ASCII core form is `[a-z_][a-z0-9_]*[?!]?`, and built-in keywords and primitives are lowercase ASCII",
     ),
     true,
   );
@@ -1075,6 +1080,109 @@ test("definesProcedure reads a Core define header, and only that", () => {
   assert.equal(definesProcedure("define arcs :a\nend", "arc"), false);
   assert.equal(definesProcedure("arc 90 10", "arc"), false);
   assert.equal(definesProcedure(undefined, "arc"), false);
+});
+
+test("INJECTED DRIFT: a define header that is only prose inside a multi-line string literal", () => {
+  // `"""…"""` is a real OpenLogo literal (spec/grammar.md:19), so a header written inside one is
+  // documentation, not a declaration. Scanning raw lines read it as source.
+  const documented = ':doc = """\ndefine arc :angle :radius\n"""\n';
+  assert.equal(definesProcedure(documented, "arc"), false);
+  // The real header outside the literal still counts.
+  assert.equal(
+    definesProcedure(`${documented}define arc :a\nend`, "arc"),
+    true,
+  );
+});
+
+test("INJECTED DRIFT: an alias enumerator listing one name twice", () => {
+  const api = {
+    ...realParserApi,
+    turtleAliasNames: () => [...realParserApi.turtleAliasNames(), "setxy"],
+  };
+  assert.equal(api.turtleAliasNames().length, 6);
+  assert.equal(new Set(api.turtleAliasNames()).size, 5);
+  assert.equal(
+    aliasFindings(REAL_MANIFEST, api).includes(
+      "turtleAliasNames lists setxy more than once — 6 entries, 5 unique",
+    ),
+    true,
+  );
+});
+
+test("INJECTED DRIFT: an accessor kind this module does not know is a finding, never a crash", () => {
+  // `hasAccessorShape` used to answer `true` for an unknown kind, so `registryHas` fell to its
+  // default arm and called whatever was there. Three of four registries threw, replacing
+  // `accessorFindings`' own correct vocabulary finding with a stack trace.
+  for (const [tag, role] of [
+    ["reserved", "lookup"],
+    ["profile-reserved", "lookup"],
+    ["core-primitive", "lookup"],
+    ["heritage-alias", "enumerate"],
+  ]) {
+    const manifest = manifestCopy();
+    manifest.registries[tag][role].kind = "typo-kind";
+    const result = runBuiltInNamesGate({ manifest });
+    assert.equal(result.ok, false, `${tag}.${role}`);
+    assert.equal(
+      result.findings.includes(
+        `registry ${tag}.${role}: kind "typo-kind" is outside the closed vocabulary [${ACCESSOR_KINDS.join(", ")}]`,
+      ),
+      true,
+      result.findings.join("\n"),
+    );
+  }
+});
+
+test("a registry missing a whole role is reported, and read as unreachable rather than dereferenced", () => {
+  const manifest = manifestCopy();
+  const registry = manifest.registries["core-primitive"];
+  registry.lookup = undefined;
+  assert.equal(registryHas(registry, realParserApi, "print"), null);
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      "registry core-primitive: no lookup accessor — each tag must name both, because the two comparison directions need different shapes",
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("precedence is two-level: category first, then the declared key order within a category", () => {
+  // `invariants.precedence` states both halves, and both are load-bearing on the shipped tree:
+  // `thing` is decided by category, the four Heritage-spelled keywords by key order.
+  assert.equal(entryFor(REAL_MANIFEST, "thing").category, "keyword");
+  assert.deepEqual(entryFor(REAL_MANIFEST, "thing").registries, [
+    "reserved",
+    "core-primitive",
+  ]);
+  for (const name of ["to", "make", "op", "output", "value"]) {
+    const entry = entryFor(REAL_MANIFEST, name);
+    assert.equal(entry.category, "keyword", name);
+    assert.equal(entry.profile, "core-language", name);
+  }
+
+  // Category beats key order: reordering so the primitive tag comes first must NOT reclassify.
+  const moveFirst = (manifest, tag) => {
+    const { [tag]: moved, ...rest } = manifest.registries;
+    manifest.registries = { [tag]: moved, ...rest };
+    return manifest;
+  };
+  const reordered = moveFirst(manifestCopy(), "core-primitive");
+  assert.equal(Object.keys(reordered.registries)[0], "core-primitive");
+  assert.deepEqual(entryFindings(reordered, realParserApi), []);
+
+  // Key order decides among same-category tags: putting the Heritage keyword registry first
+  // re-files the four Heritage-spelled keywords, so the manifest's own `profile` becomes wrong.
+  const heritageFirst = moveFirst(manifestCopy(), "heritage-form-head");
+  assert.equal(Object.keys(heritageFirst.registries)[0], "heritage-form-head");
+  assert.equal(
+    entryFindings(heritageFirst, realParserApi).some((finding) =>
+      finding.startsWith('to: profile "core-language"'),
+    ),
+    true,
+  );
 });
 
 test("one registry's two alias accessors disagreeing is reported exactly once", () => {
@@ -1234,8 +1342,8 @@ test("INJECTED DRIFT: the file's own contract statement blanked", () => {
   const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.deepEqual(narrativeFindings(manifest), [
-    `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
-    `${MANIFEST_PATH}: invariants.precedence is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
+    `${MANIFEST_PATH}: about is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+    `${MANIFEST_PATH}: invariants.precedence is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
   ]);
 });
 
@@ -1453,16 +1561,20 @@ test("the stdlib check is case-sensitive, so its verdict does not depend on the 
   assert.equal(isStdlibSource("STDLIB/geometry/polygon.logo", REAL_IO), false);
 });
 
-test("INJECTED DRIFT: narrative fields blanked with a single space", () => {
+test("INJECTED DRIFT: narrative fields blanked with a single space, including a registry note", () => {
   const manifest = manifestCopy();
   manifest.about = " ";
   manifest.invariants.bothDirections = " ";
   manifest.tokenClassKeyword.rowFingerprintReason = " ";
+  manifest.profiles.about = " ";
+  manifest.registries.reserved.note = " ";
   const findings = narrativeFindings(manifest);
   assert.deepEqual(findings, [
-    `${MANIFEST_PATH}: no \`about\` — the file is normative, so what it claims to be is part of the contract`,
-    `${MANIFEST_PATH}: invariants.bothDirections is missing or empty — ADR-0021 §2's invariants are the normative part, and an unstated one cannot be reviewed`,
-    `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprintReason is missing or empty — it records what the token-class fingerprint does and does not guarantee, which nothing else in the file says`,
+    `${MANIFEST_PATH}: about is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+    `${MANIFEST_PATH}: profiles.about is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+    `${MANIFEST_PATH}: invariants.bothDirections is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+    `${MANIFEST_PATH}: tokenClassKeyword.rowFingerprintReason is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
+    `${MANIFEST_PATH}: registries.reserved.note is missing or empty — this file is normative, and a claim it makes about itself that nothing states cannot be reviewed`,
   ]);
 });
 
