@@ -591,6 +591,104 @@ test("debug treats an unusable turtle_id as naming no turtle, not as `turtle #Na
   );
 });
 
+test("every kind debug folds into reported state also counts toward the live-turtle population", () => {
+  // The lone-turtle trigger reads the population alone, with no `described.length` guard. That is
+  // only correct while every kind folded into a turtle's reported fields also contributes its
+  // identity to the population. If one were missed, a turtle whose sole event is of that kind
+  // would be reported but not counted — its clause silently discarded AND the survivor reverted to
+  // the bare form meaning "the main turtle, alone". Asserted through the OUTPUT, per folded kind,
+  // so it pins `debug`'s actual use of the classification rather than the classification alone.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const foldedKinds = [
+    ["move", { from: [0, 0], to: [0, 1], heading: 0 }],
+    ["turn", { from: 0, to: 90 }],
+    ["pen-change", { from: "down", to: "up" }],
+    ["color-change", { from: "black", to: "blue" }],
+    ["width-change", { from: 1, to: 3 }],
+  ];
+  for (const [foldedKind, payload] of foldedKinds) {
+    assert.ok(
+      Core.isTurtleSpecificEventKind(foldedKind),
+      `${foldedKind} is folded into a turtle's reported fields but is not turtle-specific`,
+    );
+    const output = OL.debug({
+      command: "debug",
+      program,
+      events: [
+        {
+          seq: 0,
+          kind: foldedKind,
+          source_span: Core.makeSpan("main.logo", [1, 1], [1, 10]),
+          turtle_id: 1,
+          payload,
+        },
+        {
+          seq: 1,
+          kind: "move",
+          source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+          payload: { from: [0, 0], to: [0, 5], heading: 0 },
+        },
+      ],
+      diagnostics: [],
+      level: "3",
+    });
+    const segment = output.segments.find((line) =>
+      line.startsWith("Turtle state so far:"),
+    );
+    assert.ok(
+      segment !== undefined,
+      `no turtle-state segment for ${foldedKind}`,
+    );
+    assert.match(
+      segment,
+      /^Turtle state so far: turtle #0 — position \(0, 5\), heading 0; turtle #1 — /,
+      `a lone ${foldedKind} for turtle 1 did not count toward the population`,
+    );
+  }
+});
+
+test("debug counts a turtle a spawn-turtle names only in its payload", () => {
+  // `spawn-turtle`'s payload "MUST identify the newly created turtle", and it is the authoritative
+  // source — the envelope id is optional. Every other spawn test here is negative (a bad payload
+  // must NOT count), which passes whether or not the payload is read at all; this is the positive
+  // direction, so the payload branch is observed rather than merely executed.
+  const program = {
+    kind: "Program",
+    source_span: Core.makeSpan("main.logo", [1, 1], [1, 1]),
+    body: [],
+  };
+  const output = OL.debug({
+    command: "debug",
+    program,
+    events: [
+      {
+        seq: 0,
+        kind: "spawn-turtle",
+        source_span: Core.makeSpan("main.logo", [1, 1], [1, 11]),
+        payload: { turtle_id: 1 },
+      },
+      {
+        seq: 1,
+        kind: "move",
+        source_span: Core.makeSpan("main.logo", [2, 1], [2, 10]),
+        payload: { from: [0, 0], to: [0, 5], heading: 0 },
+      },
+    ],
+    diagnostics: [],
+    level: "3",
+  });
+  assert.ok(
+    output.segments.includes(
+      "Turtle state so far: turtle #0 — position (0, 5), heading 0.",
+    ),
+    `unexpected segments: ${JSON.stringify(output.segments)}`,
+  );
+});
+
 test("debug counts a turtle that acted through an event kind it does not report", () => {
   // The population spans EVERY turtle-specific kind, not just the five this file folds into
   // reported fields: a `shape-change` names its turtle as surely as a `move` does, even though
