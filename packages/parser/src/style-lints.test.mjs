@@ -1089,3 +1089,184 @@ test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly tha
     );
   }
 });
+
+// --- ol-style-nested-handler (issue #828) -----------------------------------------------------
+// The TEACHING half of the #828 ruling. Its other half -- charging each handler firing against the
+// instruction budget (PR #910) -- already makes the program safe, so these are warnings that never
+// change program meaning. Message wording is asserted HERE and not in a conformance fixture,
+// because the conformance harness excludes `message` from comparison entirely: a fixture cannot
+// fail on wording, so wording must be pinned by a unit test or it is pinned nowhere.
+
+const INTERACTION_STYLE = ["core-language", "interaction-events"];
+
+/**
+ * Shared predicate rather than an inline arrow at each call site, deliberately: the repo's coverage
+ * gate counts `*.test.mjs` on Node 22, and `Array.filter`'s callback is never invoked on an empty
+ * array — so an arrow used only where the expected result is `[]` is a permanently uncalled
+ * function that drops this file below the 100% function bar (the same trap #882 hit). One predicate,
+ * exercised by the tests that DO find diagnostics, keeps every negative assertion honest and covered.
+ */
+const isNestedHandler = (diagnostic) =>
+  diagnostic.code === "ol-style-nested-handler";
+
+function nestedHandlerFindings(source) {
+  return checkStyle(source, INTERACTION_STYLE).filter(isNestedHandler);
+}
+
+test("ol-style-nested-handler: an every that registers an every is flagged once, at the inner span", () => {
+  const diagnostics = nestedHandlerFindings(
+    'every 3 [ every 3 [ print "x" ] ]',
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { outer: "every", inner: "every" });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+  // Reported at the INNER registration -- the line the learner moves out of the block -- not at the
+  // outer handler that merely repeats.
+  assert.deepEqual(diagnostics[0].source_span.start, [1, 11]);
+});
+
+test("ol-style-nested-handler: the message names both forms and says what to do", () => {
+  // The harness never compares `message`, so this is the only place the learner-facing wording is
+  // pinned. `spec/error-model.md` requires the warm lowercase Logo voice.
+  const [diagnostic] = nestedHandlerFindings(
+    'every 3 [ on_key "x" [ print 1 ] ]',
+  );
+  assert.equal(
+    diagnostic.message,
+    "every runs again and again, so this on_key can add another handler each time. register it once, outside the every.",
+  );
+  assert.equal(diagnostic.message, diagnostic.message.toLowerCase());
+});
+
+test("ol-style-nested-handler: EVERY registration form is flagged inside an every, not just repeating ones", () => {
+  // Measured, not assumed: `every 2 [ on_key "x" [ print 1 ] ]` answers ONE key press with FIVE
+  // firings against a baseline of one, because five handlers piled up. What accumulates does not
+  // depend on whether the registered handler itself repeats -- only on the outer one repeating.
+  for (const [source, inner] of [
+    ['every 3 [ every 3 [ print "x" ] ]', "every"],
+    ['every 3 [ when "go" [ print 1 ] ]', "when"],
+    ['every 3 [ on_key "x" [ print 1 ] ]', "on_key"],
+    ["every 3 [ on_click [ print 1 ] ]", "on_click"],
+  ]) {
+    const diagnostics = nestedHandlerFindings(source);
+    assert.equal(diagnostics.length, 1, `one finding for: ${source}`);
+    assert.equal(diagnostics[0].params.inner, inner, `inner for: ${source}`);
+  }
+});
+
+test("ol-style-nested-handler: user-bounded and one-shot outers stay completely clean", () => {
+  // `on_key`/`on_click` are bounded by a person -- the ruling's control case, and the game pattern
+  // the issue exists to protect. `when` is ONE-SHOT in this runtime (a fired handler is never
+  // re-delivered), so `when "start" [ every 10 [ ... ] ]` registers exactly one handler; measured
+  // as 1 firing from 4 deliveries. None of these accumulates, so none is flagged.
+  for (const source of [
+    'on_key "space" [ every 10 [ print 1 ] ]',
+    "on_click [ every 10 [ print 1 ] ]",
+    'when "start" [ every 10 [ print 1 ] ]',
+    "every 3 [ print 1 ]",
+  ]) {
+    assert.deepEqual(nestedHandlerFindings(source), [], `clean: ${source}`);
+  }
+});
+
+test("ol-style-nested-handler: reports once and does not descend into a user-bounded block", () => {
+  // `every 3 [ on_key "x" [ every 10 [ ... ] ] ]` has ONE defect: the on_key registration
+  // accumulates. The inner `every 10` only misbehaves because the outer already did -- fix the
+  // outer and it disappears -- so a second finding would be noise, and would teach that the guarded
+  // inner form is itself suspect, contradicting the carve-out.
+  const diagnostics = nestedHandlerFindings(
+    'every 3 [ on_key "x" [ every 10 [ print 1 ] ] ]',
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { outer: "every", inner: "on_key" });
+});
+
+test("ol-style-nested-handler: a chain of everys reports each link exactly once", () => {
+  // Regression: descending THROUGH a registration made the outer visit report the deepest link as
+  // well, so `every 7` was reported twice for one defect. Each `every` is visited as an outer in its
+  // own right, so collection must stop at each registration rather than walk through it.
+  const diagnostics = nestedHandlerFindings(
+    "every 3 [ every 5 [ every 7 [ print 1 ] ] ]",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(
+    diagnostics.map((d) => d.source_span.start),
+    [
+      [1, 11],
+      [1, 21],
+    ],
+  );
+});
+
+test("ol-style-nested-handler: the check is lexical, so a registration behind a call is missed", () => {
+  // A DELIBERATE limitation, pinned so it is specified rather than accidental, and stated as such in
+  // the normative row. Interprocedural analysis with cycle protection is a large lift for an
+  // advisory warning, and it is safe to omit: the runtime half of #828 charges every handler firing
+  // against the instruction budget, so this program still terminates with `ol-limit`. Safety never
+  // depends on this lint -- only the explanation does.
+  assert.deepEqual(
+    nestedHandlerFindings(
+      'define setup\n  on_key "x" [ print 1 ]\nend\nevery 3 [ setup ]',
+    ),
+    [],
+  );
+});
+
+test("ol-style-nested-handler: no reachability analysis, matching the rest of the family", () => {
+  // `ol-style-useless-value` flags `if false [ repeat 4 [ :side * 2 ] ]` too: this family does not
+  // constant-fold, and a style linter that did would be growing an evaluator. The message says the
+  // registration CAN add a handler each time rather than that it does, which stays accurate for a
+  // conditional registration whether or not the condition is decidable.
+  for (const source of [
+    'every 3 [ if false [ on_key "x" [ print 1 ] ] ]',
+    'every 3 [ repeat 0 [ on_key "x" [ print 1 ] ] ]',
+  ]) {
+    const diagnostics = nestedHandlerFindings(source);
+    assert.equal(diagnostics.length, 1, `flagged: ${source}`);
+    assert.match(diagnostics[0].message, /can add another handler each time/);
+  }
+});
+
+test("ol-style-nested-handler: finds a registration nested at depth inside the handler body", () => {
+  const diagnostics = nestedHandlerFindings(
+    "every 3 [ repeat 2 [ every 5 [ print 1 ] ] ]",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { outer: "every", inner: "every" });
+  assert.deepEqual(diagnostics[0].source_span.start, [1, 22]);
+});
+
+test("ol-style-nested-handler: one finding per accumulating registration in the same body", () => {
+  const diagnostics = nestedHandlerFindings(
+    "every 3 [ every 5 [ print 1 ] on_click [ print 2 ] ]",
+  );
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(
+    diagnostics.map((d) => d.params.inner),
+    ["every", "on_click"],
+  );
+});
+
+test("ol-style-nested-handler: silent when the interaction-events profile is inactive", () => {
+  // A rule must consult the active profile set rather than assume every optional profile is on.
+  // Core-only, the block-heads do not exist, so the program is not this rule's business.
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    'every 3 [ every 3 [ print "x" ] ]',
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language"],
+    style: true,
+  }).diagnostics.filter(isNestedHandler);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-nested-handler: never fires unless style checking is opted into", () => {
+  const { ast: program } = OL.parse('every 3 [ every 3 [ print "x" ] ]', doc);
+  const diagnostics = OL.check(program, {
+    profiles: INTERACTION_STYLE,
+  }).diagnostics;
+  assert.deepEqual(diagnostics.filter(isNestedHandler), []);
+});

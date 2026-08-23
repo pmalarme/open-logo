@@ -19,7 +19,7 @@ roles from [`tooling.md`](../../spec/tooling.md#L28-L84). `semanticTokens(source
 (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on top of
 that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a `modifiers`
 array drawn from the modifier vocabulary in
-[`tooling.md:277`](../../spec/tooling.md#L277) — `declaration`, `reference`, `readonly`,
+[`tooling.md:278`](../../spec/tooling.md#L278) — `declaration`, `reference`, `readonly`,
 `defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
 
 A future `@openlogo/studio` editor pane (or any other LSP-style client) should call
