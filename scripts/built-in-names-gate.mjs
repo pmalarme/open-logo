@@ -1134,9 +1134,9 @@ export function rowFingerprintFindings(manifest, row) {
  * Two are compared **derivedly**, by computing the expected words from the manifest and the
  * implementation: `spec/grammar.md`'s normative keyword block, and `spec/tooling.md`'s C19 mirror,
  * which must carry the same words in the same order. The comparison is on the **extracted words**,
- * not the bytes, so a whitespace-only edit to either paragraph is not a finding. That pair is the
- * one that caught the drift which actually happened — the mirror silently losing `mod` and standing
- * at 43 words.
+ * not the bytes, so changing the spacing *between* them is not a finding — though whitespace that
+ * breaks the paragraph is, because the extraction stops there. That pair is the one that caught the
+ * drift which actually happened — the mirror silently losing `mod` and standing at 43 words.
  *
  * The third, `spec/tooling.md`'s `keyword` **token-class** row, is only **change-detected**; see
  * {@link rowFingerprintFindings} for why, and issue #841 for the three mechanisms that tried for
@@ -1363,8 +1363,8 @@ export function narrativeFindings(manifest) {
  * Authoring the notes through a shell whose escape character is a backtick turned `` `note` ``,
  * `` `aliasOf` ``, `` `reserved` `` and `` `excluded` `` into LF, BEL, CR and ESC **code points in
  * the decoded strings** inside a normative `spec/` artefact — carried, as a conforming JSON file
- * must, as visible six-character escapes. Still valid JSON, still Prettier-clean, still zero
- * findings, and four words left unreadable.
+ * must, as visible escapes. Still valid JSON, still Prettier-clean, still zero findings, and four
+ * words left unreadable.
  *
  * Every string leaf, not only the prose ones — `Object.entries` yields indexed pairs for arrays, so
  * the bare strings inside `names[].registries[]` and `excluded[].positions[]` are reached too. `Cc`

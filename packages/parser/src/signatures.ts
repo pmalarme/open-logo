@@ -100,13 +100,15 @@ export function corePrimitiveArity(name: string): number | undefined {
  * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §3 requires of #841 an
  * enumerable canonical map *"consumed by the resolver, so it cannot drift"*.
  *
- * The map is enumerable, and the drift the clause exists to prevent is removed **structurally**
- * rather than by routing: both spellings take the same `arity` literal because the row holds only
- * one, so there is no second number to keep in step, and no lookup that could point at a name the
- * table does not hold — no failure mode to guard and no unreachable guard to leave behind.
- * {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly and does **not** route
- * through the canonical map, so the ADR's literal *consumed* is not satisfied; its stated purpose
- * is.
+ * The map is enumerable. The **consumption** half is not satisfied and its purpose is only partly
+ * served, so this is the narrow claim: keeping the pair on one row removes the duplicate **arity** —
+ * both spellings take the same literal because the row holds only one — and nothing more.
+ * {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly and never consults the
+ * canonical map, so **which canonical a spelling maps to is still two facts**: this table's alias
+ * column, and the runtime's own dispatch in `packages/runtime/src/execute-internal.ts`. Move an
+ * alias column onto a different row of equal arity and update `spec/built-in-names.json` to match,
+ * and every check agrees while the runtime still dispatches the old way. Closing that needs a real
+ * consumer of the map, which #841 does not add.
  *
  * It does **not** change what the five mean at a call site: they remain independent spellings bound
  * to one primitive, with no canonicalisation in either direction, which is exactly the call-site

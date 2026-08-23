@@ -52,8 +52,9 @@
  * - `spec/grammar.md:368-375` — normative; `npm run built-in-names` compares its extracted words
  *   against `spec/built-in-names.json`.
  * - `spec/tooling.md:91-94` — mirrors that block; the same gate compares **the same extracted words
- *   in the same order**. Not the bytes: the extractor takes the backticked words, so a
- *   whitespace-only edit to that paragraph changes the file and the gate stays green.
+ *   in the same order**. Not the bytes: the extractor takes the backticked words, so changing the
+ *   spacing *between* them leaves the gate green. Whitespace that breaks the paragraph does not —
+ *   a blank line inside it truncates the extraction and is a finding.
  * - this array — reaches that comparison through `spec/built-in-names.json`, in both directions.
  * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
  * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
