@@ -4172,11 +4172,25 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
 
 /**
  * Every primitive name any profile registers, derived from `signatures.ts`'s profile-keyed registry
- * by walking `OL_CHECK_PROFILES` — never a list of names kept here. That is the point: issue #839's
- * AC4 requires the runtime to enforce *every* built-in name rather than the handful an earlier
- * hand-composed lookup happened to consult, and a runtime copy of the list is precisely what let
- * `execute()` and `check()` drift apart in the first place (`docs/adr/0021-built-in-names-list-and-ci-gate.md`).
- * A profile that gains a table, or a table that gains a name, is covered here the moment it lands.
+ * by walking `OL_CHECK_PROFILES` — never a list of names kept here.
+ *
+ * That is the mechanism [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §4
+ * prescribes: it requires that the implementation "consumes the list; it does not re-derive it", and
+ * says that to make this possible "`@openlogo/parser` must export the enumerable name accessors that
+ * `signatures.ts` already defines internally". Those accessors are what this reads. Issue #839's AC4
+ * requires the runtime to enforce *every* built-in name rather than the handful an earlier
+ * hand-composed lookup happened to consult, and a hand-maintained runtime copy of the list is
+ * precisely what let `execute()` and `check()` drift apart in the first place. A profile that gains
+ * a table, or a table that gains a name, is covered here the moment it lands.
+ *
+ * **What is still outstanding, and whose it is.** ADR-0021 also specifies an authoritative
+ * `spec/built-in-names.json` plus a CI drift gate; neither exists yet, and both are **issue #841**'s
+ * deliverables along with retiring `checker-reserved-word.ts`'s remaining hand-composed profile
+ * branches. Until they land, the two stages are held together by measurement rather than by
+ * construction: `execute-declaration-slots.test.mjs`'s "`execute()` and `check()` report the SAME
+ * identity for every built-in name at `define`" walks the whole registry and fails on the first
+ * divergence, which is the same property the CI gate will assert from the shipped list. When #841
+ * lands, this set should be replaced by its export rather than kept in parallel.
  */
 const ANY_PROFILE_PRIMITIVE_NAMES: ReadonlySet<string> = new Set(
   OL_CHECK_PROFILES.flatMap((profile) => profilePrimitiveNames(profile)),

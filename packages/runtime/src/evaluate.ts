@@ -2171,9 +2171,18 @@ export function executeRemoveKey(
  * {@link evaluateCall}'s dispatch and {@link isSupportedExpression}'s known-callee guard — `bf
  * [1 2 3]` dispatches through the exact same `evaluateButfirst` path as `butfirst [1 2 3]` and is
  * recognised as a supported argument, so no alias spelling can ever reach a diagnostic or an event
- * payload. A user procedure whose name is the alias's surface spelling shadows the alias (`define bf
- * … end` makes `bf` the user's procedure), mirroring the statement chokepoint's guard: when the
- * surface name is a registered procedure we keep it so the call dispatches to that procedure.
+ * payload.
+ *
+ * A user procedure whose name is the alias's surface spelling shadows the alias when one exists in
+ * `procedures`: the chokepoint must NOT rewrite `bf` to `butfirst` and reach the built-in reporter.
+ * **Since issue #839 no `.logo` program can create that situation** — an alias spelling is a
+ * built-in name, so `define bf` raises `ol-reserved-word` at phase-1 registration. The guard is kept
+ * because `evaluate()` and `createEnvironment()` are public API: a host can assemble a `procedures`
+ * registry the source language cannot express, and `heritage-alias-chokepoint.test.mjs` drives
+ * exactly that. Its **statement**-position twin in `execute-internal.ts`'s
+ * `canonicalizeHeritageAliasCall` was removed by #839 instead, because statement execution has no
+ * equivalent public entry, so there the branch was unreachable — and unreachable code cannot meet
+ * this repository's 100% coverage gate. That asymmetry is deliberate, not an oversight.
  *
  * This resolves the **dispatch name** only; a call that dispatches onward to a *user procedure*
  * must also carry the resolved name on the node itself — see {@link withResolvedCallee}, and issue

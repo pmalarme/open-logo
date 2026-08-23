@@ -263,12 +263,16 @@ test("#787: a reporter-position alias over a BUILT-IN canonical still behaves ex
       withoutSpans(core.events),
       `${aliasSource} must emit the same events as its Core twin`,
     );
+    // Derive the surface spelling from the row rather than hard-coding one: a fixed `"fd"` check
+    // can never fail on a `bf` row, and the `bf` rows are the only ones here that produce a
+    // diagnostic at all — so the assertion would have been inert exactly where it mattered.
+    const surface = aliasSource.match(/\b(fd|bf)\b/)[1];
     for (const diagnostic of alias.diagnostics) {
       for (const value of Object.values(diagnostic.params)) {
         assert.notEqual(
           value,
-          "fd",
-          "no structured param may carry the surface spelling",
+          surface,
+          `no structured param may carry the surface spelling ${surface}`,
         );
       }
     }

@@ -458,6 +458,8 @@ test("`define input` is rejected at registration by BOTH check() and execute(), 
     "…at the same span",
   );
   assert.deepEqual(printedValues(result), []);
-  // Nothing ran at all: no `primitive` read event, so the scripted answer is still queued.
-  assert.deepEqual(effectEvents(result), []);
+  // Asserted on the WHOLE event stream: `effectEvents`/`printedValues` are filtered views, and
+  // filtering an empty array never calls its predicate, so neither would notice an `instruction`
+  // event — or anything else — being emitted before the halt.
+  assert.deepEqual(result.events, [], "nothing runs at all");
 });

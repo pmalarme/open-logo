@@ -174,6 +174,33 @@ test("`execute()` and `check()` agree on the SPAN, not merely the code and param
   }
 });
 
+test("`params.name` is the DECLARED surface spelling for a built-in too, never the canonical", () => {
+  // The registry-derived sweeps above cannot see this. Every name they iterate is the canonical
+  // lowercase spelling, so the declared spelling, the canonical, and any case-folded form all
+  // COINCIDE — an implementation that reported the folded name would pass all 148 rows and still
+  // break AC2, which is the same structural blindness ruling #833's amendment found in the 57
+  // fixtures pinning `params.callable`. Mixed case is applied to the duplicate half by
+  // `define-twice-differing-case` and the `"define twice, differing case"` row below; this is the
+  // reserved-word half. Both declaration forms, and a keyword as well as primitives and an alias,
+  // because each reaches `ol-reserved-word` through a different branch of `isBuiltInName`.
+  for (const source of [
+    "define FORWARD\nend",
+    "define FiRsT\nend",
+    "define FD\nend",
+    "define IF\nend",
+    "struct FORWARD [ x ]",
+    "struct FD [ x ]",
+  ]) {
+    const identity = executeIdentity(source);
+    assert.deepEqual(identity, checkIdentity(source), source);
+    assert.equal(
+      identity[0][1].name,
+      source.split(/\s+/)[1],
+      `${source} must report the spelling the learner wrote`,
+    );
+  }
+});
+
 test("a Heritage alias is exactly as illegal as its canonical, by construction", () => {
   // Heritage is "alternate spellings only, no new semantics", so `define pr` must be as (il)legal as
   // `define print`. Derived from the alias registry, so a new alias is covered without editing this.
