@@ -1273,6 +1273,48 @@ test("#952 (review round 7): a delivery that arrives re-entrantly is not credite
   );
 });
 
+test("#952 (review round 8): a re-entrant press is flushed on the non-literal path too", () => {
+  // The `declared === null` early return sat before the remainder flush, so a press arriving
+  // re-entrantly was stranded until some unrelated later delivery happened to drain it. Measured on
+  // the pre-fix tree: two presses produced one invocation, and a third flushed both pending ticks.
+  const store = OL.createStudioState({
+    source: [
+      ':chosen = "left"',
+      "on_key :chosen [",
+      '  print "turned"',
+      "]",
+      "wait 5",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  let reentered = false;
+  const unsubscribe = store.subscribe(() => {
+    if (reentered) {
+      return;
+    }
+    reentered = true;
+    controller.deliverKey("left");
+  });
+
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "a non-literal key word claims nothing and suppresses nothing",
+  );
+  unsubscribe();
+
+  assert.deepEqual(
+    store.getState().output,
+    ["turned", "turned"],
+    "both presses are delivered — neither is stranded waiting for an unrelated one",
+  );
+});
+
 test("#952: a delivery is refused for a program whose on_key was never reached", () => {
   const store = OL.createStudioState({
     source: [

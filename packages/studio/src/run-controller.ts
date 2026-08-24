@@ -1479,7 +1479,10 @@ export function createRunController(
     const scheduledLength = hostInputEvents.length;
     drainDeliveredInput(scheduledLength);
     if (declared === null) {
-      // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing.
+      // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing. The
+      // remainder still has to be flushed on this path too — returning early from here stranded a
+      // re-entrant press until some unrelated later delivery happened to drain it.
+      drainDeliveredInput();
       return false;
     }
     const after =
