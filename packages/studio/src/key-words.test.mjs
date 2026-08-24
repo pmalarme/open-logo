@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 
@@ -105,4 +107,76 @@ test("#952: KEY_WORD_BY_BROWSER_KEY only renames keys whose lowercase form is no
       `${browserKey} needs no entry: lowercasing already produces "${keyWord}"`,
     );
   }
+});
+
+test("#952 (review round 2): collectDeclaredKeyWords reads the key words a program's on_key statements name", () => {
+  const declared = OL.collectDeclaredKeyWords(
+    [
+      'on_key "left" [',
+      "  left 15",
+      "]",
+      'on_key "space" [',
+      "  stamp",
+      "]",
+      "wait 30",
+    ].join("\n"),
+  );
+
+  assert.deepEqual([...declared].sort(), ["left", "space"]);
+});
+
+test("#952: a program with no on_key declares no key words", () => {
+  assert.deepEqual([...OL.collectDeclaredKeyWords("forward 100")], []);
+});
+
+test("#952: on_key nested inside a block or a procedure is still found", () => {
+  const declared = OL.collectDeclaredKeyWords(
+    [
+      "define setup",
+      '  on_key "up" [',
+      "    forward 10",
+      "  ]",
+      "end",
+      "repeat 1 [",
+      '  on_key "down" [',
+      "    back 10",
+      "  ]",
+      "]",
+      "setup",
+      "wait 10",
+    ].join("\n"),
+  );
+
+  assert.deepEqual([...declared].sort(), ["down", "up"]);
+});
+
+test("#952: a non-literal key word collapses the whole set to null — the safe direction, so nothing is suppressed", () => {
+  assert.equal(
+    OL.collectDeclaredKeyWords(
+      [
+        ':chosen = "left"',
+        "on_key :chosen [",
+        "  left 15",
+        "]",
+        "wait 10",
+      ].join("\n"),
+    ),
+    null,
+    "the key word is not knowable before the run, so it must not be silently under-reported",
+  );
+});
+
+test("#952: the real spec/examples/10-game.logo declares exactly the three keys it names", () => {
+  const source = readFileSync(
+    fileURLToPath(
+      new URL("../../../spec/examples/10-game.logo", import.meta.url),
+    ),
+    "utf8",
+  );
+
+  assert.deepEqual([...OL.collectDeclaredKeyWords(source)].sort(), [
+    "left",
+    "right",
+    "up",
+  ]);
 });

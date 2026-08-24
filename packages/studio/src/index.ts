@@ -381,6 +381,7 @@ export {
 export {
   KEY_WORD_BY_BROWSER_KEY,
   MODIFIER_KEY_NAMES,
+  collectDeclaredKeyWords,
   normalizeKeyWord,
 } from "./key-words.js";
 

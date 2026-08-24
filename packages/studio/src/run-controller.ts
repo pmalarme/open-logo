@@ -238,8 +238,10 @@
  *
  * See `docs/adr/0023-worker-execution-host.md` for why the replay is kept rather than deleted (the
  * Worker host needs COOP/COEP cross-origin isolation, a deployment posture), and for the bound that
- * replaces the retry cap #881 removed: a Worker host **never replays**, so there is no attempt
- * sequence to diverge and nothing for a counter to count.
+ * replaces the retry cap #881 removed: a Worker host **never replays to answer a read**, so there is
+ * no attempt sequence to diverge and nothing for a counter to count. (Since #952 it does replay to
+ * deliver *input* — a different chain, driven by learner keystrokes rather than by answers, and one
+ * that is refused outright once a read has happened under such a host. See "#952" below.)
  *
  * {@link resolveRecordedAnswer}'s prompt pairing is kept as defence in depth rather than deleted:
  * it is what makes "an answer can never reach a question the learner was not shown" true **by
@@ -297,7 +299,8 @@
  * termination"). All three go through the same mechanism — and share its one honest limit: a
  * scheduled occurrence fires only if the program's tick clock actually reaches its tick, and only a
  * `wait` pause advances that clock. A program that never waits therefore receives nothing, Stop
- * notification included, and pays for one replay that delivers nothing.
+ * notification included, and still pays for the replay — see "What a delivery costs" below, because
+ * on a program that has drawn a lot that bill is seconds, not milliseconds.
  *
  * ### Real time never reaches the event stream
  * `ExecuteOptions.hostInput.events` is a **static, tick-scheduled** list fixed before a run starts —
@@ -316,19 +319,36 @@
  *
  * That mapping also gives the program the last word on its own lifetime, for free: `10-game.logo`
  * ends with `wait 300`, so its tick clock visits ticks 1…300 and the 300th delivery is the last one
- * that can fire. Later deliveries are still scheduled and still replayed — `deliverKey` reports
- * `true` for them — they simply reach a tick the program never gets to. **That is what the boolean
- * means**: the press was accepted, scheduled, and replayed into the run, *not* that a handler
- * matched it or that its tick was reached. Neither is knowable without running the program, and the
- * trace stream carries no tick by design.
+ * that can fire. Later presses of a key the program names are still scheduled and still replayed —
+ * `deliverKey` reports `true` for them — they simply reach a tick the program never gets to. **That
+ * is what the boolean means**: a handler *names* this key, so the press is the program's to handle.
+ * It is deliberately not "a handler ran": how many ticks a program will consume is not knowable
+ * without running it, and the trace stream carries no tick by design.
+ *
+ * ### What a delivery costs
+ * One execution per delivery, as an `input` answer does — but for a program that has already drawn a
+ * lot, that is **not** the dominant term. `finishAttempt` fast-forwards the new animation past the
+ * events already on screen one step at a time, and on a heavy program that dwarfs the interpreter:
+ * measured on `when "stop" [ … ] / repeat 30000 [ forward 1 right 1 ]`, a Stop's notification replay
+ * took 6.9 s, of which the run itself was 224 ms (3.2%) and the fast-forward 6.7 s (96.8%). A single
+ * key press on the same program cost 4.5 s with 57 ms of execution, and a press of a key the program
+ * does **not** name — which changes nothing — cost 4.5 s too, because the replay happens either way.
+ * Across `repeat` 5,000→40,000 a Stop's replay cost 0.44×–1.22× a whole second run.
+ *
+ * Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
+ * `run()` 4.9 ms and `stop()` 41.4 ms. The cost is a function of **how much has been drawn**, and an
+ * interactive program spends its ticks waiting rather than drawing. Cheapening it needs a seek-to-
+ * index on `@openlogo/turtle`'s animation controller rather than a step loop, which is that package's
+ * to give; it is filed as follow-up work.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
- * captured source, same pinned seed, same answers — exactly as a new `input` answer does. The cost
- * is the same too: one execution per delivery. What the learner sees is the canvas, output, and
+ * captured source, same pinned seed, same answers — exactly as a new `input` answer does. What the
+ * learner sees is the canvas, output, and
  * turtle state updating to reflect the input they just gave, because the replay is fast-forwarded
  * past the events already drawn (`shownEventCount`, set from the live animation's own cursor) rather
- * than redrawing from a blank canvas.
+ * than redrawing from a blank canvas. What that costs is measured under "What a delivery costs"
+ * above — and it is the fast-forward, not the execution, that dominates.
  *
  * A replay for delivered input deliberately does **not** re-announce `runStatus` as `"running"`: it
  * is the *same* run with more input, not a new one. `run-log.ts` and `tutor-output-pane.ts`
@@ -343,23 +363,32 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **The chain has never asked the learner a question.** The answer FIFO and the input schedule are
- *   both inputs to `execute()`, and #881's termination argument holds only while everything except
- *   the newest answer is frozen. Letting the two interleave breaks it three ways, each measured in
- *   review: a Worker host resolves reads in place and so records **no** answers, meaning a replay
- *   re-asks every question the learner already answered; a key that fires before a read can reach a
- *   *different* question than they were shown; and a prompt host answering synchronously from inside
- *   `present()` can be handed one more read per answer, which is exactly the quadratic hang the
- *   "#881" section above describes. So they never coexist: one question latches the window shut for
- *   the rest of that chain. Refusing there is the coalescing `spec/interaction-events.md:91-93`
- *   permits "while a program is paused or blocked" — a program blocked on `input` is precisely that.
+ * - **The chain is not blocked on, or mid-answering, an `input` question.** A question outstanding
+ *   refuses the delivery outright, because `spec/interaction-events.md:108-111` forbids running a
+ *   handler block until the read finishes; so does an answer chain mid-pump, because a prompt host
+ *   answering synchronously from inside `present()` could otherwise be handed one more read per
+ *   answer — the quadratic hang the "#881" section above describes. Once the read *has* finished the
+ *   window reopens, which is exactly what `:108-111` allows.
  *
- * Note what is deliberately **not** a gate: whether an execution has settled. A delivery arriving
- * while an attempt is in flight — only reachable under a host that settles across event-loop turns —
- * is still *scheduled*, and replayed when that attempt lands. Refusing it made the recorded schedule
+ *   Under a host that resolves a read **in place** (the Worker one) it does **not** reopen, and that
+ *   is a genuine limitation rather than caution: such a host never replayed, so the controller never
+ *   recorded its answers and `execution-worker-runner.ts` always presents a live read instead of
+ *   consuming `ExecutionRequest.answers`. A delivered-input replay there would re-ask every question
+ *   the learner had already answered — measured in review. Closing that needs both halves recording
+ *   and consuming answers, and is filed as follow-up work.
+ *
+ * Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
+ * settlement has landed, a delivery arriving while a later attempt is in flight — only reachable
+ * under a host that settles across event-loop turns — is still *scheduled*, and replayed when that
+ * attempt lands. Refusing it made the recorded schedule
  * depend on settlement pacing (measured: the same two calls recorded two entries under a synchronous
  * host and one under a deferred one) and dropped the key outright, where `:91-93` requires the most
  * recent key and click state to be preserved.
+ *
+ * *Before* that first settlement the registration gate has nothing to read — `run()` clears
+ * `currentEvents` — so a delivery in that window is refused and dropped rather than buffered. It
+ * fails safe (nothing is scheduled, nothing is suppressed) and the window is one settlement wide,
+ * but the pacing-independence claim above is genuinely "after the run's first settlement".
  */
 
 import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
@@ -380,6 +409,7 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import { createInProcessExecutionHost } from "./execution-host.js";
+import { collectDeclaredKeyWords } from "./key-words.js";
 import type {
   ExecutionHost,
   ExecutionRequest,
@@ -550,23 +580,22 @@ export interface RunController {
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
    * The press is scheduled at the next studio tick and the current chain is replayed with it, so
-   * every matching `on_key` handler fires. Reports whether **the program actually responded** — a
-   * handler ran and produced events — which is deliberately narrower than "the press was accepted":
-   * a key no handler names, or one whose tick the program never reaches, reports `false`.
+   * every matching `on_key` handler fires. Reports whether **this key word can reach a handler at
+   * all** — the chain is accepting input, the run registered `on_key`, and the program's own
+   * `on_key` declarations name this key.
    *
-   * That narrowness is the point. `canvas-interaction.ts` decides whether to suppress the browser's
-   * own scrolling from this answer, and suppression must be conditional on a handler *actually*
-   * responding: swallowing arrows for a program that registered `on_key "up"` only, or for one with
-   * no interaction at all, would break scrolling for learners who never asked for interaction. The
-   * hazard this slice fixes is silent inaction; the hazard it must not introduce is silent
-   * interception, which is worse because it affects every learner rather than only interactive ones.
+   * That last part is read from the source, never measured from the run, and
+   * `key-words.ts`'s {@link collectDeclaredKeyWords} documents why both measured proxies were
+   * unsound: a handler that raises *shortens* the event stream, and a host that settles across
+   * event-loop turns answers after the `keydown` has already scrolled the page. A program whose
+   * `on_key` key word is not a literal reports `false`, so nothing is suppressed.
    *
-   * Measured rather than asked, because the registered key words are not observable: registration
-   * emits only the `primitive`'s *name* (`spec/interaction-events.md:120-122`), never its key word.
-   * So the replay's own event stream is the evidence — a fired handler always emits at least the
-   * block-head `instruction` event (`:101-103`), and an unmatched key produces a stream identical to
-   * the one before it. Under a host that settles across event-loop turns the answer is not known in
-   * time and this reports `false`, so nothing is suppressed: the safe direction.
+   * The narrowness is the point. `canvas-interaction.ts` decides whether to suppress the browser's
+   * own scrolling from this answer, and suppression must be per *press*: swallowing arrows for a
+   * program that registered `on_key "up"` only, or for one with no interaction at all, would break
+   * scrolling for learners who never asked for interaction. The hazard this slice fixes is silent
+   * inaction; the hazard it must not introduce is silent interception, which is worse because it
+   * affects every learner rather than only interactive ones.
    *
    * `false` with **no execution at all** whenever the chain is not accepting input or the run
    * registered no `on_key` handler. See this module's doc comment ("#952") for those gates and for
@@ -579,18 +608,24 @@ export interface RunController {
    * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
    * keyboard-reachable activation control is exactly as complete a click as a mouse is.
    *
-   * Scheduled, gated, and reported exactly like {@link deliverKey}, against `on_click` registration.
+   * Scheduled and gated exactly like {@link deliverKey}; reports {@link acceptsClick}, since
+   * `on_click` names no key word to narrow against.
    */
   deliverClick(): boolean;
   /**
-   * Would an activation reach a handler right now (#952)? The live run registered `on_click` and the
-   * chain is still accepting input.
+   * Is the live run registered for `on_click`, with the chain still accepting input (#952)?
    *
    * This is what keeps the keyboard-reachable activation control out of the tab order for the many
    * programs that have no interaction at all: a focusable control nothing can respond to is a tab
    * stop a learner pays for and never uses. `canvas-interaction.ts` hides the control while this is
    * `false`, exactly as `index.html`'s `hidden` attribute — not `REPL_FOCUS_ORDER` — is what removes
    * the lesson pane from the real tab order while no lesson is loaded.
+   *
+   * It reports **registration**, not reachability: it stays `true` after the program's tick clock
+   * has run past the last tick a click could be scheduled on, because how many ticks a program will
+   * consume is not knowable without running it and the trace stream carries no tick by design. So
+   * the control can outlive its own usefulness by the tail of a run — visible and inert, never
+   * hidden while it still works.
    */
   acceptsClick(): boolean;
 }
@@ -800,15 +835,18 @@ export function createRunController(
   let hostInputEvents: readonly HostInputEvent[] = [];
   let nextHostInputTick = 1;
   let chainAcceptsHostInput = false;
-  // #952 (review finding) — has this chain ever put an `input` question to the learner? The answer
-  // FIFO and the host-input schedule are BOTH inputs to `execute()`, and #881's termination argument
-  // holds only while everything except the newest answer is frozen. Letting a delivered key extend
-  // the schedule mid-answer-chain breaks that three ways, each measured by review: a Worker host
-  // re-asks every question (it resolves reads in place and so records no answers to replay with); a
-  // key that fires before a read can reach a *different* question than the learner was shown; and a
-  // prompt host that answers synchronously can be handed one more read per answer, which is the
-  // quadratic hang #881's doc comment describes. So the two never coexist: a chain that has asked
-  // anything stops accepting input for the rest of its life. `run()`/`reset()` start a fresh one.
+  // #952 (review round 2) — the key words this chain's program declares, computed once per chain
+  // from the captured source. `null` means at least one `on_key` names a non-literal key, so the set
+  // is unknowable before the run; see `key-words.ts`'s `collectDeclaredKeyWords` for why this is read
+  // from the declaration rather than measured from the run.
+  let declaredKeyWords: ReadonlySet<string> | null = null;
+  // #952 (review finding) — has this chain ever put an `input` question to the learner? It matters
+  // only for a host that resolves a read **in place**: such a host records no answers (it never
+  // replays, so it never needed to), and `execution-worker-runner.ts` always presents a live read
+  // rather than consuming `ExecutionRequest.answers` — so a delivered-input replay there would
+  // re-ask every question already answered. Measured by review. A replaying host records its answers
+  // and `resolveRecordedAnswer` pairs each with its prompt, so it reopens the moment the read
+  // finishes, exactly as `spec/interaction-events.md:108-111` allows ("until the read finishes").
   let chainHasAskedQuestion = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
@@ -1007,8 +1045,9 @@ export function createRunController(
       // ambient entropy source, and the collaborators supplied alongside the seed are deterministic
       // too (`eduTutorTemplate` is a pure mapping; the reader answers only from the chain's frozen
       // FIFO), so every attempt reproduces the previous one exactly up to the read. See this
-      // module's doc comment ("#881"). A Worker host never replays, so the seed matters there only
-      // for reproducing a whole run.
+      // module's doc comment ("#881"). A Worker host never replays to answer a read, so the seed
+      // matters there only for reproducing a whole run — and, since #952, for making a
+      // delivered-input replay a genuine continuation under any host.
       randomSeed: chainRandomSeed,
       // #876 — the controller's cancellation state, carried as data because an object's mutation is
       // invisible across a thread boundary. `stop()` latches `signal.aborted` and only `reset()`
@@ -1272,15 +1311,22 @@ export function createRunController(
 
   /**
    * Is this chain accepting delivered input at all (#952)? It must be live — `run()` opens the
-   * window, Stop and Reset close it, and a lazy `step()` preparation never opens it — and it must
-   * never have asked the learner a question, which is what keeps the answer FIFO and the host-input
-   * schedule from ever being non-trivial in the same chain. See {@link chainHasAskedQuestion}.
+   * window, Stop and Reset close it, and a lazy `step()` preparation never opens it — no question may
+   * be outstanding (`spec/interaction-events.md:108-111` forbids running a handler block until a read
+   * finishes), and the answer chain must not be mid-pump.
    *
-   * Deliberately says nothing about whether an execution has settled: a delivery is *scheduled*
-   * either way, so the schedule stays a function of the input sequence rather than of host timing.
+   * The `pumping` check is what keeps a prompt host that answers **synchronously from inside
+   * `present()`** from being handed one more read per answer, which review measured as the quadratic
+   * hang the "#881" section above describes. The `chainHasAskedQuestion` check applies only to a host
+   * that resolves a read in place — see that field.
    */
   function acceptsHostInput(): boolean {
-    return chainAcceptsHostInput && !chainHasAskedQuestion;
+    return (
+      chainAcceptsHostInput &&
+      pendingRead === null &&
+      !pumping &&
+      !(chainHasAskedQuestion && resolveReadInPlace !== undefined)
+    );
   }
 
   /**
@@ -1299,24 +1345,31 @@ export function createRunController(
     if (!acceptsHostInputFor("on_key")) {
       return false;
     }
-    const before = currentEvents.length;
     scheduleHostInput({ kind: "key", key });
     drainDeliveredInput();
-    return currentEvents.length > before;
+    // Whether this key can reach a handler at all — read from the program's own `on_key`
+    // declarations, never measured from the run. `null` (a non-literal key word) reports `false`, so
+    // nothing is suppressed: the safe direction. See `key-words.ts`'s `collectDeclaredKeyWords`.
+    return declaredKeyWords?.has(key) ?? false;
   }
 
   function deliverClick(): boolean {
     if (!acceptsHostInputFor("on_click")) {
       return false;
     }
-    const before = currentEvents.length;
     scheduleHostInput({ kind: "click" });
     drainDeliveredInput();
-    return currentEvents.length > before;
+    return true;
   }
 
   function acceptsClick(): boolean {
-    return acceptsHostInputFor("on_click");
+    // A capability question ("can a click reach a handler in this run"), not a right-now one: the
+    // transient blockers in `acceptsHostInput` — a question outstanding, an answer chain mid-pump —
+    // come and go within a single `run()` call, and hiding the control for those moments would make
+    // a tab stop flicker in and out under the learner. It answers registration plus a live chain.
+    return (
+      chainAcceptsHostInput && hasRegisteredHandler(currentEvents, "on_click")
+    );
   }
 
   function run(): void {
@@ -1343,6 +1396,7 @@ export function createRunController(
     nextHostInputTick = 1;
     chainAcceptsHostInput = true;
     chainHasAskedQuestion = false;
+    declaredKeyWords = collectDeclaredKeyWords(chainSource);
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1442,6 +1496,7 @@ export function createRunController(
     nextHostInputTick = 1;
     chainAcceptsHostInput = false;
     chainHasAskedQuestion = false;
+    declaredKeyWords = null;
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;

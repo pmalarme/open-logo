@@ -31,7 +31,9 @@
  * Arrows, space, and the paging keys scroll the page. A learner playing `10-game.logo` would drive
  * the turtle and scroll the studio out from under themselves at the same time. So the default is
  * suppressed for exactly {@link SCROLLING_KEY_WORDS} — and only when
- * {@link RunController.deliverKey} reports that **the program actually responded to that press**.
+ * {@link RunController.deliverKey} reports that **this key word can reach a handler**, which it
+ * answers from the program's own `on_key` declarations (`key-words.ts`'s
+ * {@link collectDeclaredKeyWords}) rather than from anything measured at runtime.
  *
  * The unit of that decision is the **individual press**, not the program: a program registering
  * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
@@ -41,7 +43,7 @@
  * studio is broken", affecting everyone rather than only the few using Interaction. The bug this
  * slice fixes is silent inaction; the regression it must not introduce is silent interception.
  *
- * `"tab"` is deliberately **not** in that list even for a responding press: it is how a learner
+ * `"tab"` is deliberately **not** in that list even for a key a handler names: it is how a learner
  * leaves the canvas, and a game that could swallow it would be a keyboard trap. `"enter"` and
  * `"escape"` are left alone for the same reason — they operate the surrounding UI.
  *
@@ -130,7 +132,8 @@ export const CANVAS_ACTIVATION_TEXT = "Activate";
  */
 export const CANVAS_INTERACTION_HELP_TEXT =
   "While a program is running, keys pressed here are sent to its on_key handlers. " +
-  "Use the Activate canvas button, or click the canvas, to trigger its on_click handlers.";
+  "A program that uses on_click also shows an Activate canvas button beside this canvas, " +
+  "which triggers it without a pointer.";
 
 /** Whether `keyWord` is one whose browser default this module suppresses once it is delivered. */
 export function suppressesBrowserDefault(keyWord: string): boolean {
@@ -139,12 +142,12 @@ export function suppressesBrowserDefault(keyWord: string): boolean {
 
 /**
  * Handle one `keydown` on the canvas: normalize it to an OpenLogo key word, deliver it, and
- * suppress the browser's own scrolling only if the program actually responded and the key is one
- * that would otherwise scroll.
+ * suppress the browser's own scrolling only if a handler names that key and it is one that would
+ * otherwise scroll.
  *
- * Reports the key word the program responded to, or `null` when it responded to nothing — a bare
- * modifier, a key no handler names, or a program with no `on_key` at all. Exported so the decision
- * is testable without a DOM.
+ * Reports the key word a handler names, or `null` when none does — a bare modifier, a key no
+ * `on_key` declares, or a program with no `on_key` at all. Exported so the decision is testable
+ * without a DOM.
  */
 export function handleCanvasKeyDown(
   controller: RunController,

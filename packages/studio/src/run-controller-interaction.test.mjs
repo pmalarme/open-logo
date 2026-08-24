@@ -96,6 +96,44 @@ function createPromptHost(onPresent) {
   return host;
 }
 
+/**
+ * A host shaped like `worker-execution-host.ts`: it **suspends the read in place** (it exposes
+ * `resolveRead`) rather than replaying, so the controller records no answers for it. Minimal by
+ * design — it settles once with the program's question and once more when that question is
+ * resolved, which is all the controller's resolve-in-place path reads.
+ */
+function createResolveInPlaceHost() {
+  let settle = null;
+  const host = {
+    cancelCount: 0,
+    execute(request, nextSettle) {
+      settle = nextSettle;
+      nextSettle({
+        events: [],
+        output: [],
+        tutorOutput: [],
+        diagnostics: [],
+        pendingPrompt: "who?",
+        retainedAnswers: request.answers,
+      });
+    },
+    cancel() {
+      host.cancelCount += 1;
+    },
+    resolveRead() {
+      settle({
+        events: [],
+        output: [],
+        tutorOutput: [],
+        diagnostics: [],
+        pendingPrompt: null,
+        retainedAnswers: [],
+      });
+    },
+  };
+  return host;
+}
+
 /** A seed source that pins every chain to one value, so a replay is reproducible by construction. */
 function pinnedSeed(seed) {
   return () => seed;
@@ -569,9 +607,9 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
 
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "a host that has not settled cannot yet report a response, so nothing is suppressed — " +
-      "the safe direction: a page that scrolls, never a key silently swallowed",
+    true,
+    "the key word is read from the program's own declaration, so the answer does not " +
+      "wait for a host to settle — this is what makes interception work under a Worker host",
   );
   controller.deliverKey("left");
   deferred.settleAll();
@@ -623,21 +661,23 @@ test("#952 (review finding 2): a deferred host and a synchronous host record the
   );
 });
 
-test("#952 (review finding 1): a chain that has asked the learner a question stops accepting delivered input", () => {
-  // The answer FIFO and the input schedule are both inputs to execute(), and #881's termination
-  // argument holds only while everything but the newest answer is frozen. A Worker host records no
-  // answers at all (it resolves reads in place), so a replay there re-asked every question the
-  // learner had already answered — measured by review. The two never coexist.
-  const store = OL.createStudioState({
-    source: [
-      'on_key "left" [',
-      '  print "turned"',
-      "]",
-      ':name = input "who?"',
-      "print :name",
-      "wait 5",
-    ].join("\n"),
-  });
+test("#952 (review finding 1): delivery reopens once a read FINISHES under a replaying host, and stays shut under one that resolves reads in place", () => {
+  // `spec/interaction-events.md:108-111` blocks handler blocks only "until the read finishes", so a
+  // permanent latch would be stricter than the spec and would disable interaction for any program
+  // that ever asks a question. A replaying host records its answers and `resolveRecordedAnswer`
+  // pairs each with its prompt, so reopening is safe there. A host that resolves a read IN PLACE
+  // records none — `execution-worker-runner.ts` always presents a live read rather than consuming
+  // `ExecutionRequest.answers` — so a replay there would re-ask everything already answered.
+  const source = [
+    'on_key "left" [',
+    '  print "turned"',
+    "]",
+    ':name = input "who?"',
+    "print :name",
+    "wait 5",
+  ].join("\n");
+
+  const store = OL.createStudioState({ source });
   const host = createPromptHost();
   const controller = OL.createRunController(store, {
     inputPrompt: host,
@@ -656,13 +696,49 @@ test("#952 (review finding 1): a chain that has asked the learner a question sto
   assert.deepEqual(store.getState().output, ["Ada"], "the answer was consumed");
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "and the window stays shut for the rest of the chain, not just while the question is open",
+    true,
+    "the read has finished, so the window reopens exactly as :108-111 allows",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["Ada", "turned"],
+    "and the handler really fires",
   );
   assert.deepEqual(
     host.prompts,
     ["who?"],
-    "so no replay can re-ask a question the learner already answered",
+    "without re-asking the question the learner already answered",
+  );
+
+  // The other host shape: one that suspends the read in place and therefore records no answers.
+  const inPlaceStore = OL.createStudioState({ source });
+  const inPlaceHost = createPromptHost();
+  const executionHost = createResolveInPlaceHost();
+  const inPlaceController = OL.createRunController(inPlaceStore, {
+    inputPrompt: inPlaceHost,
+    executionHost,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  inPlaceController.run();
+  assert.deepEqual(inPlaceHost.prompts, ["who?"]);
+  inPlaceHost.respond("Ada");
+  assert.equal(
+    inPlaceController.deliverKey("left"),
+    false,
+    "a replay here would re-ask every question already answered, so the window stays shut",
+  );
+
+  inPlaceController.reset();
+  assert.equal(
+    executionHost.cancelCount,
+    1,
+    "Reset abandons the suspended run",
+  );
+  assert.equal(
+    inPlaceController.deliverKey("left"),
+    false,
+    "and Reset leaves no chain to deliver to",
   );
 });
 
@@ -737,7 +813,7 @@ test('#952 (QA finding 1): a `when "stop"` program whose clock never ticks recei
   assert.equal(store.getState().runStatus, "stopped");
 });
 
-test("#952 (QA finding 2 + maintainer criterion 2): a true return means the program RESPONDED — not merely that the press was scheduled", () => {
+test("#952 (QA finding 2 + maintainer criterion 2): the boolean answers whether a handler NAMES the key, read from the program's declaration", () => {
   const store = OL.createStudioState({
     source: ['on_key "left" [', '  print "turned"', "]", "wait 1"].join("\n"),
   });
@@ -753,27 +829,98 @@ test("#952 (QA finding 2 + maintainer criterion 2): a true return means the prog
   assert.equal(
     controller.deliverKey("left"),
     true,
-    "tick 1 is reached and the handler names this key, so it fires",
-  );
-  assert.deepEqual(store.getState().output, ["turned"]);
-
-  assert.equal(
-    controller.deliverKey("left"),
-    false,
-    "`wait 1` never reaches tick 2, so nothing responded — and nothing may be suppressed",
+    'on_key "left" names this key, so a press of it is the program\'s to handle',
   );
   assert.deepEqual(store.getState().output, ["turned"]);
 
   assert.equal(
     controller.deliverKey("right"),
     false,
-    "a key no handler names never responds either",
+    "no handler names this key, so it must keep its ordinary browser behavior",
   );
+
+  assert.equal(
+    controller.deliverKey("left"),
+    true,
+    "still the program's key, even though `wait 1` never reaches tick 2 for it to fire on — " +
+      "how many ticks a program will consume is not knowable without running it",
+  );
+  assert.deepEqual(store.getState().output, ["turned"]);
 
   assert.equal(
     recorder.requests.length,
     afterRun + 3,
     "each accepted delivery still costs one execution — the documented N+1 replay cost",
+  );
+});
+
+test("#952 (review finding 2): a handler that RAISES still counts as the program's key — the answer is read, never measured from the stream", () => {
+  // The unsound proxy this replaced: a handler that raises SHORTENS the event stream, so measuring
+  // growth reported "nothing responded" for a handler that genuinely ran. Measured by review at
+  // 45 events down to 5 with ol-undefined-var.
+  const store = OL.createStudioState({
+    source: [
+      'on_key "up" [',
+      "  forward :never_set",
+      "]",
+      "wait 3",
+      'print "one"',
+      'print "two"',
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  const before = store.getState().output.length;
+
+  assert.equal(
+    controller.deliverKey("up"),
+    true,
+    "the handler ran — that it raised must not turn into 'nothing responded'",
+  );
+  assert.ok(
+    store
+      .getState()
+      .diagnostics.some((diagnostic) => diagnostic.code === "ol-undefined-var"),
+    "the handler's own failure is surfaced",
+  );
+  assert.ok(
+    store.getState().output.length < before,
+    "…and it truncated the run, which is exactly why stream growth was an unsound proxy",
+  );
+});
+
+test("#952: a non-literal on_key key word still DELIVERS, it just never suppresses — the safe direction", () => {
+  // `collectDeclaredKeyWords` reports `null` when a key word is not a literal, because the set is
+  // unknowable before the run. The press is still scheduled and the handler still fires; only the
+  // browser-default suppression is withheld, so a key is never silently swallowed on a guess.
+  const store = OL.createStudioState({
+    source: [
+      ':chosen = "left"',
+      "on_key :chosen [",
+      '  print "turned"',
+      "]",
+      "wait 5",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.deepEqual(store.getState().diagnostics, []);
+
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "nothing is claimed about a key word that cannot be read from the source",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["turned"],
+    "…but the delivery genuinely happened and the handler ran",
   );
 });
 
