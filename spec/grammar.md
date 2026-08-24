@@ -209,7 +209,7 @@ list-literal        ::= "[" [ expression { expression } ] "]"
 dict-literal        ::= "{" { dict-entry } "}"
 dict-entry          ::= dict-key ":" expression
 dict-key            ::= identifier | number
-(* dict entries are separated by whitespace or newlines, never by commas *)
+(* entries are separated by whitespace or newlines, never by commas; the entry-lookahead rule below decides where an entry ends, never a line break *)
 parenthesized-expression ::= "(" expression ")"
 fixed-call          ::= callable-name { ? the callable's default arity, each input a full expression ? }
 parenthesized-call  ::= "(" callable-name { expression } ")"
@@ -311,7 +311,7 @@ The result of a block is governed by the [block-result rule](execution-model.md)
 
 ## Collections, records, and comprehensions
 
-List literals contain whitespace-separated value expressions. Dictionary literals use bare keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden.
+List literals contain whitespace-separated value expressions. Dictionary literals use bare keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden. **Entry lookahead.** Once an entry's value is complete, whether the next `name` continues that value or opens the next entry is settled by the next token after it, ignoring any line breaks between the two — so a dictionary written on one line and the same dictionary written across several lines always read alike. Only a word that can do both jobs raises the question: one that both continues an expression and is a legal `dict-key`, which in v0.1 means `and`, `or`, `mod`, and `is`. For those, that following token decides. A `variable-read`, whose `:` is immediately followed by its name, keeps the word an operator, so `{ a: 1 mod :two }` is **one** entry whose value is `1 mod :two`. A `:` spelled any other way is the next entry's key separator, so `{ a: 1 mod: 2 }`, `{ a: 1 mod : 2 }`, and `{ a: 1 and: 2 }` are each **two** entries. The two readings can sit one space apart, and that space is what a reader must look for: `{ a: 1 mod:two }` is **one** entry, because `:two` is a variable-read, while `{ a: 1 mod: two }` is **two**, because that `:` is not. Anything else after the word — no `:` at all, as in `{ a: 1 mod 2 }` — leaves it an operator, since a `dict-entry` needs its `:`. Any other name cannot continue a complete value, so it opens the next entry however its separator is spelled, including the `:c` of `{ a: 1 b :c }`. Where the value is *not* yet complete — an operator or a call still owed an operand, say, or a `value of … for key` reader still owed its tail — the unfinished value's own grammar position wins and no entry opens, so `{ a: 1 + b: 2 }` is a malformed entry rather than two entries. Because none of this consults line breaks, newlines inside a dict literal are insignificant without exception.
 
 ```logo
 :nums = [1 2 3]
