@@ -21,7 +21,7 @@
  *   (`spec/tooling.md:220-228`). A `return`/`stop` final statement is *not* double-reported here —
  *   it is already the more specific `ol-return-in-comprehension`.
  * - `ol-duplicate-binder` — a binder name repeated where names must be distinct: a `reduce`
- *   accumulator equal to its item binder (`spec/execution-model.md:404,741`), or a repeated name in
+ *   accumulator equal to its item binder (`spec/execution-model.md:426,910`), or a repeated name in
  *   a destructuring pattern — `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …`
  *   comprehension (issue #440) — (`spec/error-model.md:116`, `spec/tooling.md:191`).
  *

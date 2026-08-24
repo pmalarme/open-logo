@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring `map [:x :y] in <expr>` binder (spec/grammar.md:136-137) lives only within its own comprehension body: reads of `:x`/`:y` inside the body are fine, but reading `:x` again after the comprehension closes has no visible declaration in scope, so it raises `ol-undefined-var` (spec/execution-model.md:317-327). This is the comprehension-specific case of the binder-not-leaked rule — the `core-language/control/for-in-destructuring-scope-ends` fixture covers the `for … in` half of issue #72/#91.",
+  "description": "A destructuring `map [:x :y] in <expr>` binder (spec/grammar.md:136-137) lives only within its own comprehension body: reads of `:x`/`:y` inside the body are fine, but reading `:x` again after the comprehension closes has no visible declaration in scope, so it raises `ol-undefined-var` (spec/execution-model.md:424-425). This is the comprehension-specific case of the binder-not-leaked rule — the `core-language/control/for-in-destructuring-scope-ends` fixture covers the `for … in` half of issue #72/#91.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
