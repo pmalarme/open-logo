@@ -1208,7 +1208,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         spanToHere(primaryStart.source_span.start),
       );
     }
-    // `spec/grammar.md:188` — `postfix-expression ::= primary { selector | "." identifier }` —
+    // `spec/grammar.md:192` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
     // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
     // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
@@ -2109,7 +2109,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the Heritage assignment spelling `make "name" value`
-   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:105`). `make` is a
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:107`). `make` is a
    * Heritage-profile *alternate spelling only* with no new semantics
    * (`spec/conformance.md:270`), so it lowers to the exact same {@link AssignNode} shape as
    * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
@@ -2160,7 +2160,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the target of a `set … to` assignment. The spec's
-   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:104) requires a
+   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:106) requires a
    * *bare* place — a `name` optionally postfixed — which is the one well-formed, assignable case.
    * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
    * `<place> = <value>` form it is recognized structurally and re-wrapped by
@@ -2328,7 +2328,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:136-137`).
+   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:138-139`).
    * Only `for … in` accepts this form — `for … from … to …` keeps its single bare-name variable.
    */
   function parseDestructuringBinder(): DestructuringBinderNode | undefined {
@@ -2554,7 +2554,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a required expression, reporting the offending token when none is present. Shared by the
-   * list-mutator statements below, whose operands (`spec/grammar.md:113-117`) are all required.
+   * list-mutator statements below, whose operands (`spec/grammar.md:115-119`) are all required.
    */
   function requireExpression(): ExpressionNode | undefined {
     const expr = parseExpression();
@@ -2578,7 +2578,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return true;
   }
 
-  /** `add expression "to" expression` (`spec/grammar.md:113`, Data profile). */
+  /** `add expression "to" expression` (`spec/grammar.md:115`, Data profile). */
   function parseAdd(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2597,8 +2597,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `remove expression "from" expression` (`spec/grammar.md:114`) or, when `key` follows `remove`,
-   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:115`). Both are Data
+   * `remove expression "from" expression` (`spec/grammar.md:116`) or, when `key` follows `remove`,
+   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:117`). Both are Data
    * profile.
    */
   function parseRemove(): StatementNode | undefined {
@@ -2638,7 +2638,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return ast.remove(value, target, spanFrom(token.source_span.start, target));
   }
 
-  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:116`, Data profile). */
+  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:118`, Data profile). */
   function parseInsert(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2668,7 +2668,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     );
   }
 
-  /** `clear expression` (`spec/grammar.md:117`, Data profile). */
+  /** `clear expression` (`spec/grammar.md:119`, Data profile). */
   function parseClear(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2680,7 +2680,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:155-156`, Data profile).
+   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
    * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
    * list is not a list literal: it holds bare field names that perform no evaluation
    * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
