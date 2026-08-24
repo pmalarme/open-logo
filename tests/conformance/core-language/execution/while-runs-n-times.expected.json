@@ -1,5 +1,5 @@
 {
-  "description": "`while :i < 3 [ print :i ; :i = :i + 1 ]` starting at `:i = 0` re-evaluates the condition before every pass, including the first (`spec/execution-model.md:365-369`): the body runs for `:i` = 0, 1, 2 (three `print` events), then the fourth condition check (`3 < 3`) is `false` and the loop stops without a fourth pass. Issue #100.",
+  "description": "`while :i < 3 [ print :i ; :i = :i + 1 ]` starting at `:i = 0` re-evaluates the condition before every pass, including the first (`spec/execution-model.md:330-331`): the body runs for `:i` = 0, 1, 2 (three `print` events), then the fourth condition check (`3 < 3`) is `false` and the loop stops without a fourth pass. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

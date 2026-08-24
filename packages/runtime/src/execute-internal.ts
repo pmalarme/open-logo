@@ -4097,7 +4097,7 @@ function hintTargetKey(span: SourceSpan): string {
 
 /**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
- * (`spec/execution-model.md:365-369`, `spec/error-model.md:121`). `operation` names the leading
+ * (`spec/execution-model.md:389`, `spec/error-model.md:123`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
  * `runtimeDiag.notBoolean` builder issue #95 added for `and`/`or`/`not` rather than duplicating it.
  * Returns the propagated evaluation failure, the `ol-not-boolean` diagnostic, or the boolean.
@@ -4574,7 +4574,7 @@ function callProcedureAsValue(
  * `ol-stop-outside-proc`.
  *
  * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
- * otherwise (`spec/execution-model.md:365-369`) — and runs exactly one branch: `thenBody` when
+ * otherwise (`spec/execution-model.md:389`) — and runs exactly one branch: `thenBody` when
  * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
  * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
  * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
@@ -4587,7 +4587,7 @@ function callProcedureAsValue(
  *
  * A `While` statement (issue #100) re-evaluates `condition` before every pass — including the
  * first — running `body` each time it holds and stopping the moment it is `false`
- * (`spec/execution-model.md:365-369`); a condition that never becomes `false` runs forever, same
+ * (`spec/execution-model.md:330-331`); a condition that never becomes `false` runs forever, same
  * as any other unbounded loop in this issue's scope (the cancellable execution budget is a later,
  * separate slice).
  *
@@ -4608,13 +4608,13 @@ function callProcedureAsValue(
  * `while`.
  *
  * A `ForIn` statement (issue #103) evaluates `iterable` — it must be a list, `ol-type` otherwise
- * (`spec/execution-model.md:375-376`; Core `for ... in` is list-only, dict iteration is a later
+ * (`spec/execution-model.md:397-398`; Core `for ... in` is list-only, dict iteration is a later
  * profile) — then runs `body` once per element, in order, binding `binder` fresh each pass via
  * `evaluate.ts`'s {@link pushLoopFrame}. A bare-name binder binds the whole element; a
  * destructuring binder (`evaluate.ts`'s {@link bindElement}) binds each of its names positionally
  * from the element, which must
  * itself be a list of exactly that many items (`ol-range` otherwise —
- * `spec/execution-model.md:435-439`). A duplicate name within one destructuring pattern
+ * `spec/execution-model.md:460-461`). A duplicate name within one destructuring pattern
  * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
  * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
  *
@@ -4622,12 +4622,12 @@ function callProcedureAsValue(
  * a number, `ol-type` otherwise ({@link requireNumber}, which unlike `repeat`'s count is not
  * restricted to whole numbers) — then iterates `variable` from `from` to `to` inclusive, adding
  * `step` each pass: with a positive step the body runs while `variable` is at most `to`, with a
- * negative step while it is at least `to` (`spec/execution-model.md:370-375`). A step pointing
+ * negative step while it is at least `to` (`spec/execution-model.md:392-396`). A step pointing
  * away from `to` (e.g. `from 1 to 5 by -1`) runs `body` zero times, no diagnostic; a step of `0`
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:435-437`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,870`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are

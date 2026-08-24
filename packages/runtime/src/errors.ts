@@ -15,9 +15,9 @@
  * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
  * for a `repcount` reporter used outside any enclosing `repeat`. Issue #103 adds `for`'s own
  * diagnostics: `ol-type` for a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only), `ol-range` for a
- * `for ... from ... to ... by 0` step (`spec/execution-model.md:374-375`), a destructuring
- * pattern/element length mismatch (`spec/execution-model.md:438-439`), and `ol-duplicate-binder`
+ * (`spec/execution-model.md:397-398` — Core `for ... in` is list-only), `ol-range` for a
+ * `for ... from ... to ... by 0` step (`spec/execution-model.md:396-397`), a destructuring
+ * pattern/element length mismatch (`spec/execution-model.md:460-461`), and `ol-duplicate-binder`
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
  * `stage: "runtime"` since `execute()` never runs `check()`.
@@ -212,7 +212,7 @@ export interface InsertPositionRangeParams {
 
 /**
  * Params for `ol-not-boolean`: a `not`/`and`/`or` operand (or any other boolean-only condition)
- * was not `true`/`false` (`spec/error-model.md:121`). There is no truthiness — a number, word, or
+ * was not `true`/`false` (`spec/error-model.md:123`). There is no truthiness — a number, word, or
  * list operand is never coerced, regardless of how "truthy" it might look.
  */
 export interface NotBooleanErrorParams {
@@ -296,7 +296,7 @@ export interface NonFiniteCoordinateParams {
 
 /**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
+ * (`spec/execution-model.md:397-398` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
  */
 export interface ForInNotListParams {
@@ -306,7 +306,7 @@ export interface ForInNotListParams {
 
 /**
  * Params for an `ol-range` raised by a `for ... by 0` step
- * (`spec/execution-model.md:374-375` — a step of `0` never reaches `end`, so it is rejected
+ * (`spec/execution-model.md:396-397` — a step of `0` never reaches `end`, so it is rejected
  * rather than silently looping forever).
  */
 export interface ForStepZeroParams {
@@ -316,7 +316,7 @@ export interface ForStepZeroParams {
 
 /**
  * Params for an `ol-range` raised by a destructuring binder/element length mismatch
- * (`spec/execution-model.md:438-439` — "a short or long pattern mismatch raises `ol-range`"):
+ * (`spec/execution-model.md:460-461` — "a short or long pattern mismatch raises `ol-range`"):
  * `length` is the pattern's own arity, `value` the element's actual length (`0` for a non-list
  * element, which can never match a non-empty pattern).
  */
@@ -328,7 +328,7 @@ export interface PatternLengthMismatchParams {
 
 /**
  * Params for an `ol-type` raised by a comprehension (`map`/`filter`/`reduce`) iterable that is
- * not a list (`spec/execution-model.md:380-384` — every comprehension form ranges over a list).
+ * not a list (`spec/execution-model.md:418-422` — every comprehension form ranges over a list).
  * Same shape as {@link ForInNotListParams} plus the comprehension's own `form`, since `ol-type`'s
  * `operation` names the offending construct.
  */
@@ -925,7 +925,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-not-boolean`: a `not`/`and`/`or` operand was not `true`/`false`. There is no truthiness
-   * (`spec/error-model.md:121`) — a number, word, or list operand never coerces.
+   * (`spec/error-model.md:123`) — a number, word, or list operand never coerces.
    */
   notBoolean(
     source_span: SourceSpan,
@@ -1067,7 +1067,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `for ... in` iterable is not a list — Core's `for ... in` only iterates lists
-   * (`spec/execution-model.md:375-376`); dict iteration is a later, profile-specific form.
+   * (`spec/execution-model.md:397-398`); dict iteration is a later, profile-specific form.
    */
   forInNotList(
     source_span: SourceSpan,
@@ -1083,7 +1083,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `map`/`filter`/`reduce` iterable is not a list
-   * (`spec/execution-model.md:380-384` — every comprehension form ranges over a list, same
+   * (`spec/execution-model.md:418-422` — every comprehension form ranges over a list, same
    * restriction as `ForIn`). `params.operation` names the specific comprehension form.
    */
   comprehensionNotList(
@@ -1100,7 +1100,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: `for ... from ... to ... by 0` — a step of `0` never reaches `end`
-   * (`spec/execution-model.md:374-375`), unlike a step merely pointing away from `end` (which
+   * (`spec/execution-model.md:396-397`), unlike a step merely pointing away from `end` (which
    * simply runs the body zero times, no diagnostic).
    */
   forStepZero(source_span: SourceSpan): Diagnostic {
@@ -1114,7 +1114,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a destructuring binder's pattern and an iterated element disagree on length
-   * (`spec/execution-model.md:438-439`). `params.value` is the element's actual length (`0` for a
+   * (`spec/execution-model.md:460-461`). `params.value` is the element's actual length (`0` for a
    * non-list element).
    */
   patternLengthMismatch(

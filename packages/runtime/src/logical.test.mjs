@@ -3,7 +3,7 @@
 // through @openlogo/parser and evaluates the resulting AST node, exercising `evaluate()` exactly
 // as `@openlogo/runtime`'s `execute()` does — including the parenthesized variadic form
 // (`(and a b c)`), which the parser lowers to the same callee/args shape as the nested-binary
-// infix form. There is no truthiness (spec/error-model.md:121): a non-boolean operand raises
+// infix form. There is no truthiness (spec/error-model.md:123): a non-boolean operand raises
 // `ol-not-boolean` rather than coercing.
 
 import assert from "node:assert/strict";
