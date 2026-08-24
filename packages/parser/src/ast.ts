@@ -916,16 +916,19 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
 }
 
 /**
- * The direct child nodes `walk` descends into for `node`, in source order. Exported (alongside
- * `walk`) so a rule that needs scope-aware traversal — pushing/popping its own context around
- * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
- * reuse this shared child list for every node kind it does *not* special-case, instead of
- * duplicating (and risking drift from) this switch.
+ * The direct child nodes `walk` descends into for `node`, in source order. Exported within the
+ * package — unlike `walk`, it is not part of `index.ts`'s public surface — so a rule that needs
+ * scope-aware traversal, pushing/popping its own context around specific node kinds (e.g.
+ * `ol-undefined-var`'s procedure-frame/binder-scope walk), can still reuse this shared child list
+ * for every node kind it does *not* special-case, instead of duplicating (and risking drift from)
+ * this switch.
  *
- * Each of the three switches here — node kind, {@link IsTest} form, {@link PlaceSegment} kind —
- * enumerates **every** member of its union, childless ones included, so each `default` narrows to
- * `never` and omitting a case is a compile error rather than a silent hole in every traversal in
- * the repository (issue #925).
+ * All four of this function's dispatches — node kind, {@link IsTest} form, {@link PlaceSegment}
+ * kind, and {@link ComprehensionNode} form — enumerate **every** member of their union, childless
+ * ones included, so each `default` narrows to `never` and omitting a case is a compile error rather
+ * than a silent hole in every traversal in the repository (issue #925). `ForIn`/`Comprehension`
+ * binders are the deliberate exception: they discriminate structurally (`"kind" in …`), so a future
+ * node-shaped binder is included automatically and metadata binders stay excluded.
  *
  * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
  * Every member of those unions selects an explicit case; nothing here checks that the case returns
@@ -1003,9 +1006,19 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
         : [node.from, node.to, node.by, node.body];
     case "Comprehension": {
       const binderChildren = "kind" in node.binder ? [node.binder] : [];
-      return node.form === "reduce"
-        ? [...binderChildren, node.iterable, node.initial, node.body]
-        : [...binderChildren, node.iterable, node.body];
+      switch (node.form) {
+        case "map":
+        case "filter":
+          return [...binderChildren, node.iterable, node.body];
+        case "reduce":
+          // Only `reduce` carries an accumulator seed; the union makes the other forms unable to.
+          return [...binderChildren, node.iterable, node.initial, node.body];
+        default:
+          return unhandledChildCase(
+            node,
+            `comprehension form ${JSON.stringify((node as ComprehensionNode).form)}`,
+          );
+      }
     }
     case "ProcedureDef":
       return [

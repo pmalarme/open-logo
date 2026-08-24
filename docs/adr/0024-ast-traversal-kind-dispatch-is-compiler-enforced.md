@@ -33,27 +33,38 @@ that is the direction issue #960 takes for the half this ADR does not close.
 
 **Every switch in `childrenOf` enumerates its whole union and closes on `never`.**
 
-There are three: the node-kind switch, the `IsTest` form switch, and the `PlaceSegment` kind switch
+There are four: the node-kind switch, the `IsTest` form switch, the `PlaceSegment` kind switch
 (shared by `Place` and `PostfixExpression` through one `segmentChildren` helper so the two cannot
-drift apart).
+drift apart), and the `ComprehensionNode` form switch.
 
 1. Every member gets its own `case`, **including the ones with no children** — the seven childless
    node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`, `Stop`, `StructDef`), the
    `empty` `IsTest` form, and the `field` segment kind. This is load-bearing, not tidiness: a member
    that falls through keeps the `default` clause inhabited, the `never` stops binding, and the guard
    becomes decorative.
-2. Each `default` calls `unhandledChildCase`, whose first parameter is `never`. A member added to
-   any of the three unions without a case is therefore a `tsc` error that names the omitted type,
-   and the helper **throws** if untyped JavaScript reaches it — a silently childless node is the
-   precise failure mode this ADR exists to remove.
+2. Each of the four `default` clauses calls the shared `unhandledChildCase` helper, whose first
+   parameter is `never`. A member added to any of those unions without a case is therefore a `tsc`
+   error that names the omitted type, and the helper **throws** if untyped JavaScript reaches it — a
+   silently childless node is the precise failure mode this ADR exists to remove.
+3. **A ternary is not a substitute.** Three of the four were ternaries or bare `default`s when this
+   work started, and every one of them was proven silent by experiment: a fifth `IsTest` form, a
+   third `PlaceSegment` kind, and a fourth comprehension form each compiled clean while dropping a
+   child. A two-branch discriminant test looks total and is not, so inner unions get a `switch`
+   closed on `never`, not a conditional.
+
+**The deliberate exception is the `ForIn`/`Comprehension` binder**, which discriminates
+*structurally* (`"kind" in node.binder`) rather than by tag. That is self-maintaining — a future
+node-shaped binder is included automatically and a metadata binder stays excluded — so it must
+**not** be "fixed" into a closed switch.
 
 ## What this enforces, and what it does not
 
 The distinction is narrow and easy to overstate, so it is stated exactly.
 
-**Enforced by the compiler — exhaustive *dispatch*.** Every `AnyNode` kind, every `IsTest` form, and
-every `PlaceSegment` kind selects an explicit case. No value of those unions can reach a fallback,
-and no new member can be added without the build failing and naming it.
+**Enforced by the compiler — exhaustive *dispatch*.** Every `AnyNode` kind, every `IsTest` form,
+every `PlaceSegment` kind, and every `ComprehensionNode` form selects an explicit case. No value of
+those unions can reach a fallback, and no new member can be added without the build failing and
+naming it.
 
 **Not enforced — that a case returns the *right* children.** Nothing checks that a case returns
 every node-valued field of its kind. Two experiments during the review gate, run by the two
@@ -77,7 +88,8 @@ existing "walk visits every core node kind" test — *test*-enforced, not compil
 ## Consequences
 
 - Adding a node kind is deliberately a two-place change: the union and `childrenOf`. The build fails,
-  naming the type, until both land. The same now holds for an `IsTest` form and a `PlaceSegment` kind.
+  naming the type, until both land. The same now holds for an `IsTest` form, a `PlaceSegment` kind,
+  and a comprehension form.
 - A member with no children must never be "simplified" back into `default`. Doing so silently
   disarms the guard for **every** member of that union, which is why each one carries its own case
   and the switch says so.

@@ -810,12 +810,13 @@ test("walk visits every core node kind, pre-order", () => {
 });
 
 test("walk rejects an AST shape it has no case for instead of silently pruning it", () => {
-  // `childrenOf` switches three times — on node kind, on `is`-test form, on place-segment kind —
-  // and each is exhaustive over its union, so these clauses are unreachable from TypeScript. The
-  // `never` bindings in them are what make `tsc` reject a new member nobody gave a case (issue
-  // #925). They stay reachable from untyped JavaScript, and there the contract is to fail loudly:
-  // a silently childless node drops its whole subtree out of `walk`, and so out of the runtime's
-  // declaration registration and out of every checker, with nothing able to observe the loss.
+  // `childrenOf` dispatches four times — on node kind, `is`-test form, place-segment kind, and
+  // comprehension form — and each is exhaustive over its union, so these clauses are unreachable
+  // from TypeScript. The `never` bindings in them are what make `tsc` reject a new member nobody
+  // gave a case (issue #925). They stay reachable from untyped JavaScript, and there the contract
+  // is to fail loudly: a silently childless node drops its whole subtree out of `walk`, and so out
+  // of the runtime's declaration registration and out of every checker, with nothing able to
+  // observe the loss.
   const source_span = { document: doc, start: [1, 1], end: [1, 4] };
   const operand = { kind: "NumberLit", value: 1, source_span };
 
@@ -848,6 +849,21 @@ test("walk rejects an AST shape it has no case for instead of silently pruning i
         () => {},
       ),
     /no case for place segment kind "no-segment"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Comprehension",
+          form: "no-comprehension",
+          binder: { name: "n", source_span },
+          iterable: operand,
+          body: { kind: "Block", body: [], source_span },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for comprehension form "no-comprehension"/,
   );
 });
 
