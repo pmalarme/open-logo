@@ -1,0 +1,104 @@
+{
+  "description": "A parenthesized group is newline-transparent throughout (`spec/grammar.md:34`): after the `(`, mid-expression, nested two deep, and nested inside a list literal. Every `)` here is matched, so none of them raises `ol-unmatched-paren` — issue #933's phantom cascade, which grew to four spurious diagnostics on the two-deep case alone.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [4, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [4, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [6, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [6, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [9, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [9, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [11, 1],
+        "end": [12, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-parenthesized",
+        "start": [11, 1],
+        "end": [12, 7]
+      },
+      "payload": {
+        "values": [[3]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

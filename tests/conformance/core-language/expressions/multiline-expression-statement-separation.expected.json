@@ -1,0 +1,116 @@
+{
+  "description": "The half of `spec/grammar.md:34` that issue #933's fix must not break: a newline still ends a statement when no expression is pending, consecutive newlines stay one separator, and a `-` glued to a numeral opens a new statement holding a negative `number` literal (`spec/grammar.md:60`) instead of continuing the line above — so this stays five statements and `[4` / `-6]` stays a two-element list.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [9, 1],
+        "end": [9, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [9, 1],
+        "end": [9, 8]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [10, 1],
+        "end": [10, 3]
+      },
+      "payload": {
+        "statement_kind": "NumberLit"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [11, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-statement-separation",
+        "start": [11, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "values": [[4, -6]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

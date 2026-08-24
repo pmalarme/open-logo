@@ -1,0 +1,21 @@
+# A binary operator that opens a line continues the expression above it, the mirror image of the
+# trailing-operator case in `spec/grammar.md:34` (issue #933). This holds for the worded operators
+# too — `and`, `or`, `mod`, `is` — because none of them can begin a statement, so continuing onto
+# one can never swallow the statement below. The one operator that *can* begin a statement, a `-`
+# glued to a numeral, is excluded; `multiline-expression-statement-separation` pins that.
+print 1
+  + 2
+print 10
+  - 4
+print 3
+  * 4
+print 1
+  < 2
+print 5
+  mod 3
+print true
+  and false
+print false
+  or true
+print [1 2]
+  is empty

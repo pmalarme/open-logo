@@ -1,0 +1,494 @@
+{
+  "description": "`and`, `or`, `mod` and `is` are legal dictionary keys, and inside a dictionary a newline SEPARATES ENTRIES — `parseDictEntry` skips newlines between a key and its `:` — so a worded operator opening a line there begins the next entry rather than continuing the previous entry's value (issue #933). Every separator spelling is covered: `mod: 2`, `and : 3`, `or:4`, `is :two`, the glued `mod:two` (one `variable` token the lexer splits later), and a separator on its own line (`mod` / `:two`). Getting any of these wrong changes the dictionary SILENTLY, because both readings parse cleanly, so each entry is read back through a place expression — a dict's printed form does not show its entries. The last three cases are the opposite direction, and are what make this fixture fail without the fix: with no separator after it the same word IS an operator, so `{ a: 5` / `mod 3 }` is ONE entry worth 2; and the guard is scoped to the dictionary that owns the newline, so inside the nested list of `{ a: [1` / `mod :two] }` and the nested group of `{ a: (1` / `mod :two) }` the word is an operator again, giving the one-element list [1] and the number 1. Those two deliberately use `mod :two` rather than `mod 2`, because only a shape that reads both ways without a diagnostic can detect a guard that leaked into a nested container. `two` is defined twice on purpose — as a procedure, which a dict-key `mod:two` calls, and as a variable, which the operator form `mod :two` reads.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [7, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [13, 1],
+        "end": [13, 9]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [15, 1],
+        "end": [19, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [19, 5],
+        "end": [19, 8]
+      },
+      "payload": {
+        "name": "two",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "return",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 2
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [19, 5],
+        "end": [19, 8]
+      },
+      "payload": {
+        "name": "two",
+        "result": 2
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [20, 1],
+        "end": [20, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [20, 1],
+        "end": [20, 16]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [21, 1],
+        "end": [21, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [21, 1],
+        "end": [21, 18]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [22, 1],
+        "end": [22, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [22, 1],
+        "end": [22, 18]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [23, 1],
+        "end": [23, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [23, 1],
+        "end": [23, 17]
+      },
+      "payload": {
+        "values": [4]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [24, 1],
+        "end": [24, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [24, 1],
+        "end": [24, 17]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [26, 1],
+        "end": [27, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [27, 5],
+        "end": [27, 8]
+      },
+      "payload": {
+        "name": "two",
+        "args": []
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "return",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 2
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [27, 5],
+        "end": [27, 8]
+      },
+      "payload": {
+        "name": "two",
+        "result": 2
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [28, 1],
+        "end": [28, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [28, 1],
+        "end": [28, 17]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [32, 1],
+        "end": [34, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [34, 2],
+        "end": [34, 5]
+      },
+      "payload": {
+        "name": "two",
+        "args": []
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "return",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 2
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [34, 2],
+        "end": [34, 5]
+      },
+      "payload": {
+        "name": "two",
+        "result": 2
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [35, 1],
+        "end": [35, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [35, 1],
+        "end": [35, 17]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [41, 1],
+        "end": [42, 8]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [43, 1],
+        "end": [43, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [43, 1],
+        "end": [43, 19]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [45, 1],
+        "end": [46, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [47, 1],
+        "end": [47, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [47, 1],
+        "end": [47, 16]
+      },
+      "payload": {
+        "values": [[1]]
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [49, 1],
+        "end": [50, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [51, 1],
+        "end": [51, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "print",
+      "source_span": {
+        "document": "data/dict-literal/dict-literal-multiline-word-operator-key",
+        "start": [51, 1],
+        "end": [51, 17]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}
