@@ -302,6 +302,39 @@ test("no word operator this admits can begin a statement", () => {
   }
 });
 
+// --- a word operator opening a line may still be a dictionary key --------------------------------
+//
+// `and`, `or`, `mod` and `is` are legal key names, so a following dict-entry `:` means the word
+// opens the next entry rather than continuing the previous entry's value. The glued spelling
+// (`mod:two`) matters most: both readings parse cleanly, so getting it wrong would change the
+// dictionary silently instead of raising a diagnostic.
+
+test("a word operator followed by a dict separator opens the next entry", () => {
+  for (const entry of ["mod: 2", "and: 2", "or: 2", "is: 2", "mod : 2"]) {
+    const dict = printedExpression(`print { a: 1\n${entry} }`);
+
+    assert.equal(dict.kind, "DictLit");
+    assert.equal(dict.entries.length, 2, entry);
+    assert.equal(dict.entries[1].value.value, 2, entry);
+  }
+});
+
+test("a word operator glued to its dict value opens the next entry", () => {
+  const dict = printedExpression("print { a: 1\nmod:two }");
+
+  assert.equal(dict.kind, "DictLit");
+  assert.equal(dict.entries.length, 2);
+  assert.equal(dict.entries[1].key.value, "mod");
+});
+
+test("a word operator with no dict separator still continues the value", () => {
+  const dict = printedExpression("print { a: 1\nmod 2 }");
+
+  assert.equal(dict.kind, "DictLit");
+  assert.equal(dict.entries.length, 1);
+  assertBinary(dict.entries[0].value, "mod", 1, 2);
+});
+
 // --- a genuinely missing operand is still reported ----------------------------------------------
 
 test("a dangling `+` with nothing after it reports exactly one `ol-bad-token`", () => {

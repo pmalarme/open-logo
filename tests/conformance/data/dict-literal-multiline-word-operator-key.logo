@@ -1,0 +1,28 @@
+# `and`, `or`, `mod` and `is` are legal dictionary keys, so a worded operator that opens a line
+# inside a dict literal opens the NEXT ENTRY rather than continuing the previous entry's value
+# (issue #933). Both spellings of the separator count — spaced and glued. The glued form matters
+# most: both readings parse cleanly, so reading it as an operator would change the dictionary
+# silently instead of raising a diagnostic. Each entry is read back so the reading is proven, not
+# assumed — a dict's printed form does not show its entries.
+define two
+  return 2
+end
+
+:spaced = { a: 1
+mod: 2
+and : 3
+or:4 }
+print :spaced.a
+print :spaced.mod
+print :spaced.and
+print :spaced.or
+
+:glued = { a: 1
+mod:two }
+print :glued.mod
+
+# With no separator after it, the same word IS an operator continuing the value above: this dict
+# has ONE entry whose value is `5 mod 3`.
+:continued = { a: 5
+mod 3 }
+print :continued.a

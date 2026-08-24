@@ -652,7 +652,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * The single exception is the one token that *can*: a `-` glued to a numeral is a negative
    * `number` literal (`spec/grammar.md:60`), which is a legal statement and a legal list element.
    * So `print 1` ⏎ `-2` keeps its two statements and `[1` ⏎ `-2]` keeps its two elements, while the
-   * spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as.
+   * spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as. A worded
+   * operator has a second exception of the same shape, {@link isDictKeyAt}: it may also be a
+   * dictionary key.
    */
   function continuesOnNextLine(
     isOperator: (token: LexToken) => boolean,
@@ -664,7 +666,36 @@ export function parse(source: string, document = "<input>"): ParseResult {
     while (peek(offset).kind === "newline") {
       offset += 1;
     }
-    return isOperator(peek(offset)) && !isNegativeNumberLiteralAt(offset);
+    return (
+      isOperator(peek(offset)) &&
+      !isNegativeNumberLiteralAt(offset) &&
+      !isDictKeyAt(offset)
+    );
+  }
+
+  /**
+   * Is the token at `offset` a worded operator being used as a **dictionary key** rather than as an
+   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, so in
+   * `{ a: 1` ⏎ `mod: 2 }` the `mod` opens the *next entry* and must not be read as an operator
+   * continuing the previous entry's value. Both spellings of the separator count: a bare `colon`
+   * token (whitespace around it is insignificant, so `mod : 2` is the same entry), and the glued
+   * `variable` token the lexer produces for `mod:two`, which {@link splitGluedColonToken} splits
+   * apart later. Missing the glued form would be the worse bug of the two — both readings parse
+   * cleanly, so the entry would change meaning *silently* rather than raising a diagnostic.
+   *
+   * Only a worded operator can be a key; a symbolic one (`+`, `<`, …) is not an identifier, so it
+   * never reaches this test with a `name` token.
+   */
+  function isDictKeyAt(offset: number): boolean {
+    const word = peek(offset);
+    if (word.kind !== "name") {
+      return false;
+    }
+    const after = peek(offset + 1);
+    const glued =
+      word.source_span.end[0] === after.source_span.start[0] &&
+      word.source_span.end[1] === after.source_span.start[1];
+    return after.kind === "colon" || (after.kind === "variable" && glued);
   }
 
   /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
