@@ -227,7 +227,7 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  *
  * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
  *   `:name` parameters (an optional `( :name default )` parameter does not count).
- * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:146`), which
+ * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:148`), which
  *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
  *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
@@ -263,7 +263,7 @@ function collectUserArities(
       headText === "define" ||
       (headText === "to" && atStatementStart(tokens, k))
     ) {
-      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:146`), so a
+      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:148`), so a
       // `to <name> :p …` procedure registers a callable of the same default arity — the count of
       // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
       // its arguments correctly. `to` carries FOUR roles: the Heritage procedure *opener*, plus the
@@ -584,6 +584,82 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return parseOr();
   }
 
+  /**
+   * Consume the newlines sitting where a **required operand is still pending** — after a binary or
+   * unary operator has been consumed but its operand has not been read yet. `spec/grammar.md:34`:
+   * *"Within a single expression, list literal, dict literal, or parenthesized group, newlines are
+   * insignificant."* A newline in this position cannot be the statement terminator that the same
+   * sentence describes, because the statement it would terminate is not finished (issue #933).
+   *
+   * This can never change a program that is legal today: an operator with a newline in its operand
+   * slot is *always* a parse error right now (`ol-bad-token`, "end of line"), so there is no valid
+   * meaning to swallow. Contrast {@link continuesOnNextLine}, which faces a *complete* expression
+   * and therefore has to be guarded.
+   */
+  function skipNewlinesBeforeOperand(): void {
+    skipNewlines();
+  }
+
+  function isAdditiveOp(token: LexToken): boolean {
+    return token.kind === "op" && (token.text === "+" || token.text === "-");
+  }
+
+  function isMultiplicativeOp(token: LexToken): boolean {
+    return token.kind === "op" && (token.text === "*" || token.text === "/");
+  }
+
+  /**
+   * Is the token at `offset` a `-` sitting directly against a numeral, i.e. the leading `-` of a
+   * negative `number` literal rather than a subtraction operator (`spec/grammar.md:60`)? Adjacency
+   * is compared on BOTH line and column, so `- 3` (and a `-` separated by a line-spanning block
+   * comment) is a bare operator. Shared by {@link tryNegativeNumberLiteral}, which consumes such a
+   * pair, and {@link continuesOnNextLine}, which must decline to continue a line across one.
+   */
+  function isNegativeNumberLiteralAt(offset: number): boolean {
+    const token = peek(offset);
+    const after = peek(offset + 1);
+    const end = token.source_span.end;
+    const start = after.source_span.start;
+    return (
+      token.kind === "op" &&
+      token.text === "-" &&
+      after.kind === "number" &&
+      end[0] === start[0] &&
+      end[1] === start[1]
+    );
+  }
+
+  /**
+   * The expression parsed so far is *complete*, but the current token is a newline and the
+   * expression continues on a later line with a leading binary operator (`print 1` ⏎ `+ 2`). Report
+   * whether to consume those newlines so the operator binds to what came before, honouring
+   * `spec/grammar.md:34`'s "newlines are insignificant" within one expression (issue #933).
+   *
+   * Unlike {@link skipNewlinesBeforeOperand} this position *can* legally end a statement, so it is
+   * guarded twice — every continuation admitted here is a token sequence that is a parse error
+   * today, which is what makes the change incapable of silently re-reading a working program:
+   *
+   * - **Only symbolic `op` tokens continue a line.** The word operators (`and`, `or`, `mod`, `is`)
+   *   are `name` tokens, and a `name` is the ordinary way to *begin* a statement — continuing there
+   *   would let an expression swallow the statement after it.
+   * - **A `-` glued to a numeral never continues a line**, because that is a negative `number`
+   *   literal (`spec/grammar.md:60`), which is itself a legal statement and a legal list element.
+   *   So `print 1` ⏎ `-2` keeps its two statements and `[1` ⏎ `-2]` keeps its two elements, while
+   *   the spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as.
+   */
+  function continuesOnNextLine(
+    isOperator: (token: LexToken) => boolean,
+  ): boolean {
+    if (current().kind !== "newline") {
+      return false;
+    }
+    let offset = 0;
+    while (peek(offset).kind === "newline") {
+      offset += 1;
+    }
+    return isOperator(peek(offset)) && !isNegativeNumberLiteralAt(offset);
+  }
+
   function parseOr(): ExpressionNode | undefined {
     let left = parseAnd();
     if (left === undefined) {
@@ -595,6 +671,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       const opTok = current();
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseAnd();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -620,6 +697,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       const opTok = current();
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseComparison();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -659,11 +737,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const operands: ExpressionNode[] = [first];
     const operators: SpannedName[] = [];
     for (;;) {
+      if (continuesOnNextLine(isCompareOp)) {
+        skipNewlines();
+      }
       const token = current();
       if (!isCompareOp(token)) {
         break;
       }
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseAdditive();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -700,6 +782,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
         advance();
         if (isName("of")) {
           advance();
+          // Only continue onto the next line once `of` has actually been read. On the recovery
+          // path the missing-`of` report above and the failed collection parse below must keep
+          // landing on the SAME token, so `dedupeDiagnostics` still collapses them into the one
+          // finding `core-language/diagnostics/is-member-missing-of-and-collection` pins.
+          skipNewlinesBeforeOperand();
         } else {
           diagnostics.push(unexpected(current()));
         }
@@ -747,6 +834,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return operand;
       }
     }
+    skipNewlinesBeforeOperand();
     const low = parseAdditive();
     if (low === undefined) {
       diagnostics.push(unexpected(current()));
@@ -758,6 +846,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       diagnostics.push(unexpected(current()));
       return operand;
     }
+    skipNewlinesBeforeOperand();
     const high = parseAdditive();
     if (high === undefined) {
       diagnostics.push(unexpected(current()));
@@ -776,13 +865,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLine(isAdditiveOp)) {
+        skipNewlines();
+      }
       const token = current();
-      const isAddOp =
-        token.kind === "op" && (token.text === "+" || token.text === "-");
-      if (!isAddOp) {
+      if (!isAdditiveOp(token)) {
         break;
       }
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseMultiplicative();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -803,14 +894,17 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLine(isMultiplicativeOp)) {
+        skipNewlines();
+      }
       const token = current();
-      const isMulOp =
-        token.kind === "op" && (token.text === "*" || token.text === "/");
+      const isMulOp = isMultiplicativeOp(token);
       const isMod = token.kind === "name" && token.text.toLowerCase() === "mod";
       if (!isMulOp && !isMod) {
         break;
       }
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseUnary();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -836,20 +930,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * and column — a block comment is whitespace and may span lines (`spec/grammar.md:32`).
    */
   function tryNegativeNumberLiteral(): NumberLitNode | undefined {
-    const token = current();
-    const after = peek(1);
-    const end = token.source_span.end;
-    const start = after.source_span.start;
-    if (
-      token.kind === "op" &&
-      token.text === "-" &&
-      after.kind === "number" &&
-      end[0] === start[0] &&
-      end[1] === start[1]
-    ) {
-      advance();
-      const numTok = current();
-      advance();
+    if (isNegativeNumberLiteralAt(0)) {
+      const token = advance();
+      const numTok = advance();
       return ast.numberLit(-Number(numTok.text), spanBetween(token, numTok));
     }
     return undefined;
@@ -859,6 +942,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const token = current();
     if (token.kind === "name" && token.text.toLowerCase() === "not") {
       advance();
+      skipNewlinesBeforeOperand();
       const operand = parseUnary();
       if (operand === undefined) {
         diagnostics.push(unexpected(current()));
@@ -2277,10 +2361,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a procedure definition: Core `define name :params… <body> end`
-   * (`define-statement`, `spec/grammar.md:145`) or the Heritage alternate spelling
-   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:146`). Both share the identical
+   * (`define-statement`, `spec/grammar.md:147`) or the Heritage alternate spelling
+   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:148`). Both share the identical
    * grammar after the opener keyword and the same `define-end ::= "end" [ "define" ]` closer
-   * (`spec/grammar.md:147`, `spec/style.md:287` — a `to` body closes with `end` or `end define`,
+   * (`spec/grammar.md:149`, `spec/grammar.md:291` — a `to` body closes with `end` or `end define`,
    * never `end to`), so `to` reuses this whole function and every diagnostic label ("define"): the
    * only difference is the {@link ProcedureDefNode} `keyword` recorded, which the Layer-2 Heritage
    * form-head gate (issue #667) consults to reject `to` when the Heritage profile is inactive. `to`
@@ -2345,7 +2429,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a return statement: Core `return value` or the Heritage alternate spellings
-   * `output value` / `op value` (`return-statement`, `spec/grammar.md:150`). All three share the
+   * `output value` / `op value` (`return-statement`, `spec/grammar.md:152`). All three share the
    * identical grammar and lower to the same {@link ReturnNode}; `keyword` records the surface word
    * only so the Layer-2 Heritage form-head gate (issue #667) can reject `output`/`op` when the
    * Heritage profile is inactive.

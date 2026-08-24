@@ -1,0 +1,116 @@
+{
+  "description": "A dangling binary operator takes its right operand from the next line: `spec/grammar.md:34` makes a newline insignificant *within* one expression, so `1 +` / `2` reports 3, and the same holds for an assignment right-hand side, the worded `mod`, and unary `not`. Before issue #933 every line here raised `ol-bad-token` at the end of the line.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [3, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [3, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [5, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "values": [30]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [8, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [8, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [10, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-trailing-operator",
+        "start": [10, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "values": [false]
+      }
+    }
+  ],
+  "diagnostics": []
+}

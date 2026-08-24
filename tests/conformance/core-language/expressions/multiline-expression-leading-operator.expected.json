@@ -1,0 +1,104 @@
+{
+  "description": "A *symbolic* binary operator opening a line continues the expression above it, the mirror image of the trailing-operator case in `spec/grammar.md:34` (issue #933). A word operator (`and`, `or`, `mod`, `is`) deliberately does not: a word is also how a statement begins, so continuing on one could swallow the statement below.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [4, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [4, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [6, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [6, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "values": [6]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [8, 1],
+        "end": [9, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [8, 1],
+        "end": [9, 6]
+      },
+      "payload": {
+        "values": [12]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [10, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [10, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

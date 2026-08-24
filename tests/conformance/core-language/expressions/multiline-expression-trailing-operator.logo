@@ -1,0 +1,11 @@
+# `spec/grammar.md:34` — within a single expression newlines are insignificant — so an operator
+# left dangling at the end of a line takes its right operand from the line below (issue #933).
+print 1 +
+  2
+:total = 10 *
+  3
+print :total
+print 5 mod
+  3
+print not
+  true

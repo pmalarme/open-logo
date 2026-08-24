@@ -1,0 +1,74 @@
+{
+  "description": "`forward 100` / `right 90` stays two instructions — one `move`/`draw-segment` pair and one `turn` — because a newline ends a statement when no expression is pending (`spec/grammar.md:34`). This is the shape every learner writes, and the regression issue #933's fix was most at risk of introducing.",
+  "profiles": ["turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/multiline-statement-separation",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/movement/multiline-statement-separation",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/movement/multiline-statement-separation",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/movement/multiline-statement-separation",
+        "start": [6, 1],
+        "end": [6, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "turn",
+      "source_span": {
+        "document": "turtle-rendering/movement/multiline-statement-separation",
+        "start": [6, 1],
+        "end": [6, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      }
+    }
+  ],
+  "diagnostics": []
+}
