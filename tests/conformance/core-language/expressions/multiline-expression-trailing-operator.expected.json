@@ -1,5 +1,5 @@
 {
-  "description": "A dangling binary operator takes its right operand from the next line: `spec/grammar.md:34` makes a newline insignificant *within* one expression, so `1 +` / `2` reports 3, and the same holds for an assignment right-hand side, the worded `mod`, and unary `not`. Before issue #933 every line here raised `ol-bad-token` at the end of the line.",
+  "description": "A dangling binary operator takes its right operand from the next line: `spec/grammar.md:34` makes a newline insignificant *within* one expression, so `1 +` / `2` reports 3, and the same holds for an assignment right-hand side, the worded `mod`, and unary `not`. Before issue #933 every continued expression here raised `ol-bad-token` at the end of its first line.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

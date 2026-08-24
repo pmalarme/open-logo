@@ -111,6 +111,74 @@ test("a leading comparison operator continues at comparison precedence", () => {
   assertBinary(printedExpression("print 1\n  < 2"), "<", 1, 2);
 });
 
+test("a leading `mod` continues the expression on the line above", () => {
+  assertBinary(printedExpression("print 5\n  mod 3"), "mod", 5, 3);
+});
+
+test("a leading `and` continues the expression on the line above", () => {
+  const expression = printedExpression("print true\n  and false");
+
+  assert.equal(expression.callee.name, "and");
+  assert.equal(expression.args[0].value, true);
+  assert.equal(expression.args[1].value, false);
+});
+
+test("a leading `or` continues the expression on the line above", () => {
+  const expression = printedExpression("print false\n  or true");
+
+  assert.equal(expression.callee.name, "or");
+});
+
+test("a leading `is` continues the expression on the line above", () => {
+  const expression = printedExpression("print [1 2]\n  is empty");
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "empty");
+});
+
+// --- every slot of an unfinished `is` predicate tolerates a newline ------------------------------
+
+test("`is` takes its predicate word from the next line", () => {
+  const expression = printedExpression("print [1 2] is\n  empty");
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "empty");
+});
+
+test("`is member` takes its `of` from the next line", () => {
+  const expression = printedExpression("print 2 is member\n  of [1 2 3]");
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "member-of");
+});
+
+test("`is a` takes its type word from the next line", () => {
+  const expression = printedExpression('print 5 is a\n  "number"');
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "a");
+  assert.equal(expression.test.type.value, "number");
+});
+
+test("`is strictly` takes its `between` from the next line", () => {
+  const expression = printedExpression(
+    "print 5 is strictly\n  between 1 and 9",
+  );
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "between");
+  assert.equal(expression.test.strict, true);
+});
+
+test("`is between` takes its `and` from the next line", () => {
+  const expression = printedExpression("print 5 is between 1\n  and 9");
+
+  assert.equal(expression.kind, "IsPredicate");
+  assert.equal(expression.test.form, "between");
+  assert.equal(expression.test.low.value, 1);
+  assert.equal(expression.test.high.value, 9);
+});
+
 test("a leading operator continues across a blank line", () => {
   assertBinary(printedExpression("print 1\n\n\n  + 2"), "+", 1, 2);
 });
@@ -212,13 +280,26 @@ test("a spaced `- 2` on the next line continues the expression, matching the one
   assertBinary(printedExpression("print 1\n- 2"), "-", 1, 2);
 });
 
-test("a word operator opening a line does not continue the expression above it", () => {
-  const { diagnostics } = OL.parse("print 1 == 1\nand 2 == 2", doc);
+test("a word operator opening a line continues the expression, since none can begin a statement", () => {
+  const expression = printedExpression("print 1 == 1\nand 2 == 2");
 
-  assert.deepEqual(
-    diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-bad-token"],
-  );
+  assert.equal(expression.callee.name, "and");
+});
+
+test("no word operator this admits can begin a statement", () => {
+  for (const source of [
+    "and true false",
+    "or true false",
+    "mod 5 2",
+    "is empty",
+  ]) {
+    const { diagnostics } = OL.parse(source, doc);
+
+    assert.ok(
+      diagnostics.some((diagnostic) => diagnostic.code === "ol-bad-token"),
+      `${source} must be a parse error in statement position`,
+    );
+  }
 });
 
 // --- a genuinely missing operand is still reported ----------------------------------------------
@@ -278,6 +359,47 @@ test("an unmatched `)` is still reported", () => {
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unmatched-paren"],
   );
+});
+
+// --- issue #709 is adjacent but untouched --------------------------------------------------------
+//
+// `(pi == pi)` mis-reads as a `parenthesized-call` because `spec/grammar.md` defines both
+// `parenthesized-expression` and `parenthesized-call` without saying how to disambiguate a
+// parenthesized expression that *begins* with a callable name. That is a grammar ambiguity needing
+// a `[spec]` ruling, not something a newline fix may resolve — or silence. This fix touches the
+// same parenthesized path, so both directions are pinned here: the defect still reports exactly the
+// diagnostics it reported before, and the controls around it still parse clean.
+
+test("issue #709 still reports the same diagnostics — not fixed and not silenced", () => {
+  const { ast, diagnostics } = OL.parse("print (pi == pi)", doc);
+
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-bad-token"],
+  );
+  assert.deepEqual(
+    OL.check(ast, { profiles: OL.OL_CHECK_PROFILES }).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["ol-too-many-inputs"],
+  );
+});
+
+test("issue #709 reads a line-spanning group exactly as its one-line form", () => {
+  const { diagnostics } = OL.parse("print (pi ==\n  pi)", doc);
+
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-bad-token"],
+  );
+});
+
+test("issue #709's controls still parse clean", () => {
+  for (const source of ["print (1 == 1)", "print (pi)", "print pi == pi"]) {
+    const { diagnostics } = OL.parse(source, doc);
+
+    assert.deepEqual(diagnostics, [], source);
+  }
 });
 
 // --- a multi-line expression spans the source it actually covers ---------------------------------

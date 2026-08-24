@@ -604,8 +604,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return token.kind === "op" && (token.text === "+" || token.text === "-");
   }
 
+  /** Is `token` the `name` keyword `word`? The worded operators are `name`s, not `op`s. */
+  function isKeywordToken(token: LexToken, word: string): boolean {
+    return token.kind === "name" && token.text.toLowerCase() === word;
+  }
+
   function isMultiplicativeOp(token: LexToken): boolean {
-    return token.kind === "op" && (token.text === "*" || token.text === "/");
+    return (
+      (token.kind === "op" && (token.text === "*" || token.text === "/")) ||
+      isKeywordToken(token, "mod")
+    );
   }
 
   /**
@@ -635,17 +643,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * whether to consume those newlines so the operator binds to what came before, honouring
    * `spec/grammar.md:34`'s "newlines are insignificant" within one expression (issue #933).
    *
-   * Unlike {@link skipNewlinesBeforeOperand} this position *can* legally end a statement, so it is
-   * guarded twice — every continuation admitted here is a token sequence that is a parse error
-   * today, which is what makes the change incapable of silently re-reading a working program:
+   * Unlike {@link skipNewlinesBeforeOperand} this position *can* legally end a statement, so what
+   * makes a continuation safe is a property of the operator itself: **no operator this admits can
+   * begin a statement.** `and true false`, `or true false`, `mod 5 2`, `is empty` and every
+   * symbolic operator are all parse errors in statement position today, so continuing onto one can
+   * never swallow a statement that used to be read — there is no valid reading to lose.
    *
-   * - **Only symbolic `op` tokens continue a line.** The word operators (`and`, `or`, `mod`, `is`)
-   *   are `name` tokens, and a `name` is the ordinary way to *begin* a statement — continuing there
-   *   would let an expression swallow the statement after it.
-   * - **A `-` glued to a numeral never continues a line**, because that is a negative `number`
-   *   literal (`spec/grammar.md:60`), which is itself a legal statement and a legal list element.
-   *   So `print 1` ⏎ `-2` keeps its two statements and `[1` ⏎ `-2]` keeps its two elements, while
-   *   the spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as.
+   * The single exception is the one token that *can*: a `-` glued to a numeral is a negative
+   * `number` literal (`spec/grammar.md:60`), which is a legal statement and a legal list element.
+   * So `print 1` ⏎ `-2` keeps its two statements and `[1` ⏎ `-2]` keeps its two elements, while the
+   * spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as.
    */
   function continuesOnNextLine(
     isOperator: (token: LexToken) => boolean,
@@ -660,12 +667,20 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return isOperator(peek(offset)) && !isNegativeNumberLiteralAt(offset);
   }
 
+  /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
+  function continuesOnNextLineWith(word: string): boolean {
+    return continuesOnNextLine((token) => isKeywordToken(token, word));
+  }
+
   function parseOr(): ExpressionNode | undefined {
     let left = parseAnd();
     if (left === undefined) {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLineWith("or")) {
+        skipNewlines();
+      }
       if (!isName("or")) {
         break;
       }
@@ -692,6 +707,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLineWith("and")) {
+        skipNewlines();
+      }
       if (!isName("and")) {
         break;
       }
@@ -728,6 +746,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const first = parseAdditive();
     if (first === undefined) {
       return undefined;
+    }
+    if (continuesOnNextLineWith("is")) {
+      skipNewlines();
     }
     if (isName("is")) {
       return parseIsPredicate(first);
@@ -771,6 +792,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
   function parseIsPredicate(operand: ExpressionNode): ExpressionNode {
     advance(); // consume `is`
     const start = operand.source_span.start;
+    // Every slot from here on is part of one unfinished `is` predicate, so a newline in any of
+    // them is insignificant (`spec/grammar.md:34`) — and is a parse error today, so nothing that
+    // parses cleanly can be re-read (issue #933).
+    skipNewlinesBeforeOperand();
     const token = current();
     if (token.kind === "name") {
       const lower = token.text.toLowerCase();
@@ -780,12 +805,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       if (lower === "member") {
         advance();
+        skipNewlinesBeforeOperand();
         if (isName("of")) {
           advance();
-          // Only continue onto the next line once `of` has actually been read. On the recovery
-          // path the missing-`of` report above and the failed collection parse below must keep
-          // landing on the SAME token, so `dedupeDiagnostics` still collapses them into the one
-          // finding `core-language/diagnostics/is-member-missing-of-and-collection` pins.
           skipNewlinesBeforeOperand();
         } else {
           diagnostics.push(unexpected(current()));
@@ -803,6 +825,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       if (lower === "a") {
         advance();
+        skipNewlinesBeforeOperand();
         const typeTok = current();
         if (typeTok.kind !== "word") {
           diagnostics.push(unexpected(typeTok));
@@ -827,6 +850,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   ): ExpressionNode {
     advance(); // consume `between` or `strictly`
     if (strict) {
+      skipNewlinesBeforeOperand();
       if (isName("between")) {
         advance();
       } else {
@@ -840,6 +864,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       diagnostics.push(unexpected(current()));
       return operand;
     }
+    skipNewlinesBeforeOperand();
     if (isName("and")) {
       advance();
     } else {
@@ -898,11 +923,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
         skipNewlines();
       }
       const token = current();
-      const isMulOp = isMultiplicativeOp(token);
-      const isMod = token.kind === "name" && token.text.toLowerCase() === "mod";
-      if (!isMulOp && !isMod) {
+      if (!isMultiplicativeOp(token)) {
         break;
       }
+      const isMod = isKeywordToken(token, "mod");
       advance();
       skipNewlinesBeforeOperand();
       const right = parseUnary();
@@ -923,7 +947,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * If the current token is a `-` sitting directly against a numeral (no gap), consume both and
    * return the negative numeric literal — a leading `-` is part of the `number` in that position
-   * (`spec/grammar.md:17,58`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
+   * (`spec/grammar.md:17,60`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
    * negative literal may lead an expression) and {@link parseKeyTerm} (a selector key is a
    * `number`). A gap (`- 3`, or a block comment between the two) is a stray minus with no left
    * operand, not a negative literal, so the `-`'s end must equal the numeral's start on BOTH line

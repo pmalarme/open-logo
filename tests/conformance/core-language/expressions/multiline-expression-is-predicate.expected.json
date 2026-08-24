@@ -1,0 +1,128 @@
+{
+  "description": "Every slot of an unfinished `is` predicate tolerates a newline, because the predicate is a single expression and `spec/grammar.md:34` makes newlines insignificant inside one (issue #933): after `is`, around `member`/`of`, before the type word of `is a`, and around both bounds of `is between … and …`. Each of these positions is a parse error without the newline handling, so nothing that parsed cleanly before is re-read here.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [5, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [5, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [8, 1],
+        "end": [10, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [8, 1],
+        "end": [10, 10]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [11, 1],
+        "end": [13, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [11, 1],
+        "end": [13, 11]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [14, 1],
+        "end": [17, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [14, 1],
+        "end": [17, 4]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [18, 1],
+        "end": [20, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-is-predicate",
+        "start": [18, 1],
+        "end": [20, 10]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}
