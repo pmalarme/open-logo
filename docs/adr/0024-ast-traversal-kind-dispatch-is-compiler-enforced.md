@@ -24,8 +24,9 @@ instrument and its subject share the blind spot, so the missing coverage reads a
 exists". #839's derived block-slot enumeration documented exactly this as the assumption underneath
 it (`packages/runtime/src/execute-declaration-slots.test.mjs`); because it reflects over every field
 of each node it *visits*, what survives as its *traversal-shaped* blind spot is a holder field that
-keeps a node from being visited at all — the residual now tracked by #960. (Its non-traversal
-caveats — the parseable corpus, and corpus adequacy — are independent of this change and unaltered.)
+keeps a node from being visited at all — the residual now tracked by #960. (Its other caveats — the
+parseable corpus, and corpus adequacy — are unaffected by the guard; this PR drops a stale census
+figure from the first of them, not the caveat itself.)
 The gap was repository-wide, and
 the risk was never today's switch: it was the next node kind added with a body.
 
