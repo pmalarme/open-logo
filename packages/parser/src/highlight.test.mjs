@@ -820,18 +820,31 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // leave ALONE. `spec/tooling.md:30` names `local end`, `for end from 1 to 3`, `export end`, and
 // `:p.end` as positions where `end` is `keyword` anyway, and `:31` names `empty` as `primitive` —
 // none of them a profile word, so no profile set may move any of them. That invariant lived only
-// in prose, and it cost two slices: issue #840 was closed as **void** for proposing exactly this
-// widening, and issue #832 was re-raised against behaviour that already worked. The `keyword` row
-// of `spec/tooling.md`'s token-class table is **change-detected only** (`npm run built-in-names`
-// fingerprints it; nothing checks the edited row is correct) and the conformance harness asserts
-// events and diagnostics but has no token-class channel — so these three tests are the only thing
-// holding the invariant. They are written as a matched set on purpose:
+// in prose, and two slices turned on it. Issue #840 (closed `NOT_PLANNED`) proposed reclassifying
+// **any** built-in name in a binding position — its own table lists `local if`, `set count to 5`,
+// `for fd in [1 2]` — and, separately, classifying the profile heads *unconditionally*, dropping
+// the profile gate #740 added. Both halves would have moved the controls below: the first covers
+// `local end`/`local empty` directly, the second is what test 3 measures. Issue #832 then reported
+// the seven heads as never `keyword`, which is not reproducible — that measurement passed its
+// options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
+// to `{}` and every column read the Core-only answer.
 //
-//   1. the widest profile set changes NOTHING outside the registry (blast radius);
-//   2. the spec's own non-profile examples keep their class under every profile set (the named
+// The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
+// (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
+// conformance harness asserts events and diagnostics but has no token-class channel — so these
+// three tests are the only thing holding the invariant. They are a matched set on purpose:
+//
+//   1. over a representative corpus, the widest profile set classifies identically to a
+//      keyword-free one (blast radius);
+//   2. the spec's own non-profile examples keep their class under both of those sets (the named
 //      controls, plus `if`/`repeat` as positive keyword controls); and
-//   3. every registry word DOES move — without which 1 and 2 would both pass on a build that
-//      ignored `options.profiles` altogether.
+//   3. every registry word DOES move, in each direction asserted separately — without which 1
+//      and 2 would both pass on a build that ignored `options.profiles` altogether.
+//
+// 1 and 2 compare two endpoint profile sets over a finite corpus, so they prove "nothing in this
+// corpus moves between these sets", not a universal quantifier over all sources and all sets.
+// That is the strongest claim a test can make here, and it is the one that fails on both mutants
+// recorded in the commit message.
 
 /** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
 const ALL_PROFILES = OL.OL_CHECK_PROFILES;
@@ -856,33 +869,50 @@ function profileClasses(source, profiles) {
 
 /**
  * Programs deliberately free of profile words, spanning the vocabulary a widened lookup would most
- * plausibly catch: both spellings of the `end` label, the `is`-predicate contextual keywords
- * (`empty`, `a`, `member`, `of`), binding forms, a comprehension, a selector, and a comment.
- * Their profile-word-freeness is asserted below, not assumed.
+ * plausibly catch: both spellings of the `end` label (bare and `end define`/`end if`), the
+ * `is`-predicate contextual keywords (`empty`, `a`, `member`, `of`), binding forms, a
+ * comprehension, a selector, and both line-comment markers.
+ *
+ * Every entry is asserted below to be free of profile words AND to parse without a diagnostic, so
+ * a claim of coverage here cannot quietly decay into error recovery — a corpus of malformed
+ * sources still compares equal to itself under two profile sets while exercising none of the
+ * grammar it names. `export end` is the single deliberate exception: it is one of
+ * `spec/tooling.md:30`'s own four normative examples, and the reader currently enters recovery on
+ * it, so its diagnostics are listed rather than hidden.
  */
 const PROFILE_WORD_FREE_CORPUS = [
   "define greet :name\n  print :name\nend",
+  "define greet :name\n  print :name\nend define",
   "local end",
   "for end from 1 to 3 [ forward 1 ]",
   "export end",
-  "print :p.end",
+  "local p\nprint :p.end",
   "local empty",
-  "if :x is empty [ print 1 ]",
-  "if :x is a number [ print 1 ]",
+  "local x\nif :x is empty [ print 1 ]",
+  'local x\nif :x is a "number" [ print 1 ]',
   "if 1 is member of [ 1 2 ] [ print 1 ]",
-  "if true [ print 1 ]",
+  "if true\n  print 1\nend if",
   "repeat 3 [ forward 10 ]",
-  "while :x [ print :x ]",
-  "set :x to 1",
+  "local x\nwhile :x [ print :x ]",
+  "set x to 1",
   'make "count" 0',
   "struct point [ x y ]",
   "print { a: 1 }",
   "print not true and 3 mod 2",
-  "print map [ :n * 2 ] [ 1 2 3 ]",
-  "; a comment\nforward 10",
-  "print :d[key]",
+  "print map n in [ 1 2 3 ] [ :n * 2 ]",
+  "# a comment\nforward 10",
+  "// another comment\nforward 10",
+  "local d\nprint :d[key]",
   "forever [ forward 1 ]",
 ];
+
+/**
+ * Parse diagnostics each corpus entry is expected to raise, keyed by source. Absent = must parse
+ * clean. Only `export end` appears, and only because `spec/tooling.md:30` requires the example.
+ */
+const CORPUS_PARSE_DIAGNOSTICS = new Map([
+  ["export end", ["ol-bad-token", "ol-mismatched-end"]],
+]);
 
 test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS", () => {
   const heads = new Set(PROFILE_HEADS);
@@ -896,10 +926,17 @@ test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS
       [],
       `${JSON.stringify(source)} must contain no profile word`,
     );
+    // Likewise measured: the corpus must be real OpenLogo, not recovery soup that only looks like
+    // it covers the grammar it names.
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code),
+      CORPUS_PARSE_DIAGNOSTICS.get(source) ?? [],
+      `${JSON.stringify(source)} must parse as declared`,
+    );
     assert.deepEqual(
       profileClasses(source, ALL_PROFILES),
       profileClasses(source, NO_KEYWORD_PROFILES),
-      `${JSON.stringify(source)} must classify identically under every profile set`,
+      `${JSON.stringify(source)} must classify identically under both profile sets`,
     );
   }
 });
@@ -919,7 +956,7 @@ const NON_PROFILE_CONTROLS = [
   ["repeat", "repeat 3 [ forward 10 ]", "keyword"],
 ];
 
-test("profiles: the spec's own non-profile examples keep their class under every profile set", () => {
+test("profiles: the spec's own non-profile examples keep their class under both profile sets", () => {
   for (const [word, source, expected] of NON_PROFILE_CONTROLS) {
     for (const profiles of [NO_KEYWORD_PROFILES, ALL_PROFILES]) {
       assert.deepEqual(
@@ -959,10 +996,19 @@ test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => 
       OL.highlight(source, doc, { profiles })
         .filter((token) => token.text === head)
         .map((token) => token.class);
+    // Asserted as two separate one-element comparisons, never as one concatenation: `[...a, ...b]`
+    // deepEqual `["primitive", "keyword"]` constrains only the combined sequence, so an empty
+    // inactive result beside a two-element active one would satisfy it while proving neither
+    // direction.
     assert.deepEqual(
-      [...classOf(NO_KEYWORD_PROFILES), ...classOf(ALL_PROFILES)],
-      ["primitive", "keyword"],
-      `${head} must be primitive while its profile is inactive and keyword while it is active`,
+      classOf(NO_KEYWORD_PROFILES),
+      ["primitive"],
+      `${head} must be primitive while its profile is inactive`,
+    );
+    assert.deepEqual(
+      classOf(ALL_PROFILES),
+      ["keyword"],
+      `${head} must be keyword while its profile is active`,
     );
   }
 });
