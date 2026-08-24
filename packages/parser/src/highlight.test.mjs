@@ -25,6 +25,7 @@
 // asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
 
@@ -834,28 +835,45 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
 // (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
 // conformance harness asserts events and diagnostics but has no token-class channel — so these
-// three tests are the only thing holding the invariant. They are a matched set on purpose:
+// four tests are the only thing holding the invariant. They are a matched set on purpose:
 //
 //   1. over a representative corpus, the widest profile set classifies identically to a
-//      keyword-free one (blast radius);
+//      keyword-free one (blast radius) — the corpus carries the *positional* cases a bare name
+//      cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
 //   2. the spec's own non-profile examples keep their class under both of those sets (the named
-//      controls, plus `if`/`repeat` as positive keyword controls); and
-//   3. every registry word DOES move, in each direction asserted separately — without which 1
-//      and 2 would both pass on a build that ignored `options.profiles` altogether.
+//      controls, plus `if`/`repeat` as positive keyword controls);
+//   3. every registry word DOES move, in each direction asserted separately — without which the
+//      others would pass on a build that ignored `options.profiles` altogether; and
+//   4. **no built-in name at all** moves between the two sets — swept over every entry of
+//      `spec/built-in-names.json`, the authoritative manifest (ADR-0021), minus the registry's
+//      own words. This is the breadth 1 cannot have.
 //
-// 1 and 2 compare two endpoint profile sets over a finite corpus, so they prove "nothing in this
-// corpus moves between these sets", not a universal quantifier over all sources and all sets.
-// That is the strongest claim a test can make here, and it is the one that fails on both mutants
-// recorded in the commit message.
+// 1 and 2 compare two endpoint profile sets over a finite corpus, so on their own they prove
+// "nothing in this corpus moves between these sets", not a universal quantifier over all sources.
+// That gap is real and was measured: a profile-gated widening onto `fd` or `setcolor` passes the
+// entire suite when only 1–3 exist, because neither word is in the corpus. 4 closes it across all
+// 148 authoritative names, in call position. What none of the four can claim is a quantifier over
+// arbitrary *sources* — 4 sweeps names, 1 sweeps positions, and neither subsumes the other.
+//
+// One asymmetry worth naming rather than implying: 1 and 4 compare two profile sets, so they catch
+// a *profile-gated* change. A change that reclassifies a word **unconditionally** looks identical
+// from both endpoints and is invisible to them by construction — that is what 2's named controls,
+// and the rest of this file, are for.
 
 /** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
 const ALL_PROFILES = OL.OL_CHECK_PROFILES;
 
-/** Minimal conformance: Core Language + Turtle & Rendering, contributing no profile keyword. */
-const NO_KEYWORD_PROFILES = ["core-language", "turtle-rendering"];
-
 /** The seven profile keywords, read off the registry so a new one joins these tests by itself. */
 const PROFILE_HEADS = Object.values(OL.OL_PROFILE_KEYWORDS).flat();
+
+/**
+ * The other endpoint: every profile that contributes no keyword, derived as the complement of
+ * `OL_PROFILE_KEYWORDS`'s own keys rather than hardcoded, so a profile that starts contributing
+ * one leaves this set by itself — the same idiom as {@link PROFILE_HEADS} two lines up.
+ */
+const NO_KEYWORD_PROFILES = ALL_PROFILES.filter(
+  (profile) => !(profile in OL.OL_PROFILE_KEYWORDS),
+);
 
 /**
  * Project a whole run, so a count, role, or class change is all caught by one comparison rather
@@ -909,10 +927,11 @@ const PROFILE_WORD_FREE_CORPUS = [
 ];
 
 /**
- * Parse diagnostics each corpus entry is expected to raise, keyed by source. Absent = must parse
- * clean. Only `export end` appears, and only because `spec/tooling.md:30` requires the example.
+ * Parse diagnostics each corpus entry and named control is expected to raise, keyed by source.
+ * Absent = must parse clean. Only `export end` appears, and only because `spec/tooling.md:30`
+ * requires the example and the reader currently enters recovery on it.
  */
-const CORPUS_PARSE_DIAGNOSTICS = new Map([
+const DECLARED_PARSE_DIAGNOSTICS = new Map([
   ["export end", ["ol-bad-token", "ol-mismatched-end"]],
 ]);
 
@@ -932,13 +951,51 @@ test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS
     // it covers the grammar it names.
     assert.deepEqual(
       OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code),
-      CORPUS_PARSE_DIAGNOSTICS.get(source) ?? [],
+      DECLARED_PARSE_DIAGNOSTICS.get(source) ?? [],
       `${JSON.stringify(source)} must parse as declared`,
     );
+    const projected = profileClasses(source, ALL_PROFILES);
+    // Guards the identity assertion against the degenerate build where `highlight()` returns
+    // nothing at all: two empty projections compare equal and would prove nothing.
+    assert.ok(projected.length > 0, `${JSON.stringify(source)} must tokenize`);
     assert.deepEqual(
-      profileClasses(source, ALL_PROFILES),
+      projected,
       profileClasses(source, NO_KEYWORD_PROFILES),
       `${JSON.stringify(source)} must classify identically under both profile sets`,
+    );
+  }
+});
+
+/**
+ * Breadth where the corpus has depth: every entry of `spec/built-in-names.json` — the
+ * authoritative keyword+primitive manifest, aliases included, versioned with the spec
+ * (ADR-0021) — minus the profile registry's own words, must classify the same under both
+ * profile sets.
+ *
+ * Read from the normative manifest rather than from the parser's registries on purpose. A test
+ * that drew its subject list from the implementation could not notice a name the implementation
+ * forgot; `npm run built-in-names` is what ties the two together, and this rides on that.
+ *
+ * It asserts a *relation* (the two profile sets agree), never an expected class, so it stays
+ * silent about what any individual name should paint — that is `spec/tooling.md`'s business and
+ * the rest of this file's.
+ */
+const BUILT_IN_NAMES = JSON.parse(
+  readFileSync(new URL("../../../spec/built-in-names.json", import.meta.url)),
+).names.map((entry) => entry.name);
+
+test("profiles: no built-in name outside OL_PROFILE_KEYWORDS changes class between the two sets", () => {
+  const heads = new Set(PROFILE_HEADS);
+  const swept = BUILT_IN_NAMES.filter((name) => !heads.has(name));
+  // A manifest that stopped containing the profile words, or stopped being read, would silently
+  // reduce this to a no-op; both counts are pinned so it cannot.
+  assert.equal(BUILT_IN_NAMES.length - swept.length, heads.size);
+  assert.ok(swept.length > 100, `expected a broad sweep, got ${swept.length}`);
+  for (const name of swept) {
+    assert.deepEqual(
+      profileClasses(name, ALL_PROFILES),
+      profileClasses(name, NO_KEYWORD_PROFILES),
+      `${name} must classify identically under both profile sets`,
     );
   }
 });
@@ -952,7 +1009,7 @@ const NON_PROFILE_CONTROLS = [
   ["end", "local end", "keyword"],
   ["end", "for end from 1 to 3 [ forward 1 ]", "keyword"],
   ["end", "export end", "keyword"],
-  ["end", "print :p.end", "keyword"],
+  ["end", "local p\nprint :p.end", "keyword"],
   ["empty", "local empty", "primitive"],
   ["if", "if true [ print 1 ]", "keyword"],
   ["repeat", "repeat 3 [ forward 10 ]", "keyword"],
@@ -960,6 +1017,14 @@ const NON_PROFILE_CONTROLS = [
 
 test("profiles: the spec's own non-profile examples keep their class under both profile sets", () => {
   for (const [word, source, expected] of NON_PROFILE_CONTROLS) {
+    // Held to the same standard the corpus is, for the same reason: round 1 of this change's
+    // review found a corpus whose sources did not parse, so a control that quietly stopped being
+    // valid OpenLogo would be the identical defect one test over.
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code),
+      DECLARED_PARSE_DIAGNOSTICS.get(source) ?? [],
+      `${JSON.stringify(source)} must parse as declared`,
+    );
     for (const profiles of [NO_KEYWORD_PROFILES, ALL_PROFILES]) {
       assert.deepEqual(
         OL.highlight(source, doc, { profiles })
