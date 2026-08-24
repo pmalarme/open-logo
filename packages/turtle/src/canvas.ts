@@ -342,7 +342,7 @@ function paintAvatar(
   target.restore();
 }
 
-/** Grid overlay guide-line color (`spec/rendering.md:139`: color must not be the sole carrier —
+/** Grid overlay guide-line color (`spec/rendering.md:141`: color must not be the sole carrier —
  * see {@link AXES_STROKE_STYLE}'s distinct width for how the axes overlay stays distinguishable
  * without relying on color alone). */
 const GRID_STROKE_STYLE = "#cccccc";
@@ -353,7 +353,7 @@ const GRID_LINE_WIDTH = 1;
 /** Axes overlay line color, deliberately distinct from {@link GRID_STROKE_STYLE}. */
 const AXES_STROKE_STYLE = "#888888";
 /** Axes lines are drawn bolder than grid lines — a non-color (width) distinction, per
- * `spec/rendering.md:139` ("axes can use labels or line patterns"). */
+ * `spec/rendering.md:141` ("axes can use labels or line patterns"). */
 const AXES_LINE_WIDTH = 2;
 
 /** `measure` overlay marker color and size, in world units before viewport scaling
@@ -478,7 +478,7 @@ function paintMeasureOverlay(
 
 /**
  * Draws every enabled overlay (`grid`/`axes`/`measure`) on top of the retained scene, in that
- * fixed order, matching the Geometry profile's overlays (`spec/rendering.md:129-139`). A `save`/
+ * fixed order, matching the Geometry profile's overlays (`spec/rendering.md:131-141`). A `save`/
  * `restore` bracket isolates the overlay draw calls' `strokeStyle`/`fillStyle`/`lineWidth` from
  * whatever the caller sets afterwards (mirroring {@link paintAvatar}'s isolation).
  */

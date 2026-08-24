@@ -79,7 +79,7 @@
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
  * state: with several turtles the text now names **which** turtle it is describing, as
  * `turtle #<id>` — the same identity `print who` gives the learner — satisfying
- * `spec/rendering.md:191`'s "Implementations with multiple turtles MUST identify the active turtle
+ * `spec/rendering.md:193`'s "Implementations with multiple turtles MUST identify the active turtle
  * or addressed turtle set". A Turtle & Rendering program's text is unchanged, byte for byte.
  *
  * #770 closes the other half of that MUST — the **addressed turtle set**, which no single turtle
@@ -438,7 +438,7 @@ function describeCurrentInstruction(
 }
 
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the
- * turtle it describes once the world holds more than one live turtle (`spec/rendering.md:191`,
+ * turtle it describes once the world holds more than one live turtle (`spec/rendering.md:193`,
  * #749) and
  * identifies the addressed turtle set whenever that set is not exactly the turtle a command last drove
  * (#770), and is byte-identical to `describeTurtleState`'s wording while one

@@ -277,7 +277,7 @@ test("the registry marks exactly the per-turtle effect kinds as turtle-specific 
 test("primitive payload carries the addressed turtle set for tell/ask/each (issue #766)", () => {
   // The Sprites addressing primitives are the only `primitive` emitters that carry an
   // `addressing` snapshot: the whole addressed set plus the current turtle, which is what makes
-  // spec/rendering.md:191 ("MUST identify the active turtle or addressed turtle set") reachable
+  // spec/rendering.md:193 ("MUST identify the active turtle or addressed turtle set") reachable
   // from the stream. The snapshot is absolute, so a consumer folds it by assignment.
   for (const name of ["tell", "ask", "each"]) {
     const event = {

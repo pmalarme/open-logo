@@ -269,7 +269,7 @@ export interface ReturnPayload {
  * Payload for an `overlay` event emitted by `grid` (Geometry profile,
  * `spec/geometry-module.md:268-278`): creates/refreshes the persistent grid guide-line overlay.
  * `spacing` is the world-unit distance between adjacent guide lines (default `20`,
- * `spec/geometry-module.md:272`/`spec/rendering.md:133`). Never changes turtle position,
+ * `spec/geometry-module.md:272`/`spec/rendering.md:135`). Never changes turtle position,
  * heading, pen, color, or width, and survives `clean` (the overlay reducer has no `clear` case —
  * see `@openlogo/turtle`'s `overlay.ts`).
  */
@@ -307,7 +307,7 @@ export interface MeasureOverlayPayload {
  * The `overlay` event's payload — a discriminated union on `overlay`, one arm per Geometry-profile
  * overlay primitive ({@link GridOverlayPayload}, {@link AxesOverlayPayload},
  * {@link MeasureOverlayPayload}). See `spec/geometry-module.md:268-308` and
- * `spec/rendering.md:129-139` ("Grid, axes, and measure overlays").
+ * `spec/rendering.md:131-141` ("Grid, axes, and measure overlays").
  */
 export type OverlayPayload =
   GridOverlayPayload | AxesOverlayPayload | MeasureOverlayPayload;
@@ -443,7 +443,7 @@ export type PrimitiveName = string;
 /**
  * The **addressed turtle set** in effect at the instant an addressing `primitive` event is emitted
  * (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model"). This is what makes
- * `spec/rendering.md:191` — "Implementations with multiple turtles MUST identify the active turtle
+ * `spec/rendering.md:193` — "Implementations with multiple turtles MUST identify the active turtle
  * or addressed turtle set" — reachable from the stream at all: every per-turtle effect event carries
  * only the *acting* turtle's `turtle_id`, which after an `ask`/`each` block restores
  * (`spec/turtles-and-sprites.md:58`) is neither the active turtle nor the addressed set (issue #766).

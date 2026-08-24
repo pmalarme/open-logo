@@ -3,7 +3,7 @@
  * change of the addressed turtle set into a trace event, plus the scope snapshot `ask`/`each` save
  * and restore.
  *
- * `spec/rendering.md:191` is normative — "Implementations with multiple turtles MUST identify the
+ * `spec/rendering.md:193` is normative — "Implementations with multiple turtles MUST identify the
  * active turtle or addressed turtle set" — but a consumer of the trace stream could not satisfy it,
  * because `tell`/`ask`/`each` changed the addressed set without emitting anything. Every per-turtle
  * effect event carries only the *acting* turtle's `turtle_id`, and after an `ask`/`each` block

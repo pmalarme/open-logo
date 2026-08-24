@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): the long form `ask :t` … `end ask` behaves identically to the bracket form. `:t` (id 1) moves inside the block; the trailing `forward 20` runs for the restored default main turtle (unstamped). Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #675 (SP3): the long form `ask :t` … `end ask` behaves identically to the bracket form. `:t` (id 1) moves inside the block; the trailing `forward 20` runs for the restored default main turtle (unstamped). Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

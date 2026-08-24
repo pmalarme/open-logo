@@ -1,5 +1,5 @@
 {
-  "description": "issue #675 (SP3): nested `ask` restores exactly one level. The inner `ask :b` addresses turtle 2 for its block, then the outer `ask :a` set is restored so the outer `forward 5` moves turtle 1, not turtle 2. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #675 (SP3): nested `ask` restores exactly one level. The inner `ask :b` addresses turtle 2 for its block, then the outer `ask :a` set is restored so the outer `forward 5` moves turtle 1, not turtle 2. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [

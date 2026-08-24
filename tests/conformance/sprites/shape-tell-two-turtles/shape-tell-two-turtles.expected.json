@@ -1,5 +1,5 @@
 {
-  "description": "issue #677 (SP5): `tell [ :a :b ]` then a single `set_shape \"arrow\"` applies once per addressed turtle, emitting one `shape-change` per turtle carrying its own `turtle_id` (1 then 2) — shape is per-turtle state, so each turtle records its own change. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #677 (SP5): `tell [ :a :b ]` then a single `set_shape \"arrow\"` applies once per addressed turtle, emitting one `shape-change` per turtle carrying its own `turtle_id` (1 then 2) — shape is per-turtle state, so each turtle records its own change. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
