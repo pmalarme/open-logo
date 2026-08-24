@@ -1,0 +1,17 @@
+# Issue #962, the negative direction of the same fix. Removing the phantom `ol-unmatched-paren`
+# that a NEWLINE inside the reader used to raise must not weaken the diagnostic itself: a genuinely
+# unmatched `(` still has to be reported, exactly once, in both spellings.
+#
+# This pairs with `heritage-value-of-key-reader-across-a-newline`, which pins the clean direction. A
+# fix that simply stopped emitting `ol-unmatched-paren` would satisfy that fixture and destroy real
+# error reporting; only the two together pin the behaviour.
+#
+# The `(` here is never closed. `produce()` returns parse diagnostics without running `check()` when
+# parsing failed, so this fixture's expectation is the parse-stage diagnostic alone. The reader is
+# split across a newline, i.e. exactly the shape the fix now carries the parse through — the `(`
+# is still genuinely unmatched, so the report must survive.
+#
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+:d = { a: 7 b: "a" }
+print (value of :d
+for key "a"

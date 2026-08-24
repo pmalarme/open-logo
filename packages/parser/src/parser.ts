@@ -605,16 +605,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Consume the newlines sitting where a **required operand is still pending** — after a binary or
-   * unary operator has been consumed but its operand has not been read yet. `spec/grammar.md:34`:
-   * *"Within a single expression, list literal, dict literal, or parenthesized group, newlines are
-   * insignificant."* A newline in this position cannot be the statement terminator that the same
-   * sentence describes, because the statement it would terminate is not finished (issue #933).
+   * Consume the newlines sitting where a **required piece of the expression is still pending** —
+   * after a binary or unary operator has been consumed but its operand has not been read yet, or
+   * after a multi-word reader has committed to a head whose remaining fixed words and operands have
+   * not. `spec/grammar.md:34`: *"Within a single expression, list literal, dict literal, or
+   * parenthesized group, newlines are insignificant."* A newline in this position cannot be the
+   * statement terminator that the same sentence describes, because the statement it would terminate
+   * is not finished (issue #933).
    *
    * This can never change a program that is legal today: an operator with a newline in its operand
-   * slot is *always* a parse error right now (`ol-bad-token`, "end of line"), so there is no valid
-   * meaning to swallow. Contrast {@link continuesOnNextLine}, which faces a *complete* expression
-   * and therefore has to be guarded.
+   * slot — or a `value of :d for` with a newline where its `key` must be — is *always* a parse error
+   * right now (`ol-bad-token`), so there is no valid meaning to swallow. That is also why the
+   * position needs no dictionary-key guard: {@link isDictKeyAt} exists to protect a reading that is
+   * legal today, and here there is none to protect (issue #962). `spec/grammar.md:314` says so
+   * normatively for the dictionary case, naming this reader: where a value is "not yet complete —
+   * an operator or a call still owed an operand, say, or a `value of … for key` reader still owed
+   * its tail — the unfinished value's own grammar position wins and no entry opens", and "because
+   * none of this consults line breaks, newlines inside a dict literal are insignificant without
+   * exception". Contrast {@link continuesOnNextLine}, which faces a *complete* expression and
+   * therefore has to be guarded.
    */
   function skipNewlinesBeforeOperand(): void {
     skipNewlines();
@@ -675,22 +684,32 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as. A worded
    * operator has a second exception of the same shape, {@link isDictKeyAt}: it may also be a
    * dictionary key.
+   *
+   * `isOperator` is handed the token *and* its offset so a caller whose continuation is more than
+   * one token wide can look past it — {@link continuesOnNextLineWithValueOfKeyTail} needs that, and
+   * every single-token caller simply ignores the second parameter.
    */
   function continuesOnNextLine(
-    isOperator: (token: LexToken) => boolean,
+    isOperator: (token: LexToken, offset: number) => boolean,
   ): boolean {
     if (current().kind !== "newline") {
       return false;
     }
-    let offset = 0;
-    while (peek(offset).kind === "newline") {
-      offset += 1;
-    }
+    const offset = skippingNewlines(0);
     return (
-      isOperator(peek(offset)) &&
+      isOperator(peek(offset), offset) &&
       !isNegativeNumberLiteralAt(offset) &&
       !isDictKeyAt(offset)
     );
+  }
+
+  /** The offset of the first non-`newline` token at or after `offset`. */
+  function skippingNewlines(offset: number): number {
+    let index = offset;
+    while (peek(index).kind === "newline") {
+      index += 1;
+    }
+    return index;
   }
 
   /**
@@ -716,17 +735,64 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     // Mirror parseDictEntry's own `skipNewlines()` between the key and its separator, so
     // `mod` ⏎ `:two` is recognised as an entry exactly as `mod :two` is.
-    let separator = offset + 1;
-    while (peek(separator).kind === "newline") {
-      separator += 1;
-    }
-    const after = peek(separator);
+    const after = peek(skippingNewlines(offset + 1));
     return after.kind === "colon" || after.kind === "variable";
   }
 
   /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
   function continuesOnNextLineWith(word: string): boolean {
     return continuesOnNextLine((token) => isKeywordToken(token, word));
+  }
+
+  /**
+   * {@link continuesOnNextLine} for the `for key` tail of the Heritage `value of … for key …`
+   * reader (`spec/grammar.md:217`), which is **one expression** and therefore subject to
+   * `spec/grammar.md:34`'s "newlines are insignificant" exactly like the operators above (issue
+   * #962). Without this, `print value of :d` ⏎ `for key :k` breaks at the newline — and inside a
+   * dictionary the wreckage also *misreads*, producing an entry keyed `key` in place of the entry
+   * that was there, which no diagnostic describes.
+   *
+   * `for` needs a guard the worded operators do not, because it is the one continuation token here
+   * that **can** begin a statement (`for i in …`/`for i from …`, `spec/grammar.md:129-130`). Two
+   * conditions keep those loops intact, and both are load-bearing:
+   *
+   * 1. The whole two-word tail must be there, so `print value of :d` ⏎
+   *    `for i in [ 1 2 ] [ print :i ]` keeps its loop as a separate statement.
+   * 2. `key` must not itself be the loop's **binder**. A `binder` is a `name`
+   *    (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+   *    perfectly good binder and `for key in …`/`for key from …` satisfy condition 1 while being
+   *    loops, not tails. The word after `key` settles it: `in`/`from` can only continue a loop, and
+   *    neither can begin the reader's key expression, so declining on them costs no legal reading.
+   *
+   * All four words this predicate inspects — `for` and `key` on the continuing side, `in` and
+   * `from` on the declining side — are matched case-insensitively, via {@link isKeywordToken},
+   * because OpenLogo keywords are case-insensitive (`spec/grammar.md:13`). So `FOR KEY` continues
+   * across a newline exactly as `for key` does, and `FOR i IN …` is declined exactly as `for i in
+   * …` is. `for` and `key` are looked up past newlines of their own, so `value of :d` ⏎ `for` ⏎
+   * `key :k` — a newline on both sides of `for` — is still one expression. The `in`/`from` lookup
+   * skips newlines too, but only defensively: `for key` ⏎ `in …` is a parse error both before and
+   * after this fix, so that skip protects no legal reading and is not pinned.
+   *
+   * Two of {@link continuesOnNextLine}'s three tests are inert for this caller and are inherited
+   * only because they come with the mechanism: `for` is a `name`, never a negative numeral, and
+   * {@link isDictKeyAt} needs a `colon`/`variable` right after it, which condition 1 has already
+   * excluded by requiring `key` there. Neither is load-bearing here — do not read them as a reason
+   * this predicate is safe. The two numbered conditions are that reason.
+   */
+  function continuesOnNextLineWithValueOfKeyTail(): boolean {
+    return continuesOnNextLine((token, offset) => {
+      if (!isKeywordToken(token, "for")) {
+        return false;
+      }
+      const keyOffset = skippingNewlines(offset + 1);
+      if (!isKeywordToken(peek(keyOffset), "key")) {
+        return false;
+      }
+      const afterKey = peek(skippingNewlines(keyOffset + 1));
+      return (
+        !isKeywordToken(afterKey, "in") && !isKeywordToken(afterKey, "from")
+      );
+    });
   }
 
   function parseOr(): ExpressionNode | undefined {
@@ -1301,20 +1367,34 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `value-of-reader` (:203) side by side. That shape arrives here through
    * {@link parseParenthesized}'s fall-through rather than through a `parenthesized-call`; see
    * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
+   *
+   * Being one expression, it spans newlines: `spec/grammar.md:34` makes them insignificant inside
+   * it, so every slot from `of` onwards skips them (issue #962). Three of the four are positions
+   * where the reader has already committed and a newline is a parse error today whatever follows,
+   * so they use {@link skipNewlinesBeforeOperand}; only the tail's leading `for` faces a newline
+   * that could otherwise be a statement terminator, and it uses the guarded
+   * {@link continuesOnNextLineWithValueOfKeyTail}. The one internal newline still rejected is
+   * between `value` and `of`, which is the *interception* test above rather than a slot in here.
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
     advance(); // "value"
     advance(); // "of"
+    skipNewlinesBeforeOperand();
     const dictionary = requireExpression();
     if (dictionary === undefined) {
       return undefined;
     }
+    if (continuesOnNextLineWithValueOfKeyTail()) {
+      skipNewlines();
+    }
     if (!consumeKeyword("for")) {
       return undefined;
     }
+    skipNewlinesBeforeOperand();
     if (!consumeKeyword("key")) {
       return undefined;
     }
+    skipNewlinesBeforeOperand();
     const key = requireExpression();
     if (key === undefined) {
       return undefined;

@@ -1,0 +1,64 @@
+# Issue #962, acceptance criterion 6, made stack-neutral. The fix lets the reader cross a newline
+# to reach its required `for key` tail; the hazard that carries is reaching too far and swallowing
+# the statement on the next line. Every program here is already invalid — each reader is
+# deliberately INCOMPLETE — but the statement that follows is independently valid, and losing it is
+# how this class of fix silently changes what a program means.
+#
+# This fixture therefore does NOT separate the fixed parser from the pre-fix one: at `e6281969` all
+# ten diagnostics below are identical, because a reader that never crosses a newline cannot
+# reach past one either. What it separates is the fixed parser from the FIRST DRAFT of this fix,
+# whose two-word lookahead and binder guard were absent or incomplete — measured, dropping either
+# one changes the rows below.
+#
+# `for` is the one word the reader crosses a newline for that can also BEGIN a statement
+# (`for-in-statement`/`for-range-statement`, `spec/grammar.md:129-130`), and `key` is a legal
+# `binder` (`:386`), so `for key in …` and `for key from …` look exactly like this reader's tail
+# while being loops. Each reader below raises exactly one `ol-bad-token` anchored at the **newline**
+# ("end of line"): an anchor naming a word from the following line is the observable signature of a
+# reader that reached past the newline it should have released. Nine readers means nine such
+# diagnostics; the remaining one, on `1` — ninth of the ten in document order, not the last —
+# belongs to the `for zzz 1` line being read on its own terms after the reader released it, and
+# its presence is part of the assertion rather than noise.
+#
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+:d = { a: 7 b: "a" }
+
+# A `for … in` loop after an incomplete reader keeps its own line.
+print value of :d
+for i in [ 1 2 ] [ print :i ]
+
+# So does a `for … from` loop.
+print value of :d
+for i from 1 to 3 [ print :i ]
+
+# `key` is a legal binder, so these loops satisfy "the two-word tail is there" while being loops.
+print value of :d
+for key in [ 1 2 ] [ print :key ]
+
+print value of :d
+for key from 1 to 3 [ print :key ]
+
+# The exclusion words are matched case-insensitively too (`spec/grammar.md:13`), by a comparison of
+# their own: making only `in`/`from` case-sensitive would swallow these two while every lowercase
+# row above stayed green.
+print value of :d
+for key IN [ 1 2 ] [ print :key ]
+
+print value of :d
+FOR KEY FROM 1 to 3 [ print :key ]
+
+# A defensive control, not discriminating coverage: an uppercase `for` on a line the reader must
+# DECLINE behaves exactly as its lowercase twin does under every mutation of this predicate,
+# because the decline happens at the `key` test (`i` is not `key`) before case can matter. The
+# rows that do pin the declining comparison are the two above, where `key` IS the binder and only
+# `IN`/`FROM` separate a loop from this reader's tail.
+print value of :d
+FOR i in [ 1 2 ] [ print :i ]
+
+# A `for` line that is neither a loop nor this reader's tail is still not pulled in.
+print value of :d
+for zzz 1
+
+# An ordinary statement after an incomplete reader is untouched.
+print value of :d
+print 2

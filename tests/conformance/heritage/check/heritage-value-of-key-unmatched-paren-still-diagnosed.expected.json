@@ -1,0 +1,22 @@
+{
+  "description": "Issue #962, the negative direction of `heritage-value-of-key-reader-across-a-newline`. That fixture requires the phantom `ol-unmatched-paren` raised on CORRECTLY MATCHED parentheses to disappear; a fix that simply stopped emitting the diagnostic would satisfy it while destroying real error reporting. Here the `(` is genuinely never closed, in the very shape the fix now carries the parse through (the reader split across a newline), and exactly one `ol-unmatched-paren` must still be reported at the `(` itself -- measured at [16,7]-[16,8] with `params.delimiter` `(`. `produce()` returns parse diagnostics without running `check()` when parsing produced any (`scripts/harness/index.mjs`), so this expectation is the parse-stage diagnostic alone. The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "heritage/check/heritage-value-of-key-unmatched-paren-still-diagnosed",
+        "start": [16, 7],
+        "end": [16, 8]
+      },
+      "params": {
+        "delimiter": "("
+      },
+      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
