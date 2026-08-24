@@ -284,9 +284,11 @@ function declarationSource({
  * from a hand-picked probe list, and a hand-written seven-entry wrapper map left `while`, `for`,
  * `forever`, comprehension bodies and the **`else` branch of an `if`** un-drawn.
  *
- * Files that fail to parse are skipped — roughly 49 of the ~911 discovered, which are the corpus's
- * deliberate parse-error fixtures. They cannot contribute a field, so skipping them is correct, but
- * it does mean this set is derived from the *parseable* corpus rather than from all of it.
+ * Files that fail to parse are skipped — a few dozen of those discovered, the corpus's deliberate
+ * parse-error fixtures. (Deliberately not a count: nothing gates the number, so a literal one is an
+ * unenforced assertion that drifts with the next fixture, as this line's did.) They cannot
+ * contribute a field, so skipping them is correct, but it does mean this set is derived from the
+ * *parseable* corpus rather than from all of it.
  *
  * Because the corpus is the stack-neutral artifact every implementation must satisfy, a construct
  * added to the grammar arrives here as soon as it has a fixture — and {@link BLOCK_SLOT_WRAPPERS}
@@ -295,12 +297,16 @@ function declarationSource({
  *
  * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
- * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. A node kind
- * omitted from its parent's case would be invisible to *both*: declarations inside it would never be
- * registered, and its slot would never enter this set, so this test would stay green about its own
- * gap. The instrument and the subject share a traversal. It is narrow (every field of every node
- * `walk` reaches is read, so only a kind `walk` never reaches at all hides), and all ten of today's
- * slots are reached — but it is the one assumption underneath the enumeration.
+ * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. Since #925
+ * that switch handles every node *kind* or fails to compile, but a node-valued *field* added to an
+ * already-handled kind still has no child edge and no compile error (#960). A slot on a node `walk`
+ * reaches is *not* the blind spot: this visitor reads every field of every node it visits, so a new
+ * slot enters `required` without a wrapper and the assertion below goes red. What hides is a slot
+ * on a node `walk` never reaches at all — one sitting beneath a missing edge — and the *contents*
+ * of any slot: declarations inside them would never be registered, and they would never enter this
+ * set, so this test would stay green about its own gap. The instrument and the subject share a
+ * traversal. It is narrow, and all ten of today's slots are reached — but it is the assumption
+ * underneath the enumeration.
  *
  * Paths resolve from this file, not from `process.cwd()`: a package-scoped run
  * (`cd packages/runtime && node --test src/…`) would otherwise find no corpus at all.

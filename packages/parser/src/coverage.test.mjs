@@ -809,6 +809,64 @@ test("walk visits every core node kind, pre-order", () => {
   }
 });
 
+test("walk rejects an AST shape it has no case for instead of silently pruning it", () => {
+  // `childrenOf` dispatches four times — on node kind, `is`-test form, place-segment kind, and
+  // comprehension form — and each is exhaustive over its discriminant, so these clauses are
+  // unreachable from TypeScript. The `never` bindings in them are what make `tsc` reject a new
+  // discriminant value nobody gave a case (issue #925). They stay reachable from untyped
+  // JavaScript, and there the contract is to fail loudly: a silently childless node is still
+  // visited, but everything below it drops out of `walk`, and so out of the runtime's declaration
+  // registration and out of every checker.
+  const source_span = { document: doc, start: [1, 1], end: [1, 4] };
+  const operand = { kind: "NumberLit", value: 1, source_span };
+
+  assert.throws(
+    () => OL.walk({ kind: "NotANodeKind", source_span }, () => {}),
+    /no case for node kind "NotANodeKind"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "IsPredicate",
+          operand,
+          test: { form: "no-form" },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for "is" test form "no-form"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Place",
+          base: { name: "x", source_span },
+          segments: [{ kind: "no-segment", source_span }],
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for place segment kind "no-segment"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Comprehension",
+          form: "no-comprehension",
+          binder: { name: "n", source_span },
+          iterable: operand,
+          body: { kind: "Block", body: [], source_span },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for comprehension form "no-comprehension"/,
+  );
+});
+
 test("walk descends the optional-child branches when they are absent", () => {
   // If with no else, ForRange with no by, map with no seed, define with no params:
   // each exercises the `=== undefined` arm of childrenOf.

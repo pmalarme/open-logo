@@ -7,11 +7,13 @@
  * `@language-designer` + `@interpreter` (see the `interpreter/ast-design` skill).
  *
  * Every kind in {@link OL_NODE_KINDS} now has a typed interface, a factory helper on
- * {@link ast}, and a {@link walk} traversal case. Names that the checker points diagnostics at
- * (callees, procedure names, parameters, binders, and place bases/fields) carry their own
- * {@link SpannedName}. Core parses dotted places (`:a.b.c`); index/key selectors (`:a[i]`) and
- * the Data/Heritage profiles extend these shapes in their own slices. The AST still grows one
- * node per grammar production, never ahead of the grammar.
+ * {@link ast}, and a {@link walk} traversal case. Membership of {@link AnyNode} without a case is a
+ * compile error ({@link childrenOf}'s switch is exhaustive); a kind listed in
+ * {@link OL_NODE_KINDS} but in no union is inert and is caught by test, not by the compiler. Names
+ * that the checker points diagnostics at (callees, procedure names, parameters, binders, and place
+ * bases/fields) carry their own {@link SpannedName}. Core parses dotted places (`:a.b.c`);
+ * index/key selectors (`:a[i]`) and the Data/Heritage profiles extend these shapes in their own
+ * slices. The AST still grows one node per grammar production, never ahead of the grammar.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -521,7 +523,7 @@ export interface ClearNode extends NodeBase {
  * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
  * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
- * no expression children (it falls through `childrenOf`'s default). Grammar/AST only — the
+ * no expression children (its own `childrenOf` case returns none). Grammar/AST only — the
  * constructor-call and field mutation semantics land in a later Data-profile slice.
  */
 export interface StructDefNode extends NodeBase {
@@ -876,11 +878,68 @@ export const ast = {
 export type Visitor = (node: AnyNode) => void;
 
 /**
- * The direct child nodes `walk` descends into for `node`, in source order. Exported (alongside
- * `walk`) so a rule that needs scope-aware traversal — pushing/popping its own context around
- * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
- * reuse this shared child list for every node kind it does *not* special-case, instead of
- * duplicating (and risking drift from) this switch.
+ * Rejects a discriminant value one of {@link childrenOf}'s switches has no case for. The first
+ * parameter is `never`, so a new value of the discriminant being switched on — a node kind, an
+ * {@link IsTest} form, a {@link PlaceSegment} kind, or a {@link ComprehensionNode} form — fails
+ * `tsc` at the call site and names the omitted type.
+ *
+ * It throws rather than reporting no children, because a silently childless node is the exact
+ * failure mode issue #925 exists to remove: `walk` would still visit the node — the visitor runs
+ * before the descent — but everything *below* it would vanish, and with it the runtime's
+ * declaration registration and every checker's view of that subtree. Production callers pass
+ * well-typed {@link AnyNode} values, from `parse` or the {@link ast} factory; only malformed
+ * untyped input reaches here, and it fails loudly.
+ */
+function unhandledChildCase(_unhandled: never, seen: string): never {
+  throw new Error(
+    `childrenOf has no case for ${seen} — this is an OpenLogo bug, not a program error ` +
+      "(see docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).",
+  );
+}
+
+/**
+ * The walkable children of one postfix segment, shared by {@link PlaceNode} and
+ * {@link PostfixExpressionNode} so the two cannot drift apart. A dotted `.field` segment holds a
+ * {@link SpannedName} — metadata, not a walkable node — so only a bracketed selector contributes a
+ * child, and a dotted-only place has no expression children at all.
+ */
+function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
+  switch (segment.kind) {
+    case "field":
+      return [];
+    case "index":
+      return [segment.key];
+    default:
+      return unhandledChildCase(
+        segment,
+        `place segment kind ${JSON.stringify((segment as PlaceSegment).kind)}`,
+      );
+  }
+}
+
+/**
+ * The direct child nodes `walk` descends into for `node`, in source order. Exported within the
+ * package — unlike `walk`, it is not part of `index.ts`'s public surface — so a rule that needs
+ * scope-aware traversal, pushing/popping its own context around specific node kinds (e.g.
+ * `ol-undefined-var`'s procedure-frame/binder-scope walk), can still reuse this shared child list
+ * for every node kind it does *not* special-case, instead of duplicating (and risking drift from)
+ * this switch.
+ *
+ * All four of this function's dispatches — node kind, {@link IsTest} form, {@link PlaceSegment}
+ * kind, and {@link ComprehensionNode} form — enumerate **every** value their discriminant can take,
+ * childless ones included, so each `default` narrows to `never` and omitting a case is a compile
+ * error rather than a silent hole in every traversal in the repository (issue #925).
+ * `ForIn`/`Comprehension` binders are the deliberate exception: they discriminate structurally
+ * (`"kind" in …`), so a future node-shaped binder is included automatically and metadata binders
+ * stay excluded.
+ *
+ * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
+ * Every value those discriminants can take selects an explicit case; nothing here checks that the
+ * case returns *every* node-valued field of its kind. A field added to an already-handled kind — or
+ * a union member that reuses an existing discriminant value, which is the same thing at runtime —
+ * compiles clean, and the field is silently absent from the child list. The holder is still reached;
+ * the node in that field, and everything below it, is not. Issue #960 tracks that residual. See
+ * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
@@ -898,35 +957,34 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.args;
     case "ComparisonChain":
       return node.operands;
-    case "IsPredicate":
-      switch (node.test.form) {
-        case "member-of":
-          return [node.operand, node.test.collection];
-        case "a":
-          return [node.operand, node.test.type];
-        case "between":
-          return [node.operand, node.test.low, node.test.high];
-        default:
+    case "IsPredicate": {
+      // Bound to a local so the `form` switch narrows `test` itself, which is what lets the
+      // `default` below reject a form nobody gave a case.
+      const test = node.test;
+      switch (test.form) {
+        case "empty":
           return [node.operand];
+        case "member-of":
+          return [node.operand, test.collection];
+        case "a":
+          return [node.operand, test.type];
+        case "between":
+          return [node.operand, test.low, test.high];
+        default:
+          return unhandledChildCase(
+            test,
+            `"is" test form ${JSON.stringify((test as IsTest).form)}`,
+          );
       }
+    }
     case "Assign":
       return [node.place, node.value];
     case "Place":
-      // Field segments are metadata (a SpannedName, no `kind`); only bracketed selectors carry a
-      // walkable key expression, so a dotted-only place still has no expression children.
-      return node.segments.flatMap((segment) =>
-        segment.kind === "index" ? [segment.key] : [],
-      );
+      return node.segments.flatMap(segmentChildren);
     case "PostfixExpression":
-      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call,
-      // or any other primary) — see the field segments note on the "Place" case above for why
-      // only bracketed selectors contribute further children.
-      return [
-        node.base,
-        ...node.segments.flatMap((segment) =>
-          segment.kind === "index" ? [segment.key] : [],
-        ),
-      ];
+      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call, or
+      // any other primary); the segments contribute exactly what they do for a place.
+      return [node.base, ...node.segments.flatMap(segmentChildren)];
     case "If":
       return node.elseBody === undefined
         ? [node.condition, node.thenBody]
@@ -951,9 +1009,19 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
         : [node.from, node.to, node.by, node.body];
     case "Comprehension": {
       const binderChildren = "kind" in node.binder ? [node.binder] : [];
-      return node.form === "reduce"
-        ? [...binderChildren, node.iterable, node.initial, node.body]
-        : [...binderChildren, node.iterable, node.body];
+      switch (node.form) {
+        case "map":
+        case "filter":
+          return [...binderChildren, node.iterable, node.body];
+        case "reduce":
+          // Only `reduce` carries an accumulator seed; the union makes the other forms unable to.
+          return [...binderChildren, node.iterable, node.initial, node.body];
+        default:
+          return unhandledChildCase(
+            node,
+            `comprehension form ${JSON.stringify((node as ComprehensionNode).form)}`,
+          );
+      }
     }
     case "ProcedureDef":
       return [
@@ -978,8 +1046,29 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       // The head keyword is a metadata SpannedName (no `kind`), like `Place`'s field segments;
       // only the argument expressions and the optional block body are walkable children.
       return node.body === undefined ? node.args : [...node.args, node.body];
-    default:
+    // The childless kinds: everything they carry is a primitive value or `SpannedName` metadata,
+    // so there is nothing to descend into. They are enumerated here rather than left to `default`
+    // deliberately — a kind that falls through keeps the default clause inhabited, the `never`
+    // binding below stops binding, and the guard silently becomes decorative.
+    case "NumberLit":
+    case "WordLit":
+    case "BooleanLit":
+    case "VarRef":
+    case "Local":
+    case "Stop":
+    case "StructDef":
       return [];
+    default:
+      // Unreachable for a well-typed caller. Because every `AnyNode` kind is handled above,
+      // `node` narrows to `never` here, so a kind added to the union without its own case fails
+      // `tsc` ("Type 'XNode' is not assignable to type 'never'") and names the omission. That
+      // compile error is the only thing that can see this gap: every AST-derived instrument in
+      // the repository traverses *through* this switch, so an omitted kind is invisible to both
+      // the instrument and its subject at once (issue #925).
+      return unhandledChildCase(
+        node,
+        `node kind ${JSON.stringify((node as AnyNode).kind)}`,
+      );
   }
 }
 
