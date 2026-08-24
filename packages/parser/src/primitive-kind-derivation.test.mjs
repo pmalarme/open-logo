@@ -42,6 +42,11 @@ const document = "primitive-kind.logo";
  * Turtle & Rendering one-word alias spellings carry their canonical's Kind because
  * `spec/commands.md` documents them on that primitive's own **Aliases** row, and Kind is a
  * property of the primitive, not of the spelling.
+ *
+ * The **Heritage** short aliases are deliberately absent: `profilePrimitiveNames("heritage")` is
+ * empty by construction (the profile registers no table of its own, since an alias resolves to its
+ * canonical), so the sweep below cannot reach them. They are pinned by the named alias tests
+ * further down instead.
  */
 const SPEC_PRIMITIVE_KIND = new Map([
   // Core Language — `spec/commands.md`: `print`, `show`, and `randomize` are the only Commands.
@@ -105,7 +110,8 @@ const SPEC_PRIMITIVE_KIND = new Map([
   ["pos", "reporter"],
   ["towards", "reporter"],
   ["distance", "reporter"],
-  // Data — every row of the list/dict/record tables is `R`.
+  // Data — every primitive the profile registers has an `R` row. (The same tables also carry `S`
+  // and `R/place` rows, which are grammar forms and selectors, not bare-call primitives.)
   ["reverse", "reporter"],
   ["pick", "reporter"],
   ["sort", "reporter"],
@@ -394,16 +400,16 @@ test("a value-producing comprehension body stays clean (regression control)", ()
   }
 });
 
-test("the Data, Interaction & Events and Tutor profiles are classified too (issue #932)", () => {
+test("the Data, Interaction & Events and Educational profiles are classified too (issue #932)", () => {
   // The three profiles the first round of these tests left unpinned by name. `wait`/`input` are
   // the sharpest pair in the registry: one profile, one command, one reporter, so swapping them
-  // is invisible to any sweep that asks the implementation what they are.
+  // is invisible to any sweep that asks the implementation what they are. Tutor's `challenge` is
+  // pinned by the double-report test below, which needs its own profile set.
   const profiles = [
     "core-language",
     "data",
     "interaction-events",
     "educational",
-    "tutor-ai",
   ];
   for (const body of ["wait 1", "explain", "hint", "debug", "why"]) {
     assert.deepEqual(

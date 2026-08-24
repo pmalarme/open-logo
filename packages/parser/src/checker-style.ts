@@ -337,12 +337,11 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  *
  * This is deliberately **three registry consultations, not a list** (issue #854, epic #900's
  * through-line: *no component enumerates built-in names by hand*). Before this, the rule matched
- * callees against a literal `CORE_CALLEE_NAMES` set, so `PRINT` was linted and
- * `FORWARD`, `HOME`, `PLAY`, `NEW_TURTLE` — every
- * non-Core primitive a learner actually types first — were silent, and keyword casing was gated on
- * a hand-written table of *node kinds* that never listed `Assign` or `ValueOfKey`, so `MAKE "x" 1`
- * and `VALUE of :d for key "a"` were silent too. Each of the three sources here is the same one its
- * owning subsystem already fails closed on:
+ * callees against a literal `CORE_CALLEE_NAMES` set, so `PRINT` was linted and `FORWARD`, `HOME`,
+ * `PLAY`, `NEW_TURTLE` — every non-Core primitive a learner actually types first — were silent,
+ * and keyword casing was gated on a hand-written table of *node kinds* that never listed `Assign`
+ * or `ValueOfKey`, so `MAKE "x" 1` and `VALUE of :d for key "a"` were silent too. Each of the
+ * three sources here is the same one its owning subsystem already fails closed on:
  *
  * - {@link isKeyword} over {@link OL_KEYWORDS} plus every {@link OL_PROFILE_KEYWORDS} profile —
  *   the one registry the highlighter and the checker share (`parser.instructions.md` forbids

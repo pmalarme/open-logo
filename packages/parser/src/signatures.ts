@@ -336,8 +336,11 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
   arityTable(DATA_PRIMITIVES);
 
 /**
- * Every Data-profile primitive whose kind is `command` — none: every row of the tables cited above
- * carries kind `R`. See {@link DATA_PRIMITIVES}.
+ * Every Data-profile primitive whose kind is `command` — none: every primitive
+ * {@link DATA_PRIMITIVES} registers has an `R` row in the tables cited above. Those tables also
+ * carry `S` rows (`add … to`, `clear`) and `R/place` rows (`:list[i]`, `:dict.key`), which are
+ * grammar forms and selectors rather than bare-call primitives, so they are registered nowhere
+ * here.
  */
 const DATA_COMMAND_NAMES: ReadonlySet<string> = commandNames(DATA_PRIMITIVES);
 
