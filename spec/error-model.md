@@ -164,7 +164,7 @@ of the production's two positions:
 
 In all cases `ol-bad-token` alone is authoritative for the malformed-input class. That is one
 instance of a general rule about recovery: on **any** recovery path, for **any** malformed input, a
-parser MUST NOT raise **any** unmatched-delimiter diagnostic — the class whose members are
+parser MUST NOT raise **any** unmatched-delimiter diagnostic — the class whose members in v0.1 are
 `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` — for a delimiter that is, in
 fact, correctly matched in the source. The malformed `dict-entry` is the illustrative case: the
 enclosing dict literal's own braces (key-position case) and the well-formed nested literal's own

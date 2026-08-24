@@ -400,13 +400,13 @@ when a dict is accepted by a profile-specific form. Control forms run their
 bodies for effect and produce no value.
 
 **Binder scope.** Every binder a control or comprehension form introduces — the
-`for ... in` and `for ... from ... to` variable, the item binder of `map`,
-`filter`, and `reduce`, and `reduce`'s accumulator — is a fresh body-local
-binding for each iteration. It shadows any outer binding of the same name for
-the duration of the body only, and is not visible once the form completes: a
-read of that name afterwards has no declaration in scope and raises
-`ol-undefined-var` unless an outer binding of it exists. Bare-name binders and
-every name bound by a destructuring pattern follow this rule alike.
+`for ... in` and `for ... from ... to` variable, the item binder of `map`, `filter`,
+and `reduce`, and `reduce`'s accumulator — is a fresh body-local binding for each
+iteration, the accumulator re-bound to the running value rather than reset. It shadows
+any outer binding of the same name for the duration of the body only, and is not
+visible once the form completes: a read of that name afterwards has no declaration
+in scope and raises `ol-undefined-var` unless an outer binding of it exists. Bare-name
+binders and every name bound by a destructuring pattern follow this rule alike.
 
 ## Comprehensions: map, filter, and reduce
 
