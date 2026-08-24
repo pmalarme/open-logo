@@ -467,6 +467,54 @@ test("an unmatched `)` is still reported", () => {
   );
 });
 
+// --- #944's ruled behaviour is not touched by this change -----------------------------------------
+//
+// The maintainer ruled #944 as "separator lookahead": a `name` followed by a key-colon opens a dict
+// entry regardless of position, so the one-line and multi-line spellings will agree. Implementing
+// that is a separate change. This one must neither anticipate it nor contradict it, and the shape
+// most at risk is `{ a: 1 mod :two }` — a naive lookahead re-reads it as key `mod` plus bare word
+// `two`, silently turning ONE entry into two. `:two` with no space is already a variable-reference
+// lexeme, which is what the ruling leans on. Every reading below is byte-identical to the parser at
+// base `536c7d5c`.
+
+test("#944: `mod :two` inside a dict entry value stays one entry", () => {
+  const dict = printedExpression("print { a: 1 mod :two }");
+
+  assert.equal(dict.entries.length, 1);
+  assert.equal(dict.entries[0].key.value, "a");
+  assert.equal(dict.entries[0].value.callee.name, "mod");
+});
+
+test("#944: the dict separator is not adjacency-sensitive", () => {
+  const dict = printedExpression("print { a : 1 }");
+
+  assert.equal(dict.entries.length, 1);
+  assert.equal(dict.entries[0].key.value, "a");
+});
+
+test("#944: ordinary one-line and multi-line entries are unaffected", () => {
+  assert.equal(printedExpression("print { a: 1 b: 2 }").entries.length, 2);
+  assert.equal(printedExpression("print { a: 1\nand: 2 }").entries.length, 2);
+});
+
+test("#944: the one-line word-key spellings it will fix still fail here", () => {
+  // Deliberately pinned as FAILING. If implementing #944 makes these parse, that is that change's
+  // job; if this change ever makes them parse, it is a scope escape and this test says so.
+  for (const source of [
+    "print { a: 1 and: 2 }",
+    "print { a: 1 or: 2 }",
+    "print { a: 1 mod: 2 }",
+  ]) {
+    const { diagnostics } = OL.parse(source, doc);
+
+    assert.deepEqual(
+      diagnostics.map((diagnostic) => diagnostic.code),
+      ["ol-bad-token", "ol-bad-token", "ol-bad-token"],
+      source,
+    );
+  }
+});
+
 // --- issue #709 is adjacent but untouched --------------------------------------------------------
 //
 // `(pi == pi)` mis-reads as a `parenthesized-call` because `spec/grammar.md` defines both
