@@ -498,20 +498,29 @@ test("#944: ordinary one-line and multi-line entries are unaffected", () => {
 });
 
 test("#944: the one-line word-key spellings it will fix still fail here", () => {
-  // Deliberately pinned as FAILING. If implementing #944 makes these parse, that is that change's
-  // job; if this change ever makes them parse, it is a scope escape and this test says so.
+  // Deliberately pinned as FAILING, and #944's implementation tripwire: when the separator
+  // lookahead lands, replace this test with the positive form — each spelling parses to TWO
+  // entries. Until then, if THIS change ever makes them parse, that is a scope escape.
+  //
+  // The assertions are ordered so a failure self-diagnoses. The count of 3 is a recovery-cascade
+  // artifact — one `ol-bad-token` per token left before the `}`, here `:`, `2` and `}` — so a
+  // future change to that cascade would move the third assertion while the first two still hold,
+  // which says "recovery changed", not "scope escaped".
   for (const source of [
     "print { a: 1 and: 2 }",
     "print { a: 1 or: 2 }",
     "print { a: 1 mod: 2 }",
   ]) {
-    const { diagnostics } = OL.parse(source, doc);
+    const codes = OL.parse(source, doc).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    );
 
-    assert.deepEqual(
-      diagnostics.map((diagnostic) => diagnostic.code),
-      ["ol-bad-token", "ol-bad-token", "ol-bad-token"],
+    assert.ok(codes.length > 0, source);
+    assert.ok(
+      codes.every((code) => code === "ol-bad-token"),
       source,
     );
+    assert.equal(codes.length, 3, source);
   }
 });
 
