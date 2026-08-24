@@ -843,7 +843,7 @@ test("tokens are returned in source order and cover the whole meaningful input",
 //      name cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
 //   2. MANIFEST — no built-in name moves between the two sets, swept over every entry of
 //      `spec/built-in-names.json`, the authoritative manifest (ADR-0021), minus the registry's
-//      own words: 141 names, each probed in four grammatical positions. This is the breadth 1
+//      own words: 141 names, each probed in seven grammatical positions. This is the breadth 1
 //      cannot have;
 //   3. CONTROLS — the spec's own non-profile examples keep their class under both sets (the named
 //      controls, plus `if`/`repeat` as positive keyword controls); and
@@ -852,16 +852,20 @@ test("tokens are returned in source order and cover the whole meaningful input",
 //
 // What the set proves, stated as narrowly as it was measured. 1 and 2 compare two endpoint
 // profile sets, so each proves "nothing I probe moves between these sets" — 1 over a finite
-// corpus, 2 over the full name manifest in four positions each. Neither subsumes the other, and
-// neither is a quantifier over arbitrary sources: a gated widening onto a name in a position no
-// template covers would still pass. Both gaps are real and were measured — a widening onto `fd`
-// or `setcolor` passed the whole suite when only 1, 3 and 4 existed, and a widening onto `fd`
-// conditioned on a non-initial token index passed it again when 2 probed bare names only.
+// corpus, 2 over the full name manifest in seven positions each. Neither subsumes the other (a
+// widening onto `empty` dies at 1 and not 2, because `empty` is not a manifest entry; one onto
+// `fd` dies at 2 and not 1), and neither is a quantifier over arbitrary sources: a gated widening
+// onto a name in a position no template covers would still pass. Both gaps are real and were
+// measured — a widening onto `fd` or `setcolor` passed the whole suite when only 1, 3 and 4
+// existed, and a widening onto `fd` conditioned on a non-initial token index passed it again when
+// 2 probed bare names only.
 //
-// One asymmetry worth naming rather than implying: 1 and 2 compare two profile sets, so they
-// catch a *profile-gated* change. A change that reclassifies a word **unconditionally** looks
-// identical from both endpoints and is invisible to them by construction — that is what 3's named
-// controls, 4, and the rest of this file are for.
+// One asymmetry worth naming rather than implying: 1 and 2 compare two endpoint profile sets that
+// differ only in `sprites` and `interaction-events` — the two profiles that contribute keywords.
+// So they catch a change gated on one of those. A change that reclassifies a word
+// **unconditionally**, or gates it on any of the other ten profiles, looks identical from both
+// endpoints and is invisible to them by construction — that is what 3's named controls, 4, and the
+// rest of this file are for.
 
 /** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
 const ALL_PROFILES = OL.OL_CHECK_PROFILES;
@@ -997,18 +1001,30 @@ const BUILT_IN_NAMES = JSON.parse(
  * Each swept name is probed in several grammatical positions, not just alone. A one-token program
  * is the *only* thing a bare sweep sees, and a widening conditioned on position — `lower === "fd"
  * && index > 0`, painting `repeat 3 [ fd 10 ]` but not a lone `fd` — slips past it untouched while
- * passing every other test in this file. Position-dependence is this block's declared threat
- * model: #840's own worked example is `for fd in [1 2]`, so probing `fd` only in isolation would
- * leave the very case the block cites unguarded.
+ * passing every other test in this file.
+ *
+ * Position-dependence is this block's declared threat model, so the templates cover the positions
+ * it names rather than only the convenient ones. #840's AC1 table is entirely **binding**
+ * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
+ * three templates. Each was needed: with only the non-binding four, widenings onto `local fd`,
+ * `set fd to 1`, and `for fd from 1 to 3` each passed the entire suite. Measured, not supposed —
+ * and a reminder that citing a position is not probing it.
+ *
+ * Still not exhaustive over positions, and deliberately not chased further: a widening gated on
+ * nesting depth or on letter case would survive these seven. Those are corners this block does not
+ * advertise, and the residual-gap sentence above already covers them.
  */
 const SWEEP_TEMPLATES = [
   (name) => name,
   (name) => `repeat 1 [ ${name} ]`,
   (name) => `define holder\n  ${name}\nend`,
-  (name) => `local x\nprint ${name}`,
+  (name) => `print ${name}`,
+  (name) => `local ${name}`,
+  (name) => `set ${name} to 1`,
+  (name) => `for ${name} from 1 to 3 [ forward 1 ]`,
 ];
 
-test("profiles: no built-in name outside OL_PROFILE_KEYWORDS changes class between the two sets", () => {
+test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes class between the two sets", () => {
   const heads = new Set(PROFILE_HEADS);
   const swept = BUILT_IN_NAMES.filter((name) => !heads.has(name));
   // A manifest that stopped being read, lost its shape, or stopped containing the profile words
@@ -1025,9 +1041,11 @@ test("profiles: no built-in name outside OL_PROFILE_KEYWORDS changes class betwe
     for (const template of SWEEP_TEMPLATES) {
       const source = template(name);
       const projected = profileClasses(source, ALL_PROFILES);
+      // Subject-level, not merely run-level: a template that swallowed the name it substituted
+      // would still compare equal to itself and prove nothing about that name.
       assert.ok(
-        projected.length > 0,
-        `${JSON.stringify(source)} must tokenize`,
+        projected.some(([, text]) => text.toLowerCase() === name.toLowerCase()),
+        `${JSON.stringify(source)} must carry ${name} as a token`,
       );
       assert.deepEqual(
         projected,
