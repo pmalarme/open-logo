@@ -399,6 +399,15 @@ in ...` iterates list elements in order; dict iteration follows insertion order
 when a dict is accepted by a profile-specific form. Control forms run their
 bodies for effect and produce no value.
 
+**Binder scope.** Every binder a control or comprehension form introduces — the
+`for ... in` and `for ... from ... to` variable, the item binder of `map`,
+`filter`, and `reduce`, and `reduce`'s accumulator — is a fresh body-local
+binding for each iteration. It shadows any outer binding of the same name for
+the duration of the body only, and is not visible once the form completes: a
+read of that name afterwards has no declaration in scope and raises
+`ol-undefined-var` unless an outer binding of it exists. Bare-name binders and
+every name bound by a destructuring pattern follow this rule alike.
+
 ## Comprehensions: map, filter, and reduce
 
 OpenLogo v0.1 has no lambda and no function values. Higher-order work is done
@@ -417,9 +426,9 @@ result is discarded like any other unused value.
 
 `map <var> in <listExpr> [ <expr> ]` returns a fresh list containing the body
 value for each element. `filter <var> in <listExpr> [ <boolExpr> ]` returns a
-fresh list of original elements whose body value is `true`; a non-boolean body
-raises `ol-not-boolean`. `reduce <acc> <var> in <listExpr> from <init>
-[ <expr> ]` folds left and returns the final accumulator.
+fresh list of original elements whose body value is `true`, preserving their
+relative order; a non-boolean body raises `ol-not-boolean`. `reduce <acc> <var>
+in <listExpr> from <init> [ <expr> ]` folds left and returns the final accumulator.
 
 For `reduce`, empty input returns `init` unchanged. The accumulator and item
 binders are fresh body-local bindings that shadow outer names only for the body.

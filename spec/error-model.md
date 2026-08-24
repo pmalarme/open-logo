@@ -162,11 +162,14 @@ of the production's two positions:
   where `a` parses as a valid key but no `:` follows) is unexpected identically: the `[` is a valid,
   balanced token, just misplaced.
 
-In all cases `ol-bad-token` alone is authoritative for the malformed-input class; parser recovery
-MUST NOT additionally raise `ol-unmatched-brace` or `ol-unmatched-bracket` for a brace or bracket
-that is, in fact, correctly matched - the enclosing dict literal's own braces (key-position case)
-and the well-formed nested literal's own delimiters, whether `{ }` or `[ ]` (separator-position
-case), are unaffected by the malformed entry around them.
+In all cases `ol-bad-token` alone is authoritative for the malformed-input class. That is one
+instance of a general rule about recovery: on **any** recovery path, for **any** malformed input, a
+parser MUST NOT raise **any** unmatched-delimiter diagnostic — the class whose members are
+`ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` — for a delimiter that is, in
+fact, correctly matched in the source. The malformed `dict-entry` is the illustrative case: the
+enclosing dict literal's own braces (key-position case) and the well-formed nested literal's own
+delimiters, whether `{ }` or `[ ]` (separator-position case), are unaffected by the malformed entry
+around them.
 
 A conformance fixture for any of these examples MUST observe exactly this diagnostic shape: the
 diagnostics list is exactly `["ol-bad-token"]` (no `ol-unmatched-brace`, no `ol-unmatched-bracket`,
