@@ -1,5 +1,5 @@
 {
-  "description": "`not 5` raises `ol-not-boolean` (spec/error-model.md:121): there is no truthiness, so a number operand is never coerced to a boolean. Issue #95.",
+  "description": "`not 5` raises `ol-not-boolean` (spec/error-model.md:123): there is no truthiness, so a number operand is never coerced to a boolean. Issue #95.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
