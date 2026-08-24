@@ -945,7 +945,7 @@ test("#952 (review round 7): the boolean answers whether THIS press ran a handle
   );
 });
 
-test("#952 (review finding 2): a handler that RAISES still counts as the program's key — the answer is read, never measured from the stream", () => {
+test("#952 (review finding 2): a handler that RAISES still counts as this press having run one", () => {
   // The unsound proxy this replaced: a handler that raises SHORTENS the event stream, so measuring
   // growth reported "nothing responded" for a handler that genuinely ran. Measured by review at
   // 45 events down to 5 with ol-undefined-var.
@@ -1231,6 +1231,46 @@ test("#952 (review round 6): a press scheduled BEFORE its handler registers is n
     "tick 2 is after it, so this one genuinely fires",
   );
   assert.deepEqual(store.getState().output, ["hit"]);
+});
+
+test("#952 (review round 7): a delivery that arrives re-entrantly is not credited to the press that was already in flight", () => {
+  // Measured on the pre-fix tree: with `wait 1 / on_key "up" / wait 2`, a state subscriber
+  // delivering tick 2 during tick 1's settlement made the OUTER tick-1 press report `true` and
+  // suppress the key, while only the nested tick-2 press actually printed. An unbounded drain
+  // consumed the re-entrant addition, so `after` counted a later press's invocation.
+  const store = OL.createStudioState({
+    source: ["wait 1", 'on_key "up" [', '  print "hit"', "]", "wait 3"].join(
+      "\n",
+    ),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  let reentered = false;
+  const unsubscribe = store.subscribe(() => {
+    if (reentered) {
+      return;
+    }
+    reentered = true;
+    controller.deliverKey("up");
+  });
+
+  const outer = controller.deliverKey("up");
+  unsubscribe();
+
+  assert.equal(
+    outer,
+    false,
+    "the outer press is scheduled at tick 1, before the handler exists — it ran nothing, " +
+      "so it must not be suppressed no matter what a re-entrant delivery did",
+  );
+  assert.ok(
+    store.getState().output.length > 0,
+    "the re-entrant press did fire, which is exactly why the outer one must not claim it",
+  );
 });
 
 test("#952: a delivery is refused for a program whose on_key was never reached", () => {

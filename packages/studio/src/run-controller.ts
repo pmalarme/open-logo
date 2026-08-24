@@ -596,7 +596,7 @@ export interface RunController {
    * the handler registered, and for a press past the program's final usable tick.
    *
    * Every formulation that answers from *history* rather than from this delivery re-creates silent
-   * interception somewhere, and three did: stream length inverted on the error path, a settle-later
+   * interception somewhere, and four did: stream length inverted on the error path, a settle-later
    * query answered too late, declaration/registration pairing proved only *eventual* registration,
    * and an "ever responded" set kept returning `true` after the last tick that could fire
    * (invocation counts `[0,1,2,2]` → returns `[true,true,true]`).
@@ -735,14 +735,15 @@ function hasRegisteredHandler(
  * `primitive` at the same start position, an invocation emits only the `instruction`, so at a given
  * position `invocations = instructions − registrations`.
  *
- * This is the third mechanism for one question, and the first two were unsound on axes worth naming:
+ * This is the counting half of the **fifth** formulation for one question; the four before it each
+ * answered from *history* and each re-created silent interception on a different axis:
  * event-stream **length** was not *monotonic* (a raising handler shortens the stream, so a handler
- * that ran reported "nothing responded"), and a settle-later **query** failed on *timing* (the answer
- * arrives after the `keydown` has already scrolled). This one is a count of invocation markers, and
- * all three axes are measured rather than argued:
+ * that ran reported "nothing responded"), a settle-later **query** failed on *timing* (the answer
+ * arrives after the `keydown` has already scrolled), declaration/registration **pairing** proved
+ * only *eventual* registration, and "ever responded" **membership** outlived the ticks that could
+ * fire. Counting is sound on those axes:
  * - **monotonicity** — a handler raising on its *first* instruction still reports 1, because the
  *   block-head marker is emitted before the handler can fail;
- * - **timing** — it is computed from the settled stream inside the same `deliverKey` call;
  * - **aliasing** — `repeat 2 [ on_key "up" [ … ] ]` registers twice at one position, and one press
  *   fires **both** (`interaction-events.md` forbids collapsing duplicate registrations), so the
  *   arithmetic gives 2 and the program prints twice: an independent witness agreeing with the count.
@@ -1393,7 +1394,7 @@ export function createRunController(
    * happened during the previous attempt — the same bound `pump()` has. Under a host that has not
    * settled yet it returns instead, and the settlement's own call resumes the drain.
    */
-  function drainDeliveredInput(): void {
+  function drainDeliveredInput(upTo?: number): void {
     if (deliveringInput) {
       // Re-entered from a synchronous settlement; the running loop re-reads the schedule.
       return;
@@ -1402,7 +1403,8 @@ export function createRunController(
     try {
       while (
         acceptsHostInput() &&
-        hostInputEvents.length > deliveredScheduleLength
+        hostInputEvents.length > deliveredScheduleLength &&
+        (upTo === undefined || deliveredScheduleLength < upTo)
       ) {
         shownEventCount = drawnEventCount;
         pauseAnimation();
@@ -1469,14 +1471,25 @@ export function createRunController(
         ? 0
         : (onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0);
     scheduleHostInput({ kind: "key", key });
-    drainDeliveredInput();
+    // Drain **only as far as this press**. A settlement can deliver more input re-entrantly (a state
+    // subscriber, a prompt host), and an unbounded drain consumed those too — so `after` counted a
+    // *later* press's invocation and credited it to this one: measured, the tick-1 press reported
+    // `true` and suppressed the key while only the nested tick-2 press actually printed. Anything
+    // scheduled during this drain is left for the loop that owns it.
+    const scheduledLength = hostInputEvents.length;
+    drainDeliveredInput(scheduledLength);
     if (declared === null) {
       // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing.
       return false;
     }
     const after =
       onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0;
-    return after > before;
+    const ranAHandler = after > before;
+    // Anything scheduled re-entrantly during the drain above was deliberately left behind so it
+    // could not be credited to this press. Deliver it now that the attribution is settled — leaving
+    // it stranded would be the other half of the same bug.
+    drainDeliveredInput();
+    return ranAHandler;
   }
 
   function deliverClick(): boolean {
