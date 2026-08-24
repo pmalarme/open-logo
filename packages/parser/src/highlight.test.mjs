@@ -1006,13 +1006,17 @@ const BUILT_IN_NAMES = JSON.parse(
  * Position-dependence is this block's declared threat model, so the templates cover the positions
  * it names rather than only the convenient ones. #840's AC1 table is entirely **binding**
  * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
- * three templates. Each was needed: with only the non-binding four, widenings onto `local fd`,
- * `set fd to 1`, and `for fd from 1 to 3` each passed the entire suite. Measured, not supposed —
- * and a reminder that citing a position is not probing it.
+ * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md:30`'s own
+ * example. Each was needed: with only the non-binding four, widenings onto `local fd`,
+ * `set fd to 1`, and `for fd from 1 to 3` each passed the entire suite, and removing any one of
+ * the seven lets a real mutant live. Measured, not supposed — and a reminder that citing a
+ * position is not probing it.
  *
- * Still not exhaustive over positions, and deliberately not chased further: a widening gated on
- * nesting depth or on letter case would survive these seven. Those are corners this block does not
- * advertise, and the residual-gap sentence above already covers them.
+ * Still not exhaustive over positions, and deliberately not chased further. Three known survivors,
+ * named rather than implied: a widening gated on nesting depth, one gated on letter case, and one
+ * that separates `for … in` from `for … from` by lookahead (both share `for` as the preceding
+ * token, so anything keying on that predecessor is caught). Closing those needs contrivance beyond
+ * what this block defends against.
  */
 const SWEEP_TEMPLATES = [
   (name) => name,
@@ -1042,7 +1046,11 @@ test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes
       const source = template(name);
       const projected = profileClasses(source, ALL_PROFILES);
       // Subject-level, not merely run-level: a template that swallowed the name it substituted
-      // would still compare equal to itself and prove nothing about that name.
+      // would still compare equal to itself and prove nothing about that name. Degenerate for the
+      // 11 probes whose scaffold word IS the subject (`set set to 1`, `local local`, `print
+      // print`, `to`, `for for …`), but no name is degenerate in more than two of the seven
+      // templates and the bare one can never swallow its subject, so every name keeps a real
+      // check.
       assert.ok(
         projected.some(([, text]) => text.toLowerCase() === name.toLowerCase()),
         `${JSON.stringify(source)} must carry ${name} as a token`,
