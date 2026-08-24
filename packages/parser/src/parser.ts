@@ -325,9 +325,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * Run `parse` with the "directly inside a dictionary entry's value" flag set to `active`, then
    * restore it. Only the *innermost* enclosing literal decides what a newline means, so every
-   * nested container sets the flag to its OWN answer: a list, group, block or selector clears it —
-   * in `{ a: [1` ⏎ `mod 2] }` the newline is inside a list, so it is insignificant and `mod` is an
-   * operator — while a nested dictionary sets it again through its own {@link parseDictEntry}.
+   * nested container sets the flag to its OWN answer: a list, group or block clears it — in
+   * `{ a: [1` ⏎ `mod 2] }` the newline is inside a list, so it is insignificant and `mod` is an
+   * operator — while a nested dictionary sets it again through its own {@link parseDictEntry}. A
+   * selector needs no wrapper of its own; see {@link collectPostfixSegments}.
    */
   function inDictValue<T>(active: boolean, parse: () => T): T {
     const previous = inDictEntryValue;
