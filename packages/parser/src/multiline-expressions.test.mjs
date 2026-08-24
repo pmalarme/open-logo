@@ -336,16 +336,59 @@ test("a word operator glued to its dict value opens the next entry", () => {
 });
 
 test("the dict-key guard is scoped to the dictionary that owns the newline", () => {
-  // A nested list/paren is the innermost literal, so its newline is insignificant and `mod` is an
-  // operator again — the flag must be cleared by every nested container, not left set.
-  const fromList = printedExpression("print { a: [1\nmod 2] }");
+  // Each case uses `mod :two` — a shape that reads BOTH ways without a diagnostic — because
+  // `mod 2` cannot detect a leaked guard: `isDictKeyAt` only fires before a `:` separator, so a
+  // witness without one passes whether or not the enclosing container cleared the flag.
+  const fromList = printedExpression("print { a: [1\nmod :two] }");
 
   assert.equal(fromList.entries[0].value.kind, "ListLit");
-  assertBinary(fromList.entries[0].value.elements[0], "mod", 1, 2);
+  assert.equal(fromList.entries[0].value.elements.length, 1);
+  assert.equal(fromList.entries[0].value.elements[0].callee.name, "mod");
 
-  const fromParen = printedExpression("print { a: (1\nmod 2) }");
+  // A plain parenthesized group differs only in its DIAGNOSTICS when the flag leaks — the guard
+  // declines, the group never sees its `)`, and `ol-unmatched-paren` fires twice. `parseClean`
+  // inside `printedExpression` is what makes this case load-bearing.
+  const fromParen = printedExpression("print { a: (1\nmod :two) }");
 
-  assertBinary(fromParen.entries[0].value, "mod", 1, 2);
+  assert.equal(fromParen.entries[0].value.callee.name, "mod");
+
+  const fromParenCall = printedExpression("print { a: (sum 1\nmod :two) }");
+
+  assert.equal(fromParenCall.entries[0].value.kind, "ParenCall");
+  assert.equal(fromParenCall.entries[0].value.args.length, 1);
+
+  const fromBlock = printedExpression(
+    "print { a: map n in [1 2] [ :n\nmod :two ] }",
+  );
+
+  assert.equal(fromBlock.entries[0].value.kind, "Comprehension");
+});
+
+test("a malformed dict key does not swallow the entry after it", () => {
+  // The recovery path parses an expression too, so it needs the same dict-entry scope; without it
+  // the `mod` key is consumed as `5 mod :two` and the entry disappears.
+  const { ast, diagnostics } = OL.parse(
+    "print { [1] : 5\nmod\n:two\nok: 3 }",
+    doc,
+  );
+
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-bad-token"],
+  );
+  assert.deepEqual(
+    ast.body[0].args[0].entries.map((entry) => entry.key.value),
+    ["mod", "ok"],
+  );
+});
+
+test("a word operator opening a line is a dict key even with a spaced or split separator", () => {
+  for (const entry of ["mod :two", "mod\n:two", "mod\n\n:two"]) {
+    const dict = printedExpression(`print { a: 1\n${entry} }`);
+
+    assert.equal(dict.entries.length, 2, entry);
+    assert.equal(dict.entries[1].key.value, "mod", entry);
+  }
 });
 
 test("outside a dictionary a word operator still continues onto a `:variable`", () => {

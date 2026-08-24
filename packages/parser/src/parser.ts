@@ -1113,7 +1113,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (current().kind === "lbracket" && currentAdjacentToPrev()) {
         const open = current();
         advance();
-        const key = inDictValue(false, parseKeyTerm);
+        // No `inDictValue(false, …)` here: a key-term is a number, word, `:name`, bare identifier,
+        // or a parenthesized expression — and only the parenthesized form can reach a binary
+        // operator, which clears the flag itself. A wrapper here would be unreachable code.
+        const key = parseKeyTerm();
         if (key === undefined) {
           diagnostics.push(unexpected(current()));
           break;
@@ -1389,7 +1392,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.dictLit(entries, spanBetween(open, token));
       }
       const before = pos;
-      const entry = parseDictEntry();
+      // Scope the dict-entry-value flag around the WHOLE entry, not just its value parse, so the
+      // malformed-key recovery path ({@link skipMalformedDictKeyLiteral}, which also parses an
+      // expression) is covered too — otherwise a bad key swallows the entry after it.
+      const entry = inDictValue(true, parseDictEntry);
       if (entry !== undefined) {
         entries.push(entry);
       }
@@ -1562,7 +1568,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     advance();
     skipNewlines();
-    const value = inDictValue(true, parseExpression);
+    const value = parseExpression();
     if (value === undefined) {
       unexpectedInDictEntry(current());
       return undefined;

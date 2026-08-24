@@ -8,6 +8,10 @@ define two
   return 2
 end
 
+# A *variable* named `two` as well: in a dict-key position `mod:two` reads as a zero-arity call to
+# the procedure, while in an operator position `mod :two` reads this variable.
+:two = 2
+
 :spaced = { a: 1
 mod: 2
 and : 3
@@ -32,11 +36,16 @@ print :split.mod
 
 # With no separator after it, the same word IS an operator continuing the value above: this dict
 # has ONE entry whose value is `5 mod 3`. The guard is scoped to the dictionary that owns the
-# newline, so inside a nested list the word is an operator again.
+# newline, so inside a nested list or group the word is an operator again — and these use
+# `mod :two`, which reads BOTH ways without a diagnostic, so they detect a leaked guard.
 :continued = { a: 5
 mod 3 }
 print :continued.a
 
 :nested = { a: [1
-mod 2] }
+mod :two] }
 print :nested.a
+
+:grouped = { a: (1
+mod :two) }
+print :grouped.a
