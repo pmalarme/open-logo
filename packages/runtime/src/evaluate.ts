@@ -30,12 +30,12 @@
  * generic dispatcher, since each has its own arity and error semantics (e.g. only `sqrt` raises
  * `ol-neg-sqrt`, only `/`/`mod` raise `ol-div-zero`).
  *
- * Issue #104 adds {@link requireWholeNumber} (shared by `repeat`'s count validation in
- * `index.ts`) and the `repcount` reporter (`spec/commands.md:775-792`): a 0-arg call that reports
- * the nearest-enclosing `repeat`'s current 1-based turn, or raises `ol-repcount-outside-repeat`
- * when there is none. The active turn stack lives on {@link Environment} (`repeatTurns`, nearest
- * loop last) so nested `repeat`s and the statements they run both see the same mutable stack that
- * `index.ts`'s `executeStatements` pushes/pops around each pass.
+ * Issue #104 adds {@link requireWholeNumber} and the `repcount` reporter
+ * (`spec/commands.md:776-793`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
+ * 1-based turn, or raises `ol-repcount-outside-repeat` when there is none. The active turn stack
+ * lives on {@link Environment} (`repeatTurns`, nearest loop last) so nested `repeat`s and the
+ * statements they run both see the same mutable stack that `executeStatements` pushes/pops around
+ * each pass.
  */
 
 import type {
@@ -183,10 +183,8 @@ export interface CancellationSignal {
 /**
  * The evaluator's binding model: a nearest-first stack of frames, root last, plus the active
  * `repeat` turn stack `repcount` reads (issue #104). `repeatTurns` is a mutable array — nearest
- * (innermost) enclosing `repeat` last — that `index.ts`'s `executeStatements` pushes the current
- * 1-based turn onto before running a `repeat` pass and pops after; the array reference itself
- * never changes, so it is threaded unchanged through every recursive `executeStatements`/
- * `evaluate` call the same way `frames` is.
+ * (innermost) enclosing `repeat` last — that `executeStatements` pushes the current 1-based turn
+ * onto before running a `repeat` pass and pops after.
  *
  * Issue #97 adds the whole-program {@link ProcedureRegistry} (`procedures`), the shared,
  * mutable trace-event sink (`events`) every emitting site now pushes onto directly instead of
@@ -209,9 +207,8 @@ export interface CancellationSignal {
  * cancellation (`signal`, an `AbortSignal`). `recursionDepthLimit` promotes the previously
  * hardcoded procedure-call depth ceiling to a configurable field of the same shape.
  * `instructionCount` is a single mutable `{ count }` box (not a plain field) for the same reason
- * `repeatTurns`/`callDepth` are arrays rather than reassigned fields: recursive calls receive the
- * very same `Environment` object, so a plain field would be indistinguishable from a fresh one —
- * only a shared mutable container survives being incremented from many nested call frames at
+ * `callDepth` is an array rather than a reassigned field: only a shared mutable
+ * container survives being mutated from many nested call frames at
  * once. {@link checkExecutionLimits} is the single gate every looping/recursive execution path
  * calls before it may run another pass or statement.
  *
@@ -396,9 +393,9 @@ export interface Environment {
  * The turtle's mutable runtime state — position, heading, and the pen/rendering attributes a
  * `draw-segment` event captures at the moment it is emitted (`spec/rendering.md`'s "Line
  * segments" section: "each segment captures the pen color and pen width active when the segment
- * is created"). A single mutable object (like {@link Environment.repeatTurns}/`callDepth`) rather
- * than reassigned `Environment` fields, since every recursive `executeStatements`/`evaluate` call
- * shares the very same `Environment` and must observe the same turtle. Issue #200 (`forward`/
+ * is created"). A single mutable object (like {@link Environment.callDepth}) rather
+ * than reassigned `Environment` fields, so every recursive call observes the same
+ * turtle. Issue #200 (`forward`/
  * `back`) only ever reads `heading`/`penDown`/`color`/`width` and writes `x`/`y`; pen mutability
  * (`pen_up`/`pen_down`, issue #206), turning (issue #201), color/width (issues #208/#209), and
  * visibility (`show_turtle`/`hide_turtle`, issue #207) each add their own statement handling that
@@ -892,19 +889,12 @@ function asNumber(value: OLValue): number | undefined {
   return undefined;
 }
 
-/**
- * The outcome of coercing an {@link OLValue} to a number (exported: `index.ts`'s `Repeat`
- * handling calls {@link requireWholeNumber}, whose result carries this shape).
- */
 export type NumberOrDiagnostic =
   | { readonly ok: true; readonly value: number }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
  * Require `value` to be a number (with word-that-reads-as-a-number coercion), or `ol-type`.
- * Exported so `execute-internal.ts`'s `ForRange` handling (issue #103) can reuse it for `from`/
- * `to`/`by`, which — unlike `repeat`'s count — are not restricted to whole numbers
- * (`spec/execution-model.md:370-375`).
  */
 export function requireNumber(
   value: OLValue,
@@ -927,11 +917,8 @@ export function requireNumber(
 }
 
 /**
- * Require `value` to be a whole number (with the same word-that-reads-as-a-number coercion as
- * {@link requireNumber}), or `ol-type` — the TYPE half of `repeat`'s count validation
- * (`spec/execution-model.md:389-391`), checked before the RANGE (negative) half its caller
- * performs separately. Exported so `index.ts`'s `Repeat` statement handling can reuse it without
- * duplicating the word-coercion logic.
+ * Require `value` to be a whole number, with the same word-that-reads-as-a-number coercion as
+ * {@link requireNumber}, or `ol-type`.
  */
 export function requireWholeNumber(
   value: OLValue,
@@ -1718,8 +1705,8 @@ function evaluateThing(
 }
 
 /**
- * `repcount` (`spec/commands.md:775-792`): reports the nearest-enclosing `repeat`'s current
- * 1-based turn — the top of {@link Environment.repeatTurns}, since `index.ts`'s `Repeat` handling
+ * `repcount` (`spec/commands.md:776-793`): reports the nearest-enclosing `repeat`'s current
+ * 1-based turn — the top of {@link Environment.repeatTurns}, since the `Repeat` handling
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
  * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
