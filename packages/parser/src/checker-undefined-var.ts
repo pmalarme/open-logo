@@ -12,9 +12,9 @@
  * runs in a root frame, and an assignment or a top-level `local` that has no other visible
  * binding creates or updates a *global* — a binding in that root frame
  * (`spec/execution-model.md:344-348`). Treating that root-frame binding as visible throughout the
- * program regardless of textual order is this checker's own resolution model, not a spec rule: the
- * spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`), never to
- * variables. This rule resolves
+ * program regardless of textual order is this checker's own resolution model, not a spec rule:
+ * the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
+ * never to variables. This rule resolves
  * every read against that chain: innermost binder scope → the enclosing procedure's own frame
  * (if any) → the global/root frame.
  *
@@ -24,10 +24,10 @@
  *    top-level `local` (one not nested inside any `define`, regardless of surrounding control
  *    flow), plus every zero-segment assignment target (`:name = value`) whose name is not already
  *    visible via an enclosing procedure frame or binder scope at that point — an assignment to an
- *    *already-visible* name is just an update, not a new global (`spec/execution-model.md:322-
- *    324`). This pass must run to completion before pass 2, since a read may forward-reference a
- *    global declared later in the file — globals, unlike procedure frames and binder scopes, are
- *    order-insensitive.
+ *    *already-visible* name is just an update, not a new global
+ *    (`spec/execution-model.md:344-348`). This pass must run to completion before pass 2, since a
+ *    read may forward-reference a global declared later in the file — globals, unlike procedure
+ *    frames and binder scopes, are order-insensitive.
  * 2. {@link checkReads} walks the whole program again, this time emitting `ol-undefined-var` for
  *    every read (bare `:name`, `thing "name"`, or a `Place` base) that resolves against no scope
  *    in the chain above.
