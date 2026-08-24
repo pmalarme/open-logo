@@ -18,6 +18,9 @@
 //
 // The dict-*literal* half of `dict-key` (`{ key: value }`) is covered alongside the selector
 // half (issue #149): both share the identical bare-identifier-vs-quoted-word disambiguation.
+//
+// The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
+// suites assert that the seven profile block-heads move, this file asserts that nothing else does.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -802,4 +805,164 @@ test("tokens are returned in source order and cover the whole meaningful input",
     tokens.map((token) => token.text),
     ["print", "1", "print", "2"],
   );
+});
+
+// --- The `profiles` option's blast radius (issues #832, #840) ---------------------------------
+
+// `spec/tooling.md:30` puts the profile block-heads — Sprites' `ask`/`each` plus its mode-switch
+// command `tell`, and Interaction's `when`/`every`/`on_key`/`on_click` — in the `keyword` class
+// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// `primitive`. `highlight()` has honoured BOTH halves since issue #740 gave it an active-profile
+// set, and the per-profile suites (`sprites-tooling.test.mjs`, `interaction-tooling.test.mjs`)
+// already assert each of the seven names in both directions.
+//
+// What nothing pinned before this block is the rule's other side: which words the option must
+// leave ALONE. `spec/tooling.md:30` names `local end`, `for end from 1 to 3`, `export end`, and
+// `:p.end` as positions where `end` is `keyword` anyway, and `:31` names `empty` as `primitive` —
+// none of them a profile word, so no profile set may move any of them. That invariant lived only
+// in prose, and it cost two slices: issue #840 was closed as **void** for proposing exactly this
+// widening, and issue #832 was re-raised against behaviour that already worked. The `keyword` row
+// of `spec/tooling.md`'s token-class table is **change-detected only** (`npm run built-in-names`
+// fingerprints it; nothing checks the edited row is correct) and the conformance harness asserts
+// events and diagnostics but has no token-class channel — so these three tests are the only thing
+// holding the invariant. They are written as a matched set on purpose:
+//
+//   1. the widest profile set changes NOTHING outside the registry (blast radius);
+//   2. the spec's own non-profile examples keep their class under every profile set (the named
+//      controls, plus `if`/`repeat` as positive keyword controls); and
+//   3. every registry word DOES move — without which 1 and 2 would both pass on a build that
+//      ignored `options.profiles` altogether.
+
+/** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
+const ALL_PROFILES = OL.OL_CHECK_PROFILES;
+
+/** Minimal conformance: Core Language + Turtle & Rendering, contributing no profile keyword. */
+const NO_KEYWORD_PROFILES = ["core-language", "turtle-rendering"];
+
+/** The seven profile keywords, read off the registry so a new one joins these tests by itself. */
+const PROFILE_HEADS = Object.values(OL.OL_PROFILE_KEYWORDS).flat();
+
+/**
+ * Project a whole run, so a count, role, or class change is all caught by one comparison rather
+ * than only the class the current defect happens to be about.
+ */
+function profileClasses(source, profiles) {
+  return OL.highlight(source, doc, { profiles }).map((token) => [
+    token.class,
+    token.text,
+    token.role,
+  ]);
+}
+
+/**
+ * Programs deliberately free of profile words, spanning the vocabulary a widened lookup would most
+ * plausibly catch: both spellings of the `end` label, the `is`-predicate contextual keywords
+ * (`empty`, `a`, `member`, `of`), binding forms, a comprehension, a selector, and a comment.
+ * Their profile-word-freeness is asserted below, not assumed.
+ */
+const PROFILE_WORD_FREE_CORPUS = [
+  "define greet :name\n  print :name\nend",
+  "local end",
+  "for end from 1 to 3 [ forward 1 ]",
+  "export end",
+  "print :p.end",
+  "local empty",
+  "if :x is empty [ print 1 ]",
+  "if :x is a number [ print 1 ]",
+  "if 1 is member of [ 1 2 ] [ print 1 ]",
+  "if true [ print 1 ]",
+  "repeat 3 [ forward 10 ]",
+  "while :x [ print :x ]",
+  "set :x to 1",
+  'make "count" 0',
+  "struct point [ x y ]",
+  "print { a: 1 }",
+  "print not true and 3 mod 2",
+  "print map [ :n * 2 ] [ 1 2 3 ]",
+  "; a comment\nforward 10",
+  "print :d[key]",
+  "forever [ forward 1 ]",
+];
+
+test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS", () => {
+  const heads = new Set(PROFILE_HEADS);
+  for (const source of PROFILE_WORD_FREE_CORPUS) {
+    // Measured, not claimed: a corpus entry that quietly grew a profile word would turn the
+    // identity assertion below from an invariant into a coincidence.
+    assert.deepEqual(
+      OL.highlight(source, doc, { profiles: ALL_PROFILES })
+        .map((token) => token.text.toLowerCase())
+        .filter((text) => heads.has(text)),
+      [],
+      `${JSON.stringify(source)} must contain no profile word`,
+    );
+    assert.deepEqual(
+      profileClasses(source, ALL_PROFILES),
+      profileClasses(source, NO_KEYWORD_PROFILES),
+      `${JSON.stringify(source)} must classify identically under every profile set`,
+    );
+  }
+});
+
+/**
+ * `spec/tooling.md:30`'s four ordinary-name positions for `end`, `:31`'s `empty`, and two Core
+ * block-heads as positive controls. The expected class is a one-element array, so a filter that
+ * silently matched nothing — or matched twice — fails rather than passing vacuously.
+ */
+const NON_PROFILE_CONTROLS = [
+  ["end", "local end", "keyword"],
+  ["end", "for end from 1 to 3 [ forward 1 ]", "keyword"],
+  ["end", "export end", "keyword"],
+  ["end", "print :p.end", "keyword"],
+  ["empty", "local empty", "primitive"],
+  ["if", "if true [ print 1 ]", "keyword"],
+  ["repeat", "repeat 3 [ forward 10 ]", "keyword"],
+];
+
+test("profiles: the spec's own non-profile examples keep their class under every profile set", () => {
+  for (const [word, source, expected] of NON_PROFILE_CONTROLS) {
+    for (const profiles of [NO_KEYWORD_PROFILES, ALL_PROFILES]) {
+      assert.deepEqual(
+        OL.highlight(source, doc, { profiles })
+          .filter((token) => token.text === word)
+          .map((token) => token.class),
+        [expected],
+        `${word} in ${JSON.stringify(source)} with ${JSON.stringify(profiles)}`,
+      );
+    }
+  }
+});
+
+/** One call site per profile keyword, in the position that word actually heads. */
+const PROFILE_HEAD_SOURCES = {
+  ask: 'ask "bee" [ forward 1 ]',
+  each: "each [ forward 1 ]",
+  tell: 'tell "bee"',
+  when: "when :flag [ forward 1 ]",
+  every: "every 5 [ forward 1 ]",
+  on_key: 'on_key "a" [ forward 1 ]',
+  on_click: "on_click [ forward 1 ]",
+};
+
+test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => {
+  // Guards the two tests above against the one build that would satisfy them for the wrong
+  // reason — a classifier that ignores `options.profiles` entirely, which is precisely what the
+  // (mis-measured) report in issue #832 described. Covering the registry exactly also means a
+  // profile that starts contributing a keyword fails here until its call site is added.
+  assert.deepEqual(
+    [...PROFILE_HEADS].sort(),
+    Object.keys(PROFILE_HEAD_SOURCES).sort(),
+  );
+  for (const head of PROFILE_HEADS) {
+    const source = PROFILE_HEAD_SOURCES[head];
+    const classOf = (profiles) =>
+      OL.highlight(source, doc, { profiles })
+        .filter((token) => token.text === head)
+        .map((token) => token.class);
+    assert.deepEqual(
+      [...classOf(NO_KEYWORD_PROFILES), ...classOf(ALL_PROFILES)],
+      ["primitive", "keyword"],
+      `${head} must be primitive while its profile is inactive and keyword while it is active`,
+    );
+  }
 });
