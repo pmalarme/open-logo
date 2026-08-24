@@ -1266,6 +1266,7 @@ export function createRunController(
     attemptPending = false;
     // Ends this chain: a queued replay from a synchronous answer must not run after it.
     chainGeneration += 1;
+    animation?.pause();
     const withdrewPendingRead = withdrawPendingRead();
     // #952 — `spec/interaction-events.md:152-156` makes `"stop"` "a requested stop notification
     // BEFORE termination", so the notification is delivered while the program can still act on it,
@@ -1273,8 +1274,8 @@ export function createRunController(
     // click: the window must be open and the program must actually have registered a `when`
     // handler, so a Stop on any program that did not is byte-for-byte the Stop it always was.
     // A withdrawn question suppresses it, because `:108-111` forbids running a handler block for a
-    // read that ended unanswered. Read BEFORE the window closes, and before the animation is paused,
-    // since the gate reports the very animation this replay supersedes.
+    // read that ended unanswered. Read before the window closes, since the gate reports the very
+    // animation this replay supersedes — already paused just above, and `pause()` is idempotent.
     const notifiedAnimation = withdrewPendingRead
       ? null
       : liveAnimationForHostInput("when");
@@ -1283,11 +1284,8 @@ export function createRunController(
     // over the `"stopped"` this call is committing — including a Worker host's, which settles a
     // turn or more later.
     userStopped = true;
-    if (notifiedAnimation === null) {
-      animation?.pause();
-    } else {
+    if (notifiedAnimation !== null) {
       scheduleHostInput({ kind: "event", event: "stop" });
-      // Pauses `notifiedAnimation` itself, so the Stop's own pause is not skipped.
       replayWithDeliveredInput(notifiedAnimation);
     }
     // Latched only now: the in-process host executes through this very signal object, so latching
