@@ -238,9 +238,10 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  *   registering form the grammar already parses (issue #321's `StructDef`).
  *
  * This pre-scan is purely about arity grouping for the reader; it performs no validation. A name
- * that collides with a primitive or another declaration is still recorded here so parsing does not
- * crash — the runtime's phase-1 `struct` registration is what raises `ol-reserved-word` for a real
- * collision (`spec/data-structures.md:304`).
+ * that collides with a built-in or another declaration is still recorded here so parsing does not
+ * crash — the runtime's phase-1 `struct` registration is what reports the collision, and it
+ * distinguishes the two: a built-in type name raises `ol-reserved-word`, while one the program has
+ * already declared raises `ol-duplicate-definition` (`spec/data-structures.md:304`).
  */
 function collectUserArities(
   tokens: readonly LexToken[],
