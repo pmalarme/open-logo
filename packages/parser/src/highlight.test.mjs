@@ -835,30 +835,33 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
 // (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
 // conformance harness asserts events and diagnostics but has no token-class channel — so these
-// four tests are the only thing holding the invariant. They are a matched set on purpose:
+// four tests are the only thing holding the invariant. They are a matched set, listed in the
+// order they appear below:
 //
-//   1. over a representative corpus, the widest profile set classifies identically to a
-//      keyword-free one (blast radius) — the corpus carries the *positional* cases a bare name
-//      cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
-//   2. the spec's own non-profile examples keep their class under both of those sets (the named
-//      controls, plus `if`/`repeat` as positive keyword controls);
-//   3. every registry word DOES move, in each direction asserted separately — without which the
-//      others would pass on a build that ignored `options.profiles` altogether; and
-//   4. **no built-in name at all** moves between the two sets — swept over every entry of
+//   1. CORPUS — over a representative corpus, the widest profile set classifies identically to a
+//      keyword-free one (blast radius). The corpus carries the *contextual* cases a substituted
+//      name cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
+//   2. MANIFEST — no built-in name moves between the two sets, swept over every entry of
 //      `spec/built-in-names.json`, the authoritative manifest (ADR-0021), minus the registry's
-//      own words. This is the breadth 1 cannot have.
+//      own words: 141 names, each probed in four grammatical positions. This is the breadth 1
+//      cannot have;
+//   3. CONTROLS — the spec's own non-profile examples keep their class under both sets (the named
+//      controls, plus `if`/`repeat` as positive keyword controls); and
+//   4. REGISTRY — every profile keyword DOES move, in each direction asserted separately —
+//      without which the others would pass on a build that ignored `options.profiles` altogether.
 //
-// 1 and 2 compare two endpoint profile sets over a finite corpus, so on their own they prove
-// "nothing in this corpus moves between these sets", not a universal quantifier over all sources.
-// That gap is real and was measured: a profile-gated widening onto `fd` or `setcolor` passes the
-// entire suite when only 1–3 exist, because neither word is in the corpus. 4 closes it across all
-// 148 authoritative names, in call position. What none of the four can claim is a quantifier over
-// arbitrary *sources* — 4 sweeps names, 1 sweeps positions, and neither subsumes the other.
+// What the set proves, stated as narrowly as it was measured. 1 and 2 compare two endpoint
+// profile sets, so each proves "nothing I probe moves between these sets" — 1 over a finite
+// corpus, 2 over the full name manifest in four positions each. Neither subsumes the other, and
+// neither is a quantifier over arbitrary sources: a gated widening onto a name in a position no
+// template covers would still pass. Both gaps are real and were measured — a widening onto `fd`
+// or `setcolor` passed the whole suite when only 1, 3 and 4 existed, and a widening onto `fd`
+// conditioned on a non-initial token index passed it again when 2 probed bare names only.
 //
-// One asymmetry worth naming rather than implying: 1 and 4 compare two profile sets, so they catch
-// a *profile-gated* change. A change that reclassifies a word **unconditionally** looks identical
-// from both endpoints and is invisible to them by construction — that is what 2's named controls,
-// and the rest of this file, are for.
+// One asymmetry worth naming rather than implying: 1 and 2 compare two profile sets, so they
+// catch a *profile-gated* change. A change that reclassifies a word **unconditionally** looks
+// identical from both endpoints and is invisible to them by construction — that is what 3's named
+// controls, 4, and the rest of this file are for.
 
 /** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
 const ALL_PROFILES = OL.OL_CHECK_PROFILES;
@@ -974,29 +977,64 @@ test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS
  *
  * Read from the normative manifest rather than from the parser's registries on purpose. A test
  * that drew its subject list from the implementation could not notice a name the implementation
- * forgot; `npm run built-in-names` is what ties the two together, and this rides on that.
+ * forgot; `npm run built-in-names` is what ties the two together, and this rides on that. That
+ * gate is also what really holds the manifest's size — the floor asserted below is a smoke check
+ * against this sweep quietly becoming a no-op, not a census.
  *
  * It asserts a *relation* (the two profile sets agree), never an expected class, so it stays
  * silent about what any individual name should paint — that is `spec/tooling.md`'s business and
- * the rest of this file's.
+ * the rest of this file's. Being relational is also what makes the templates below safe: a name
+ * substituted into a template it does not fit still has to classify the same either way.
  */
 const BUILT_IN_NAMES = JSON.parse(
-  readFileSync(new URL("../../../spec/built-in-names.json", import.meta.url)),
+  readFileSync(
+    new URL("../../../spec/built-in-names.json", import.meta.url),
+    "utf8",
+  ),
 ).names.map((entry) => entry.name);
+
+/**
+ * Each swept name is probed in several grammatical positions, not just alone. A one-token program
+ * is the *only* thing a bare sweep sees, and a widening conditioned on position — `lower === "fd"
+ * && index > 0`, painting `repeat 3 [ fd 10 ]` but not a lone `fd` — slips past it untouched while
+ * passing every other test in this file. Position-dependence is this block's declared threat
+ * model: #840's own worked example is `for fd in [1 2]`, so probing `fd` only in isolation would
+ * leave the very case the block cites unguarded.
+ */
+const SWEEP_TEMPLATES = [
+  (name) => name,
+  (name) => `repeat 1 [ ${name} ]`,
+  (name) => `define holder\n  ${name}\nend`,
+  (name) => `local x\nprint ${name}`,
+];
 
 test("profiles: no built-in name outside OL_PROFILE_KEYWORDS changes class between the two sets", () => {
   const heads = new Set(PROFILE_HEADS);
   const swept = BUILT_IN_NAMES.filter((name) => !heads.has(name));
-  // A manifest that stopped containing the profile words, or stopped being read, would silently
-  // reduce this to a no-op; both counts are pinned so it cannot.
-  assert.equal(BUILT_IN_NAMES.length - swept.length, heads.size);
+  // A manifest that stopped being read, lost its shape, or stopped containing the profile words
+  // would reduce this sweep to a silent no-op. Membership is checked by name rather than by
+  // count, so "six heads, one duplicated" cannot masquerade as "all seven present".
+  assert.deepEqual(
+    PROFILE_HEADS.filter((head) => !BUILT_IN_NAMES.includes(head)),
+    [],
+    "every profile keyword must appear in the manifest",
+  );
+  assert.equal(swept.length, BUILT_IN_NAMES.length - heads.size);
   assert.ok(swept.length > 100, `expected a broad sweep, got ${swept.length}`);
   for (const name of swept) {
-    assert.deepEqual(
-      profileClasses(name, ALL_PROFILES),
-      profileClasses(name, NO_KEYWORD_PROFILES),
-      `${name} must classify identically under both profile sets`,
-    );
+    for (const template of SWEEP_TEMPLATES) {
+      const source = template(name);
+      const projected = profileClasses(source, ALL_PROFILES);
+      assert.ok(
+        projected.length > 0,
+        `${JSON.stringify(source)} must tokenize`,
+      );
+      assert.deepEqual(
+        projected,
+        profileClasses(source, NO_KEYWORD_PROFILES),
+        `${JSON.stringify(source)} must classify identically under both profile sets`,
+      );
+    }
   }
 });
 
