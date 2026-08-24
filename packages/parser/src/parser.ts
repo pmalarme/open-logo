@@ -2681,12 +2681,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
-   * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
-   * list is not a list literal: it holds bare field names that perform no evaluation
-   * (`spec/data-structures.md:304`), so the fields are carried as {@link SpannedName} metadata, the
-   * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
-   * constructor call and field access/mutation land in a later Data-profile slice.
+   * `struct-declaration ::= "struct" declared-type-name field-list` with
+   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
+   * Declares a record type, its fixed fields, and a same-named constructor. The two slots differ on
+   * purpose: the type name is a *declaration* slot (`declared-type-name`), so a built-in name there
+   * raises `ol-reserved-word`, while the bracketed field list is not a list literal and holds bare
+   * field names that perform no evaluation, so any name — a keyword or a primitive included — is
+   * legal in it (`spec/data-structures.md:304`). The fields are therefore carried as
+   * {@link SpannedName} metadata, the same shape as procedure parameter and destructuring-binder
+   * names. This function is grammar/AST only; the constructor call and field access/mutation it
+   * declares are evaluated by `@openlogo/runtime`.
    */
   function parseStructDef(): StatementNode | undefined {
     const structTok = current();
