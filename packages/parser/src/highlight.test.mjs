@@ -826,46 +826,43 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // in prose, and two slices turned on it. Issue #840 (closed `NOT_PLANNED`) proposed reclassifying
 // **any** built-in name in a binding position — its own table lists `local if`, `set count to 5`,
 // `for fd in [1 2]` — and, separately, classifying the profile heads *unconditionally*, dropping
-// the profile gate #740 added. Both halves would have moved the controls below: the first covers
-// `local end`/`local empty` directly, the second is what test 3 measures. Issue #832 then reported
+// the profile gate #740 added. Both halves would have moved something below: the first covers
+// `local end`/`local empty` directly, the second is what test 4 measures. Issue #832 then reported
 // the seven names as never `keyword`, which is not reproducible — that measurement passed its
 // options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
 // to `{}` and every column read the Core-only answer.
 //
 // The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
 // (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
-// conformance harness asserts events and diagnostics but has no token-class channel — so these
-// four tests are the only thing holding the invariant. They are a matched set, listed in the
-// order they appear below:
+// conformance harness asserts events and diagnostics but has no token-class channel. So for the
+// half stated above — that a profile set moves no NON-profile word — these four tests are the only
+// thing holding it; the profile words' own two directions are held by the per-profile suites, and
+// test 4 here keeps this block honest about them. Listed in the order they appear below:
 //
 //   1. CORPUS — over a representative corpus, the widest profile set classifies identically to a
 //      keyword-free one (blast radius). The corpus carries the *contextual* cases a substituted
 //      name cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
 //   2. MANIFEST — no built-in name moves between the two sets, swept over every entry of
 //      `spec/built-in-names.json`, the authoritative manifest (ADR-0021), minus the registry's
-//      own words: 141 names, each probed in seven grammatical positions. This is the breadth 1
-//      cannot have;
+//      own words: 141 names through seven source templates. This is the breadth 1 cannot have;
 //   3. CONTROLS — the spec's own non-profile examples keep their class under both sets (the named
 //      controls, plus `if`/`repeat` as positive keyword controls); and
 //   4. REGISTRY — every profile keyword DOES move, in each direction asserted separately —
 //      without which the others would pass on a build that ignored `options.profiles` altogether.
 //
-// What the set proves, stated as narrowly as it was measured. 1 and 2 compare two endpoint
-// profile sets, so each proves "nothing I probe moves between these sets" — 1 over a finite
-// corpus, 2 over the full name manifest in seven positions each. Neither subsumes the other (a
-// widening onto `empty` dies at 1 and not 2, because `empty` is not a manifest entry; one onto
-// `fd` dies at 2 and not 1), and neither is a quantifier over arbitrary sources: a gated widening
-// onto a name in a position no template covers would still pass. Both gaps are real and were
-// measured — a widening onto `fd` or `setcolor` passed the whole suite when only 1, 3 and 4
-// existed, and a widening onto `fd` conditioned on a non-initial token index passed it again when
-// 2 probed bare names only.
+// What the set proves, stated as narrowly as it was measured. 1 and 2 compare two endpoint profile
+// sets, so each proves "nothing I probe moves between these sets" — 1 over a finite corpus, 2 over
+// the full name manifest through seven templates each. Neither subsumes the other: a widening onto
+// `empty` dies at 1 and not 2, because `empty` is not a manifest entry, and one onto `fd` dies at 2
+// and not 1. Neither is a quantifier over arbitrary sources — a gated widening onto a name in a
+// context no template covers would still pass.
 //
 // One asymmetry worth naming rather than implying: 1 and 2 compare two endpoint profile sets that
 // differ only in `sprites` and `interaction-events` — the two profiles that contribute keywords.
 // So they catch a change gated on one of those. A change that reclassifies a word
 // **unconditionally**, or gates it on any of the other ten profiles, looks identical from both
-// endpoints and is invisible to them by construction — that is what 3's named controls, 4, and the
-// rest of this file are for.
+// endpoints and is invisible to them by construction — that is what 3, 4, and the rest of this
+// file are for.
 
 /** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
 const ALL_PROFILES = OL.OL_CHECK_PROFILES;
@@ -942,7 +939,7 @@ const DECLARED_PARSE_DIAGNOSTICS = new Map([
   ["export end", ["ol-bad-token", "ol-mismatched-end"]],
 ]);
 
-test("profiles: the widest profile set moves no word outside OL_PROFILE_KEYWORDS", () => {
+test("profiles: a profile-word-free corpus classifies identically under both profile sets", () => {
   const heads = new Set(PROFILE_HEADS);
   for (const source of PROFILE_WORD_FREE_CORPUS) {
     // Measured, not claimed: a corpus entry that quietly grew a profile word would turn the
@@ -998,25 +995,23 @@ const BUILT_IN_NAMES = JSON.parse(
 ).names.map((entry) => entry.name);
 
 /**
- * Each swept name is probed in several grammatical positions, not just alone. A one-token program
+ * Each swept name is probed through several source templates, not just alone. A one-token program
  * is the *only* thing a bare sweep sees, and a widening conditioned on position — `lower === "fd"
  * && index > 0`, painting `repeat 3 [ fd 10 ]` but not a lone `fd` — slips past it untouched while
  * passing every other test in this file.
  *
- * Position-dependence is this block's declared threat model, so the templates cover the positions
+ * Position-dependence is this block's declared threat model, so the templates cover the contexts
  * it names rather than only the convenient ones. #840's AC1 table is entirely **binding**
  * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
  * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md:30`'s own
- * example. Each was needed: with only the non-binding four, widenings onto `local fd`,
- * `set fd to 1`, and `for fd from 1 to 3` each passed the entire suite, and removing any one of
- * the seven lets a real mutant live. Measured, not supposed — and a reminder that citing a
- * position is not probing it.
+ * example. Every one of the seven is load-bearing: removing any one lets a mutant through that the
+ * others miss, which is why none is dropped as redundant. The per-template evidence is in this
+ * change's commit history rather than restated here, since nothing in the tree recomputes it.
  *
- * Still not exhaustive over positions, and deliberately not chased further. Three known survivors,
- * named rather than implied: a widening gated on nesting depth, one gated on letter case, and one
- * that separates `for … in` from `for … from` by lookahead (both share `for` as the preceding
- * token, so anything keying on that predecessor is caught). Closing those needs contrivance beyond
- * what this block defends against.
+ * Not exhaustive over contexts, and deliberately not chased further. Three known survivors, named
+ * rather than implied: a widening gated on nesting depth, one gated on letter case, and one that
+ * separates `for … in` from `for … from` by lookahead — both spellings share `for` as the
+ * preceding token, so anything keying on that predecessor is caught.
  */
 const SWEEP_TEMPLATES = [
   (name) => name,
