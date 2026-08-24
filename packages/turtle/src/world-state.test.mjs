@@ -6,7 +6,7 @@
 // `turtle_id`) folding into id 0, isolation between turtles, and the render-following obligation
 // from `spec/turtles-and-sprites.md`'s "Per-turtle state and Turtle commands" section — plus
 // (issue #749) the **last-acted** turtle the non-visual state description names as its subject
-// (`spec/rendering.md:115`/`:191`).
+// (`spec/rendering.md:115`/`:193`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as Core from "@openlogo/core";
