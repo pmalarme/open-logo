@@ -809,6 +809,20 @@ test("walk visits every core node kind, pre-order", () => {
   }
 });
 
+test("walk treats a node kind it does not recognise as a leaf", () => {
+  // `childrenOf`'s switch is exhaustive over `AnyNode`, so this clause is unreachable from
+  // TypeScript — the `never` binding in it is precisely what makes `tsc` reject a node kind added
+  // to the union without its own case (issue #925). It stays reachable from untyped JavaScript,
+  // and the contract there is that an unrecognised shape is a leaf rather than a crash: a stale
+  // caller degrades to visiting one node instead of throwing mid-walk.
+  const source_span = { document: doc, start: [1, 1], end: [1, 4] };
+  const visited = [];
+  OL.walk({ kind: "NotANodeKind", source_span }, (node) =>
+    visited.push(node.kind),
+  );
+  assert.deepEqual(visited, ["NotANodeKind"]);
+});
+
 test("walk descends the optional-child branches when they are absent", () => {
   // If with no else, ForRange with no by, map with no seed, define with no params:
   // each exercises the `=== undefined` arm of childrenOf.

@@ -7,11 +7,12 @@
  * `@language-designer` + `@interpreter` (see the `interpreter/ast-design` skill).
  *
  * Every kind in {@link OL_NODE_KINDS} now has a typed interface, a factory helper on
- * {@link ast}, and a {@link walk} traversal case. Names that the checker points diagnostics at
- * (callees, procedure names, parameters, binders, and place bases/fields) carry their own
- * {@link SpannedName}. Core parses dotted places (`:a.b.c`); index/key selectors (`:a[i]`) and
- * the Data/Heritage profiles extend these shapes in their own slices. The AST still grows one
- * node per grammar production, never ahead of the grammar.
+ * {@link ast}, and a {@link walk} traversal case — the last of those enforced by the compiler,
+ * since {@link childrenOf}'s switch is exhaustive over {@link AnyNode}. Names that the checker
+ * points diagnostics at (callees, procedure names, parameters, binders, and place bases/fields)
+ * carry their own {@link SpannedName}. Core parses dotted places (`:a.b.c`); index/key selectors
+ * (`:a[i]`) and the Data/Heritage profiles extend these shapes in their own slices. The AST still
+ * grows one node per grammar production, never ahead of the grammar.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -521,7 +522,7 @@ export interface ClearNode extends NodeBase {
  * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
  * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
- * no expression children (it falls through `childrenOf`'s default). Grammar/AST only — the
+ * no expression children (its own `childrenOf` case returns none). Grammar/AST only — the
  * constructor-call and field mutation semantics land in a later Data-profile slice.
  */
 export interface StructDefNode extends NodeBase {
@@ -881,6 +882,10 @@ export type Visitor = (node: AnyNode) => void;
  * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
  * reuse this shared child list for every node kind it does *not* special-case, instead of
  * duplicating (and risking drift from) this switch.
+ *
+ * The switch enumerates **every** {@link AnyNode} kind, childless ones included, so the `default`
+ * clause narrows `node` to `never`: adding a node kind to the union without handling it here is a
+ * compile error, not a silent hole in every traversal in the repository (issue #925).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
@@ -978,8 +983,30 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       // The head keyword is a metadata SpannedName (no `kind`), like `Place`'s field segments;
       // only the argument expressions and the optional block body are walkable children.
       return node.body === undefined ? node.args : [...node.args, node.body];
-    default:
+    // The childless kinds: everything they carry is a primitive value or `SpannedName` metadata,
+    // so there is nothing to descend into. They are enumerated here rather than left to `default`
+    // deliberately — a kind that falls through keeps the default clause inhabited, the `never`
+    // binding below stops binding, and the guard silently becomes decorative.
+    case "NumberLit":
+    case "WordLit":
+    case "BooleanLit":
+    case "VarRef":
+    case "Local":
+    case "Stop":
+    case "StructDef":
       return [];
+    default: {
+      // Unreachable for a well-typed caller. Because every `AnyNode` kind is handled above,
+      // `node` narrows to `never` here, so a kind added to the union without its own case fails
+      // `tsc` ("Type 'XNode' is not assignable to type 'never'") and names the omission. That
+      // compile error is the only thing that can see this gap: every AST-derived instrument in
+      // the repository traverses *through* this switch, so an omitted kind is invisible to both
+      // the instrument and its subject at once (issue #925). Untyped JavaScript callers can still
+      // reach this clause and keep the previous behaviour — an unknown kind is a leaf, not a
+      // crash.
+      const _unhandledNodeKind: never = node;
+      return [];
+    }
   }
 }
 
