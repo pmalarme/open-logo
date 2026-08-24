@@ -17,9 +17,11 @@ The switch ended in a bare `default: return []`, so a node kind added without a 
 became a leaf: declarations inside it were never registered, statements inside it never executed.
 
 **Its incompleteness was invisible to the obvious test for it.** Any instrument that walks the tree
-to derive a set of kinds, block slots, or reachable positions descends *through* `childrenOf`, so an
-omitted kind never appears on either side of a comparison — the instrument and its subject share the
-blind spot, and the missing coverage reads as "no such case exists". #839's derived block-slot
+to derive a set of kinds, block slots, or reachable positions descends *through* `childrenOf`, so
+everything *beneath* an omitted case never appears on either side of a comparison. `walk` still
+visits the omitted node itself — the visitor runs before the descent — but its descendants are gone
+from the instrument and from its subject alike: the two share the blind spot, and the missing
+coverage reads as "no such case exists". #839's derived block-slot
 enumeration documented exactly this as the assumption underneath it
 (`packages/runtime/src/execute-declaration-slots.test.mjs`). The gap was repository-wide, and the
 risk was never today's switch: it was the next node kind added with a body.
@@ -37,20 +39,26 @@ There are four: the node-kind switch, the `IsTest` form switch, the `PlaceSegmen
 (shared by `Place` and `PostfixExpression` through one `segmentChildren` helper so the two cannot
 drift apart), and the `ComprehensionNode` form switch.
 
-1. Every member gets its own `case`, **including the ones with no children** — the seven childless
-   node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`, `Stop`, `StructDef`), the
-   `empty` `IsTest` form, and the `field` segment kind. This is load-bearing, not tidiness: a member
+1. Every member gets its own `case`, **including the ones with no children** — the seven grouped
+   childless node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`, `Stop`,
+   `StructDef`) plus the separately handled `DestructuringBinder`, the `empty` `IsTest` form, and
+   the `field` segment kind. This is load-bearing, not tidiness: a member
    that falls through keeps the `default` clause inhabited, the `never` stops binding, and the guard
    becomes decorative.
 2. Each of the four `default` clauses calls the shared `unhandledChildCase` helper, whose first
    parameter is `never`. A member added to any of those unions without a case is therefore a `tsc`
    error that names the omitted type, and the helper **throws** if untyped JavaScript reaches it — a
    silently childless node is the precise failure mode this ADR exists to remove.
-3. **A ternary is not a substitute.** Three of the four were ternaries or bare `default`s when this
-   work started, and every one of them was proven silent by experiment: a fifth `IsTest` form, a
-   third `PlaceSegment` kind, and a fourth comprehension form each compiled clean while dropping a
-   child. A two-branch discriminant test looks total and is not, so inner unions get a `switch`
-   closed on `never`, not a conditional.
+3. **A ternary is not a substitute.** **All four** were ternaries or bare `default`s when this work
+   started: the node-kind and `IsTest` switches ended in bare `default`s, while the `PlaceSegment`
+   and `ComprehensionNode` dispatches were conditionals — the segment one copy-pasted at *both* call
+   sites, which is why they now share `segmentChildren`. The three inner unions were each proven
+   silent by experiment: a fifth `IsTest` form, a third `PlaceSegment` kind, and a fourth
+   comprehension form each left `childrenOf` compiling — the guard raised nothing in `ast.ts` —
+   while silently dropping a child. Unrelated consumers sometimes rejected the new member
+   independently, which is incidental protection rather than a guard, and would vanish the moment a
+   member arrived *with* its handling elsewhere. A two-branch discriminant test looks total and is
+   not, so inner unions get a `switch` closed on `never`, not a conditional.
 
 **The deliberate exception is the `ForIn`/`Comprehension` binder**, which discriminates
 *structurally* (`"kind" in node.binder`) rather than by tag. That is self-maintaining — a future

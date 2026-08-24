@@ -880,12 +880,14 @@ export type Visitor = (node: AnyNode) => void;
 /**
  * Rejects a value one of {@link childrenOf}'s switches has no case for. The first parameter is
  * `never`, so a new member of the union being switched on — a node kind, an {@link IsTest} form, a
- * {@link PlaceSegment} kind — fails `tsc` at the call site and names the omitted type.
+ * {@link PlaceSegment} kind, or a {@link ComprehensionNode} form — fails `tsc` at the call site and
+ * names the omitted type.
  *
  * It throws rather than reporting no children, because a silently childless node is the exact
- * failure mode issue #925 exists to remove: the node's whole subtree would drop out of `walk`, and
- * therefore out of the runtime's declaration registration and out of every checker, with nothing
- * able to observe the loss. Production callers pass well-typed {@link AnyNode} values, from `parse`
+ * failure mode issue #925 exists to remove: `walk` would still visit the node — the visitor runs
+ * before the descent — but everything *below* it would vanish, and with it the runtime's
+ * declaration registration and every checker's view of that subtree, with nothing able to observe
+ * the loss. Production callers pass well-typed {@link AnyNode} values, from `parse`
  * or the {@link ast} factory; only malformed untyped input reaches here, and it fails loudly.
  */
 function unhandledChildCase(_unhandled: never, seen: string): never {
