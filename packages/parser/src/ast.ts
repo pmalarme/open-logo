@@ -7,12 +7,13 @@
  * `@language-designer` + `@interpreter` (see the `interpreter/ast-design` skill).
  *
  * Every kind in {@link OL_NODE_KINDS} now has a typed interface, a factory helper on
- * {@link ast}, and a {@link walk} traversal case — the last of those enforced by the compiler,
- * since {@link childrenOf}'s switch is exhaustive over {@link AnyNode}. Names that the checker
- * points diagnostics at (callees, procedure names, parameters, binders, and place bases/fields)
- * carry their own {@link SpannedName}. Core parses dotted places (`:a.b.c`); index/key selectors
- * (`:a[i]`) and the Data/Heritage profiles extend these shapes in their own slices. The AST still
- * grows one node per grammar production, never ahead of the grammar.
+ * {@link ast}, and a {@link walk} traversal case. Membership of {@link AnyNode} without a case is a
+ * compile error ({@link childrenOf}'s switch is exhaustive); a kind listed in
+ * {@link OL_NODE_KINDS} but in no union is inert and is caught by test, not by the compiler. Names
+ * that the checker points diagnostics at (callees, procedure names, parameters, binders, and place
+ * bases/fields) carry their own {@link SpannedName}. Core parses dotted places (`:a.b.c`);
+ * index/key selectors (`:a[i]`) and the Data/Heritage profiles extend these shapes in their own
+ * slices. The AST still grows one node per grammar production, never ahead of the grammar.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -877,15 +878,62 @@ export const ast = {
 export type Visitor = (node: AnyNode) => void;
 
 /**
+ * Rejects a value one of {@link childrenOf}'s switches has no case for. The first parameter is
+ * `never`, so a new member of the union being switched on — a node kind, an {@link IsTest} form, a
+ * {@link PlaceSegment} kind — fails `tsc` at the call site and names the omitted type.
+ *
+ * It throws rather than reporting no children, because a silently childless node is the exact
+ * failure mode issue #925 exists to remove: the node's whole subtree would drop out of `walk`, and
+ * therefore out of the runtime's declaration registration and out of every checker, with nothing
+ * able to observe the loss. Only untyped JavaScript can reach it; every caller in this repository
+ * passes nodes obtained from `parse`.
+ */
+function unhandledChildCase(_unhandled: never, seen: string): never {
+  throw new Error(
+    `childrenOf has no case for ${seen} — this is an OpenLogo bug, not a program error ` +
+      "(see docs/adr/0024-ast-traversal-completeness-is-compiler-enforced.md).",
+  );
+}
+
+/**
+ * The walkable children of one postfix segment, shared by {@link PlaceNode} and
+ * {@link PostfixExpressionNode} so the two cannot drift apart. A dotted `.field` segment holds a
+ * {@link SpannedName} — metadata, not a walkable node — so only a bracketed selector contributes a
+ * child, and a dotted-only place has no expression children at all.
+ */
+function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
+  switch (segment.kind) {
+    case "field":
+      return [];
+    case "index":
+      return [segment.key];
+    default:
+      return unhandledChildCase(
+        segment,
+        `place segment kind ${JSON.stringify((segment as PlaceSegment).kind)}`,
+      );
+  }
+}
+
+/**
  * The direct child nodes `walk` descends into for `node`, in source order. Exported (alongside
  * `walk`) so a rule that needs scope-aware traversal — pushing/popping its own context around
  * specific node kinds, e.g. `ol-undefined-var`'s procedure-frame/binder-scope walk — can still
  * reuse this shared child list for every node kind it does *not* special-case, instead of
  * duplicating (and risking drift from) this switch.
  *
- * The switch enumerates **every** {@link AnyNode} kind, childless ones included, so the `default`
- * clause narrows `node` to `never`: adding a node kind to the union without handling it here is a
- * compile error, not a silent hole in every traversal in the repository (issue #925).
+ * Each of the three switches here — node kind, {@link IsTest} form, {@link PlaceSegment} kind —
+ * enumerates **every** member of its union, childless ones included, so each `default` narrows to
+ * `never` and omitting a case is a compile error rather than a silent hole in every traversal in
+ * the repository (issue #925).
+ *
+ * **That guarantee is completeness, not reachability, and the difference matters.** Every kind
+ * *handed to* this function reports its children; nothing here guarantees a kind is ever *reached*,
+ * because reachability depends on the *holder's* case returning the field the node sits in. A
+ * node-valued field added to an already-handled kind still compiles, is still never walked, and is
+ * still invisible to every instrument that traverses through here — the same defect one level down,
+ * tracked by issue #960. See
+ * [ADR-0024](../../../docs/adr/0024-ast-traversal-completeness-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
@@ -903,35 +951,34 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
       return node.args;
     case "ComparisonChain":
       return node.operands;
-    case "IsPredicate":
-      switch (node.test.form) {
-        case "member-of":
-          return [node.operand, node.test.collection];
-        case "a":
-          return [node.operand, node.test.type];
-        case "between":
-          return [node.operand, node.test.low, node.test.high];
-        default:
+    case "IsPredicate": {
+      // Bound to a local so the `form` switch narrows `test` itself, which is what lets the
+      // `default` below reject a form nobody gave a case.
+      const test = node.test;
+      switch (test.form) {
+        case "empty":
           return [node.operand];
+        case "member-of":
+          return [node.operand, test.collection];
+        case "a":
+          return [node.operand, test.type];
+        case "between":
+          return [node.operand, test.low, test.high];
+        default:
+          return unhandledChildCase(
+            test,
+            `"is" test form ${JSON.stringify((test as IsTest).form)}`,
+          );
       }
+    }
     case "Assign":
       return [node.place, node.value];
     case "Place":
-      // Field segments are metadata (a SpannedName, no `kind`); only bracketed selectors carry a
-      // walkable key expression, so a dotted-only place still has no expression children.
-      return node.segments.flatMap((segment) =>
-        segment.kind === "index" ? [segment.key] : [],
-      );
+      return node.segments.flatMap(segmentChildren);
     case "PostfixExpression":
-      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call,
-      // or any other primary) — see the field segments note on the "Place" case above for why
-      // only bracketed selectors contribute further children.
-      return [
-        node.base,
-        ...node.segments.flatMap((segment) =>
-          segment.kind === "index" ? [segment.key] : [],
-        ),
-      ];
+      // Unlike `Place`, the base itself is a walkable expression (a literal, constructor call, or
+      // any other primary); the segments contribute exactly what they do for a place.
+      return [node.base, ...node.segments.flatMap(segmentChildren)];
     case "If":
       return node.elseBody === undefined
         ? [node.condition, node.thenBody]
@@ -995,18 +1042,17 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "Stop":
     case "StructDef":
       return [];
-    default: {
+    default:
       // Unreachable for a well-typed caller. Because every `AnyNode` kind is handled above,
       // `node` narrows to `never` here, so a kind added to the union without its own case fails
       // `tsc` ("Type 'XNode' is not assignable to type 'never'") and names the omission. That
       // compile error is the only thing that can see this gap: every AST-derived instrument in
       // the repository traverses *through* this switch, so an omitted kind is invisible to both
-      // the instrument and its subject at once (issue #925). Untyped JavaScript callers can still
-      // reach this clause and keep the previous behaviour — an unknown kind is a leaf, not a
-      // crash.
-      const _unhandledNodeKind: never = node;
-      return [];
-    }
+      // the instrument and its subject at once (issue #925).
+      return unhandledChildCase(
+        node,
+        `node kind ${JSON.stringify((node as AnyNode).kind)}`,
+      );
   }
 }
 

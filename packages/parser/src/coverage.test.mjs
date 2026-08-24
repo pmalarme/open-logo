@@ -809,18 +809,46 @@ test("walk visits every core node kind, pre-order", () => {
   }
 });
 
-test("walk treats a node kind it does not recognise as a leaf", () => {
-  // `childrenOf`'s switch is exhaustive over `AnyNode`, so this clause is unreachable from
-  // TypeScript — the `never` binding in it is precisely what makes `tsc` reject a node kind added
-  // to the union without its own case (issue #925). It stays reachable from untyped JavaScript,
-  // and the contract there is that an unrecognised shape is a leaf rather than a crash: a stale
-  // caller degrades to visiting one node instead of throwing mid-walk.
+test("walk rejects an AST shape it has no case for instead of silently pruning it", () => {
+  // `childrenOf` switches three times — on node kind, on `is`-test form, on place-segment kind —
+  // and each is exhaustive over its union, so these clauses are unreachable from TypeScript. The
+  // `never` bindings in them are what make `tsc` reject a new member nobody gave a case (issue
+  // #925). They stay reachable from untyped JavaScript, and there the contract is to fail loudly:
+  // a silently childless node drops its whole subtree out of `walk`, and so out of the runtime's
+  // declaration registration and out of every checker, with nothing able to observe the loss.
   const source_span = { document: doc, start: [1, 1], end: [1, 4] };
-  const visited = [];
-  OL.walk({ kind: "NotANodeKind", source_span }, (node) =>
-    visited.push(node.kind),
+  const operand = { kind: "NumberLit", value: 1, source_span };
+
+  assert.throws(
+    () => OL.walk({ kind: "NotANodeKind", source_span }, () => {}),
+    /no case for node kind "NotANodeKind"/,
   );
-  assert.deepEqual(visited, ["NotANodeKind"]);
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "IsPredicate",
+          operand,
+          test: { form: "no-form" },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for "is" test form "no-form"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Place",
+          base: { name: "x", source_span },
+          segments: [{ kind: "no-segment", source_span }],
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for place segment kind "no-segment"/,
+  );
 });
 
 test("walk descends the optional-child branches when they are absent", () => {

@@ -295,12 +295,14 @@ function declarationSource({
  *
  * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
- * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. A node kind
- * omitted from its parent's case would be invisible to *both*: declarations inside it would never be
- * registered, and its slot would never enter this set, so this test would stay green about its own
- * gap. The instrument and the subject share a traversal. It is narrow (every field of every node
- * `walk` reaches is read, so only a kind `walk` never reaches at all hides), and all ten of today's
- * slots are reached — but it is the one assumption underneath the enumeration.
+ * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. Since #925
+ * that switch handles every node *kind* or fails to compile, but a node-valued *field* added to an
+ * already-handled kind still has no child edge and no compile error (#960). Such a slot would be
+ * invisible to *both*: declarations inside it would never be registered, and it would never enter
+ * this set, so this test would stay green about its own gap. The instrument and the subject share a
+ * traversal. It is narrow (every field of every node `walk` reaches is read, so only a slot `walk`
+ * never reaches at all hides), and all ten of today's slots are reached — but it is the assumption
+ * underneath the enumeration.
  *
  * Paths resolve from this file, not from `process.cwd()`: a package-scoped run
  * (`cd packages/runtime && node --test src/…`) would otherwise find no corpus at all.
