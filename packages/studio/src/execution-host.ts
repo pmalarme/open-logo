@@ -45,7 +45,12 @@
  */
 
 import { execute, printedForm } from "@openlogo/runtime";
-import type { CancellationSignal, ExecuteOptions } from "@openlogo/runtime";
+import type {
+  CancellationSignal,
+  ExecuteOptions,
+  HostInput,
+  HostInputEvent,
+} from "@openlogo/runtime";
 import type {
   Diagnostic,
   PrintPayload,
@@ -156,6 +161,23 @@ export interface ExecutionRequest {
    * host resumes the suspended read in place and never re-reads the FIFO.
    */
   readonly answers: readonly RecordedAnswer[];
+  /**
+   * The tick-scheduled key presses, clicks, and named events this attempt delivers (#952) — the
+   * other half of the `hostInput` seam, beside {@link acceptsReads}'s reader. Installed as
+   * `ExecuteOptions.hostInput.events`, which is what makes a program's `on_key`, `on_click`, and
+   * `when` handlers actually **fire** in the studio rather than merely register.
+   *
+   * Plain data, like every other field here, so it crosses a Worker boundary by structured clone
+   * unchanged; `execution-worker-runner.ts` reaches it through the same {@link toExecuteOptions},
+   * so the two hosts cannot drift on what a run is configured with.
+   *
+   * Omitted (or empty) means "no key, click, or named event was delivered to this attempt", which
+   * is the behavior every run had before #952 and which `step()`'s scrubber preparation still
+   * wants. `run-controller.ts` owns how a real browser keystroke becomes an entry here — see its
+   * doc comment ("#952"), in particular why each delivery takes its own studio-assigned **tick**
+   * rather than a wall-clock instant.
+   */
+  readonly hostInputEvents?: readonly HostInputEvent[];
 }
 
 /**
@@ -261,17 +283,31 @@ export function collectTutorOutput(
  *
  * `tutorTemplates` is always `@openlogo/edu`'s real curriculum prose (#334): studio composes the
  * host's template into every run, it never chooses that pedagogy itself.
+ *
+ * #952 — `hostInput` now carries **both** halves of the runtime's seam: the live `read` for the
+ * blocking `input` reporter (#769) and the tick-scheduled `events` a learner's keyboard and pointer
+ * produced ({@link ExecutionRequest.hostInputEvents}). Before this, only `read` was ever installed,
+ * so `on_key`/`on_click`/`when` handlers registered and could never fire. Neither half is installed
+ * when it is absent, and `hostInput` itself is omitted entirely when both are — so a run with no
+ * reader and no delivered input passes exactly the options it always did.
  */
 export function toExecuteOptions(
   request: ExecutionRequest,
   signal: CancellationSignal,
   read: ((prompt: string) => string | undefined) | undefined,
 ): ExecuteOptions {
+  const hostInputEvents = request.hostInputEvents ?? [];
+  const hostInput: HostInput = {
+    ...(read === undefined ? {} : { read }),
+    ...(hostInputEvents.length === 0 ? {} : { events: hostInputEvents }),
+  };
   return {
     signal,
     tutorTemplates: eduTutorTemplate,
     randomSeed: request.randomSeed,
-    ...(read === undefined ? {} : { hostInput: { read } }),
+    ...(read === undefined && hostInputEvents.length === 0
+      ? {}
+      : { hostInput }),
     ...(request.instructionBudget !== undefined
       ? { instructionBudget: request.instructionBudget }
       : {}),

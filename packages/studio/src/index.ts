@@ -378,6 +378,28 @@ export {
   mountRunController,
 } from "./run-controller.js";
 
+export {
+  KEY_WORD_BY_BROWSER_KEY,
+  MODIFIER_KEY_NAMES,
+  normalizeKeyWord,
+} from "./key-words.js";
+
+export type {
+  ActivationControlElement,
+  CanvasInteractionElement,
+  CanvasInteractionElements,
+  KeyboardEventLike,
+} from "./canvas-interaction.js";
+export {
+  CANVAS_ACTIVATION_LABEL,
+  CANVAS_ACTIVATION_TEXT,
+  CANVAS_INTERACTION_HELP_TEXT,
+  SCROLLING_KEY_WORDS,
+  handleCanvasKeyDown,
+  mountCanvasInteraction,
+  suppressesBrowserDefault,
+} from "./canvas-interaction.js";
+
 export type {
   ExecutionHost,
   ExecutionRequest,

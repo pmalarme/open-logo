@@ -154,7 +154,11 @@ export interface FocusStop {
  * into the single `run-toggle-button` stop below. #410 adds three new reachable stops —
  * `run-log`, `turtle-state`, and `output` — closing `spec/rendering.md`'s Keyboard operability gap
  * ("focus movement between source, output, state text, and canvas"); the source editor's own
- * `textbox` stop (#315/#279) is unchanged.
+ * `textbox` stop (#315/#279) is unchanged. #952 adds `canvas-activate` immediately after the canvas:
+ * `on_click` fires when the drawing surface "is clicked **or activated by an equivalent accessible
+ * action**" (`spec/interaction-events.md:214-215`), and a tab-reachable button beside the surface it
+ * activates is that action — see `canvas-interaction.ts` for why it is a separate control rather
+ * than Enter/Space on the canvas itself.
  */
 export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
   {
@@ -184,6 +188,12 @@ export const REPL_FOCUS_ORDER: readonly FocusStop[] = [
   },
   { id: "run-log", region: "repl", role: "log", label: "Run log" },
   { id: "canvas", region: "turtle", role: "img", label: "Turtle canvas" },
+  {
+    id: "canvas-activate",
+    region: "turtle",
+    role: "button",
+    label: "Activate canvas",
+  },
   {
     id: "turtle-state",
     region: "turtle",

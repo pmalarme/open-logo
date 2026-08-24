@@ -122,6 +122,7 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "speed-slider": "speed-slider",
     "run-log": "run-log",
     canvas: "turtle-canvas",
+    "canvas-activate": "canvas-activate-button",
     "turtle-state": "turtle-state",
     output: "output",
     "diagnostics-list": "diagnostics-list",
@@ -180,6 +181,42 @@ test("index.html gives the lesson pane, Canvas, run log, turtle state, output, a
     indexHtml,
     /id="diagnostics-list"[\s\S]*?tabindex="0"/,
     "the diagnostics list must be focusable to be a REPL_FOCUS_ORDER stop",
+  );
+});
+
+test("#952: index.html renders the canvas activation button, described help text, and the aria-describedby that links them — all from canvas-interaction.ts's constants", () => {
+  const normalize = (text) => text.replace(/\s+/g, " ").trim();
+  const buttonMatch = indexHtml.match(
+    /<button\s+id="canvas-activate-button"([\s\S]*?)>([\s\S]*?)<\/button>/,
+  );
+  assert.ok(
+    buttonMatch,
+    "on_click's 'equivalent accessible action' must be a real <button>",
+  );
+  assert.match(
+    buttonMatch[1],
+    new RegExp(`aria-label="${OL.CANVAS_ACTIVATION_LABEL}"`),
+    "the button's accessible name must come from CANVAS_ACTIVATION_LABEL",
+  );
+  assert.equal(
+    normalize(buttonMatch[2]),
+    OL.CANVAS_ACTIVATION_TEXT,
+    "the button's visible text must come from CANVAS_ACTIVATION_TEXT",
+  );
+  assert.match(
+    indexHtml,
+    /id="turtle-canvas"[\s\S]*?aria-describedby="canvas-interaction-help"/,
+    "the canvas must point at the description that explains it takes key presses",
+  );
+  const helpMatch = indexHtml.match(
+    /id="canvas-interaction-help"[^>]*>([\s\S]*?)<\/p>/,
+  );
+  assert.ok(helpMatch, "expected a #canvas-interaction-help paragraph");
+  assert.equal(
+    normalize(helpMatch[1]),
+    normalize(OL.CANVAS_INTERACTION_HELP_TEXT),
+    "the help paragraph's wording must match CANVAS_INTERACTION_HELP_TEXT exactly " +
+      "(whitespace differences from HTML line-wrapping aside)",
   );
 });
 
@@ -436,6 +473,27 @@ test("web/main.ts renders the toggle's icon/aria-label/label from the view model
 test("web/main.ts still calls runController.reset() directly from the Reset button (unchanged run-controller semantics, #316)", () => {
   assert.match(mainTs, /resetButton\.addEventListener\(\s*"click"/);
   assert.match(mainTs, /runController\.reset\(\)/);
+});
+
+test("#952: web/main.ts mounts the canvas interaction and makes no input decision of its own — web/** is neither type-checked nor linted, so all logic stays in src/canvas-interaction.ts", () => {
+  assert.match(mainTs, /mountCanvasInteraction\(/);
+  assert.match(mainTs, /canvas:\s*canvasElement/);
+  assert.match(mainTs, /activationControl:\s*canvasActivateButton/);
+  assert.match(
+    mainTs,
+    /document\.getElementById\("canvas-activate-button"\)/,
+    "the activation control must be looked up from the real DOM",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /normalizeKeyWord\(/,
+    "key-word normalization is src/key-words.ts's decision, never this file's",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /deliverKey\(|deliverClick\(/,
+    "the DOM event → delivery mapping lives in src/canvas-interaction.ts",
+  );
 });
 
 test("#769: index.html declares the `input` prompt as a native <dialog>, closed until a program asks something", () => {

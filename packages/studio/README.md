@@ -325,6 +325,105 @@ a page only gets from `Cross-Origin-Opener-Policy: same-origin` and
 in production: until they are served (for local development, via `packages/studio/vite.config.ts`),
 `selectExecutionHost` returns `undefined` and the studio keeps the replay.
 
+## Keyboard and pointer input: making `on_key`/`on_click`/`when` fire (#952)
+
+Until this slice the studio installed only `hostInput.read`. `on_key`, `on_click`, and `when "stop"`
+**registered, type-checked, highlighted as active keywords — and never fired.** Measured on
+[`spec/examples/10-game.logo`](../../spec/examples/10-game.logo) (three `on_key` handlers, one
+`on_click`): 131 events, ten coins stamped, **zero prints, zero diagnostics**. A learner pressed the
+arrow keys, clicked the canvas, and got silence with a green diagnostics pane.
+
+`ExecutionRequest.hostInputEvents` now carries the other half of the seam, `toExecuteOptions`
+installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
+
+- `deliverKey(keyWord)` — one key press, as the lowercase word
+  `spec/interaction-events.md:194-198` defines.
+- `deliverClick()` — one activation of the drawing surface.
+
+Both report whether the input actually reached the program.
+
+**Real time never enters the event stream.** `hostInput.events` is a *static, tick-scheduled* list
+fixed before a run starts; a keystroke arrives on the wall clock. Bridging them by timestamp would
+make two identical play sessions produce different event streams. So the studio assigns ticks
+itself: **the *n*-th input delivered to a run is scheduled at tick *n***. Nothing about *when* a key
+was pressed is recorded, only how many inputs preceded it — so "same seed + same input sequence ⇒
+byte-identical event stream" holds exactly as it does for the `input` answer FIFO, and is asserted
+directly. It also lets the program bound its own lifetime for free: `10-game.logo` ends with
+`wait 300`, so its clock visits ticks 1…300 and it accepts 300 deliveries.
+
+**The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
+another attempt of the *same* chain — same captured source, same pinned seed, same answers — so it
+costs one execution per delivery, exactly as an `input` answer does. The canvas resumes rather than
+redrawing, because the replay is fast-forwarded past what the live animation had already drawn. A
+delivered replay deliberately does **not** re-announce `runStatus` as `"running"`: it is the same run
+with more input, and `run-log.ts`/`tutor-output-pane.ts` accumulate on the `"running"` → terminal
+transition, so announcing it would file a run-log entry per keystroke.
+
+**A delivery is accepted only when all three hold**, each measured rather than assumed: the chain is
+live (`run()` opens the window, Stop/Reset close it); the program actually registered a handler of
+that kind (its own `primitive` trace event says so, so a non-interactive program is never
+re-executed by a stray keystroke); and nothing is in flight (a question outstanding is refused by
+`spec/interaction-events.md:108-111`, an unsettled execution by the coalescing `:91-93` permits).
+
+**Stop notifies the program first.** `"stop"` is "a requested stop notification **before**
+termination" (`:152-156`), so `stop()` delivers it as a named event and replays once before latching
+the cancellation signal — but only for a program that registered a `when` handler, so every other
+Stop is byte-for-byte the Stop it always was.
+
+### Supported key words
+
+`spec/interaction-events.md:197-198` asks implementations to document theirs.
+`src/key-words.ts`'s `normalizeKeyWord` maps a browser `KeyboardEvent.key` onto:
+
+| Key | Word |
+|---|---|
+| `ArrowLeft` / `ArrowRight` / `ArrowUp` / `ArrowDown` | `left` / `right` / `up` / `down` |
+| Space | `space` |
+| `PageUp` / `PageDown` | `page_up` / `page_down` |
+| `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, `Home`, `End` | their own lowercase name |
+| any single printable character | that character, lowercased (`A` → `a`) |
+| anything else the platform reports | its own lowercase name (`F1` → `f1`) |
+
+A **bare modifier** (Shift, Control, Alt, Meta, Caps Lock, …) and the browser placeholders
+`Unidentified`/`Dead` are **not** key presses: they deliver nothing, so tabbing to the canvas with
+Shift held does not spend a tick.
+
+```logo
+on_key "left" [
+  left 15
+]
+on_key "space" [
+  stamp
+]
+wait 300
+```
+
+### The pointer, and its accessible equivalent
+
+`on_click` fires when the surface "is clicked **or activated by an equivalent accessible action**"
+(`:214-215`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
+
+- the canvas's own pointer `click`;
+- `#canvas-activate-button`, a real, labelled, tab-reachable button the browser natively operates
+  with Enter and Space, announced as a button and present in `REPL_FOCUS_ORDER` right after the
+  canvas it activates.
+
+It is a **separate control** rather than Enter/Space on the focused canvas because the canvas is also
+the keyboard surface: `"enter"` and `"space"` are key words in their own right, so a learner writing
+`on_key "space"` must receive a space press, not an activation. Carrying no click *position* is not a
+shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:216-218`), which
+is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
+
+Arrows, space, and the paging keys have their browser default suppressed — but **only once the press
+was actually delivered**, so a key the program is not listening for still scrolls the page as it
+always did. `"tab"` is deliberately never suppressed: it is how a learner leaves the canvas, and a
+running game that swallowed it would be a keyboard trap.
+
+All of this lives in `src/`, not in `web/main.ts`: `web/**` is outside the `src` build graph, so it
+is **neither type-checked nor linted** and no test imports it, yet it is bundled and shipped.
+`web/main.ts` looks up the two elements and hands them to `mountCanvasInteraction`, and makes no
+decision of its own — asserted by `index.test.mjs`.
+
 ## Friendlier run-status labels (#311)
 
 The `#run-status` region (`index.html`) shows a learner-facing label instead of the raw internal

@@ -283,10 +283,73 @@
  * `step()` deliberately does **not** drive this flow: it is a scrubber over an already-produced
  * event stream (see "#228" above), so there is no execution in progress for a read to block, and its
  * lazy `prepare()` therefore installs no reader at all — behavior unchanged from before #769.
+ *
+ * ## #952 — delivering keyboard and pointer input, so `on_key`/`on_click`/`when` actually fire
+ * Until this slice the studio installed only `hostInput.read`. `on_key`, `on_click`, and
+ * `when "stop"` therefore **registered, type-checked, highlighted as active keywords — and never
+ * fired**: measured on `spec/examples/10-game.logo` (three `on_key`, one `on_click`), a
+ * studio-equivalent run produced 131 events and **zero** prints with no diagnostic at all, while the
+ * same program with `hostInput.events` supplied prints `1`, `2`. A learner pressed the arrow keys,
+ * clicked the canvas, and got silence.
+ *
+ * `deliverKey`/`deliverClick` close that, and Stop now delivers the `"stop"` named event
+ * (`spec/interaction-events.md:152-156`: `"stop"` is "a requested stop notification **before**
+ * termination"). All three go through the same mechanism.
+ *
+ * ### Real time never reaches the event stream
+ * `ExecuteOptions.hostInput.events` is a **static, tick-scheduled** list fixed before a run starts —
+ * the runtime has no live input port, by design, and this module must not invent one. A keystroke
+ * arrives with wall-clock timing; the tick clock is a pure counter. Bridging them by *timestamp*
+ * would make two identical play sessions produce different event streams, destroying the replay
+ * determinism `input` already depends on (#881).
+ *
+ * So the studio assigns the ticks itself: **the *n*-th input delivered to a run is scheduled at
+ * tick *n***, from a counter that starts at 1 when `run()` starts a chain. Nothing about *when* the
+ * learner pressed the key is recorded, only *how many* inputs preceded it. The schedule is therefore
+ * a pure function of the input sequence, and "same seed + same input schedule ⇒ byte-identical event
+ * stream" holds exactly as it does for the answer FIFO. The runtime imposes the normative same-tick
+ * order (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
+ * reasons about ordering either.
+ *
+ * That mapping also gives the program the last word on its own lifetime, for free: `10-game.logo`
+ * ends with `wait 300`, so its tick clock visits ticks 1…300 and it accepts 300 deliveries — after
+ * which the program is genuinely over and further keys correctly do nothing, because nothing is
+ * left to deliver them to.
+ *
+ * ### The mechanism is #769's replay, extended
+ * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
+ * captured source, same pinned seed, same answers — exactly as a new `input` answer does. The cost
+ * is the same too: one execution per delivery. What the learner sees is the canvas, output, and
+ * turtle state updating to reflect the input they just gave, because the replay is fast-forwarded
+ * past the events already drawn (`shownEventCount`, set from the live animation's own cursor) rather
+ * than redrawing from a blank canvas.
+ *
+ * A replay for delivered input deliberately does **not** re-announce `runStatus` as `"running"`: it
+ * is the *same* run with more input, not a new one. `run-log.ts` and `tutor-output-pane.ts`
+ * accumulate on the `"running"` → terminal transition, so announcing it would file a fresh run-log
+ * entry and re-append the tutor output on **every keystroke**.
+ *
+ * ### When a delivery is accepted
+ * Three gates, all measurable rather than guessed:
+ * - **The chain is live.** `run()` opens the window and Stop/Reset close it. A `step()` preparation
+ *   never opens it: stepping is a scrubber, not an interactive run.
+ * - **The program actually registered that handler.** Registration emits a `primitive` event named
+ *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
+ *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
+ *   cheap operation — for every non-interactive program and every test that predates it.
+ * - **Nothing is in flight.** A delivery while an `input` question is outstanding is refused, because
+ *   `spec/interaction-events.md:108-111` forbids running a handler block until the read finishes;
+ *   one while an execution has not settled (only reachable under a Worker host) is refused as the
+ *   coalescing `:91-93` explicitly permits.
  */
 
-import type { CancellationSignal } from "@openlogo/runtime";
-import type { Diagnostic, SourceSpan, TraceEvent } from "@openlogo/core";
+import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
+import type {
+  Diagnostic,
+  PrimitivePayload,
+  SourceSpan,
+  TraceEvent,
+} from "@openlogo/core";
 import {
   IMMEDIATE_SCHEDULER,
   INITIAL_TURTLE_SCENE,
@@ -462,6 +525,29 @@ export interface RunController {
    * comment ("#769").
    */
   step(): void;
+  /**
+   * Deliver one key press to the running program (#952), as the OpenLogo key word
+   * `spec/interaction-events.md:194-198` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
+   * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
+   *
+   * The press is scheduled at the next studio tick and the current chain is replayed with it, so
+   * every matching `on_key` handler fires. Reports whether the press actually reached the program:
+   * `false` — with no execution at all — unless the live run registered an `on_key` handler and is
+   * ready to receive input. `canvas-interaction.ts` uses that answer to decide whether to suppress
+   * the browser's own scrolling, so a key the program is not listening for keeps its ordinary
+   * behavior. See this module's doc comment ("#952") for the three gates and for why a delivery
+   * costs a tick rather than a timestamp.
+   */
+  deliverKey(key: string): boolean;
+  /**
+   * Deliver one activation of the drawing surface to the running program (#952) — a pointer click
+   * **or** "an equivalent accessible action" (`spec/interaction-events.md:214-215`), which is why
+   * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
+   * keyboard-reachable activation control is exactly as complete a click as a mouse is.
+   *
+   * Scheduled, gated, and reported exactly like {@link deliverKey}, against `on_click` registration.
+   */
+  deliverClick(): boolean;
 }
 
 /**
@@ -506,6 +592,40 @@ function stepEndIndex(events: readonly TraceEvent[], cursor: number): number {
     end += 1;
   }
   return end;
+}
+
+/**
+ * One host input occurrence **without** its tick (#952) — what a caller of `deliverKey`/
+ * `deliverClick` names, before the controller assigns the tick that schedules it. Derived from
+ * `@openlogo/runtime`'s own {@link HostInputEvent} through a distributive `Omit`, so it cannot drift
+ * from the runtime's union; a plain `Omit` would collapse it to the members' *common* keys and
+ * silently lose the key word and the event word.
+ */
+type HostInputOccurrence = HostInputEvent extends infer Member
+  ? Member extends HostInputEvent
+    ? Omit<Member, "tick">
+    : never
+  : never;
+
+/**
+ * Did this run register a `<name>` event handler (#952)? `when`, `every`, `on_key`, and `on_click`
+ * each emit the ordinary catch-all `primitive` event carrying their own name "after the handler is
+ * registered" (`spec/interaction-events.md:120-122`), so the run's own trace stream is the record —
+ * this never re-parses the source or second-guesses the runtime.
+ *
+ * It is what keeps delivery a **no-op** rather than merely a cheap operation for a program that
+ * registered nothing: with no handler to fire, a keystroke schedules nothing and re-executes
+ * nothing, so this slice cannot perturb a non-interactive run.
+ */
+function hasRegisteredHandler(
+  events: readonly TraceEvent[],
+  name: string,
+): boolean {
+  return events.some(
+    (event): boolean =>
+      event.kind === "primitive" &&
+      (event.payload as PrimitivePayload).name === name,
+  );
 }
 
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
@@ -627,12 +747,28 @@ export function createRunController(
   // `promptGeneration` already uses for a late responder, kept separate because the responder
   // itself bumps that one.
   let chainGeneration = 0;
+  // #952 — the current chain's host-input schedule and the tick counter that builds it. Each
+  // delivered key press, click, or named event takes the next tick, so the schedule is a pure
+  // function of the input SEQUENCE and never of the wall clock (see this module's doc comment,
+  // "#952"). `chainAcceptsHostInput` is the delivery window: `run()` opens it, Stop and Reset close
+  // it, and a lazy `step()` preparation never opens it at all.
+  let hostInputEvents: readonly HostInputEvent[] = [];
+  let nextHostInputTick = 1;
+  let chainAcceptsHostInput = false;
+  // How many events the live animation has actually put on the canvas, tracked at the one place a
+  // frame is published (`pushTurtleSnapshot`). A delivered-input replay hands this to
+  // `shownEventCount` so the picture RESUMES rather than redrawing — and reading it from here rather
+  // than from the animation keeps that a plain measurement with no "what if there is no animation
+  // yet" case to reason about: there cannot be one, because a delivery is gated on a run whose
+  // handler registration is already in `currentEvents`.
+  let drawnEventCount = 0;
 
   /** Push `current`'s folded per-turtle world/scene into the shared store and repaint (never
    * called with a null animation — callers only invoke this once `animation` has been
    * assigned). */
   function pushTurtleSnapshot(current: TurtleAnimationController): void {
     const snapshot = current.getSnapshot();
+    drawnEventCount = snapshot.cursor;
     state.setTurtleWorld(snapshot.world);
     state.setTurtleScene(snapshot.scene);
     // #410 — only trust `currentEvents`' spans while the editor still holds the exact source they
@@ -777,14 +913,24 @@ export function createRunController(
    * `run()`/`step()` still complete within one turn and every pre-#876 test is untouched. A Worker
    * host settles later instead, and settles **again** for each further read and once at completion,
    * so `then` runs once per settled view of the same single execution.
+   *
+   * `announceRunning` (#952) is `false` for the two attempts that continue a run the learner is
+   * already watching rather than starting one: a delivered key/click, and Stop's `"stop"` event.
+   * Announcing `"running"` there would make `run-log.ts`/`tutor-output-pane.ts` — which accumulate
+   * on the `"running"` → terminal transition — file a fresh entry per keystroke. It also leaves
+   * `userStopped` alone, which is what lets Stop's own attempt settle without reverting the
+   * `"stopped"` status it is on its way to committing.
    */
   function beginAttempt(
     sourceText: string,
     host: InputPromptHost | undefined,
     then: (current: TurtleAnimationController) => void,
+    announceRunning = true,
   ): void {
-    state.setRunStatus("running");
-    userStopped = false;
+    if (announceRunning) {
+      state.setRunStatus("running");
+      userStopped = false;
+    }
     pendingRead = null;
 
     const request: ExecutionRequest = {
@@ -807,6 +953,9 @@ export function createRunController(
       cancellationRequested: signal.aborted,
       acceptsReads: host !== undefined,
       answers,
+      // #952 — the other half of the runtime's `hostInput` seam. Empty for a program that has been
+      // given no key, click, or named event, which is every run that predates this slice.
+      hostInputEvents,
       ...(options?.instructionBudget !== undefined
         ? { instructionBudget: options.instructionBudget }
         : {}),
@@ -987,6 +1136,72 @@ export function createRunController(
     }
   }
 
+  /**
+   * Schedule one host input at the chain's next tick (#952). Tick *n* for the *n*-th delivery — the
+   * counter is the whole of the wall-clock-to-tick mapping, which is why two identical play
+   * sessions produce byte-identical event streams. See this module's doc comment ("#952").
+   */
+  function scheduleHostInput(occurrence: HostInputOccurrence): void {
+    const tick = nextHostInputTick;
+    nextHostInputTick += 1;
+    hostInputEvents = [...hostInputEvents, { ...occurrence, tick }];
+  }
+
+  /**
+   * Replay the current chain so the newly scheduled input is delivered (#952). Not a new run: the
+   * live animation is paused (its already-scheduled ticks would otherwise push snapshots of a
+   * superseded stream over the new one), the events it has already drawn are marked as drawn so
+   * `finishAttempt` resumes the picture instead of blanking it, and `runStatus` is deliberately not
+   * re-announced — see `beginAttempt`'s `announceRunning`.
+   */
+  function replayWithDeliveredInput(current: TurtleAnimationController): void {
+    shownEventCount = drawnEventCount;
+    current.pause();
+    beginAttempt(chainSource, options?.inputPrompt, playCurrentAttempt, false);
+  }
+
+  /**
+   * The gates a delivery must pass (#952), reporting the live animation it may supersede or `null`
+   * when the input goes nowhere: a run must have produced one, the chain must still be accepting
+   * input, no read or execution may be outstanding, and the run must actually have registered a
+   * handler of this kind. See this module's doc comment ("#952") for why each one is there.
+   */
+  function liveAnimationForHostInput(
+    registration: string,
+  ): TurtleAnimationController | null {
+    const current = animation;
+    if (current === null) {
+      // Nothing has run yet, or `reset()` cleared it — there is no program to deliver to.
+      return null;
+    }
+    return chainAcceptsHostInput &&
+      pendingRead === null &&
+      !attemptPending &&
+      hasRegisteredHandler(currentEvents, registration)
+      ? current
+      : null;
+  }
+
+  function deliverKey(key: string): boolean {
+    const current = liveAnimationForHostInput("on_key");
+    if (current === null) {
+      return false;
+    }
+    scheduleHostInput({ kind: "key", key });
+    replayWithDeliveredInput(current);
+    return true;
+  }
+
+  function deliverClick(): boolean {
+    const current = liveAnimationForHostInput("on_click");
+    if (current === null) {
+      return false;
+    }
+    scheduleHostInput({ kind: "click" });
+    replayWithDeliveredInput(current);
+    return true;
+  }
+
   function run(): void {
     if (state.getState().runStatus === "running") {
       // #314 — a run is already in progress (only reachable with a real paced scheduler, where
@@ -1004,6 +1219,13 @@ export function createRunController(
     promptOutstanding = false;
     chainSource = state.getState().source;
     chainRandomSeed = drawRandomSeed();
+    // #952 — a fresh chain delivers no input yet, and its tick counter restarts at 1 so the schedule
+    // depends only on this run's own input sequence. This is also the one place the delivery window
+    // opens.
+    hostInputEvents = [];
+    nextHostInputTick = 1;
+    chainAcceptsHostInput = true;
+    drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
     // of this within the same call, so it is invisible; with a host that settles later, a Stop
@@ -1035,7 +1257,6 @@ export function createRunController(
   }
 
   function stop(): void {
-    signal.aborted = true;
     // #876 — the preemptible half. For the default in-process host this is a no-op (its `execute()`
     // has already returned by the time anything can call `stop()`); for a Worker host it flips a
     // flag in shared memory that the still-running interpreter reads before its very next
@@ -1045,9 +1266,37 @@ export function createRunController(
     attemptPending = false;
     // Ends this chain: a queued replay from a synchronous answer must not run after it.
     chainGeneration += 1;
+    const withdrewPendingRead = withdrawPendingRead();
+    // #952 — `spec/interaction-events.md:152-156` makes `"stop"` "a requested stop notification
+    // BEFORE termination", so the notification is delivered while the program can still act on it,
+    // by one final replay of the chain with the named event scheduled. Gated exactly like a key or
+    // click: the window must be open and the program must actually have registered a `when`
+    // handler, so a Stop on any program that did not is byte-for-byte the Stop it always was.
+    // A withdrawn question suppresses it, because `:108-111` forbids running a handler block for a
+    // read that ended unanswered. Read BEFORE the window closes, and before the animation is paused,
+    // since the gate reports the very animation this replay supersedes.
+    const notifiedAnimation = withdrewPendingRead
+      ? null
+      : liveAnimationForHostInput("when");
+    chainAcceptsHostInput = false;
+    // Latched BEFORE the notification attempt so that attempt cannot settle the run as `"done"`
+    // over the `"stopped"` this call is committing — including a Worker host's, which settles a
+    // turn or more later.
     userStopped = true;
-    animation?.pause();
-    if (withdrawPendingRead()) {
+    if (notifiedAnimation === null) {
+      animation?.pause();
+    } else {
+      scheduleHostInput({ kind: "event", event: "stop" });
+      // Pauses `notifiedAnimation` itself, so the Stop's own pause is not skipped.
+      replayWithDeliveredInput(notifiedAnimation);
+    }
+    // Latched only now: the in-process host executes through this very signal object, so latching
+    // it before the notification attempt would cancel that attempt at its first statement with
+    // `ol-limit` instead of delivering `"stop"`. Once latched it STAYS latched — a `run()` after a
+    // Stop still halts immediately, and only `reset()` re-arms it (see this module's doc comment,
+    // "#126").
+    signal.aborted = true;
+    if (withdrewPendingRead) {
       // #769 — Stop while an `input` question was open: the read ended unanswered, so publish the
       // cancellation the attempt already produced rather than leaving it withheld.
       commitCancelledRead();
@@ -1068,6 +1317,12 @@ export function createRunController(
     chainSource = "";
     attemptDiagnostics = [];
     shownEventCount = 0;
+    // #952 — a Reset closes the delivery window and discards the schedule, so the next `run()`
+    // starts a genuinely fresh chain in this dimension too, exactly as it does for the answer FIFO.
+    hostInputEvents = [];
+    nextHostInputTick = 1;
+    chainAcceptsHostInput = false;
+    drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);
@@ -1121,7 +1376,7 @@ export function createRunController(
     settleAttempt(current);
   }
 
-  return { state, run, stop, reset, step };
+  return { state, run, stop, reset, step, deliverKey, deliverClick };
 }
 
 /** Compose the run controller into the shell's `repl` region (the run/output surface). */
