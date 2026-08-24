@@ -90,7 +90,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * Structural words that can never begin an expression, so the reader must not read them as a bare
  * call — it returns `undefined` instead and the caller reports the token with `ol-bad-token`
  * ("a token that is itself a valid OpenLogo token but is not permitted at the current grammar
- * position", `spec/error-model.md:109`).
+ * position", `spec/error-model.md:110`).
  *
  * **Derived from {@link OL_KEYWORDS}, not hand-listed** (issue #853). A keyword is "a word the
  * grammar itself gives meaning to rather than a name a program can introduce"
@@ -231,7 +231,7 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
  *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
- *   reporter (`spec/data-structures.md:254,264`); its arity is the declared field count. Without
+ *   reporter (`spec/data-structures.md:294,324`); its arity is the declared field count. Without
  *   this, a bare constructor call like `point 3 4` would read `point` as a zero-arity call and
  *   leave `3 4` as stray tokens (issue #329) — the same "reader needs a callee's arity to group a
  *   bare call's arguments" mechanism `define` already relies on, extended to the other name-
@@ -240,7 +240,7 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  * This pre-scan is purely about arity grouping for the reader; it performs no validation. A name
  * that collides with a primitive or another declaration is still recorded here so parsing does not
  * crash — the runtime's phase-1 `struct` registration is what raises `ol-reserved-word` for a real
- * collision (`spec/data-structures.md:264`).
+ * collision (`spec/data-structures.md:304`).
  */
 function collectUserArities(
   tokens: readonly LexToken[],
@@ -412,7 +412,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * the lexer reported a fault (an unclosed string such as `make "size`, or a multiline triple
    * quoted `make """size`) that consumed the very text a grammar slot expected. A caller uses this
    * to avoid stacking a redundant `ol-bad-token` on top of that more-specific diagnostic
-   * (`spec/error-model.md:109`).
+   * (`spec/error-model.md:110`).
    *
    * The window is bounded on *both* sides so an unrelated diagnostic *later* on the line cannot
    * trigger suppression: `make 5 "oops` must still report the invalid `5` target even though an
@@ -1286,7 +1286,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * `value of expression "for" "key" expression` (`spec/grammar.md:217`'s `value-of-reader`), the
    * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
-   * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
+   * (`spec/data-structures.md:213-231`). Both the dictionary and the key are full expressions
    * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
    * intercepted here when `value` is directly followed by `of` — and that check runs *before*
    * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
@@ -1814,7 +1814,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Re-wraps a fully-parenthesized assignment target — `(:x)`, `(:x.a)`, `((:x))`, `(first :x)` —
    * into the zero-selector `PostfixExpression` shape `parsePostfix` builds for every other
    * parenthesized read (issue #407/F7), so the semantic checker flags it with `ol-not-a-place`
-   * (spec/tooling.md:187, "reject … parenthesized expressions as targets") instead of the blunt
+   * (spec/tooling.md:188, "reject … parenthesized expressions as targets") instead of the blunt
    * parse `ol-bad-token` that discarding the grouping (`parseParenthesized`) would otherwise leave
    * (issue #442/F3). `parseParenthesized` strips the grouping parens, so a `(:x)` target parses to
    * the same bare `VarRef`/`Place` an assignable `:x` does; `countStrippedGroupingParens` recovers
@@ -1928,7 +1928,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:187, :213-219) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:188, :215-220) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`
@@ -2111,11 +2111,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Parses the Heritage assignment spelling `make "name" value`
    * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:107`). `make` is a
    * Heritage-profile *alternate spelling only* with no new semantics
-   * (`spec/conformance.md:270`), so it lowers to the exact same {@link AssignNode} shape as
+   * (`spec/conformance.md:150-152`), so it lowers to the exact same {@link AssignNode} shape as
    * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
    * — identical to how `set name to …` builds its bare place — and the runtime's shared
    * `executeAssign` binds it (mutate nearest binding, else create global,
-   * `spec/execution-model.md:318`) with no dependence on the surface `form`.
+   * `spec/execution-model.md:344-345`) with no dependence on the surface `form`.
    *
    * The target must be a `word-literal` (`"name"`, lexed as a `word` token); any other token there
    * is a parse error via {@link unexpected}, with the offending token left unconsumed so statement
@@ -2131,7 +2131,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // The word-literal target is missing. If the lexer already reported an unclosed string
       // starting after `make` (e.g. `make "size`), that diagnostic *is* the missing target and
       // consumed the rest of the line, so an extra `ol-bad-token` would be a redundant cascade —
-      // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
+      // `spec/error-model.md:110` reserves `ol-bad-token` for when no more-specific diagnostic
       // applies. Suppress it there; a genuinely wrong token (`make 5`) or a bare `make` still
       // reports normally.
       if (!lexDiagnosticInGap(makeTok, nameTok)) {
@@ -2165,7 +2165,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
    * `<place> = <value>` form it is recognized structurally and re-wrapped by
    * {@link asNonPlaceTarget} (issue #442/F3) so the semantic checker reports `ol-not-a-place`
-   * (spec/tooling.md:187) rather than a blunt parse error. Anything else — a colon-place `set :x`
+   * (spec/tooling.md:188) rather than a blunt parse error. Anything else — a colon-place `set :x`
    * (issue #55), a literal `set 5` — is left to the parse `ol-bad-token` the bare-place grammar
    * demands, with the offending token unconsumed so statement recovery re-parses it.
    */
@@ -2683,7 +2683,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
    * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
    * list is not a list literal: it holds bare field names that perform no evaluation
-   * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
+   * (`spec/data-structures.md:304`), so the fields are carried as {@link SpannedName} metadata, the
    * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
    * constructor call and field access/mutation land in a later Data-profile slice.
    */
@@ -2729,7 +2729,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     if (closer.kind === "newline" || closer.kind === "eof") {
       // The field list was opened but never closed before the statement ended: the opening `[`
-      // is the genuinely unmatched bracket (`spec/error-model.md:102`).
+      // is the genuinely unmatched bracket (`spec/error-model.md:103`).
       diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
       return undefined;
     }
