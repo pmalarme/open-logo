@@ -156,14 +156,18 @@
           #952 — `on_click` runs when the drawing surface "is clicked or activated by an equivalent
           accessible action" (`spec/interaction-events.md:214-215`). The canvas itself carries the
           pointer click and the `on_key` key presses; this button is that accessible equivalent,
-          natively operable with Enter and Space and announced as a button. Its label and text come
-          from `src/canvas-interaction.ts`'s exported constants, as does the description above —
+          natively operable with Enter and Space and announced as a button. It starts `hidden` and
+          `src/canvas-interaction.ts` reveals it only while the live run registered `on_click`, so a
+          program with no interaction adds no tab stop a learner cannot use — the same
+          `hidden`-attribute mechanism the lesson pane uses. Its label and text come from
+          `src/canvas-interaction.ts`'s exported constants, as does the description above —
           `index.test.mjs` pins all three so the DOM cannot drift from the module.
         -->
         <button
           id="canvas-activate-button"
           type="button"
           aria-label="Activate canvas"
+          hidden
         >
           Activate
         </button>

@@ -340,7 +340,32 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:194-198` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-Both report whether the input actually reached the program.
+Both report whether **the program actually responded** to that input — a handler ran and produced
+events — which is deliberately narrower than "the press was accepted". A key no handler names, or one
+whose tick the program never reaches, reports `false`.
+
+That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
+at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
+interception*, which is worse — it would hit every learner rather than only Interaction users, and it
+would present as "the editor is broken". So:
+
+- **Nothing is captured globally.** `keydown` is registered on the `<canvas>` element and nowhere
+  else — never `document` or `window` — so a learner typing `forward 100` in the editor is not on
+  that event path at all. Editor focus wins by construction.
+- **`preventDefault` is per press, not per program.** A program registering `on_key "up"` suppresses
+  `up` and nothing else; a program with no `on_key` suppresses nothing and behaves byte-identically
+  to the pre-fix build. Both are asserted against the *real* controller.
+- **No tab stop is added for a program that cannot use it.** The activation button starts `hidden`
+  and is revealed only while the live run registered `on_click` (`RunController.acceptsClick()`) —
+  the `hidden`-attribute mechanism `a11y.ts` already documents for the lesson pane, so
+  `REPL_FOCUS_ORDER` stays static.
+
+Whether a press responded is **measured, not asked**: registration emits only the `primitive`'s
+*name* (`:120-122`), never its key word, so the replay's own event stream is the evidence — a fired
+handler always emits at least the block-head `instruction` event (`:101-103`), and an unmatched key
+produces a stream identical to the one before it. Under a host that settles across event-loop turns
+the answer is not known in time and `false` is reported, so nothing is suppressed: the safe
+direction.
 
 **Real time never enters the event stream.** `hostInput.events` is a *static, tick-scheduled* list
 fixed before a run starts; a keystroke arrives on the wall clock. Bridging them by timestamp would
@@ -349,26 +374,59 @@ itself: **the *n*-th input delivered to a run is scheduled at tick *n***. Nothin
 was pressed is recorded, only how many inputs preceded it — so "same seed + same input sequence ⇒
 byte-identical event stream" holds exactly as it does for the `input` answer FIFO, and is asserted
 directly. It also lets the program bound its own lifetime for free: `10-game.logo` ends with
-`wait 300`, so its clock visits ticks 1…300 and it accepts 300 deliveries.
+`wait 300`, so its clock visits ticks 1…300 and the 300th delivery is the last one that can fire.
+Later ones are still scheduled and still replayed (each costing one execution); they simply reach a
+tick the program never gets to.
+
+**One honest limit shared by all three deliveries:** a scheduled occurrence fires only if the tick
+clock reaches its tick, and only a `wait` pause advances that clock. A program that never waits
+receives nothing — Stop's `"stop"` notification included — and pays for one replay that delivers
+nothing. Measured on `when "stop" [print "bye"] / repeat 60000 [forward 1 right 1]`: Stop went from
+5.7 ms to 226 ms with empty output. Bounded by the instruction budget, never unbounded.
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
-another attempt of the *same* chain — same captured source, same pinned seed, same answers — so it
-costs one execution per delivery, exactly as an `input` answer does. The canvas resumes rather than
-redrawing, because the replay is fast-forwarded past what the live animation had already drawn. A
-delivered replay deliberately does **not** re-announce `runStatus` as `"running"`: it is the same run
-with more input, and `run-log.ts`/`tutor-output-pane.ts` accumulate on the `"running"` → terminal
-transition, so announcing it would file a run-log entry per keystroke.
+another attempt of the *same* chain — same captured source, same pinned seed — so it costs one
+execution per delivery, exactly as an `input` answer does. The canvas resumes rather than redrawing,
+because the replay is fast-forwarded past what the live animation had already drawn. A delivered
+replay deliberately does **not** re-announce `runStatus` as `"running"`: it is the same run with more
+input, and `run-log.ts`/`tutor-output-pane.ts` accumulate on the `"running"` → terminal transition, so
+announcing it would file a run-log entry per keystroke.
 
-**A delivery is accepted only when all three hold**, each measured rather than assumed: the chain is
-live (`run()` opens the window, Stop/Reset close it); the program actually registered a handler of
-that kind (its own `primitive` trace event says so, so a non-interactive program is never
-re-executed by a stray keystroke); and nothing is in flight (a question outstanding is refused by
-`spec/interaction-events.md:108-111`, an unsettled execution by the coalescing `:91-93` permits).
+**A delivery is accepted only when all three hold**, each measured rather than assumed:
+
+- the chain is live — `run()` opens the window, Stop/Reset close it, and a `step()` preparation never
+  opens it;
+- the program actually registered a handler of that kind, according to its own `primitive` trace
+  event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
+  a stray keystroke;
+- **the chain has never asked the learner a question.** The answer FIFO and the input schedule are
+  both inputs to `execute()`, and #881's termination argument holds only while everything except the
+  newest answer is frozen. Review measured three ways that interleaving them breaks: a Worker host
+  resolves reads in place and therefore records **no** answers, so a replay re-asks every question
+  already answered; a key firing before a read can reach a *different* question than the learner was
+  shown; and a prompt host answering synchronously from inside `present()` can be handed one more
+  read per answer — the quadratic hang the `#881` section above describes. So one question latches
+  the window shut for the rest of that chain. That is the coalescing `:91-93` permits "while a
+  program is paused or blocked".
+
+Note what is deliberately **not** a gate: whether an execution has settled. A delivery arriving while
+an attempt is in flight — reachable only under a host that settles across event-loop turns — is still
+*scheduled* and replayed when that attempt lands. Refusing it made the recorded schedule depend on
+settlement pacing (measured: the same two calls recorded two entries under a synchronous host and one
+under a deferred one) and dropped the key, where `:91-93` requires the most recent key and click state
+to be preserved.
+
+**Coexisting `input` and interaction in one chain is therefore not supported yet.** A program that
+asks a question and *then* expects key presses gets the question answered and the keys ignored, rather
+than anything incorrect. Closing that needs the Worker runner to consume `ExecutionRequest.answers`
+(it currently always presents a live read, `execution-worker-runner.ts:79-100`) and the controller to
+record answers under a resolve-in-place host.
 
 **Stop notifies the program first.** `"stop"` is "a requested stop notification **before**
-termination" (`:152-156`), so `stop()` delivers it as a named event and replays once before latching
+termination" (`:152-156`), so `stop()` schedules it as a named event and replays once before latching
 the cancellation signal — but only for a program that registered a `when` handler, so every other
-Stop is byte-for-byte the Stop it always was.
+Stop is byte-for-byte the Stop it always was. Subject to the tick limit above: a program with no
+`wait` never reaches the notification's tick.
 
 ### Supported key words
 
@@ -414,10 +472,11 @@ the keyboard surface: `"enter"` and `"space"` are key words in their own right, 
 shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:216-218`), which
 is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
 
-Arrows, space, and the paging keys have their browser default suppressed — but **only once the press
-was actually delivered**, so a key the program is not listening for still scrolls the page as it
-always did. `"tab"` is deliberately never suppressed: it is how a learner leaves the canvas, and a
-running game that swallowed it would be a keyboard trap.
+Arrows, space, and the paging keys have their browser default suppressed — but **only when the
+program actually responded to that press**, so a program registering `on_key "up"` stops only `up`
+from scrolling, and one with no `on_key` stops nothing. `"tab"` is never suppressed even for a
+responded press: it is how a learner leaves the canvas, and a running game that swallowed it would be
+a keyboard trap. `"enter"` and `"escape"` are left alone for the same reason.
 
 All of this lives in `src/`, not in `web/main.ts`: `web/**` is outside the `src` build graph, so it
 is **neither type-checked nor linted** and no test imports it, yet it is bundled and shipped.

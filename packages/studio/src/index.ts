@@ -398,6 +398,7 @@ export {
   handleCanvasKeyDown,
   mountCanvasInteraction,
   suppressesBrowserDefault,
+  syncActivationControl,
 } from "./canvas-interaction.js";
 
 export type {

@@ -30,13 +30,32 @@
  * ## Why some keys have their default suppressed and most do not
  * Arrows, space, and the paging keys scroll the page. A learner playing `10-game.logo` would drive
  * the turtle and scroll the studio out from under themselves at the same time. So the default is
- * suppressed for exactly {@link SCROLLING_KEY_WORDS} — and only when the press was actually
- * **delivered to a running program**, which is what {@link RunController.deliverKey} reports back.
- * A key the program is not listening for keeps its ordinary browser behavior.
+ * suppressed for exactly {@link SCROLLING_KEY_WORDS} — and only when
+ * {@link RunController.deliverKey} reports that **the program actually responded to that press**.
  *
- * `"tab"` is deliberately **not** in that list: it is how a learner leaves the canvas, and a game
- * that could swallow it would be a keyboard trap. `"enter"` and `"escape"` are left alone for the
- * same reason — they operate the surrounding UI.
+ * The unit of that decision is the **individual press**, not the program: a program registering
+ * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
+ * behaves exactly as it did before this seam existed. That is not a nicety. Most OpenLogo programs —
+ * every drawing example, every geometry lesson, everything below the Interaction profile — can
+ * never respond to a key, and swallowing scrolling for them would present to a learner as "the
+ * studio is broken", affecting everyone rather than only the few using Interaction. The bug this
+ * slice fixes is silent inaction; the regression it must not introduce is silent interception.
+ *
+ * `"tab"` is deliberately **not** in that list even for a responding press: it is how a learner
+ * leaves the canvas, and a game that could swallow it would be a keyboard trap. `"enter"` and
+ * `"escape"` are left alone for the same reason — they operate the surrounding UI.
+ *
+ * ## Why the listener is on the canvas and nowhere else
+ * `keydown` is registered on the drawing surface itself, never on `document` or `window`. A learner
+ * typing `forward 100` in the editor is not on that event path at all, so editor focus wins over
+ * canvas focus by construction rather than by a check that could be got wrong.
+ *
+ * ## Why the activation control hides itself
+ * A focusable control that nothing can respond to is a tab stop every learner pays for and only
+ * interactive programs use. So it is `hidden` until the live run registers `on_click`
+ * ({@link RunController.acceptsClick}) — the same mechanism `a11y.ts` documents for the lesson pane,
+ * where `index.html`'s `hidden` attribute rather than `REPL_FOCUS_ORDER` is what removes a stop from
+ * the real browser tab order.
  */
 
 import type { RunController } from "./run-controller.js";
@@ -66,6 +85,15 @@ export interface CanvasInteractionElement {
 /** The structural shape of the keyboard-reachable activation control (a real `<button>`). */
 export interface ActivationControlElement {
   addEventListener(type: "click", listener: () => void): void;
+  /**
+   * The native `hidden` attribute. Set rather than a CSS class, because `hidden` is what actually
+   * removes the control from the browser's tab order — the same mechanism `index.html` uses for the
+   * lesson pane.
+   *
+   * Typed `boolean | string` only so a real `HTMLButtonElement` is structurally assignable: the DOM
+   * widened this property for `hidden="until-found"`. This module only ever writes a `boolean`.
+   */
+  hidden: boolean | string;
 }
 
 /**
@@ -111,10 +139,12 @@ export function suppressesBrowserDefault(keyWord: string): boolean {
 
 /**
  * Handle one `keydown` on the canvas: normalize it to an OpenLogo key word, deliver it, and
- * suppress the browser's own scrolling only if it was both delivered and a scrolling key.
+ * suppress the browser's own scrolling only if the program actually responded and the key is one
+ * that would otherwise scroll.
  *
- * Reports the key word that was delivered, or `null` when nothing was — a bare modifier, or a key
- * the running program is not listening for. Exported so the decision is testable without a DOM.
+ * Reports the key word the program responded to, or `null` when it responded to nothing — a bare
+ * modifier, a key no handler names, or a program with no `on_key` at all. Exported so the decision
+ * is testable without a DOM.
  */
 export function handleCanvasKeyDown(
   controller: RunController,
@@ -143,11 +173,13 @@ export interface CanvasInteractionElements {
 
 /**
  * Attach the studio's keyboard and pointer input to `controller` (#952): canvas `keydown` →
- * `deliverKey`, canvas `click` and the activation control → `deliverClick`.
+ * `deliverKey`, canvas `click` and the activation control → `deliverClick`, and the activation
+ * control's visibility to whether an activation can reach a handler at all.
  *
  * The controller decides whether any of it reaches the program — a delivery to a program that
  * registered no such handler runs nothing at all (see `run-controller.ts`'s doc comment, "#952").
- * This function makes no decision beyond which DOM event feeds which delivery.
+ * This function makes no decision beyond which DOM event feeds which delivery, and which browser
+ * default a *responded* press suppresses.
  */
 export function mountCanvasInteraction(
   elements: CanvasInteractionElements,
@@ -158,8 +190,26 @@ export function mountCanvasInteraction(
   });
   elements.canvas.addEventListener("click", () => {
     controller.deliverClick();
+    syncActivationControl(elements, controller);
   });
   elements.activationControl.addEventListener("click", () => {
     controller.deliverClick();
+    syncActivationControl(elements, controller);
   });
+  syncActivationControl(elements, controller);
+  controller.state.subscribe(() => {
+    syncActivationControl(elements, controller);
+  });
+}
+
+/**
+ * Show the activation control exactly while an activation could reach an `on_click` handler, and
+ * hide it otherwise — so a program with no interaction adds no tab stop a learner cannot use. See
+ * this module's doc comment.
+ */
+export function syncActivationControl(
+  elements: CanvasInteractionElements,
+  controller: RunController,
+): void {
+  elements.activationControl.hidden = !controller.acceptsClick();
 }

@@ -208,6 +208,12 @@ test("#952: index.html renders the canvas activation button, described help text
     /id="turtle-canvas"[\s\S]*?aria-describedby="canvas-interaction-help"/,
     "the canvas must point at the description that explains it takes key presses",
   );
+  assert.match(
+    buttonMatch[1],
+    /\bhidden\b/,
+    "#952 — it must start hidden, so a program with no on_click adds no tab stop " +
+      "(the same hidden-attribute mechanism a11y.ts documents for the lesson pane)",
+  );
   const helpMatch = indexHtml.match(
     /id="canvas-interaction-help"[^>]*>([\s\S]*?)<\/p>/,
   );
@@ -493,6 +499,12 @@ test("#952: web/main.ts mounts the canvas interaction and makes no input decisio
     mainTs,
     /deliverKey\(|deliverClick\(/,
     "the DOM event → delivery mapping lives in src/canvas-interaction.ts",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /document\.addEventListener\(\s*"keydown"|window\.addEventListener\(\s*"keydown"/,
+    "#952 — nothing captures keys globally; a learner typing in the editor must never be " +
+      "on the canvas listener's event path",
   );
 });
 

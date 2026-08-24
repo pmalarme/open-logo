@@ -292,9 +292,12 @@
  * same program with `hostInput.events` supplied prints `1`, `2`. A learner pressed the arrow keys,
  * clicked the canvas, and got silence.
  *
- * `deliverKey`/`deliverClick` close that, and Stop now delivers the `"stop"` named event
+ * `deliverKey`/`deliverClick` close that, and Stop schedules the `"stop"` named event
  * (`spec/interaction-events.md:152-156`: `"stop"` is "a requested stop notification **before**
- * termination"). All three go through the same mechanism.
+ * termination"). All three go through the same mechanism — and share its one honest limit: a
+ * scheduled occurrence fires only if the program's tick clock actually reaches its tick, and only a
+ * `wait` pause advances that clock. A program that never waits therefore receives nothing, Stop
+ * notification included, and pays for one replay that delivers nothing.
  *
  * ### Real time never reaches the event stream
  * `ExecuteOptions.hostInput.events` is a **static, tick-scheduled** list fixed before a run starts —
@@ -312,9 +315,12 @@
  * reasons about ordering either.
  *
  * That mapping also gives the program the last word on its own lifetime, for free: `10-game.logo`
- * ends with `wait 300`, so its tick clock visits ticks 1…300 and it accepts 300 deliveries — after
- * which the program is genuinely over and further keys correctly do nothing, because nothing is
- * left to deliver them to.
+ * ends with `wait 300`, so its tick clock visits ticks 1…300 and the 300th delivery is the last one
+ * that can fire. Later deliveries are still scheduled and still replayed — `deliverKey` reports
+ * `true` for them — they simply reach a tick the program never gets to. **That is what the boolean
+ * means**: the press was accepted, scheduled, and replayed into the run, *not* that a handler
+ * matched it or that its tick was reached. Neither is knowable without running the program, and the
+ * trace stream carries no tick by design.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
@@ -337,10 +343,23 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **Nothing is in flight.** A delivery while an `input` question is outstanding is refused, because
- *   `spec/interaction-events.md:108-111` forbids running a handler block until the read finishes;
- *   one while an execution has not settled (only reachable under a Worker host) is refused as the
- *   coalescing `:91-93` explicitly permits.
+ * - **The chain has never asked the learner a question.** The answer FIFO and the input schedule are
+ *   both inputs to `execute()`, and #881's termination argument holds only while everything except
+ *   the newest answer is frozen. Letting the two interleave breaks it three ways, each measured in
+ *   review: a Worker host resolves reads in place and so records **no** answers, meaning a replay
+ *   re-asks every question the learner already answered; a key that fires before a read can reach a
+ *   *different* question than they were shown; and a prompt host answering synchronously from inside
+ *   `present()` can be handed one more read per answer, which is exactly the quadratic hang the
+ *   "#881" section above describes. So they never coexist: one question latches the window shut for
+ *   the rest of that chain. Refusing there is the coalescing `spec/interaction-events.md:91-93`
+ *   permits "while a program is paused or blocked" — a program blocked on `input` is precisely that.
+ *
+ * Note what is deliberately **not** a gate: whether an execution has settled. A delivery arriving
+ * while an attempt is in flight — only reachable under a host that settles across event-loop turns —
+ * is still *scheduled*, and replayed when that attempt lands. Refusing it made the recorded schedule
+ * depend on settlement pacing (measured: the same two calls recorded two entries under a synchronous
+ * host and one under a deferred one) and dropped the key outright, where `:91-93` requires the most
+ * recent key and click state to be preserved.
  */
 
 import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
@@ -531,12 +550,27 @@ export interface RunController {
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
    * The press is scheduled at the next studio tick and the current chain is replayed with it, so
-   * every matching `on_key` handler fires. Reports whether the press actually reached the program:
-   * `false` — with no execution at all — unless the live run registered an `on_key` handler and is
-   * ready to receive input. `canvas-interaction.ts` uses that answer to decide whether to suppress
-   * the browser's own scrolling, so a key the program is not listening for keeps its ordinary
-   * behavior. See this module's doc comment ("#952") for the three gates and for why a delivery
-   * costs a tick rather than a timestamp.
+   * every matching `on_key` handler fires. Reports whether **the program actually responded** — a
+   * handler ran and produced events — which is deliberately narrower than "the press was accepted":
+   * a key no handler names, or one whose tick the program never reaches, reports `false`.
+   *
+   * That narrowness is the point. `canvas-interaction.ts` decides whether to suppress the browser's
+   * own scrolling from this answer, and suppression must be conditional on a handler *actually*
+   * responding: swallowing arrows for a program that registered `on_key "up"` only, or for one with
+   * no interaction at all, would break scrolling for learners who never asked for interaction. The
+   * hazard this slice fixes is silent inaction; the hazard it must not introduce is silent
+   * interception, which is worse because it affects every learner rather than only interactive ones.
+   *
+   * Measured rather than asked, because the registered key words are not observable: registration
+   * emits only the `primitive`'s *name* (`spec/interaction-events.md:120-122`), never its key word.
+   * So the replay's own event stream is the evidence — a fired handler always emits at least the
+   * block-head `instruction` event (`:101-103`), and an unmatched key produces a stream identical to
+   * the one before it. Under a host that settles across event-loop turns the answer is not known in
+   * time and this reports `false`, so nothing is suppressed: the safe direction.
+   *
+   * `false` with **no execution at all** whenever the chain is not accepting input or the run
+   * registered no `on_key` handler. See this module's doc comment ("#952") for those gates and for
+   * why a delivery costs a tick rather than a timestamp.
    */
   deliverKey(key: string): boolean;
   /**
@@ -548,6 +582,17 @@ export interface RunController {
    * Scheduled, gated, and reported exactly like {@link deliverKey}, against `on_click` registration.
    */
   deliverClick(): boolean;
+  /**
+   * Would an activation reach a handler right now (#952)? The live run registered `on_click` and the
+   * chain is still accepting input.
+   *
+   * This is what keeps the keyboard-reachable activation control out of the tab order for the many
+   * programs that have no interaction at all: a focusable control nothing can respond to is a tab
+   * stop a learner pays for and never uses. `canvas-interaction.ts` hides the control while this is
+   * `false`, exactly as `index.html`'s `hidden` attribute — not `REPL_FOCUS_ORDER` — is what removes
+   * the lesson pane from the real tab order while no lesson is loaded.
+   */
+  acceptsClick(): boolean;
 }
 
 /**
@@ -755,6 +800,27 @@ export function createRunController(
   let hostInputEvents: readonly HostInputEvent[] = [];
   let nextHostInputTick = 1;
   let chainAcceptsHostInput = false;
+  // #952 (review finding) — has this chain ever put an `input` question to the learner? The answer
+  // FIFO and the host-input schedule are BOTH inputs to `execute()`, and #881's termination argument
+  // holds only while everything except the newest answer is frozen. Letting a delivered key extend
+  // the schedule mid-answer-chain breaks that three ways, each measured by review: a Worker host
+  // re-asks every question (it resolves reads in place and so records no answers to replay with); a
+  // key that fires before a read can reach a *different* question than the learner was shown; and a
+  // prompt host that answers synchronously can be handed one more read per answer, which is the
+  // quadratic hang #881's doc comment describes. So the two never coexist: a chain that has asked
+  // anything stops accepting input for the rest of its life. `run()`/`reset()` start a fresh one.
+  let chainHasAskedQuestion = false;
+  // How many schedule entries the attempt currently in flight (or the last one started) carried
+  // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
+  // under a host that settles across event-loop turns — is still SCHEDULED and simply replayed when
+  // that attempt lands, rather than refused. Refusing made the recorded schedule depend on
+  // settlement pacing (measured: the same two calls recorded two entries under a synchronous host
+  // and one under a deferred one) and dropped the key outright, where
+  // `spec/interaction-events.md:91-93` requires the most recent key/click state to be preserved.
+  let deliveredScheduleLength = 0;
+  // Guards the delivery drain against re-entering itself when a host settles synchronously — the
+  // same shape `pump()` uses, for the same reason.
+  let deliveringInput = false;
   // How many events the live animation has actually put on the canvas, tracked at the one place a
   // frame is published (`pushTurtleSnapshot`). A delivered-input replay hands this to
   // `shownEventCount` so the picture RESUMES rather than redrawing — and reading it from here rather
@@ -965,6 +1031,7 @@ export function createRunController(
     };
 
     attemptPending = true;
+    deliveredScheduleLength = hostInputEvents.length;
     executionHost.execute(request, (settlement) => {
       attemptPending = false;
       then(finishAttempt(settlement, sourceText, host));
@@ -989,6 +1056,12 @@ export function createRunController(
       settlement.pendingPrompt !== null && host !== undefined
         ? { prompt: settlement.pendingPrompt, host }
         : null;
+    if (pendingRead !== null) {
+      // #952 — this chain has now asked something, so it stops accepting delivered input for good.
+      // Latched (never cleared by an answer) because the hazards are about the chain's answer FIFO
+      // existing at all, not about a question being outstanding right now — see the field's docs.
+      chainHasAskedQuestion = true;
+    }
 
     // #769 — a probe (an attempt that ended on an unanswered read) withholds its diagnostics until
     // the learner actually dismisses the question; see this module's doc comment for why the only
@@ -1074,6 +1147,11 @@ export function createRunController(
     return current;
   }
 
+  /** Halt the live animation, if there is one — the one place that decision is expressed. */
+  function pauseAnimation(): void {
+    animation?.pause();
+  }
+
   /** Start (or resume) playback of the attempt `prepare()` (now `beginAttempt()`/`finishAttempt()`)
    * just built, then settle its outcome. */
   function playCurrentAttempt(current: TurtleAnimationController): void {
@@ -1082,6 +1160,10 @@ export function createRunController(
     });
     pushTurtleSnapshot(current);
     settleAttempt(current);
+    // #952 — an input delivered while this attempt was still in flight is scheduled but not yet
+    // replayed; now that it has landed, deliver it. A no-op whenever nothing arrived meanwhile,
+    // which is every attempt of every program that takes no input.
+    drainDeliveredInput();
   }
 
   /**
@@ -1148,58 +1230,93 @@ export function createRunController(
   }
 
   /**
-   * Replay the current chain so the newly scheduled input is delivered (#952). Not a new run: the
-   * live animation is paused (its already-scheduled ticks would otherwise push snapshots of a
+   * Replay the current chain until every scheduled input has been delivered (#952). Not a new run:
+   * the live animation is paused (its already-scheduled ticks would otherwise push snapshots of a
    * superseded stream over the new one), the events it has already drawn are marked as drawn so
    * `finishAttempt` resumes the picture instead of blanking it, and `runStatus` is deliberately not
    * re-announced — see `beginAttempt`'s `announceRunning`.
+   *
+   * A loop rather than one attempt, because an input can arrive while an attempt is still in flight
+   * (a host that settles across event-loop turns) or from inside a settlement itself. Each iteration
+   * consumes the whole schedule as it stands, so it advances only while a delivery genuinely
+   * happened during the previous attempt — the same bound `pump()` has. Under a host that has not
+   * settled yet it returns instead, and the settlement's own call resumes the drain.
    */
-  function replayWithDeliveredInput(current: TurtleAnimationController): void {
-    shownEventCount = drawnEventCount;
-    current.pause();
-    beginAttempt(chainSource, options?.inputPrompt, playCurrentAttempt, false);
+  function drainDeliveredInput(): void {
+    if (deliveringInput) {
+      // Re-entered from a synchronous settlement; the running loop re-reads the schedule.
+      return;
+    }
+    deliveringInput = true;
+    try {
+      while (
+        acceptsHostInput() &&
+        hostInputEvents.length > deliveredScheduleLength
+      ) {
+        shownEventCount = drawnEventCount;
+        pauseAnimation();
+        beginAttempt(
+          chainSource,
+          options?.inputPrompt,
+          playCurrentAttempt,
+          false,
+        );
+        if (attemptPending) {
+          return;
+        }
+      }
+    } finally {
+      deliveringInput = false;
+    }
   }
 
   /**
-   * The gates a delivery must pass (#952), reporting the live animation it may supersede or `null`
-   * when the input goes nowhere: a run must have produced one, the chain must still be accepting
-   * input, no read or execution may be outstanding, and the run must actually have registered a
-   * handler of this kind. See this module's doc comment ("#952") for why each one is there.
+   * Is this chain accepting delivered input at all (#952)? It must be live — `run()` opens the
+   * window, Stop and Reset close it, and a lazy `step()` preparation never opens it — and it must
+   * never have asked the learner a question, which is what keeps the answer FIFO and the host-input
+   * schedule from ever being non-trivial in the same chain. See {@link chainHasAskedQuestion}.
+   *
+   * Deliberately says nothing about whether an execution has settled: a delivery is *scheduled*
+   * either way, so the schedule stays a function of the input sequence rather than of host timing.
    */
-  function liveAnimationForHostInput(
-    registration: string,
-  ): TurtleAnimationController | null {
-    const current = animation;
-    if (current === null) {
-      // Nothing has run yet, or `reset()` cleared it — there is no program to deliver to.
-      return null;
-    }
-    return chainAcceptsHostInput &&
-      pendingRead === null &&
-      !attemptPending &&
-      hasRegisteredHandler(currentEvents, registration)
-      ? current
-      : null;
+  function acceptsHostInput(): boolean {
+    return chainAcceptsHostInput && !chainHasAskedQuestion;
+  }
+
+  /**
+   * The gate one specific delivery must pass (#952): the chain accepts input, and this run actually
+   * registered a handler of that kind. The registration check is what keeps this slice a **no-op**
+   * rather than merely a cheap operation for a program that registered nothing — with no handler to
+   * fire, a keystroke schedules nothing and re-executes nothing.
+   */
+  function acceptsHostInputFor(registration: string): boolean {
+    return (
+      acceptsHostInput() && hasRegisteredHandler(currentEvents, registration)
+    );
   }
 
   function deliverKey(key: string): boolean {
-    const current = liveAnimationForHostInput("on_key");
-    if (current === null) {
+    if (!acceptsHostInputFor("on_key")) {
       return false;
     }
+    const before = currentEvents.length;
     scheduleHostInput({ kind: "key", key });
-    replayWithDeliveredInput(current);
-    return true;
+    drainDeliveredInput();
+    return currentEvents.length > before;
   }
 
   function deliverClick(): boolean {
-    const current = liveAnimationForHostInput("on_click");
-    if (current === null) {
+    if (!acceptsHostInputFor("on_click")) {
       return false;
     }
+    const before = currentEvents.length;
     scheduleHostInput({ kind: "click" });
-    replayWithDeliveredInput(current);
-    return true;
+    drainDeliveredInput();
+    return currentEvents.length > before;
+  }
+
+  function acceptsClick(): boolean {
+    return acceptsHostInputFor("on_click");
   }
 
   function run(): void {
@@ -1225,6 +1342,7 @@ export function createRunController(
     hostInputEvents = [];
     nextHostInputTick = 1;
     chainAcceptsHostInput = true;
+    chainHasAskedQuestion = false;
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1266,27 +1384,30 @@ export function createRunController(
     attemptPending = false;
     // Ends this chain: a queued replay from a synchronous answer must not run after it.
     chainGeneration += 1;
-    animation?.pause();
+    pauseAnimation();
     const withdrewPendingRead = withdrawPendingRead();
     // #952 — `spec/interaction-events.md:152-156` makes `"stop"` "a requested stop notification
     // BEFORE termination", so the notification is delivered while the program can still act on it,
     // by one final replay of the chain with the named event scheduled. Gated exactly like a key or
-    // click: the window must be open and the program must actually have registered a `when`
-    // handler, so a Stop on any program that did not is byte-for-byte the Stop it always was.
-    // A withdrawn question suppresses it, because `:108-111` forbids running a handler block for a
-    // read that ended unanswered. Read before the window closes, since the gate reports the very
-    // animation this replay supersedes — already paused just above, and `pause()` is idempotent.
-    const notifiedAnimation = withdrewPendingRead
-      ? null
-      : liveAnimationForHostInput("when");
+    // click: the window must be open, the chain must never have asked a question, and the program
+    // must actually have registered a `when` handler — so a Stop on any program that did not is
+    // byte-for-byte the Stop it always was. A withdrawn question suppresses it too, because
+    // `:108-111` forbids running a handler block for a read that ended unanswered.
+    const notifies = !withdrewPendingRead && acceptsHostInputFor("when");
     chainAcceptsHostInput = false;
     // Latched BEFORE the notification attempt so that attempt cannot settle the run as `"done"`
     // over the `"stopped"` this call is committing — including a Worker host's, which settles a
     // turn or more later.
     userStopped = true;
-    if (notifiedAnimation !== null) {
+    if (notifies) {
       scheduleHostInput({ kind: "event", event: "stop" });
-      replayWithDeliveredInput(notifiedAnimation);
+      shownEventCount = drawnEventCount;
+      beginAttempt(
+        chainSource,
+        options?.inputPrompt,
+        playCurrentAttempt,
+        false,
+      );
     }
     // Latched only now: the in-process host executes through this very signal object, so latching
     // it before the notification attempt would cancel that attempt at its first statement with
@@ -1320,6 +1441,7 @@ export function createRunController(
     hostInputEvents = [];
     nextHostInputTick = 1;
     chainAcceptsHostInput = false;
+    chainHasAskedQuestion = false;
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;
@@ -1374,7 +1496,16 @@ export function createRunController(
     settleAttempt(current);
   }
 
-  return { state, run, stop, reset, step, deliverKey, deliverClick };
+  return {
+    state,
+    run,
+    stop,
+    reset,
+    step,
+    deliverKey,
+    deliverClick,
+    acceptsClick,
+  };
 }
 
 /** Compose the run controller into the shell's `repl` region (the run/output surface). */

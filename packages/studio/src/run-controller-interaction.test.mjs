@@ -74,9 +74,73 @@ function createRecordingHost() {
   };
 }
 
+/**
+ * A test {@link OL.InputPromptHost}. `onPresent`, when given, runs from **inside** `present()` — the
+ * re-entrant shape a synchronously-answering host has, and the one review finding 3 exploited.
+ */
+function createPromptHost(onPresent) {
+  const host = {
+    prompts: [],
+    dismissCount: 0,
+    respond: null,
+    present(request, respond) {
+      host.prompts.push(request.prompt);
+      host.respond = respond;
+      onPresent?.(host, respond);
+    },
+    dismiss() {
+      host.dismissCount += 1;
+      host.respond = null;
+    },
+  };
+  return host;
+}
+
 /** A seed source that pins every chain to one value, so a replay is reproducible by construction. */
 function pinnedSeed(seed) {
   return () => seed;
+}
+
+/**
+ * A Worker-shaped host: it settles a turn LATER, the way `worker-execution-host.ts` does, so a
+ * delivery can land while an execution is still in flight. Settlements are released by hand
+ * (`settleNext`) so a test observes the window rather than racing it.
+ */
+function createDeferredHost() {
+  const signal = { aborted: false };
+  const inner = OL.createInProcessExecutionHost({ signal });
+  const requests = [];
+  const releases = [];
+  return {
+    requests,
+    /** Release the oldest withheld settlement. Callers only call it when one is queued. */
+    settleNext() {
+      releases.shift()();
+    },
+    /** Release every withheld settlement, including any the release itself produces. */
+    settleAll() {
+      let released = 0;
+      while (releases.length > 0 && released < 50) {
+        released += 1;
+        releases.shift()();
+      }
+      return released;
+    },
+    host: {
+      execute(request, settle) {
+        requests.push(request);
+        inner.execute(request, (settlement) => {
+          releases.push(() => {
+            settle(settlement);
+          });
+        });
+      },
+      cancel() {
+        inner.cancel();
+        releases.length = 0;
+      },
+    },
+  };
 }
 
 test("#952: an on_key handler FIRES through the studio host seam — deliverKey produces the handler's own output", () => {
@@ -154,7 +218,6 @@ test("#952: only the key word the program registered fires it — an unlistened 
     [],
     'on_key "left" must not fire for a "right" press',
   );
-
   controller.deliverKey("left");
   assert.deepEqual(store.getState().output, ["turned"]);
 });
@@ -414,23 +477,18 @@ test("#952: a delivery is refused while an input question is outstanding (spec/i
       "wait 5",
     ].join("\n"),
   });
-  const prompts = [];
-  let dismissCount = 0;
-  const host = {
-    present(request) {
-      prompts.push(request.prompt);
-    },
-    dismiss() {
-      dismissCount += 1;
-    },
-  };
+  const host = createPromptHost();
   const controller = OL.createRunController(store, {
     inputPrompt: host,
     randomSeedSource: pinnedSeed(7),
   });
 
   controller.run();
-  assert.deepEqual(prompts, ["who?"], "the run is blocked on the question");
+  assert.deepEqual(
+    host.prompts,
+    ["who?"],
+    "the run is blocked on the question",
+  );
   assert.equal(
     controller.deliverKey("left"),
     false,
@@ -438,7 +496,7 @@ test("#952: a delivery is refused while an input question is outstanding (spec/i
   );
 
   controller.stop();
-  assert.equal(dismissCount, 1, "Stop withdraws the question");
+  assert.equal(host.dismissCount, 1, "Stop withdraws the question");
   assert.deepEqual(
     store.getState().output,
     [],
@@ -492,4 +550,253 @@ test("#952: the program's own tick budget bounds delivery — input past its las
     ["turned", "turned"],
     "`wait 2` visits ticks 1 and 2, so the third delivery has no tick left to fire on",
   );
+});
+
+test("#952 (review finding 2): the recorded schedule does NOT depend on how fast the host settles", () => {
+  // Under a host that settles a turn later, a delivery lands while an execution is still in flight.
+  // Refusing it there made the same two calls record two entries synchronously and one deferred —
+  // a schedule shaped by host timing, and a key dropped where spec/interaction-events.md:91-93
+  // requires the most recent key state to be preserved.
+  const store = OL.createStudioState({ source: ON_KEY_SOURCE });
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  deferred.settleNext();
+
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "a host that has not settled cannot yet report a response, so nothing is suppressed — " +
+      "the safe direction: a page that scrolls, never a key silently swallowed",
+  );
+  controller.deliverKey("left");
+  deferred.settleAll();
+
+  assert.deepEqual(
+    deferred.requests.at(-1).hostInputEvents,
+    [
+      { tick: 1, kind: "key", key: "left" },
+      { tick: 2, kind: "key", key: "left" },
+    ],
+    "both presses must reach the schedule, at the ticks their call order fixed — a press " +
+      "arriving while an execution is unsettled is buffered, never dropped",
+  );
+  assert.deepEqual(store.getState().output, ["turned", "turned"]);
+
+  // Reset must abandon whatever the deferred host still holds, so a withheld settlement cannot
+  // repaint the studio after the learner cleared it.
+  controller.reset();
+  assert.equal(
+    deferred.settleAll(),
+    0,
+    "nothing is left to settle after Reset",
+  );
+  assert.deepEqual(store.getState().output, []);
+  assert.equal(controller.deliverKey("left"), false);
+});
+
+test("#952 (review finding 2): a deferred host and a synchronous host record the identical schedule for the identical call sequence", () => {
+  function scheduleUnder(hostFactory) {
+    const store = OL.createStudioState({ source: ON_KEY_SOURCE });
+    const harness = hostFactory();
+    const controller = OL.createRunController(store, {
+      executionHost: harness.host,
+      randomSeedSource: pinnedSeed(7),
+    });
+    controller.run();
+    harness.settleAll?.();
+    controller.deliverKey("left");
+    controller.deliverKey("up");
+    controller.deliverKey("left");
+    harness.settleAll?.();
+    return harness.requests.at(-1).hostInputEvents;
+  }
+
+  assert.deepEqual(
+    scheduleUnder(createDeferredHost),
+    scheduleUnder(createRecordingHost),
+    "settlement pacing must not be observable in the schedule",
+  );
+});
+
+test("#952 (review finding 1): a chain that has asked the learner a question stops accepting delivered input", () => {
+  // The answer FIFO and the input schedule are both inputs to execute(), and #881's termination
+  // argument holds only while everything but the newest answer is frozen. A Worker host records no
+  // answers at all (it resolves reads in place), so a replay there re-asked every question the
+  // learner had already answered — measured by review. The two never coexist.
+  const store = OL.createStudioState({
+    source: [
+      'on_key "left" [',
+      '  print "turned"',
+      "]",
+      ':name = input "who?"',
+      "print :name",
+      "wait 5",
+    ].join("\n"),
+  });
+  const host = createPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.deepEqual(host.prompts, ["who?"]);
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "spec/interaction-events.md:108-111 — no handler block while the read is outstanding",
+  );
+
+  host.respond("Ada");
+  assert.deepEqual(store.getState().output, ["Ada"], "the answer was consumed");
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "and the window stays shut for the rest of the chain, not just while the question is open",
+  );
+  assert.deepEqual(
+    host.prompts,
+    ["who?"],
+    "so no replay can re-ask a question the learner already answered",
+  );
+});
+
+test("#952 (review finding 3): a prompt host that answers synchronously cannot extend the pump with delivered input", () => {
+  // Measured by review on the pre-fix tree: a host calling deliverKey() straight after respond()
+  // was accepted, and each accepted delivery handed the chain one more read — the quadratic hang
+  // #881's doc comment describes, reintroduced through the input schedule. The instruction budget
+  // below bounds a regression to a fast failure instead of a hang; it is not what makes the test
+  // pass.
+  const store = OL.createStudioState({
+    source: [
+      'on_key "left" [',
+      '  :answer = input "again?"',
+      "  print :answer",
+      "]",
+      ':name = input "who?"',
+      "wait 5",
+    ].join("\n"),
+  });
+  let controller = null;
+  const deliveriesAccepted = [];
+  const host = createPromptHost((_host, respond) => {
+    respond("x");
+    deliveriesAccepted.push(controller.deliverKey("left"));
+  });
+  controller = OL.createRunController(store, {
+    inputPrompt: host,
+    instructionBudget: 500,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  assert.deepEqual(
+    deliveriesAccepted,
+    [false],
+    "every delivery from inside the answer chain must be refused",
+  );
+  assert.deepEqual(
+    host.prompts,
+    ["who?"],
+    "so the chain asks exactly the question the program contains, and terminates",
+  );
+});
+
+test('#952 (QA finding 1): a `when "stop"` program whose clock never ticks receives nothing — only `wait` advances the tick clock', () => {
+  // The notification is scheduled at a tick, and `spec/interaction-events.md`'s tick clock only
+  // advances while a `wait` pause elapses. A program that never waits therefore never reaches the
+  // tick the notification sits on, so Stop pays for one replay that delivers nothing. Bounded by
+  // the instruction budget, and the whole point of pinning it here is that the prose above must not
+  // claim `"stop"` is delivered unconditionally.
+  const store = OL.createStudioState({
+    source: [
+      'when "stop" [',
+      '  print "bye"',
+      "]",
+      "repeat 20 [ forward 1 ]",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  controller.stop();
+
+  assert.deepEqual(
+    store.getState().output,
+    [],
+    "no `wait`, so the clock stays at tick 0 and the notification never becomes due",
+  );
+  assert.equal(store.getState().runStatus, "stopped");
+});
+
+test("#952 (QA finding 2 + maintainer criterion 2): a true return means the program RESPONDED — not merely that the press was scheduled", () => {
+  const store = OL.createStudioState({
+    source: ['on_key "left" [', '  print "turned"', "]", "wait 1"].join("\n"),
+  });
+  const recorder = createRecordingHost();
+  const controller = OL.createRunController(store, {
+    executionHost: recorder.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  const afterRun = recorder.requests.length;
+
+  assert.equal(
+    controller.deliverKey("left"),
+    true,
+    "tick 1 is reached and the handler names this key, so it fires",
+  );
+  assert.deepEqual(store.getState().output, ["turned"]);
+
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "`wait 1` never reaches tick 2, so nothing responded — and nothing may be suppressed",
+  );
+  assert.deepEqual(store.getState().output, ["turned"]);
+
+  assert.equal(
+    controller.deliverKey("right"),
+    false,
+    "a key no handler names never responds either",
+  );
+
+  assert.equal(
+    recorder.requests.length,
+    afterRun + 3,
+    "each accepted delivery still costs one execution — the documented N+1 replay cost",
+  );
+});
+
+test("#952: a delivery is refused for a program whose on_key was never reached", () => {
+  const store = OL.createStudioState({
+    source: [
+      "if false [",
+      '  on_key "left" [',
+      '    print "turned"',
+      "  ]",
+      "]",
+      "wait 5",
+    ].join("\n"),
+  });
+  const recorder = createRecordingHost();
+  const controller = OL.createRunController(store, {
+    executionHost: recorder.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  const afterRun = recorder.requests.length;
+
+  assert.equal(controller.deliverKey("left"), false);
+  assert.equal(recorder.requests.length, afterRun);
 });

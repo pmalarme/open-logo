@@ -15,6 +15,7 @@ import * as OL from "@openlogo/studio";
 function createFakeElement() {
   const registrations = [];
   return {
+    hidden: false,
     addEventListener(type, listener) {
       registrations.push({ type, listener });
     },
@@ -32,11 +33,17 @@ function createFakeElement() {
   };
 }
 
-/** A recording stand-in for the run controller's two delivery methods. */
+/**
+ * A recording stand-in for the run controller. Visibility of the activation control is proven
+ * against the *real* controller further down, so this one simply reports that a click could land.
+ */
 function createFakeController(accepted = true) {
   return {
     keys: [],
     clicks: 0,
+    state: {
+      subscribe() {},
+    },
     deliverKey(key) {
       this.keys.push(key);
       return accepted;
@@ -44,6 +51,9 @@ function createFakeController(accepted = true) {
     deliverClick() {
       this.clicks += 1;
       return accepted;
+    },
+    acceptsClick() {
+      return true;
     },
   };
 }
@@ -170,6 +180,126 @@ test("#952: a key the running program is not listening for keeps its ordinary br
     event.defaultPrevented,
     false,
     "an undelivered arrow must still scroll the page as it always did",
+  );
+});
+
+test("#952 (maintainer criterion 1): a program with NO interaction handlers behaves exactly as it did before this seam — nothing intercepted, nothing suppressed, no tab stop added", () => {
+  const store = OL.createStudioState({ source: "forward 100" });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: () => 7,
+  });
+  const canvas = createFakeElement();
+  const activationControl = createFakeElement();
+  OL.mountCanvasInteraction({ canvas, activationControl }, controller);
+
+  assert.equal(
+    activationControl.hidden,
+    true,
+    "no on_click can respond, so the activation control is out of the tab order",
+  );
+
+  controller.run();
+  assert.equal(
+    activationControl.hidden,
+    true,
+    "…and running a non-interactive program does not reveal it",
+  );
+
+  for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "]) {
+    const event = createKeyEvent(key);
+    canvas.fire("keydown", event);
+    assert.equal(
+      event.defaultPrevented,
+      false,
+      `${key} must keep scrolling the page for a program that cannot respond to it`,
+    );
+  }
+});
+
+test('#952 (maintainer criterion 2): a program registering on_key "up" only suppresses "up" — every other key still reaches the page', () => {
+  const store = OL.createStudioState({
+    source: ['on_key "up" [', "  forward 10", "]", "wait 30"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: () => 7,
+  });
+  const canvas = createFakeElement();
+  const activationControl = createFakeElement();
+  OL.mountCanvasInteraction({ canvas, activationControl }, controller);
+
+  controller.run();
+
+  const responded = createKeyEvent("ArrowUp");
+  canvas.fire("keydown", responded);
+  assert.equal(
+    responded.defaultPrevented,
+    true,
+    "the program responded, so the press must not also scroll the page",
+  );
+
+  for (const key of ["ArrowDown", "ArrowLeft", "ArrowRight", " ", "PageDown"]) {
+    const event = createKeyEvent(key);
+    canvas.fire("keydown", event);
+    assert.equal(
+      event.defaultPrevented,
+      false,
+      `${key} names no handler, so it must still reach the page`,
+    );
+  }
+
+  assert.equal(
+    activationControl.hidden,
+    true,
+    "this program registers no on_click, so no activation stop is added either",
+  );
+});
+
+test("#952 (maintainer criterion 3): the keydown listener is on the canvas alone, so editor typing is never on its event path", () => {
+  const controller = createFakeController();
+  const canvas = createFakeElement();
+  const activationControl = createFakeElement();
+  OL.mountCanvasInteraction({ canvas, activationControl }, controller);
+
+  // The only way this module can see a key is a `keydown` that reaches the canvas element: nothing
+  // is registered on a document or a window, so a key typed into the focused editor cannot arrive.
+  assert.equal(canvas.listenerCount("keydown"), 1);
+  assert.equal(activationControl.listenerCount("keydown"), 0);
+  assert.deepEqual(
+    controller.keys,
+    [],
+    "no key is seen without a canvas keydown",
+  );
+});
+
+test("#952: the activation control appears exactly while an on_click handler can respond", () => {
+  const store = OL.createStudioState({
+    source: ["on_click [", '  print "clicked"', "]", "wait 10"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: () => 7,
+  });
+  const canvas = createFakeElement();
+  const activationControl = createFakeElement();
+  OL.mountCanvasInteraction({ canvas, activationControl }, controller);
+
+  assert.equal(activationControl.hidden, true, "nothing has run yet");
+
+  controller.run();
+  assert.equal(
+    activationControl.hidden,
+    false,
+    "the run registered on_click, so its accessible activation becomes reachable",
+  );
+
+  activationControl.fire("click");
+  assert.deepEqual(store.getState().output, ["clicked"]);
+  assert.equal(activationControl.hidden, false);
+
+  controller.reset();
+  assert.equal(
+    activationControl.hidden,
+    true,
+    "Reset ends the chain, so the stop goes away again",
   );
 });
 
