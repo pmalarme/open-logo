@@ -1,5 +1,5 @@
 // Unit tests for the Sprites **addressing trace events** (issue #766), driven end to end through
-// `execute()`. `spec/rendering.md:191` is normative — "Implementations with multiple turtles MUST
+// `execute()`. `spec/rendering.md:193` is normative — "Implementations with multiple turtles MUST
 // identify the active turtle or addressed turtle set" — but before this slice a consumer of the
 // trace stream could not: `tell`/`ask`/`each` changed the addressed set silently, and the only
 // turtle identity in the stream was the *acting* turtle's `turtle_id` on each per-turtle effect,

@@ -22,7 +22,7 @@
  * {@link MAIN_TURTLE_ID}. Alongside the per-turtle states it tracks the **addressed turtle set**
  * and its current turtle — folded from the addressing snapshots the stream carries (issue #770) —
  * plus the **last-acted** turtle, so the non-visual state description is never ambiguous about
- * which turtle or turtles it is describing (`spec/rendering.md:191`).
+ * which turtle or turtles it is describing (`spec/rendering.md:193`).
  *
  * Deterministic in, deterministic out: identical event input always folds to an identical world,
  * with no timing, randomness, or rendering concerns here.
@@ -66,7 +66,7 @@ export const MAIN_TURTLE_ID: TurtleId = 0;
  * - {@link TurtleWorldState.addressedTurtleIds} is the set a subsequent turtle command applies to,
  *   once for each (`spec/turtles-and-sprites.md`'s "Addressing model"), and
  *   {@link TurtleWorldState.currentTurtleId} is the turtle `who` reports between commands. Together
- *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md:191` ("Implementations
+ *   they are what lets `describeTurtleWorldState` satisfy `spec/rendering.md:193` ("Implementations
  *   with multiple turtles MUST identify the active turtle or addressed turtle set") — for a *set*,
  *   which no single `turtle_id` can express — and what `why`/`debug` need to explain which turtles a
  *   command applied to.

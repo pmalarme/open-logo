@@ -64,7 +64,7 @@ function describeState(
  *
  * This describes **one** turtle, so it never names an identity: with a single turtle there is
  * nothing to disambiguate. A host driving several turtles calls
- * {@link describeTurtleWorldState} instead, which satisfies `spec/rendering.md:191`'s
+ * {@link describeTurtleWorldState} instead, which satisfies `spec/rendering.md:193`'s
  * "Implementations with multiple turtles MUST identify the active turtle or addressed turtle set".
  *
  * Deterministic: the same state (and options) always produce the same string, with no locale,
@@ -124,12 +124,12 @@ function addressingClause(ids: readonly TurtleId[]): string {
  *   rejected: this is a single `aria-live="polite"` region a screen reader re-reads *in full* on
  *   every change, so `tell [ :a :b :c :d ]` / `repeat 100 [ forward 1 ]` would replace one sentence
  *   per tick with four — a wall of speech burying the change a learner was listening for — while
- *   `spec/rendering.md:191` asks only that the addressed set be *identified*. Every turtle's avatar
+ *   `spec/rendering.md:193` asks only that the addressed set be *identified*. Every turtle's avatar
  *   stays on the canvas, and the per-turtle states stay published on
  *   {@link TurtleWorldState.turtles} for a future inspect-each-turtle affordance.
  * - **Describe the turtle a command last drove.** The numbers are those of
  *   {@link TurtleWorldState.lastActedTurtleId}, because this region is also how a non-visual user
- *   follows *progress* (`spec/rendering.md:193`: the drawing surface must not be the only way to
+ *   follows *progress* (`spec/rendering.md:195`: the drawing surface must not be the only way to
  *   understand program progress). Describing the restored/current turtle instead would silently drop
  *   what just happened: after `ask :b [ set_color "blue" ]` the region would report `:a`, still
  *   black — never announcing that `:b` turned blue at all, since the block's restore lands in the
@@ -188,7 +188,7 @@ function describeAddressedTurtles(
  * `[lastActedTurtleId]` (#770) — two independent triggers, either of which can fire without the
  * other.
  *
- * `spec/rendering.md:191` makes that identification a MUST: "Implementations with multiple turtles
+ * `spec/rendering.md:193` makes that identification a MUST: "Implementations with multiple turtles
  * MUST identify the active turtle or addressed turtle set." A world holding several turtles is
  * therefore described as `turtle #<id> at x … y … heading … degrees pen … color … width …`, using
  * **exactly the identity the language itself prints** for a turtle value: `@openlogo/runtime`'s

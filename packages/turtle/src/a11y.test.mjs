@@ -126,7 +126,7 @@ test("every color-independent cue kind is distinct", () => {
   assert.equal(kinds.size, 4);
 });
 
-// --- describeTurtleWorldState (#749, spec/rendering.md:191) ------------------------------------
+// --- describeTurtleWorldState (#749, spec/rendering.md:193) ------------------------------------
 
 /** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order) with `lastActedId`
  * as the last-acted turtle. */
@@ -154,7 +154,7 @@ test("describeTurtleWorldState of a single-turtle world is byte-identical to des
 });
 
 test("describeTurtleWorldState names the described turtle once there is more than one", () => {
-  // spec/rendering.md:191 — "Implementations with multiple turtles MUST identify the active turtle
+  // spec/rendering.md:193 — "Implementations with multiple turtles MUST identify the active turtle
   // or addressed turtle set." The #749 defect was that this text named no turtle at all while
   // reporting one particular turtle's attributes.
   const world = turtleWorld(
@@ -236,7 +236,7 @@ test("describeTurtleWorldState never announces an identity no live turtle has", 
   assert.equal(world.turtles.size > 1, true);
 });
 
-// --- the addressed turtle set (#770, spec/rendering.md:191) ------------------------------------
+// --- the addressed turtle set (#770, spec/rendering.md:193) ------------------------------------
 
 /** A `TurtleWorldState` carrying addressing, as `reduceTurtleWorldState` folds it from the
  * stream's addressing snapshots. `currentId` defaults to the addressed set's first member — what
@@ -260,7 +260,7 @@ const BLUE_HIDDEN = {
 };
 
 test("describeTurtleWorldState identifies the whole addressed set once more than one turtle is addressed", () => {
-  // spec/rendering.md:191 — "Implementations with multiple turtles MUST identify the active turtle
+  // spec/rendering.md:193 — "Implementations with multiple turtles MUST identify the active turtle
   // OR ADDRESSED TURTLE SET." After `tell [ :a :b ]` no single turtle is the answer, so the text
   // leads with the set — and still reports the position/heading/pen of the turtle that last acted,
   // because this region is also how a non-visual learner follows what just changed.
@@ -300,7 +300,7 @@ test("describeTurtleWorldState identifies the addressed turtle after an ask bloc
   // The #770 defect, in its smallest form: `tell :a` / `ask :b [ forward 10 ]`. The addressed set
   // is back to { :a }, so naming only `:b` would identify neither "the active turtle" nor "the
   // addressed turtle set" — but `:b` is what just changed, and a non-visual learner must still hear
-  // that (spec/rendering.md:193), so the sentence carries both.
+  // that (spec/rendering.md:195), so the sentence carries both.
   const world = addressedWorld(
     [
       [0, OL.INITIAL_TURTLE_STATE],

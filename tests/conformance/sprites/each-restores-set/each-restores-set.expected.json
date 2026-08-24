@@ -1,5 +1,5 @@
 {
-  "description": "issue #676 (SP4): `each` restores the addressed set active before it. `tell [ :a :b ]`; `each [ forward 10 ]` iterates :a then :b; the trailing `forward 30` runs for the restored set — still `[ :a :b ]` — so it applies to both, each move stamped with its `turtle_id`. Every change of the addressed set — here from `each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:191); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "description": "issue #676 (SP4): `each` restores the addressed set active before it. `tell [ :a :b ]`; `each [ forward 10 ]` iterates :a then :b; the trailing `forward 30` runs for the restored set — still `[ :a :b ]` — so it applies to both, each move stamped with its `turtle_id`. Every change of the addressed set — here from `each`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
   "profiles": ["sprites", "turtle-rendering"],
   "execute": true,
   "events": [

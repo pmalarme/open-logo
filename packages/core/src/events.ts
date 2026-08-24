@@ -443,7 +443,7 @@ export type PrimitiveName = string;
 /**
  * The **addressed turtle set** in effect at the instant an addressing `primitive` event is emitted
  * (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model"). This is what makes
- * `spec/rendering.md:191` — "Implementations with multiple turtles MUST identify the active turtle
+ * `spec/rendering.md:193` — "Implementations with multiple turtles MUST identify the active turtle
  * or addressed turtle set" — reachable from the stream at all: every per-turtle effect event carries
  * only the *acting* turtle's `turtle_id`, which after an `ask`/`each` block restores
  * (`spec/turtles-and-sprites.md:58`) is neither the active turtle nor the addressed set (issue #766).

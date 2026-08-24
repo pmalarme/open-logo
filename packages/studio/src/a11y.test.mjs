@@ -558,7 +558,7 @@ test("two independent consumers of the same turtle-state region observe identica
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("the state text names the described turtle once the world holds more than one live turtle (#749, spec/rendering.md:191)", () => {
+test("the state text names the described turtle once the world holds more than one live turtle (#749, spec/rendering.md:193)", () => {
   // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
   // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
   // hidden attributes with no identity at all — indistinguishable from the one turtle a
@@ -614,7 +614,7 @@ test("the state region names a turtle exactly as the output pane does, so the tw
   );
 });
 
-test("the state text identifies the whole addressed turtle set, end to end from a real program (#770, spec/rendering.md:191)", () => {
+test("the state text identifies the whole addressed turtle set, end to end from a real program (#770, spec/rendering.md:193)", () => {
   // `tell [ :a :b ]` addresses two turtles at once, and no single turtle is "the" answer: the
   // per-turtle effects that follow name whichever turtle each one drove. Driving the real runtime
   // proves the addressing snapshots #766 publishes survive the whole chain — runtime → trace
@@ -707,7 +707,7 @@ test("the state text says plainly when a program addresses no turtle at all (#77
 
 test("the state text of a Turtle & Rendering program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
   // The compatibility half of #749: naming the described turtle must not leak into the
-  // wording `spec/rendering.md:191` gives verbatim. The condition is one live turtle addressing
+  // wording `spec/rendering.md:193` gives verbatim. The condition is one live turtle addressing
   // itself, which no Turtle & Rendering program can leave — `tell` is a Sprites primitive.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);

@@ -2671,7 +2671,7 @@ function executeTell(
  * here and not there (issue #782).
  *
  * Emits the addressing `primitive` event for `primitive`/`source_span` **after** the change, so the
- * new addressed set is observable to a consumer (`spec/rendering.md:191`, issue #766). Emitting here
+ * new addressed set is observable to a consumer (`spec/rendering.md:193`, issue #766). Emitting here
  * — inside the one function that establishes an addressed set — is what makes that guarantee
  * structural rather than a rule each caller must remember: `tell`, `ask`'s entry, and every `each`
  * iteration all narrow through this function. Its counterpart {@link restoreAddressedSet} covers the
@@ -2702,7 +2702,7 @@ function pointAddressedSet(
  * {@link TurtleAddressing.currentId} restores the current turtle outright, since the state
  * reporters and turtle commands resolve through it. Then emits the addressing `primitive`
  * event so a consumer sees the restored set (`spec/turtles-and-sprites.md:58` "The previous addressed
- * set is restored after the block finishes"; `spec/rendering.md:191`).
+ * set is restored after the block finishes"; `spec/rendering.md:193`).
  *
  * Called from the `finally` of both forms, so it runs on **every** exit path — normal completion and
  * every abnormal one (`stop`, `return`/`output`/`op`, `throw`, a runtime diagnostic). A restoration

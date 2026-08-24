@@ -276,7 +276,7 @@ test("reducing no events returns the seed unchanged", () => {
   assert.equal(world, OL.INITIAL_TURTLE_WORLD_STATE);
 });
 
-// --- the last-acted turtle (`spec/rendering.md:191`) ---
+// --- the last-acted turtle (`spec/rendering.md:193`) ---
 
 test("the turtle a state-bearing event targeted becomes the last-acted turtle", () => {
   const world = OL.reduceTurtleWorldEvents([
@@ -405,7 +405,7 @@ test("lastActedTurtleState falls back to the program-start defaults for a hand-b
   assert.deepEqual(OL.lastActedTurtleState(world), OL.INITIAL_TURTLE_STATE);
 });
 
-// --- the addressed turtle set (#770, consumer half of #766; spec/rendering.md:191) -------------
+// --- the addressed turtle set (#770, consumer half of #766; spec/rendering.md:193) -------------
 
 /** An addressing `primitive` event, exactly as the runtime emits it (issue #766): the snapshot
  * rides the existing `primitive` payload, and carries no envelope `turtle_id` because it describes
@@ -610,7 +610,7 @@ test("a widening tell is folded, not swallowed as an unchanged set", () => {
   // same current turtle, so a member-by-member comparison that forgot to compare LENGTHS would
   // treat [1] and [1, 2] as identical and silently drop the widening — leaving the text claiming
   // one addressed turtle when the next turtle command will drive two, the exact failure
-  // spec/rendering.md:191
+  // spec/rendering.md:193
   // forbids. (The narrowing direction [1, 2] -> [1] cannot hide this way, so only widening needs
   // the guard.)
   const narrow = OL.reduceTurtleWorldEvents([
