@@ -24,11 +24,9 @@ instrument and its subject share the blind spot, so the missing coverage reads a
 exists". #839's derived block-slot enumeration documented exactly this as the assumption underneath
 it (`packages/runtime/src/execute-declaration-slots.test.mjs`); because it reflects over every field
 of each node it *visits*, what survives as its *traversal-shaped* blind spot is a holder field that
-keeps a node from being visited at all — the residual now tracked by #960. (Its other caveats — the
-parseable corpus, and corpus adequacy — are unaffected by the guard; this PR drops a stale census
-figure from the first of them, not the caveat itself.)
-The gap was repository-wide, and
-the risk was never today's switch: it was the next node kind added with a body.
+keeps a node from being visited at all — the residual now tracked by #960. Its other caveats are
+its own and this guard does not touch them. The gap was repository-wide, and the risk was never
+today's switch: it was the next node kind added with a body.
 
 **A test that traverses through `childrenOf` cannot close this** — whatever it walks with, it walks
 with the switch it is auditing. A test derived from an *independent* source can (reflection over
@@ -39,25 +37,25 @@ that is the direction issue #960 takes for the half this ADR does not close.
 
 **Every switch in `childrenOf` enumerates its whole union and closes on `never`.**
 
-There are four: the node-kind switch, the `IsTest` form switch, the `PlaceSegment` kind switch
+They are: the node-kind switch, the `IsTest` form switch, the `PlaceSegment` kind switch
 (shared by `Place` and `PostfixExpression` through one `segmentChildren` helper so the two cannot
 drift apart), and the `ComprehensionNode` form switch.
 
 1. Every **discriminant value** gets its own `case`, **including the ones with no children** — the
-   seven grouped childless node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`,
+   grouped childless node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`,
    `Stop`, `StructDef`) plus the separately handled `DestructuringBinder`, the `empty` `IsTest` form,
    and the `field` segment kind. This is load-bearing, not tidiness: a value
    that falls through keeps the `default` clause inhabited, the `never` stops binding, and the guard
    becomes decorative.
-2. Each of the four `default` clauses calls the shared `unhandledChildCase` helper, whose first
+2. Each `default` clause calls the shared `unhandledChildCase` helper, whose first
    parameter is `never`. A new discriminant value in any of those unions without a case is therefore
    a `tsc` error that names the omitted type, and the helper **throws** if untyped JavaScript reaches
    it — a silently childless node is the precise failure mode this ADR exists to remove.
-3. **A ternary is not a substitute.** **All four** were ternaries or bare `default`s when this work
-   started: the node-kind and `IsTest` switches ended in bare `default`s, while the `PlaceSegment`
-   and `ComprehensionNode` dispatches were conditionals — the segment one copy-pasted at *both* call
-   sites, which is why they now share `segmentChildren`. The three inner unions were each proven
-   silent by experiment: a fifth `IsTest` form, a third `PlaceSegment` kind, and a fourth
+3. **A ternary is not a substitute.** **Every one of them** was a ternary or a bare `default` when
+   this work started: the node-kind and `IsTest` switches ended in bare `default`s, while the
+   `PlaceSegment` and `ComprehensionNode` dispatches were conditionals — the segment one copy-pasted
+   at *both* call sites, which is why they now share `segmentChildren`. The inner unions were each
+   proven silent by experiment: a fifth `IsTest` form, a third `PlaceSegment` kind, and a fourth
    comprehension form each left `childrenOf` compiling — the guard raised nothing in `ast.ts` —
    while silently dropping a child. Unrelated consumers sometimes rejected the new value
    independently, which is incidental protection rather than a guard, and would vanish the moment a
@@ -80,8 +78,8 @@ the build failing and naming it. A new union *member* that reuses an existing di
 a different thing and is not caught — see below.
 
 **Not enforced — that a case returns the *right* children.** Nothing checks that a case returns
-every node-valued field of its kind. Two experiments during the review gate, run by the two
-non-author reviewers, establish this rather than assume it:
+every node-valued field of its kind. Experiments during the review gate, run by the non-author
+reviewers, establish this rather than assume it:
 
 - adding `readonly body?: BlockNode` to `StructDefNode` and leaving `case "StructDef"` alone
   compiles clean, and the `walk visits every core node kind, pre-order` test stays green;
