@@ -284,8 +284,10 @@ function declarationSource({
  * from a hand-picked probe list, and a hand-written seven-entry wrapper map left `while`, `for`,
  * `forever`, comprehension bodies and the **`else` branch of an `if`** un-drawn.
  *
- * Files that fail to parse are skipped — roughly 49 of the ~911 discovered, which are the corpus's
- * deliberate parse-error fixtures. They cannot contribute a field, so skipping them is correct, but
+ * Files that fail to parse are skipped — a few dozen of those discovered, the corpus's deliberate
+ * parse-error fixtures. (Deliberately not a count: nothing gates the number, so a literal one is an
+ * unenforced assertion that drifts with the next fixture, as this line's did.) They cannot
+ * contribute a field, so skipping them is correct, but
  * it does mean this set is derived from the *parseable* corpus rather than from all of it.
  *
  * Because the corpus is the stack-neutral artifact every implementation must satisfy, a construct
