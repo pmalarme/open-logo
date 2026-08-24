@@ -936,9 +936,9 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
  * Every value those discriminants can take selects an explicit case; nothing here checks that the
  * case returns *every* node-valued field of its kind. A field added to an already-handled kind — or
- * a union member that reuses an existing discriminant value — compiles clean, is silently absent
- * from the child list, and is therefore never reached by `walk` or by any instrument traversing
- * through here. Reachability is not guaranteed; issue #960 tracks it. See
+ * a union member that reuses an existing discriminant value, which is the same thing at runtime —
+ * compiles clean, and the field is silently absent from the child list. The holder is still reached;
+ * the node in that field, and everything below it, is not. Issue #960 tracks that residual. See
  * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
