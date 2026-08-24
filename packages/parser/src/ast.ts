@@ -885,13 +885,13 @@ export type Visitor = (node: AnyNode) => void;
  * It throws rather than reporting no children, because a silently childless node is the exact
  * failure mode issue #925 exists to remove: the node's whole subtree would drop out of `walk`, and
  * therefore out of the runtime's declaration registration and out of every checker, with nothing
- * able to observe the loss. Only untyped JavaScript can reach it; every caller in this repository
- * passes nodes obtained from `parse`.
+ * able to observe the loss. Production callers pass well-typed {@link AnyNode} values, from `parse`
+ * or the {@link ast} factory; only malformed untyped input reaches here, and it fails loudly.
  */
 function unhandledChildCase(_unhandled: never, seen: string): never {
   throw new Error(
     `childrenOf has no case for ${seen} — this is an OpenLogo bug, not a program error ` +
-      "(see docs/adr/0024-ast-traversal-completeness-is-compiler-enforced.md).",
+      "(see docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).",
   );
 }
 
@@ -927,13 +927,13 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * `never` and omitting a case is a compile error rather than a silent hole in every traversal in
  * the repository (issue #925).
  *
- * **That guarantee is completeness, not reachability, and the difference matters.** Every kind
- * *handed to* this function reports its children; nothing here guarantees a kind is ever *reached*,
- * because reachability depends on the *holder's* case returning the field the node sits in. A
- * node-valued field added to an already-handled kind still compiles, is still never walked, and is
- * still invisible to every instrument that traverses through here — the same defect one level down,
- * tracked by issue #960. See
- * [ADR-0024](../../../docs/adr/0024-ast-traversal-completeness-is-compiler-enforced.md).
+ * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
+ * Every member of those unions selects an explicit case; nothing here checks that the case returns
+ * *every* node-valued field of its kind. A field added to an already-handled kind — or a shape that
+ * reuses an existing discriminant — compiles clean, is silently absent from the child list, and is
+ * therefore never reached by `walk` or by any instrument traversing through here. Reachability is
+ * not guaranteed; issue #960 tracks it. See
+ * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
   switch (node.kind) {
