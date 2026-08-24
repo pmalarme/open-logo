@@ -297,11 +297,13 @@ function declarationSource({
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
  * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. Since #925
  * that switch handles every node *kind* or fails to compile, but a node-valued *field* added to an
- * already-handled kind still has no child edge and no compile error (#960). Such a slot would be
- * invisible to *both*: declarations inside it would never be registered, and it would never enter
- * this set, so this test would stay green about its own gap. The instrument and the subject share a
- * traversal. It is narrow (every field of every node `walk` reaches is read, so only a slot `walk`
- * never reaches at all hides), and all ten of today's slots are reached — but it is the assumption
+ * already-handled kind still has no child edge and no compile error (#960). A slot on a node `walk`
+ * reaches is *not* the blind spot: this visitor reads every field of every node it visits, so a new
+ * slot enters `required` without a wrapper and the assertion below goes red. What hides is a slot
+ * on a node `walk` never reaches at all — one sitting beneath a missing edge — and the *contents*
+ * of any slot: declarations inside them would never be registered, and they would never enter this
+ * set, so this test would stay green about its own gap. The instrument and the subject share a
+ * traversal. It is narrow, and all ten of today's slots are reached — but it is the assumption
  * underneath the enumeration.
  *
  * Paths resolve from this file, not from `process.cwd()`: a package-scoped run

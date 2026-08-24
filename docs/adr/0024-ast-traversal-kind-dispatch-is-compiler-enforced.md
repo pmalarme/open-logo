@@ -16,15 +16,16 @@ and control-flow checkers, the highlighter's semantic tokens, and the studio's f
 The switch ended in a bare `default: return []`, so a node kind added without a case silently
 became a leaf: declarations inside it were never registered, statements inside it never executed.
 
-**Its incompleteness was invisible to the obvious test for it.** Any instrument that walks the tree
-to derive a set of kinds, block slots, or reachable positions descends *through* `childrenOf`, so
-everything *beneath* an omitted case never appears on either side of a comparison. `walk` still
-visits the omitted node itself — the visitor runs before the descent — but its descendants are gone
-from the instrument and from its subject alike: the two share the blind spot, and the missing
-coverage reads as "no such case exists". #839's derived block-slot
-enumeration documented exactly this as the assumption underneath it
-(`packages/runtime/src/execute-declaration-slots.test.mjs`). The gap was repository-wide, and the
-risk was never today's switch: it was the next node kind added with a body.
+**Its incompleteness was invisible to the obvious test for it.** Any instrument that derives its
+descendants *through* `childrenOf` — a set of kinds, block slots, or reachable positions — loses
+everything beneath an omitted case on both sides of its comparison at once. (`walk` still visits the
+omitted node itself; the visitor runs before the descent. It is the descendants that go.) The
+instrument and its subject share the blind spot, so the missing coverage reads as "no such case
+exists". #839's derived block-slot enumeration documented exactly this as the assumption underneath
+it (`packages/runtime/src/execute-declaration-slots.test.mjs`); because it reflects over every field
+of each node it *visits*, what survives as its blind spot is precisely a holder field that keeps a
+node from being visited at all — the residual now tracked by #960. The gap was repository-wide, and
+the risk was never today's switch: it was the next node kind added with a body.
 
 **A test that traverses through `childrenOf` cannot close this** — whatever it walks with, it walks
 with the switch it is auditing. A test derived from an *independent* source can (reflection over
@@ -39,25 +40,25 @@ There are four: the node-kind switch, the `IsTest` form switch, the `PlaceSegmen
 (shared by `Place` and `PostfixExpression` through one `segmentChildren` helper so the two cannot
 drift apart), and the `ComprehensionNode` form switch.
 
-1. Every member gets its own `case`, **including the ones with no children** — the seven grouped
-   childless node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`, `Stop`,
-   `StructDef`) plus the separately handled `DestructuringBinder`, the `empty` `IsTest` form, and
-   the `field` segment kind. This is load-bearing, not tidiness: a member
+1. Every **discriminant value** gets its own `case`, **including the ones with no children** — the
+   seven grouped childless node kinds (`NumberLit`, `WordLit`, `BooleanLit`, `VarRef`, `Local`,
+   `Stop`, `StructDef`) plus the separately handled `DestructuringBinder`, the `empty` `IsTest` form,
+   and the `field` segment kind. This is load-bearing, not tidiness: a value
    that falls through keeps the `default` clause inhabited, the `never` stops binding, and the guard
    becomes decorative.
 2. Each of the four `default` clauses calls the shared `unhandledChildCase` helper, whose first
-   parameter is `never`. A member added to any of those unions without a case is therefore a `tsc`
-   error that names the omitted type, and the helper **throws** if untyped JavaScript reaches it — a
-   silently childless node is the precise failure mode this ADR exists to remove.
+   parameter is `never`. A new discriminant value in any of those unions without a case is therefore
+   a `tsc` error that names the omitted type, and the helper **throws** if untyped JavaScript reaches
+   it — a silently childless node is the precise failure mode this ADR exists to remove.
 3. **A ternary is not a substitute.** **All four** were ternaries or bare `default`s when this work
    started: the node-kind and `IsTest` switches ended in bare `default`s, while the `PlaceSegment`
    and `ComprehensionNode` dispatches were conditionals — the segment one copy-pasted at *both* call
    sites, which is why they now share `segmentChildren`. The three inner unions were each proven
    silent by experiment: a fifth `IsTest` form, a third `PlaceSegment` kind, and a fourth
    comprehension form each left `childrenOf` compiling — the guard raised nothing in `ast.ts` —
-   while silently dropping a child. Unrelated consumers sometimes rejected the new member
+   while silently dropping a child. Unrelated consumers sometimes rejected the new value
    independently, which is incidental protection rather than a guard, and would vanish the moment a
-   member arrived *with* its handling elsewhere. A two-branch discriminant test looks total and is
+   new value arrived *with* its handling elsewhere. A two-branch discriminant test looks total and is
    not, so inner unions get a `switch` closed on `never`, not a conditional.
 
 **The deliberate exception is the `ForIn`/`Comprehension` binder**, which discriminates
@@ -69,10 +70,11 @@ node-shaped binder is included automatically and a metadata binder stays exclude
 
 The distinction is narrow and easy to overstate, so it is stated exactly.
 
-**Enforced by the compiler — exhaustive *dispatch*.** Every `AnyNode` kind, every `IsTest` form,
-every `PlaceSegment` kind, and every `ComprehensionNode` form selects an explicit case. No value of
-those unions can reach a fallback, and no new member can be added without the build failing and
-naming it.
+**Enforced by the compiler — exhaustive *dispatch* over discriminant values.** Every `AnyNode` kind,
+every `IsTest` form, every `PlaceSegment` kind, and every `ComprehensionNode` form selects an
+explicit case. No discriminant value can reach a fallback, and no new *value* can be added without
+the build failing and naming it. A new union *member* that reuses an existing discriminant value is
+a different thing and is not caught — see below.
 
 **Not enforced — that a case returns the *right* children.** Nothing checks that a case returns
 every node-valued field of its kind. Two experiments during the review gate, run by the two
@@ -98,9 +100,9 @@ existing "walk visits every core node kind" test — *test*-enforced, not compil
 - Adding a node kind is deliberately a two-place change: the union and `childrenOf`. The build fails,
   naming the type, until both land. The same now holds for an `IsTest` form, a `PlaceSegment` kind,
   and a comprehension form.
-- A member with no children must never be "simplified" back into `default`. Doing so silently
-  disarms the guard for **every** member of that union, which is why each one carries its own case
-  and the switch says so.
+- A discriminant value with no children must never be "simplified" back into `default`. Doing so
+  silently disarms the guard for **every** value of that discriminant, which is why each one carries
+  its own case and the switch says so.
 - Instruments may drop the "does `childrenOf` have a case for this kind?" caveat. They must keep the
   caveat that a child *edge* may be missing, so "derived from the AST" still means "derived from
   what the traversal happens to reach".

@@ -811,12 +811,12 @@ test("walk visits every core node kind, pre-order", () => {
 
 test("walk rejects an AST shape it has no case for instead of silently pruning it", () => {
   // `childrenOf` dispatches four times — on node kind, `is`-test form, place-segment kind, and
-  // comprehension form — and each is exhaustive over its union, so these clauses are unreachable
-  // from TypeScript. The `never` bindings in them are what make `tsc` reject a new member nobody
-  // gave a case (issue #925). They stay reachable from untyped JavaScript, and there the contract
-  // is to fail loudly: a silently childless node is still visited, but everything below it drops
-  // out of `walk`, and so out of the runtime's declaration registration and out of every checker,
-  // with nothing able to observe the loss.
+  // comprehension form — and each is exhaustive over its discriminant, so these clauses are
+  // unreachable from TypeScript. The `never` bindings in them are what make `tsc` reject a new
+  // discriminant value nobody gave a case (issue #925). They stay reachable from untyped
+  // JavaScript, and there the contract is to fail loudly: a silently childless node is still
+  // visited, but everything below it drops out of `walk`, and so out of the runtime's declaration
+  // registration and out of every checker.
   const source_span = { document: doc, start: [1, 1], end: [1, 4] };
   const operand = { kind: "NumberLit", value: 1, source_span };
 

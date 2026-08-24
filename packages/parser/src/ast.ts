@@ -878,17 +878,17 @@ export const ast = {
 export type Visitor = (node: AnyNode) => void;
 
 /**
- * Rejects a value one of {@link childrenOf}'s switches has no case for. The first parameter is
- * `never`, so a new member of the union being switched on — a node kind, an {@link IsTest} form, a
- * {@link PlaceSegment} kind, or a {@link ComprehensionNode} form — fails `tsc` at the call site and
- * names the omitted type.
+ * Rejects a discriminant value one of {@link childrenOf}'s switches has no case for. The first
+ * parameter is `never`, so a new value of the discriminant being switched on — a node kind, an
+ * {@link IsTest} form, a {@link PlaceSegment} kind, or a {@link ComprehensionNode} form — fails
+ * `tsc` at the call site and names the omitted type.
  *
  * It throws rather than reporting no children, because a silently childless node is the exact
  * failure mode issue #925 exists to remove: `walk` would still visit the node — the visitor runs
  * before the descent — but everything *below* it would vanish, and with it the runtime's
- * declaration registration and every checker's view of that subtree, with nothing able to observe
- * the loss. Production callers pass well-typed {@link AnyNode} values, from `parse`
- * or the {@link ast} factory; only malformed untyped input reaches here, and it fails loudly.
+ * declaration registration and every checker's view of that subtree. Production callers pass
+ * well-typed {@link AnyNode} values, from `parse` or the {@link ast} factory; only malformed
+ * untyped input reaches here, and it fails loudly.
  */
 function unhandledChildCase(_unhandled: never, seen: string): never {
   throw new Error(
@@ -926,18 +926,19 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * this switch.
  *
  * All four of this function's dispatches — node kind, {@link IsTest} form, {@link PlaceSegment}
- * kind, and {@link ComprehensionNode} form — enumerate **every** member of their union, childless
- * ones included, so each `default` narrows to `never` and omitting a case is a compile error rather
- * than a silent hole in every traversal in the repository (issue #925). `ForIn`/`Comprehension`
- * binders are the deliberate exception: they discriminate structurally (`"kind" in …`), so a future
- * node-shaped binder is included automatically and metadata binders stay excluded.
+ * kind, and {@link ComprehensionNode} form — enumerate **every** value their discriminant can take,
+ * childless ones included, so each `default` narrows to `never` and omitting a case is a compile
+ * error rather than a silent hole in every traversal in the repository (issue #925).
+ * `ForIn`/`Comprehension` binders are the deliberate exception: they discriminate structurally
+ * (`"kind" in …`), so a future node-shaped binder is included automatically and metadata binders
+ * stay excluded.
  *
  * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
- * Every member of those unions selects an explicit case; nothing here checks that the case returns
- * *every* node-valued field of its kind. A field added to an already-handled kind — or a shape that
- * reuses an existing discriminant — compiles clean, is silently absent from the child list, and is
- * therefore never reached by `walk` or by any instrument traversing through here. Reachability is
- * not guaranteed; issue #960 tracks it. See
+ * Every value those discriminants can take selects an explicit case; nothing here checks that the
+ * case returns *every* node-valued field of its kind. A field added to an already-handled kind — or
+ * a union member that reuses an existing discriminant value — compiles clean, is silently absent
+ * from the child list, and is therefore never reached by `walk` or by any instrument traversing
+ * through here. Reachability is not guaranteed; issue #960 tracks it. See
  * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
