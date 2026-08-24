@@ -661,13 +661,13 @@ test("#952 (review finding 2): a deferred host and a synchronous host record the
   );
 });
 
-test("#952 (review finding 1): delivery reopens once a read FINISHES under a replaying host, and stays shut under one that resolves reads in place", () => {
-  // `spec/interaction-events.md:108-111` blocks handler blocks only "until the read finishes", so a
-  // permanent latch would be stricter than the spec and would disable interaction for any program
-  // that ever asks a question. A replaying host records its answers and `resolveRecordedAnswer`
-  // pairs each with its prompt, so reopening is safe there. A host that resolves a read IN PLACE
-  // records none — `execution-worker-runner.ts` always presents a live read rather than consuming
-  // `ExecutionRequest.answers` — so a replay there would re-ask everything already answered.
+test("#952 (review round 3): a chain that has asked the learner a question stops accepting delivered input, under every host", () => {
+  // Round 3 measured why reopening after the read finishes does not hold: the studio has no tick for
+  // the read boundary, so the next delivery is scheduled at tick 1 and the replay reaches an
+  // *earlier* point than the learner has already observed — a question they never saw, output they
+  // had already read erased, a prompt open over a "done" status. `resolveRecordedAnswer` stops an
+  // answer reaching the wrong question; it cannot stop history being rewritten. So the two input
+  // sources never coexist in one chain.
   const source = [
     'on_key "left" [',
     '  print "turned"',
@@ -696,21 +696,27 @@ test("#952 (review finding 1): delivery reopens once a read FINISHES under a rep
   assert.deepEqual(store.getState().output, ["Ada"], "the answer was consumed");
   assert.equal(
     controller.deliverKey("left"),
-    true,
-    "the read has finished, so the window reopens exactly as :108-111 allows",
+    false,
+    "and the window stays shut, so no replay can rewrite what the learner has already seen",
   );
   assert.deepEqual(
     store.getState().output,
-    ["Ada", "turned"],
-    "and the handler really fires",
+    ["Ada"],
+    "output the learner has read is never erased by a later delivery",
   );
-  assert.deepEqual(
-    host.prompts,
-    ["who?"],
-    "without re-asking the question the learner already answered",
-  );
+  assert.deepEqual(host.prompts, ["who?"], "and no question is re-asked");
 
-  // The other host shape: one that suspends the read in place and therefore records no answers.
+  // A chain that never asks anything is unaffected, even with a prompt host installed.
+  const plainStore = OL.createStudioState({ source: ON_KEY_SOURCE });
+  const plainController = OL.createRunController(plainStore, {
+    inputPrompt: createPromptHost(),
+    randomSeedSource: pinnedSeed(7),
+  });
+  plainController.run();
+  assert.equal(plainController.deliverKey("left"), true);
+  assert.deepEqual(plainStore.getState().output, ["turned"]);
+
+  // The other host shape: one that suspends the read in place. Same rule, same reason.
   const inPlaceStore = OL.createStudioState({ source });
   const inPlaceHost = createPromptHost();
   const executionHost = createResolveInPlaceHost();
@@ -723,11 +729,7 @@ test("#952 (review finding 1): delivery reopens once a read FINISHES under a rep
   inPlaceController.run();
   assert.deepEqual(inPlaceHost.prompts, ["who?"]);
   inPlaceHost.respond("Ada");
-  assert.equal(
-    inPlaceController.deliverKey("left"),
-    false,
-    "a replay here would re-ask every question already answered, so the window stays shut",
-  );
+  assert.equal(inPlaceController.deliverKey("left"), false);
 
   inPlaceController.reset();
   assert.equal(
@@ -740,6 +742,78 @@ test("#952 (review finding 1): delivery reopens once a read FINISHES under a rep
     false,
     "and Reset leaves no chain to deliver to",
   );
+});
+
+test("#952 (review round 3): an on_key the run never REACHED does not make its key the program's to handle", () => {
+  // The declaration alone over-reports: `if false [ on_key "up" … ] ]` names `up` and registers
+  // nothing, and suppressing ArrowUp for it would swallow a key from a learner for a handler that
+  // could never run. Pairing the declaration with the run's own registration event, by source
+  // position, is what makes this exact.
+  const store = OL.createStudioState({
+    source: [
+      'on_key "down" [',
+      '  print "d"',
+      "]",
+      "if false [",
+      '  on_key "up" [',
+      '    print "u"',
+      "  ]",
+      "]",
+      "wait 3",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  assert.equal(
+    controller.deliverKey("up"),
+    false,
+    "declared but never registered — the key is not the program's to handle",
+  );
+  assert.deepEqual(store.getState().output, [], "and nothing fired");
+
+  assert.equal(
+    controller.deliverKey("down"),
+    true,
+    "this one really registered",
+  );
+  assert.deepEqual(store.getState().output, ["d"]);
+});
+
+test('#952 (review round 3): a `when "stop"` handler that asks a question leaves no live prompt over a stopped run', () => {
+  // Measured on the pre-fix tree: `when "stop" [ :answer = input "save?" ]` left "save?" answerable
+  // after Stop had committed `"stopped"`, and answering it then produced `ol-limit`.
+  const store = OL.createStudioState({
+    source: ['when "stop" [', '  :answer = input "save?"', "]", "wait 5"].join(
+      "\n",
+    ),
+  });
+  const host = createPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.deepEqual(host.prompts, [], "nothing is asked while the program runs");
+
+  controller.stop();
+
+  assert.equal(store.getState().runStatus, "stopped");
+  assert.deepEqual(
+    host.prompts,
+    ["save?"],
+    "the notification block did run and did reach its read",
+  );
+  assert.equal(
+    host.respond,
+    null,
+    "…but the read is withdrawn, never left answerable over a stopped run",
+  );
+  assert.equal(host.dismissCount, 1, "and the learner's prompt is taken down");
 });
 
 test("#952 (review finding 3): a prompt host that answers synchronously cannot extend the pump with delivered input", () => {

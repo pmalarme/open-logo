@@ -28,8 +28,11 @@
  * #881 deleted the replay chain's no-progress retry cap, having proved the situation it guarded
  * unreachable. Its reviewers carried forward the consequence: with the cap gone, a reintroduction of
  * replay divergence would be an unbounded loop rather than a bounded test failure. A Worker host
- * answers that structurally rather than with another counter — **it never replays**, so there is no
- * attempt sequence to diverge and nothing for a cap to count. That invariant is pinned directly
+ * answers that structurally rather than with another counter — **it never replays to answer a
+ * read**, so there is no attempt sequence to diverge and nothing for a cap to count. (Since #952 it
+ * does replay to deliver *input*, which is a separate chain driven by learner keystrokes; a chain
+ * that has asked a question accepts none, so the two never interleave.) That invariant is pinned
+ * directly
  * (`worker-execution-host.test.mjs` asserts one run command for a program with several reads), and
  * the wait itself is separately bounded in `blocking-input-channel.ts`.
  *
@@ -108,7 +111,9 @@ export interface RecordedAnswerResolution {
  * makes "an answer never reaches a question it did not answer" hold **by construction** rather than
  * by trusting that determinism argument, and it costs one comparison per read.
  *
- * A Worker host (#876) never consults it at all, because it never replays.
+ * A Worker host (#876) never consults it at all, because it never replays to answer a read — and a
+ * chain that has asked a question delivers no host input either (#952), so its #952 replay cannot
+ * reach a read at all.
  */
 export function resolveRecordedAnswer(
   answers: readonly RecordedAnswer[],

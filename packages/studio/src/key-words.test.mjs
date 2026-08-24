@@ -11,6 +11,17 @@ import * as OL from "@openlogo/studio";
  * accessibility**").
  */
 
+/**
+ * The key words a source declares, ignoring position — the shape most of these tests care about.
+ * `null` (a non-literal key word) is passed straight through.
+ */
+function declaredKeyWordsOf(source) {
+  const declared = OL.collectDeclaredKeyHandlers(source);
+  return declared === null
+    ? null
+    : new Set(declared.map((entry) => entry.keyWord));
+}
+
 test("#952: the four arrows normalize to the spec's own examples", () => {
   assert.equal(OL.normalizeKeyWord("ArrowLeft"), "left");
   assert.equal(OL.normalizeKeyWord("ArrowRight"), "right");
@@ -109,8 +120,29 @@ test("#952: KEY_WORD_BY_BROWSER_KEY only renames keys whose lowercase form is no
   }
 });
 
-test("#952 (review round 2): collectDeclaredKeyWords reads the key words a program's on_key statements name", () => {
-  const declared = OL.collectDeclaredKeyWords(
+test("#952 (review round 3): each declaration carries the source position the runtime stamps its registration with, so an unreached one can be told apart", () => {
+  const declared = OL.collectDeclaredKeyHandlers(
+    [
+      'on_key "down" [',
+      '  print "d"',
+      "]",
+      "if false [",
+      '  on_key "up" [',
+      '    print "u"',
+      "  ]",
+      "]",
+      "wait 3",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(declared, [
+    { keyWord: "down", line: 1, column: 1 },
+    { keyWord: "up", line: 5, column: 3 },
+  ]);
+});
+
+test("#952 (review round 2): collectDeclaredKeyHandlers reads the key words a program's on_key statements name", () => {
+  const declared = declaredKeyWordsOf(
     [
       'on_key "left" [',
       "  left 15",
@@ -126,11 +158,11 @@ test("#952 (review round 2): collectDeclaredKeyWords reads the key words a progr
 });
 
 test("#952: a program with no on_key declares no key words", () => {
-  assert.deepEqual([...OL.collectDeclaredKeyWords("forward 100")], []);
+  assert.deepEqual([...declaredKeyWordsOf("forward 100")], []);
 });
 
 test("#952: on_key nested inside a block or a procedure is still found", () => {
-  const declared = OL.collectDeclaredKeyWords(
+  const declared = declaredKeyWordsOf(
     [
       "define setup",
       '  on_key "up" [',
@@ -152,7 +184,7 @@ test("#952: on_key nested inside a block or a procedure is still found", () => {
 
 test("#952: a non-literal key word collapses the whole set to null — the safe direction, so nothing is suppressed", () => {
   assert.equal(
-    OL.collectDeclaredKeyWords(
+    declaredKeyWordsOf(
       [
         ':chosen = "left"',
         "on_key :chosen [",
@@ -174,7 +206,7 @@ test("#952: the real spec/examples/10-game.logo declares exactly the three keys 
     "utf8",
   );
 
-  assert.deepEqual([...OL.collectDeclaredKeyWords(source)].sort(), [
+  assert.deepEqual([...declaredKeyWordsOf(source)].sort(), [
     "left",
     "right",
     "up",

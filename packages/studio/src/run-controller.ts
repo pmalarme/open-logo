@@ -363,19 +363,23 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **The chain is not blocked on, or mid-answering, an `input` question.** A question outstanding
- *   refuses the delivery outright, because `spec/interaction-events.md:108-111` forbids running a
- *   handler block until the read finishes; so does an answer chain mid-pump, because a prompt host
- *   answering synchronously from inside `present()` could otherwise be handed one more read per
- *   answer — the quadratic hang the "#881" section above describes. Once the read *has* finished the
- *   window reopens, which is exactly what `:108-111` allows.
+ * - **The chain has never asked the learner an `input` question.** A question outstanding refuses the
+ *   delivery outright, because `spec/interaction-events.md:108-111` forbids running a handler block
+ *   until the read finishes — and once one has been asked the window stays shut for the rest of that
+ *   chain, which is stricter than `:108-111` requires and deliberately so. The studio has no tick for
+ *   the read boundary, so the next delivery lands at tick 1 and the replay reaches an *earlier* point
+ *   than the learner has already observed: measured, a key scheduled at tick 1 after an answered
+ *   question introduced a question they had never seen, erased output they had already read, and left
+ *   a prompt open over a `"done"` status. {@link resolveRecordedAnswer}'s prompt pairing stops an
+ *   answer reaching the wrong question; it cannot stop history being rewritten. An answer chain
+ *   mid-pump is refused for the same family of reasons — it is what stops a prompt host answering
+ *   synchronously from inside `present()` being handed one more read per answer, the quadratic hang
+ *   the "#881" section above describes.
  *
- *   Under a host that resolves a read **in place** (the Worker one) it does **not** reopen, and that
- *   is a genuine limitation rather than caution: such a host never replayed, so the controller never
- *   recorded its answers and `execution-worker-runner.ts` always presents a live read instead of
- *   consuming `ExecutionRequest.answers`. A delivered-input replay there would re-ask every question
- *   the learner had already answered — measured in review. Closing that needs both halves recording
- *   and consuming answers, and is filed as follow-up work.
+ *   So a program that uses `input` receives no delivered interaction for the rest of that chain.
+ *   `run()`/`reset()` reopen the window. Closing the gap properly needs the runtime to expose a
+ *   delivery boundary (or live host input) rather than a static pre-run schedule; it is filed as
+ *   follow-up work.
  *
  * Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
  * settlement has landed, a delivery arriving while a later attempt is in flight — only reachable
@@ -409,7 +413,8 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import { createInProcessExecutionHost } from "./execution-host.js";
-import { collectDeclaredKeyWords } from "./key-words.js";
+import { collectDeclaredKeyHandlers } from "./key-words.js";
+import type { DeclaredKeyHandler } from "./key-words.js";
 import type {
   ExecutionHost,
   ExecutionRequest,
@@ -580,15 +585,17 @@ export interface RunController {
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
    * The press is scheduled at the next studio tick and the current chain is replayed with it, so
-   * every matching `on_key` handler fires. Reports whether **this key word can reach a handler at
-   * all** — the chain is accepting input, the run registered `on_key`, and the program's own
-   * `on_key` declarations name this key.
+   * every matching `on_key` handler fires. Reports whether the press **reached a handler this run
+   * actually registered**: the chain is accepting input, the run registered `on_key`, and one of the
+   * program's own `on_key` declarations that the run genuinely reached names this key word.
    *
-   * That last part is read from the source, never measured from the run, and
-   * `key-words.ts`'s {@link collectDeclaredKeyWords} documents why both measured proxies were
-   * unsound: a handler that raises *shortens* the event stream, and a host that settles across
-   * event-loop turns answers after the `keydown` has already scrolled the page. A program whose
-   * `on_key` key word is not a literal reports `false`, so nothing is suppressed.
+   * That is read, never measured — `key-words.ts`'s {@link collectDeclaredKeyHandlers} documents why
+   * both measured proxies were unsound (a handler that raises *shortens* the event stream; a host
+   * that settles across event-loop turns answers after the `keydown` has already scrolled the page)
+   * — and it pairs the declaration with the run's registration event by **source position**, because
+   * neither half is sound alone: `if false [ on_key "up" [ … ] ]` declares a key it never registers,
+   * and a registration event carries no key word. A program whose `on_key` key word is not a literal
+   * reports `false`, so nothing is suppressed.
    *
    * The narrowness is the point. `canvas-interaction.ts` decides whether to suppress the browser's
    * own scrolling from this answer, and suppression must be per *press*: swallowing arrows for a
@@ -705,6 +712,43 @@ function hasRegisteredHandler(
     (event): boolean =>
       event.kind === "primitive" &&
       (event.payload as PrimitivePayload).name === name,
+  );
+}
+
+/**
+ * The key words this run **actually registered** an `on_key` handler for (#952, review round 3).
+ *
+ * Neither half is sufficient alone, and review measured both failures. The declaration alone
+ * over-reports: `if false [ on_key "up" [ … ] ]` names `up` and registers nothing, and the studio
+ * swallowed `ArrowUp` for a handler that could never run. The registration event alone under-reports
+ * — it carries only the `primitive`'s *name* (`spec/interaction-events.md:120-122`), never the key
+ * word. Pairing them by the **source position** the registration is stamped with answers exactly
+ * "which key words did this run register", using only what each side genuinely knows.
+ *
+ * `null` in, `null` out: a program with a non-literal key word stays unknowable, and a caller
+ * suppresses nothing.
+ */
+function registeredKeyWords(
+  declared: readonly DeclaredKeyHandler[] | null,
+  events: readonly TraceEvent[],
+): ReadonlySet<string> | null {
+  if (declared === null) {
+    return null;
+  }
+  const registeredAt = new Set<string>();
+  for (const event of events) {
+    if (
+      event.kind === "primitive" &&
+      (event.payload as PrimitivePayload).name === "on_key"
+    ) {
+      const [line, column] = event.source_span.start;
+      registeredAt.add(`${line}:${column}`);
+    }
+  }
+  return new Set(
+    declared
+      .filter((entry) => registeredAt.has(`${entry.line}:${entry.column}`))
+      .map((entry) => entry.keyWord),
   );
 }
 
@@ -835,18 +879,27 @@ export function createRunController(
   let hostInputEvents: readonly HostInputEvent[] = [];
   let nextHostInputTick = 1;
   let chainAcceptsHostInput = false;
-  // #952 (review round 2) — the key words this chain's program declares, computed once per chain
-  // from the captured source. `null` means at least one `on_key` names a non-literal key, so the set
-  // is unknowable before the run; see `key-words.ts`'s `collectDeclaredKeyWords` for why this is read
-  // from the declaration rather than measured from the run.
-  let declaredKeyWords: ReadonlySet<string> | null = null;
-  // #952 (review finding) — has this chain ever put an `input` question to the learner? It matters
-  // only for a host that resolves a read **in place**: such a host records no answers (it never
-  // replays, so it never needed to), and `execution-worker-runner.ts` always presents a live read
-  // rather than consuming `ExecutionRequest.answers` — so a delivered-input replay there would
-  // re-ask every question already answered. Measured by review. A replaying host records its answers
-  // and `resolveRecordedAnswer` pairs each with its prompt, so it reopens the moment the read
-  // finishes, exactly as `spec/interaction-events.md:108-111` allows ("until the read finishes").
+  // #952 (review round 2/3) — the `on_key` declarations this chain's program contains, computed once
+  // per chain from the captured source, each with the source position the runtime stamps its
+  // registration with. `null` means at least one `on_key` names a non-literal key, so the set is
+  // unknowable before the run. See `key-words.ts`'s `collectDeclaredKeyHandlers`.
+  let declaredKeyHandlers: readonly DeclaredKeyHandler[] | null = null;
+  // #952 (review round 1/3) — has this chain ever put an `input` question to the learner? Once it
+  // has, the chain stops accepting delivered input for good, under **every** host.
+  //
+  // Round 3 measured why a narrower rule does not hold. Reopening after the read finishes looks
+  // right — `spec/interaction-events.md:108-111` blocks handlers only "until the read finishes" —
+  // but the studio has no tick for that boundary, so the next delivery is scheduled at tick 1 and
+  // the replay reaches an *earlier* point than the learner has already observed: measured, a key
+  // scheduled at tick 1 introduced a question the learner had never seen, erased output they had
+  // already read, and left a prompt open over a `"done"` status. `resolveRecordedAnswer`'s prompt
+  // pairing stops an answer reaching the wrong question; it cannot stop history being rewritten.
+  //
+  // So the two input sources never coexist in one chain. That is stricter than the spec requires,
+  // and it is a real limitation for a program that asks a question and then expects key presses —
+  // documented in `packages/studio/README.md` and filed as follow-up work, because closing it needs
+  // the runtime to expose a delivery boundary (or live host input) rather than a static schedule.
+  // `run()`/`reset()` start a fresh chain and reopen the window.
   let chainHasAskedQuestion = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
@@ -1325,7 +1378,7 @@ export function createRunController(
       chainAcceptsHostInput &&
       pendingRead === null &&
       !pumping &&
-      !(chainHasAskedQuestion && resolveReadInPlace !== undefined)
+      !chainHasAskedQuestion
     );
   }
 
@@ -1347,10 +1400,12 @@ export function createRunController(
     }
     scheduleHostInput({ kind: "key", key });
     drainDeliveredInput();
-    // Whether this key can reach a handler at all — read from the program's own `on_key`
-    // declarations, never measured from the run. `null` (a non-literal key word) reports `false`, so
-    // nothing is suppressed: the safe direction. See `key-words.ts`'s `collectDeclaredKeyWords`.
-    return declaredKeyWords?.has(key) ?? false;
+    // Whether this key reached a handler this run actually registered — the program's own `on_key`
+    // declarations paired with the run's registration events, never measured from the stream. `null`
+    // (a non-literal key word) reports `false`, so nothing is suppressed: the safe direction.
+    return (
+      registeredKeyWords(declaredKeyHandlers, currentEvents)?.has(key) ?? false
+    );
   }
 
   function deliverClick(): boolean {
@@ -1396,7 +1451,7 @@ export function createRunController(
     nextHostInputTick = 1;
     chainAcceptsHostInput = true;
     chainHasAskedQuestion = false;
-    declaredKeyWords = collectDeclaredKeyWords(chainSource);
+    declaredKeyHandlers = collectDeclaredKeyHandlers(chainSource);
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1462,6 +1517,12 @@ export function createRunController(
         playCurrentAttempt,
         false,
       );
+      // #952 (review round 3) — the notification block may itself contain `input`, and that read is
+      // created by an attempt started *after* the question this Stop already withdrew. Measured:
+      // `when "stop" [ :answer = input "save?" ]` left "save?" answerable over a `"stopped"` status,
+      // and answering it then produced `ol-limit`. The program is terminating, so the read ends the
+      // only other way `spec/interaction-events.md:110-111` allows.
+      withdrawPendingRead();
     }
     // Latched only now: the in-process host executes through this very signal object, so latching
     // it before the notification attempt would cancel that attempt at its first statement with
@@ -1496,7 +1557,7 @@ export function createRunController(
     nextHostInputTick = 1;
     chainAcceptsHostInput = false;
     chainHasAskedQuestion = false;
-    declaredKeyWords = null;
+    declaredKeyHandlers = null;
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;

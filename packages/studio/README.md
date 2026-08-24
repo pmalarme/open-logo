@@ -305,9 +305,11 @@ that produced them, and the controller never re-reduces a stream it did not prod
 
 **The bound.** #881 deleted the replay chain's no-progress retry cap and its reviewers carried the
 consequence forward: with the cap gone, a reintroduction of divergence would be an unbounded loop.
-A Worker host answers that **structurally** — it never replays, so there is no attempt sequence to
+A Worker host answers that **structurally** — it never replays to answer a read, so there is no attempt
+sequence to
 diverge and nothing for a counter to count (asserted directly: one run command for a program with
-several reads). Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
+several reads). Since #952 it does replay to deliver *input*, but a chain that has asked a question
+delivers none, so the two never interleave. Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
 re-reads the control block, so a Stop is observed within one poll interval even if its wake-up were
 missed entirely. What remains unbounded is unchanged and still a host contract: a prompt host that
 restarts the run from inside `present()` on *every* presentation, since each restart brings a fresh
@@ -340,19 +342,20 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:194-198` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-Both report whether **the input can reach a handler at all** — for `deliverKey`, that the chain is
-accepting input, the run registered `on_key`, **and the program's own `on_key` declarations name that
-key word**.
+Both report whether **the input reached a handler this run actually registered** — for `deliverKey`,
+that the chain is accepting input, the run registered `on_key`, **and one of the program's own
+`on_key` declarations that the run genuinely reached names that key word**.
 
-That last part is read from the source (`collectDeclaredKeyWords`), never measured from the run, and
-that matters: two measured proxies were tried and both were unsound. Comparing the replay's event
-*stream growth* fails because a handler that raises **shortens** the stream — measured, an
-`on_key "up"` body referencing an undefined variable took it from 45 events to 5 with
-`ol-undefined-var` — so a handler that genuinely ran reported "nothing responded". Asking the
-controller after the replay settles fails because a Worker host settles a turn later, by which time
-the `keydown` has already scrolled the page. Registration itself is no help: it emits only the
-`primitive`'s *name* (`:120-122`), never its key word. A program whose `on_key` key word is not a
-literal collapses the set to `null` and suppresses nothing — the safe direction.
+That last part is read from the source and paired with the run's registration events by **source
+position** (`collectDeclaredKeyHandlers`), never measured from the stream. Neither half alone is
+sound: the declaration over-reports — `if false [ on_key "up" [ … ] ]` names `up` and registers
+nothing, and suppressing `ArrowUp` for it swallows a key for a handler that can never run — while the
+registration event carries only the `primitive`'s *name* (`:120-122`), never its key word. Two
+measured proxies were tried and both failed: comparing the replay's event *stream growth* breaks
+because a handler that raises **shortens** the stream (measured, 45 events down to 5 with
+`ol-undefined-var`), and asking after the replay settles breaks because a Worker host settles a turn
+later, by which time the `keydown` has already scrolled the page. A program whose `on_key` key word is
+not a literal collapses the set to `null` and suppresses nothing — the safe direction.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
@@ -418,17 +421,22 @@ announcing it would file a run-log entry per keystroke.
 - the program actually registered a handler of that kind, according to its own `primitive` trace
   event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
   a stray keystroke;
-- **the chain is not blocked on, or mid-answering, an `input` question.** A question outstanding
-  refuses the delivery — `spec/interaction-events.md:108-111` forbids running a handler block until
-  the read finishes — and so does an answer chain mid-pump, which is what stops a prompt host that
-  answers synchronously from being handed one more read per answer (the quadratic hang the `#881`
-  section describes). Once the read *has* finished the window reopens, exactly as `:108-111` allows.
+- **the chain has never asked the learner an `input` question.** `spec/interaction-events.md:108-111`
+  blocks handlers only *until the read finishes*, so this is stricter than the spec — deliberately.
+  The studio has no tick for the read boundary, so the next delivery is scheduled at tick 1 and the
+  replay reaches an *earlier* point than the learner has already observed. Measured: a key scheduled
+  at tick 1 after an answered question introduced a question the learner had never seen, erased
+  output they had already read, and left a prompt open over a `"done"` status.
+  `resolveRecordedAnswer`'s prompt pairing stops an answer reaching the wrong question; it cannot
+  stop history being rewritten. An answer chain mid-pump is refused for the same family of reasons —
+  it is what stops a synchronously-answering prompt host being handed one more read per answer (the
+  quadratic hang the `#881` section describes).
 
-  **Under a host that resolves a read in place (the Worker one) it does not reopen.** Such a host
-  never replayed, so the controller never recorded its answers, and `execution-worker-runner.ts:79-100`
-  always presents a live read rather than consuming `ExecutionRequest.answers` — a delivered-input
-  replay there would re-ask every question already answered. Closing that needs both halves, and is
-  filed as follow-up work.
+  **So a program that uses `input` gets no delivered interaction for the rest of that chain.** It is
+  a real limitation, not caution: `run()`/`reset()` reopen the window, but a program that asks a
+  question and *then* expects key presses will not receive them. Closing it needs the runtime to
+  expose a delivery boundary (or live host input) rather than a static pre-run schedule, and is filed
+  as follow-up work.
 
 Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
 settlement has landed, a delivery arriving while a later attempt is in flight — reachable only under a
@@ -444,7 +452,8 @@ pacing-independence claim is genuinely "after the run's first settlement".
 termination" (`:152-156`), so `stop()` schedules it as a named event and replays once before latching
 the cancellation signal — but only for a program that registered a `when` handler, so every other
 Stop is byte-for-byte the Stop it always was. Subject to the tick limit above: a program with no
-`wait` never reaches the notification's tick.
+`wait` never reaches the notification's tick. If the notification block itself reaches an `input`,
+that read is withdrawn rather than left answerable over a `"stopped"` run.
 
 ### Supported key words
 

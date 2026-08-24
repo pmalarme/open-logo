@@ -31,9 +31,10 @@
  * Arrows, space, and the paging keys scroll the page. A learner playing `10-game.logo` would drive
  * the turtle and scroll the studio out from under themselves at the same time. So the default is
  * suppressed for exactly {@link SCROLLING_KEY_WORDS} — and only when
- * {@link RunController.deliverKey} reports that **this key word can reach a handler**, which it
- * answers from the program's own `on_key` declarations (`key-words.ts`'s
- * {@link collectDeclaredKeyWords}) rather than from anything measured at runtime.
+ * {@link RunController.deliverKey} reports that **this run registered a handler for that key
+ * word**, which it answers by pairing the program's `on_key` declarations with the run's own
+ * registration events (`key-words.ts`'s {@link collectDeclaredKeyHandlers}) rather than by measuring
+ * anything at runtime.
  *
  * The unit of that decision is the **individual press**, not the program: a program registering
  * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
@@ -182,7 +183,7 @@ export interface CanvasInteractionElements {
  * The controller decides whether any of it reaches the program — a delivery to a program that
  * registered no such handler runs nothing at all (see `run-controller.ts`'s doc comment, "#952").
  * This function makes no decision beyond which DOM event feeds which delivery, and which browser
- * default a *responded* press suppresses.
+ * default a press the program registered for suppresses.
  */
 export function mountCanvasInteraction(
   elements: CanvasInteractionElements,
@@ -206,8 +207,11 @@ export function mountCanvasInteraction(
 }
 
 /**
- * Show the activation control exactly while an activation could reach an `on_click` handler, and
- * hide it otherwise — so a program with no interaction adds no tab stop a learner cannot use. See
+ * Show the activation control while the live run has an `on_click` **registration**, and hide it
+ * otherwise — so a program with no interaction adds no tab stop a learner cannot use. It follows
+ * registration rather than reachability, so the control can outlive its own usefulness by the tail
+ * of a run: visible and inert, never hidden while it still works
+ * ({@link RunController.acceptsClick}). See
  * this module's doc comment.
  */
 export function syncActivationControl(

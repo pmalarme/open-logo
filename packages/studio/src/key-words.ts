@@ -103,7 +103,24 @@ export function normalizeKeyWord(key: string): string | null {
 }
 
 /**
- * The key words a program's `on_key` statements name, or `null` when that set cannot be known
+ * One `on_key` declaration a program's source contains (#952, review round 3): the key word it
+ * names, at the source position the runtime will stamp its registration event with.
+ *
+ * The position is what makes the pairing exact. A declaration alone proves only that the program
+ * *contains* an `on_key`; `if false [ on_key "up" [ … ] ]` declares `up` and registers nothing, and
+ * measured, that made the studio swallow `ArrowUp` for a handler that could never run.
+ */
+export interface DeclaredKeyHandler {
+  /** The key word the declaration names. */
+  readonly keyWord: string;
+  /** Line of the `on_key` statement's start, matching the registration event's `source_span`. */
+  readonly line: number;
+  /** Column of that start. */
+  readonly column: number;
+}
+
+/**
+ * The `on_key` declarations a program's source contains, or `null` when that set cannot be known
  * statically (#952, review round 2).
  *
  * ## Why this is read from the source rather than measured
@@ -123,33 +140,32 @@ export function normalizeKeyWord(key: string): string | null {
  *   answer arrives after the `keydown` has already been allowed to scroll the page.
  *
  * Reading the declaration is exact for the literal form every OpenLogo document uses, needs no new
- * runtime API, and cannot be perturbed by what the program does at runtime.
+ * runtime API, and cannot be perturbed by what the program does at runtime. Each entry carries its
+ * **source position** so a caller can pair it with the run's own registration event and ignore a
+ * declaration the run never reached — see {@link DeclaredKeyHandler}.
  *
  * ## What `null` means
  * A key word that is not a literal — `on_key :chosen [ … ]` — is unknowable before the run, so the
  * whole set collapses to `null` rather than being silently under-reported. Callers treat `null` as
  * "suppress nothing", the safe direction: the page keeps scrolling, and no key is ever silently
  * swallowed from a learner who did not ask for it.
- *
- * This says nothing about whether a registration was *reached* — `if false [ on_key "up" … ] ]`
- * declares `up` and registers nothing. The caller pairs this with the run's own registration
- * evidence, so both must agree.
  */
-export function collectDeclaredKeyWords(
+export function collectDeclaredKeyHandlers(
   source: string,
-): ReadonlySet<string> | null {
-  const declared = new Set<string>();
+): readonly DeclaredKeyHandler[] | null {
+  const declared: DeclaredKeyHandler[] = [];
   let unknown = false;
   walk(parse(source).ast, (node) => {
     if (node.kind !== "ProfileStatement" || node.keyword.name !== "on_key") {
       return;
     }
     const keyWord = node.args[0];
-    if (keyWord?.kind === "WordLit") {
-      declared.add(keyWord.value);
+    if (keyWord?.kind !== "WordLit") {
+      unknown = true;
       return;
     }
-    unknown = true;
+    const [line, column] = node.source_span.start;
+    declared.push({ keyWord: keyWord.value, line, column });
   });
   return unknown ? null : declared;
 }
