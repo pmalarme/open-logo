@@ -317,6 +317,23 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   let pos = 0;
   let lastEnd: Position = [1, 1];
+  // True while parsing the VALUE of a dictionary entry, where {@link parseDictLiteral}'s loop makes
+  // a newline an entry *separator* rather than insignificant whitespace. See {@link isDictKeyAt}.
+  let inDictEntryValue = false;
+
+  /**
+   * Run `parse` with the "directly inside a dictionary entry's value" flag set to `active`, then
+   * restore it. Every nested container clears the flag, because only the *innermost* enclosing
+   * literal decides what a newline means: in `{ a: [1` ⏎ `mod 2] }` the newline is inside a list,
+   * so it is insignificant and `mod` is an operator.
+   */
+  function inDictValue<T>(active: boolean, parse: () => T): T {
+    const previous = inDictEntryValue;
+    inDictEntryValue = active;
+    const result = parse();
+    inDictEntryValue = previous;
+    return result;
+  }
 
   // current()/peek()/advance() clamp with Math.min (a call, not a branch) instead of a
   // guard, so reads past the end return the eof sentinel that every loop already checks —
@@ -675,27 +692,33 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Is the token at `offset` a worded operator being used as a **dictionary key** rather than as an
-   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, so in
-   * `{ a: 1` ⏎ `mod: 2 }` the `mod` opens the *next entry* and must not be read as an operator
-   * continuing the previous entry's value. Both spellings of the separator count: a bare `colon`
-   * token (whitespace around it is insignificant, so `mod : 2` is the same entry), and the glued
-   * `variable` token the lexer produces for `mod:two`, which {@link splitGluedColonToken} splits
-   * apart later. Missing the glued form would be the worse bug of the two — both readings parse
-   * cleanly, so the entry would change meaning *silently* rather than raising a diagnostic.
+   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, and inside a dictionary a
+   * newline *separates entries*: {@link parseDictEntry} skips newlines before the `:` separator, so
+   * in `{ a: 1` ⏎ `mod: 2 }` — and equally `mod : 2`, `mod:two`, `mod :two`, or `mod` ⏎ `:two` —
+   * the `mod` opens the next entry and must not be read as an operator continuing the previous
+   * entry's value. Adjacency is therefore not the discriminator; the enclosing context is.
    *
-   * Only a worded operator can be a key; a symbolic one (`+`, `<`, …) is not an identifier, so it
-   * never reaches this test with a `name` token.
+   * Both spellings of the separator count: the bare `colon` token, and the `variable` token the
+   * lexer produces for a `:value` that {@link splitGluedColonToken} splits apart later. Missing
+   * either would be the worst kind of bug here — both readings parse cleanly, so the dictionary
+   * would change meaning *silently* rather than raising a diagnostic.
+   *
+   * Outside a dictionary entry value this never fires, so `print :total` ⏎ `mod :divisor` still
+   * continues as the one expression it plainly is. Only a worded operator can be a key; a symbolic
+   * one is not an identifier, so it never reaches this test with a `name` token.
    */
   function isDictKeyAt(offset: number): boolean {
-    const word = peek(offset);
-    if (word.kind !== "name") {
+    if (!inDictEntryValue || peek(offset).kind !== "name") {
       return false;
     }
-    const after = peek(offset + 1);
-    const glued =
-      word.source_span.end[0] === after.source_span.start[0] &&
-      word.source_span.end[1] === after.source_span.start[1];
-    return after.kind === "colon" || (after.kind === "variable" && glued);
+    // Mirror parseDictEntry's own `skipNewlines()` between the key and its separator, so
+    // `mod` ⏎ `:two` is recognised as an entry exactly as `mod :two` is.
+    let separator = offset + 1;
+    while (peek(separator).kind === "newline") {
+      separator += 1;
+    }
+    const after = peek(separator);
+    return after.kind === "colon" || after.kind === "variable";
   }
 
   /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
@@ -1090,7 +1113,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (current().kind === "lbracket" && currentAdjacentToPrev()) {
         const open = current();
         advance();
-        const key = parseKeyTerm();
+        const key = inDictValue(false, parseKeyTerm);
         if (key === undefined) {
           diagnostics.push(unexpected(current()));
           break;
@@ -1333,7 +1356,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.listLit(elements, spanBetween(open, token));
       }
       const before = pos;
-      const element = parseExpression();
+      const element = inDictValue(false, parseExpression);
       if (element !== undefined) {
         elements.push(element);
       }
@@ -1539,7 +1562,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     advance();
     skipNewlines();
-    const value = parseExpression();
+    const value = inDictValue(true, parseExpression);
     if (value === undefined) {
       unexpectedInDictEntry(current());
       return undefined;
@@ -1599,7 +1622,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
           );
         }
         const before = pos;
-        const arg = parseExpression();
+        const arg = inDictValue(false, parseExpression);
         if (arg !== undefined) {
           args.push(arg);
         }
@@ -1609,7 +1632,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         }
       }
     }
-    const inner = parseExpression();
+    const inner = inDictValue(false, parseExpression);
     skipNewlines();
     if (inner === undefined && current().kind === "rparen") {
       // `( )` closes with no operand for the group — flag it rather than vanishing silently.
@@ -1725,7 +1748,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.block(body, spanBetween(open, token));
       }
       const before = pos;
-      const statement = parseStatement();
+      const statement = inDictValue(false, parseStatement);
       if (statement !== undefined) {
         body.push(statement);
       }

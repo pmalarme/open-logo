@@ -310,12 +310,20 @@ test("no word operator this admits can begin a statement", () => {
 // dictionary silently instead of raising a diagnostic.
 
 test("a word operator followed by a dict separator opens the next entry", () => {
-  for (const entry of ["mod: 2", "and: 2", "or: 2", "is: 2", "mod : 2"]) {
+  for (const entry of [
+    "mod: 2",
+    "and: 2",
+    "or: 2",
+    "is: 2",
+    "mod : 2",
+    "mod :two",
+    "mod\n:two",
+    "mod\n\n:two",
+  ]) {
     const dict = printedExpression(`print { a: 1\n${entry} }`);
 
-    assert.equal(dict.kind, "DictLit");
+    assert.equal(dict.kind, "DictLit", entry);
     assert.equal(dict.entries.length, 2, entry);
-    assert.equal(dict.entries[1].value.value, 2, entry);
   }
 });
 
@@ -325,6 +333,28 @@ test("a word operator glued to its dict value opens the next entry", () => {
   assert.equal(dict.kind, "DictLit");
   assert.equal(dict.entries.length, 2);
   assert.equal(dict.entries[1].key.value, "mod");
+});
+
+test("the dict-key guard is scoped to the dictionary that owns the newline", () => {
+  // A nested list/paren is the innermost literal, so its newline is insignificant and `mod` is an
+  // operator again — the flag must be cleared by every nested container, not left set.
+  const fromList = printedExpression("print { a: [1\nmod 2] }");
+
+  assert.equal(fromList.entries[0].value.kind, "ListLit");
+  assertBinary(fromList.entries[0].value.elements[0], "mod", 1, 2);
+
+  const fromParen = printedExpression("print { a: (1\nmod 2) }");
+
+  assertBinary(fromParen.entries[0].value, "mod", 1, 2);
+});
+
+test("outside a dictionary a word operator still continues onto a `:variable`", () => {
+  const expression = printedExpression("print :total\nmod :divisor");
+
+  assert.equal(expression.kind, "Call");
+  assert.equal(expression.callee.name, "mod");
+  assert.equal(expression.args[0].name, "total");
+  assert.equal(expression.args[1].name, "divisor");
 });
 
 test("a word operator with no dict separator still continues the value", () => {
