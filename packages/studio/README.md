@@ -333,7 +333,10 @@ Until this slice the studio installed only `hostInput.read`. `on_key`, `on_click
 **registered, type-checked, highlighted as active keywords — and never fired.** Measured on
 [`spec/examples/10-game.logo`](../../spec/examples/10-game.logo) (three `on_key` handlers, one
 `on_click`): 131 events, ten coins stamped, **zero prints, zero diagnostics**. A learner pressed the
-arrow keys, clicked the canvas, and got silence with a green diagnostics pane.
+arrow keys, clicked the canvas, and got silence with a green diagnostics pane. `npm run examples`
+could not see it: it runs every program with an **empty** host
+([#955](https://github.com/pmalarme/open-logo/issues/955)), so "`10-game.logo` passes" proved it
+parsed and executed, never that any of its interaction did anything.
 
 `ExecutionRequest.hostInputEvents` now carries the other half of the seam, `toExecuteOptions`
 installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
@@ -353,9 +356,17 @@ nothing, and suppressing `ArrowUp` for it swallows a key for a handler that can 
 registration event carries only the `primitive`'s *name* (`:120-122`), never its key word. Two
 measured proxies were tried and both failed: comparing the replay's event *stream growth* breaks
 because a handler that raises **shortens** the stream (measured, 45 events down to 5 with
-`ol-undefined-var`), and asking after the replay settles breaks because a Worker host settles a turn
-later, by which time the `keydown` has already scrolled the page. A program whose `on_key` key word is
-not a literal collapses the set to `null` and suppresses nothing — the safe direction.
+`ol-undefined-var` — the proxy is not monotonic in the thing it proxies, so it inverts on the error
+path rather than merely losing precision), and asking after the replay settles breaks because a
+Worker host settles a turn later, by which time the `keydown` has already scrolled the page. A
+program whose `on_key` key word is not a literal collapses the set to `null` and suppresses nothing —
+the safe direction.
+
+The pairing is a **reconstruction with a scheduled end**: it rebuilds from two sides what one side
+already knows. [#975](https://github.com/pmalarme/open-logo/issues/975) exposes the registered key
+words from the runtime, and `collectDeclaredKeyHandlers` is *deleted* when it lands rather than kept
+alongside — two ways to answer one question is the drift shape this repository has already been
+bitten by.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
@@ -403,8 +414,8 @@ changes nothing, cost 4.5 s too, because the replay happens either way. Across `
 Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
 `run()` 4.9 ms and `stop()` 41.4 ms. The cost tracks **how much has been drawn**, and an interactive
 program spends its ticks waiting rather than drawing. Cheapening it needs a seek-to-index on
-`@openlogo/turtle`'s animation controller instead of a step loop — that package's to give, filed as
-follow-up work.
+`@openlogo/turtle`'s animation controller instead of a step loop —
+[#977](https://github.com/pmalarme/open-logo/issues/977).
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes
@@ -434,9 +445,10 @@ announcing it would file a run-log entry per keystroke.
 
   **So a program that uses `input` gets no delivered interaction for the rest of that chain.** It is
   a real limitation, not caution: `run()`/`reset()` reopen the window, but a program that asks a
-  question and *then* expects key presses will not receive them. Closing it needs the runtime to
-  expose a delivery boundary (or live host input) rather than a static pre-run schedule, and is filed
-  as follow-up work.
+  question and *then* expects key presses will not receive them. Tracked as
+  [#976](https://github.com/pmalarme/open-logo/issues/976); closing it depends on
+  [#975](https://github.com/pmalarme/open-logo/issues/975), which would give the runtime a delivery
+  boundary (or live host input) instead of a static pre-run schedule.
 
 Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
 settlement has landed, a delivery arriving while a later attempt is in flight — reachable only under a

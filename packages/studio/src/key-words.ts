@@ -135,14 +135,17 @@ export interface DeclaredKeyHandler {
  * - *"Did the replay's event stream grow?"* — a handler that raises **shortens** the stream
  *   (measured: an `on_key "up"` body referencing an undefined variable, followed by twenty prints,
  *   took the stream from 45 events to 5 with `ol-undefined-var`), so a handler that genuinely ran
- *   reported "nothing responded".
+ *   reported "nothing responded". The proxy is **not monotonic in the thing it proxies**: it does
+ *   not merely lose precision, it inverts on the error path.
  * - *"Ask the controller after the replay settles"* — a Worker host settles a turn later, so the
  *   answer arrives after the `keydown` has already been allowed to scroll the page.
  *
  * Reading the declaration is exact for the literal form every OpenLogo document uses, needs no new
  * runtime API, and cannot be perturbed by what the program does at runtime. Each entry carries its
  * **source position** so a caller can pair it with the run's own registration event and ignore a
- * declaration the run never reached — see {@link DeclaredKeyHandler}.
+ * declaration the run never reached — see {@link DeclaredKeyHandler}. That pairing is a
+ * reconstruction with a scheduled end: **#975** exposes the registered key words from the runtime,
+ * and this function goes away when it lands.
  *
  * ## What `null` means
  * A key word that is not a literal — `on_key :chosen [ … ]` — is unknowable before the run, so the

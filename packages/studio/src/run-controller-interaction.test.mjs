@@ -998,6 +998,79 @@ test("#952: a non-literal on_key key word still DELIVERS, it just never suppress
   );
 });
 
+test('#952 (review round 4): the `when "stop"` read is withdrawn under a host that settles LATER too', () => {
+  // Withdrawing right after `beginAttempt` returns only works for a host that settles synchronously.
+  // Under a deferred host the read does not exist yet at that point, and review measured "save?"
+  // arriving live, with a working responder, over an already-`"stopped"` run.
+  const store = OL.createStudioState({
+    source: ['when "stop" [', '  :answer = input "save?"', "]", "wait 5"].join(
+      "\n",
+    ),
+  });
+  const host = createPromptHost();
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    executionHost: deferred.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  deferred.settleNext();
+  assert.deepEqual(host.prompts, []);
+
+  controller.stop();
+  assert.equal(store.getState().runStatus, "stopped");
+  deferred.settleAll();
+
+  assert.deepEqual(
+    host.prompts,
+    ["save?"],
+    "the notification block ran and reached its read",
+  );
+  assert.equal(
+    host.respond,
+    null,
+    "…and the read is withdrawn once the settlement lands, not left answerable",
+  );
+  assert.equal(host.dismissCount, 1);
+  assert.equal(store.getState().runStatus, "stopped");
+});
+
+test("#952 (review round 4): the activation control disappears once an input question closes delivery for good", () => {
+  // `acceptsClick()` had ignored `chainHasAskedQuestion`, so the button stayed in the tab order
+  // while `deliverClick()` returned `false` for the rest of the chain — a permanently inert stop.
+  const store = OL.createStudioState({
+    source: [
+      "on_click [",
+      '  print "clicked"',
+      "]",
+      ':name = input "who?"',
+      "wait 5",
+    ].join("\n"),
+  });
+  const host = createPromptHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.deepEqual(host.prompts, ["who?"]);
+
+  host.respond("Ada");
+  assert.equal(
+    controller.deliverClick(),
+    false,
+    "delivery is closed for the rest of this chain",
+  );
+  assert.equal(
+    controller.acceptsClick(),
+    false,
+    "…so the accessible activation must not stay in the tab order advertising it",
+  );
+});
+
 test("#952: a delivery is refused for a program whose on_key was never reached", () => {
   const store = OL.createStudioState({
     source: [

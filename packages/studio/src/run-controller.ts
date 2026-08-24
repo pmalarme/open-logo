@@ -338,8 +338,7 @@
  * Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
  * `run()` 4.9 ms and `stop()` 41.4 ms. The cost is a function of **how much has been drawn**, and an
  * interactive program spends its ticks waiting rather than drawing. Cheapening it needs a seek-to-
- * index on `@openlogo/turtle`'s animation controller rather than a step loop, which is that package's
- * to give; it is filed as follow-up work.
+ * index on `@openlogo/turtle`'s animation controller rather than a step loop — **#977**.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
@@ -377,9 +376,9 @@
  *   the "#881" section above describes.
  *
  *   So a program that uses `input` receives no delivered interaction for the rest of that chain.
- *   `run()`/`reset()` reopen the window. Closing the gap properly needs the runtime to expose a
- *   delivery boundary (or live host input) rather than a static pre-run schedule; it is filed as
- *   follow-up work.
+ *   `run()`/`reset()` reopen the window. That deviation is tracked as **#976**; closing it depends on
+ *   **#975** giving the runtime a delivery boundary (or live host input) rather than a static
+ *   pre-run schedule.
  *
  * Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
  * settlement has landed, a delivery arriving while a later attempt is in flight — only reachable
@@ -725,6 +724,12 @@ function hasRegisteredHandler(
  * word. Pairing them by the **source position** the registration is stamped with answers exactly
  * "which key words did this run register", using only what each side genuinely knows.
  *
+ * It is a **reconstruction**, and a temporary one: it rebuilds from two sides what one side already
+ * knows. **#975** exposes the registered key words from the runtime; when it lands this function and
+ * its caller are *deleted*, not kept alongside — two ways to answer one question is the drift shape
+ * this repository has already been bitten by in `CORE_COMMANDS`, `isBuiltInName`, and the turtle
+ * alias map.
+ *
  * `null` in, `null` out: a program with a non-literal key word stays unknowable, and a caller
  * suppresses nothing.
  */
@@ -897,9 +902,10 @@ export function createRunController(
   //
   // So the two input sources never coexist in one chain. That is stricter than the spec requires,
   // and it is a real limitation for a program that asks a question and then expects key presses —
-  // documented in `packages/studio/README.md` and filed as follow-up work, because closing it needs
-  // the runtime to expose a delivery boundary (or live host input) rather than a static schedule.
-  // `run()`/`reset()` start a fresh chain and reopen the window.
+  // tracked as **#976**, and documented in `packages/studio/README.md` rather than absorbed
+  // silently. Closing it depends on **#975** (a runtime delivery boundary, or live host input,
+  // instead of a static pre-run schedule). `run()`/`reset()` start a fresh chain and reopen the
+  // window.
   let chainHasAskedQuestion = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
@@ -912,6 +918,9 @@ export function createRunController(
   // Guards the delivery drain against re-entering itself when a host settles synchronously — the
   // same shape `pump()` uses, for the same reason.
   let deliveringInput = false;
+  // #952 (review round 4) — is a Stop `"stop"` notification attempt outstanding? Set by `stop()`,
+  // cleared by the settlement continuation that withdraws any read the notification block reached.
+  let stopNotificationOutstanding = false;
   // How many events the live animation has actually put on the canvas, tracked at the one place a
   // frame is published (`pushTurtleSnapshot`). A delivered-input replay hands this to
   // `shownEventCount` so the picture RESUMES rather than redrawing — and reading it from here rather
@@ -1252,6 +1261,16 @@ export function createRunController(
     });
     pushTurtleSnapshot(current);
     settleAttempt(current);
+    if (stopNotificationOutstanding) {
+      // #952 (review round 4) — the `"stop"` notification block may itself reach an `input`. That
+      // read belongs to an attempt started *after* the question Stop already withdrew, and the
+      // program is terminating, so it ends the only other way `spec/interaction-events.md:110-111`
+      // allows. Withdrawn **here**, in the settlement continuation, rather than after
+      // `beginAttempt` returns: under a host that settles across event-loop turns the read does not
+      // exist yet at that point, and review measured "save?" arriving live over a `"stopped"` run.
+      stopNotificationOutstanding = false;
+      withdrawPendingRead();
+    }
     // #952 — an input delivered while this attempt was still in flight is scheduled but not yet
     // replayed; now that it has landed, deliver it. A no-op whenever nothing arrived meanwhile,
     // which is every attempt of every program that takes no input.
@@ -1421,9 +1440,13 @@ export function createRunController(
     // A capability question ("can a click reach a handler in this run"), not a right-now one: the
     // transient blockers in `acceptsHostInput` — a question outstanding, an answer chain mid-pump —
     // come and go within a single `run()` call, and hiding the control for those moments would make
-    // a tab stop flicker in and out under the learner. It answers registration plus a live chain.
+    // a tab stop flicker in and out under the learner. `chainHasAskedQuestion` is **not** transient:
+    // it closes delivery for the rest of the chain, so a control left visible past it would be a
+    // permanently inert tab stop (measured in review).
     return (
-      chainAcceptsHostInput && hasRegisteredHandler(currentEvents, "on_click")
+      chainAcceptsHostInput &&
+      !chainHasAskedQuestion &&
+      hasRegisteredHandler(currentEvents, "on_click")
     );
   }
 
@@ -1511,18 +1534,15 @@ export function createRunController(
     if (notifies) {
       scheduleHostInput({ kind: "event", event: "stop" });
       shownEventCount = drawnEventCount;
+      // Cleared by the settlement continuation in `playCurrentAttempt`, which is the only point
+      // that exists under every host — see there.
+      stopNotificationOutstanding = true;
       beginAttempt(
         chainSource,
         options?.inputPrompt,
         playCurrentAttempt,
         false,
       );
-      // #952 (review round 3) — the notification block may itself contain `input`, and that read is
-      // created by an attempt started *after* the question this Stop already withdrew. Measured:
-      // `when "stop" [ :answer = input "save?" ]` left "save?" answerable over a `"stopped"` status,
-      // and answering it then produced `ol-limit`. The program is terminating, so the read ends the
-      // only other way `spec/interaction-events.md:110-111` allows.
-      withdrawPendingRead();
     }
     // Latched only now: the in-process host executes through this very signal object, so latching
     // it before the notification attempt would cancel that attempt at its first statement with
