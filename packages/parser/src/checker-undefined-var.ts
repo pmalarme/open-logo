@@ -10,8 +10,11 @@
  * comprehension binder lives only within its own loop/comprehension body, shadowing an outer
  * binding of the same name and never leaking past the end of that body; the top-level program
  * runs in a root frame, and an assignment or a top-level `local` that has no other visible
- * binding creates or updates a *global* — a binding in that root frame, visible everywhere in the
- * program regardless of textual order (`spec/execution-model.md:344-348`). This rule resolves
+ * binding creates or updates a *global* — a binding in that root frame
+ * (`spec/execution-model.md:344-348`). Treating that root-frame binding as visible throughout the
+ * program regardless of textual order is this checker's own resolution model, not a spec rule: the
+ * spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`), never to
+ * variables. This rule resolves
  * every read against that chain: innermost binder scope → the enclosing procedure's own frame
  * (if any) → the global/root frame.
  *
