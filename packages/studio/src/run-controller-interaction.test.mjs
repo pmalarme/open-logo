@@ -605,11 +605,10 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
   controller.run();
   deferred.settleNext();
 
-  // Round 6: the first press under a host that settles later reports `false`, and that is the fix,
-  // not a regression. The old expectation here was `true` — asserted from the declaration alone,
-  // before anything had run — which is precisely how a key could be suppressed while nothing
-  // handled it. One unsuppressed press per key word (the page scrolls once) is the safe direction;
-  // the second press reports `true` because the first one's settlement recorded the invocation.
+  // Round 7: under a host that settles later this is `false` for **every** press, because the
+  // delivery has not run by the time the answer is needed — so such a host suppresses nothing at
+  // all (#975). The earlier expectations here asserted `true` from history: first from the
+  // declaration alone, then from an "ever responded" set. Both suppressed presses that ran nothing.
   assert.equal(
     controller.deliverKey("left"),
     false,
@@ -620,8 +619,8 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
 
   assert.equal(
     controller.deliverKey("left"),
-    true,
-    "once a settlement has shown the handler running, later presses are the program's",
+    false,
+    "and still false — a settled *earlier* press is history, not evidence about this one",
   );
   deferred.settleAll();
 
@@ -903,7 +902,7 @@ test('#952 (QA finding 1): a `when "stop"` program whose clock never ticks recei
   assert.equal(store.getState().runStatus, "stopped");
 });
 
-test("#952 (QA finding 2 + maintainer criterion 2): the boolean answers whether a handler NAMES the key, read from the program's declaration", () => {
+test("#952 (review round 7): the boolean answers whether THIS press ran a handler — false once the program's ticks are exhausted", () => {
   const store = OL.createStudioState({
     source: ['on_key "left" [', '  print "turned"', "]", "wait 1"].join("\n"),
   });
@@ -919,7 +918,7 @@ test("#952 (QA finding 2 + maintainer criterion 2): the boolean answers whether 
   assert.equal(
     controller.deliverKey("left"),
     true,
-    'on_key "left" names this key, so a press of it is the program\'s to handle',
+    "tick 1 exists and the handler names this key, so this press genuinely fires",
   );
   assert.deepEqual(store.getState().output, ["turned"]);
 
@@ -929,11 +928,13 @@ test("#952 (QA finding 2 + maintainer criterion 2): the boolean answers whether 
     "no handler names this key, so it must keep its ordinary browser behavior",
   );
 
+  // The case an "ever responded" set got wrong: invocation counts [0,1,2,2] returned
+  // [true,true,true], so this press ran nothing and was still suppressed. Comparing strictly
+  // across the delivery is what makes it false.
   assert.equal(
     controller.deliverKey("left"),
-    true,
-    "still the program's key, even though `wait 1` never reaches tick 2 for it to fire on — " +
-      "how many ticks a program will consume is not knowable without running it",
+    false,
+    "`wait 1` never reaches tick 2, so this press ran nothing and must not be suppressed",
   );
   assert.deepEqual(store.getState().output, ["turned"]);
 

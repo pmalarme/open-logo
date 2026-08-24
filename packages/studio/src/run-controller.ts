@@ -590,24 +590,31 @@ export interface RunController {
    *
    * The press is scheduled at the next studio tick and the current chain is replayed with it, so
    * every matching `on_key` handler fires. **This is the one place the boolean is defined:** it
-   * reports whether *this press actually ran a handler* — measured across the delivery as a strict
-   * increase in `on_key` invocation markers at the positions the program declares this key at (see
-   * `onKeyInvocationsByKeyWord`). It is `false` for a key no handler names, for a handler the run
-   * never reached, for a press past the program's last tick, **and** for a press scheduled before
-   * the handler registered — the last being the case that made the two earlier mechanisms report
-   * `true` while nothing ran, which is silent interception.
+   * reports whether *this press actually ran a handler*, compared as a strict increase in `on_key`
+   * invocation markers across this one delivery (see `onKeyInvocationsByKeyWord`). It is `false`
+   * for a key no handler names, for a handler the run never reached, for a press scheduled before
+   * the handler registered, and for a press past the program's final usable tick.
+   *
+   * Every formulation that answers from *history* rather than from this delivery re-creates silent
+   * interception somewhere, and three did: stream length inverted on the error path, a settle-later
+   * query answered too late, declaration/registration pairing proved only *eventual* registration,
+   * and an "ever responded" set kept returning `true` after the last tick that could fire
+   * (invocation counts `[0,1,2,2]` → returns `[true,true,true]`).
+   *
+   * **Under a host that settles across event-loop turns this is always `false`**, because the
+   * delivery has not run by the time the answer is needed — so such a host suppresses nothing at
+   * all. That is a real capability gap (**#975**), and it is the deliberate direction: the
+   * maintainer's constraint is that silent *interception* is worse than silent *inaction*, because
+   * it hits every learner and presents as "the editor is broken". A page that scrolls during a game
+   * is a nuisance; a key that vanishes with nothing happening is a bug report.
    *
    * `canvas-interaction.ts` decides whether to suppress the browser's own scrolling from this
-   * answer, so the narrowness is load-bearing: swallowing arrows for a program that registered
-   * `on_key "up"` only, or for one with no interaction at all, would break scrolling for learners
-   * who never asked for interaction. The bug this slice fixes is silent inaction; the regression it
-   * must not introduce is silent interception, which is worse because it affects every learner
-   * rather than only interactive ones.
+   * answer, which is why the narrowness is load-bearing rather than fussy.
    *
    * A program whose `on_key` key word is not a literal reports `false` and suppresses nothing, while
-   * still delivering the press — the safe direction. `false` with **no execution at all** whenever
-   * the chain is not accepting input or the run registered no `on_key` handler. See this module's
-   * doc comment ("#952") for those gates and for why a delivery costs a tick rather than a timestamp.
+   * still delivering the press. `false` with **no execution at all** whenever the chain is not
+   * accepting input or the run registered no `on_key` handler. See this module's doc comment
+   * ("#952") for those gates and for why a delivery costs a tick rather than a timestamp.
    */
   deliverKey(key: string): boolean;
   /**
@@ -908,17 +915,6 @@ export function createRunController(
   // registration with. `null` means at least one `on_key` names a non-literal key, so the set is
   // unknowable before the run. See `key-words.ts`'s `collectDeclaredKeyHandlers`.
   let declaredKeyHandlers: readonly DeclaredKeyHandler[] | null = null;
-  // #952 (review round 6) — the key words this chain has been **observed to actually run a handler
-  // for**, accumulated as each attempt settles. This is the boolean `deliverKey` reports, and it is
-  // the only formulation that is sound on all three axes at once:
-  // - a key no handler names, a handler the run never reached, and a press past the program's last
-  //   tick never enter it, so none of them is ever suppressed;
-  // - a press scheduled *before* its handler registered does not enter it either — the case that
-  //   made both earlier mechanisms report `true` while nothing ran (silent interception);
-  // - it is derived from settled events rather than asked of a live host, so a host that settles
-  //   across event-loop turns costs at most **one** unsuppressed press per key word (that press
-  //   scrolls the page, which is the safe direction) instead of never suppressing at all.
-  let respondedKeyWords = new Set<string>();
   // #952 (review round 1/3) — has this chain ever put an `input` question to the learner? Once it
   // has, the chain stops accepting delivered input for good, under **every** host.
   //
@@ -1204,18 +1200,6 @@ export function createRunController(
   ): TurtleAnimationController {
     answers = settlement.retainedAnswers;
     currentEvents = settlement.events;
-    // #952 — record which key words this run has now been seen to actually run a handler for. Done
-    // here, where the settled stream arrives, so it is correct under a host that settles later too.
-    if (declaredKeyHandlers !== null) {
-      for (const [keyWord, invocations] of onKeyInvocationsByKeyWord(
-        declaredKeyHandlers,
-        settlement.events,
-      )) {
-        if (invocations > 0) {
-          respondedKeyWords.add(keyWord);
-        }
-      }
-    }
     preparedSource = sourceText;
     // `host` is captured into `pendingRead` so a question can only ever exist when a host was
     // supplied — true by construction rather than by a runtime check.
@@ -1473,13 +1457,26 @@ export function createRunController(
     if (!acceptsHostInputFor("on_key")) {
       return false;
     }
+    const declared = declaredKeyHandlers;
+    // #952 (review round 7) — the answer is "did **this press** run a handler", compared strictly
+    // across this one delivery. Membership of an "ever responded" set was tried and is unsound in
+    // the same direction as every earlier mechanism: invocation counts `[0,1,2,2]` produced returns
+    // `[true,true,true]`, so a press past the program's final usable tick ran nothing and was still
+    // suppressed. Every formulation that answers from history rather than from this delivery
+    // re-creates silent interception somewhere.
+    const before =
+      declared === null
+        ? 0
+        : (onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0);
     scheduleHostInput({ kind: "key", key });
     drainDeliveredInput();
-    // Whether a handler for this key word has now genuinely run in this chain — see
-    // `respondedKeyWords`. Read *after* the drain, so a synchronous host answers on the very first
-    // press; a host that settles later answers from the press before, costing one unsuppressed
-    // press per key word rather than a wrong suppression.
-    return respondedKeyWords.has(key);
+    if (declared === null) {
+      // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing.
+      return false;
+    }
+    const after =
+      onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0;
+    return after > before;
   }
 
   function deliverClick(): boolean {
@@ -1530,7 +1527,6 @@ export function createRunController(
     chainAcceptsHostInput = true;
     chainHasAskedQuestion = false;
     declaredKeyHandlers = collectDeclaredKeyHandlers(chainSource);
-    respondedKeyWords = new Set();
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1633,7 +1629,6 @@ export function createRunController(
     chainAcceptsHostInput = false;
     chainHasAskedQuestion = false;
     declaredKeyHandlers = null;
-    respondedKeyWords = new Set();
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;

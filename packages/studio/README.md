@@ -345,26 +345,35 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:194-198` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-Both report whether **the input actually ran a handler** — for `deliverKey`, measured across the
-delivery as a strict increase in `on_key` invocation markers at the positions the program declares
-that key at. It is `false` for a key no handler names, for a handler the run never reached, for a
-press past the program's last tick, and for a press scheduled **before** the handler registered.
+Both report whether **this input actually ran a handler** — for `deliverKey`, compared as a strict
+increase in `on_key` invocation markers across that one delivery. It is `false` for a key no handler
+names, for a handler the run never reached, for a press scheduled **before** the handler registered,
+and for a press past the program's final usable tick.
 
-That last case is why the count exists. Two earlier mechanisms reported `true` there while nothing
-ran — which is `preventDefault` without delivery, i.e. silent interception, the exact risk this gate
-is built against. Each failed on its own axis: the replay's event *stream length* is not **monotonic**
-(a handler that raises *shortens* the stream, measured 45 events down to 5 with `ol-undefined-var`,
-reporting "nothing responded" for a handler that ran), and asking after the replay settles fails on
-**timing** (a Worker host settles a turn later, after the `keydown` has already scrolled). Counting
-invocation markers is sound on both, and on **aliasing**: `spec/interaction-events.md:102-103` gives
-each invocation a block-head `instruction` event, registration emits an `instruction` *and* a
-`primitive` at the same position, so `invocations = instructions − registrations` per position.
-`repeat 2 [ on_key "up" [ … ] ]` registers twice at one position and one press fires **both** — the
-count says 2 and the program prints twice, an independent witness agreeing with the arithmetic. It is
-a **count, not a boolean**, and is read as a strict increase across one delivery.
+Every formulation that answers from *history* rather than from the delivery re-created silent
+interception somewhere, and four did — which is why the narrow one is worth the cost. The replay's
+event *stream length* is not **monotonic** (a handler that raises *shortens* the stream, measured 45
+events down to 5 with `ol-undefined-var`, reporting "nothing responded" for a handler that ran).
+Asking after the replay settles fails on **timing**. Pairing declarations with registration events by
+source position proved only **eventual** registration, so a press before the handler existed was
+suppressed with nothing running. And an "ever responded" set kept answering `true` after the last
+tick that could fire — invocation counts `[0,1,2,2]` gave returns `[true,true,true]`.
+
+Counting invocation markers per delivery is sound on all of those, and on **aliasing**:
+`spec/interaction-events.md:102-103` gives each invocation a block-head `instruction` event, while
+registration emits an `instruction` *and* a `primitive` at the same position, so
+`invocations = instructions − registrations` per position. `repeat 2 [ on_key "up" [ … ] ]` registers
+twice at one position and one press fires **both** — the count says 2 and the program prints twice,
+an independent witness agreeing with the arithmetic.
+
+**Under a host that settles across event-loop turns it is always `false`, so such a host suppresses
+nothing at all.** That is a real capability gap ([#975](https://github.com/pmalarme/open-logo/issues/975)),
+and it is the deliberate direction: silent *interception* is worse than silent *inaction*, because it
+hits every learner and presents as "the editor is broken". A page that scrolls during a game is a
+nuisance; a key that vanishes with nothing happening is a bug report.
 
 A program whose `on_key` key word is not a literal reports `false` and suppresses nothing while still
-delivering the press — the safe direction.
+delivering the press.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
