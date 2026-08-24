@@ -20,7 +20,9 @@
 // half (issue #149): both share the identical bare-identifier-vs-quoted-word disambiguation.
 //
 // The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
-// suites assert that the seven profile block-heads move, this file asserts that nothing else does.
+// suites assert that the six profile block-heads plus the Sprites mode-switch command `tell`
+// (which takes no block — `spec/tooling.md:30` keeps that distinction) move, while this file
+// asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -825,7 +827,7 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // `for fd in [1 2]` — and, separately, classifying the profile heads *unconditionally*, dropping
 // the profile gate #740 added. Both halves would have moved the controls below: the first covers
 // `local end`/`local empty` directly, the second is what test 3 measures. Issue #832 then reported
-// the seven heads as never `keyword`, which is not reproducible — that measurement passed its
+// the seven names as never `keyword`, which is not reproducible — that measurement passed its
 // options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
 // to `{}` and every column read the Core-only answer.
 //
