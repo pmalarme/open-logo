@@ -81,6 +81,7 @@ import type {
   ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
+import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
@@ -928,7 +929,7 @@ export function requireNumber(
 /**
  * Require `value` to be a whole number (with the same word-that-reads-as-a-number coercion as
  * {@link requireNumber}), or `ol-type` — the TYPE half of `repeat`'s count validation
- * (`spec/execution-model.md:367-369`), checked before the RANGE (negative) half its caller
+ * (`spec/execution-model.md:389-391`), checked before the RANGE (negative) half its caller
  * performs separately. Exported so `index.ts`'s `Repeat` statement handling can reuse it without
  * duplicating the word-coercion logic.
  */
@@ -4923,18 +4924,6 @@ function evaluateRandom(
 // never reached: {@link isSupportedComprehensionBody} keeps such a body from being "supported" in
 // the first place, so the whole comprehension is deferred rather than partially evaluated.
 
-/** The Core primitives whose kind is Command (`spec/commands.md`) — mirrors the parser's static
- * checker's `checker-control-flow.ts` `CORE_COMMANDS` (issue #114) exactly, since `execute()`
- * never runs `check()` and this runtime copy is what actually classifies a comprehension body's
- * final statement as command-shaped (reports nothing) vs. reporter-shaped (reports a value) for
- * the block-result rule. Not re-exported by `@openlogo/parser`, so duplicated here rather than
- * imported. */
-const COMPREHENSION_COMMAND_NAMES: ReadonlySet<string> = new Set([
-  "print",
-  "show",
-  "randomize",
-]);
-
 /**
  * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
  * "value-producing" for the block-result rule — mirrors the checker's `VALUE_PRODUCING_KINDS`
@@ -4955,7 +4944,7 @@ const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
 /** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a statement
  * kind with no expression counterpart (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`). A
  * `Call`/`ParenCall` is always narrowed — whether it is value-producing (a reporter) or not (a
- * Core command) is a separate question {@link isValueProducingStatement} answers. */
+ * command) is a separate question {@link isValueProducingStatement} answers. */
 function asExpressionStatement(
   statement: StatementNode,
 ): ExpressionNode | undefined {
@@ -4970,16 +4959,18 @@ function asExpressionStatement(
 }
 
 /**
- * Does `statement` produce a value the surrounding block-result rule can use? Mirrors the
- * checker's `producesValue` (`checker-control-flow.ts`, issue #114) exactly: a `Call`/`ParenCall`
- * produces a value unless its callee is a known Core command (`print`/`show`/`randomize`); every
- * other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind always does.
+ * Does `statement` produce a value the surrounding block-result rule can use? Judged by the same
+ * classification the checker's `producesValue` uses (`checker-control-flow.ts`): a `Call`/
+ * `ParenCall` produces a value unless its callee is a primitive the registry declares a **Command**
+ * ({@link isPrimitiveCommandName} — `@openlogo/parser`'s profile-blind lookup over the
+ * profile-keyed registry, issue #932); every other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind
+ * always does. `execute()` never runs `check()`, so this is what classifies a comprehension body's
+ * final statement at runtime — reading the one registry both stages share rather than a second
+ * copy of its names.
  */
 function isValueProducingStatement(statement: StatementNode): boolean {
   if (statement.kind === "Call" || statement.kind === "ParenCall") {
-    return !COMPREHENSION_COMMAND_NAMES.has(
-      statement.callee.name.toLowerCase(),
-    );
+    return !isPrimitiveCommandName(statement.callee.name);
   }
   return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
 }
@@ -5014,11 +5005,11 @@ function isSupportedLeadingBodyStatement(
 
 /**
  * Is `statement` a final comprehension body statement this evaluator can run? `Return`/`Stop` are
- * structurally supported (as above). A `print`/`show`/`randomize` call is also structurally
- * supported even though {@link evaluate} never gives it a value — {@link runComprehensionBody}
- * correctly turns it into `ol-no-value` (it is command-shaped, not a not-yet-implemented shape),
- * reproducing the spec's own worked example `map num in :nums [ print :num ]` → `ol-no-value`.
- * Any other expression-shaped statement is supported when {@link isSupportedExpression} says so.
+ * structurally supported (as above). A **Command** call is also structurally supported even though
+ * {@link evaluate} never gives it a value — {@link runComprehensionBody} correctly turns it into
+ * `ol-no-value` (it is command-shaped, not a not-yet-implemented shape), reproducing the spec's own
+ * worked example `map num in :nums [ print :num ]` → `ol-no-value`. Any other expression-shaped
+ * statement is supported when {@link isSupportedExpression} says so.
  */
 function isSupportedFinalBodyStatement(
   statement: StatementNode,
@@ -5030,7 +5021,7 @@ function isSupportedFinalBodyStatement(
   }
   if (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
-    COMPREHENSION_COMMAND_NAMES.has(statement.callee.name.toLowerCase())
+    isPrimitiveCommandName(statement.callee.name)
   ) {
     return statement.args.every((argument) =>
       isSupportedExpression(argument, procedures, structs),

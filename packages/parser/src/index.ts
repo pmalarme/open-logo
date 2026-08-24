@@ -106,6 +106,12 @@ export {
   // rather than enumerated, and how its tests assert coverage of primitives they never name.
   activeProfilePrimitiveArityRange,
   profilePrimitiveNames,
+  // Command-vs-reporter classification, derived from the same profile-keyed registry as the
+  // arities (issue #932). `isPrimitiveCommandName` is the profile-blind half `@openlogo/runtime`
+  // consults — it executes without an active-profile set — so `check()` and `execute()` judge a
+  // comprehension body's last statement against one registry instead of two hand-written lists.
+  isPrimitiveCommandName,
+  isActiveProfileCommandName,
   // The Turtle & Rendering alias half: `setxy`/`seth`/`setcolor`/`setbg`/`setwidth` and the
   // canonical each is a spelling of (issue #841). An `aliasOf` edge nothing exposes is an edge
   // nothing can verify, so ADR-0021 §3 requires an enumerable canonical map "consumed by the

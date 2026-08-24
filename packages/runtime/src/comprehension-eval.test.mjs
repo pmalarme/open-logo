@@ -13,6 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import * as OL from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
@@ -439,4 +440,74 @@ test("comprehension binders shadow an outer variable of the same name only for t
   );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [100, [1, 2]]);
+});
+
+// --- issue #932: command-vs-reporter classification comes from the primitive registry ----------
+//
+// `evaluate.ts` used to carry a verbatim copy of the checker's three-name list
+// (`print`/`show`/`randomize`) to decide whether a comprehension body's final statement reports a
+// value. Both copies missed every non-Core command, so a body ending in `forward`/`beep`/`fd` was
+// SILENT here and in `check()` alike — agreement on the wrong answer. The classification is now
+// `@openlogo/parser`'s `isPrimitiveCommandName`, read from the same profile-keyed registry the
+// checker uses, so these tests pin the runtime half and the two stages' agreement.
+
+test("a comprehension body ending in a non-Core command raises ol-no-value (issue #932)", () => {
+  for (const body of ["forward :n", "home", "beep", "fd :n", "grid"]) {
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    assert.deepEqual(
+      result.diagnostics.map((finding) => finding.code),
+      ["ol-no-value"],
+      `expected ol-no-value for a body ending in ${body}`,
+    );
+    assert.deepEqual(result.diagnostics[0].params, { form: "map" });
+  }
+});
+
+test("a comprehension body ending in a non-Core reporter is not reported ol-no-value (issue #932)", () => {
+  for (const body of ["xcor", ":n * 2", "count [1 2]"]) {
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    assert.deepEqual(
+      result.diagnostics,
+      [],
+      `a body ending in ${body} reports a value`,
+    );
+  }
+});
+
+test("check() and execute() agree about ol-no-value for every registered primitive (issue #932)", () => {
+  // The derived sweep: it names no primitive, so it covers each profile's whole table and extends
+  // to a future profile's with no edit. Only `ol-no-value` membership is compared — a reporter fed
+  // numeric arguments may still halt with its own runtime diagnostic, which is not this subject.
+  let compared = 0;
+  for (const profile of OL.OL_CHECK_PROFILES) {
+    const profiles =
+      profile === "core-language" ? [profile] : ["core-language", profile];
+    for (const name of OL.profilePrimitiveNames(profile)) {
+      const { min } = OL.activeProfilePrimitiveArityRange(name, profiles);
+      const args = Array.from({ length: min }, (_, index) => index + 1);
+      const source = `:out = map n in [1 2 3] [ ${[name, ...args].join(" ")} ]`;
+      const { ast } = OL.parse(source, doc);
+      const statically = OL.check(ast, { profiles, source }).diagnostics.some(
+        (finding) => finding.code === "ol-no-value",
+      );
+      const dynamically = execute(source, doc).diagnostics.some(
+        (finding) => finding.code === "ol-no-value",
+      );
+      assert.equal(
+        dynamically,
+        statically,
+        `${source} — check() and execute() disagree about ol-no-value`,
+      );
+      assert.equal(
+        statically,
+        OL.isPrimitiveCommandName(name),
+        `${source} — ol-no-value must follow the registry's kind for ${name}`,
+      );
+      compared += 1;
+    }
+  }
+  assert.ok(
+    compared > 50,
+    `expected every profile's primitives to be compared, got ${compared}`,
+  );
 });
