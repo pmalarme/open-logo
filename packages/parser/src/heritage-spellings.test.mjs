@@ -93,7 +93,7 @@ test("a `to` opener that begins an inline block body registers arity, matching n
 });
 
 test("a `to` procedure closes with `end` or `end define`, never `end to`", () => {
-  // spec/grammar.md:145-147 — `define-end ::= "end" ["define"]` is shared by both spellings.
+  // spec/grammar.md:149 — `define-end ::= "end" [ "define" ]` is shared by both spellings.
   parseClean("to greet\n  print 1\nend define\n");
   const { diagnostics } = OL.parse("to greet\n  print 1\nend to\n", doc);
   assert.ok(diagnostics.length > 0, "`end to` is not a valid procedure close");

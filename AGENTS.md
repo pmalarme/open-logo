@@ -162,9 +162,10 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
+npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
 ```
 
-These nine scripts are the CI-enforced Definition of Done; see
+These ten scripts are the CI-enforced Definition of Done; see
 [`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
@@ -208,6 +209,33 @@ excerpt fails like any other defect. Never add an entry to silence a real defect
 maintainer-owned). One honest limit, which the gate reports as `PARTIAL` rather than hiding:
 execution stops at a block's first runtime error, so lines below it are parsed and statically
 checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
+
+`npm run spec-citations` (issue #934, logic in `scripts/spec-citations-gate.mjs`) checks the other
+ungated prose surface: the **2,400+ `spec/<file>.md:<line>` citations** hand-written into comments,
+tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
+nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
+merged green carrying ten that pointed at the wrong lines.
+
+**Read the coverage statement it prints, which names what it does *not* check.** A stale citation
+fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
+past EOF, inverted range, or a region holding no text — covered); it resolves but points at the
+**wrong passage while paraphrasing** (*not* covered, except where the site **quotes an EBNF
+production**, which must then be inside the range cited); the line is right and the **prose beside it
+misstates it** (*not* covered); or it is a **stale implementation-status claim** — "not yet
+implemented", "a later slice will…" — which is a claim about the repository, not the spec, and must
+name a tracking issue so something can re-check it (the sweep for the ones that predate the gate is
+#961). Do not read a green run as "every citation is right".
+Two rules matter when you touch it. **Enumeration is exhaustive, not separator-driven:** citations
+are joined by commas, by line wraps, by slashes, by a `,139` tail, and by whole clauses of prose, so
+every bare `:N` in a citing file is enumerated and accounted for — a separator regex is not a
+completeness argument, and three separately-written ones gave three different counts of this corpus.
+And **there is no automatic tolerance**: the gate never searches nearby lines and passes, because the
+wrong passage is usually *adjacent* to the right one. A citation it cannot resolve either fails or
+carries an entry in `scripts/spec-citations-exceptions.json` that declares the exact state it is in,
+keyed by a hash of the citing line, the citation, the entry's own `why`, **and the issue it is
+tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
+be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
+`UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel
