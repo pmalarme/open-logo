@@ -27,6 +27,118 @@ import * as OL from "@openlogo/parser";
 
 const document = "primitive-kind.logo";
 
+/**
+ * **The oracle.** Every registered primitive's Kind, read off the spec BY HAND — not from the
+ * registry under test — so a wrong Kind fails here instead of being agreed with by every sweep
+ * that derives its expectation from the lookup it is testing. QA's mutation probe on issue #932
+ * measured exactly that gap: flipping `stamp` to `reporter`, contradicting `spec/commands.md:1593`,
+ * passed 4203 tests and 898 fixtures. This table is what closes it.
+ *
+ * Sources, one per profile: `spec/commands.md`'s per-primitive `- **Kind:**` lines (Core and
+ * Turtle & Rendering); `spec/data-structures.md`'s `R` rows; `spec/geometry-module.md`'s overlay
+ * table (`C`); `spec/turtles-and-sprites.md`'s "Canonical forms" (`R`);
+ * `spec/interaction-events.md`'s `### input`/`### wait` and Sound entries; and
+ * `spec/conformance.md`'s Educational and Tutor (AI) signature tables (`Command`). The five
+ * Turtle & Rendering one-word alias spellings carry their canonical's Kind because
+ * `spec/commands.md` documents them on that primitive's own **Aliases** row, and Kind is a
+ * property of the primitive, not of the spelling.
+ */
+const SPEC_PRIMITIVE_KIND = new Map([
+  // Core Language — `spec/commands.md`: `print`, `show`, and `randomize` are the only Commands.
+  ["print", "command"],
+  ["show", "command"],
+  ["randomize", "command"],
+  ["thing", "reporter"],
+  ["abs", "reporter"],
+  ["sqrt", "reporter"],
+  ["int", "reporter"],
+  ["round", "reporter"],
+  ["power", "reporter"],
+  ["random", "reporter"],
+  ["sin", "reporter"],
+  ["cos", "reporter"],
+  ["tan", "reporter"],
+  ["pi", "reporter"],
+  ["empty?", "reporter"],
+  ["member?", "reporter"],
+  ["is_a?", "reporter"],
+  ["repcount", "reporter"],
+  ["word", "reporter"],
+  ["sentence", "reporter"],
+  ["first", "reporter"],
+  ["last", "reporter"],
+  ["butfirst", "reporter"],
+  ["butlast", "reporter"],
+  ["fput", "reporter"],
+  ["lput", "reporter"],
+  ["count", "reporter"],
+  ["uppercase", "reporter"],
+  ["lowercase", "reporter"],
+  // Turtle & Rendering — movement and pen/screen Commands, position/heading Reporters.
+  ["forward", "command"],
+  ["back", "command"],
+  ["left", "command"],
+  ["right", "command"],
+  ["home", "command"],
+  ["set_xy", "command"],
+  ["setxy", "command"],
+  ["set_heading", "command"],
+  ["seth", "command"],
+  ["show_turtle", "command"],
+  ["hide_turtle", "command"],
+  ["pen_up", "command"],
+  ["pen_down", "command"],
+  ["clear_screen", "command"],
+  ["clean", "command"],
+  ["set_color", "command"],
+  ["setcolor", "command"],
+  ["set_background", "command"],
+  ["setbg", "command"],
+  ["set_width", "command"],
+  ["setwidth", "command"],
+  ["fill", "command"],
+  ["stamp", "command"],
+  ["set_shape", "command"],
+  ["xcor", "reporter"],
+  ["ycor", "reporter"],
+  ["heading", "reporter"],
+  ["pos", "reporter"],
+  ["towards", "reporter"],
+  ["distance", "reporter"],
+  // Data — every row of the list/dict/record tables is `R`.
+  ["reverse", "reporter"],
+  ["pick", "reporter"],
+  ["sort", "reporter"],
+  ["list", "reporter"],
+  ["dict", "reporter"],
+  ["keys", "reporter"],
+  ["values", "reporter"],
+  ["type_of", "reporter"],
+  // Geometry — the three renderer-backed overlay primitives are `C`.
+  ["grid", "command"],
+  ["axes", "command"],
+  ["measure", "command"],
+  // Sprites — the three turtle-identity reporters are `R`.
+  ["new_turtle", "reporter"],
+  ["who", "reporter"],
+  ["turtles", "reporter"],
+  // Interaction & Events — `wait` is a command, `input` a reporter.
+  ["wait", "command"],
+  ["input", "reporter"],
+  // Sound — all five are commands.
+  ["set_tempo", "command"],
+  ["beep", "command"],
+  ["note", "command"],
+  ["rest", "command"],
+  ["play", "command"],
+  // Educational and Tutor (AI) — every meta-command is `Command`, arity 0.
+  ["explain", "command"],
+  ["why", "command"],
+  ["hint", "command"],
+  ["debug", "command"],
+  ["challenge", "command"],
+]);
+
 /** Every profile, always paired with Core so keywords and Core primitives stay visible. */
 function activeSet(profile) {
   return profile === "core-language" ? [profile] : ["core-language", profile];
@@ -60,6 +172,41 @@ function bareCall(name, arity) {
 // --- the derived sweeps -------------------------------------------------------
 //
 // These name no command. Their subject is "every primitive of every profile in the DAG".
+
+test("every registered primitive's Kind matches the spec, in both directions (issue #932)", () => {
+  // The oracle test. Unlike the sweeps below it does NOT ask the implementation what a name's kind
+  // is — it asserts the spec's answer, so flipping any single row of any profile's table fails
+  // here. Both directions: every registered name is covered by the oracle, and every oracle entry
+  // is a name some profile actually registers (so the table cannot rot into stale rows either).
+  const registered = new Set();
+  for (const profile of OL.OL_CHECK_PROFILES) {
+    for (const name of OL.profilePrimitiveNames(profile)) {
+      registered.add(name);
+      const expected = SPEC_PRIMITIVE_KIND.get(name);
+      assert.notEqual(
+        expected,
+        undefined,
+        `${name} (registered by ${profile}) has no spec-derived Kind in this test's oracle`,
+      );
+      assert.equal(
+        OL.isPrimitiveCommandName(name) ? "command" : "reporter",
+        expected,
+        `${name} (registered by ${profile}) is classified against the spec's Kind`,
+      );
+    }
+  }
+  for (const name of SPEC_PRIMITIVE_KIND.keys()) {
+    assert.ok(
+      registered.has(name),
+      `the oracle lists ${name}, which no profile registers — stale row`,
+    );
+  }
+  assert.equal(
+    registered.size,
+    SPEC_PRIMITIVE_KIND.size,
+    "the oracle and the registry must cover exactly the same names",
+  );
+});
 
 test("every registered primitive is classified as a command or a reporter, and the two lookups agree", () => {
   let registered = 0;
@@ -168,7 +315,7 @@ test("classification is case-insensitive, like every other name lookup", () => {
 
 test("a Heritage alias is classified as the canonical it is a spelling of", () => {
   // `fd` → `forward` (a command) and `se` → `sentence` (a reporter): Heritage is "alternate
-  // spellings only, no new semantics" (`spec/conformance.md:146`), so an alias must not carry a
+  // spellings only, no new semantics" (`spec/conformance.md:150`), so an alias must not carry a
   // classification of its own.
   assert.equal(OL.isPrimitiveCommandName("fd"), true);
   assert.equal(OL.isPrimitiveCommandName("se"), false);
@@ -245,6 +392,50 @@ test("a value-producing comprehension body stays clean (regression control)", ()
       `expected a clean check for a body ending in ${body}`,
     );
   }
+});
+
+test("the Data, Interaction & Events and Tutor profiles are classified too (issue #932)", () => {
+  // The three profiles the first round of these tests left unpinned by name. `wait`/`input` are
+  // the sharpest pair in the registry: one profile, one command, one reporter, so swapping them
+  // is invisible to any sweep that asks the implementation what they are.
+  const profiles = [
+    "core-language",
+    "data",
+    "interaction-events",
+    "educational",
+    "tutor-ai",
+  ];
+  for (const body of ["wait 1", "explain", "hint", "debug", "why"]) {
+    assert.deepEqual(
+      checkCodes(`:x = map n in [1 2 3] [ ${body} ]`, profiles),
+      ["ol-no-value"],
+      `expected exactly ol-no-value for a body ending in ${body}`,
+    );
+  }
+  for (const body of ["input 1", "reverse [1 2]", "keys :d", "sort [2 1]"]) {
+    assert.deepEqual(
+      checkCodes(`:d = {}\n:x = map n in [1 2 3] [ ${body} ]`, profiles),
+      [],
+      `expected a clean check for a body ending in ${body}`,
+    );
+  }
+});
+
+test("challenge is classified a command even though it has no checker visibility yet (issue #932)", () => {
+  // `challenge` is the one registered primitive `checker-names.ts` deliberately withholds
+  // visibility from — it has no runtime, so a program using it must still be told
+  // `ol-unknown-command`. Its Kind is registered nonetheless, so a comprehension body ending in it
+  // now reports BOTH codes where before issue #932 it reported only the first. Pinned as measured
+  // rather than left to be discovered: the two rules answer different questions (is this name
+  // visible? does this statement produce a value?), and `spec/tooling.md:179-192` gives them
+  // separate rows.
+  assert.deepEqual(
+    checkCodes(":x = map n in [1 2 3] [ challenge ]", [
+      "core-language",
+      "tutor-ai",
+    ]),
+    ["ol-unknown-command", "ol-no-value"],
+  );
 });
 
 test("the spec's own instruction-block example is style-clean (issue #932)", () => {

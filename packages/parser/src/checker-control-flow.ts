@@ -88,11 +88,11 @@ interface Context {
 }
 
 /**
- * AST node kinds that are always value-producing expressions in the Core grammar. Exported so
- * `checker-style.ts`'s `ol-style-useless-value` rule (issue #115) reuses the exact same
- * classification instead of drifting from a second copy.
+ * AST node kinds that are always value-producing expressions in the Core grammar. Consumed by
+ * {@link producesValue} below, which is what `checker-style.ts`'s `ol-style-useless-value` rule
+ * (issue #115) imports so the two codes share one classification.
  */
-export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "NumberLit",
   "WordLit",
   "BooleanLit",
@@ -117,7 +117,8 @@ export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
  * from the one registry that also carries their arities, so a primitive added to a profile is
  * classified here without an edit. A callee no active profile registers (a user procedure, a
  * misspelling, a primitive of an inactive profile) is treated as value-producing: its kind is not
- * statically known, and "tools MUST NOT report speculative errors" (`spec/tooling.md:167`).
+ * statically known, and "Tools MUST NOT report speculative type errors when dynamic values are
+ * unknown" (`spec/tooling.md:196-197`).
  */
 export function producesValue(
   node: StatementNode,

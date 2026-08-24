@@ -36,22 +36,23 @@ export interface ArityRange {
 
 /**
  * A primitive's **Kind**, as each primitive's own entry in the spec states it: a `command` performs
- * an effect and reports no value, a `reporter` reports one (`spec/commands.md`'s "Notation and
- * language surface": *"**Result** is the reported value or `—` for commands"*).
+ * an effect and reports no value, a `reporter` reports one (`spec/commands.md:15,17` — *"**Kind** is
+ * **Command**, **Reporter**, or **Special form**"*, and *"**Result** is the reported value or `—`
+ * for commands and effect-only special forms"*).
  *
- * The block-result rule judges a block by its last statement (`spec/execution-model.md:200-227`),
- * so this is the fact a comprehension body's `ol-no-value` (`checker-control-flow.ts`, and
- * `@openlogo/runtime`'s `runComprehensionBody`) and a control body's `ol-style-useless-value`
- * (`checker-style.ts`) all need about a call — three consumers, and before issue #932 two
- * hand-written three-name lists.
+ * The block-result rule judges a block by its last statement (`spec/execution-model.md:217-230`,
+ * whose closing sentence at `:228-229` is the `ol-no-value` rule itself), so this is the fact a
+ * comprehension body's `ol-no-value` (`checker-control-flow.ts`, and `@openlogo/runtime`'s
+ * `runComprehensionBody`) and a control body's `ol-style-useless-value` (`checker-style.ts`) all
+ * need about a call — three consumers, and before issue #932 two hand-written three-name lists.
  */
-export type PrimitiveKind = "command" | "reporter";
+type PrimitiveKind = "command" | "reporter";
 
 /**
  * One primitive's registration row: canonical lowercase name, {@link PrimitiveKind}, and bare
  * default arity. Every profile's table below is built from rows of this shape, so **a primitive
- * cannot be registered without declaring its kind** — the arity table and the command-name set are
- * two derivations of the same rows and can never list a name the other does not.
+ * cannot be registered without declaring its kind**: the arity table and the command-name set are
+ * two derivations of the same rows, the command names being the subset whose kind is `command`.
  */
 type PrimitiveRow = readonly [name: string, kind: PrimitiveKind, arity: number];
 
@@ -824,7 +825,7 @@ export function spritesStatementFormNames(): readonly string[] {
  * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
  * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
  * list reporters `bf`→`butfirst`:1070, `bl`→`butlast`:1087, `se`→`sentence`:1019). Heritage is
- * "alternate spellings only — no new semantics" (`spec/conformance.md:146`): the reader records
+ * "alternate spellings only — no new semantics" (`spec/conformance.md:150`): the reader records
  * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
  * the exact same code path as the Core spelling, and this module never keeps a second copy of each
  * canonical's arity — that stays each owning profile's single source-of-truth table (see
@@ -1224,7 +1225,7 @@ interface ProfilePrimitives {
  *
  * The `null` entries are not omissions, they are claims:
  * - `heritage` — its short aliases carry no arity of their own. Heritage is "alternate spellings
- *   only, no new semantics" (`spec/conformance.md:146`), so an alias resolves to its canonical and
+ *   only, no new semantics" (`spec/conformance.md:150`), so an alias resolves to its canonical and
  *   reads *that* profile's entry ({@link heritageAliasArity}); a Heritage table here would be a
  *   second copy of every canonical's arity, the very duplication this registry removes.
  * - `modules`, `localization` — neither profile defines a bare-call primitive: `spec/modules.md`'s
@@ -1381,9 +1382,9 @@ function registeredCommandKind(
  * Is `name` a registered primitive whose kind is **Command** — it performs an effect and reports no
  * value? The profile-blind lookup, and the runtime's counterpart to {@link primitiveArity}:
  * `@openlogo/runtime` executes a program without an active-profile set (a Layer-2 checker concept,
- * `spec/tooling.md:175-176`), so it classifies any registered primitive. A Heritage short alias is
+ * `spec/tooling.md:175-177`), so it classifies any registered primitive. A Heritage short alias is
  * resolved to its canonical and answers as that canonical does — Heritage is "alternate spellings
- * only, no new semantics" (`spec/conformance.md:146`) — the same fallback the reader's own
+ * only, no new semantics" (`spec/conformance.md:150`) — the same fallback the reader's own
  * `arityOf` makes through {@link heritageAliasArity}. A name no profile registers (a user
  * procedure, a misspelling) is not a known command: it reports `false`, so a caller judging a
  * block's last statement treats it as value-producing rather than reporting a speculative error.
@@ -1405,11 +1406,13 @@ export function isPrimitiveCommandName(name: string): boolean {
  * command-vs-reporter lookup (`checker-control-flow.ts`'s `ol-no-value` and `checker-style.ts`'s
  * `ol-style-useless-value`).
  *
- * Only profiles present in `profiles` are consulted, as `spec/tooling.md:175-176` requires: a
+ * Only profiles present in `profiles` are consulted, as `spec/tooling.md:175-177` requires: a
  * primitive whose owning profile is inactive is not visible, so its kind is not statically known
  * and its callee belongs to `ol-unknown-command` instead. A Heritage short alias resolves to its
  * canonical only when `heritage` is active, and then answers as that canonical does under the same
- * active set. Matching is case-insensitive.
+ * active set — which `spec/conformance.md:155` requires directly: the nine turtle aliases "spell
+ * Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while
+ * `pr` spells a Core output command". Matching is case-insensitive.
  */
 export function isActiveProfileCommandName(
   name: string,

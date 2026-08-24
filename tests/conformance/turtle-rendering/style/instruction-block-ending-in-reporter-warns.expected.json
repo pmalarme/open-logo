@@ -1,5 +1,5 @@
 {
-  "description": "issue #932's positive control for `ol-style-useless-value` (issue #115) on a NON-Core profile's names: swapping only the block's last statement for the Reporter `xcor` (`spec/commands.md`'s `xcor` entry: Kind Reporter) makes the same `repeat` block end in a value the control form discards, and the lint fires at the whole `repeat` node's span with `form: \"repeat\"`. Together with `instruction-block-of-commands-is-clean` this pins both directions of the rule under one profile pair, so a future classification change cannot quiet the lint wholesale and stay green.",
+  "description": "issue #932's positive control for `ol-style-useless-value` (issue #115) on a NON-Core profile's names: swapping only the block's last statement for the Reporter `xcor` (`spec/commands.md:1315`: Kind Reporter) makes the same `repeat` block end in a value the control form discards, and the lint fires at the whole `repeat` node's span with `form: \"repeat\"`. Together with `instruction-block-of-commands-is-clean` this pins both directions of the rule under one profile pair, so a future classification change cannot quiet the lint wholesale and stay green.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "style": true,

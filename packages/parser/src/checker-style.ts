@@ -337,8 +337,7 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  *
  * This is deliberately **three registry consultations, not a list** (issue #854, epic #900's
  * through-line: *no component enumerates built-in names by hand*). Before this, the rule matched
- * callees against a literal `CORE_CALLEE_NAMES` set spread from `corePrimitiveNames()` plus the
- * then-hand-written Core command list in `checker-control-flow.ts`, so `PRINT` was linted and
+ * callees against a literal `CORE_CALLEE_NAMES` set, so `PRINT` was linted and
  * `FORWARD`, `HOME`, `PLAY`, `NEW_TURTLE` — every
  * non-Core primitive a learner actually types first — were silent, and keyword casing was gated on
  * a hand-written table of *node kinds* that never listed `Assign` or `ValueOfKey`, so `MAKE "x" 1`

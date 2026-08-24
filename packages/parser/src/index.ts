@@ -142,9 +142,6 @@ export type {
   // a caller that must annotate either would otherwise have to restate a structural literal.
   HeritageWordedForm,
   HeritageWordedFormName,
-  // The kind axis of the primitive registry (issue #932), naming what
-  // `isPrimitiveCommandName`/`isActiveProfileCommandName` decide.
-  PrimitiveKind,
 } from "./signatures.js";
 
 export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
