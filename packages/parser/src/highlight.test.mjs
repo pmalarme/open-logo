@@ -1005,8 +1005,9 @@ const BUILT_IN_NAMES = JSON.parse(
  * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
  * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md:30`'s own
  * example. Every one of the seven is load-bearing: removing any one lets a mutant through that the
- * others miss, which is why none is dropped as redundant. The per-template evidence is in this
- * change's commit history rather than restated here, since nothing in the tree recomputes it.
+ * others miss, which is why none is dropped as redundant. The per-template evidence is recorded on
+ * #832 rather than restated here, since nothing in the tree recomputes it — and on the issue
+ * rather than in commit history, which a squash-merge collapses.
  *
  * Not exhaustive over contexts, and deliberately not chased further. Three known survivors, named
  * rather than implied: a widening gated on nesting depth, one gated on letter case, and one that
@@ -1042,8 +1043,8 @@ test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes
       const projected = profileClasses(source, ALL_PROFILES);
       // Subject-level, not merely run-level: a template that swallowed the name it substituted
       // would still compare equal to itself and prove nothing about that name. Degenerate for the
-      // 11 probes whose scaffold word IS the subject (`set set to 1`, `local local`, `print
-      // print`, `to`, `for for …`), but no name is degenerate in more than two of the seven
+      // 11 probes whose scaffold word IS the subject (e.g. `set set to 1`, `local local`, `print
+      // print`; ten names in all), but no name is degenerate in more than two of the seven
       // templates and the bare one can never swallow its subject, so every name keeps a real
       // check.
       assert.ok(
