@@ -210,19 +210,21 @@ const TURTLE_PRIMITIVES: readonly (readonly [
  * Every Turtle & Rendering spelling as a {@link PrimitiveRow} — an alias spelling repeats its
  * canonical's kind and arity, because both come from the one row it shares.
  */
-const TURTLE_PRIMITIVE_ROWS: readonly PrimitiveRow[] = TURTLE_PRIMITIVES.flatMap(
-  ([canonical, kind, arity, alias]): PrimitiveRow[] =>
-    alias === undefined
-      ? [[canonical, kind, arity]]
-      : [
-          [canonical, kind, arity],
-          [alias, kind, arity],
-        ],
-);
+const TURTLE_PRIMITIVE_ROWS: readonly PrimitiveRow[] =
+  TURTLE_PRIMITIVES.flatMap(
+    ([canonical, kind, arity, alias]): PrimitiveRow[] =>
+      alias === undefined
+        ? [[canonical, kind, arity]]
+        : [
+            [canonical, kind, arity],
+            [alias, kind, arity],
+          ],
+  );
 
 /** Every Turtle & Rendering primitive name — canonical and alias spellings alike — to its arity. */
-const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
-  arityTable(TURTLE_PRIMITIVE_ROWS);
+const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = arityTable(
+  TURTLE_PRIMITIVE_ROWS,
+);
 
 /** Every Turtle & Rendering spelling whose kind is `command`. See {@link TURTLE_PRIMITIVES}. */
 const TURTLE_COMMAND_NAMES: ReadonlySet<string> = commandNames(
@@ -511,9 +513,8 @@ const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
  * Every Geometry-profile name whose kind is `command` — all three: `spec/geometry-module.md`'s
  * overlay table gives each the kind `C`. See {@link GEOMETRY_PRIMITIVES}.
  */
-const GEOMETRY_COMMAND_NAMES: ReadonlySet<string> = commandNames(
-  GEOMETRY_PRIMITIVES,
-);
+const GEOMETRY_COMMAND_NAMES: ReadonlySet<string> =
+  commandNames(GEOMETRY_PRIMITIVES);
 
 /**
  * The default arity of a Geometry-profile overlay primitive, or `undefined` when `name` is not
@@ -757,9 +758,8 @@ const SPRITES_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
  * Every Sprites-profile name whose kind is `command` — none: the "Canonical forms" table gives
  * `new_turtle`/`who`/`turtles` the kind `R`. See {@link SPRITES_PRIMITIVES}.
  */
-const SPRITES_COMMAND_NAMES: ReadonlySet<string> = commandNames(
-  SPRITES_PRIMITIVES,
-);
+const SPRITES_COMMAND_NAMES: ReadonlySet<string> =
+  commandNames(SPRITES_PRIMITIVES);
 
 /**
  * The default arity of a Sprites-profile reporter, or `undefined` when `name` is not one of
@@ -1426,8 +1426,7 @@ export function isActiveProfileCommandName(
   }
   const canonical = canonicalOfHeritageAlias(lower);
   return (
-    canonical !== undefined &&
-    registeredCommandKind(canonical, active) === true
+    canonical !== undefined && registeredCommandKind(canonical, active) === true
   );
 }
 
