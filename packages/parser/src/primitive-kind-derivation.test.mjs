@@ -401,7 +401,8 @@ test("a value-producing comprehension body stays clean (regression control)", ()
 });
 
 test("the Data, Interaction & Events and Educational profiles are classified too (issue #932)", () => {
-  // The three profiles the first round of these tests left unpinned by name. `wait`/`input` are
+  // Data and Interaction & Events are the two profiles the first round of these tests left
+  // unpinned by name (`explain` was already pinned above). `wait`/`input` are
   // the sharpest pair in the registry: one profile, one command, one reporter, so swapping them
   // is invisible to any sweep that asks the implementation what they are. Tutor's `challenge` is
   // pinned by the double-report test below, which needs its own profile set.
