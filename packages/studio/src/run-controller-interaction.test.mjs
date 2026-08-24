@@ -605,13 +605,24 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
   controller.run();
   deferred.settleNext();
 
+  // Round 6: the first press under a host that settles later reports `false`, and that is the fix,
+  // not a regression. The old expectation here was `true` — asserted from the declaration alone,
+  // before anything had run — which is precisely how a key could be suppressed while nothing
+  // handled it. One unsuppressed press per key word (the page scrolls once) is the safe direction;
+  // the second press reports `true` because the first one's settlement recorded the invocation.
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "nothing has run yet under a deferred host, so nothing may be suppressed",
+  );
+  controller.deliverKey("left");
+  deferred.settleAll();
+
   assert.equal(
     controller.deliverKey("left"),
     true,
-    "the key word is read from the program's own declaration, so the answer does not " +
-      "wait for a host to settle — this is what makes interception work under a Worker host",
+    "once a settlement has shown the handler running, later presses are the program's",
   );
-  controller.deliverKey("left");
   deferred.settleAll();
 
   assert.deepEqual(
@@ -619,11 +630,12 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
     [
       { tick: 1, kind: "key", key: "left" },
       { tick: 2, kind: "key", key: "left" },
+      { tick: 3, kind: "key", key: "left" },
     ],
-    "both presses must reach the schedule, at the ticks their call order fixed — a press " +
+    "every press must reach the schedule, at the ticks their call order fixed — a press " +
       "arriving while an execution is unsettled is buffered, never dropped",
   );
-  assert.deepEqual(store.getState().output, ["turned", "turned"]);
+  assert.deepEqual(store.getState().output, ["turned", "turned", "turned"]);
 
   // Reset must abandon whatever the deferred host still holds, so a withheld settlement cannot
   // repaint the studio after the learner cleared it.
@@ -803,17 +815,21 @@ test('#952 (review round 3): a `when "stop"` handler that asks a question leaves
   controller.stop();
 
   assert.equal(store.getState().runStatus, "stopped");
+  // Round 6: the read is withdrawn in the settlement continuation, keyed to the notification
+  // attempt, so it is taken down BEFORE `settleAttempt` can present it. The earlier expectation
+  // (`prompts === ["save?"]`, one dismissal) encoded a present-then-instantly-dismiss flicker the
+  // learner could see; not showing it at all is strictly better.
   assert.deepEqual(
     host.prompts,
-    ["save?"],
-    "the notification block did run and did reach its read",
+    [],
+    "a question belonging to a terminating run is never put to the learner",
   );
+  assert.equal(host.respond, null, "and no responder is left live");
   assert.equal(
-    host.respond,
-    null,
-    "…but the read is withdrawn, never left answerable over a stopped run",
+    host.dismissCount,
+    0,
+    "nothing was shown, so nothing was dismissed",
   );
-  assert.equal(host.dismissCount, 1, "and the learner's prompt is taken down");
 });
 
 test("#952 (review finding 3): a prompt host that answers synchronously cannot extend the pump with delivered input", () => {
@@ -1000,8 +1016,9 @@ test("#952: a non-literal on_key key word still DELIVERS, it just never suppress
 
 test('#952 (review round 4): the `when "stop"` read is withdrawn under a host that settles LATER too', () => {
   // Withdrawing right after `beginAttempt` returns only works for a host that settles synchronously.
-  // Under a deferred host the read does not exist yet at that point, and review measured "save?"
-  // arriving live, with a working responder, over an already-`"stopped"` run.
+  // Under a deferred host that read has not been created by the time `stop()` returns, so nothing
+  // was withdrawn, and review measured "save?" arriving live, with a working responder, over an
+  // already-`"stopped"` run.
   const store = OL.createStudioState({
     source: ['when "stop" [', '  :answer = input "save?"', "]", "wait 5"].join(
       "\n",
@@ -1025,15 +1042,15 @@ test('#952 (review round 4): the `when "stop"` read is withdrawn under a host th
 
   assert.deepEqual(
     host.prompts,
-    ["save?"],
-    "the notification block ran and reached its read",
+    [],
+    "the notification's read is withdrawn in its own settlement, before it can be shown",
   );
   assert.equal(
     host.respond,
     null,
-    "…and the read is withdrawn once the settlement lands, not left answerable",
+    "…so nothing is left answerable over an already-stopped run",
   );
-  assert.equal(host.dismissCount, 1);
+  assert.equal(host.dismissCount, 0);
   assert.equal(store.getState().runStatus, "stopped");
 });
 
@@ -1069,6 +1086,150 @@ test("#952 (review round 4): the activation control disappears once an input que
     false,
     "…so the accessible activation must not stay in the tab order advertising it",
   );
+});
+
+test("#952 (QA round 5 finding 1): a Stop whose notification never settles does not withdraw a LATER chain's question", () => {
+  // Regression introduced by round 5's fix and caught by the gate. `stopNotificationOutstanding`
+  // was a bare boolean set by `stop()` and cleared by whichever attempt settled next — so a Stop
+  // whose notification never settled left it armed, and the *next* chain's first question was
+  // presented and instantly withdrawn. Under the blocking Worker host that parked the interpreter
+  // in `Atomics.wait` for an answer that could never be given: a hung studio, no question on
+  // screen, no diagnostic. It is now keyed to the notification attempt's own id.
+  const store = OL.createStudioState({
+    source: ['when "stop" [', '  print "bye"', "]", "wait 5"].join("\n"),
+  });
+  const host = createPromptHost();
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    inputPrompt: host,
+    executionHost: deferred.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  deferred.settleNext();
+  controller.stop();
+  // The notification attempt is abandoned rather than settled — exactly the case that armed the
+  // flag with nothing to clear it.
+  controller.reset();
+
+  store.setSource(':name = input "who are you?"');
+  controller.run();
+  deferred.settleAll();
+
+  assert.deepEqual(
+    host.prompts,
+    ["who are you?"],
+    "the new chain's own question is asked",
+  );
+  assert.equal(
+    host.dismissCount,
+    0,
+    "…and is NOT withdrawn by a stale flag from the previous chain",
+  );
+  assert.notEqual(
+    host.respond,
+    null,
+    "the learner can still answer it — anything else hangs a Worker host",
+  );
+});
+
+test("#952 (review round 6): the invocation count survives every aliasing case", () => {
+  // The third mechanism for one question; the first two were unsound on monotonicity and on timing.
+  // These are the aliasing cases — "one position, one meaning" is what the subtraction rests on.
+  const seed = { randomSeedSource: pinnedSeed(7) };
+
+  // 1. Re-registration at ONE position. `interaction-events.md` forbids collapsing duplicate
+  //    registrations, so one press fires BOTH — the count says 2 and the program prints twice, an
+  //    independent witness agreeing with the arithmetic.
+  const repeated = OL.createStudioState({
+    source: ['repeat 2 [ on_key "up" [ print "hit" ] ]', "wait 3"].join("\n"),
+  });
+  const repeatedController = OL.createRunController(repeated, seed);
+  repeatedController.run();
+  assert.deepEqual(repeated.getState().output, []);
+  assert.equal(repeatedController.deliverKey("up"), true);
+  assert.deepEqual(
+    repeated.getState().output,
+    ["hit", "hit"],
+    "two registrations at one position, one press, two firings",
+  );
+
+  // 2. Nesting: the inner handler is registered at INVOCATION time, while the outer position's
+  //    arithmetic must stay correct.
+  const nested = OL.createStudioState({
+    source: [
+      'on_key "up" [',
+      '  on_key "down" [ print "inner" ]',
+      "]",
+      "wait 4",
+    ].join("\n"),
+  });
+  const nestedController = OL.createRunController(nested, seed);
+  nestedController.run();
+  assert.equal(nestedController.deliverKey("up"), true, "the outer fired");
+  assert.equal(
+    nestedController.deliverKey("down"),
+    true,
+    "and the inner, created by that firing, fires too",
+  );
+  assert.deepEqual(nested.getState().output, ["inner"]);
+
+  // 3. A handler that raises on its FIRST instruction. The load-bearing assumption is that the
+  //    block-head marker is emitted before the handler can fail — measured, not reasoned.
+  const raising = OL.createStudioState({
+    source: ['on_key "up" [', "  forward :never_set", "]", "wait 3"].join("\n"),
+  });
+  const raisingController = OL.createRunController(raising, seed);
+  raisingController.run();
+  assert.equal(
+    raisingController.deliverKey("up"),
+    true,
+    "the handler ran; that it raised must not read as 'nothing responded'",
+  );
+  assert.ok(
+    raising.getState().diagnostics.some((d) => d.code === "ol-undefined-var"),
+  );
+
+  // 4. Invoked twice before the query — it is a count, read as a strict increase, never as a
+  //    boolean over the whole run.
+  const twice = OL.createStudioState({
+    source: ['on_key "up" [ print "hit" ]', "wait 4"].join("\n"),
+  });
+  const twiceController = OL.createRunController(twice, seed);
+  twiceController.run();
+  assert.equal(twiceController.deliverKey("up"), true);
+  assert.equal(twiceController.deliverKey("up"), true);
+  assert.deepEqual(twice.getState().output, ["hit", "hit"]);
+});
+
+test("#952 (review round 6): a press scheduled BEFORE its handler registers is neither delivered nor suppressed", () => {
+  // The case that made both earlier mechanisms report `true` while nothing ran — `preventDefault`
+  // without delivery, which is the silent interception the whole gate exists to prevent.
+  const store = OL.createStudioState({
+    source: ["wait 1", 'on_key "up" [', '  print "hit"', "]", "wait 2"].join(
+      "\n",
+    ),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  assert.equal(
+    controller.deliverKey("up"),
+    false,
+    "tick 1 precedes the registration, so nothing ran and nothing may be suppressed",
+  );
+  assert.deepEqual(store.getState().output, []);
+
+  assert.equal(
+    controller.deliverKey("up"),
+    true,
+    "tick 2 is after it, so this one genuinely fires",
+  );
+  assert.deepEqual(store.getState().output, ["hit"]);
 });
 
 test("#952: a delivery is refused for a program whose on_key was never reached", () => {

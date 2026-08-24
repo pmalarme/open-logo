@@ -345,28 +345,26 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:194-198` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-Both report whether **the input reached a handler this run actually registered** — for `deliverKey`,
-that the chain is accepting input, the run registered `on_key`, **and one of the program's own
-`on_key` declarations that the run genuinely reached names that key word**.
+Both report whether **the input actually ran a handler** — for `deliverKey`, measured across the
+delivery as a strict increase in `on_key` invocation markers at the positions the program declares
+that key at. It is `false` for a key no handler names, for a handler the run never reached, for a
+press past the program's last tick, and for a press scheduled **before** the handler registered.
 
-That last part is read from the source and paired with the run's registration events by **source
-position** (`collectDeclaredKeyHandlers`), never measured from the stream. Neither half alone is
-sound: the declaration over-reports — `if false [ on_key "up" [ … ] ]` names `up` and registers
-nothing, and suppressing `ArrowUp` for it swallows a key for a handler that can never run — while the
-registration event carries only the `primitive`'s *name* (`:120-122`), never its key word. Two
-measured proxies were tried and both failed: comparing the replay's event *stream growth* breaks
-because a handler that raises **shortens** the stream (measured, 45 events down to 5 with
-`ol-undefined-var` — the proxy is not monotonic in the thing it proxies, so it inverts on the error
-path rather than merely losing precision), and asking after the replay settles breaks because a
-Worker host settles a turn later, by which time the `keydown` has already scrolled the page. A
-program whose `on_key` key word is not a literal collapses the set to `null` and suppresses nothing —
-the safe direction.
+That last case is why the count exists. Two earlier mechanisms reported `true` there while nothing
+ran — which is `preventDefault` without delivery, i.e. silent interception, the exact risk this gate
+is built against. Each failed on its own axis: the replay's event *stream length* is not **monotonic**
+(a handler that raises *shortens* the stream, measured 45 events down to 5 with `ol-undefined-var`,
+reporting "nothing responded" for a handler that ran), and asking after the replay settles fails on
+**timing** (a Worker host settles a turn later, after the `keydown` has already scrolled). Counting
+invocation markers is sound on both, and on **aliasing**: `spec/interaction-events.md:102-103` gives
+each invocation a block-head `instruction` event, registration emits an `instruction` *and* a
+`primitive` at the same position, so `invocations = instructions − registrations` per position.
+`repeat 2 [ on_key "up" [ … ] ]` registers twice at one position and one press fires **both** — the
+count says 2 and the program prints twice, an independent witness agreeing with the arithmetic. It is
+a **count, not a boolean**, and is read as a strict increase across one delivery.
 
-The pairing is a **reconstruction with a scheduled end**: it rebuilds from two sides what one side
-already knows. [#975](https://github.com/pmalarme/open-logo/issues/975) exposes the registered key
-words from the runtime, and `collectDeclaredKeyHandlers` is *deleted* when it lands rather than kept
-alongside — two ways to answer one question is the drift shape this repository has already been
-bitten by.
+A program whose `on_key` key word is not a literal reports `false` and suppresses nothing while still
+delivering the press — the safe direction.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
@@ -403,19 +401,22 @@ receives nothing — Stop's `"stop"` notification included — and still pays fo
 
 **What a delivery costs.** One execution per delivery, like an `input` answer — but for a program
 that has already drawn a lot that is **not** the dominant term. `finishAttempt` fast-forwards the new
-animation past the events already on screen one step at a time, and that dwarfs the interpreter.
-Measured on `when "stop" [ … ] / repeat 30000 [ forward 1 right 1 ]`: `stop()` took **6.9 s**, of
-which the run was 224 ms (3.2%) and the fast-forward 6.7 s (96.8%). On `repeat 60000`, `stop()` went
-from **19.5 ms** without a `when` handler to **~23–27 s** with one. A single key press on the same
-program cost 4.5 s with 57 ms of execution — and a press of a key the program does *not* name, which
-changes nothing, cost 4.5 s too, because the replay happens either way. Across `repeat`
-5,000→40,000 a Stop's replay cost 0.44×–1.22× a whole second run.
+animation past the events already on screen one step at a time, and **that step loop is ~99% of the
+cost**: on `when "stop" [ … ] / repeat 30000 [ forward 1 right 1 ]` it accounted for **96.8%–98.8%**
+of a Stop's notification replay across two independent measurers, with the interpreter taking the
+remainder. **The ratio is the claim** — it holds on any hardware, and it is what points
+[#977](https://github.com/pmalarme/open-logo/issues/977) at the step loop.
+
+The absolute numbers are machine-dependent, so they are offered as one machine's rather than as a
+property of the tree: on `when "stop" / repeat 60000`, Stop measured **19.5 ms without** a `when`
+handler and **≈16–27 s with** one. A single key press on the same program measured 4.5 s with 57 ms
+of execution — and a press of a key the program does *not* name, which changes nothing, cost the
+same, because the replay happens either way. Across `repeat` 5,000→40,000 a Stop's replay measured
+**≈0.4×–1.6×** a whole second run.
 
 Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
 `run()` 4.9 ms and `stop()` 41.4 ms. The cost tracks **how much has been drawn**, and an interactive
-program spends its ticks waiting rather than drawing. Cheapening it needs a seek-to-index on
-`@openlogo/turtle`'s animation controller instead of a step loop —
-[#977](https://github.com/pmalarme/open-logo/issues/977).
+program spends its ticks waiting rather than drawing.
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes
@@ -427,8 +428,10 @@ announcing it would file a run-log entry per keystroke.
 
 **A delivery is accepted only when all three hold**, each measured rather than assumed:
 
-- the chain is live — `run()` opens the window, Stop/Reset close it, and a `step()` preparation never
-  opens it;
+- the chain is live — `run()` opens the window and Stop/Reset close it. A `step()` preparation never
+  opens it, and `run()` does not open it while an *unfinished* stepping session is still in progress
+  (measured: `step()` then `run()` leaves `runStatus` at `"running"` and refuses delivery). That
+  fails safe — it refuses, never intercepts;
 - the program actually registered a handler of that kind, according to its own `primitive` trace
   event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
   a stray keystroke;
