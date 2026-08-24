@@ -4592,7 +4592,7 @@ function callProcedureAsValue(
  * separate slice).
  *
  * A `Repeat` statement (issue #104) evaluates `count`, then validates it TYPE then RANGE, in that
- * exact order (`spec/execution-model.md:367-369`): a non-whole-number count raises `ol-type`
+ * exact order (`spec/execution-model.md:389-391`): a non-whole-number count raises `ol-type`
  * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
  * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
  * pushes that pass's 1-based turn onto `environment.repeatTurns` before running `body` and pops it after —

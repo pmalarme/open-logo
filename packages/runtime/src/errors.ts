@@ -222,7 +222,7 @@ export interface NotBooleanErrorParams {
 
 /**
  * Params for an `ol-type` raised by `repeat`'s count when it is not a whole number
- * (`spec/execution-model.md:367-369` — TYPE is checked before RANGE).
+ * (`spec/execution-model.md:389-391` — TYPE is checked before RANGE).
  */
 export interface WholeNumberTypeErrorParams {
   readonly actual: string;
@@ -940,7 +940,7 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-type`: `repeat`'s count is not a whole number (`spec/execution-model.md:367-369`) — the
+   * `ol-type`: `repeat`'s count is not a whole number (`spec/execution-model.md:389-391`) — the
    * TYPE half of count validation, checked before the RANGE half {@link negativeCount} raises.
    * `expected` is fixed to `"whole number"` (rather than the generic `"number"`
    * {@link typeMismatch} uses) so the message names the concept precisely.
@@ -959,7 +959,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: `repeat`'s count is a whole number but negative
-   * (`spec/execution-model.md:367-369`, `spec/error-model.md:100` — "a negative whole-number
+   * (`spec/execution-model.md:389-391`, `spec/error-model.md:101` — "a negative whole-number
    * `repeat` count"). Only reached once {@link notWholeNumber} has already confirmed the value is
    * a whole number.
    */
