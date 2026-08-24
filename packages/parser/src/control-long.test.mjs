@@ -1,6 +1,6 @@
 // Unit tests for the Core control-form LONG (`... end`) body syntax —
 // `if <cond>`, `while <cond>`, `repeat <n>`, `for … in`/`for … from … to [by]`, `forever` —
-// per spec/grammar.md:119-129,139,142-143 (`long-control-block ::= terminator { statement
+// per spec/grammar.md:119-129,139,142-145 (`long-control-block ::= terminator { statement
 // terminator } control-end-label`; `control-end-label ::= "end" [ "if" | "while" | "repeat" |
 // "for" | "forever" ]`). These validate the already-merged parser; they do not change it. The
 // corresponding SHORT (bracketed `[ … ]`) bodies are a separate slice (issue #57,

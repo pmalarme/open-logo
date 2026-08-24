@@ -69,7 +69,7 @@ test('reports ol-unclosed-string for make "size without throwing', () => {
 });
 
 test('reports a parse error for make "name" with no value expression', () => {
-  // `make-assignment ::= "make" word-literal expression` (spec/grammar.md:105) requires a value
+  // `make-assignment ::= "make" word-literal expression` (spec/grammar.md:107) requires a value
   // after the name; its absence is `ol-bad-token`, and the malformed statement yields no node.
   const { ast, diagnostics } = OL.parse('make "x"', doc);
 

@@ -27,6 +27,7 @@
     "conformance": "node scripts/conformance.mjs",
     "prebuilt-in-names": "npm run -s build",
     "built-in-names": "node scripts/check-built-in-names.mjs",
+    "spec-citations": "node scripts/check-spec-citations.mjs",
     "preexamples": "npm run -s build",
     "examples": "node scripts/check-examples.mjs && node scripts/check-markdown-examples.mjs",
     "clean": "tsc -b --clean"

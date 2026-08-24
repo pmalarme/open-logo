@@ -214,6 +214,12 @@ jobs:
       # list) and this is the half that fails until both land. It runs here rather than in its own
       # job because it shares this job's build and is measured in milliseconds.
       - run: npm run -s built-in-names
+      # Issue #934: every `spec/<file>.md:<line>` citation in the tree must resolve to text, a quoted
+      # EBNF production must be inside the range cited, and a forward-looking status claim must name a
+      # tracking issue. Nothing checked these before, so one spec edit silently invalidated hundreds
+      # of them (#846 shifted 665). Like built-in-names it needs no build and runs in seconds, so it
+      # shares this job rather than taking its own.
+      - run: npm run -s spec-citations
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
 
