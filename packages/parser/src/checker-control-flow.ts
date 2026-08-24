@@ -61,6 +61,7 @@ import type { CheckProfile } from "./check.js";
 import {
   canonicalOfHeritageFormHead,
   interactionEventsBlockHeadNames,
+  isActiveProfileCommandName,
 } from "./signatures.js";
 
 /** The three comprehension forms, the `form` param value for the comprehension-scoped codes. */
@@ -87,25 +88,9 @@ interface Context {
 }
 
 /**
- * The Core primitives whose kind is **Command** (`spec/commands.md`): they perform an effect and
- * report no value, so a comprehension body ending in one produces nothing. Every other Core
- * primitive is a Reporter, and the infix operators (`+ - * / mod == …`) parse as {@link CallNode}s
- * with the operator as callee and always report a value. Turtle and later-profile commands are not
- * registered in the parser, so — per "tools MUST NOT report speculative errors" — a call whose
- * callee is not a *known* Core command is treated as value-producing.
- *
- * Exported so `checker-style.ts`'s `ol-style-useless-value` rule (issue #115) reuses the exact
- * same command-vs-reporter classification instead of drifting from a second copy.
- */
-export const CORE_COMMANDS: ReadonlySet<string> = new Set([
-  "print",
-  "show",
-  "randomize",
-]);
-
-/**
- * AST node kinds that are always value-producing expressions in the Core grammar. Exported for
- * the same reason as {@link CORE_COMMANDS} — shared with `checker-style.ts`.
+ * AST node kinds that are always value-producing expressions in the Core grammar. Exported so
+ * `checker-style.ts`'s `ol-style-useless-value` rule (issue #115) reuses the exact same
+ * classification instead of drifting from a second copy.
  */
 export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "NumberLit",
@@ -120,29 +105,26 @@ export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "Comprehension",
 ]);
 
-/** Is `name` a known Core command under the active `profiles`? */
-export function isCoreCommandName(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  return (
-    profiles.includes("core-language") && CORE_COMMANDS.has(name.toLowerCase())
-  );
-}
-
 /**
  * Does this statement statically produce a value the surrounding block-result rule can use?
  * Shared by `ol-no-value` (this module, error) and `ol-style-useless-value`
  * (`checker-style.ts`, warning) — the two codes judge the same question, one inside a
  * comprehension body (a value is *required*), the other inside a control body (a value is
  * *unwanted*).
+ *
+ * A call produces a value unless the callee is a primitive the active profiles register as a
+ * **Command** ({@link isActiveProfileCommandName}, issue #932) — every profile's kinds, derived
+ * from the one registry that also carries their arities, so a primitive added to a profile is
+ * classified here without an edit. A callee no active profile registers (a user procedure, a
+ * misspelling, a primitive of an inactive profile) is treated as value-producing: its kind is not
+ * statically known, and "tools MUST NOT report speculative errors" (`spec/tooling.md:167`).
  */
 export function producesValue(
   node: StatementNode,
   profiles: readonly CheckProfile[],
 ): boolean {
   if (node.kind === "Call" || node.kind === "ParenCall") {
-    return !isCoreCommandName(node.callee.name, profiles);
+    return !isActiveProfileCommandName(node.callee.name, profiles);
   }
   return VALUE_PRODUCING_KINDS.has(node.kind);
 }
