@@ -74,7 +74,13 @@ import {
   resolveAccessor,
   runBuiltInNamesGate,
   stdlibCarveOutFindings,
+  parsesInto,
+  profileGatingFindings,
+  reEnumerationFindings,
+  renderNameList,
+  generatedRowClauses,
   tokenClassFindings,
+  tokenClassSourceFindings,
   tokenClassRowFindings,
   versionFindings,
   wordsBetween,
@@ -140,7 +146,13 @@ function tinyFixture() {
         about: "a tiny fixture",
         class: "keyword",
         elsewhereClass: "primitive",
-        words: [],
+        words: [
+          {
+            name: "empty",
+            positions: { "is-predicate": ":x is empty" },
+            elsewhereProbes: ["local empty"],
+          },
+        ],
       },
     },
     names: [
@@ -159,21 +171,44 @@ function tinyFixture() {
         registries: ["core-primitive"],
       },
     ],
-    excluded: [],
+    excluded: [
+      {
+        name: "empty",
+        reason: "contextual-keyword",
+        positions: ["is-predicate"],
+        rationale: "a tiny fixture",
+      },
+    ],
   };
-  // A fake highlighter, so the paint axis is exercised on the fixture too: it words-splits the probe
-  // source the same way the real lexer would for these two names, and paints anything it does not
-  // know `primitive` — the real fallback of `spec/tooling.md:31`.
+  // A fake highlighter and reader, so the paint axis runs on the fixture too. Both are crude — the
+  // highlighter word-splits and the reader reports an `IsPredicate` for any `... is empty` — and
+  // neither is ever the oracle for a real token-class assertion: every one of those uses the shipped
+  // `@openlogo/parser`. They exist so the fixture exercises the same code path.
   const tinyClasses = { define: "keyword", print: "primitive" };
   const api = {
     OPENLOGO_VERSION: "9.9.9",
     OL_CHECK_PROFILES: ["core-language"],
     OL_TOKEN_CLASSES: ["keyword", "primitive", "operator"],
+    OL_WORD_OPERATORS: [],
+    OL_KEYWORDS: ["define"],
+    OL_PROFILE_KEYWORDS: {},
     highlight: (source) =>
       [...source.matchAll(/[a-z_?]+/g)].map((match) => ({
-        class: tinyClasses[match[0]] ?? "primitive",
+        class:
+          match[0] === "empty"
+            ? source.includes(" is empty")
+              ? "keyword"
+              : "primitive"
+            : (tinyClasses[match[0]] ?? "primitive"),
         text: match[0],
       })),
+    parse: (source) => ({ ast: { kind: "Program", source } }),
+    walk: (ast, visit) => {
+      visit(ast);
+      if (ast.source.includes(" is empty")) {
+        visit({ kind: "IsPredicate" });
+      }
+    },
     WORDS: ["define"],
     coreArity: (name) => (name === "print" ? 1 : undefined),
     coreNames: () => ["print"],
@@ -2689,7 +2724,7 @@ test("INJECTED DRIFT: a highlighter that stops gating a profile word on its prof
     findings.some(
       (finding) =>
         finding.startsWith("ask:") &&
-        finding.includes("spec/tooling.md:31 makes a profile word"),
+        finding.includes("gates a profile word on ITS OWN profile"),
     ),
     true,
     findings.join("\n"),
@@ -2735,31 +2770,51 @@ test("the paint axis fails closed when there is no highlighter to measure agains
 });
 
 test("INJECTED DRIFT: the contextual exception set emptied — the mutation issue #964 asks for", () => {
-  // A carve-out that passes when emptied is not a gate. The set is pinned from three sides, so
-  // emptying any one of them fails against the others.
+  // A carve-out that passes when emptied is not a gate. Emptying ONE side fails against the others;
+  // emptying EVERY side at once used to satisfy all of the pairwise comparisons and pass, which is
+  // why non-emptiness is now checked on its own terms (issue #959 review, finding 4).
   const emptied = manifestCopy();
   emptied.tokenClass.contextual.words = [];
   const fromCarveOuts = contextualTokenClassFindings(emptied, realParserApi);
-  assert.deepEqual(
-    fromCarveOuts.map((finding) => finding.split(":")[0]),
-    Array(4).fill("tokenClass.contextual"),
+  assert.equal(
+    fromCarveOuts.filter((finding) =>
+      finding.includes("tokenClass.contextual.words is empty"),
+    ).length,
+    1,
     fromCarveOuts.join("\n"),
   );
   assert.equal(
-    fromCarveOuts.every((finding) =>
+    fromCarveOuts.filter((finding) =>
       finding.includes("which excluded records as a contextual keyword"),
-    ),
-    true,
+    ).length,
+    4,
     fromCarveOuts.join("\n"),
   );
-  // And the prose still names four words the declaration no longer does.
+  // And all three prose statements still name four words the declaration no longer does.
   const toolingText = readFileSync(TOOLING_PATH, "utf8");
   const fromProse = tokenClassRowFindings(
     emptied,
     extractToolingKeywordRow(toolingText),
     toolingText,
+    readFileSync(GRAMMAR_PATH, "utf8"),
   );
-  assert.equal(fromProse.length, 2, fromProse.join("\n"));
+  assert.equal(fromProse.length, 3, fromProse.join("\n"));
+
+  // The synchronized mutation the review found: every side emptied together. Non-emptiness is what
+  // makes it fail, because no pairwise comparison can.
+  const everySide = manifestCopy();
+  everySide.tokenClass.contextual.words = [];
+  everySide.excluded = everySide.excluded.filter(
+    (entry) => entry.reason !== "contextual-keyword",
+  );
+  const synchronized = contextualTokenClassFindings(everySide, realParserApi);
+  assert.deepEqual(
+    synchronized.map((finding) =>
+      finding.includes("words is empty") ? "words" : "carve-outs",
+    ),
+    ["words", "carve-outs"],
+    synchronized.join("\n"),
+  );
 
   // Deleting the block, at each level, is the same mutation one level up: the declaration reads as
   // empty and fails the same way rather than throwing over the other checks' findings.
@@ -2773,7 +2828,7 @@ test("INJECTED DRIFT: the contextual exception set emptied — the mutation issu
     assert.deepEqual(contextualDeclaration(manifest).words, []);
     assert.equal(
       contextualTokenClassFindings(manifest, realParserApi).length,
-      4,
+      5,
     );
   }
   assert.equal(contextualDeclaration(REAL_MANIFEST).class, "keyword");
@@ -2821,6 +2876,7 @@ test("INJECTED DRIFT: the contextual carve-outs emptied, leaving the paint decla
   assert.deepEqual(
     findings.map((finding) => finding.split(":")[0]),
     [
+      MANIFEST_PATH,
       "tokenClass.contextual empty",
       "tokenClass.contextual member",
       "tokenClass.contextual of",
@@ -2858,8 +2914,43 @@ test("INJECTED DRIFT: a contextual position that no probe covers, and a probe fo
 });
 
 test("INJECTED DRIFT: a contextual probe that does not put the word in the position it claims", () => {
-  // The probes are measured, so a probe cannot be wrong-but-green: this is what stops the exception
-  // set from becoming four unverified assertions with example text beside them.
+  // The probes are measured AND parsed, so a probe cannot be wrong-but-green: this is what stops
+  // the exception set from becoming four unverified assertions with example text beside them.
+  // Parsing is what catches a probe that paints the right class from the WRONG position — swapping
+  // `of`'s two probes left the Heritage reader unexercised and used to pass (issue #959 review).
+  assert.equal(parsesInto(realParserApi, ":x is empty", "IsPredicate"), true);
+  assert.equal(
+    parsesInto(realParserApi, 'value of :d for key "a"', "ValueOfKey"),
+    true,
+  );
+  assert.equal(
+    parsesInto(realParserApi, "2 is member of :nums", "ValueOfKey"),
+    false,
+  );
+  assert.equal(parsesInto(realParserApi, "local empty", "IsPredicate"), false);
+
+  const swapped = manifestCopy();
+  swapped.tokenClass.contextual.words.find(
+    (word) => word.name === "of",
+  ).positions["value-of-reader"] = "2 is member of :nums";
+  assert.equal(
+    contextualTokenClassFindings(swapped, realParserApi).some((finding) =>
+      finding.includes("does not parse into a ValueOfKey node"),
+    ),
+    true,
+  );
+
+  const unverifiable = manifestCopy();
+  unverifiable.tokenClass.contextual.words.find(
+    (word) => word.name === "empty",
+  ).positions = { "is-predicate": ":x is empty", "value-of-reader": "x" };
+  assert.equal(
+    contextualTokenClassFindings(unverifiable, realParserApi).some((finding) =>
+      finding.includes("does not parse into a ValueOfKey node"),
+    ),
+    true,
+  );
+
   const manifest = manifestCopy();
   manifest.tokenClass.contextual.words.find(
     (word) => word.name === "empty",
@@ -2952,16 +3043,23 @@ test("INJECTED DRIFT: the token-class row re-enumerating the class it now points
 test("INJECTED DRIFT: the token-class row dropping one of the exceptions it exists to state", () => {
   const io = proseIo(TOOLING_PATH, (text) =>
     text.replace(
-      "operators `and`, `or`, `not`, and `mod` are the only",
-      "operators `and`, `or`, and `not` are the only",
+      "operators `and`, `mod`, `not`, and `or` are the only",
+      "operators `and`, `mod`, and `not` are the only",
     ),
   );
   const findings = proseFindings(REAL_MANIFEST, io);
   assert.equal(
     findings.some((finding) =>
       finding.includes(
-        "does not name mod, whose token class differs from its category",
+        "does not name or, whose token class differs from its category",
       ),
+    ),
+    true,
+    findings.join("\n"),
+  );
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes("does not carry the two-axis exceptions as spec"),
     ),
     true,
     findings.join("\n"),
@@ -2983,31 +3081,137 @@ test("INJECTED DRIFT: the token-class row losing the pointer to where the class 
   );
 });
 
-test("INJECTED DRIFT: either prose statement of the contextual set drifting from the declaration", () => {
-  // The four words are stated twice in `spec/tooling.md` — in the row, and in "Reserved words for
-  // tooling". Both are compared against the declaration, so neither can drift and neither can be
-  // quietly emptied.
+test("INJECTED DRIFT: the row's generated sentences edited away from what the declaration renders", () => {
+  // Comparing only WHICH names the row mentions left the sentence around them free, so inverting
+  // its polarity passed while putting a false normative claim on disk (issue #959 review, finding
+  // 6). Both data-bearing sentences are now rendered from the declaration and required verbatim,
+  // and the profile sentence — which has no data to render — is a required literal.
   for (const [label, from, to, expect] of [
     [
-      "the row loses a word",
+      "the exception clause's polarity inverted",
+      "they are **not** in this class — they are `operator` below.",
+      "they are **also** in this class — they are not `operator` below.",
+      "does not carry the two-axis exceptions",
+    ],
+    [
+      "the contextual clause loses a word",
       "The contextual words `empty`, `member`, `of`, and `a` take this class",
       "The contextual words `empty`, `member`, and `of` take this class",
-      "empty, member, of",
+      "does not carry the contextual words",
     ],
     [
-      "the row gains a word",
+      "the contextual clause gains a word",
       "The contextual words `empty`, `member`, `of`, and `a` take this class",
       "The contextual words `empty`, `member`, `of`, `a`, and `to` take this class",
-      "empty, member, of, a, to",
+      "does not carry the contextual words",
     ],
     [
+      "the profile sentence contradicts :31",
+      "take this class while their profile is active, and `primitive` while it is not.",
+      "take this class whether or not their profile is active.",
+      "does not carry the required sentence verbatim",
+    ],
+  ]) {
+    const io = proseIo(TOOLING_PATH, (text) => {
+      assert.equal(text.includes(from), true, `${label}: needle absent`);
+      return text.replace(from, to);
+    });
+    const findings = proseFindings(REAL_MANIFEST, io);
+    assert.equal(
+      findings.some((finding) => finding.includes(expect)),
+      true,
+      `${label} survived: ${findings.join("\n")}`,
+    );
+  }
+
+  // The clauses really are rendered from the data, not compared to a stored string: change the
+  // declaration and the expected sentence changes with it.
+  const renamed = manifestCopy();
+  entryFor(renamed, "mod").tokenClass = "keyword";
+  const [[, clause]] = generatedRowClauses(renamed);
+  assert.equal(clause.includes("`mod`"), false, clause);
+  assert.equal(clause.includes("`and`, `not`, and `or`"), true, clause);
+
+  // Exceptions that do not share one class cannot be rendered as one sentence, and that is a
+  // finding rather than a silently skipped check.
+  const mixed = manifestCopy();
+  entryFor(mixed, "mod").tokenClass = "primitive";
+  assert.deepEqual(generatedRowClauses(mixed)[0][1], null);
+
+  assert.deepEqual(renderNameList(["a"]), "`a`");
+  assert.deepEqual(renderNameList([]), "");
+  assert.deepEqual(renderNameList(["a", "b"]), "`a`, and `b`");
+});
+
+test("INJECTED DRIFT: an enumeration written to dodge the backticked-word scan", () => {
+  // `backtickedWords` only sees individually backticked bare words, so a bare English list and a
+  // single multi-word code span both restored a full prose copy of the class and passed (issue #959
+  // review, finding F2). Detected as list SYNTAX — three or more built-in names in a row — because
+  // a per-word scan is unusable: `in`, `to`, `set`, `for`, `value` and `key` are all built-in names
+  // and all ordinary English.
+  for (const [label, injected] of [
+    [
+      "a bare comma-separated list",
+      "The class comprises define, to, end, return, output.",
+    ],
+    ["one multi-word code span", "They are `define to end return output`."],
+  ]) {
+    const io = proseIo(TOOLING_PATH, (text) =>
+      text.replace(
+        "The words the reader itself gives a grammatical role to.",
+        `The words the reader itself gives a grammatical role to. ${injected}`,
+      ),
+    );
+    const findings = proseFindings(REAL_MANIFEST, io);
+    assert.equal(
+      findings.some(
+        (finding) =>
+          finding.includes("enumerated back into prose") ||
+          finding.includes("built-in names in one span"),
+      ),
+      true,
+      `${label} survived: ${findings.join("\n")}`,
+    );
+  }
+  // Ordinary English in the shipped row is not a list, and two names in a row are not either.
+  assert.deepEqual(
+    reEnumerationFindings("set the value in `a b` to `end`", [
+      "set",
+      "value",
+      "in",
+      "to",
+      "end",
+      "a",
+      "b",
+    ]).length,
+    0,
+  );
+  // A row with no code spans and no list at all has nothing to report either.
+  assert.deepEqual(reEnumerationFindings("plain prose only", ["a", "b"]), []);
+});
+
+test("INJECTED DRIFT: the other two prose statements of the contextual set drifting", () => {
+  // The row's copy is generated (above). These two are not: `spec/tooling.md`'s "Reserved words for
+  // tooling" sentence and `spec/grammar.md`'s. Both are read through a fail-closed anchor and both
+  // must equal the declaration — and `spec/grammar.md` is a document this slice does not touch, so
+  // it is the independent lower bound that stops every side being emptied at once.
+  for (const [label, path, from, to, expect] of [
+    [
       "the Reserved-words sentence loses a word",
+      TOOLING_PATH,
       "The words `empty`, `member`, `of`, and `a` are contextual keywords",
       "The words `empty`, `member`, and `of` are contextual keywords",
       "empty, member, of",
     ],
+    [
+      "spec/grammar.md's sentence gains a word",
+      GRAMMAR_PATH,
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords",
+      "By contrast, `empty`, `member`, `of`, `a`, and `to` are **not** keywords",
+      "empty, member, of, a, to",
+    ],
   ]) {
-    const io = proseIo(TOOLING_PATH, (text) => {
+    const io = proseIo(path, (text) => {
       assert.equal(text.includes(from), true, `${label}: needle absent`);
       return text.replace(from, to);
     });
@@ -3023,15 +3227,15 @@ test("INJECTED DRIFT: either prose statement of the contextual set drifting from
 });
 
 test("both contextual anchors fail closed when the prose they read moves", () => {
-  for (const [label, from] of [
-    ["the row's anchor", " take this class only in"],
-    ["the Reserved-words anchor", " are contextual keywords"],
+  for (const [label, path, from] of [
+    ["the Reserved-words anchor", TOOLING_PATH, " are contextual keywords"],
+    ["spec/grammar.md's anchor", GRAMMAR_PATH, " are **not** keywords"],
   ]) {
-    const io = proseIo(TOOLING_PATH, (text) => text.replaceAll(from, " —"));
+    const io = proseIo(path, (text) => text.replaceAll(from, " —"));
     const findings = proseFindings(REAL_MANIFEST, io);
     assert.equal(
       findings.some((finding) =>
-        finding.includes("could not read the contextual words out of"),
+        finding.includes("could not read the contextual words out of it"),
       ),
       true,
       `${label} passed silently: ${findings.join("\n")}`,
@@ -3045,7 +3249,8 @@ test("both contextual anchors fail closed when the prose they read moves", () =>
 test("the probe set covers the positions where a keyword is admitted as an ordinary name", () => {
   // The probes ARE the position-independence claim, so what they cover is asserted rather than
   // described: a probe set that only ever put a word at a statement head would make the claim
-  // vacuous.
+  // vacuous. `set … to` and `for … in` were added after review measured a mutant that varied a
+  // class only in `set repeat to 1` and survived.
   const rendered = TOKEN_CLASS_PROBES.map((probe) => probe("end"));
   assert.deepEqual(rendered, [
     "end",
@@ -3055,15 +3260,124 @@ test("the probe set covers the positions where a keyword is admitted as an ordin
     ":p.end",
     "export end",
     "for end from 1 to 3\nend",
+    "for end in [ 1 2 ]\nend",
+    "set end to 1",
   ]);
-  assert.deepEqual(
-    [...paintedClasses(realParserApi, "end", realParserApi.OL_CHECK_PROFILES)],
-    ["keyword"],
+  const all = paintedClasses(
+    realParserApi,
+    "end",
+    realParserApi.OL_CHECK_PROFILES,
   );
+  assert.deepEqual([...all.classes], ["keyword"]);
+  assert.deepEqual(all.silent, [], "every probe must paint the word");
   assert.deepEqual(
-    [...paintedClasses(realParserApi, "ask", CORE_ONLY_PROFILES)],
+    [...paintedClasses(realParserApi, "ask", CORE_ONLY_PROFILES).classes],
     ["primitive"],
   );
+});
+
+test("INJECTED DRIFT: a highlighter that stops painting a word in ONE position only", () => {
+  // Unioning the classes across probes hid a probe that emitted nothing: the other eight covered
+  // for it, so a rule that stopped classifying `local repeat` at all still passed (issue #959
+  // review, finding 3). The silent probe is now the finding.
+  const api = {
+    ...realParserApi,
+    highlight: (source, document, options) =>
+      realParserApi
+        .highlight(source, document, options)
+        .filter(
+          (token) => !(source === "local repeat" && token.text === "repeat"),
+        ),
+  };
+  const findings = tokenClassFindings(REAL_MANIFEST, api);
+  assert.equal(
+    findings.some((finding) =>
+      finding.startsWith(
+        'repeat: the highlighter emits no token for it in "local repeat"',
+      ),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a profile word gated on the WRONG profile", () => {
+  // Comparing only "all profiles" against "Core alone" left the OWNING profile unchecked: a
+  // highlighter that gated `tell` on Interaction rather than Sprites answered identically at both
+  // endpoints and passed (issue #959 review, finding 2). Probing with the entry's own profile —
+  // and with exactly that profile removed — is what pins ownership.
+  const swap = (profiles) =>
+    profiles.includes("sprites")
+      ? profiles.filter((profile) => profile !== "sprites")
+      : [...profiles, "sprites"];
+  const api = {
+    ...realParserApi,
+    highlight: (source, document, options) =>
+      realParserApi.highlight(source, document, {
+        ...options,
+        profiles: swap(options.profiles),
+      }),
+  };
+  const findings = profileGatingFindings(api, entryFor(REAL_MANIFEST, "tell"));
+  assert.equal(
+    findings.some((finding) =>
+      finding.includes("gates a profile word on ITS OWN profile"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+  assert.deepEqual(
+    profileGatingFindings(realParserApi, entryFor(REAL_MANIFEST, "tell")),
+    [],
+  );
+});
+
+test("the paint axis is compared implementation-first too, over the sources highlight() really reads", () => {
+  // `names` is compared against the REGISTRIES in both directions, but the highlighter decides
+  // `operator` from a set of its own. A fifth word added there — painted, unregistered, unlisted —
+  // escaped every check until this comparison existed (issue #959 review, finding 1).
+  assert.deepEqual(tokenClassSourceFindings(REAL_MANIFEST, realParserApi), []);
+
+  const invented = {
+    ...realParserApi,
+    OL_WORD_OPERATORS: [...realParserApi.OL_WORD_OPERATORS, "xor"],
+  };
+  assert.equal(
+    tokenClassSourceFindings(REAL_MANIFEST, invented).some((finding) =>
+      finding.includes('the highlighter paints xor "operator"'),
+    ),
+    true,
+  );
+
+  const dropped = {
+    ...realParserApi,
+    OL_KEYWORDS: realParserApi.OL_KEYWORDS.filter((word) => word !== "repeat"),
+  };
+  assert.equal(
+    tokenClassSourceFindings(REAL_MANIFEST, dropped).some((finding) =>
+      finding.includes(
+        'repeat declare tokenClass "keyword", which no name source of the highlighter backs',
+      ),
+    ),
+    true,
+  );
+
+  // Fails closed: a source that stops being exported is a finding, not a skipped comparison.
+  for (const accessor of [
+    "OL_WORD_OPERATORS",
+    "OL_KEYWORDS",
+    "OL_PROFILE_KEYWORDS",
+  ]) {
+    const { [accessor]: removed, ...api } = realParserApi;
+    assert.notEqual(removed, undefined);
+    assert.equal(
+      tokenClassSourceFindings(REAL_MANIFEST, api).some((finding) =>
+        finding.includes(`exposes no ${accessor}`),
+      ),
+      true,
+      accessor,
+    );
+  }
 });
 
 test("INJECTED DRIFT: a name a Record registry lists under two profiles at once", () => {
@@ -3611,7 +3925,7 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n\nBy contrast, `empty` and `member` are **not** keywords and **not** built-in names. The contextual keywords are exactly these two.\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\nThe words none are contextual keywords here.\n\n| H |\n|---|\n| `keyword` | Declared in built-in-names.json. The contextual words none take this class only in the positions named there. |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\nThe words `empty` and `member` are contextual keywords here.\n\n| H |\n|---|\n| `keyword` | Declared in built-in-names.json. The contextual words `empty`, and `member` take this class only in the structural positions described under [Reserved words](#reserved-words-for-tooling), and are ordinary names elsewhere. Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not. |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });

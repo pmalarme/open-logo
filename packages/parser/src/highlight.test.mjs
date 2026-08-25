@@ -21,8 +21,9 @@
 //
 // The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
 // suites assert that the six profile block-heads plus the Sprites mode-switch command `tell`
-// (which takes no block — `spec/tooling.md:30` keeps that distinction) move, while this file
-// asserts that a representative corpus of non-profile sources does not.
+// (which takes no block — `spec/turtles-and-sprites.md` keeps that distinction, and
+// `spec/tooling.md:30` moves "a profile's block-heads and its mode-switch commands" alike) move,
+// while this file asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

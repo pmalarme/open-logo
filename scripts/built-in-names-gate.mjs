@@ -1543,10 +1543,14 @@ export function wordsBetween(text, open, close) {
 /**
  * The positions each name is re-painted in. Together they are the manifest's `positionIndependence`
  * claim made executable: a bare statement head, an argument, a list element, a `local` binder, a
- * postfix field, an `export` operand, and a `for` binder. The last four are positions where the
- * grammar admits a keyword as an **ordinary name**, which is where a positional rule for this class
- * was refuted (issue #855) — so a class that varied by position would be caught here rather than
- * assumed away.
+ * postfix field, an `export` operand, a `for … from` binder, a `for … in` binder, and a `set … to`
+ * place. Every one after the first is a position where the grammar admits a keyword as an
+ * **ordinary name** (`spec/grammar.md:386`), which is where a positional rule for this class was
+ * refuted (issue #855) — so a class that varied by position is caught here rather than assumed away.
+ *
+ * Each probe must yield **at least one** matching token. Unioning the classes across probes made a
+ * probe that emitted none invisible: the other eight covered for it, and a rule that stopped
+ * classifying `local repeat` at all still passed (issue #959 review).
  */
 export const TOKEN_CLASS_PROBES = [
   (name) => name,
@@ -1556,72 +1560,102 @@ export const TOKEN_CLASS_PROBES = [
   (name) => `:p.${name}`,
   (name) => `export ${name}`,
   (name) => `for ${name} from 1 to 3\nend`,
+  (name) => `for ${name} in [ 1 2 ]\nend`,
+  (name) => `set ${name} to 1`,
 ];
 
 /** The profile-neutral set: Core Language alone, where every profile word must fall back. */
 export const CORE_ONLY_PROFILES = ["core-language"];
 
 /**
- * The anchors the two prose statements of the contextual set are read through. Each is a
+ * The AST node kind each contextual position is realised by. A probe labelled with a position must
+ * actually **parse into** that position, not merely paint the word `keyword` somewhere.
+ *
+ * Without this the label was decorative: swapping `of`'s `value-of-reader` probe for its
+ * `is-predicate` one left the Heritage `value of … for key` reader never exercised while the gate
+ * still reported the position as checked (issue #959 review, finding F1). The keys are
+ * {@link CONTEXTUAL_POSITIONS}; a position with no kind here cannot be validated and is a finding.
+ */
+export const CONTEXTUAL_POSITION_NODE_KINDS = {
+  "is-predicate": "IsPredicate",
+  "value-of-reader": "ValueOfKey",
+};
+
+/**
+ * The anchors the prose statements of the contextual set are read through. Each is a
  * `[describe, open, close, source]`: the backticked words between `open` and `close` must be exactly
  * the words `tokenClass.contextual` declares. `source` says which text to read — `"row"` for the
- * `keyword` token-class row alone, `"document"` for the whole of `spec/tooling.md`.
+ * `keyword` token-class row alone, `"tooling"` for the whole of `spec/tooling.md`, `"grammar"` for
+ * `spec/grammar.md`.
+ *
+ * Three sides, not two, because two can be emptied together: `spec/grammar.md:380`'s "the contextual
+ * keywords are exactly these four" is a normative statement in a document this slice does not touch,
+ * so it is the independent lower bound (issue #959 review, finding 4).
  */
 export const CONTEXTUAL_PROSE_ANCHORS = [
   [
-    "the `keyword` token-class row",
-    "The contextual words ",
-    " take this class only in",
-    "row",
-  ],
-  [
-    'the "Reserved words for tooling" contextual sentence',
+    `${TOOLING_PATH}'s "Reserved words for tooling" contextual sentence`,
     "The words ",
     " are contextual keywords",
-    "document",
+    "tooling",
+  ],
+  [
+    `${GRAMMAR_PATH}'s contextual-keyword sentence`,
+    "By contrast, ",
+    " are **not** keywords",
+    "grammar",
   ],
 ];
 
 /**
  * Re-paint `name` through the shipped highlighter in each of {@link TOKEN_CLASS_PROBES}, under
- * `profiles`, and return the set of classes it came back as.
+ * `profiles`.
  *
- * Every occurrence of the word in every probe is collected, not just the first: `for for from 1 to
- * 3` puts the word in two positions at once, and a rule that painted only one of them would
- * otherwise pass. A word literal's token text keeps its quotes (`"a"`), so a probe may safely
- * mention the name inside a string without the comparison matching it.
+ * Returns `{ classes, silent }` — the set of classes the word came back as, and the probe sources
+ * that produced no token for it at all. Every occurrence in every probe is collected, not just the
+ * first: `for for from 1 to 3` puts the word in two positions at once, and a rule that painted only
+ * one of them would otherwise pass. A word literal's token text keeps its quotes (`"a"`), so a probe
+ * may safely mention the name inside a string without the comparison matching it.
  */
 export function paintedClasses(api, name, profiles) {
   const classes = new Set();
+  const silent = [];
   for (const probe of TOKEN_CLASS_PROBES) {
-    for (const token of api.highlight(probe(name), "<token-class-probe>", {
+    const source = probe(name);
+    let seen = 0;
+    for (const token of api.highlight(source, "<token-class-probe>", {
       profiles,
     })) {
       if (token.text.toLowerCase() === name) {
+        seen += 1;
         classes.add(token.class);
       }
     }
+    if (seen === 0) {
+      silent.push(source);
+    }
   }
-  return classes;
+  return { classes, silent };
 }
 
 /**
  * The **paint axis**: every name's declared `tokenClass` re-measured against the shipped
  * highlighter, in both directions.
  *
- * Three things are checked per name and each can fail on its own:
+ * Per name, each of these can fail on its own:
  *
  * - the value is present and is one of the implementation's own `OL_TOKEN_CLASSES` (no vocabulary is
  *   restated here, so a class the implementation adds is accepted without an edit);
- * - re-painting the name in every {@link TOKEN_CLASS_PROBES} position under every profile yields
- *   exactly that class, and yields **one** class across all of them;
- * - the profile fallback of `spec/tooling.md:31` holds — a name painted `keyword` by a non-Core
- *   profile becomes `primitive` with that profile inactive, and every other name is unmoved.
+ * - every {@link TOKEN_CLASS_PROBES} position yields **at least one** token for the name, and every
+ *   token in every position carries exactly that class;
+ * - the profile rule of `spec/tooling.md:30-31` holds **for the profile the entry names**: a name
+ *   painted `keyword` by a non-Core profile is `keyword` with that profile active and `primitive`
+ *   with it inactive, and every other name is unmoved by either. Comparing only "all profiles"
+ *   against "Core alone" left the *owning* profile unchecked — re-filing `tell` under Interaction
+ *   passed (issue #959 review, finding 2).
  *
- * The reverse direction needs no separate walk: `names` is already compared against the registries
- * in both directions, so a name the implementation knows and this file omits is a finding there, and
- * a name here that the implementation does not know is a finding there too. What this adds is that
- * neither can carry a paint that nothing measured.
+ * The **implementation -> file** direction is {@link tokenClassSourceFindings}: `names` is compared
+ * against the registries elsewhere, but the highlighter has a name source no registry holds.
  */
 export function tokenClassFindings(manifest, api) {
   if (typeof api.highlight !== "function") {
@@ -1643,29 +1677,129 @@ export function tokenClassFindings(manifest, api) {
       );
       continue;
     }
-    const painted = paintedClasses(api, entry.name, api.OL_CHECK_PROFILES);
-    if (painted.size !== 1) {
+    const all = paintedClasses(api, entry.name, api.OL_CHECK_PROFILES);
+    if (all.silent.length > 0) {
       findings.push(
-        `${entry.name}: the highlighter paints it ${[...painted].join(" and ")} depending on position — a name whose class varies cannot carry one tokenClass, and belongs in tokenClass.contextual`,
+        `${entry.name}: the highlighter emits no token for it in ${all.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing, and the other probes must not cover for it`,
       );
       continue;
     }
-    const [actual] = painted;
+    if (all.classes.size !== 1) {
+      findings.push(
+        `${entry.name}: the highlighter paints it ${[...all.classes].join(" and ")} depending on position — a name whose class varies cannot carry one tokenClass, and belongs in tokenClass.contextual`,
+      );
+      continue;
+    }
+    const [actual] = all.classes;
     if (actual !== entry.tokenClass) {
       findings.push(
         `${entry.name}: tokenClass "${entry.tokenClass}" but the highlighter paints it "${actual}"`,
       );
       continue;
     }
-    const core = paintedClasses(api, entry.name, CORE_ONLY_PROFILES);
-    const gated =
-      entry.profile !== "core-language" && entry.tokenClass === "keyword";
-    const expected = gated ? "primitive" : entry.tokenClass;
-    if (core.size !== 1 || !core.has(expected)) {
+    findings.push(...profileGatingFindings(api, entry));
+  }
+  return findings;
+}
+
+/**
+ * The profile half of the paint rule, checked against the profile the entry itself names.
+ *
+ * Three profile sets, because two were not enough to pin ownership: **all** profiles, **Core plus
+ * this entry's own**, and **all except this entry's own**. A gated word must be `keyword` in the
+ * first two and `primitive` in the third; every other name must be unmoved in all three.
+ */
+export function profileGatingFindings(api, entry) {
+  const own = entry.profile;
+  const gated = own !== "core-language" && entry.tokenClass === "keyword";
+  const withoutOwn = api.OL_CHECK_PROFILES.filter((profile) => profile !== own);
+  const expectations = gated
+    ? [
+        [[...CORE_ONLY_PROFILES, own], "keyword", `with ${own} active`],
+        [withoutOwn, "primitive", `with ${own} inactive`],
+      ]
+    : [
+        [CORE_ONLY_PROFILES, entry.tokenClass, "under Core Language alone"],
+        [withoutOwn, entry.tokenClass, `with ${own} inactive`],
+      ];
+  const findings = [];
+  for (const [profiles, expected, describe] of expectations) {
+    const painted = paintedClasses(api, entry.name, profiles);
+    if (painted.classes.size === 1 && painted.classes.has(expected)) {
+      continue;
+    }
+    findings.push(
+      gated
+        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile, and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
+        : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
+    );
+  }
+  return findings;
+}
+
+/**
+ * The **implementation -> file** direction for the paint axis: every word the highlighter treats
+ * specially must be a name this file declares, with the class that treatment gives it.
+ *
+ * `names` is already compared against the *registries* in both directions, but the highlighter does
+ * not decide a class from the registries alone: `OL_WORD_OPERATORS` is a name source of its own. So
+ * a fifth word added there — painted `operator` while no registry holds it and no entry lists it —
+ * escaped every check (issue #959 review, finding 1). Both keyword-class sources are compared the
+ * same way, as sets, in both directions:
+ *
+ * - `tokenClass: "operator"` must equal `OL_WORD_OPERATORS`;
+ * - `tokenClass: "keyword"` must equal `OL_KEYWORDS` + `OL_PROFILE_KEYWORDS` minus those operators.
+ *
+ * Fails closed: a source the implementation stops exporting is a finding, not a skipped comparison.
+ * The residual it does **not** reach is the positional marking in `highlight.ts`, which is decided
+ * from parsed structure rather than a set and so cannot be enumerated from outside; that is what
+ * {@link contextualTokenClassFindings} probes word by word instead.
+ */
+export function tokenClassSourceFindings(manifest, api) {
+  const sources = [
+    ["OL_WORD_OPERATORS", api.OL_WORD_OPERATORS],
+    ["OL_KEYWORDS", api.OL_KEYWORDS],
+  ];
+  for (const [accessor, value] of sources) {
+    if (!Array.isArray(value)) {
+      return [
+        `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no ${accessor}, so a word it paints that this file does not list would pass unseen`,
+      ];
+    }
+  }
+  if (
+    api.OL_PROFILE_KEYWORDS === null ||
+    typeof api.OL_PROFILE_KEYWORDS !== "object"
+  ) {
+    return [
+      `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no OL_PROFILE_KEYWORDS, so a profile word it paints that this file does not list would pass unseen`,
+    ];
+  }
+  const operators = api.OL_WORD_OPERATORS.map((word) => word.toLowerCase());
+  const keywordSources = [
+    ...api.OL_KEYWORDS,
+    ...Object.values(api.OL_PROFILE_KEYWORDS).flat(),
+  ]
+    .map((word) => word.toLowerCase())
+    .filter((word) => !operators.includes(word));
+  const findings = [];
+  for (const [tokenClass, expected] of [
+    ["operator", operators],
+    ["keyword", keywordSources],
+  ]) {
+    const declared = manifest.names
+      .filter((entry) => entry.tokenClass === tokenClass)
+      .map((entry) => entry.name);
+    const undeclared = expected.filter((word) => !declared.includes(word));
+    const unbacked = declared.filter((word) => !expected.includes(word));
+    if (undeclared.length > 0) {
       findings.push(
-        gated
-          ? `${entry.name}: is painted "${entry.tokenClass}" while ${entry.profile} is active but ${[...core].join(" and ")} with it inactive — spec/tooling.md:31 makes a profile word whose profile is inactive "primitive"`
-          : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...core].join(" and ")} under Core Language alone — only a profile's structural words move`,
+        `${MANIFEST_PATH}: the highlighter paints ${undeclared.join(", ")} "${tokenClass}", and no entry declares that — a word the implementation classes and this file does not list is exactly the drift the manifest exists to catch`,
+      );
+    }
+    if (unbacked.length > 0) {
+      findings.push(
+        `${MANIFEST_PATH}: ${unbacked.join(", ")} declare tokenClass "${tokenClass}", which no name source of the highlighter backs`,
       );
     }
   }
@@ -1673,32 +1807,31 @@ export function tokenClassFindings(manifest, api) {
 }
 
 /**
- * The **exception set**: the four words painted `keyword` by position and ordinary names elsewhere.
+ * Does `source` parse into an AST containing at least one node of `kind`?
  *
- * They are not built-in names (`spec/grammar.md:378`), so they are not rows in `names` and no flat
- * class can express them. What makes this a gate rather than a carve-out that passes when emptied
- * (issue #964) is that the set is pinned from three sides at once, and each measures the others:
- *
- * - it must name the same words, with the same positions, as the `excluded` carve-outs whose reason
- *   is `contextual-keyword` — that is the same words' **declaration** axis;
- * - every declared position must carry a probe that really is painted `class` there, and every
- *   `elsewhereProbes` entry must really be painted `elsewhereClass` — so a probe that does not put
- *   the word in the position it claims fails rather than passing vacuously;
- * - both prose statements in `spec/tooling.md` must enumerate exactly this set
- *   ({@link tokenClassRowFindings}).
- *
- * Emptying `words` therefore fails against `excluded` and against both prose statements; emptying
- * `excluded` fails against `words`; changing a word in either fails against the other two.
+ * This is what turns a contextual position label from a caption into a claim: the probe must really
+ * build the grammatical form its position names. `parse` never throws on malformed input, so a probe
+ * that does not parse simply yields no such node and fails.
  */
+export function parsesInto(api, source, kind) {
+  let found = false;
+  api.walk(api.parse(source, "<contextual-probe>").ast, (node) => {
+    if (node.kind === kind) {
+      found = true;
+    }
+  });
+  return found;
+}
+
 /**
  * The declared contextual block, normalised so every caller can read `words`, `class` and
  * `elsewhereClass` without guarding.
  *
  * It reads defensively for one reason: every check in this module runs over the same manifest and
  * collects findings independently, so the first one to reach a missing field must not throw before
- * the others have said what is wrong with it. A malformed block still fails — an empty `words` is
- * exactly the mutation {@link contextualTokenClassFindings} and {@link tokenClassRowFindings} are
- * pinned against from three sides.
+ * the others have said what is wrong with it. A malformed block still fails — an absent or empty
+ * `words` is reported by {@link contextualTokenClassFindings} and disagrees with all three prose
+ * statements in {@link tokenClassRowFindings}.
  */
 export function contextualDeclaration(manifest) {
   const contextual = manifest.tokenClass?.contextual;
@@ -1708,8 +1841,28 @@ export function contextualDeclaration(manifest) {
   return contextual;
 }
 
+/**
+ * The **exception set**: the four words painted `keyword` by position and ordinary names elsewhere.
+ *
+ * They are not built-in names (`spec/grammar.md:378`), so they are not rows in `names` and no flat
+ * class can express them. What makes this a gate rather than a carve-out that passes when emptied
+ * (issue #964) is that the set is pinned from four sides at once, and each measures the others:
+ *
+ * - it must be **non-empty**, and so must the `excluded` carve-outs — emptying every side *at once*
+ *   otherwise satisfied all of the pairwise comparisons and passed (issue #959 review, finding 4);
+ * - it must name the same words, with the same positions, as the `excluded` carve-outs whose reason
+ *   is `contextual-keyword` — that is the same words' **declaration** axis;
+ * - every declared position must carry a probe that **parses into** that position, checked against
+ *   {@link CONTEXTUAL_POSITION_NODE_KINDS}, and that paints the word `class` there; every
+ *   `elsewhereProbes` entry must be painted `elsewhereClass`. Without the parse check the label was
+ *   decorative: `of`'s two probes could be swapped, leaving the Heritage `value of … for key` reader
+ *   never exercised while the position still read as checked;
+ * - all three prose statements of the set must enumerate exactly it
+ *   ({@link tokenClassRowFindings}), one of them in `spec/grammar.md` — a document this slice does
+ *   not touch, so it is an independent lower bound rather than a second copy of the same edit.
+ */
 export function contextualTokenClassFindings(manifest, api) {
-  if (typeof api.highlight !== "function") {
+  if (typeof api.highlight !== "function" || typeof api.parse !== "function") {
     return [];
   }
   const declared = contextualDeclaration(manifest);
@@ -1720,6 +1873,16 @@ export function contextualTokenClassFindings(manifest, api) {
       .map((entry) => [entry.name, entry.positions ?? []]),
   );
   const words = declared.words;
+  if (words.length === 0) {
+    findings.push(
+      `${MANIFEST_PATH}: tokenClass.contextual.words is empty — the exception set carries every word no flat class can express, so an empty one checks nothing while reading as checked (issue #964)`,
+    );
+  }
+  if (carveOuts.size === 0) {
+    findings.push(
+      `${MANIFEST_PATH}: no excluded carve-out has reason "contextual-keyword" — spec/grammar.md:380 names four such words, so an empty set here is drift rather than a language with none`,
+    );
+  }
   const named = new Set(words.map((word) => word.name));
   for (const name of carveOuts.keys()) {
     if (!named.has(name)) {
@@ -1750,6 +1913,16 @@ export function contextualTokenClassFindings(manifest, api) {
       );
     }
     for (const [position, probe] of Object.entries(word.positions ?? {})) {
+      const kind = CONTEXTUAL_POSITION_NODE_KINDS[position];
+      if (kind === undefined) {
+        findings.push(
+          `tokenClass.contextual ${word.name}: position ${position} has no AST node kind this gate can verify a probe against — an unverifiable position label is decorative`,
+        );
+      } else if (!parsesInto(api, probe, kind)) {
+        findings.push(
+          `tokenClass.contextual ${word.name}: probe ${JSON.stringify(probe)} does not parse into a ${kind} node, so it does not put the word in the ${position} position it is labelled with`,
+        );
+      }
       const painted = api
         .highlight(probe, "<contextual-probe>", {
           profiles: api.OL_CHECK_PROFILES,
@@ -1788,21 +1961,121 @@ export function contextualTokenClassFindings(manifest, api) {
 }
 
 /**
- * `spec/tooling.md`'s two remaining name-level enumerations, both compared against the declaration.
- *
- * The `keyword` row no longer enumerates the class — it points at `spec/built-in-names.json`, and
- * that pointer is required, because a row that names no home for the enumeration has quietly become
- * the enumeration again. What the row may still name, and the only thing it may name, is the set of
- * built-in names whose paint differs from their category: those are the exceptions a reader needs
- * stated where they read. That is compared as a **set, in both directions** — naming a word of the
- * class re-creates the copy this replaced, and dropping one of the exceptions drops a normative
- * statement.
- *
- * The contextual four are enumerated twice in prose (the row, and the "Reserved words for tooling"
- * sentence). Both are read through their own fail-closed anchor and both must equal the declaration,
- * so neither can drift and neither can be emptied.
+ * `` `word1`, `word2`, and `word3` `` — an Oxford-comma English list of backticked names, which is
+ * how the token-class row's two generated clauses render their data.
  */
-export function tokenClassRowFindings(manifest, row, toolingText) {
+export function renderNameList(names) {
+  const quoted = names.map((name) => `\`${name}\``);
+  if (quoted.length < 2) {
+    return quoted.join("");
+  }
+  return `${quoted.slice(0, -1).join(", ")}, and ${quoted[quoted.length - 1]}`;
+}
+
+/**
+ * The two sentences of `spec/tooling.md`'s `keyword` row that carry data, **rendered from the
+ * declaration**. The row must contain each verbatim.
+ *
+ * This is the "generated from" half of the row's contract, and it is what the earlier set-comparison
+ * could not do: comparing only *which* names the row mentioned left the sentence around them free,
+ * so inverting its polarity — `` are **not** in this class `` to `` are **also** in this class `` —
+ * passed while putting a false normative claim on disk (issue #959 review, finding 6). The words and
+ * the class in each sentence now come from `spec/built-in-names.json`, which is itself compared
+ * against the running highlighter.
+ *
+ * **The limit, stated rather than implied:** the English *around* the data is a template here, so
+ * this verifies the row renders the declaration and nothing about whether the template's own wording
+ * is a faithful rendering of it. Co-editing the template and the row would pass — but that is a
+ * change to `spec/**` and `scripts/**` in one PR, which `CODEOWNERS` puts in front of the
+ * maintainer. It is not a digest that anyone can recompute alone.
+ */
+export function generatedRowClauses(manifest) {
+  const clauses = [];
+  const exceptions = manifest.names.filter(
+    (entry) => entry.tokenClass !== entry.category,
+  );
+  const classes = [...new Set(exceptions.map((entry) => entry.tokenClass))];
+  // No exceptions is a coherent state — the two axes would simply agree everywhere — and then the
+  // row has no exception sentence to carry. The set-comparison below still forbids it naming one.
+  if (exceptions.length > 0) {
+    clauses.push([
+      "the two-axis exceptions",
+      classes.length === 1
+        ? `The word-spelled operators ${renderNameList(exceptions.map((entry) => entry.name))} are the only built-in names whose token class differs from their category: they are **not** in this class — they are \`${classes[0]}\` below.`
+        : null,
+    ]);
+  }
+  const contextual = contextualDeclaration(manifest);
+  clauses.push([
+    "the contextual words",
+    `The contextual words ${renderNameList(contextual.words.map((word) => word.name))} take this class only in the structural positions described under [Reserved words](#reserved-words-for-tooling), and are ordinary names elsewhere.`,
+  ]);
+  return clauses;
+}
+
+/**
+ * The profile half of the row's rule. It carries no data to render, so it is a **required literal**
+ * — nothing more and nothing less. It exists because the polarity of this sentence is a normative
+ * claim that the rest of the row check could not see: rewriting it to "whether or not their profile
+ * is active" contradicts `spec/tooling.md:31` and used to pass.
+ */
+export const REQUIRED_ROW_SENTENCES = [
+  "Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not.",
+];
+
+/**
+ * A re-enumeration of the class that {@link backtickedWords} cannot see, because it is not written
+ * as individually backticked words.
+ *
+ * Two shapes, both measured as escapes before this existed (issue #959 review, finding F2): a bare
+ * comma-separated English list, and one code span holding several space-separated names. Detected as
+ * **list syntax** — three or more built-in names in a row — rather than by scanning for individual
+ * words, which is unusable here: `in`, `to`, `set`, `for`, `value` and `key` are all built-in names
+ * and all ordinary English, so a per-word scan fires on the row's own prose.
+ */
+export function reEnumerationFindings(row, names) {
+  const findings = [];
+  const isName = (word) => names.includes(word.toLowerCase());
+  for (const span of row.match(/`[^`]+`/g) ?? []) {
+    const words = span.slice(1, -1).trim().split(/\s+/);
+    if (words.length >= 3 && words.every(isName)) {
+      findings.push(
+        `${TOOLING_PATH}: the \`keyword\` token-class row holds the code span ${span}, which lists ${words.length} built-in names in one span — the class is enumerated in ${MANIFEST_PATH}, and a span like this is that list copied back into prose`,
+      );
+    }
+  }
+  const prose = row.replace(/`[^`]+`/g, " ");
+  const list = new RegExp(
+    `\\b(?:${names.join("|")})\\b(?:,\\s+(?:and\\s+)?(?:${names.join("|")})\\b){2,}`,
+    "g",
+  );
+  for (const run of prose.match(list) ?? []) {
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row holds the list "${run}" — three or more built-in names in a row is the class enumerated back into prose, which ${MANIFEST_PATH} is the home for`,
+    );
+  }
+  return findings;
+}
+
+/**
+ * `spec/tooling.md`'s `keyword` row, compared against the declaration four ways.
+ *
+ * The row no longer enumerates the class — it points at `spec/built-in-names.json`, and that pointer
+ * is required, because a row that names no home for the enumeration has quietly become the
+ * enumeration again. Beyond that:
+ *
+ * - both data-bearing sentences are **generated** from the declaration and must appear verbatim
+ *   ({@link generatedRowClauses}), so their polarity and their words are both fixed;
+ * - the profile sentence is a {@link REQUIRED_ROW_SENTENCES} literal, having no data to render;
+ * - the set of built-in names the row names backticked must **equal** the two-axis exception set, in
+ *   both directions, so no class member can be named anywhere else in the row;
+ * - {@link reEnumerationFindings} catches an enumeration written to dodge the backtick scan.
+ *
+ * The contextual four are also stated in `spec/tooling.md`'s "Reserved words for tooling" and in
+ * `spec/grammar.md`; both are read through their own fail-closed anchor and both must equal the
+ * declaration.
+ */
+export function tokenClassRowFindings(manifest, row, toolingText, grammarText) {
   const findings = [];
   if (!row.includes("built-in-names.json")) {
     findings.push(
@@ -1810,7 +2083,33 @@ export function tokenClassRowFindings(manifest, row, toolingText) {
     );
   }
 
-  const listed = new Map(manifest.names.map((entry) => [entry.name, entry]));
+  let residue = row;
+  for (const [describe, clause] of generatedRowClauses(manifest)) {
+    if (clause === null) {
+      findings.push(
+        `${MANIFEST_PATH}: the two-axis exceptions do not share one tokenClass, so ${describe} cannot be rendered — the row's sentence is generated from them and there is no single class to name`,
+      );
+      continue;
+    }
+    if (residue.includes(clause)) {
+      residue = residue.replace(clause, " ");
+      continue;
+    }
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not carry ${describe} as ${MANIFEST_PATH} renders it. Expected verbatim: ${clause}`,
+    );
+  }
+  for (const sentence of REQUIRED_ROW_SENTENCES) {
+    if (residue.includes(sentence)) {
+      residue = residue.replace(sentence, " ");
+      continue;
+    }
+    findings.push(
+      `${TOOLING_PATH}: the \`keyword\` token-class row does not carry the required sentence verbatim: ${sentence}`,
+    );
+  }
+
+  const listed = new Set(manifest.names.map((entry) => entry.name));
   const exceptions = manifest.names
     .filter((entry) => entry.tokenClass !== entry.category)
     .map((entry) => entry.name);
@@ -1829,25 +2128,26 @@ export function tokenClassRowFindings(manifest, row, toolingText) {
       `${TOOLING_PATH}: the \`keyword\` token-class row does not name ${dropped.join(", ")}, whose token class differs from its category — those exceptions are what the row is for`,
     );
   }
+  findings.push(...reEnumerationFindings(residue, [...listed]));
 
   const contextual = contextualDeclaration(manifest).words.map(
     (word) => word.name,
   );
   for (const [describe, open, close, source] of CONTEXTUAL_PROSE_ANCHORS) {
     const words = wordsBetween(
-      source === "row" ? row : toolingText,
+      source === "grammar" ? grammarText : toolingText,
       open,
       close,
     );
     if (words === null) {
       findings.push(
-        `${TOOLING_PATH}: could not read the contextual words out of ${describe} — the anchor "${open.trim()} ... ${close.trim()}" this gate reads has moved`,
+        `${describe}: could not read the contextual words out of it — the anchor "${open.trim()} ... ${close.trim()}" this gate reads has moved`,
       );
       continue;
     }
     if (words.join(" ") !== contextual.join(" ")) {
       findings.push(
-        `${TOOLING_PATH}: ${describe} names the contextual words [${words.join(", ")}], and tokenClass.contextual declares [${contextual.join(", ")}]`,
+        `${describe} names the contextual words [${words.join(", ")}], and tokenClass.contextual declares [${contextual.join(", ")}]`,
       );
     }
   }
@@ -1872,9 +2172,8 @@ export function tokenClassRowFindings(manifest, row, toolingText) {
  */
 export function proseFindings(manifest, io) {
   const findings = [];
-  const grammarWords = extractGrammarKeywordBlock(
-    readDocument(io, GRAMMAR_PATH, findings),
-  );
+  const grammarText = readDocument(io, GRAMMAR_PATH, findings);
+  const grammarWords = extractGrammarKeywordBlock(grammarText);
   if (grammarWords === null) {
     findings.push(
       `${GRAMMAR_PATH}: could not find the fenced keyword block after "The normative OpenLogo keyword list is:" — the anchor this gate reads has moved`,
@@ -1941,7 +2240,9 @@ export function proseFindings(manifest, io) {
   }
 
   if (row !== null) {
-    findings.push(...tokenClassRowFindings(manifest, row, toolingText));
+    findings.push(
+      ...tokenClassRowFindings(manifest, row, toolingText, grammarText),
+    );
   }
 
   return findings;
@@ -2288,6 +2589,7 @@ export function runBuiltInNamesGate({
     ...duplicateRegistrationFindings(resolved, api),
     ...entryFindings(resolved, api),
     ...tokenClassFindings(resolved, api),
+    ...tokenClassSourceFindings(resolved, api),
     ...contextualTokenClassFindings(resolved, api),
     ...implementationFindings(resolved, api),
     ...directionAgreementFindings(resolved, api),

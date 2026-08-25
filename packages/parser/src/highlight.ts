@@ -113,8 +113,17 @@ export interface Token {
  * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
  * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
+ *
+ * **Exported because it is a name source no registry enumerates.** The four are built-in names, so
+ * `spec/built-in-names.json` lists them — but it lists them by *category*, and this set is the only
+ * place the implementation says how they are *painted*. Without an enumerator the built-in-names
+ * gate could compare the manifest's declared classes to what `highlight()` paints for names it
+ * already knows, and never notice a **fifth** word added here that the manifest does not list at all
+ * (issue #959 review). It is the paint axis's counterpart to the registries' `enumerate` accessors.
  */
-const WORD_OPERATORS = new Set(["and", "or", "not", "mod"]);
+export const OL_WORD_OPERATORS = ["and", "or", "not", "mod"] as const;
+
+const WORD_OPERATORS = new Set<string>(OL_WORD_OPERATORS);
 
 /** Lexical token kinds that carry highlightable content — never `newline`/`eof`. */
 type ContentTokenKind = Exclude<LexTokenKind, "newline" | "eof">;

@@ -55,39 +55,77 @@ treated them as one.
    active*.
 
 2. **The class is measured, not asserted.** The gate re-paints every name through `highlight()` in
-   seven grammatical positions — a statement head, an argument, a list element, a `local` binder, a
-   postfix field, an `export` operand and a `for` binder — and requires every occurrence in every
-   position to come back as the declared class. The last four are exactly where a positional rule
-   was refuted, so the manifest's `positionIndependence` claim is executed rather than assumed.
-   Measured at 0.1.0: **148 names, 97 `primitive`, 47 `keyword`, 4 `operator`, and 148 of 148
-   position-invariant.**
+   nine grammatical positions — a statement head, an argument, a list element, a `local` binder, a
+   postfix field, an `export` operand, a `for … from` binder, a `for … in` binder and a `set … to`
+   place — and requires **every position to yield at least one token** and every token in every
+   position to carry the declared class. Both halves matter: unioning the classes let a position
+   that painted nothing hide behind the others. The eight non-head positions are where the grammar
+   admits a keyword as an ordinary name (`spec/grammar.md:386`), so the manifest's
+   `positionIndependence` claim is executed rather than assumed. Measured at 0.1.0: **148 names, 97
+   `primitive`, 47 `keyword`, 4 `operator`, and 148 of 148 position-invariant.**
 
-3. **The profile fallback is part of the comparison.** A name whose profile is not Core and whose
-   class is `keyword` must paint `primitive` with that profile inactive (`spec/tooling.md:31`);
-   every other name must be unmoved. Measured, exactly seven names move: `ask`, `each`, `tell`,
-   `when`, `every`, `on_key`, `on_click`.
+3. **The profile rule is checked against the profile the entry names.** Three profile sets, not two:
+   all profiles, Core plus the entry's own, and all except the entry's own. A name painted `keyword`
+   by a non-Core profile must be `keyword` in the first two and `primitive` in the third
+   (`spec/tooling.md:31`); every other name must be unmoved by any of them. Comparing only
+   "all profiles" against "Core alone" left *ownership* unchecked — gating `tell` on Interaction
+   instead of Sprites answered identically at both endpoints. Measured, exactly seven names move:
+   `ask`, `each`, `tell`, `when`, `every`, `on_key`, `on_click`.
 
-4. **The four contextual words are a declared exception set, not prose.** `empty`, `member`, `of`
+4. **The implementation is compared to the file, not only the file to the implementation.** `names`
+   is already compared against the *registries* both ways, but `highlight()` does not decide a class
+   from the registries alone: `OL_WORD_OPERATORS` is a name source of its own, so a fifth word added
+   there — painted `operator`, held by no registry, listed by no entry — escaped everything. Both
+   keyword-class sources are now set-compared both ways: `tokenClass: "operator"` against
+   `OL_WORD_OPERATORS`, and `tokenClass: "keyword"` against `OL_KEYWORDS` + `OL_PROFILE_KEYWORDS`
+   minus those operators. It fails closed when a source stops being exported.
+
+5. **The four contextual words are a declared exception set, not prose.** `empty`, `member`, `of`
    and `a` are painted `keyword` *by position* and are ordinary names elsewhere, so no flat value
    can express them — and they are not built-in names at all, so they are not rows in `names`.
    They get their own structure under `tokenClass.contextual`, carrying a **probe per declared
-   position** and probes for the positions outside it. The probes are run, so a probe that does not
-   put the word where it claims fails instead of passing vacuously.
+   position** and probes for the positions outside it. Each probe is run **and parsed**: it must
+   build the AST node its position names (`IsPredicate`, `ValueOfKey`), because a label nothing
+   verifies is decorative — `of`'s two probes could otherwise be swapped, leaving the Heritage
+   reader unexercised while the position still read as checked.
 
-5. **The exception set cannot pass by being empty** (issue #964). It is pinned from three sides that
-   each measure the others: the `excluded` carve-outs with reason `contextual-keyword` (the same
-   words' declaration axis, compared as a set *and* position-by-position), and the two prose
-   statements of the set in `spec/tooling.md`, each read through a fail-closed anchor and compared
-   word for word. Emptying any one of the three fails against the other two.
+6. **The exception set cannot pass by being empty** (issue #964). It is pinned from four sides:
+   its own declared non-emptiness, the `excluded` carve-outs with reason `contextual-keyword` (the
+   same words' declaration axis, compared as a set *and* position-by-position), and the two prose
+   statements of the set — one in `spec/tooling.md`, one in `spec/grammar.md`, each read through a
+   fail-closed anchor and compared word for word. Emptying one side fails against the others;
+   emptying *every* side at once satisfies all the pairwise comparisons, which is why non-emptiness
+   is checked on its own terms.
 
-6. **The row states the exceptions and points at the declaration.** `spec/tooling.md:30` no longer
-   enumerates the class. It must cite `built-in-names.json`, and the set of built-in names it names
-   backticked must equal — in both directions — the set whose `tokenClass` differs from its
-   `category`. Naming a class member re-creates the copy this replaced and fails; dropping an
-   exception drops a normative statement and fails.
+7. **The row's data-bearing sentences are generated from the declaration.** `spec/tooling.md:30` no
+   longer enumerates the class. It must cite `built-in-names.json`; its two sentences that carry
+   data — the two-axis exceptions and the contextual words — are **rendered from the declaration and
+   required verbatim**; the profile sentence, which has no data to render, is a required literal;
+   the set of built-in names it names backticked must equal the two-axis exception set in both
+   directions; and a list of three or more built-in names in a row is rejected wherever it appears,
+   which is how a bare comma-separated enumeration or a single multi-word code span is caught.
 
-7. **The fingerprint is removed, not kept alongside.** A checksum beside a real comparison invites
+8. **The fingerprint is removed, not kept alongside.** A checksum beside a real comparison invites
    the same "green means correct" misreading this decision exists to close.
+
+## What this does **not** check
+
+Stated because the mechanism it replaces failed three times by claiming more than it verified.
+
+- **The templates' own English.** The row's generated sentences take their *words* and *classes*
+  from the declaration, but the prose around them is a template in `scripts/`. Co-editing the
+  template and the row would pass. That is a change to `spec/**` and `scripts/**` in one pull
+  request, which `CODEOWNERS` puts in front of the maintainer — unlike a digest, which one hand
+  could recompute alone.
+- **The rest of the row's prose.** Sentences carrying no data are not compared, beyond the
+  three-names-in-a-row rule and the backticked-name set comparison. A false claim written in prose
+  that names nothing is still maintainer-reviewed, not machine-checked.
+- **The narrative fields** of `spec/built-in-names.json`. `narrativeFindings` requires them to be
+  present and non-blank; nothing verifies what they say. That was already true of every `about` in
+  that file and is unchanged here.
+- **The positional marking inside `highlight.ts`.** It is decided from parsed structure rather than
+  from a set, so it cannot be enumerated from outside; the contextual probes measure it word by
+  word instead, which covers the declared words and cannot prove the absence of an undeclared one.
 
 ## Consequences
 
@@ -99,9 +137,9 @@ treated them as one.
 - The gate now depends on `@openlogo/parser`'s `highlight()`, not only on its name registries. It
   **fails closed** if no `highlight()` is exported, because a paint axis that silently checks
   nothing is worse than none.
-- `spec/tooling.md:30` stays a single line, so the 39 citations pointing at it do not shift. The
-  claims those citations quote are preserved; where the row's wording changed, the quoting comments
-  were updated in the same change.
+- `spec/tooling.md:30` stays a single line, so the **39 pre-existing citations** pointing at it do
+  not shift (this record adds two more of its own). The claims those citations quote are preserved;
+  where the row's wording changed, the quoting comments were updated in the same change.
 - The enumeration lives under `spec/`, so it stays maintainer-owned via `CODEOWNERS` exactly as the
   row was. What changed is that CI now has an opinion about whether it is true.
 - This does not make the token class *derivable* — it makes it *declared*. `spec/grammar.md:378`'s
