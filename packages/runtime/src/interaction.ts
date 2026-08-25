@@ -307,13 +307,13 @@ export function takeInputResponse(
  * event name (the type check only rejects a non-word, `ol-type`), and a handler for a word this
  * runtime never delivers simply never runs.
  *
- * In a headless batch `execute()` run only `"start"` is actually *delivered*: the run has already
+ * In a headless batch `execute()` run with no host input, only `"start"` is *delivered*: the run has already
  * started, so a `when "start"` handler fires immediately on registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"). `"stop"`
- * is "a requested stop notification" — a batch run receives no such request, so a `when "stop"`
- * handler is accepted and registered but never fires here (exactly as a vendor event an
- * implementation does not deliver would not). An interactive host delivers `"stop"` when a stop is
- * actually requested; this slice does not
+ * is "a requested stop notification" — such a run supplies no such request, so a `when "stop"`
+ * handler is accepted and registered but never fires there (exactly as a vendor event an
+ * implementation does not deliver would not). A host that schedules `"stop"` through
+ * `ExecuteOptions.hostInput` does fire it (#686/I7); this slice does not
  * synthesize one on natural completion, which the spec does not define as a stop request.
  */
 export const STANDARD_EVENT_WORDS = Object.freeze({
@@ -397,8 +397,8 @@ export interface EveryHandler {
  * simply never runs.
  *
  * A key press is **host input**: with no host input supplied, an
- * `on_key` handler registers but never fires — exactly like a `when "stop"` handler in a
- * headless run (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
+ * `on_key` handler registers but never fires — exactly like a `when "stop"` handler in the
+ * same situation (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
  * is a host concern outside this slice, so this handler carries no delivery-state flag: it holds the
  * captured block and scope for an interactive host to deliver. It lives in its own
  * registration-ordered list so the same-tick delivery order (#686/I7)
@@ -424,7 +424,7 @@ export interface OnKeyHandler {
  *
  * A click is **host input**: with no host input supplied, an
  * `on_click` handler registers but never fires — exactly like a `when "stop"` handler (I3) or
- * an `on_key` handler (I5) in a headless run (locked by the `on-click-registered-not-delivered`
+ * an `on_key` handler (I5) in the same situation (locked by the `on-click-registered-not-delivered`
  * fixture). Synthesizing a click is a host concern outside this slice, so this handler carries no
  * delivery-state flag: it holds the captured block and scope for an interactive host to
  * deliver. It lives in its own registration-ordered list so the same-tick delivery order (#686/I7)
@@ -596,8 +596,8 @@ export function registerEveryHandler(
  * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
  * handlers or `every`'s timed handlers) so the spec's same-tick delivery order — pending `when`,
  * then pending `on_key`, then `on_click`, then due `every` (#686/I7) — can filter each kind
- * independently while each kind preserves its own registration order. In a headless batch run no key
- * press is ever delivered, so this list is populated but never drained here.
+ * independently while each kind preserves its own registration order. With no host input supplied
+ * no key press is pending, so this list is populated but never drained here.
  */
 export function registerOnKeyHandler(
   registry: EventHandlerRegistry,
@@ -627,7 +627,7 @@ export function registerOnKeyHandler(
  * one-shot handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
  * same-tick delivery order — pending `when`, then pending `on_key`, then pending `on_click`, then due
  * `every` (#686/I7) — can filter each kind independently while each kind preserves its own
- * registration order. In a headless batch run no click is ever delivered, so this list is populated
+ * registration order. With no host input supplied no click is pending, so this list is populated
  * but never drained here.
  */
 export function registerOnClickHandler(

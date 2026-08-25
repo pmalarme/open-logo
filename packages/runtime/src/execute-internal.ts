@@ -2487,8 +2487,9 @@ function fireEvent(event: string, environment: Environment): ExecSignal {
  * is registered"). Finally, because a batch `execute()` run has already started, a `"start"` handler
  * is already being delivered, so it fires immediately after registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"); every
- * other event — including `"stop"` — is registered but not delivered in a headless batch run (see
- * {@link STANDARD_EVENT_WORDS}), so its handler does not fire here.
+ * other event — including `"stop"` — is registered and fires only if a host schedules it through
+ * `ExecuteOptions.hostInput` (see
+ * {@link STANDARD_EVENT_WORDS}), so with none supplied its handler does not fire here.
  *
  * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
  * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
@@ -3212,8 +3213,8 @@ function isOnKeyStatement(statement: StatementNode): boolean {
  * registration forms emit `primitive` events after the handler is registered").
  *
  * Registration never fires the block: a key press is host input, and in a headless batch `execute()`
- * run with no host input supplied, an `on_key` handler is registered but never fires — exactly like a
- * `when "stop"` handler in a headless run. Synthesizing a key press is a host concern outside this
+ * run with no host input supplied, an `on_key` handler is registered but never fires — exactly like
+ * a `when "stop"` handler in the same situation. Synthesizing a key press is a host concern outside this
  * slice; the `on-key-registered-not-delivered` fixture locks that narrowing so it is falsifiable
  * rather than silently omitted.
  *
@@ -3289,7 +3290,7 @@ function isOnClickStatement(statement: StatementNode): boolean {
  * argument to evaluate or type-check, and the spec lists its errors as **none**. Registration never
  * fires the block: a click is host input, and with no host input supplied
  * an `on_click` handler is registered but never fires — exactly like a `when "stop"`
- * (I3) or an `on_key` (I5) handler in a headless run. Synthesizing a click is a host concern outside
+ * (I3) or an `on_key` (I5) handler in the same situation. Synthesizing a click is a host concern outside
  * this slice; the `on-click-registered-not-delivered` fixture locks that narrowing so it is
  * falsifiable rather than silently omitted.
  *

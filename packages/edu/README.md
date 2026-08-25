@@ -125,6 +125,6 @@ derivation is also what held lesson content to the finished rule while the check
 before [#838](https://github.com/pmalarme/open-logo/issues/838), `check()` consulted neither the
 Turtle & Rendering nor the Educational table, so `define forward` and `define hint` were accepted.
 
-Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
+Each level adds its own `lessons/level-N.ts` module and extends the registry
 additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
 level (`spec/educational-model.md:37`'s discovery guardrail).

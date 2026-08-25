@@ -117,8 +117,8 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   which is weaker than capturing *values*: nothing is snapshotted and no fresh bindings are made,
   which is why #821's loop case is still open.
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
-  registration emits `primitive` after the handler is registered; a key press is host input, so in a
-  headless batch run the handler is registered but never delivered (locked by
+  registration emits `primitive` after the handler is registered; a key press is host input, so with
+  no host input supplied the handler is registered but never fires (locked by
   `on-key-registered-not-delivered`, mirroring I3's `when "stop"`); a non-word key is `ol-type`, the
   multiline `... end on_key` form behaves identically to the bracket form, a mismatched `end` label is
   `ol-mismatched-end`, `on_key` registers correctly in awkward positions (nested in `repeat`,
@@ -134,7 +134,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
 - **`on_click/`** — the `on_click <block>` pointer handler (issue #685, slice I6): the last handler
   form and the only one that takes **no argument** (`spec/interaction-events.md` §Profile grammar:
   "`on_click` takes none"). Registration emits `primitive` after the handler is registered; a click is
-  host input, so in a headless batch run the handler is registered but never delivered (locked by
+  host input, so with no host input supplied the handler is registered but never fires (locked by
   `on-click-registered-not-delivered`, mirroring I3's `when "stop"` and I5's `on_key`) — and, with no
   host input supplied, advancing the tick clock with `wait` still does not fire it because nothing was
   pending (`on-click-wait-does-not-fire`; #686/I7 reconciled its wording — a click delivered via

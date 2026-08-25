@@ -3,8 +3,8 @@
 // ticks, and handlers", "Trace stream integration", and "Errors and cancellation"). `when`
 // registers a named handler and emits a `primitive` event AFTER registration; the standard `"start"`
 // event is already being delivered in a batch run so its handler fires immediately, while `"stop"`
-// is "a requested stop notification" that a headless batch run never receives, so a `when "stop"`
-// handler is registered but does not fire here (delivery belongs to a later interactive host). The
+// is "a requested stop notification" that this run does not supply, so a `when "stop"`
+// handler is registered but does not fire here. The
 // event argument must be a word (`ol-type` otherwise). The stream stays deterministic and headless.
 //
 // Node-version trap (see the PR body): on Node 24+ `--experimental-test-coverage` silently excludes
@@ -83,7 +83,7 @@ test('two when "start" handlers fire in registration order', () => {
   assert.deepEqual(printed, ["a", "b"]);
 });
 
-// --- `"stop"` is a requested notification: registered but not delivered in a headless batch -----
+// --- `"stop"` is a requested notification: registered, and not fired when none is supplied -----
 
 test('a when "stop" handler is registered but does NOT fire in a batch run', () => {
   const result = execute('when "stop" [ print "bye" ]\nprint "mid"', doc);
@@ -91,9 +91,9 @@ test('a when "stop" handler is registered but does NOT fire in a batch run', () 
   const printed = effectEvents(result)
     .filter((event) => event.kind === "print")
     .map((event) => event.payload.values[0]);
-  // `"stop"` is "a requested stop notification before termination"; a headless batch `execute()`
-  // receives no such request, so only `mid` prints — `bye` never runs. Delivering `"stop"` belongs
-  // to a later interactive/cancellation host slice, not to this one.
+  // `"stop"` is "a requested stop notification before termination"; this run supplies no such
+  // request through `hostInput`, so only `mid` prints — `bye` never runs. A host that schedules
+  // `"stop"` via `ExecuteOptions.hostInput` does fire it (#686/I7).
   assert.deepEqual(printed, ["mid"]);
 });
 
