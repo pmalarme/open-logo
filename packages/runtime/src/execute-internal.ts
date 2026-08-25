@@ -112,7 +112,6 @@ import {
   emitWhenPrimitive,
   enqueueHostInput,
   isWaitCall,
-  pendingHandlersFor,
   registerEveryHandler,
   registerOnClickHandler,
   registerOnKeyHandler,
@@ -2383,7 +2382,8 @@ function isWhenStatement(statement: StatementNode): boolean {
  * statement of a non-empty body) — otherwise `undefined` to proceed.
  *
  * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
- * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
+ * paths uniformly: the immediate `when "start"` fire during registration
+ * ({@link executeWhenStatement}) and the
  * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget or a cancelled
  * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
  * on every path — so a handler that would begin only to be immediately halted is not started at all,
@@ -2414,15 +2414,17 @@ function guardHandlerDispatch(
 }
 
 /**
- * Run one `when` handler's block for a fired event (`spec/interaction-events.md`'s "Trace stream
- * integration"): first emit the `instruction` event for the block-head that caused the handler to
- * run — carrying the `when` keyword's own span, so replay attributes the run to the registration
- * site — then execute the handler body, whose own effects emit the ordinary after-effect events.
- * Marks the handler `fired` so a one-shot event (`"start"`/`"stop"`) never delivers it twice.
- * Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside
- * the handler) propagates and stops the whole run, per `spec/interaction-events.md`'s
- * "Errors and cancellation". A `return`/`stop` that escapes the handler body is converted HERE into
- * its `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * Run one `when` handler's block for one occurrence of its event (`spec/interaction-events.md`'s
+ * "Trace stream integration"): first emit the `instruction` event for the block-head that caused the
+ * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
+ * registration site — then execute the handler body, whose own effects emit the ordinary
+ * after-effect events. Marks nothing: a `when` registration is **persistent** and runs "each time the
+ * named event occurs, once per occurrence" (`spec/interaction-events.md:158-163`, maintainer ruling
+ * #984), exactly like {@link invokeOnKeyHandler}/{@link invokeOnClickHandler}. Returns the body's
+ * {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside the handler)
+ * propagates and stops the whole run, per `spec/interaction-events.md`'s "Errors and cancellation". A
+ * `return`/`stop` that escapes the handler body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
  * body, exactly like the top level), rather than being returned raw: a `when "start"` handler fires
  * synchronously during registration, so a raw `return`/`stop` signal would otherwise be caught by an
  * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
@@ -2437,7 +2439,6 @@ function invokeWhenHandler(
   if (guard) {
     return guard;
   }
-  handler.fired = true;
   environment.events.push({
     seq: environment.events.length,
     kind: "instruction",
@@ -2459,26 +2460,6 @@ function invokeWhenHandler(
 }
 
 /**
- * Deliver `event` to every not-yet-fired `when` handler registered for it, in registration order
- * (`spec/interaction-events.md`'s "Time, ticks, and handlers": pending `when` events fire in
- * registration order). Snapshots the pending set first ({@link pendingHandlersFor} returns a fresh
- * array) so a handler that registers another handler for the same event mid-dispatch does not
- * extend the sequence being delivered now — that newly-registered handler follows its own
- * registration path. Firing an event with no registered handler is a well-defined no-op. Stops at
- * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
- * every handler completed normally.
- */
-function fireEvent(event: string, environment: Environment): ExecSignal {
-  for (const handler of pendingHandlersFor(environment.eventHandlers, event)) {
-    const signal = invokeWhenHandler(handler, environment);
-    if (signal.kind !== "normal") {
-      return signal;
-    }
-  }
-  return NORMAL_SIGNAL;
-}
-
-/**
  * Register a `when <event-word> <block>` handler (issue #682, `spec/interaction-events.md`'s
  * `### when <event-word> <block>`): evaluate the single event argument, require it to be a word
  * (`ol-type` via {@link runtimeDiag.whenEventNotWord} otherwise), record the handler on the
@@ -2490,6 +2471,14 @@ function fireEvent(event: string, environment: Environment): ExecSignal {
  * other event — including `"stop"` — is registered and fires only if a host schedules it through
  * `ExecuteOptions.hostInput` (see
  * {@link STANDARD_EVENT_WORDS}), so with none supplied its handler does not fire here.
+ *
+ * Only the handler **just registered** fires, never the whole `"start"` cohort: the run's single
+ * `"start"` occurrence is what each handler is catching as it registers, and handlers registered
+ * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:158-163`,
+ * ruling #984 — a handler is never retired, so nothing filters an already-delivered one out) from
+ * re-firing every earlier `"start"` handler on each new registration. Persistence is observable
+ * instead when an event occurs again, which for `"start"`/`"stop"` cannot happen in v0.1 and for a
+ * vendor event means a further host delivery through {@link dispatchDueHandlers}.
  *
  * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
  * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
@@ -2527,7 +2516,7 @@ function executeWhenStatement(
   // because the bodyless `tell` mode-switch shares that node kind; a cast (not a runtime guard)
   // records that invariant without adding an unreachable branch.
   const block = statement.body as BlockNode;
-  registerWhenHandler(
+  const handler = registerWhenHandler(
     environment.eventHandlers,
     event,
     block,
@@ -2536,7 +2525,7 @@ function executeWhenStatement(
   );
   emitWhenPrimitive(environment.events, statement.source_span);
   if (event === STANDARD_EVENT_WORDS.start) {
-    const signal = fireEvent(event, environment);
+    const signal = invokeWhenHandler(handler, environment);
     if (signal.kind !== "normal") {
       return signal;
     }
@@ -2827,12 +2816,13 @@ function isEveryStatement(statement: StatementNode): boolean {
  * integration"): emit the `instruction` event for the block-head that caused the handler to run —
  * carrying the `every` keyword's own span, so replay attributes each repeated run to the
  * registration site — then execute the handler body, whose own effects emit the ordinary
- * after-effect events. Unlike {@link invokeWhenHandler}'s one-shot `fired`, an `every` handler is
- * marked `running` for the duration of its body and cleared afterwards, so a re-entrant `wait`
- * inside the body cannot deliver a second overlapping invocation of the same handler
- * ({@link claimDueEveryHandlers} consumes but does not re-enter a `running` handler) — the spec's "at most
- * one pending invocation" guarantee, here read conservatively as zero overlap so a body whose own
- * `wait` re-arms the interval can never drive a non-terminating drain. Returns the body's
+ * after-effect events. Unlike {@link invokeWhenHandler}, an `every` handler is marked `running` for
+ * the duration of its body (and has its batch `claimed` flag cleared as it starts), so a re-entrant
+ * `wait` inside the body cannot deliver a second overlapping invocation of the same handler: that
+ * arriving interval is queued instead and drained at the first checkpoint after the body returns
+ * ({@link claimDueEveryHandlers}), which is the spec's required "queue that occurrence and run it
+ * once the handler is free", capped at one pending invocation
+ * (`spec/interaction-events.md:188-195`). Returns the body's
  * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
@@ -2846,7 +2836,7 @@ function invokeEveryHandler(
   if (guard) {
     return guard;
   }
-  handler.pending = false;
+  handler.claimed = false;
   handler.running = true;
   environment.events.push({
     seq: environment.events.length,
@@ -2964,7 +2954,8 @@ function invokeOnClickHandler(
  * so a run is deterministic in the program's own registration order (`spec/interaction-events.md`
  * l.84-89 names no delivery-order concept). The whole tick's ordered invocation batch is built by
  * claiming **all four buckets up front** — each `claim*` empties its pending queue (and
- * `claimDueEveryHandlers` marks its handlers `pending`/advances `nextDueTick`) at claim time — and
+ * `claimDueEveryHandlers` claims its handlers, advancing `nextDueTick` and marking them `claimed`) at
+ * claim time — and
  * only then are the bodies run. That up-front claim is what makes a nested `wait` inside a handler
  * body re-entrancy-safe: a same-tick re-entry finds every queue already drained, so it cannot steal
  * a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier handlers
@@ -3010,8 +3001,9 @@ function dispatchDueHandlers(
     environment.hostInputConsumed.count,
   );
   // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
-  // empties its pending queue (and `claimDueEveryHandlers` marks its handlers `pending`/advances
-  // `nextDueTick`) at claim time, so the whole tick's ordered batch is fixed up front. This is what
+  // empties its pending queue (and `claimDueEveryHandlers` claims its handlers, advancing
+  // `nextDueTick` and marking them `claimed`) at claim time, so the whole tick's ordered batch is
+  // fixed up front. This is what
   // makes a nested `wait` inside a handler body re-entrancy-safe: when that nested `wait` re-enters
   // this dispatcher at the SAME tick, every queue for this tick is already drained, so it cannot
   // steal a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier

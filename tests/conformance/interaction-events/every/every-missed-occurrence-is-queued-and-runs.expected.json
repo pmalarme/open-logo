@@ -1,0 +1,303 @@
+{
+  "description": "MAINTAINER RULING #984, Q2: coalescing is REQUIRED, not permitted -- `If a prior invocation is still running when the next interval arrives, the implementation MUST queue that occurrence and run it once the handler is free` (spec/interaction-events.md:188-195). The handler is registered at tick 0 with a body that takes 4 ticks, so its tick-3 invocation is still running when its next interval arrives at tick 6: that occurrence MUST be queued. The trailing `wait 1` supplies the checkpoint that drains it, at tick 8 -- a tick where the handler is NOT due (its next interval is tick 9) and is no longer running, so the second firing can only be the queued occurrence being run. Two handler-start `instruction` events at 1:1-1:6 (seq 3 and seq 10) and two `print`s. Measured against a runtime mutated to drop the missed occurrence -- the rejected permissive reading, which argued that ZERO overlapping invocations satisfies the `at most one` upper bound -- this program prints ONCE.",
+  "profiles": [
+    "core-language",
+    "interaction-events"
+  ],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          29
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          29
+        ]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          7
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          6
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          20
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          20
+        ]
+      },
+      "payload": {
+        "values": [
+          "a"
+        ]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          21
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          21
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          7
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          3,
+          1
+        ],
+        "end": [
+          3,
+          7
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          6
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          20
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          20
+        ]
+      },
+      "payload": {
+        "values": [
+          "a"
+        ]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          21
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          1,
+          21
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
+        "start": [
+          3,
+          1
+        ],
+        "end": [
+          3,
+          7
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

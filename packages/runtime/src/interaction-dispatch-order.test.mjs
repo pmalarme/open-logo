@@ -828,10 +828,11 @@ test("a nested `wait` inside a handler cannot overtake older same-tick invocatio
   assert.deepEqual(printedValues(result), [[1], [11], [2], [3]]);
 });
 
-test("a one-shot `when` handler fires at most once even if its event is pending twice", () => {
-  // `when` is one-shot. If the same named event is delivered twice in one tick, the handler must
-  // still fire exactly once (collecting it per-occurrence would fire a one-shot handler twice, since
-  // its `fired` flag is only set at invocation).
+test("a persistent `when` handler fires once per occurrence when its event is pending twice", () => {
+  // `when` is PERSISTENT (maintainer ruling #984, `spec/interaction-events.md:158-163`): its block
+  // runs "each time the named event occurs, once per occurrence". Two deliveries of the same named
+  // event in one tick therefore fire the handler twice, exactly as two presses of the same key fire
+  // an `on_key` handler twice. Before the ruling this printed once, from a one-shot `fired` flag.
   const source = ['when "go" [ print 1 ]', "wait 1"].join("\n");
   const result = execute(source, doc, {
     hostInput: {
@@ -842,5 +843,23 @@ test("a one-shot `when` handler fires at most once even if its event is pending 
     },
   });
   assert.deepEqual(result.diagnostics, []);
-  assert.deepEqual(printedValues(result), [[1]]);
+  assert.deepEqual(printedValues(result), [[1], [1]]);
+});
+
+test("a persistent `when` handler fires again when its event occurs on a later tick", () => {
+  // The across-tick half of the same ruling, and the case the conformance corpus recorded as
+  // measured one-shot behaviour before #984: the same event delivered at tick 1 and tick 2 fires the
+  // handler on BOTH ticks. A vendor-prefixed word (`spec/interaction-events.md:155-156`) is used
+  // because `"start"`/`"stop"` occur once per run and so cannot tell the two readings apart.
+  const source = ['when "acme.shake" [ print 1 ]', "wait 2"].join("\n");
+  const result = execute(source, doc, {
+    hostInput: {
+      events: [
+        { tick: 1, kind: "event", event: "acme.shake" },
+        { tick: 2, kind: "event", event: "acme.shake" },
+      ],
+    },
+  });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [[1], [1]]);
 });

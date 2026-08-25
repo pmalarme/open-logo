@@ -1,0 +1,359 @@
+{
+  "description": "MAINTAINER RULING #984, Q3: the interval clock is FIXED RATE -- `each successive interval arrives n ticks after the previous interval, on that original schedule. The period is never re-measured from the moment an invocation happens to finish` (spec/interaction-events.md:182-186). `every 2` with a body that takes 3 ticks overruns its own interval on every invocation, so the two readings separate immediately. Measured: the intervals stand at ticks 2, 4, 6, 8 and 10 no matter when a body ends, and the outer `wait 4`'s four checkpoints -- ticks 1, 2, 6 and 10, because each body's nested `wait 3` advances the shared clock -- fire the handler THREE times. Measured against a runtime mutated to the rejected fixed-DELAY reading, where each period is disarmed for the duration of an invocation and re-armed from its completion tick, the same program fires it only TWICE. Fixed delay also makes the queueing sentence at :188-195 dead text, since a new interval could never arrive while one was running -- which is the argument that settles it.",
+  "profiles": [
+    "core-language",
+    "interaction-events"
+  ],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          32
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          32
+        ]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          7
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          6
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "values": [
+          "slow"
+        ]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          6
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "values": [
+          "slow"
+        ]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          6
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          11
+        ],
+        "end": [
+          1,
+          23
+        ]
+      },
+      "payload": {
+        "values": [
+          "slow"
+        ]
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          1,
+          24
+        ],
+        "end": [
+          1,
+          30
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          7
+        ]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

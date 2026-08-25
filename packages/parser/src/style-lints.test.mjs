@@ -1158,11 +1158,12 @@ test("ol-style-nested-handler: EVERY registration form is flagged inside an ever
   }
 });
 
-test("ol-style-nested-handler: user-bounded and one-shot outers stay completely clean", () => {
+test("ol-style-nested-handler: user-bounded and externally-bounded outers stay completely clean", () => {
   // `on_key`/`on_click` are bounded by a person -- the ruling's control case, and the game pattern
-  // the issue exists to protect. `when` is ONE-SHOT in this runtime (a fired handler is never
-  // re-delivered), so `when "start" [ every 10 [ ... ] ]` registers exactly one handler; measured
-  // as 1 firing from 4 deliveries. None of these accumulates, so none is flagged.
+  // the issue exists to protect. `when` is PERSISTENT since maintainer ruling #984, but it repeats
+  // only as often as a HOST delivers its named event, not on the tick clock; and `"start"` occurs
+  // once per run, so `when "start" [ every 10 [ ... ] ]` registers exactly one handler. None of
+  // these accumulates on elapsed time alone, so none is flagged.
   for (const source of [
     'on_key "space" [ every 10 [ print 1 ] ]',
     "on_click [ every 10 [ print 1 ] ]",

@@ -428,26 +428,69 @@ test("a return escaping an every handler registered inside a proc is still ol-re
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });
 
-// --- "At most one pending invocation": a re-entrant wait cannot overlap the same handler --------
+// --- The queueing rule: a missed occurrence is coalesced to one and RUN, never dropped -----------
 
 test("a re-entrant wait inside an every handler does not deliver a second overlapping invocation", () => {
   // The handler for `every 2` runs a nested `wait 2`. While that inner wait advances the clock past
-  // another due tick for the SAME handler, the handler is already `running`, so it is skipped — at
-  // most one pending invocation, no unbounded buildup. The single outer due tick therefore produces
-  // exactly one `print` from this handler.
+  // another due tick for the SAME handler, the handler is already `running`, so the arriving
+  // occurrence is QUEUED rather than re-entered — at most one pending invocation, no unbounded
+  // buildup (`spec/interaction-events.md:188-195`). Nothing drains it here: the outer `wait 2` has
+  // spent both its ticks, so the program ends with the occurrence still queued. The single outer due
+  // tick therefore produces exactly one `print` from this handler. The companion test below adds the
+  // checkpoint that drains it.
   const result = execute('every 2 [ print "x" wait 2 ]\nwait 2', doc);
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
   assert.equal(prints.length, 1);
 });
 
+test("an occurrence missed while the handler was running is queued and RUNS at the next checkpoint", () => {
+  // Maintainer ruling #984: coalescing is REQUIRED, not optional. `every 3`'s body takes 4 ticks, so
+  // the interval that arrives at tick 6 lands while the tick-3 invocation is still running and must
+  // be queued. The trailing `wait 1` supplies one checkpoint, at tick 8 — where the handler is NOT
+  // due (its next interval is tick 9) and is free — so the ONLY thing that can produce a second
+  // `print` is the queued occurrence being drained. Two prints. Dropping the missed occurrence, the
+  // pre-#984 behaviour, prints once.
+  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3\nwait 1', doc);
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 2);
+});
+
+test("further intervals arriving while one is already queued coalesce: the queue never exceeds one", () => {
+  // `every 1` under a body that takes 5 ticks: intervals arrive on ticks 2,3,4,5,6 while the tick-1
+  // invocation runs — five missed occurrences, all coalescing into the single queue slot. The
+  // trailing `wait 1` drains exactly ONE of them, so the run prints twice, not six times. This is
+  // the "at most one pending invocation … prevents unbounded buildup" cap, measured.
+  const result = execute('every 1 [ print "a" wait 5 ]\nwait 1\nwait 1', doc);
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 2);
+});
+
+test("the interval clock is FIXED RATE: a late invocation does not re-measure the period", () => {
+  // Maintainer ruling #984, `spec/interaction-events.md:182-186`. `every 2` with a body that takes 3
+  // ticks, under `wait 4`. Fixed rate: intervals arrive at ticks 2, 4, 6, 8, 10 on their own
+  // schedule regardless of when a body finishes, and the outer wait's four checkpoints land on ticks
+  // 1, 2, 6 and 10 (the body's own nested waits advance the shared clock), firing the handler three
+  // times. Fixed DELAY — re-measuring the period from each completion — would push the next interval
+  // to completion+2, so the outer wait's checkpoints would find it due only twice. Three prints is
+  // therefore the fixed-rate signature.
+  const result = execute('every 2 [ print "slow" wait 3 ]\nwait 4', doc);
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 3);
+});
+
 test("a sibling handler is not re-fired out of order by another handler's re-entrant wait", () => {
   // Both handlers are due on tick 2. The first handler's body runs a nested `wait 2`, advancing the
   // clock to tick 4 — the second handler's next interval boundary. Without an up-front batch claim
   // the second handler would fire during that inner wait (for tick 4) AND again from the outer
-  // tick-2 batch, printing "b" twice, out of chronological order. Because the outer batch claims
-  // both handlers as `pending` up front, the inner wait sees the second handler already pending and
-  // skips it, so it fires exactly once, after "a", in registration order: ["a", "b"].
+  // tick-2 batch, printing "b" twice, out of chronological order. Because the outer batch marks both
+  // handlers `claimed` up front, the inner wait QUEUES the second handler's tick-4 occurrence
+  // instead of claiming it a second time, so it fires exactly once here, after "a", in registration
+  // order: ["a", "b"]. The queued occurrence is never drained — the outer `wait 2` has no checkpoint
+  // left — which is why the queueing rule does not disturb this ordering guarantee.
   const result = execute(
     'every 2 [ print "a" wait 2 ]\nevery 2 [ print "b" ]\nwait 2',
     doc,

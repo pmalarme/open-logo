@@ -155,6 +155,13 @@ interactive run and `"stop"` for a requested stop notification before
 termination. Implementations MAY add vendor events with a dotted vendor prefix,
 such as `"acme.shake"`.
 
+A `when` registration is **persistent**, exactly like `every`, `on_key`, and
+`on_click`: its block runs **each time** the named event occurs, once per
+occurrence. An implementation MUST NOT retire a handler after its first
+invocation. Both standard v0.1 event words occur once per run, so persistent and
+one-shot delivery are indistinguishable for `"start"` and `"stop"`; the rule is
+observable for vendor events, which may occur any number of times.
+
 ```logo
 when "start" [
   print "ready"
@@ -172,9 +179,21 @@ when "start" [
 `every` registers a block to run every `n` ticks. `n` MUST be a positive whole
 number: a non-whole count raises `ol-type`, and a zero or negative count raises
 `ol-range`.
-The first run occurs after `n` ticks have elapsed. If a prior invocation is
-still running when the next interval arrives, the implementation queues at most
-one pending invocation for that `every` handler to prevent unbounded buildup.
+
+The first run occurs after `n` ticks have elapsed. The interval clock then runs
+at a **fixed rate**: each successive interval arrives `n` ticks after the
+previous interval, on that original schedule. The period is never re-measured
+from the moment an invocation happens to finish, so a late invocation does not
+push the following interval back.
+
+If a prior invocation is still running when the next interval arrives, the
+implementation MUST queue that occurrence and run it once the handler is free.
+Queueing is required, not optional. The queue holds **at most one** pending
+invocation for that `every` handler: while an occurrence is already queued,
+further intervals that arrive coalesce into it rather than accumulating, which
+is what prevents unbounded buildup. A handler that takes longer than its own
+interval therefore degrades to running back to back and can never build up an
+unbounded backlog.
 
 ```logo
 every 30 [

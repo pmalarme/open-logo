@@ -1,0 +1,2 @@
+every 2 [ print "slow" wait 3 ]
+wait 4

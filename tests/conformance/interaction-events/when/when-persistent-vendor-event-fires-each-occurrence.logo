@@ -1,0 +1,2 @@
+when "acme.shake" [ print "shook" ]
+wait 2

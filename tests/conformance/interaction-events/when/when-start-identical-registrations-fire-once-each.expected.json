@@ -1,0 +1,195 @@
+{
+  "description": "MAINTAINER RULING #984, Q1, the consequence that is easiest to get wrong: persistence must NOT re-fire the whole `\"start\"` cohort when a later handler registers. `\"start\"` is already being delivered in a batch run, so each handler fires immediately on its own registration (spec/interaction-events.md:75-77) -- and the run's single `\"start\"` occurrence is what each handler catches as it registers, so handlers registered earlier already caught it. Two byte-identical registrations therefore produce exactly TWO firings, in registration order: register-1 (seq 0-1), fire-1 (seq 2-4), register-2 (seq 5-6), fire-2 (seq 7-9). The two handler-start `instruction` spans differ -- 1:1-1:5 at seq 2, 2:1-2:5 at seq 7 -- which is what discriminates the three readings a persistent `when` admits. Measured against mutated runtimes: firing the cohort on each registration yields THREE prints (a; then a, a), and collapsing the two identical registrations into one handler yields ONE, which is separately forbidden by spec/interaction-events.md:79 (`implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers`). Only two prints, at those two spans, is conformant.",
+  "profiles": [
+    "core-language",
+    "interaction-events"
+  ],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          27
+        ]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          1,
+          1
+        ],
+        "end": [
+          1,
+          5
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          1,
+          16
+        ],
+        "end": [
+          1,
+          25
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          1,
+          16
+        ],
+        "end": [
+          1,
+          25
+        ]
+      },
+      "payload": {
+        "values": [
+          "a"
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          27
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          27
+        ]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          2,
+          1
+        ],
+        "end": [
+          2,
+          5
+        ]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          2,
+          16
+        ],
+        "end": [
+          2,
+          25
+        ]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-start-identical-registrations-fire-once-each",
+        "start": [
+          2,
+          16
+        ],
+        "end": [
+          2,
+          25
+        ]
+      },
+      "payload": {
+        "values": [
+          "a"
+        ]
+      }
+    }
+  ],
+  "diagnostics": []
+}

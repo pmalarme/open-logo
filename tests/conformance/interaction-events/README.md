@@ -85,6 +85,20 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   handler must afford its firing **and** its body's first statement. That absence — no second
   `ProfileStatement` `instruction` event — is what a source→events fold observes, and dropping the
   body-gate arm adds exactly that orphan block-head.
+  Maintainer ruling **#984** adds the three fixtures that pin `when`'s **persistence**
+  (`spec/interaction-events.md:158-163` — a handler runs each time its event occurs, once per
+  occurrence, and is never retired). `when-persistent-vendor-event-fires-each-occurrence` delivers
+  `"acme.shake"` on two different ticks and `when-persistent-same-tick-occurrences-each-fire`
+  delivers it twice on one tick; both fire the handler twice, and they are separate fixtures because
+  they exercise separate mechanisms — two drains each finding one occurrence, versus one drain that
+  must preserve its queue's multiplicity rather than collapse it to a set. Both use a
+  **vendor-prefixed** word by necessity: `"start"` and `"stop"` occur once per run, so under them a
+  one-shot implementation is indistinguishable from a persistent one. `when-start-identical-registrations-fire-once-each`
+  pins the consequence that is easiest to get wrong — persistence must **not** re-fire the whole
+  `"start"` cohort when a later handler registers — with two byte-identical registrations that fire
+  exactly twice, at two different head spans. It fails both the cohort-refiring reading (three prints)
+  and a registry that collapses the identical pair into one handler (one print), the latter being
+  independently forbidden by `spec/interaction-events.md:79`.
 - **`every/`** — the `every <n> <block>` repeated timed handler (issue #683, slice I4):
   registration emits `primitive` after the handler is registered, the block first runs `n` ticks
   **after registration** (not at a global multiple of `n`) and repeats every `n` ticks while a `wait`
@@ -116,6 +130,19 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   the firing-time scope raises `ol-undefined-var` instead. Note this pins capture of the *environment*,
   which is weaker than capturing *values*: nothing is snapshotted and no fresh bindings are made,
   which is why #821's loop case is still open.
+  Maintainer ruling **#984** adds the three fixtures that pin how an **overrunning** handler behaves,
+  a region the corpus had left entirely open. `every-missed-occurrence-is-queued-and-runs` proves
+  coalescing is **required**: an interval arriving while the body is still running is queued, and the
+  trailing `wait 1` drains it at a tick where the handler is provably *not* due, so the second firing
+  can only be the queued occurrence. `every-queue-coalesces-to-one` proves the **cap** from the other
+  side — two intervals arrive while the handler is blocked, and only one drains. Its blocker is an
+  `on_key` handler rather than the `every` body itself, because a self-blocking body rebuilds the
+  backlog at every drain and so can never expose an uncapped queue; the key arrives on the same tick
+  the handler is due, so the whole batch is claimed up front and the handler sits claimed while the
+  `on_key` body's `wait 25` runs. `every-fixed-rate-interval-not-re-measured` pins the third rule
+  (`spec/interaction-events.md:182-186`): a body that takes three ticks under `every 2` fires three
+  times, where a fixed-**delay** scheduler re-measuring each period from its invocation's completion
+  fires twice.
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
   registration emits `primitive` after the handler is registered; a key press is host input, so with
   no host input supplied the handler is registered but never fires (locked by
@@ -304,21 +331,35 @@ spec states that outright at `:129`/`:131`, so the four `input-prompt-*` fixture
 unit tests in `packages/runtime/src/interaction-input.test.mjs` remain, covering the three rejected
 kinds a fixture would have to import another profile to reach (`dict`, `record`, `turtle`).
 
-**Deliberately NOT added: a repeated-delivery fixture for `when`.** The #688 review found, and the
-author confirmed by direct execution, that a `when` handler fires **at most once per run**: with the
-same named event delivered at tick 1 and tick 2, the body runs once, whereas an `on_key` handler
-given the same key at both ticks runs twice. This is deliberate implemented behavior (`WhenHandler.fired`
-in `packages/runtime/src/interaction.ts`, locked by the #686 unit test "a one-shot `when` handler
-fires at most once even if its event is pending twice"), and no fixture in this corpus delivers a
-named event twice, so the corpus neither pins nor contradicts it.
+**Landed under maintainer ruling #984: the two undecided rules, and a third.** This section used to
+record a `when` repeated-delivery fixture as **deliberately withheld**. The #688 review had found,
+and the author confirmed by direct execution, that a `when` handler fired **at most once per run**:
+with the same named event delivered at tick 1 and tick 2 the body ran once, whereas an `on_key`
+handler given the same key at both ticks ran twice. That was deliberate implemented behavior locked
+only by a runtime flag and a unit test, and no fixture in this corpus delivered a named event twice,
+so the corpus neither pinned nor contradicted it. The stated reason for withholding was sound —
+**the spec did not settle it**, and a fixture asserting either reading would have bound every
+implementation to a clause the spec had not written.
 
-It is left unfixtured on purpose, for the reason `input-prompt-not-text` was withheld before #768
-ruled: **the spec does not settle it.** `spec/interaction-events.md` says a handler invocation is
-enqueued "when an event fires" but never states whether a `when` registration is one-shot or
-persistent, and both standard
-v0.1 event words are inherently once-per-run — `"start"` is "the start of the interactive run" and
-`"stop"` is "a requested stop notification before termination" (`:152-156`). A fixture asserting
-either reading would bind every implementation to a clause the spec has not written, and the
-alternative reading matters mainly for the vendor-prefixed events the spec permits but does not
-define. This also sits in `packages/runtime/`, outside this slice's write-set. **Filed for a
-maintainer ruling; a fixture lands once that ruling exists.**
+The claim that a ruling had been *requested*, however, was false when it was written: no such issue
+existed, and the #661 Epic Gate found it by searching. That is the same defect class epic #901 exists
+to close, sitting inside the conformance corpus itself. Issue **#984** was then filed, and ruled:
+
+1. **`when` is persistent** — its block runs each time its event occurs, once per occurrence
+   (`spec/interaction-events.md:158-163`).
+2. **Coalescing one missed `every` occurrence is required**, not permitted (`:188-195`). The runtime's
+   contrary reading — that zero overlapping invocations satisfies an "at most one" *upper bound* —
+   was rejected.
+3. **`every n` is fixed rate** (`:182-186`), a third rule the audit had not surfaced: the interval
+   clock keeps its own schedule and a late invocation does not re-measure the period.
+
+Six fixtures land with it — three under `when/` and three under `every/`, described in those sections
+above. Two properties of this corpus are worth recording, because they are why the rules could ship
+undecided at all. First, **the ruling changed three normative rules and the corpus did not move**:
+910 fixtures passed before the runtime change and 910 passed after, so not one of them discriminated
+any of the three. A dimension nothing varies is a dimension nothing can observe. Second, the two
+`when` fixtures that pin persistence **must** use a vendor-prefixed event word
+(`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
+`"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams. Each of
+the six was mutation-verified — every one fails against at least one runtime mutated back to a
+rejected reading, and each rejected reading is caught by at least one of them.

@@ -1,0 +1,6 @@
+every 10 [ print "a" ]
+on_key "space" [ wait 25 ]
+wait 10
+wait 0
+wait 0
+wait 0

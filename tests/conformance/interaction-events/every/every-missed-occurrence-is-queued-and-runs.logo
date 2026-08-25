@@ -1,0 +1,3 @@
+every 3 [ print "a" wait 4 ]
+wait 3
+wait 1

@@ -1,5 +1,5 @@
 {
-  "description": "two `every 2` handlers are both due on tick 2; the first handler's body runs a nested `wait 2` that advances the clock through the second handler's tick-4 boundary. Claiming the whole due batch up front (marking both handlers pending) means the inner wait skips the already-pending sibling, so it is not fired a second time out of chronological order: the handlers run once each, in registration order",
+  "description": "two `every 2` handlers are both due on tick 2; the first handler's body runs a nested `wait 2` that advances the clock through the second handler's tick-4 boundary. Claiming the whole due batch up front (marking both handlers `claimed`) means the inner wait cannot claim the already-claimed sibling a second time, so it is not fired out of chronological order: the handlers run once each, in registration order. Under maintainer ruling #984 that tick-4 occurrence is QUEUED rather than dropped (spec/interaction-events.md:188-195), but nothing drains it here -- the outer `wait 2` has spent both its ticks and the program ends -- so the stream this fixture pins is the ordering guarantee alone, unchanged by the queueing rule",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [
