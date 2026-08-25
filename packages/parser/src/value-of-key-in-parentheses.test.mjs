@@ -23,16 +23,19 @@
 // silently re-parses as a call to a procedure named `value` is the "silent no-op" class this saga
 // keeps rediscovering.
 //
-// **Boundary — all shapes below are single-line, deliberately.** Splitting an expression across a
-// newline inside `( … )` is currently rejected, but that is a GENERAL, pre-existing limitation of
-// the expression reader rather than anything to do with this reader or the `(` path: `( 1\n + 2 )`
-// and `( :d\n .a )` fail identically, and `value of :d\n for key "a"` fails with NO parentheses at
-// all. `parseParenthesized` skips newlines only after `(` and between `parenthesized-call`
-// arguments, so those two forms tolerate breaks while infix continuation, postfixes, and the
-// reader's `for`/`key` separators do not — a gap against `spec/grammar.md:34` ("Within a single
-// expression, list literal, dict literal, or parenthesized group, newlines are insignificant").
-// Fixing it is an expression-grammar change, not a `(`-routing change, so it is out of #830's
-// scope and reported separately rather than pinned here.
+// **Boundary — all shapes below are single-line, deliberately.** When #830 was fixed, splitting an
+// expression across a newline inside `( … )` was rejected generally, not by anything to do with
+// this reader or the `(` path: `( 1\n + 2 )`, `( :d\n .a )` and `value of :d\n for key "a"` (no
+// parentheses at all) all failed alike, against `spec/grammar.md:34` ("Within a single expression,
+// list literal, dict literal, or parenthesized group, newlines are insignificant"). Fixing that was
+// an expression-grammar change rather than a `(`-routing change, so it was reported separately.
+//
+// Two of those three have since been fixed elsewhere — infix continuation by #933/#956, and this
+// reader's own `for`/`key` separators by #962, whose shapes are pinned in
+// `value-of-key-newline.test.mjs` rather than here. Postfix continuation (`( :d\n .a )`, still two
+// phantom `ol-unmatched-paren`) remains open. **The single-line boundary here is therefore now a
+// statement about this file's SCOPE, not about the parser's**: these tests pin the `(`-routing
+// question #830 asked, and the newline question is pinned next door.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
