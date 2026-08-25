@@ -161,6 +161,22 @@ const bySourcePosition = (left, right) =>
   left.source_span.start[1] - right.source_span.start[1];
 
 /**
+ * How many adjacent pairs in `children` are **distinct** nodes sharing a start position — the case a
+ * stable sort cannot order, so the comparison below would silently accept either arrangement.
+ *
+ * The same node appearing twice is excluded deliberately: aliasing is legitimate (a node reachable by
+ * two fields must appear twice in its parent's child list), and there is no order to get wrong
+ * between a reference and itself.
+ */
+const tiedStartCount = (children) =>
+  children.filter(
+    (child, index) =>
+      index > 0 &&
+      children[index - 1] !== child &&
+      bySourcePosition(children[index - 1], child) === 0,
+  ).length;
+
+/**
  * A name for the shape of `value`, combining its `Object.prototype.toString` tag with whether its
  * prototype is exactly `Object.prototype`. Deliberately branch-free: a conditional that only takes
  * its second arm when something is already wrong is dead on a green tree, which is the same defect
@@ -196,20 +212,59 @@ const isAccessorField = (field) => !Object.hasOwn(field[1], "value");
 const isDataField = (field) => Object.hasOwn(field[1], "value");
 const pathOfField = (field) => field[0];
 
+/** True when `key` is an array index, i.e. one of the keys `for…of` actually reads. */
+const isIndexKey = (key) =>
+  typeof key === "string" && String(Number(key)) === key;
+
+/**
+ * The own keys of an array that are **not** indices. A well-formed array has exactly one, `length`;
+ * anything else is a place `for…of` cannot look — an expando, or an own `Symbol.iterator` that lies
+ * about the contents.
+ *
+ * Returned as names rather than paths, and always non-empty, so this is a whole-set comparison like
+ * the other oracles here rather than a projection only a failing tree evaluates.
+ */
+const nonIndexKeysOf = (value) =>
+  Reflect.ownKeys(value)
+    .filter((key) => !isIndexKey(key))
+    .map(String);
+
 /**
  * Every `[path, node]` pair reachable from `value` **without passing through another node** —
  * descending through arrays and through wrapper objects (`DictEntryNode`, `PlaceSegment`, `IsTest`,
  * `ProcedureParam`) but stopping at the first node, which is the child edge itself.
  *
  * Enumeration is `Reflect.ownKeys`, not `Object.entries`, so a symbol-keyed or non-enumerable field
- * is seen rather than silently skipped. `seen` collects everything this traversal had to trust: the
- * `kind` of every kinded, spanned non-node; the prototype of every object descended into; and any
- * accessor property, whose getter is deliberately **not** invoked, since a getter may return a fresh
- * object per call and make identity comparison meaningless. All three are compared as whole sets,
- * because a recogniser that skips what it knows is how the unknown case becomes reachable unnoticed.
+ * is seen rather than silently skipped, and an array's non-index own keys are reported rather than
+ * passed over by `for…of`. `seen` collects everything this traversal had to trust: the `kind` of
+ * every kinded, spanned non-node; the shape of every object descended into; any accessor property
+ * **on a child-bearing field**, which is reported rather than read, since a getter may return a
+ * fresh object per call and make identity comparison meaningless; and every non-index key on an
+ * array. All of them are compared as whole sets, because a recogniser that skips what it knows is
+ * how the unknown case becomes reachable unnoticed.
+ *
+ * The narrow claim is deliberate. This does not promise that *no* getter runs: classifying a value
+ * reads `value.kind` and `value.source_span`, and `Object.prototype.toString.call` consults
+ * `Symbol.toStringTag`, any of which could be an accessor. Those reads are how a shape is
+ * identified at all, so they cannot be avoided without a different oracle — and an accessor there
+ * would surface as an unexpected entry in `shapes` or `foreignShapes` rather than passing silently.
  */
 function edgesUnder(value, path, seen, out) {
   if (Array.isArray(value)) {
+    // Indices are what `for…of` reads. An array's *other* own keys — an expando, or an own
+    // `Symbol.iterator` that lies about the contents — are not, and a node parked on one is
+    // invisible exactly as a symbol-keyed field was to `Object.entries`. Found by the #960 reviewer,
+    // which defeated an earlier version of this file both ways with the gate fully green. Reported
+    // rather than descended, so `[]` stays the only path spelling this gate emits.
+    // Indices are what `for…of` reads. An array's *other* own keys — an expando, or an own
+    // `Symbol.iterator` that lies about the contents — are not, and a node parked on one is
+    // invisible exactly as a symbol-keyed field was to `Object.entries`. Found by the #960 reviewer,
+    // which defeated an earlier version of this file both ways with the gate fully green. The key
+    // names are collected and compared as a whole set against `["length"]`, so a newcomer breaks the
+    // equality rather than slipping past a recogniser.
+    for (const key of nonIndexKeysOf(value)) {
+      seen.arrayKeys.add(key);
+    }
     for (const item of value) {
       edgesUnder(item, `${path}[]`, seen, out);
     }
@@ -268,6 +323,7 @@ function auditTheCorpus() {
     foreignShapes: new Set(),
     shapes: new Set(),
     accessorFields: [],
+    arrayKeys: new Set(),
   };
   const populated = new Set();
   const kindsSeen = new Set();
@@ -275,6 +331,7 @@ function auditTheCorpus() {
   const unreachedByWalk = [];
   const filesPerRoot = new Map();
   let reflectedCount = 0;
+  let visitCount = 0;
   let nodeCount = 0;
   let fileCount = 0;
 
@@ -326,6 +383,11 @@ function auditTheCorpus() {
       // the one ordering that cannot be circular.
       order: returned.map(handleOf).join(" "),
       sourceOrder: [...returned].sort(bySourcePosition).map(handleOf).join(" "),
+      // `Array.prototype.sort` is stable, so two children sharing a start position keep `returned`'s
+      // order in `sourceOrder` and the order comparison above can never fire for them. There are
+      // none today; recording the count means the day one appears, the weakening announces itself
+      // instead of going quiet — a green signal certifying less than it appears to.
+      tiedStarts: tiedStartCount([...returned].sort(bySourcePosition)),
     });
     for (const edge of edges) {
       auditNode(edge[1], reflectedNodes);
@@ -340,8 +402,16 @@ function auditTheCorpus() {
     fileCount += 1;
     filesPerRoot.set(root, filesPerRoot.get(root) + 1);
     const walked = new Set();
-    walk(ast, (node) => walked.add(node));
+    let walkVisits = 0;
+    walk(ast, (node) => {
+      walked.add(node);
+      // Counted separately from the set: `walk` calls the visitor once per *edge*, so an aliased
+      // node legitimately visited twice increments this twice while the set counts it once. The
+      // equality below compares visits to visits; the floor uses distinct nodes.
+      walkVisits += 1;
+    });
     nodeCount += walked.size;
+    visitCount += walkVisits;
     for (const node of walked) {
       kindsSeen.add(kindOf(node));
     }
@@ -385,15 +455,18 @@ function auditTheCorpus() {
     outOfOrderChildren: childListRows.filter(
       (row) => row.order !== row.sourceOrder,
     ),
+    tiedStartRows: childListRows.filter((row) => row.tiedStarts > 0),
     unreachedByWalk: [...new Set(unreachedByWalk)].sort(),
     foreignShapes: [...seen.foreignShapes].sort(),
     shapes: [...seen.shapes].sort(),
     accessorFields: [...new Set(seen.accessorFields)].sort(),
+    arrayKeys: [...seen.arrayKeys].sort(),
     missingRoots,
-    emptyRoots: roots.filter((root) => filesPerRoot.get(root) === 0),
+    thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
     populated: [...populated].sort(),
     kindsSeen: [...kindsSeen].sort(),
     reflectedCount,
+    visitCount,
     nodeCount,
     fileCount,
   };
@@ -431,9 +504,12 @@ test("every child list is in source order, as `childrenOf` promises", () => {
   // `childrenOf` inherits the promise: the highlighter's semantic tokens and the studio's fold
   // ranges both consume it. Reversing a child list passed an earlier version of this gate.
   assert.deepEqual(audit.outOfOrderChildren, []);
+  // And no two siblings share a start position, which is what makes the comparison above total:
+  // `sort` is stable, so a tied pair would keep `returned`'s own order and could never disagree.
+  assert.deepEqual(audit.tiedStartRows, []);
 });
 
-test("reflection descends only plain objects whose own keys it can all see", () => {
+test("reflection reads every own key of the shapes it descends", () => {
   // `Object.entries` reads enumerable string keys of a plain object and nothing else, so a `Map`, a
   // class instance, a null-prototype object or an `Object.create(proto)` result would be silently
   // childless to this gate — the defect it exists to catch, reproduced inside the instrument.
@@ -447,23 +523,35 @@ test("reflection descends only plain objects whose own keys it can all see", () 
   // A getter is never invoked — it may return a fresh object per call, which would make identity
   // comparison meaningless — so any accessor property is reported instead of silently traversed.
   assert.deepEqual(audit.accessorFields, []);
+  // Arrays are read by index, which is what `for…of` sees. Their non-index own keys are not, so a
+  // node parked on one — an expando, or an own `Symbol.iterator` that lies about the contents — is
+  // reported here rather than silently passed over. `Reflect.ownKeys` reads these perfectly well, so
+  // unlike the `Proxy` above this is a case the gate closes rather than concedes.
+  assert.deepEqual(audit.arrayKeys, ["length"]);
 });
 
 test("the corpus roots this gate claims to read all exist and all contribute", () => {
   // A mistyped or moved root would make the audit quietly smaller rather than absent, and every
-  // assertion here is satisfied by an empty audit. `emptyRoots` covers the case the floors cannot:
-  // a root that still exists but yields no parseable file, which the whole-corpus floors absorb
-  // because the other roots keep them satisfied.
+  // assertion here is satisfied by an empty audit. The floor is per root, not per corpus: the whole-
+  // corpus floors cannot see one root collapsing, because `tests/conformance` saturates every path,
+  // kind and floor on its own. Deliberately a floor rather than a census — a root can shrink, but
+  // only loudly.
   assert.deepEqual(audit.missingRoots, []);
-  assert.deepEqual(audit.emptyRoots, []);
+  assert.deepEqual(audit.thinRoots, []);
 });
 
-test("reflection and `walk` reach the same number of nodes", () => {
+test("reflection and `walk` make the same number of visits", () => {
   // Sound by construction — `auditNode` recurses on exactly the reflected edges, and the per-node
-  // comparison forces the two edge sets equal at each node, so equal populations follow by
-  // induction from the root. Asserted anyway: an argued invariant is one nobody re-checks, and this
-  // is the induction's base case made observable.
-  assert.equal(audit.reflectedCount, audit.nodeCount);
+  // comparison forces the two edge sets equal at each node, so equal visit counts follow by
+  // induction from the root. Asserted anyway: an argued invariant is one nobody re-checks.
+  //
+  // Both sides count *visits*, not distinct nodes. `walk` calls its visitor once per edge, so an
+  // aliased node — legitimately reachable by two fields and therefore listed twice — is visited
+  // twice. Comparing visits against a distinct-identity `Set` rejected exactly that legitimate case,
+  // which the #960 reviewer caught by aliasing `ValueOfKey.key` to `dictionary` *correctly*, with
+  // `childrenOf` still returning both edges. A gate that fails on valid input is worse than one that
+  // misses an invalid one.
+  assert.equal(audit.reflectedCount, audit.visitCount);
 });
 
 test("the corpus populates exactly the declared node-valued field paths", () => {

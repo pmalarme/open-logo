@@ -363,7 +363,7 @@ function everyBlockSlotInTheCorpus() {
   }
   return {
     slots,
-    emptyRoots: roots.filter((root) => filesPerRoot.get(root) === 0),
+    thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
   };
 }
 
@@ -532,10 +532,11 @@ test("the wrapper axis COVERS every block-bearing slot the grammar actually has"
   // rather than sampling them. This is the assertion that makes it true, and it is derived from the
   // corpus rather than from a list kept here — so a construct added to the grammar fails this the
   // moment it has a fixture, instead of waiting for a reviewer to notice.
-  const { slots: required, emptyRoots } = everyBlockSlotInTheCorpus();
-  // A root that still exists but yields no parseable file shrinks `required` exactly as a missing
-  // one would, and the floor below cannot see it: the other roots keep it satisfied.
-  assert.deepEqual(emptyRoots, [], "every corpus root must contribute a file");
+  const { slots: required, thinRoots } = everyBlockSlotInTheCorpus();
+  // A root that still exists but has been emptied shrinks `required` exactly as a missing one
+  // would, and the floor below cannot see it: `tests/conformance` saturates every slot on its own,
+  // so the other roots keep it satisfied. A floor, not a census -- a root may shrink, but loudly.
+  assert.deepEqual(thinRoots, [], "every corpus root must contribute files");
   // The floor is derived from the wrapper map's own distinct slots, not a literal — a hand-written
   // `>= 10` is the last remaining second source of truth in a file that spent a round removing them,
   // and it would go stale the day a slot is added.
