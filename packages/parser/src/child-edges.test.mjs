@@ -10,13 +10,24 @@
 // descends through `childrenOf`. The instrument and its subject share the traversal, so a
 // derivation over the corpus stays green about its own gap.
 //
-// **This file audits that traversal from a source that does not use it.** It walks the corpus twice:
-// once with `walk` (which descends through `childrenOf`), and once by *reflection* over each node's
-// own object fields, which drives its own recursion and therefore inherits nothing from the thing it
-// is auditing. Two independent traversals of the same trees must reach the same nodes. A missing
-// child edge makes the reflective set a strict superset, and the edge that broke is named.
+// **This file audits that traversal from a source that does not use it.** For every node in the
+// corpus it derives, by *reflection over the node's own object fields*, the child edges that node
+// actually holds, and compares them against what `childrenOf` reports — by object **identity and
+// multiplicity**, not membership. The two sides share `parse`, object identity and `OL_NODE_KINDS`;
+// what they do not share is any child-edge enumeration or recursion logic, which is the property
+// that makes the comparison mean anything.
 //
-// Three assertions the reviewer of #925 asked for, each of which exists because a gate that cannot
+// Membership alone is not enough, and that is not a hypothetical: an earlier version of this file
+// compared reachable *sets* and the #960 reviewer defeated it three ways — an aliased edge dropped
+// while the node stayed reachable by its other route, a spurious grandchild added to a parent's
+// list, and a node hidden inside a container `Object.entries` does not enumerate. All three now
+// fail, and each has an assertion of its own.
+//
+// Scope: every `*.logo` file under `tests/conformance/`, `spec/examples/` and `stdlib/`. Files that
+// do not parse cleanly are skipped — they are the corpus's deliberate parse-error fixtures and hold
+// no tree to audit — so this gate speaks for the parseable corpus, not for all of it.
+//
+// Three self-checks the reviewer of #925 asked for, each of which exists because a gate that cannot
 // see its own assumptions is the defect one level up:
 //
 //   1. The node-detection oracle is stated here, in the open, rather than buried in a predicate.
@@ -30,7 +41,7 @@
 //
 // **What this gate does not close.** It is an audit of the trees the corpus actually produces, not a
 // proof about the type declarations. A node-valued field that no `.logo` file populates is invisible
-// to reflection — which is exactly why assertion 3 exists, and why `POPULATED_FIELD_PATHS` is a
+// to reflection — which is exactly why self-check 3 exists, and why `POPULATED_FIELD_PATHS` is a
 // deliberate two-place change: adding a walkable field means declaring it here, and the gate then
 // fails until a fixture exercises it *and* `childrenOf` returns it.
 //
@@ -43,6 +54,11 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { OL_NODE_KINDS, parse, walk } from "@openlogo/parser";
+// The subject under audit. It is intra-package (`index.ts` exports `ast`, `OL_NODE_KINDS` and
+// `walk`, not this), so it is imported from the package's own build output rather than promoted to
+// the public surface for a test's benefit. Node resolves this to the same module instance the
+// package entry loads, so object identity is shared and the comparison below is meaningful.
+import { childrenOf } from "../dist/ast.js";
 
 /**
  * THE NODE-DETECTION ORACLE (assertion 1). Everything this gate concludes rests on it, so it is
@@ -61,17 +77,19 @@ const WALKABLE_NODE_KINDS = new Set(OL_NODE_KINDS);
  * bracketed `[ key ]` selector holds a key expression, which `childrenOf` returns as a child of the
  * *place*, not of the segment.
  *
- * Anything else kinded and spanned is a node the oracle does not know about, and assertion 2 fails
+ * Anything else kinded and spanned is a node the oracle does not know about, and self-check 2 fails
  * on it. This list is the complete set of exceptions, which is why it is compared as a whole set
  * rather than consulted by a skip.
  */
 const KINDED_NON_NODE_SHAPES = ["field", "index"];
 
 /**
- * Every node-valued field path the corpus is expected to populate (assertion 3), as the dotted route
- * from the owning node through any wrapper objects and arrays: `ProcedureDef.params[].defaultValue`
- * is tracked separately from `ProcedureDef.params`, because a corpus full of parameterless
- * procedures exercises the second and says nothing about the first.
+ * Every node-valued field path the corpus is expected to populate (self-check 3), as the dotted route
+ * from the owning node down to the node it leads to, through any wrapper objects and arrays. Only
+ * routes that end at a node are recorded, so `ProcedureDef.params[].defaultValue` appears and
+ * `ProcedureDef.params` does not: a corpus full of parameterless procedures leaves the parameter
+ * list populated with metadata and contributes no path at all, which is exactly the distinction this
+ * list has to make.
  *
  * Both directions are checked. A path here that the corpus stops populating fails, because a clean
  * result could then come from an unexercised field; a path the corpus populates that is missing here
@@ -142,13 +160,14 @@ const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(value.kind);
  * descending through arrays and through wrapper objects (`DictEntryNode`, `PlaceSegment`, `IsTest`,
  * `ProcedureParam`) but stopping at the first node, which is the child edge itself.
  *
- * `foreignShapes` collects any kinded, spanned wrapper it passes through, so assertion 2 can compare
- * the whole set rather than skipping the ones it recognises.
+ * `foreignShapes` collects any kinded, spanned wrapper it passes through and `containerTags` every
+ * non-node object it descends into, so both can be compared as whole sets rather than consulted by a
+ * recogniser that silently skips what it knows.
  */
-function edgesUnder(value, path, foreignShapes, out) {
+function edgesUnder(value, path, seen, out) {
   if (Array.isArray(value)) {
     for (const item of value) {
-      edgesUnder(item, `${path}[]`, foreignShapes, out);
+      edgesUnder(item, `${path}[]`, seen, out);
     }
     return out;
   }
@@ -160,33 +179,33 @@ function edgesUnder(value, path, foreignShapes, out) {
     return out;
   }
   if (typeof value.kind === "string" && value.source_span !== undefined) {
-    foreignShapes.add(value.kind);
+    seen.foreignShapes.add(value.kind);
   }
+  // Every container reflection descends into is tagged and compared as a whole set. Without this a
+  // `Map`, `Set` or any other object `Object.entries` does not enumerate would be treated as
+  // childless and its nodes would be invisible to this gate — which is exactly the silence it
+  // exists to detect, reproduced inside the instrument. Found by the #960 reviewer, which defeated
+  // an earlier version of this file with a `BlockNode` inside a populated `ReadonlyMap`.
+  seen.containerTags.add(Object.prototype.toString.call(value));
   for (const [key, inner] of Object.entries(value)) {
     if (key !== "source_span") {
-      edgesUnder(inner, `${path}.${key}`, foreignShapes, out);
+      edgesUnder(inner, `${path}.${key}`, seen, out);
     }
   }
   return out;
 }
 
 /**
- * Reflect over one tree, recording every child edge and the node it leads to. Recursion is driven by
- * reflection alone — `walk` and `childrenOf` are never consulted — which is the property that lets
- * the comparison below mean anything.
+ * The child edges reflection finds directly on `node` — `[path, child]` in field order, one entry
+ * per edge, so an aliased node reachable by two fields appears twice. Multiplicity matters: dropping
+ * one of two edges to the same object leaves the object reachable, which is precisely how an earlier
+ * version of this gate was defeated.
  */
-function reflectEdges(node, foreignShapes, edges) {
+function reflectedEdgesOf(node, seen) {
+  const edges = [];
   for (const [field, value] of Object.entries(node)) {
     if (field !== "kind" && field !== "source_span") {
-      for (const edge of edgesUnder(
-        value,
-        `${node.kind}.${field}`,
-        foreignShapes,
-        [],
-      )) {
-        edges.push([edge[0], node, edge[1]]);
-        reflectEdges(edge[1], foreignShapes, edges);
-      }
+      edgesUnder(value, `${node.kind}.${field}`, seen, edges);
     }
   }
   return edges;
@@ -203,11 +222,11 @@ function auditTheCorpus() {
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
     join(repositoryRoot, root),
   );
-  const foreignShapes = new Set();
+  const seen = { foreignShapes: new Set(), containerTags: new Set() };
   const populated = new Set();
   const kindsSeen = new Set();
-  const brokenEdges = [];
-  const unreflectedNodes = [];
+  const childListRows = [];
+  const unreachedByWalk = [];
   let nodeCount = 0;
   let fileCount = 0;
 
@@ -217,6 +236,42 @@ function auditTheCorpus() {
   // recording branch — one level further out.
   const pathOf = (edge) => edge[0];
   const kindOf = (node) => node.kind;
+
+  // A stable per-object handle, so a child list can be compared by *identity and multiplicity*
+  // rather than by membership. Two edges to the same object must appear twice; dropping one of them
+  // leaves the object reachable by the other and is invisible to any set comparison.
+  const handles = new Map();
+  const handleOf = (node) => {
+    if (!handles.has(node)) {
+      handles.set(node, handles.size);
+    }
+    const span = node.source_span;
+    return `${node.kind}@${span.start[0]}:${span.start[1]}#${handles.get(node)}`;
+  };
+
+  const auditNode = (node, reflectedNodes) => {
+    reflectedNodes.push(node);
+    const edges = reflectedEdgesOf(node, seen);
+    for (const edge of edges) {
+      populated.add(pathOf(edge));
+    }
+    // The comparison this gate exists for: what the node itself holds, against what `childrenOf`
+    // reports, as order-independent multisets of object identities. Built for every node whether or
+    // not it matches, so the row-building code is never dead; the mismatch filter below is what
+    // turns rows into findings.
+    childListRows.push({
+      at: node.kind,
+      edges: edges.map(pathOf).join(" "),
+      reflected: edges
+        .map((edge) => handleOf(edge[1]))
+        .sort()
+        .join(" "),
+      returned: childrenOf(node).map(handleOf).sort().join(" "),
+    });
+    for (const edge of edges) {
+      auditNode(edge[1], reflectedNodes);
+    }
+  };
 
   const auditFile = (file) => {
     const { ast, diagnostics } = parse(readFileSync(file, "utf8"), file);
@@ -230,26 +285,15 @@ function auditTheCorpus() {
     for (const node of walked) {
       kindsSeen.add(kindOf(node));
     }
-
-    const reflected = new Set([ast]);
-    const edges = reflectEdges(ast, foreignShapes, []);
-    for (const edge of edges) {
-      populated.add(pathOf(edge));
-      reflected.add(edge[2]);
-    }
-    // Spread-push from a filter rather than a collecting `if`, and deliberately with no loop body:
-    // a recording branch that never runs on a green tree is a partly-dead test body — the shape
-    // this saga has shipped more than once, and the shape #960 warned this gate not to take. A
-    // filter predicate is evaluated on every edge whether or not it matches, and `push` with no
-    // arguments still runs, so nothing here is dead when the tree is clean. Only the topmost break
-    // is recorded: a child whose parent was itself unreached is a consequence, not a second finding.
-    brokenEdges.push(
-      ...edges
-        .filter(([, parent, child]) => walked.has(parent) && !walked.has(child))
-        .map(pathOf),
-    );
-    unreflectedNodes.push(
-      ...[...walked].filter((seen) => !reflected.has(seen)).map(kindOf),
+    const reflectedNodes = [];
+    auditNode(ast, reflectedNodes);
+    // `walk` retained as an integration check: the per-node comparison above proves each child list
+    // is right, and this proves `walk` actually descends them. Spread-pushed from a filter with no
+    // loop body, so nothing here is dead on a green tree — but note that coverage cannot reach these
+    // projections on a passing run either way. The mutants recorded in ADR-0025 are what discharge
+    // the recording paths; 100% coverage of this file is not evidence that they work.
+    unreachedByWalk.push(
+      ...reflectedNodes.filter((node) => !walked.has(node)).map(kindOf),
     );
   };
 
@@ -263,16 +307,19 @@ function auditTheCorpus() {
       }
     }
   };
-  for (const root of roots) {
-    if (existsSync(root)) {
-      visit(root);
-    }
+  const missingRoots = roots.filter((root) => !existsSync(root));
+  for (const root of roots.filter((root) => existsSync(root))) {
+    visit(root);
   }
 
   return {
-    brokenEdges: [...new Set(brokenEdges)].sort(),
-    unreflectedNodes: [...new Set(unreflectedNodes)].sort(),
-    foreignShapes: [...foreignShapes].sort(),
+    mismatchedChildLists: childListRows.filter(
+      (row) => row.reflected !== row.returned,
+    ),
+    unreachedByWalk: [...new Set(unreachedByWalk)].sort(),
+    foreignShapes: [...seen.foreignShapes].sort(),
+    containerTags: [...seen.containerTags].sort(),
+    missingRoots,
     populated: [...populated].sort(),
     kindsSeen: [...kindsSeen].sort(),
     nodeCount,
@@ -282,39 +329,57 @@ function auditTheCorpus() {
 
 const audit = auditTheCorpus();
 
-test("every node-valued field the corpus produces is a child edge `walk` descends", () => {
-  // The failure this exists to catch: a field added to an already-handled kind, which `tsc` accepts
-  // and which #925's guard cannot see. Reported as the dotted path of the edge that broke.
-  assert.deepEqual(audit.brokenEdges, []);
+test("every node's child list is exactly the edges the node itself holds", () => {
+  // The comparison this gate exists for, and the one that has to be by identity and multiplicity
+  // rather than membership. An earlier version compared reachable *sets* and was defeated three
+  // ways by the #960 reviewer: an aliased edge dropped while the node stayed reachable by its other
+  // route, a spurious grandchild added to a parent's list, and a node hidden in a container
+  // `Object.entries` does not enumerate. Each row carries the field paths, so a failure names the
+  // edge rather than only the kind.
+  assert.deepEqual(audit.mismatchedChildLists, []);
 });
 
-test("`childrenOf` returns no child that reflection cannot find on the node itself", () => {
-  // The opposite direction: a child list that reports something the node does not hold would make
-  // every AST-derived instrument see a node that is not there.
-  assert.deepEqual(audit.unreflectedNodes, []);
+test("`walk` descends every child edge the child lists declare", () => {
+  // The integration half: the assertion above proves each child list is correct, this proves the
+  // traversal built on it actually visits them.
+  assert.deepEqual(audit.unreachedByWalk, []);
 });
 
 test("no kinded, spanned shape outside the oracle appears anywhere in the corpus", () => {
-  // Assertion 2 — fail, do not skip. `WALKABLE_NODE_KINDS` is the oracle everything here rests on;
+  // Self-check 2 — fail, do not skip. `WALKABLE_NODE_KINDS` is the oracle everything here rests on;
   // a new kinded shape it does not know about would be silently invisible to this gate, so it is
   // compared as a whole set and any newcomer breaks this equality.
   assert.deepEqual(audit.foreignShapes, KINDED_NON_NODE_SHAPES);
 });
 
+test("reflection descends only containers it can actually enumerate", () => {
+  // `Object.entries` sees a plain object's own properties and nothing else, so a `Map` or `Set` in
+  // the AST would be silently childless to this gate — the defect it exists to catch, reproduced
+  // inside the instrument. Every container descended into is tagged and compared as a whole set.
+  assert.deepEqual(audit.containerTags, ["[object Object]"]);
+});
+
+test("the corpus roots this gate claims to read all exist", () => {
+  // A mistyped or moved root would make the audit quietly smaller rather than absent, and every
+  // assertion here is satisfied by an empty audit.
+  assert.deepEqual(audit.missingRoots, []);
+});
+
 test("the corpus populates exactly the declared node-valued field paths", () => {
-  // Assertion 3 — corpus adequacy, in both directions. Without it, a green run over a corpus that
+  // Self-check 3 — corpus adequacy, in both directions. Without it, a green run over a corpus that
   // never exercises a field is indistinguishable from a green run over a correct implementation.
   assert.deepEqual(audit.populated, [...POPULATED_FIELD_PATHS].sort());
 });
 
 test("the audit actually traversed the corpus, reaching every node kind", () => {
-  // A gate that silently measured nothing is the failure mode all four assertions above share: an
-  // empty audit satisfies every one of them. The kind census is the sharper half — adequacy in the
+  // A gate that silently measured nothing is the failure mode every assertion above shares: an
+  // empty audit satisfies all of them. The kind census is the sharper half — adequacy in the
   // dimension `POPULATED_FIELD_PATHS` cannot express, since a kind the corpus never instantiates
   // contributes no field paths to be missing from the declared list in the first place.
   assert.deepEqual(audit.kindsSeen, [...OL_NODE_KINDS].sort());
-  // Deliberately loose floors: a liveness check, not a census, so ordinary corpus growth never
-  // touches them and no derived count is asserted here.
-  assert.ok(audit.fileCount > 500, `parsed ${audit.fileCount} files`);
-  assert.ok(audit.nodeCount > 5000, `visited ${audit.nodeCount} nodes`);
+  // Floors, not a census: they only ever fail on a *shrinking* corpus, so ordinary growth never
+  // touches them and no derived count is asserted. Raised from a laxer pair after the #960 reviewer
+  // measured that the originals had enough headroom to absorb losing an entire corpus root.
+  assert.ok(audit.fileCount > 800, `parsed ${audit.fileCount} files`);
+  assert.ok(audit.nodeCount > 9000, `visited ${audit.nodeCount} nodes`);
 });

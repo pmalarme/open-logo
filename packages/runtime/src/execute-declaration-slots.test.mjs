@@ -298,15 +298,15 @@ function declarationSource({
  * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
  * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. Since #925
- * that switch handles every node *kind* or fails to compile, but a node-valued *field* added to an
- * already-handled kind still has no child edge and no compile error (#960). A slot on a node `walk`
- * reaches is *not* the blind spot: this visitor reads every field of every node it visits, so a new
- * slot enters `required` without a wrapper and the assertion below goes red. What hides is a slot
- * on a node `walk` never reaches at all — one sitting beneath a missing edge — and the *contents*
- * of any slot: declarations inside them would never be registered, and they would never enter this
- * set, so this test would stay green about its own gap. The instrument and the subject share a
- * traversal. It is narrow, and all ten of today's slots are reached — but it is the assumption
- * underneath the enumeration.
+ * that switch handles every node *kind* or fails to compile, and since #960 the field half is closed
+ * for every field the corpus populates: `packages/parser/src/child-edges.test.mjs` audits
+ * `childrenOf` by reflection, from a source that does not use it, and fails naming the dotted path
+ * of any node-valued field `walk` does not descend
+ * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). All ten
+ * slots below are `BlockNode`-typed fields the corpus populates, so all ten are covered by it. What
+ * survives is narrower: a slot on a node-valued field that **no** fixture populates, which is
+ * invisible to reflection too. The instrument and the subject still share a traversal — that is why
+ * the surviving case is stated rather than assumed away.
  *
  * Paths resolve from this file, not from `process.cwd()`: a package-scoped run
  * (`cd packages/runtime && node --test src/…`) would otherwise find no corpus at all.

@@ -23,21 +23,36 @@ exists". That is the failure this whole family of issues exists to eliminate.
 
 ## Decision
 
-**The gate audits the traversal by walking the corpus twice, from two sources that share nothing.**
+**The gate audits the traversal by deriving each node's child edges from the node itself.**
 
-`packages/parser/src/child-edges.test.mjs` parses every `.logo` file in the repository and traverses
-each tree with `walk` (which descends through `childrenOf`) and, independently, by **reflection over
-each node's own object fields**, descending through arrays and wrapper objects (`DictEntryNode`,
-`PlaceSegment`, `IsTest`, `ProcedureParam`) and stopping at the first node — which is the child edge
-itself. Reflection drives its own recursion, so it inherits nothing from the thing it audits.
+`packages/parser/src/child-edges.test.mjs` parses every `*.logo` file under `tests/conformance/`,
+`spec/examples/` and `stdlib/` — skipping those that do not parse cleanly, which are the corpus's
+deliberate parse-error fixtures — and for each node derives, by **reflection over the node's own
+object fields**, the child edges that node holds: descending through arrays and wrapper objects
+(`DictEntryNode`, `PlaceSegment`, `IsTest`, `ProcedureParam`) and stopping at the first node, which is
+the edge. It compares that against `childrenOf(node)` by object **identity and multiplicity**.
 
-Two independent traversals of the same trees must reach the same nodes. A missing edge makes the
-reflective set a strict superset of the walked set, and the edge that broke is named by its dotted
-path. Only the topmost break is reported: a child whose parent was itself unreached is a consequence,
-not a second finding.
+The two sides share `parse`, object identity and `OL_NODE_KINDS`. What they share nothing of is
+child-edge enumeration and recursion logic, which is the property that makes the comparison mean
+anything. `walk` is retained as an integration check: the per-node comparison proves each child list
+is right, and `walk` proves the traversal built on it actually descends them.
 
-**The gate carries three assertions about itself, because an instrument that cannot see its own
-assumptions is the same defect one level up.**
+**Identity and multiplicity, not membership.** An earlier draft compared reachable *sets* and was
+defeated three ways by the non-author reviewer, each of which now fails:
+
+- an **aliased** edge dropped from `childrenOf` while the node remained reachable by its other route
+  (`ValueOfKey.key` aliased to `dictionary`) — set membership was unchanged, multiplicity was not;
+- a **spurious** edge, a parent's list carrying its own grandchild, which added nothing to the
+  reachable set because that node was already in it;
+- a node inside a container `Object.entries` does not enumerate (a `Map`), invisible to reflection
+  and therefore agreeing with a `childrenOf` that also omitted it.
+
+The third is why every container reflection descends into is tagged and compared as a whole set: an
+instrument that silently treats what it cannot read as empty is the defect it exists to detect,
+reproduced one level in.
+
+**The gate carries three self-checks, because an instrument that cannot see its own assumptions is
+the same defect one level up.**
 
 1. **Its node-detection oracle is a named constant**, not a condition inside a helper. Everything the
    gate concludes rests on "a value is a node when its `kind` is in `OL_NODE_KINDS`", and ADR-0024
@@ -52,36 +67,64 @@ assumptions is the same defect one level up.**
    green run over a correct implementation — the "green signal certifying less than it appears to"
    that #924 measured with a constant `document` field and #932 with a mutated `stamp` row.
 
-Paths are recorded through wrappers, so `ProcedureDef.params[].defaultValue` is tracked separately
-from `ProcedureDef.params`: a corpus full of parameterless procedures exercises the second and says
-nothing about the first.
+Paths are recorded as the route from the owning node down to the node it leads to, so only routes
+ending at a node appear: `ProcedureDef.params[].defaultValue` is a path and `ProcedureDef.params` is
+not. A corpus full of parameterless procedures leaves the parameter list populated with metadata and
+contributes no path at all, which is exactly the distinction the list has to make.
 
 ## What this enforces, and what it does not
 
-**Enforced.** Every node-valued field that the corpus actually produces is a child edge `walk`
-descends; no child is returned that the node does not hold; no unrecognised kinded shape appears; and
-the corpus exercises every declared path.
+**Enforced.** For every node the parseable corpus produces, its child list is exactly the set of
+edges the node itself holds — same objects, same multiplicity — so a missing edge, an aliased edge
+dropped while the node stays otherwise reachable, and a spurious edge all fail. `walk` descends every
+edge those lists declare. No kinded, spanned shape appears that the oracle does not know. Reflection
+descends no container it cannot enumerate. The corpus exercises every declared path and instantiates
+every node kind.
 
 **Not enforced — this is an audit of the trees the corpus produces, not a proof about the type
 declarations.** A node-valued field that no `.logo` file populates is invisible to reflection.
-Assertion 3 is what keeps that hole from widening silently: the declared path list is a deliberate
+Self-check 3 is what keeps that hole from widening silently: the declared path list is a deliberate
 two-place change, so adding a walkable field means declaring it, and the gate then fails until a
 fixture exercises it *and* `childrenOf` returns it. The surviving gap is a field added with **no**
 declaration and **no** fixture — the same shape, and the same accepted cost, as
 [ADR-0021](0021-built-in-names-list-and-ci-gate.md)'s two-file rule for primitives.
 
-A declaration-derived check would close it outright, and was rejected on availability rather than
-merit: the repository's `typescript` is the native shim, which exposes no compiler API, so reading
-the interface declarations would mean hand-rolling a TypeScript parser. One was attempted during
-#925's review and mis-read `ComprehensionNode`, a union rather than an interface — a hand-rolled
-parser is itself an unaudited instrument, which is what this ADR is about.
+A declaration-derived check would close it outright, and is **deferred on cost, not availability**.
+TypeScript 7 does ship a usable API: `typescript/unstable/sync` exports `Project`, `Program`,
+`Checker` and `Symbol`, and `typescript/unstable/ast` the node helpers. A probe during #960's review
+used it against `packages/parser/tsconfig.json` to derive all the node-valued field paths from
+`ast.ts`'s declarations alone, with no unresolved type references — so the instrument is buildable
+without hand-rolling anything. It is deferred because it takes a dependency on `unstable/*` entry
+points the repository does not otherwise use, and because a declaration-derived list would still rest
+on the same `OL_NODE_KINDS`/`AnyNode` agreement this gate's oracle already states — it narrows the
+gap rather than removing the assumption underneath it.
+
+A *hand-rolled* parser remains rejected on merit: one was attempted during #925's review and mis-read
+`ComprehensionNode`, a union rather than an interface, which makes it an unaudited instrument of
+exactly the kind this ADR is about.
+
+An earlier draft of this ADR asserted that the shim "exposes no compiler API". That was false, and it
+came from checking for `node_modules/typescript/lib/typescript.js` — the pre-7 layout — rather than
+reading the package's export map. The reviewer falsified it by building the rejected instrument. It
+is recorded here because an ADR is immutable and is reasoned from long after it is written: the
+reason on record has to be the true one.
 
 ## Consequences
 
 - Adding a node-valued field to an existing kind is a three-place change: the type, `childrenOf`, and
   the declared path list — and a fixture must exercise it. Each missing piece fails the gate with the
-  path named.
+  field path named.
+- Aliasing is legitimate in the AST and stays legitimate: a node reachable by two fields must appear
+  twice in its parent's child list. That is a real constraint the gate now enforces rather than an
+  accident of how it compares.
 - The gate sits in the default test run, so it is enforced by CI without a separate script.
+- **Every assertion here is mutation-verified, not coverage-verified.** A recording path cannot
+  execute on a green tree, so 100% coverage of the gate file says nothing about whether its findings
+  work. Six mutants discharge that, each firing in isolation: a node-valued field added to an
+  existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole point); an aliased
+  edge dropped while the node stays reachable by its other route; a spurious grandchild added to a
+  parent's list; a node hidden inside a `Map`; a kinded, spanned shape with an unknown `kind`; and a
+  declared path no fixture populates.
 - Instruments that derive from the AST may now state that a *populated* field is reached. They still
   may not assume anything about a field no fixture populates.
 - The declared path list carries no count. It is a list, and its length is re-derivable from the
