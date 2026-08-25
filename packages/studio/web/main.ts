@@ -80,6 +80,7 @@ import {
   mapRunStatusToRunToggleViewModel,
   mapSpeedSliderValueToTickDelayMs,
   mountCanvasView,
+  mountCanvasInteraction,
   mountDiagnosticsPane,
   mountEditorPane,
   mountLessonPane,
@@ -128,6 +129,11 @@ const canvasElement = assertPresent(
   document.getElementById("turtle-canvas"),
   "turtle-canvas",
   (value): value is HTMLCanvasElement => value instanceof HTMLCanvasElement,
+);
+const canvasActivateButton = assertPresent(
+  document.getElementById("canvas-activate-button"),
+  "canvas-activate-button",
+  (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
 );
 const runToggleButton = assertPresent(
   document.getElementById("run-toggle-button"),
@@ -492,6 +498,17 @@ const runController = createRunController(state, {
   reducedMotion: prefersReducedMotion,
 });
 mountRunController(shell, runController);
+/**
+ * #952 — the studio's keyboard and pointer input, so `on_key` and `on_click` actually fire. Every
+ * decision (key-word normalization, which keys have their browser default suppressed, and why the
+ * activation button is a separate control) lives in `src/canvas-interaction.ts`, which is
+ * type-checked, linted, and covered; this file only supplies the two real elements. See that
+ * module's doc comment.
+ */
+mountCanvasInteraction(
+  { canvas: canvasElement, activationControl: canvasActivateButton },
+  runController,
+);
 
 const runLog = createRunLogController(state);
 

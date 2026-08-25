@@ -93,7 +93,7 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last
   assert.equal(tutorOutputStop.role, "log");
 });
 
-test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: run log, canvas, turtle state, output", () => {
+test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: run log, canvas, turtle state, output — with #952's canvas activation button beside the canvas it activates", () => {
   const order = OL.REPL_FOCUS_ORDER;
   const ids = order.map((stop) => stop.id);
   assert.deepEqual(
@@ -102,11 +102,22 @@ test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: 
       "speed-slider",
       "run-log",
       "canvas",
+      "canvas-activate",
       "turtle-state",
       "output",
       "diagnostics-list",
     ],
   );
+});
+
+test("#952: the canvas activation button is a real, labelled, tab-reachable button stop — on_click's 'equivalent accessible action'", () => {
+  const stop = OL.REPL_FOCUS_ORDER.find(
+    (entry) => entry.id === "canvas-activate",
+  );
+  assert.ok(stop, "on_click must be reachable without a pointer");
+  assert.equal(stop.region, "turtle");
+  assert.equal(stop.role, "button");
+  assert.equal(stop.label, OL.CANVAS_ACTIVATION_LABEL);
 });
 
 test("#315: the editor stays exactly one `textbox` focus stop, and CM6's own aria-role/aria-label (editor-cm6.ts) are derived from it, never a second literal that could drift", () => {

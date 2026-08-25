@@ -260,6 +260,69 @@ test("toExecuteOptions forwards a reader and the safety limits only when they we
   assert.equal(options.recursionDepthLimit, 3);
 });
 
+test("#952: toExecuteOptions installs hostInput.events, so a delivered key actually fires its handler", () => {
+  const options = OL.toExecuteOptions(
+    makeRequest({
+      hostInputEvents: [{ tick: 1, kind: "key", key: "left" }],
+    }),
+    NEVER_CANCELLED,
+    undefined,
+  );
+
+  assert.deepEqual(options.hostInput?.events, [
+    { tick: 1, kind: "key", key: "left" },
+  ]);
+  assert.equal(
+    options.hostInput?.read,
+    undefined,
+    "the two halves of the seam are independent",
+  );
+
+  // Forwarded as the runtime will actually consume it: a schedule that is only *referenced* proves
+  // nothing, which is exactly how `on_key` shipped registering-but-never-firing.
+  const { settlements } = settleAll(
+    makeRequest({
+      source: ['on_key "left" [', '  print "turned"', "]", "wait 3"].join("\n"),
+      hostInputEvents: [{ tick: 1, kind: "key", key: "left" }],
+    }),
+  );
+  assert.deepEqual(settlements[0].output, ["turned"]);
+});
+
+test("#952: toExecuteOptions carries the reader and the delivered schedule together", () => {
+  const read = () => "answer";
+  const options = OL.toExecuteOptions(
+    makeRequest({ hostInputEvents: [{ tick: 2, kind: "click" }] }),
+    NEVER_CANCELLED,
+    read,
+  );
+
+  assert.equal(options.hostInput?.read, read);
+  assert.equal(
+    options.hostInput?.read("who?"),
+    "answer",
+    "forwarded as the runtime will actually call it",
+  );
+  assert.deepEqual(options.hostInput?.events, [{ tick: 2, kind: "click" }]);
+});
+
+test("#952: a request with neither a reader nor delivered input installs no hostInput at all", () => {
+  assert.equal(
+    OL.toExecuteOptions(makeRequest(), NEVER_CANCELLED, undefined).hostInput,
+    undefined,
+    "exactly the options every run passed before this slice",
+  );
+  assert.equal(
+    OL.toExecuteOptions(
+      makeRequest({ hostInputEvents: [] }),
+      NEVER_CANCELLED,
+      undefined,
+    ).hostInput,
+    undefined,
+    "an empty schedule is not a schedule",
+  );
+});
+
 test("an instruction budget from the request actually bounds the run", () => {
   const { settlements } = settleAll(
     makeRequest({ source: "repeat 1000 [ forward 1 ]", instructionBudget: 12 }),
