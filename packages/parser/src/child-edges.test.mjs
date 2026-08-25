@@ -204,21 +204,35 @@ const shapeNameOf = (value) =>
 /** Indexed by `Number(Array.isArray(value))`, so the lookup needs no branch. */
 const expectedPrototypesOf = [Object.prototype, Array.prototype];
 
-/** `[path, descriptor, key]` for every own property of `value` except its span — symbols included. */
+/**
+ * `[path, descriptor, key]` for every own property of `value` — symbols included, and with **no key
+ * excluded by name**.
+ *
+ * An earlier version skipped `source_span` here, on the reasoning that a node's span is metadata
+ * rather than a child edge. That is true of a *node*, and false of every wrapper object reflection
+ * descends through — so `source_span` became an unconditionally ignored hiding place, and the #960
+ * reviewer put a declared, populated, node-valued field there and passed the whole gate 8/8 with the
+ * node unreachable by both `childrenOf` and `walk`. A name-based exclusion is a blind spot with a
+ * name; it does not stop being one because the name is usually metadata.
+ *
+ * Nothing needs excluding. A `SourceSpan` is a `document` string and two `Position` tuples of
+ * numbers, so descending into one finds no nodes and contributes no field path — it costs a
+ * traversal and removes the exception.
+ */
 const fieldsOf = (value, path) =>
-  Reflect.ownKeys(value)
-    .filter((key) => key !== "source_span")
-    .map((key) => [
-      `${path}.${String(key)}`,
-      Object.getOwnPropertyDescriptor(value, key),
-      key,
-    ]);
+  Reflect.ownKeys(value).map((key) => [
+    `${path}.${String(key)}`,
+    Object.getOwnPropertyDescriptor(value, key),
+    key,
+  ]);
 
 // A data descriptor always carries `value`; an accessor descriptor carries `get`/`set` instead.
 // `Object.hasOwn` is a single always-evaluated expression, where `d.get !== undefined || …` would
-// leave a short-circuit arm untaken on a green tree.
-const isAccessorField = (field) => !Object.hasOwn(field[1], "value");
+// leave a short-circuit arm untaken on a green tree. Array index rather than a ternary for the same
+// reason: both names exist unconditionally and one is selected by subscript.
 const isDataField = (field) => Object.hasOwn(field[1], "value");
+const descriptorKindOf = (field) =>
+  ["accessor", "data"][Number(Object.hasOwn(field[1], "value"))];
 const pathOfField = (field) => field[0];
 const keyOfField = (field) => String(field[2]);
 const isIndexField = (field) => isIndexKey(field[2]);
@@ -278,14 +292,13 @@ function edgesUnder(value, path, seen, out) {
     // a node from an earlier version of this file with the gate fully green.
     seen.shapes.add(shapeNameOf(value));
     const fields = fieldsOf(value, path);
+    for (const field of fields) {
+      seen.descriptorKinds.add(descriptorKindOf(field));
+    }
     for (const field of fields.filter(isNonIndexField)) {
       seen.arrayKeys.add(keyOfField(field));
     }
-    const indices = fields.filter(isIndexField);
-    seen.accessorFields.push(
-      ...indices.filter(isAccessorField).map(pathOfField),
-    );
-    for (const field of indices.filter(isDataField)) {
+    for (const field of fields.filter(isIndexField).filter(isDataField)) {
       edgesUnder(field[1].value, `${path}[]`, seen, out);
     }
     return out;
@@ -302,7 +315,9 @@ function edgesUnder(value, path, seen, out) {
   }
   seen.shapes.add(shapeNameOf(value));
   const fields = fieldsOf(value, path);
-  seen.accessorFields.push(...fields.filter(isAccessorField).map(pathOfField));
+  for (const field of fields) {
+    seen.descriptorKinds.add(descriptorKindOf(field));
+  }
   for (const field of fields.filter(isDataField)) {
     edgesUnder(field[1].value, pathOfField(field), seen, out);
   }
@@ -318,10 +333,10 @@ function edgesUnder(value, path, seen, out) {
 function reflectedEdgesOf(node, seen) {
   seen.shapes.add(shapeNameOf(node));
   const edges = [];
-  const fields = fieldsOf(node, node.kind).filter(
-    (field) => pathOfField(field) !== `${node.kind}.kind`,
-  );
-  seen.accessorFields.push(...fields.filter(isAccessorField).map(pathOfField));
+  const fields = fieldsOf(node, node.kind);
+  for (const field of fields) {
+    seen.descriptorKinds.add(descriptorKindOf(field));
+  }
   for (const field of fields.filter(isDataField)) {
     edgesUnder(field[1].value, pathOfField(field), seen, edges);
   }
@@ -342,7 +357,7 @@ function auditTheCorpus() {
   const seen = {
     foreignShapes: new Set(),
     shapes: new Set(),
-    accessorFields: [],
+    descriptorKinds: new Set(),
     arrayKeys: new Set(),
   };
   const populated = new Set();
@@ -407,7 +422,9 @@ function auditTheCorpus() {
       // instead of going quiet — a green signal certifying less than it appears to.
       tiedStarts: tiedStartCount([...returned].sort(bySourcePosition)),
     });
-    for (const edge of edges) {
+    for (const edge of [...edges].sort((left, right) =>
+      bySourcePosition(left[1], right[1]),
+    )) {
       auditNode(edge[1], reflectedNodes);
     }
   };
@@ -432,16 +449,25 @@ function auditTheCorpus() {
     const reflectedNodes = [];
     auditNode(ast, reflectedNodes);
     // `walk` retained as the integration check: the per-node comparison above proves each child list
-    // is right, and this proves `walk` actually descends them. Compared as **identity multisets of
-    // visits**, not counts and not membership. Counts alone let a reviewer construct a traversal
-    // that visited a different set the same number of times; membership alone hides multiplicity,
-    // which is what an aliased edge lives in. Both spellings are built for every file, so neither is
-    // a projection only a failing tree evaluates — and note coverage cannot reach the recording
-    // paths on a passing run either way; the mutants recorded in ADR-0025 are what discharge them.
+    // is right, and this proves `walk` actually descends them — **in the order it promises**. The
+    // sequences are compared as ordered identity sequences, not as sets, not as counts, and not as
+    // sorted multisets. Each weaker spelling was tried and each was defeated: counts alone let a
+    // traversal visit a *different* population the same number of times; membership alone hides the
+    // multiplicity an aliased edge lives in; and sorting both sides — which this file did until the
+    // #960 reviewer moved `visit(node)` after the recursion — makes a **post-order** walker
+    // indistinguishable from the pre-order one `ast.ts` documents, as it does a reversed sibling
+    // traversal. Sorting is the same defect as the sorted child lists two rounds earlier: a
+    // comparison that normalises away a property cannot detect a defect in that property.
+    //
+    // The expected sequence is reflection's own pre-order, recursing through children in source
+    // position order — the contract `walk` states — so it is derived from the node fields rather
+    // than from `childrenOf`, and the comparison stays non-circular. `tiedStartRows` below asserts
+    // no two siblings share a start, which is what makes that ordering total; were a tie to appear,
+    // it would fail there rather than making this comparison quietly arbitrary.
     visitRows.push({
       file,
-      walked: walkVisits.map(handleOf).sort().join(" "),
-      reflected: reflectedNodes.map(handleOf).sort().join(" "),
+      walked: walkVisits.map(handleOf).join(" "),
+      reflected: reflectedNodes.map(handleOf).join(" "),
     });
   };
 
@@ -476,7 +502,7 @@ function auditTheCorpus() {
     visitMismatches: visitRows.filter((row) => row.walked !== row.reflected),
     foreignShapes: [...seen.foreignShapes].sort(),
     shapes: [...seen.shapes].sort(),
-    accessorFields: [...new Set(seen.accessorFields)].sort(),
+    descriptorKinds: [...seen.descriptorKinds].sort(),
     arrayKeys: [...seen.arrayKeys].sort(),
     missingRoots,
     thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
@@ -543,11 +569,18 @@ test("reflection reads every own key of the shapes it descends", () => {
     "[object Object]/plain",
   ]);
   // A getter is never invoked — it may return a fresh object per call, which would make identity
-  // comparison meaningless — so any accessor property is reported instead of silently traversed.
-  // This holds for array *indices* too: they are read from their descriptors, not by `for…of`, which
-  // would have invoked the getter. An earlier version made this claim while its array branch read
-  // indices through iteration, so the sentence was true of objects and false of arrays.
-  assert.deepEqual(audit.accessorFields, []);
+  // comparison meaningless — so every field's descriptor kind is recorded and the whole set is
+  // compared. Recorded for *every* field, unconditionally: an earlier spelling collected only the
+  // accessors, `fields.filter(isAccessor).map(pathOfField)`, which is a projection that runs solely
+  // on a tree that is already broken. That is dead on a green tree in exactly the way this file
+  // rejects elsewhere, and it is why the shape and array-key checks are whole-set comparisons too.
+  // The trade is deliberate: the failure names the kind rather than the offending path, which is
+  // the same trade `shapes` and `arrayKeys` already make.
+  //
+  // This holds for array *indices* too, which are read from their descriptors rather than by
+  // `for…of` — an earlier version made this claim while its array branch read indices through
+  // iteration, so the sentence was true of objects and false of arrays.
+  assert.deepEqual(audit.descriptorKinds, ["data"]);
   // Arrays are enumerated by own key, so their non-index own keys are reported rather than passed
   // over: a node parked on an expando, on `"4294967295"` (one past the last real index, and an
   // ordinary string property), or behind an own `Symbol.iterator` that lies about the contents
