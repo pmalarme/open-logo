@@ -188,6 +188,51 @@ test("`of` stays a keyword when the reader is split across a newline", () => {
 
 // --- Mechanism A must not reach too far ----------------------------------------------------------
 
+test("an entry lookahead does not fire while the value is still owed an operand", () => {
+  // `spec/grammar.md:314` gives an unfinished value precedence: *"where the value is not yet
+  // complete — an operator or a call still owed an operand, say … the unfinished value's own
+  // grammar position wins and no entry opens, so `{ a: 1 + b: 2 }` is a malformed entry rather than
+  // two entries."* A call is owed an operand exactly as an operator is, so `{ a: sentence 1 mod: 2 }`
+  // must be malformed too — not an entry keyed `mod` leaving `sentence` one argument short.
+  //
+  // Both directions are asserted, because they pull opposite ways and a fix for one breaks the
+  // other: when the call is COMPLETE the key does open its entry, and clearing the lookahead for
+  // the whole argument would swallow that `mod` as an operator and turn a valid two-entry
+  // dictionary into a parse error.
+  for (const word of ["mod", "and", "or", "is"]) {
+    for (const source of [
+      `print { a: sentence 1 ${word}: 2 }\n`,
+      `print { a: sentence 1\n${word}: 2 }\n`,
+    ]) {
+      const { ast, diagnostics } = OL.parse(source, doc);
+
+      assert.ok(
+        diagnostics.some((diagnostic) => diagnostic.code === "ol-bad-token"),
+        `${source} must be a malformed entry`,
+      );
+      assert.deepEqual(
+        ast.body[0].args[0].entries.map((entry) => entry.key.value),
+        ["a"],
+        `${source} must not open an entry keyed \`${word}\``,
+      );
+    }
+  }
+
+  // The complete call: the key DOES open its entry, and the two spellings agree.
+  const complete = "print { a: sentence 1 2 mod: 3 }\n";
+  assert.deepEqual(codesOf(complete), []);
+  assert.deepEqual(
+    OL.parse(complete, doc).ast.body[0].args[0].entries.map(
+      (entry) => entry.key.value,
+    ),
+    ["a", "mod"],
+  );
+  assert.equal(
+    shapeOf(complete),
+    shapeOf("print { a: sentence 1 2\nmod: 3 }\n"),
+  );
+});
+
 test("a newline still terminates a statement", () => {
   const { ast, diagnostics } = OL.parse("print 1\nprint 2\n", doc);
 
@@ -195,47 +240,65 @@ test("a newline still terminates a statement", () => {
   assert.equal(ast.body.length, 2);
 });
 
-test("a selector `[` deliberately does NOT cross a newline", () => {
-  // `spec/grammar.md:34` gives a newline a competing job here — *"immediately after a control or
-  // procedure header, a newline selects the long `... end` body form"* — so `map n in :nums` ⏎
-  // `[ … ]` is a long-form body, not a selector on `:nums`. Adjacency, which a newline breaks by
-  // construction, is what keeps those apart, and widening the `.field` fix to `[` would swallow
-  // every multi-line comprehension body. Pinned so a later slice does not "finish the job".
-  const { diagnostics } = OL.parse("print map n in :nums\n[ :n * 2 ]\n", doc);
-
-  assert.ok(diagnostics.some((d) => d.code === "ol-missing-end"));
-});
-
-test("the selector `[` case is left exactly as it was found, minus the phantom", () => {
-  // **An open spec question, escalated rather than decided.** `spec/grammar.md:34` says newlines
-  // are insignificant inside a parenthesized group, but a selector `[` binds only when *adjacent*,
-  // and a newline token's end IS the next line's column 1 — so after the group skips it the `[`
-  // tests as adjacent. The result is that these two spellings of the same source disagree:
+test("a newline separates exactly like a space, for adjacency too", () => {
+  // MAINTAINER RULING (issue #944's sibling question): *a newline separates exactly like a space —
+  // always, everywhere.* Adjacency is whitespace-agnostic, and a newline is whitespace: it is
+  // insignificant to the GRAMMAR, not invisible to the LEXER.
   //
-  //   `( :nums` ⏎ `[1] )`  reads `[1]` as a SELECTOR on `:nums`
-  //   `( :nums [1] )`      reads `:nums`, then a separate list literal
+  // This is a NARROWING, and the direction matters. A newline token's `end` IS the next line's
+  // column 1, so once a group skipped it the following `[` tested as adjacent — a skipped newline
+  // *manufactured* an adjacency the source never had, and `( :nums` ⏎ `[1] )` read `[1]` as a
+  // selector while `( :nums [1] )` read a separate list. The two spellings now agree.
   //
-  // Measured at `ca653709`, **this disagreement is pre-existing** — identical trees there, differing
-  // in the same way. This slice changes only the diagnostics: the two phantom `ol-unmatched-paren`
-  // that both spellings used to raise on balanced parens are gone. Deciding which reading is right
-  // widens or narrows the grammar, so it is a maintainer `[spec]` call and is reported, not taken.
-  //
-  // This test pins the boundary of what was changed: no unmatched-delimiter diagnostic survives on
-  // these balanced parens, and the trees are left as found.
+  // The third assertion is what stops this test passing if adjacency stopped working altogether:
+  // the truly adjacent spelling must still differ from both.
   const prelude = ":nums = [ 1 2 3 ]\n";
-  const split = `${prelude}print ( :nums\n[1] )\n`;
-  const oneLine = `${prelude}print ( :nums [1] )\n`;
 
-  for (const source of [split, oneLine]) {
+  for (const [label, container] of [
+    ["parenthesized group", ["print ( :nums", "[1] )"]],
+    ["list literal", ["print [ :nums", "[1] ]"]],
+    ["dict entry value", ["print { k: :nums", "[1] }"]],
+    ["top level", ["print :nums", "[1]"]],
+  ]) {
+    const [head, tail] = container;
+    const newline = `${prelude}${head}\n${tail}\n`;
+    const spaced = `${prelude}${head} ${tail}\n`;
+    const glued = `${prelude}${head}${tail}\n`;
+
+    assert.equal(
+      shapeOf(newline),
+      shapeOf(spaced),
+      `${label}: newline ≠ space`,
+    );
+    assert.notEqual(
+      shapeOf(newline),
+      shapeOf(glued),
+      `${label}: newline must not read as the glued selector`,
+    );
     assert.deepEqual(
-      codesOf(source).filter((code) => code.startsWith("ol-unmatched-")),
+      codesOf(glued),
       [],
+      `${label}: the glued spelling is a selector`,
     );
   }
-  // The pre-existing disagreement itself, pinned so a future ruling has a witness to change.
-  assert.notEqual(shapeOf(split), shapeOf(oneLine));
-  // The glued spelling is a selector in every position and is not in question.
-  assert.deepEqual(codesOf(`${prelude}print :nums[1]\n`), []);
+});
+
+test("the narrowing does not move a multi-line control or comprehension body", () => {
+  // The regression this direction had to avoid, asserted rather than argued. A newline after a
+  // control or procedure header selects the long `… end` body form (`spec/grammar.md:34`), so
+  // `map n in :nums` ⏎ `[ … ]` is a body, not a selector — and it must stay that way. A narrowing
+  // can only make the `[` *less* likely to bind, so these are strictly more protected than before.
+  for (const source of [
+    "print map n in :nums\n[ :n * 2 ]\n",
+    "print filter n in :nums\n[ :n > 1 ]\n",
+    "repeat 3\n[ print 1 ]\n",
+  ]) {
+    assert.ok(
+      codesOf(source).includes("ol-missing-end"),
+      `${source} must still select the long-body form`,
+    );
+  }
+  assert.deepEqual(codesOf("print map n in [ 1 2 ] [ :n * 2 ]\n"), []);
 });
 
 test("an incomplete reader does not swallow the statement on the next line", () => {

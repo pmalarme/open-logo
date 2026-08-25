@@ -318,6 +318,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   let pos = 0;
   let lastEnd: Position = [1, 1];
+  // Was the most recently consumed token a newline? See {@link currentAdjacentToPrev} for why a
+  // position comparison alone cannot answer that after the fact.
+  let sawWhitespaceGap = false;
   // True while parsing the VALUE of a dictionary entry. See {@link isDictKeyAt} for how a worded
   // operator there is told apart from the key that opens the next entry.
   let inDictEntryValue = false;
@@ -354,6 +357,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   function advance(): LexToken {
     const token = current();
+    // A consumed newline is a whitespace gap between what precedes and follows it. Recorded here
+    // because it is unknowable later: the newline's `end` is the next line's column 1, so once it
+    // is skipped the tokens on either side look adjacent. See {@link currentAdjacentToPrev}.
+    sawWhitespaceGap = token.kind === "newline";
     lastEnd = token.source_span.end;
     pos += 1;
     return token;
@@ -859,12 +866,17 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * settles it *"regardless of position"*, so it must be asked on one line exactly as it is asked
    * across a newline (issue #944).
    *
+   * Newlines are looked past for the same reason the rule ignores them: a dictionary written on one
+   * line and the same dictionary written across several must read alike. In the operator loops the
+   * current token is never a newline by the time this is asked, so the skip matters only to
+   * {@link parseFixedCall}'s pending-operand test, where it may well be.
+   *
    * Before the ruling this test lived only inside {@link continuesOnNextLine}, i.e. only on the
    * newline path, which is precisely what made a newline significant inside a dict literal:
    * `{ a: 1` ⏎ `mod: 2 }` read as two entries while `{ a: 1 mod: 2 }` raised `ol-bad-token`.
    */
   function opensNextDictEntry(): boolean {
-    return isDictKeyAt(0);
+    return isDictKeyAt(skippingNewlines(0));
   }
 
   /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
@@ -1243,8 +1255,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * them)? A selector `[` binds as a postfix only when it directly follows its place, so
    * `:durations[:i]` is a selector while `map n in :nums [ … ]` keeps `[ … ]` as a separate body.
    * `lastEnd` tracks the end of the last consumed token, so this compares the `[`'s start to it.
+   *
+   * **Adjacency is whitespace-agnostic: any whitespace breaks it, and a newline is whitespace.**
+   * A newline is insignificant to the *grammar*, not invisible to the *lexer* — it separates two
+   * tokens exactly as a space does (maintainer ruling on issue #944's sibling question). Comparing
+   * positions alone cannot see that, because a newline token's `end` **is** the next line's column
+   * 1: after a `skipNewlines()` the following token's start equals `lastEnd` and tests as adjacent,
+   * so a skipped newline *manufactures* an adjacency the source never had. `sawWhitespaceGap`
+   * records the real answer at the moment the newline is consumed, which is the only moment it is
+   * still knowable.
+   *
+   * Two sibling adjacency tests need no such flag and are left alone, because they compare *tokens*
+   * rather than positions and a newline is itself a token: {@link isNegativeNumberLiteralAt} peeks
+   * at two adjacent stream slots, and {@link isDictKeyAt} compares the separator's lexeme kind.
+   * That is the shape to prefer — this flag exists only because `lastEnd` is a position.
    */
   function currentAdjacentToPrev(): boolean {
+    if (sawWhitespaceGap) {
+      return false;
+    }
     const start = current().source_span.start;
     return lastEnd[0] === start[0] && lastEnd[1] === start[1];
   }
@@ -1573,8 +1602,40 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const arity = arityOf(token.text.toLowerCase());
     const args: ExpressionNode[] = [];
     for (let k = 0; k < arity; k += 1) {
-      const arg = parseExpression();
+      // At the start of a pending argument the call is **still owed an operand**, so
+      // `spec/grammar.md:314` gives its grammar position precedence — *"an operator or a call still
+      // owed an operand … the unfinished value's own grammar position wins and no entry opens"*.
+      // Only that first token is protected: once the argument's own expression is under way, its
+      // completion completes the call, and a key after it may open the next entry.
+      //
+      // Both halves are load-bearing and pull opposite ways. `{ a: sentence 1 mod: 2 }` is owed its
+      // second operand at `mod`, so no entry opens and the entry is malformed (as the spec's own
+      // `{ a: 1 + b: 2 }` example is). `{ a: sentence 1 2 mod: 3 }` is complete at `mod`, so the
+      // entry does open — clearing the flag for the whole argument instead would swallow that
+      // `mod` as an operator and turn a valid two-entry dictionary into a parse error.
+      const owedAnOperand = opensNextDictEntry();
+      const arg = owedAnOperand
+        ? inDictValue(false, () => {
+            // The lookahead already looked past them, so consume them: the one-line and multi-line
+            // spellings of this malformed entry must agree, and leaving the newline unconsumed
+            // would let the dict loop open the entry anyway. Scoped to this branch on purpose —
+            // an unconditional skip here would join `print` ⏎ `abs 3` into one statement, which is
+            // the statement-delimitation question tracked by #983, not this slice's.
+            skipNewlines();
+            return parseExpression();
+          })
+        : parseExpression();
       if (arg === undefined) {
+        if (owedAnOperand) {
+          // The pending operand slot holds a token that would otherwise open the next entry. The
+          // grammar position wins, so the entry must NOT open — and simply breaking here would let
+          // it, by returning a short call whose caller then reads the key. Reporting *and
+          // consuming* the offending token makes the entry malformed instead, which is exactly
+          // what the spec's own `{ a: 1 + b: 2 }` example already does: there the operator path
+          // consumes its failed operand, so nothing is left for the dict loop to read as a key.
+          diagnostics.push(unexpected(current()));
+          advance();
+        }
         break;
       }
       args.push(arg);
