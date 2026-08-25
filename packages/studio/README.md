@@ -345,10 +345,17 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:194-198` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-Both report whether **this input actually ran a handler** — for `deliverKey`, compared as a strict
-increase in `on_key` invocation markers across that one delivery. It is `false` for a key no handler
-names, for a handler the run never reached, for a press scheduled **before** the handler registered,
-and for a press past the program's final usable tick.
+`deliverKey` reports whether **that press actually ran a handler** — compared as a strict increase in
+`on_key` invocation markers across that one delivery. It is `false` for a key no handler names, for a
+handler the run never reached, for a press scheduled **before** the handler registered, and for a
+press past the program's final usable tick.
+
+`deliverClick` reports the narrower **`chain accepts input && on_click registered`**, because a click
+names no key word to count against. It therefore stays `true` after the program's clicks have stopped
+firing — measured on `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
+handlers ran `[true, true, false, false, false]`. Nothing reads that return today
+(`canvas-interaction.ts` discards it), and a click has no browser default to suppress, so the
+narrowness costs nothing — but it is *not* the same contract as `deliverKey`'s.
 
 Every formulation that answers from *history* rather than from the delivery re-created silent
 interception somewhere, and four did — which is why the narrow one is worth the cost. The replay's

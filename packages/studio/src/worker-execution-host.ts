@@ -198,8 +198,12 @@ export function createWorkerExecutionHost(
     execute(nextRequest, nextSettle) {
       // Defence in depth: a caller that starts a run without cancelling the previous one would
       // otherwise leave two live interpreters and only one cancellation channel, so Stop would
-      // reach the newer of them. The controller guards this too, but the host owns the channel and
-      // is the last place that can keep "at most one live run" true.
+      // reach the newer of them. The controller guards this on the `run()`/`step()` paths, but
+      // **not** on #952's delivery replay: `drainDeliveredInput` reads `attemptPending` only after
+      // `beginAttempt` returns, and review measured two in-flight executions against one `cancel()`
+      // there. It is benign because this cancel-previous, the `runId` staleness drop below, and the
+      // whole-schedule replay are self-correcting — but the host, not the controller, is what keeps
+      // "at most one live run" true.
       if (channel !== null) {
         requestBlockingCancellation(channel, options.notify);
       }
