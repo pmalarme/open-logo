@@ -49,7 +49,7 @@
 // corpus.
 
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -486,8 +486,14 @@ function auditTheCorpus() {
   for (const root of roots) {
     filesPerRoot.set(root, 0);
   }
-  const missingRoots = roots.filter((root) => !existsSync(root));
-  for (const root of roots.filter((root) => existsSync(root))) {
+  // Visited unconditionally. An earlier version guarded each root with `existsSync` and collected
+  // the missing ones for a named assertion, which put a filter arm here that can only execute on a
+  // run that is already red -- the same dead-on-green claim the comment three lines above condemns,
+  // and the opposite of what the sibling gate in this diff does with its own `existsSync` guard.
+  // Two files in one change answering one question two ways is worse than either answer, so this
+  // one was deleted rather than argued: a missing root now throws `ENOENT` and names itself, and
+  // the per-root floor below is what catches a root that exists but has stopped contributing.
+  for (const root of roots) {
     visit(root, root);
   }
 
@@ -504,7 +510,6 @@ function auditTheCorpus() {
     shapes: [...seen.shapes].sort(),
     descriptorKinds: [...seen.descriptorKinds].sort(),
     arrayKeys: [...seen.arrayKeys].sort(),
-    missingRoots,
     thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
     populated: [...populated].sort(),
     kindsSeen: [...kindsSeen].sort(),
@@ -589,13 +594,21 @@ test("reflection reads every own key of the shapes it descends", () => {
   assert.deepEqual(audit.arrayKeys, ["length"]);
 });
 
-test("the corpus roots this gate claims to read all exist and all contribute", () => {
+test("every corpus root this gate claims to read still contributes files", () => {
   // A mistyped or moved root would make the audit quietly smaller rather than absent, and every
-  // assertion here is satisfied by an empty audit. The floor is per root, not per corpus: the whole-
-  // corpus floors cannot see one root collapsing, because `tests/conformance` saturates every path,
-  // kind and floor on its own. Deliberately a floor rather than a census — a root can shrink, but
-  // only loudly.
-  assert.deepEqual(audit.missingRoots, []);
+  // assertion here is satisfied by an empty audit. A missing root is not checked here at all: the
+  // traversal above visits each one unconditionally, so it throws `ENOENT` naming the path.
+  //
+  // The floor is per root, not per corpus, because the whole-corpus floors cannot see one root
+  // collapsing — `tests/conformance` saturates every path, kind and floor on its own.
+  //
+  // State precisely what it does and does not buy, because an earlier wording ("a root can shrink,
+  // but only loudly") was measurably false and the #960 reviewer measured it: `spec/examples` 13 → 3
+  // and `stdlib` 6 → 3 together drop 68% of the non-conformance corpus with both gates fully green.
+  // A floor catches a root that has *collapsed*; it does not catch one that has merely shrunk. The
+  // alternative is a census, which asserts a count nothing re-derives and fails on ordinary growth
+  // — the trade is deliberate, and overstating it is what turns an accepted limit into a false
+  // claim.
   assert.deepEqual(audit.thinRoots, []);
 });
 

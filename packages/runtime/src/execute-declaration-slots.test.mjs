@@ -356,8 +356,10 @@ function everyBlockSlotInTheCorpus() {
   // would go green while proving strictly less. The `required.size >= coveredBlockSlots.size` floor
   // is not protection: each of today's roots independently exhibits all the covered slots, so any
   // one of them can disappear with the floor still satisfied (measured on #960). Without the guard a
-  // missing root throws `ENOENT` and names itself; `emptyRoots` catches the rest — a root that still
-  // exists but contributes nothing.
+  // missing root throws `ENOENT` and names itself; `thinRoots` catches a root that still exists but
+  // has collapsed. It does not catch a root that has merely shrunk — measured on #960, this root set
+  // can lose 68% of its non-conformance files with this gate green — because the alternative is a
+  // census, which asserts a count nothing re-derives and fails on ordinary growth.
   for (const root of roots) {
     visit(root, root);
   }
