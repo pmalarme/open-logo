@@ -1,0 +1,52 @@
+name: Label drift
+
+# Issue #972: `.github/labels.yml` is documented as the single source of truth for labels, but
+# `label-sync.yml` is additive by design — it never deletes — so nothing could detect a label that
+# was created ad hoc through the API and applied to issues. The manifest described a subset of
+# reality rather than defining it, and `validate-meta.py` did not notice because it checks the
+# manifest is *well-formed*, never that it is *complete with respect to labels actually in use*.
+#
+# This runs the live directions of `validate-labels.py`: it fails when a label on an open issue or
+# PR is missing from the manifest, or when a manifested label does not exist on the repository, and
+# reports (without failing) labels the repository carries that the manifest does not, plus
+# manifested labels nobody uses.
+#
+# It is deliberately NOT part of the per-PR CI gate: its result depends on mutable repository state,
+# so an unrelated PR would go red because somebody mislabelled a different issue. It runs on a
+# schedule, on demand, and on the pull requests that actually edit the manifest — where comparing
+# the proposed manifest against the live world is exactly the review question.
+#
+# The sync stays additive on purpose; this workflow is the detector. The reasoning is recorded in
+# validate-labels.py's module docstring ("Why the sync stays additive").
+
+on:
+  schedule:
+    # 06:15 UTC daily — drift is introduced by hand at unpredictable times, so a daily sweep is what
+    # turns "nobody noticed for weeks" into "noticed by tomorrow".
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/labels.yml", ".github/scripts/validate-labels.py"]
+  push:
+    branches: [main]
+    paths: [".github/labels.yml", ".github/scripts/validate-labels.py"]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  drift:
+    name: Labels in use match the manifest
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      - name: Compare the manifest against the repository, in both directions
+        run: python .github/scripts/validate-labels.py --live

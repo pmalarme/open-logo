@@ -35,8 +35,23 @@ async function boundingBox(
   selector: string,
 ) {
   const box = await page.locator(selector).boundingBox();
-  expect(box, `expected a rendered box for "${selector}"`).not.toBeNull();
-  return box!;
+  // A thrown Error fails the test as loudly as `expect(...).not.toBeNull()` would, and — unlike a
+  // Playwright matcher, which does not narrow — it convinces the type checker without `!`.
+  if (box === null) {
+    throw new Error(
+      `expected a rendered box for "${selector}", but it is not laid out`,
+    );
+  }
+  return box;
+}
+
+/** The project's configured viewport, failing loudly rather than asserting non-null. */
+function viewportSize(page: import("@playwright/test").Page) {
+  const viewport = page.viewportSize();
+  if (viewport === null) {
+    throw new Error("expected the project to configure a viewport size");
+  }
+  return viewport;
 }
 
 test.beforeEach(async ({ page }) => {
@@ -64,7 +79,7 @@ test.describe("narrow viewport (< 48rem): panes stack, drawing pane stays usable
       "narrow-viewport project only",
     );
 
-    const viewport = page.viewportSize()!;
+    const viewport = viewportSize(page);
     const editor = await boundingBox(page, ".pane-editor");
     const controls = await boundingBox(page, ".pane-controls");
     const turtle = await boundingBox(page, ".pane-turtle");

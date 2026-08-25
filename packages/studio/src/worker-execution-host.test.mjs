@@ -40,7 +40,7 @@ function makeHost(overrides = {}) {
   const host = OL.createWorkerExecutionHost({
     port: fake.port,
     allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
-    notify: (control, index) => {
+    notify: (_control, index) => {
       notified.push(index);
       return 1;
     },
@@ -84,7 +84,7 @@ function takeSettlements() {
  */
 const parkIntervals = [];
 
-function recordPark(control, index, expected, timeoutMs) {
+function recordPark(_control, _index, _expected, timeoutMs) {
   parkIntervals.push(timeoutMs);
   return "ok";
 }

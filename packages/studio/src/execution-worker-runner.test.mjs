@@ -53,7 +53,7 @@ function runWorker(command, channel, onRead, options = {}) {
         onRead?.(report, channel, reports.length);
       }
     },
-    wait(control, index, expected, timeoutMs) {
+    wait(_control, _index, _expected, timeoutMs) {
       parkIntervals.push(timeoutMs);
       onPark?.(channel, parkIntervals.length);
       return "ok";

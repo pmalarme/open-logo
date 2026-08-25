@@ -16,7 +16,7 @@
     "build": "tsc -b",
     "dev": "npm run dev --workspace @openlogo/studio",
     "typecheck": "tsc -b",
-    "lint": "biome lint .",
+    "lint": "biome lint . && node scripts/check-lint-scope.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pretest": "npm run -s build",

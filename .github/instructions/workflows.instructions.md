@@ -39,7 +39,15 @@ suites these workflows run; you wire and secure them.
   gate once public.
 - `labeler.yml` — path→label PR labeling from [`.github/labeler.yml`](../labeler.yml).
 - `label-sync.yml` — reconciles repo labels from [`.github/labels.yml`](../labels.yml) via
-  `.github/scripts/sync-labels.py` when the manifest changes.
+  `.github/scripts/sync-labels.py` when the manifest changes. **Additive by decision** — it never
+  deletes, because deleting a label deletes it off every live issue and GitHub does not restore
+  those applications (issue #972).
+- `label-drift.yml` — the detector that additive sync cannot be: compares the manifest against the
+  repository **in both directions** via `.github/scripts/validate-labels.py --live`, failing when a
+  label in use on an open issue/PR is unmanifested. Scheduled + dispatchable + on manifest PRs
+  rather than per-PR, because its result depends on mutable repository state. The deterministic
+  half (the `area:*` labels against `validate-commits.py`'s `AREAS`) runs in `ci.yml`'s `meta` job
+  on every PR.
 - `commitlint.yml` — Conventional Commits via `.github/scripts/validate-commits.py` (self-tested by
   `test-validate-commits.py`). The **PR title is blocking** (it is the squash-merge subject); commit
   subjects are **advisory** warning annotations, because a cloud agent cannot rewrite the bootstrap

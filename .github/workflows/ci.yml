@@ -38,6 +38,16 @@ jobs:
         run: python .github/scripts/validate-meta.py
       - name: Self-test the frontmatter check
         run: python .github/scripts/test-validate-meta.py
+      - name: Validate the label taxonomy (offline directions)
+        # Issue #972: .github/labels.yml is documented as "the single source of truth" but nothing
+        # re-derived it, so nine labels across four namespaces drifted into use unmanifested. This
+        # runs the deterministic half — the `area:*` labels against validate-commits.py's AREAS,
+        # which claims in a comment to mirror them and whose divergence blocks PR titles. The live
+        # half (against the repository's actual labels) needs a token and mutable repo state, so it
+        # runs in label-drift.yml rather than gating unrelated PRs on someone else's mislabelling.
+        run: python .github/scripts/validate-labels.py
+      - name: Self-test the label taxonomy gate
+        run: python .github/scripts/test-validate-labels.py
       - name: Guard package-lock.json against non-public registries
         # Regression guard for issue #642 / ADR-0018: every "resolved" entry must come from the
         # public npm registry, never a private/internal mirror (e.g. an Azure DevOps feed) that

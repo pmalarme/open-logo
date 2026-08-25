@@ -41,8 +41,8 @@ docs/delivery.md       Release + saga strategy
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
 .github/labeler.yml    Path→label rules for PR auto-labeling
-.github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
-.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/scripts/        Metadata + commit-convention + label-taxonomy validation, label sync (run by CI)
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, label drift — owned by @devops
 .github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
 .github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
@@ -155,7 +155,7 @@ can report a false-green that CI (Node 22) then fails. From the repo root:
 npm ci               # restore the workspace from the committed lockfile
 npm run build        # tsc -b — emits dist/*.js + *.d.ts across all packages
 npm run typecheck    # tsc -b type-check
-npm run lint         # Biome
+npm run lint         # Biome, then scripts/check-lint-scope.mjs re-derives what Biome linted
 npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)

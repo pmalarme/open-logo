@@ -21,6 +21,29 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 - It is **idempotent**: create missing labels, update color/description on existing ones. Prefer an
   official/first-party label-sync action, pinned by version, or the `gh label create/edit` loop.
 - Never hand-edit labels in the UI — change the manifest and let sync apply it.
+- It is **additive by decision, not by omission** (issue #972): it never deletes a label missing from
+  the manifest, because deleting one deletes it off every live issue and GitHub does not restore
+  those applications when it is re-created — so a typo in a manifest PR would silently strip triage
+  data at merge. Do **not** "fix" this by making the sync destructive.
+
+## Label drift (repo → manifest) — the direction sync cannot check
+
+- An additive sync can never notice a label created ad hoc through the API, so the manifest quietly
+  became a *subset* of reality: 10 `area:*` labels declared against 15 in use, and nine unmanifested
+  labels applied across four namespaces.
+- `.github/scripts/validate-labels.py` closes it by comparing manifest and repository **in both
+  directions**, the same shape `built-in-names` uses for primitives:
+  - **fails** when a label on an open issue/PR is not in the manifest, or a manifested label does not
+    exist on the repo;
+  - **reports** labels the repo carries that the manifest does not (GitHub's stock `bug`/`wontfix`/…
+    live here) and manifested labels nobody uses yet (`level:1`, `profile:localization`);
+  - **fails offline** when the `area:*` labels and `validate-commits.py`'s `AREAS` stop mirroring
+    each other — an `area:*` label with no matching commit scope makes every PR title from those
+    issues fail the blocking check.
+- Live directions run in `label-drift.yml` (schedule + dispatch + manifest PRs); the offline mirror
+  runs in `ci.yml`'s `meta` job on every PR. `test-validate-labels.py` mutation-tests both.
+- **Adding an `area:*` label is a two-file change** — the manifest and `validate-commits.py`'s
+  `AREAS` — and the gate is the half that fails until both land.
 
 ## PR labeling (paths → labels)
 
@@ -55,5 +78,9 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 
 ## Checklist
 - [ ] `label-sync.yml` reconciles from `labels.yml` (idempotent), triggered on manifest change.
+- [ ] `label-drift.yml` compares the manifest against the repo **in both directions** and fails on a
+      label in use that the manifest does not declare.
+- [ ] Every new `area:*` label also lands in `validate-commits.py`'s `AREAS` (the offline mirror gate
+      in `ci.yml`'s `meta` job fails until it does).
 - [ ] `labeler.yml` covers every package + spec/docs/workflows path; emits only manifest labels.
 - [ ] No label is created outside the manifest; no hand-editing in the UI.

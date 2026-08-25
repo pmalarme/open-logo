@@ -20,15 +20,24 @@ tracks can pull their own work.
   `turtle-engine`, `learner-experience`, `geometry-teacher`, `ai-tutor`, `curriculum`, `testing`,
   `documentation`, `devops`.
 - **`type:*`** — `feature-request`, `saga`, `epic`, `spec`, `slice`, `bug`, `conformance`,
-  `foundation`, `docs`, `chore`.
+  `foundation`, `docs`, `task`, `chore`.
 - **`profile:*`** — `core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`.
-- **`area:*`** — `grammar`, `highlighter`, `checker`, `core`, `runtime`, `rendering`, `studio`, `edu`,
-  `ci`, `docs` (the cross-cutting domain, orthogonal to the owning agent).
+- **`area:*`** — `parser`, `grammar`, `highlighter`, `checker`, `core`, `diagnostics`, `runtime`,
+  `rendering`, `studio`, `edu`, `ci`, `tooling`, `testing`, `docs` (the cross-cutting domain,
+  orthogonal to the owning agent). Prefer `grammar`/`highlighter`/`checker` over the `parser`
+  umbrella when the work sits in one of them.
 - **`level:*`** — `1`–`8` for curriculum items (progression, not a profile).
 
 ## Rules
 
+- **`area:*` labels and commit scopes are one taxonomy.** `validate-commits.py`'s `AREAS` mirrors the
+  `area:*` labels (minus `core`, already a profile scope), and `.github/scripts/validate-labels.py`
+  re-derives that mirror in CI. **Adding an `area:*` label is a two-file change** — the manifest and
+  `AREAS` — or every PR title scoped to it fails the blocking check.
+- **Never apply a label that is not in the manifest.** `label-drift.yml` fails on it (issue #972);
+  the additive label sync cannot remove it for you, and the drift shows up as somebody else's red
+  pipeline. Add it to `.github/labels.yml` first.
 - **Exactly one `agent:*` and one `type:*`** per issue; add `profile:*`/`area:*`/`level:*` as they apply.
 - **Hierarchy ≠ label:** an issue's place in the DAG is its **native sub-issue parent** (epic → saga,
   work issue → epic), **not** a `profile:*` label (the label says which profile the work touches; the

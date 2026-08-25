@@ -34,7 +34,7 @@ function event(kind, payload, turtleId = 0) {
  */
 function repeat4ForwardRightEvents() {
   const events = [];
-  let x = 0;
+  const x = 0;
   let y = 0;
   let heading = 0;
   for (let i = 0; i < 4; i++) {
