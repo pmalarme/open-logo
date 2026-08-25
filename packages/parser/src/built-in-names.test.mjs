@@ -196,10 +196,6 @@ test("every registered form head is a built-in name AND is carried by the surfac
   // `HERITAGE_FORM_HEAD_NAMES` and `HERITAGE_WORDED_FORM_HEADS` into it), so it holds by
   // construction and only bites if that definition is narrowed. An earlier draft of this comment
   // had the two the wrong way round.
-  //
-  // The leg is nonetheless load-bearing in a way neither assertion shows: `checker-style.ts`
-  // consulted `heritageSurfaceSpellings()` as its own third source before this slice collapsed it
-  // onto the shared predicate, so dropping the leg would silently narrow the casing lint.
   const heads = [
     ...OL.heritageFormHeadNames(),
     ...OL.heritageWordedFormHeads(),

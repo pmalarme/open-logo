@@ -967,7 +967,7 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
   assert.equal(extractContextualKeywords(undefined), null);
   assert.deepEqual(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;",
     ),
     ["empty", "member", "of", "a"],
   );
@@ -981,14 +981,14 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
   // The closing claim without the enumeration: names no words at all.
   assert.equal(
     extractContextualKeywords(
-      "The contextual keywords are exactly these four.",
+      "The contextual keywords are exactly these four;",
     ),
     null,
   );
   // Present but empty of backticked words.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, those words are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
+      "By contrast, those words are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;",
     ),
     null,
   );
@@ -996,7 +996,7 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
   // ARE built-in names — the exact opposite of what a carve-out asserts — and still derived them.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords but **are** built-in names. The contextual keywords are exactly these four.",
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords but **are** built-in names. The contextual keywords are exactly these four;",
     ),
     null,
   );
@@ -1004,30 +1004,54 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
   // without reading its number derived the wrong set and then forced the manifest to follow it.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
+      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;",
     ),
     null,
   );
   // A count word outside the bounded map is unrecognised rather than assumed.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these several.",
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these several;",
     ),
     null,
   );
   // Both anchors must sit in ONE paragraph, so a closure elsewhere cannot stand in for this one's.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names.\n\nThe contextual keywords are exactly these four.",
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names.\n\nThe contextual keywords are exactly these four;",
     ),
     null,
   );
   // And an agreeing five-word form IS derived, so the count is reconciled rather than hardcoded.
   assert.deepEqual(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these five.",
+      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these five;",
     ),
     ["empty", "member", "of", "a", "beside"],
+  );
+  // DUPLICATES. Four backticked words of which two are the same spelling satisfies a count of four
+  // while naming three, so the derived set would be smaller than the sentence claims.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `empty`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;",
+    ),
+    null,
+  );
+  // A COMPOUND COUNT. A bare `\\w+` capture matched the `four` of "four hundred", so the count word
+  // must be followed immediately by punctuation.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four hundred;",
+    ),
+    null,
+  );
+  // TWO ANCHOR PAIRS. Returning on the first match left a second, contradictory paragraph unread,
+  // so the document could disagree with itself while the gate reported nothing.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;\n\nBy contrast, `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these one;",
+    ),
+    null,
   );
   // `contextualCarveOutFindings` reads exactly one document, so the double answers for that one
   // and nothing else — a ternary falling back to the real reader would be a branch no test can

@@ -173,7 +173,7 @@ export function procedureNamesIn(source) {
     // the lowercase spelling alone would read a real stdlib procedure as absent — and this walk
     // reports an *absent* carve-out, so its blind spots become the gate's blind spots. The name is
     // folded too, since a carve-out's `name` is lowercase-canonical ({@link isCanonicalName}).
-    if (words[0]?.toLowerCase() === "define" && words[1] !== undefined) {
+    if (words[0].toLowerCase() === "define" && words[1] !== undefined) {
       names.push(words[1].toLowerCase());
     }
   }
@@ -1126,20 +1126,25 @@ const NUMBER_WORDS = {
  * *"By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in
  * names."*
  *
- * Three things must agree, because each of the first two alone has a false pass:
+ * Four things must agree, because each of the first two alone has a false pass:
  *
  * 1. **The enumeration, with its full predicate** — `are **not** keywords and **not** built-in
  *    names`. Matching only the shorter `are **not** keywords` accepted a doctored sentence saying
  *    the words *are* built-in names, which is the opposite of the claim a carve-out makes.
- * 2. **The closing claim** — *"The contextual keywords are exactly these four"* — which closes the
- *    set, so a fifth word cannot be added silently.
+ * 2. **The closing claim** — *"The contextual keywords are exactly these four;"* — which closes the
+ *    set, so a fifth word cannot be added silently. The count word must be **followed immediately
+ *    by punctuation**, because a bare `\w+` capture also matched the `four` of *"four hundred"*.
  * 3. **Their agreement.** The closing claim states a *number*, and matching the anchor without
  *    reading that number let a five-word enumeration pass beneath prose still saying "four": the
  *    gate derived the wrong set and then forced the manifest to follow it. The count is parsed and
- *    reconciled against the words actually enumerated.
+ *    reconciled against the words actually enumerated, **and the words must be distinct** — four
+ *    words of which two are the same spelling satisfies a count of four while naming three.
+ * 4. **Uniqueness.** Exactly **one** paragraph in the document may carry both anchors. Returning on
+ *    the first match let a second, contradictory paragraph sit below it unread, so the document
+ *    could disagree with itself while the gate reported nothing.
  *
  * Both anchors must sit in the **same paragraph**, so a sentence elsewhere in the document cannot
- * stand in as this one's closure. Returns `null` when any of the three fails — a **finding** at the
+ * stand in as this one's closure. Returns `null` when any of the four fails — a **finding** at the
  * caller, never a skip, because `spec/` is maintainer-owned and this gate may not annotate the
  * documents it reads. The word list itself is bounded to the sentence rather than the paragraph:
  * the surrounding prose backticks `to`, `set ... to`, `define of` and the `is`-predicate examples,
@@ -1149,25 +1154,28 @@ export function extractContextualKeywords(text) {
   if (typeof text !== "string") {
     return null;
   }
+  const anchored = [];
   for (const paragraph of text.split(/\r?\n\s*\r?\n/)) {
     const enumeration =
       /By contrast, ([^.]*?) are \*\*not\*\* keywords and \*\*not\*\* built-in names\./.exec(
         paragraph,
       );
-    const closure = /contextual keywords are exactly these (\w+)/.exec(
+    const closure = /contextual keywords are exactly these ([a-z]+)[;.,]/.exec(
       paragraph,
     );
-    if (enumeration === null || closure === null) {
-      continue;
+    if (enumeration !== null && closure !== null) {
+      anchored.push({ enumeration, closure });
     }
-    const words = backtickedWords(enumeration[1]);
-    const claimed = NUMBER_WORDS[closure[1].toLowerCase()];
-    if (words.length === 0 || claimed !== words.length) {
-      return null;
-    }
-    return words;
   }
-  return null;
+  if (anchored.length !== 1) {
+    return null;
+  }
+  const [{ enumeration, closure }] = anchored;
+  const words = backtickedWords(enumeration[1]);
+  if (words.length === 0 || NUMBER_WORDS[closure[1]] !== words.length) {
+    return null;
+  }
+  return new Set(words).size === words.length ? words : null;
 }
 
 /**
