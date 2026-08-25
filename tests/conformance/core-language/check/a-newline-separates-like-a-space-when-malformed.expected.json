@@ -1,0 +1,232 @@
+{
+  "description": "The agreement half of the adjacency ruling, for the containers where both spellings are malformed and so cannot be proven as a value, plus the round-2 review finding on the entry lookahead. A newline separates exactly like a space, so the newline and spaced spellings of each source must produce the SAME diagnostics -- the assertion is that they are malformed in the SAME WAY, not merely that they are malformed. Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, proves the ruling as a value in a list literal. The second group pins `spec/grammar.md:314`: a call still owed an operand is unfinished exactly as an operator is, so the unfinished value's own grammar position wins and no entry opens. Measured at `0277d5ff` before the fix, `{ a: sentence 1 mod: 2 }` opened an entry keyed `mod` and left `sentence` one argument short, which `check()` then reported as `ol-not-enough-inputs` on a program the grammar says is simply a malformed entry -- as its own `{ a: 1 + b: 2 }` example is. Both spellings of each are here because the one-line and multi-line forms must agree; the complete-call counterpart, where the key DOES open its entry, pulls the opposite way and is pinned in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [17, 1],
+        "end": [17, 2]
+      },
+      "params": {
+        "text": "["
+      },
+      "message": "i don't know how to read [ here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [17, 5],
+        "end": [17, 6]
+      },
+      "params": {
+        "text": ")"
+      },
+      "message": "i don't know how to read ) here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [18, 15],
+        "end": [18, 16]
+      },
+      "params": {
+        "text": "["
+      },
+      "message": "i don't know how to read [ here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [18, 19],
+        "end": [18, 20]
+      },
+      "params": {
+        "text": ")"
+      },
+      "message": "i don't know how to read ) here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [23, 23],
+        "end": [23, 26]
+      },
+      "params": {
+        "text": "mod"
+      },
+      "message": "i don't know how to read mod here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [23, 26],
+        "end": [23, 27]
+      },
+      "params": {
+        "text": ":"
+      },
+      "message": "i don't know how to read : here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [23, 30],
+        "end": [23, 31]
+      },
+      "params": {
+        "text": "}"
+      },
+      "message": "i don't know how to read } here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [25, 1],
+        "end": [25, 4]
+      },
+      "params": {
+        "text": "mod"
+      },
+      "message": "i don't know how to read mod here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [25, 4],
+        "end": [25, 5]
+      },
+      "params": {
+        "text": ":"
+      },
+      "message": "i don't know how to read : here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [25, 8],
+        "end": [25, 9]
+      },
+      "params": {
+        "text": "}"
+      },
+      "message": "i don't know how to read } here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [26, 23],
+        "end": [26, 26]
+      },
+      "params": {
+        "text": "and"
+      },
+      "message": "i don't know how to read and here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [26, 26],
+        "end": [26, 27]
+      },
+      "params": {
+        "text": ":"
+      },
+      "message": "i don't know how to read : here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [26, 30],
+        "end": [26, 31]
+      },
+      "params": {
+        "text": "}"
+      },
+      "message": "i don't know how to read } here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [28, 1],
+        "end": [28, 4]
+      },
+      "params": {
+        "text": "and"
+      },
+      "message": "i don't know how to read and here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [28, 4],
+        "end": [28, 5]
+      },
+      "params": {
+        "text": ":"
+      },
+      "message": "i don't know how to read : here.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
+        "start": [28, 8],
+        "end": [28, 9]
+      },
+      "params": {
+        "text": "}"
+      },
+      "message": "i don't know how to read } here.",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

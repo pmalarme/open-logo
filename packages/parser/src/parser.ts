@@ -606,6 +606,23 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * place read used as an expression. Selectors are skipped by balanced bracket/paren depth so a
    * parenthesized key-term (`:nums[(:i + 1)] = …`) is spanned correctly.
    */
+  /**
+   * Is the token at `offset` lexically adjacent to the one before it? The fourth adjacency site,
+   * and the only one that asks the question *ahead* of the cursor rather than behind it.
+   *
+   * **It needs no newline guard, and deliberately has none.** Its one caller,
+   * {@link colonAssignmentAhead}, walks only over `dot`/`name` pairs and adjacent `lbracket`s, so a
+   * raw `newline` token ends that walk before this is ever reached across one — which is the same
+   * kind of immunity {@link isNegativeNumberLiteralAt} and {@link isDictKeyAt} have: the newline is
+   * a *token* in the way, not an invisible gap. Adding a guard here anyway would be an unreachable
+   * branch, which the coverage gate rejects and which would misleadingly imply the caller could
+   * arrive here mid-newline.
+   *
+   * **The invariant a later caller must preserve:** never call this with a `newline` between
+   * `offset - 1` and `offset`. A newline token's `end` *is* the next line's column 1, so it would
+   * report adjacency across a line break — the exact defect {@link currentAdjacentToPrev}'s
+   * `sawWhitespaceGap` exists to prevent, where the caller could not be constrained that way.
+   */
   function peekAdjacent(offset: number): boolean {
     const prevEnd = peek(offset - 1).source_span.end;
     const start = peek(offset).source_span.start;
@@ -1268,7 +1285,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Two sibling adjacency tests need no such flag and are left alone, because they compare *tokens*
    * rather than positions and a newline is itself a token: {@link isNegativeNumberLiteralAt} peeks
    * at two adjacent stream slots, and {@link isDictKeyAt} compares the separator's lexeme kind.
-   * That is the shape to prefer — this flag exists only because `lastEnd` is a position.
+   * That is the shape to prefer — this flag exists only because `lastEnd` is a position. The fourth
+   * site, {@link peekAdjacent}, is immune the same way: a newline token ends its caller's walk
+   * before it is reached, so it states the invariant instead of re-testing it.
    */
   function currentAdjacentToPrev(): boolean {
     if (sawWhitespaceGap) {

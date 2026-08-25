@@ -1,0 +1,31 @@
+# The maintainer's adjacency ruling on issue #944's sibling question: **a newline separates exactly
+# like a space — always, everywhere.** Adjacency is whitespace-agnostic; a newline is insignificant
+# to the *grammar*, not invisible to the *lexer*.
+#
+# This is a NARROWING. A newline token's `end` is the next line's column 1, so once a container
+# skipped it the following `[` tested as adjacent — a skipped newline *manufactured* an adjacency
+# the source never had, and `[ :nums` ⏎ `[1] ]` read `[1]` as a selector on `:nums` while
+# `[ :nums [1] ]` read a second element. The two spellings now agree.
+#
+# A list literal is the container used here because both spellings are execution-valid in it, so
+# the ruling can be proven as a VALUE rather than as a diagnostic. The malformed containers — a
+# parenthesized group, and the top level, where the spaced spelling is an arity error for reasons
+# unrelated to adjacency — have their agreement pinned in the companion check fixture instead.
+#
+# The glued spelling is printed too and must NOT match, or this fixture would still pass if
+# adjacency stopped working altogether.
+:nums = [ 10 20 30 ]
+
+# Newline, then space: each reads `:nums` and then a separate one-element list.
+print [ :nums
+[1] ]
+print [ :nums [1] ]
+
+# Glued: `[1]` is a selector, so this prints the element rather than a second list.
+print [ :nums[1] ]
+
+# The regression this direction had to avoid. A newline after a comprehension header selects the
+# long body form (`spec/grammar.md:34`), so the `[` binds as a BODY, not as a selector on `:nums`.
+# A narrowing can only make the `[` less likely to bind, so this is strictly more protected than
+# before — asserted here rather than assumed.
+print map n in :nums [ :n ]

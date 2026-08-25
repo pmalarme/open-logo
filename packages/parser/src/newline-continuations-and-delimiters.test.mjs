@@ -240,6 +240,42 @@ test("a newline still terminates a statement", () => {
   assert.equal(ast.body.length, 2);
 });
 
+test("a pending call argument does not reach across a newline", () => {
+  // The exact boundary the owed-operand branch must not cross. `print` is owed an argument, and a
+  // newline still ends its statement — so this is TWO statements, and `print` is reported short by
+  // the arity checker rather than silently joined to the next line. An unconditional newline skip
+  // in `parseFixedCall` would make it one, which is the statement-delimitation question tracked by
+  // **#983** and deliberately out of this slice's scope. The complete `print 1` above cannot catch
+  // that mistake; only a pending call can.
+  const { ast, diagnostics } = OL.parse("print\nabs 3\n", doc);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(
+    ast.body.map((statement) => statement.kind),
+    ["Call", "Call"],
+  );
+  assert.equal(ast.body[0].args.length, 0);
+  assert.deepEqual(
+    codesOf("print\nabs 3\n").filter((code) => code === "ol-not-enough-inputs"),
+    ["ol-not-enough-inputs"],
+  );
+});
+
+test("the entry lookahead's decision is visible to the highlighter", () => {
+  // The lookahead decides a `dict-key`/`operator` split that the token classes must follow, and
+  // the highlighter derives them from the AST — so a regression in the parser silently repaints
+  // the program. Both readings are legal and clean, which is exactly why this needs pinning:
+  // nothing else would notice the swap.
+  const keyClasses = (source) =>
+    OL.highlight(source, doc)
+      .filter((token) => token.text?.toLowerCase() === "mod")
+      .map((token) => token.class);
+
+  assert.deepEqual(keyClasses("print { a: 1 mod: 2 }\n"), ["dict-key"]);
+  assert.deepEqual(keyClasses("print { a: 1\nmod: 2 }\n"), ["dict-key"]);
+  assert.deepEqual(keyClasses("print { a: 1 mod :two }\n"), ["operator"]);
+});
+
 test("a newline separates exactly like a space, for adjacency too", () => {
   // MAINTAINER RULING (issue #944's sibling question): *a newline separates exactly like a space —
   // always, everywhere.* Adjacency is whitespace-agnostic, and a newline is whitespace: it is

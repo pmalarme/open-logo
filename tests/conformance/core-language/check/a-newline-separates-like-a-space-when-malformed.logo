@@ -1,0 +1,28 @@
+# The agreement half of the adjacency ruling, for the containers where both spellings are
+# malformed and so cannot be proven as a value. *A newline separates exactly like a space*, so the
+# newline and spaced spellings of each source below must produce the SAME diagnostics — the point
+# being that they are malformed in the same way, not that they are malformed at all.
+#
+# Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, proves the
+# ruling as a value in a list literal, where both spellings run.
+#
+# The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
+# operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position
+# wins and no entry opens"*. `{ a: sentence 1 mod: 2 }` must be a malformed entry — not an entry
+# keyed `mod` leaving `sentence` one argument short — and its newline spelling must agree.
+:nums = [ 10 20 30 ]
+
+# Adjacency: a parenthesized group. Both spellings are malformed, identically.
+print ( :nums
+[1] )
+print ( :nums [1] )
+
+# The dict entry lookahead must not fire while the value is owed an operand. `sentence` takes two
+# inputs and has one, so no entry opens and the entry is malformed — as the spec's own
+# `{ a: 1 + b: 2 }` example is.
+print { a: sentence 1 mod: 2 }
+print { a: sentence 1
+mod: 2 }
+print { a: sentence 1 and: 2 }
+print { a: sentence 1
+and: 2 }
