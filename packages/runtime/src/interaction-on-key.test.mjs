@@ -2,8 +2,8 @@
 // `spec/interaction-events.md`'s `### on_key <key-word> <block>`, "Time, ticks, and handlers", and
 // "Trace stream integration"). `on_key` registers a handler and emits a `primitive` event AFTER
 // registration; the key argument MUST be a word (`ol-type` otherwise). A key press is host input, so
-// in a headless batch `execute()` run there is no keyboard and the handler is registered but never
-// delivered — exactly like a `when "stop"` handler. The stream stays deterministic and headless: no
+// with no host input supplied the handler is registered but never
+// fires — exactly like a `when "stop"` handler. The stream stays deterministic and headless: no
 // key word leaks into any payload.
 //
 // Node-version trap (see the PR body): on Node 24+ `--experimental-test-coverage` silently excludes
@@ -37,8 +37,8 @@ test("on_key registration emits a primitive(on_key) event, headless (name only)"
   assert.equal(primitives[0].payload.name, "on_key");
 });
 
-test("registration is NOT invocation: the handler block never runs in a headless batch run", () => {
-  // No keyboard in a headless run, so `on_key` registers but is never delivered — only the
+test("registration is NOT invocation: the handler block never runs without host input", () => {
+  // This run supplies no host input, so `on_key` registers but never fires — only the
   // registration's instruction+primitive pair appears, never the body's `forward` move.
   const result = execute('on_key "space" [ forward 20 ]', doc);
   assert.deepEqual(result.diagnostics, []);

@@ -2,8 +2,8 @@
 // `spec/interaction-events.md`'s `### on_click <block>`, "Time, ticks, and handlers", and "Trace
 // stream integration"). `on_click` registers a handler and emits a `primitive` event AFTER
 // registration; unlike its three siblings it takes NO argument (the spec lists its errors as none).
-// A click is host input, so in a headless batch `execute()` run there is no pointer device and the
-// handler is registered but never delivered — exactly like a `when "stop"` (I3) or an `on_key` (I5)
+// A click is host input, so with no host input supplied the
+// handler is registered but never fires — exactly like a `when "stop"` (I3) or an `on_key` (I5)
 // handler. The stream stays deterministic and headless: no coordinate or timing leaks into any
 // payload.
 //
@@ -38,8 +38,8 @@ test("on_click registration emits a primitive(on_click) event, headless (name on
   assert.equal(primitives[0].payload.name, "on_click");
 });
 
-test("registration is NOT invocation: the handler block never runs in a headless batch run", () => {
-  // No pointer device in a headless run, so `on_click` registers but is never delivered — only the
+test("registration is NOT invocation: the handler block never runs without host input", () => {
+  // This run supplies no host input, so `on_click` registers but never fires — only the
   // registration's instruction+primitive pair appears, never the body's `forward` move.
   const result = execute("on_click [ forward 20 ]", doc);
   assert.deepEqual(result.diagnostics, []);

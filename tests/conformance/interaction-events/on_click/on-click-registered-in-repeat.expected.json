@@ -1,5 +1,5 @@
 {
-  "description": "issue #685 (slice I6): an `on_click` registration nested inside a `repeat` body registers one handler per iteration — three `instruction`+`primitive` pairs — proving registration works in an awkward position without firing any handler in a headless run.",
+  "description": "issue #685 (slice I6): an `on_click` registration nested inside a `repeat` body registers one handler per iteration — three `instruction`+`primitive` pairs — proving registration works in an awkward position without firing any handler when the run supplies no host input.",
   "profiles": ["interaction-events"],
   "execute": true,
   "events": [

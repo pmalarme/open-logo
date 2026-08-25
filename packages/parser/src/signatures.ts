@@ -573,8 +573,8 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
  * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:259-272`)
  * and `beep` takes none (`spec/interaction-events.md:309-324`) — the two primitives slice S1 (#689)
- * delivers; the remaining Sound names (`note`/`play`/`rest`) join this table in their own slices
- * (#690/#691), each a bare `Call` grouped by this arity exactly as `set_width`/`grid` are. Kept as
+ * delivered; `note`/`rest` arrived with #690 and `play` with #691, so all five are registered
+ * below, each a bare `Call` grouped by its arity exactly as `set_width`/`grid` are. Kept as
  * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
  * are separate: Sound has its own independent profile visibility (the Layer-2 checker gates it on
  * its own active `sound` profile, `spec/tooling.md:175-176`), while the reader groups a bare call's

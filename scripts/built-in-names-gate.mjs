@@ -441,10 +441,12 @@ export function accessorFindings(manifest, api) {
 /**
  * Ask a registry's **lookup** accessor whether it holds `name`.
  *
- * @returns `true`/`false`, or `null` when the answer is unavailable — the accessor is `declared`,
- *   so the file itself says it does not exist yet. `null` is propagated rather than coerced to
- *   `false`, so an unreachable direction is reported as unreachable instead of silently reading as
- *   "the implementation does not have it".
+ * @returns `true`/`false`, or `null` when the answer is unavailable — the registry declares no
+ *   lookup, its accessor's status is not `present` (`declared` being the case in point:
+ *   {@link ACCESSOR_STATUSES} defines it as decided but not created, so the file itself says it
+ *   must not resolve), or the export is the wrong shape. `null` is propagated rather than coerced
+ *   to `false`, so an unreachable direction is reported as unreachable instead of silently reading
+ *   as "the implementation does not have it".
  */
 export function registryHas(registry, api, name) {
   const spec = registry.lookup;

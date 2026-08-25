@@ -5,7 +5,7 @@ description: >-
   meet before it can merge, plus the ungated-prose rule (a derived count is an unenforced
   assertion). Use to self-verify before opening or updating a pull request.
 created: 2025-06-01T00:00
-updated: 2026-08-22T00:00
+updated: 2026-08-25T00:00
 ---
 
 ## Purpose
@@ -117,7 +117,10 @@ command you have sanity-checked:
 
 Gating every number in prose is not tractable and is not attempted here; this is a stated,
 known-ungated surface. The reviewer-side counterpart is `shared/review-gate` item (f): re-derive,
-don't re-read.
+don't re-read. The measurement itself has the same problem one level down — a green run can enumerate
+something other than what you changed — and its rule lives there too, as
+[`shared/review-gate`](../review-gate/SKILL.md)'s *"The instrument may be measuring something other
+than what you think"*. That is a pointer, not an eleventh entry: like this section, it is discipline.
 
 ## Three-tier governance ladder (Issue → Epic → Saga)
 

@@ -53,7 +53,7 @@ Reviewer ≠ author. See .github/skills/shared/review-gate/SKILL.md.
 - [ ] Conformance fixtures present & green
 - [ ] Instructions / skills / docs / spec drift checked (in this PR if needed)
 - [ ] Every finding resolved — blocking **and** non-blocking (fixed, or declined with a one-line rationale + follow-up issue when it is real work outside the write-set); converged within the **10-round cap**
-- [ ] Reviews were run on this PR's head commit (SHA `________`); any later push re-runs **all** reviewers
+- [ ] Reviews were run on this PR's head commit (SHA `________`, tagged `________` — a tag, not a declaration, is the freeze); any later push re-runs **all** reviewers
 - [ ] Logic/spec reviewer verdict = pass (≠ author) — `rubber-duck`, or named fallback + why:
 - [ ] Every QA expert verdict = pass (≠ author); expert(s):
 

@@ -1,5 +1,5 @@
 {
-  "description": "issue #685 (slice I6): registering `on_click` twice registers both handlers, in registration order, with no error — each emits its own `instruction`+`primitive` pair and neither fires in a headless run. `on_click` handlers are kept in their own registration-ordered list so #686/I7 can impose the spec's same-tick delivery order across handler kinds.",
+  "description": "issue #685 (slice I6): registering `on_click` twice registers both handlers, in registration order, with no error — each emits its own `instruction`+`primitive` pair and neither fires when the run supplies no host input. `on_click` handlers are kept in their own registration-ordered list so the same-tick delivery order (#686/I7) holds across handler kinds.",
   "profiles": ["interaction-events"],
   "execute": true,
   "events": [

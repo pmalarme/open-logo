@@ -1,23 +1,20 @@
 /**
  * The Sound profile's shared, mutable scheduling state (issue #689,
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
- * section). Today it holds only the tempo — the beats-per-minute `set_tempo` sets and `note`/
- * `play`/`rest` will read once slices #690/#691 land ("`set_tempo` sets the tempo used by `note`,
- * `play`, and `rest`", `spec/interaction-events.md:267-268`). It is modeled headlessly: the runtime
- * only *schedules* sound (updating this state and emitting a `sound` trace event), it never touches
- * an audio device, so durations here are always in **beats**, never wall-clock, keeping replay
- * deterministic — "Implementations that cannot play audio, or that run in a muted classroom
- * environment, MUST still emit `sound` events" (`spec/interaction-events.md`).
+ * section). Today it holds only the tempo, which `set_tempo` writes and emits as its own `sound`
+ * event; `note`/`play`/`rest` emit their durations in beats and do not read it. It is modeled
+ * headlessly: the runtime only *schedules* sound (updating this state and emitting a `sound` trace
+ * event), it never touches an audio device, so durations here are always in **beats**, never
+ * wall-clock, keeping replay deterministic — "Implementations that cannot play audio, or that run
+ * in a muted classroom environment, MUST still emit `sound` events"
+ * (`spec/interaction-events.md`).
  */
 
 /**
  * The Sound profile's mutable state — currently just the current tempo. A plain mutable box
  * (mirroring `evaluate.ts`'s `Environment.instructionCount`/`addressing` and
  * `random-number-generator.ts`'s `RandomNumberGeneratorState`) rather than a value replaced on
- * every change: every recursive `evaluate`/`executeStatements` call shares the very same
- * {@link import("./evaluate.js").Environment}, so only a shared mutable container lets a `set_tempo`
- * made from deep inside a procedure call or loop body be observed by every later `note`/`play`/
- * `rest` in the same program run.
+ * every change.
  */
 export interface SoundState {
   /** The current tempo in beats per minute; a positive number (`set_tempo`'s `ol-range` guard). */

@@ -352,7 +352,7 @@ export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
  *   never carry a diagnostic code without also carrying that diagnostic's own source span). The
  *   type system enforces this presence pairing via separate diagnostic/non-diagnostic arms
  *   below; it does NOT enforce that the span's *value* equals the diagnostic's own span — that
- *   equality is a residual runtime invariant left to later slices.
+ *   equality is a residual runtime invariant, not a type-level one.
  */
 export interface TutorOutputSegments {
   readonly segments: readonly [string, ...string[]];
@@ -541,8 +541,10 @@ type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
 
 /**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
- * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, now shared by `note`,
- * `play`, and `rest`. A positive number (`ol-range` otherwise); the default before any `set_tempo`
+ * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, that `set_tempo` set.
+ * Durations elsewhere in the stream are carried in beats and interpreted at the current tempo
+ * (`spec/interaction-events.md:267-268`). A positive number (`ol-range` otherwise);
+ * the default before any `set_tempo`
  * is `120`.
  */
 export interface SetTempoSoundPayload {

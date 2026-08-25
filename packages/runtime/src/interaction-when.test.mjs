@@ -3,8 +3,8 @@
 // ticks, and handlers", "Trace stream integration", and "Errors and cancellation"). `when`
 // registers a named handler and emits a `primitive` event AFTER registration; the standard `"start"`
 // event is already being delivered in a batch run so its handler fires immediately, while `"stop"`
-// is "a requested stop notification" that a headless batch run never receives, so a `when "stop"`
-// handler is registered but does not fire here (delivery belongs to a later interactive host). The
+// is "a requested stop notification" that this run does not supply, so a `when "stop"`
+// handler is registered but does not fire here. The
 // event argument must be a word (`ol-type` otherwise). The stream stays deterministic and headless.
 //
 // Node-version trap (see the PR body): on Node 24+ `--experimental-test-coverage` silently excludes
@@ -27,7 +27,7 @@ function effectEvents(result) {
 // --- Registration emits `primitive` AFTER the handler is registered ---------------------------
 
 test("when registration emits a primitive(when) event, headless (name only)", () => {
-  // `"idle"` is a word this batch runtime never fires, so the handler only registers — isolating
+  // `"idle"` is a word nothing in this run delivers, so the handler only registers — isolating
   // the registration `primitive` from any handler-run events.
   const result = execute('when "idle" [ print "x" ]', doc);
   assert.deepEqual(result.diagnostics, []);
@@ -83,22 +83,22 @@ test('two when "start" handlers fire in registration order', () => {
   assert.deepEqual(printed, ["a", "b"]);
 });
 
-// --- `"stop"` is a requested notification: registered but not delivered in a headless batch -----
+// --- `"stop"` is a requested notification: registered, and not fired when none is supplied -----
 
-test('a when "stop" handler is registered but does NOT fire in a batch run', () => {
+test('a when "stop" handler is registered but does NOT fire without host input', () => {
   const result = execute('when "stop" [ print "bye" ]\nprint "mid"', doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = effectEvents(result)
     .filter((event) => event.kind === "print")
     .map((event) => event.payload.values[0]);
-  // `"stop"` is "a requested stop notification before termination"; a headless batch `execute()`
-  // receives no such request, so only `mid` prints — `bye` never runs. Delivering `"stop"` belongs
-  // to a later interactive/cancellation host slice, not to this one.
+  // `"stop"` is "a requested stop notification before termination"; this run supplies no such
+  // request through `hostInput`, so only `mid` prints — `bye` never runs. A host that schedules
+  // `"stop"` via `ExecuteOptions.hostInput` does fire it (#686/I7).
   assert.deepEqual(printed, ["mid"]);
 });
 
 test('a when "stop" registration still emits its primitive(when) event', () => {
-  // Registration is not invocation: even though the `"stop"` block never runs in batch mode, the
+  // Registration is not invocation: even though the `"stop"` block never runs here, the
   // `when` statement itself is executed, so the instruction+primitive pair is emitted.
   const result = execute('when "stop" [ print "never" ]', doc);
   const primitives = effectEvents(result).filter(
