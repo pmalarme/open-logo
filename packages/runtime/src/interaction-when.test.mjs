@@ -27,7 +27,7 @@ function effectEvents(result) {
 // --- Registration emits `primitive` AFTER the handler is registered ---------------------------
 
 test("when registration emits a primitive(when) event, headless (name only)", () => {
-  // `"idle"` is a word this batch runtime never fires, so the handler only registers — isolating
+  // `"idle"` is a word nothing in this run delivers, so the handler only registers — isolating
   // the registration `primitive` from any handler-run events.
   const result = execute('when "idle" [ print "x" ]', doc);
   assert.deepEqual(result.diagnostics, []);
@@ -85,7 +85,7 @@ test('two when "start" handlers fire in registration order', () => {
 
 // --- `"stop"` is a requested notification: registered, and not fired when none is supplied -----
 
-test('a when "stop" handler is registered but does NOT fire in a batch run', () => {
+test('a when "stop" handler is registered but does NOT fire without host input', () => {
   const result = execute('when "stop" [ print "bye" ]\nprint "mid"', doc);
   assert.deepEqual(result.diagnostics, []);
   const printed = effectEvents(result)
@@ -98,7 +98,7 @@ test('a when "stop" handler is registered but does NOT fire in a batch run', () 
 });
 
 test('a when "stop" registration still emits its primitive(when) event', () => {
-  // Registration is not invocation: even though the `"stop"` block never runs in batch mode, the
+  // Registration is not invocation: even though the `"stop"` block never runs here, the
   // `when` statement itself is executed, so the instruction+primitive pair is emitted.
   const result = execute('when "stop" [ print "never" ]', doc);
   const primitives = effectEvents(result).filter(

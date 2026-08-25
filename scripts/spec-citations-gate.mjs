@@ -159,10 +159,9 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  * while resolving the tracking issue over the flattened run, so "does not exist\n * yet" is
  * unreachable although the identical unwrapped sentence fails. Measured before issue #961's sweep
  * with the eight phrases below: **2** untracked wrap-only claims, both fixed by hand there, so at
- * this commit the untracked count is **0**. (A tree-wide *total* is instrument-dependent: a sweep
- * over the same eight phrases sees **4** at that base, because two more are tracked — this
- * vocabulary's own quotation in `AGENTS.md`, and a `#208`/`#209` claim in `turtle-clear.test.mjs`.)
- * Making the matcher wrap-safe is mechanically straightforward — flatten
+ * this commit the untracked count is **0**. (A tree-wide *total* is instrument-dependent — sweeps of
+ * different shapes also see this vocabulary's own quotation in `AGENTS.md` and a `#208`/`#209` claim
+ * in `turtle-clear.test.mjs`, both tracked.) Making the matcher wrap-safe is mechanically straightforward — flatten
  * every prose run with the same array-then-join technique used below, which is linear — but it
  * changes what the gate reports
  * (a claim's line must be mapped back from a run offset) and needs its own tests against the 100%

@@ -310,7 +310,8 @@ export function takeInputResponse(
  * In a headless batch `execute()` run with no host input, only `"start"` is *delivered*: the run has already
  * started, so a `when "start"` handler fires immediately on registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"). `"stop"`
- * is "a requested stop notification" — such a run supplies no such request, so a `when "stop"`
+ * is "a requested stop notification" — the caller supplies no such request through
+ * `ExecuteOptions.hostInput`, so a `when "stop"`
  * handler is accepted and registered but never fires there (exactly as a vendor event an
  * implementation does not deliver would not). A host that schedules `"stop"` through
  * `ExecuteOptions.hostInput` does fire it (#686/I7); this slice does not
@@ -596,8 +597,9 @@ export function registerEveryHandler(
  * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
  * handlers or `every`'s timed handlers) so the spec's same-tick delivery order — pending `when`,
  * then pending `on_key`, then `on_click`, then due `every` (#686/I7) — can filter each kind
- * independently while each kind preserves its own registration order. With no host input supplied
- * no key press is pending, so this list is populated but never drained here.
+ * independently while each kind preserves its own registration order. Handlers stay registered here;
+ * it is {@link EventHandlerRegistry.pendingKeys} that a drain consumes, and with no host input
+ * supplied nothing is ever pending.
  */
 export function registerOnKeyHandler(
   registry: EventHandlerRegistry,
@@ -627,8 +629,9 @@ export function registerOnKeyHandler(
  * one-shot handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
  * same-tick delivery order — pending `when`, then pending `on_key`, then pending `on_click`, then due
  * `every` (#686/I7) — can filter each kind independently while each kind preserves its own
- * registration order. With no host input supplied no click is pending, so this list is populated
- * but never drained here.
+ * registration order. Handlers stay registered here; it is
+ * {@link EventHandlerRegistry.pendingClicks} that a drain consumes, and with no host input supplied
+ * nothing is ever pending.
  */
 export function registerOnClickHandler(
   registry: EventHandlerRegistry,
