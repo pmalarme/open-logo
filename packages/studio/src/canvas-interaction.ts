@@ -31,18 +31,24 @@
  * Arrows, space, and the paging keys scroll the page. A learner playing `10-game.logo` would drive
  * the turtle and scroll the studio out from under themselves at the same time. So the default is
  * suppressed for exactly {@link SCROLLING_KEY_WORDS} — and only when
- * {@link RunController.deliverKey} reports that **this run registered a handler for that key
- * word**, which it answers by pairing the program's `on_key` declarations with the run's own
- * registration events (`key-words.ts`'s {@link collectDeclaredKeyHandlers}) rather than by measuring
- * anything at runtime.
+ * {@link RunController.deliverKey} reports **synchronously that this very press ran a handler**,
+ * which it answers by comparing `on_key` invocation markers across that one delivery.
  *
- * The unit of that decision is the **individual press**, not the program: a program registering
+ * Two exceptions follow directly from that, and both under-suppress rather than over-suppress:
+ * - **a host that settles across event-loop turns** (the Worker one) cannot answer in time, so it
+ *   reports `false` for every press and **nothing is suppressed there at all** — the documented
+ *   #975 capability gap;
+ * - **a program whose `on_key` key word is not a literal** reports `false` too, so the press is
+ *   delivered and the handler fires, but the browser default stands.
+ *
+ * The unit of the decision is the **individual press**, not the program: a program registering
  * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
  * behaves exactly as it did before this seam existed. That is not a nicety. Most OpenLogo programs —
  * every drawing example, every geometry lesson, everything below the Interaction profile — can
  * never respond to a key, and swallowing scrolling for them would present to a learner as "the
  * studio is broken", affecting everyone rather than only the few using Interaction. The bug this
- * slice fixes is silent inaction; the regression it must not introduce is silent interception.
+ * slice fixes is silent inaction; the regression it must not introduce is silent interception —
+ * which is why every one of the cases above resolves toward *not* suppressing.
  *
  * `"tab"` is deliberately **not** in that list even for a key a handler names: it is how a learner
  * leaves the canvas, and a game that could swallow it would be a keyboard trap. `"enter"` and
@@ -142,13 +148,14 @@ export function suppressesBrowserDefault(keyWord: string): boolean {
 }
 
 /**
- * Handle one `keydown` on the canvas: normalize it to an OpenLogo key word, deliver it, and
- * suppress the browser's own scrolling only if a handler names that key and it is one that would
+ * Handle one `keydown` on the canvas: normalize it to an OpenLogo key word, deliver it, and suppress
+ * the browser's own scrolling only if that press **ran a handler** and the key is one that would
  * otherwise scroll.
  *
- * Reports the key word a handler names, or `null` when none does — a bare modifier, a key no
- * `on_key` declares, or a program with no `on_key` at all. Exported so the decision is testable
- * without a DOM.
+ * Reports the key word the press ran a handler for, or `null` when it ran none — a bare modifier, a
+ * key no `on_key` names, a program with no `on_key` at all, a press past the program's last usable
+ * tick, or any press under a host that settles across event-loop turns. Exported so the decision is
+ * testable without a DOM.
  */
 export function handleCanvasKeyDown(
   controller: RunController,

@@ -392,7 +392,10 @@ would present as "the editor is broken". So:
   that event path at all. Editor focus wins by construction.
 - **`preventDefault` is per press, not per program.** A program registering `on_key "up"` suppresses
   `up` and nothing else; a program with no `on_key` suppresses nothing and behaves byte-identically
-  to the pre-fix build. Both are asserted against the *real* controller.
+  to the pre-fix build. Both are asserted against the *real* controller. Suppression happens only
+  when `deliverKey` reports **synchronously** that the press ran a handler, so a press past the
+  program's last usable tick, a non-literal key word, and every press under the Worker host all
+  suppress nothing (see the limits above) — each resolving toward *not* intercepting.
 - **No tab stop is added for a program that cannot use it.** The activation button starts `hidden`
   and is revealed only while the live run registered `on_click` (`RunController.acceptsClick()`) —
   the `hidden`-attribute mechanism `a11y.ts` already documents for the lesson pane, so
@@ -530,10 +533,13 @@ the keyboard surface: `"enter"` and `"space"` are key words in their own right, 
 shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:216-218`), which
 is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
 
-Arrows, space, and the paging keys have their browser default suppressed — but **only for a key the
-program's own `on_key` declarations name**, so a program registering `on_key "up"` stops only `up`
-from scrolling, and one with no `on_key` stops nothing. `"tab"` is never suppressed even for a named
-key: it is how a learner leaves the canvas, and a running game that swallowed it would be a keyboard
+Arrows, space, and the paging keys have their browser default suppressed — but **only when the press
+itself ran a handler**, reported synchronously by `deliverKey`. So a program registering
+`on_key "up"` stops only `up` from scrolling; one with no `on_key` stops nothing; and a press that
+reached no handler — past the program's last usable tick, a non-literal key word, or any press under
+the Worker host — stops nothing either. Every exception under-suppresses rather than over-suppresses,
+which is the direction that matters. `"tab"` is never suppressed even for a key a handler ran: it is
+how a learner leaves the canvas, and a running game that swallowed it would be a keyboard
 trap. `"enter"` and `"escape"` are left alone for the same reason.
 
 All of this lives in `src/`, not in `web/main.ts`: `web/**` is outside the `src` build graph, so it
