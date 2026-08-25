@@ -541,8 +541,9 @@ type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
 
 /**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
- * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, now shared by `note`,
- * `play`, and `rest`. A positive number (`ol-range` otherwise); the default before any `set_tempo`
+ * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, that replay tooling
+ * interprets `note`, `play`, and `rest` beat durations at. A positive number (`ol-range` otherwise);
+ * the default before any `set_tempo`
  * is `120`.
  */
 export interface SetTempoSoundPayload {

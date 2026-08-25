@@ -47,9 +47,9 @@ test("note accepts a fractional positive duration and a numeric-word duration", 
 });
 
 test("note is scheduled at the tempo set by an earlier set_tempo", () => {
-  // The runtime is headless: "scheduled at the current tempo" means the `note` reads the shared
-  // tempo state, not that the payload carries wall-clock timing. The `sound` events appear in order
-  // after the tempo change, proving the note runs against the established tempo without error.
+  // The runtime is headless: the `note` carries its duration in beats and the tempo travels as its
+  // own earlier `sound` event, so the payloads below are the same at any tempo. The `sound` events
+  // appear in order after the tempo change, and the run raises no diagnostic.
   const result = execute(
     'set_tempo 60\nnote "c4" 1\nrest 1\nnote "c4" 1',
     "main.logo",

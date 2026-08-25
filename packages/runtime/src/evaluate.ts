@@ -267,8 +267,8 @@ export interface Environment {
    * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
    * procedure, loop, or comprehension) is observed by every later
    * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
-   * (issue #673) are its only clients; the addressed-set model (`tell`/`ask`/`each`) layers on it
-   * in later slices.
+   * (issue #673) and the addressed-set model (`tell`/`ask`/`each`, {@link addressing}) are its
+   * clients.
    */
   readonly turtleWorld: TurtleWorld;
   /**
@@ -311,8 +311,8 @@ export interface Environment {
    * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
    * current logical tick, shared by every recursive `executeStatements`/`evaluate` call
    * so a `wait`'s tick advance is observed program-wide. Headless execution
-   * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Future timed
-   * handlers (`every <n>`, #683) read it; #682–#686 deliver due handlers as it advances.
+   * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Timed
+   * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
   /**

@@ -15,7 +15,7 @@
  * trace-and-event registry), so this clock MUST NOT leak into any event payload — the `primitive`
  * event `wait` emits carries only the primitive name ({@link PrimitivePayload}), never a tick
  * count or elapsed time. The clock exists so that a program's event *sequence* is reproducible and
- * so future timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
+ * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
  * itself observable in the stream.
  *
  * ## Why `wait` is a per-tick loop, not a blocking sleep

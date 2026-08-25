@@ -1731,8 +1731,8 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * {@link requireNumber}), which must additionally be positive and finite
  * (`spec/interaction-events.md:262` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
- * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` (the
- * tempo replay tooling interprets `note`/`play`/`rest` beat durations at) and emits one `sound` event
+ * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
+ * emits one `sound` event
  * carrying a {@link SetTempoSoundPayload}, AFTER the tempo state has been updated
  * (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound` events after
  * sound state has been scheduled"). Returns an {@link ExecSignal} to halt on, or `undefined` for
@@ -1867,7 +1867,8 @@ function isSoundNoteCall(statement: StatementNode): boolean {
  *
  * On success it schedules the pitched sound — headlessly, so scheduling *is* emitting one `sound`
  * event carrying a {@link NoteSoundPayload} (the beat `duration` travels verbatim; replay tooling
- * interprets it at the tempo `set_tempo` last emitted), AFTER the sound
+ * interprets it at the tempo `set_tempo` last emitted, or at the default 120 when the program set
+ * none), AFTER the sound
  * has been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit
  * `sound` events after sound state has been scheduled"). The event is emitted unconditionally even
  * in a muted environment ("Implementations that cannot play audio … MUST still emit `sound`

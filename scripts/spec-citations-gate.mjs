@@ -147,9 +147,11 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  * forward-looking verb serves the same end — bare "later slice" also matches prose *about* how
  * slices work ("later slices cite them as settled fact"), which claims nothing about pending work,
  * and the cost is recall: "a later slice adds…" is missed. **Not every entry below is anchored**, so
- * the list still fires on a counterfactual ("a future-slice `grid :spacing` overload would…") —
- * prose that claims nothing pending. Issue #961 re-worded two such sites rather than name an issue
- * for work nobody has planned; that, not a silent reword, is the disposition when this mis-fires.
+ * the list still fires on a counterfactual — prose that claims nothing pending. Issue #961 re-worded
+ * one such site, whose text read "a future slice adding a `grid :spacing` overload would…"; that,
+ * not a silent reword, is the disposition when this mis-fires. Quoting it here is itself an
+ * occurrence, tracked by the `#961` named just above — which is the mechanism working, not an
+ * exemption.
  * Mode 4 coverage is partial, and the gate says so on every run.
  */
 export const STATUS_CLAIM_PHRASES = Object.freeze([
