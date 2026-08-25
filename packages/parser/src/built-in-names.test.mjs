@@ -188,13 +188,18 @@ test("every registered form head is a built-in name AND is carried by the surfac
   // nothing here. Saying otherwise would be the green-signal-certifying-less-than-it-appears defect
   // this epic exists to remove.
   //
-  // The second assertion is the load-bearing one and is NOT vacuous: it fails the moment a
-  // registered form head stops being enumerable as a surface spelling. Together they bite when the
-  // registries stop coinciding — a form head registered without also being a reserved keyword,
-  // which is the case that would otherwise be listed in the manifest, pass
-  // `npm run built-in-names`, and still leave `define <it>` accepted by both `check()` and
-  // `execute()`. Verified by registering exactly such a head against a predicate with the leg
-  // removed: `define zzz_head` checked completely clean, and all three tests here went red.
+  // **Which assertion bites, stated correctly.** Assertion 1 is the one that goes red when the
+  // registries stop coinciding: register a form head that is not also a reserved keyword and remove
+  // the leg, and `isBuiltInName` answers false while `define <it>` checks completely clean —
+  // verified with a throwaway `zzz_head`. Assertion 2 is a subset test against a union built from
+  // this very list (`signatures.ts`'s `HERITAGE_SURFACE_SPELLINGS` spreads
+  // `HERITAGE_FORM_HEAD_NAMES` and `HERITAGE_WORDED_FORM_HEADS` into it), so it holds by
+  // construction and only bites if that definition is narrowed. An earlier draft of this comment
+  // had the two the wrong way round.
+  //
+  // The leg is nonetheless load-bearing in a way neither assertion shows: `checker-style.ts`
+  // consulted `heritageSurfaceSpellings()` as its own third source before this slice collapsed it
+  // onto the shared predicate, so dropping the leg would silently narrow the casing lint.
   const heads = [
     ...OL.heritageFormHeadNames(),
     ...OL.heritageWordedFormHeads(),

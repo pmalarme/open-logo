@@ -611,9 +611,9 @@ test("INJECTED DRIFT: deleting a stdlib/*.logo file breaks the Geometry carve-ou
 // ---------------------------------------------------------------------------------------------
 
 test("INJECTED DRIFT: emptying excluded leaves every stdlib procedure uncarved", () => {
-  // THE headline mutant. `spec/educational-model.md:169` needs the geometry stdlib to stay
-  // discoverable OpenLogo source, and these carve-outs are the reason those six names are absent
-  // from the built-in list — absent reasons are what a completeness pass "fixes".
+  // THE headline mutant. `spec/conformance.md:88-91` makes the Geometry procedures "library
+  // procedures rather than built-in names", and these carve-outs are the reason those six names are
+  // absent from the built-in list — absent reasons are what a completeness pass "fixes".
   const manifest = manifestCopy();
   manifest.excluded = [];
   const result = runBuiltInNamesGate({ manifest });
@@ -692,7 +692,71 @@ test("an empty stdlib scan is a finding, not a bijection between two empty sets"
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.some((finding) =>
-      finding.startsWith(`${STDLIB_DIR}/ holds no .logo file`),
+      finding.startsWith(`${STDLIB_DIR}/ defines no OpenLogo procedure`),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("a stdlib holding files but no procedure is the same finding", () => {
+  // The version that matters, and the one a file-count guard passed. Keying anti-vacuity on
+  // *files walked* rather than *procedures found* leaves an escape: delete the six geometry
+  // procedures and their six carve-outs, leave any one header-free `.logo` file behind, and both
+  // sets are empty again while the count is not — the countermeasure passing on precisely the
+  // input it exists to reject, which is this epic's own defect one level up.
+  const manifest = manifestCopy();
+  manifest.excluded = manifest.excluded.filter(
+    (entry) => entry.reason !== "library",
+  );
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => ["stdlib/readme-sample.logo"],
+    readText: () => "# a sample with no define header\nforward 100\n",
+  };
+  const result = runBuiltInNamesGate({ manifest, io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(
+        `${STDLIB_DIR}/ defines no OpenLogo procedure across 1 .logo file(s)`,
+      ),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("a stdlib file that cannot be read is a finding, not a crash", () => {
+  // `logoFilesUnder` catches so "the library is gone" arrives as a finding; every per-file read has
+  // to do the same, or a permissions change or a broken symlink throws out of the gate and reads
+  // like a broken gate rather than the unchecked file it is. Both carve-out directions read
+  // `stdlib/`, so both are asserted here — the guarantee is the gate's, not one function's.
+  const io = {
+    ...REAL_IO,
+    readText: (path) => {
+      if (path === "stdlib/geometry/polygon.logo") {
+        throw new Error("EACCES");
+      }
+      return REAL_IO.readText(path);
+    },
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(
+        "stdlib/geometry/polygon.logo was listed under stdlib/ but could not be read",
+      ),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(
+        "excluded polygon: stdlib/geometry/polygon.logo was named as its library source but could not be read",
+      ),
     ),
     true,
     result.findings.join("\n"),
@@ -739,9 +803,43 @@ test("stdlibCarveOutFindings reads headers, not prose that merely mentions defin
   // A bare `define` with no name registers nothing rather than `undefined`.
   assert.deepEqual(procedureNamesIn("define\n"), []);
   assert.deepEqual(procedureNamesIn(undefined), []);
+  // Case-folded, because `spec/grammar.md:13` makes keywords and identifiers case-insensitive:
+  // `DEFINE Hexagon` declares the same procedure as `define hexagon`. A scanner anchored on the
+  // lowercase spelling would read a real stdlib procedure as absent — and since this walk reports
+  // an ABSENT carve-out, that blind spot would become the gate's.
+  assert.deepEqual(procedureNamesIn("DEFINE Hexagon :size\nend\n"), [
+    "hexagon",
+  ]);
+  assert.deepEqual(procedureNamesIn("DeFiNe HEXAGON\n"), ["hexagon"]);
   // The two directions agree by construction because they are one scan.
   assert.equal(definesProcedure("define real :x\nend\n", "real"), true);
+  assert.equal(definesProcedure("DEFINE REAL :x\nend\n", "real"), true);
   assert.equal(definesProcedure("define real :x\nend\n", "ghost"), false);
+});
+
+test("INJECTED DRIFT: an uncarved stdlib procedure written in upper case", () => {
+  // The mutation the case-sensitive scanner passed: a real procedure, no carve-out, invisible.
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => [
+      ...REAL_IO.listStdlibFiles(),
+      "stdlib/geometry/hexagon.logo",
+    ],
+    readText: (path) =>
+      path === "stdlib/geometry/hexagon.logo"
+        ? "DEFINE HEXAGON :size\n  repeat 6 [ forward :size right 60 ]\nend\n"
+        : REAL_IO.readText(path),
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some(
+      (finding) =>
+        finding.includes("hexagon.logo") && finding.includes('"hexagon"'),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
 });
 
 test("stdlibCarveOutFindings is clean on the shipped tree, and says over how many files", () => {
@@ -862,10 +960,17 @@ test("INJECTED DRIFT: a contextual word the implementation starts owning is a fi
   );
 });
 
-test("the contextual extractor fails closed on a reworded or truncated sentence", () => {
+test("the contextual extractor fails closed on a reworded, contradicted or miscounted sentence", () => {
   // Fail closed, never silently skip: `spec/` is maintainer-owned, so this gate anchors on prose
   // already there and a reworded paragraph must fail loudly rather than check nothing.
   assert.equal(extractContextualKeywords(""), null);
+  assert.equal(extractContextualKeywords(undefined), null);
+  assert.deepEqual(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
+    ),
+    ["empty", "member", "of", "a"],
+  );
   // The enumeration without its closing claim: the list could grow a fifth word unobserved.
   assert.equal(
     extractContextualKeywords(
@@ -883,9 +988,46 @@ test("the contextual extractor fails closed on a reworded or truncated sentence"
   // Present but empty of backticked words.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, those words are **not** keywords. The contextual keywords are exactly these four.",
+      "By contrast, those words are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
     ),
     null,
+  );
+  // THE INVERTED CLAIM. Matching only `are **not** keywords` accepted a sentence saying these words
+  // ARE built-in names — the exact opposite of what a carve-out asserts — and still derived them.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords but **are** built-in names. The contextual keywords are exactly these four.",
+    ),
+    null,
+  );
+  // THE MISCOUNT. Five enumerated words beneath prose still claiming four: matching the anchor
+  // without reading its number derived the wrong set and then forced the manifest to follow it.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four.",
+    ),
+    null,
+  );
+  // A count word outside the bounded map is unrecognised rather than assumed.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these several.",
+    ),
+    null,
+  );
+  // Both anchors must sit in ONE paragraph, so a closure elsewhere cannot stand in for this one's.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names.\n\nThe contextual keywords are exactly these four.",
+    ),
+    null,
+  );
+  // And an agreeing five-word form IS derived, so the count is reconciled rather than hardcoded.
+  assert.deepEqual(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, `a`, and `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these five.",
+    ),
+    ["empty", "member", "of", "a", "beside"],
   );
   // `contextualCarveOutFindings` reads exactly one document, so the double answers for that one
   // and nothing else — a ternary falling back to the real reader would be a branch no test can
@@ -896,7 +1038,7 @@ test("the contextual extractor fails closed on a reworded or truncated sentence"
   });
   assert.equal(findings.length, 1);
   assert.equal(
-    findings[0].includes("leaves them underived"),
+    findings[0].includes("could not derive the contextual keywords"),
     true,
     findings.join("\n"),
   );

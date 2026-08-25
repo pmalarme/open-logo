@@ -168,8 +168,13 @@ export function procedureNamesIn(source) {
   const names = [];
   for (const line of codeOnly(source).split("\n")) {
     const words = line.trim().split(/\s+/);
-    if (words[0] === "define" && words[1] !== undefined && words[1] !== "") {
-      names.push(words[1]);
+    // Case-folded, because `spec/grammar.md:13` makes keywords and identifiers case-insensitive:
+    // `DEFINE Hexagon` declares the same procedure as `define hexagon`, so a scanner anchored on
+    // the lowercase spelling alone would read a real stdlib procedure as absent — and this walk
+    // reports an *absent* carve-out, so its blind spots become the gate's blind spots. The name is
+    // folded too, since a carve-out's `name` is lowercase-canonical ({@link isCanonicalName}).
+    if (words[0]?.toLowerCase() === "define" && words[1] !== undefined) {
+      names.push(words[1].toLowerCase());
     }
   }
   return names;
@@ -899,6 +904,24 @@ export function aliasFindings(manifest, api) {
 }
 
 /**
+ * `io.readText(path)`, or `undefined` when the read throws.
+ *
+ * Both carve-out directions read `stdlib/` files that a directory walk or a manifest path has just
+ * said exist, and "exists" is not "readable": a permissions change, a broken symlink, or a race
+ * with a checkout throws between the two. {@link logoFilesUnder} already catches for exactly this
+ * reason — so that "the library is gone" arrives as a finding rather than a stack trace that reads
+ * like a broken gate — and the per-file reads have to do the same, or the guarantee holds for the
+ * walk and not for the gate.
+ */
+function readOrUndefined(io, path) {
+  try {
+    return io.readText(path);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The deliberate omissions, as data with reasons. Every one of them looks like an oversight to
  * anyone doing a "completeness" pass, which is exactly why the reasoning has to be machine-checked
  * rather than left in a comment.
@@ -945,11 +968,21 @@ export function carveOutFindings(manifest, io) {
           );
           break;
         }
-        // The path being real proves a file exists; this binds the NAME to it.
-        if (!definesProcedure(io.readText(entry.source), entry.name)) {
-          findings.push(
-            `excluded ${entry.name}: ${entry.source} is a real ${STDLIB_DIR} file but defines no procedure named "${entry.name}" — the carve-out claims this name IS that library source, so the path alone proves nothing`,
-          );
+        // The path being real proves a file exists; this binds the NAME to it. An unreadable file
+        // is reported rather than thrown, like every other read of `stdlib/` here.
+        {
+          const source = readOrUndefined(io, entry.source);
+          if (source === undefined) {
+            findings.push(
+              `excluded ${entry.name}: ${entry.source} was named as its library source but could not be read, so nothing can bind the name to it`,
+            );
+            break;
+          }
+          if (!definesProcedure(source, entry.name)) {
+            findings.push(
+              `excluded ${entry.name}: ${entry.source} is a real ${STDLIB_DIR} file but defines no procedure named "${entry.name}" — the carve-out claims this name IS that library source, so the path alone proves nothing`,
+            );
+          }
         }
         break;
       case "contextual-keyword": {
@@ -1001,20 +1034,24 @@ export function carveOutFindings(manifest, io) {
  * learner-visible source "part of the contract". A carve-out silently deleted turns that claim into
  * an oversight nobody can distinguish from a missing name.
  *
- * **An empty scan is a finding, not a vacuous pass.** A bijection between two empty sets holds, so
- * without this clause deleting `stdlib/` would satisfy the check that exists to protect it — the
- * exact failure this issue is about, one level up. Nothing else in the gate would notice either,
- * since every remaining `stdlib` assertion is driven by manifest entries that would also be gone.
+ * **Read the bound precisely: this binds a carve-out to a `define` HEADER, not to a body.** Six
+ * empty `define`/`end` shells satisfy it. That the shipped procedures are the real teaching source
+ * is a different claim, held by `tests/conformance/geometry/stdlib/source-drift.test.mjs`, which
+ * asserts every call site inlines the source verbatim. Naming that here so this comment's `:419`
+ * citation is not over-read as something this function checks.
+ *
+ * **An empty result is a finding, not a vacuous pass** — and the emptiness that matters is
+ * *procedures found*, not *files walked*. A bijection between two empty sets holds, so without this
+ * clause deleting `stdlib/`'s six geometry files together with their six carve-outs would satisfy
+ * the very check written to protect them. Keying the guard on the file count was the first attempt
+ * and was itself an instance of this epic's defect: leaving any one header-free `.logo` file behind
+ * kept the count non-zero while both sets were empty, so the countermeasure passed on exactly the
+ * input it exists to reject. Nothing else in the gate would notice either, since every remaining
+ * `stdlib` assertion is driven by manifest entries that would also be gone.
  */
 export function stdlibCarveOutFindings(manifest, io) {
   const findings = [];
   const files = io.listStdlibFiles();
-  if (files.length === 0) {
-    findings.push(
-      `${STDLIB_DIR}/ holds no .logo file — the library carve-outs are what keep the geometry standard library discoverable OpenLogo source (spec/educational-model.md:169, ADR-0012), and a bijection with an empty set asserts nothing`,
-    );
-    return findings;
-  }
 
   const carvedOut = new Set(
     manifest.excluded
@@ -1023,7 +1060,14 @@ export function stdlibCarveOutFindings(manifest, io) {
   );
   const defined = new Map();
   for (const file of files) {
-    for (const name of procedureNamesIn(io.readText(file))) {
+    const text = readOrUndefined(io, file);
+    if (text === undefined) {
+      findings.push(
+        `${file} was listed under ${STDLIB_DIR}/ but could not be read, so nothing can say whether it defines a carved-out procedure`,
+      );
+      continue;
+    }
+    for (const name of procedureNamesIn(text)) {
       const first = defined.get(name);
       if (first !== undefined) {
         findings.push(
@@ -1040,6 +1084,14 @@ export function stdlibCarveOutFindings(manifest, io) {
     }
   }
 
+  // Keyed on procedures found, not files walked: a header-free `.logo` file left behind would keep
+  // a file count non-zero while both sets are empty, which is the vacuous pass this guards.
+  if (defined.size === 0) {
+    findings.push(
+      `${STDLIB_DIR}/ defines no OpenLogo procedure across ${files.length} .logo file(s) — the library carve-outs are what record that the geometry standard library is OpenLogo SOURCE rather than built-in names (spec/conformance.md:88-91, ADR-0012), and a bijection with an empty set asserts nothing`,
+    );
+  }
+
   for (const name of carvedOut) {
     if (!defined.has(name)) {
       findings.push(
@@ -1051,33 +1103,71 @@ export function stdlibCarveOutFindings(manifest, io) {
 }
 
 /**
- * The four **contextual keywords** `spec/grammar.md:380` names — the words that are structural by
+ * The small number words the closing claim can spell, so the sentence's own count can be reconciled
+ * against the words it enumerates. Bounded and fail-closed: a count word outside this map is
+ * unrecognised, which makes the extraction fail rather than pass unchecked.
+ */
+const NUMBER_WORDS = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+/**
+ * The **contextual keywords** `spec/grammar.md:380` names — the words that are structural by
  * position without OpenLogo owning the name — extracted from the sentence that enumerates them:
  * *"By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in
  * names."*
  *
- * That sentence closes its own set two sentences later — *"The contextual keywords are exactly
- * these four"* — which is what makes the list derivable rather than a second copy. Both anchors are
- * required: the enumeration alone could grow a fifth word while the prose still said four, and the
- * closure alone names no words. A missing anchor is a **finding**, not a skip, so a reworded
- * paragraph fails loudly instead of silently checking nothing.
+ * Three things must agree, because each of the first two alone has a false pass:
  *
- * Returns `null` when either anchor is absent. Bounded to the one sentence rather than the
- * paragraph on purpose: the surrounding prose backticks `to`, `set ... to`, `define of` and the
- * `is`-predicate examples, none of which are members of this set.
+ * 1. **The enumeration, with its full predicate** — `are **not** keywords and **not** built-in
+ *    names`. Matching only the shorter `are **not** keywords` accepted a doctored sentence saying
+ *    the words *are* built-in names, which is the opposite of the claim a carve-out makes.
+ * 2. **The closing claim** — *"The contextual keywords are exactly these four"* — which closes the
+ *    set, so a fifth word cannot be added silently.
+ * 3. **Their agreement.** The closing claim states a *number*, and matching the anchor without
+ *    reading that number let a five-word enumeration pass beneath prose still saying "four": the
+ *    gate derived the wrong set and then forced the manifest to follow it. The count is parsed and
+ *    reconciled against the words actually enumerated.
+ *
+ * Both anchors must sit in the **same paragraph**, so a sentence elsewhere in the document cannot
+ * stand in as this one's closure. Returns `null` when any of the three fails — a **finding** at the
+ * caller, never a skip, because `spec/` is maintainer-owned and this gate may not annotate the
+ * documents it reads. The word list itself is bounded to the sentence rather than the paragraph:
+ * the surrounding prose backticks `to`, `set ... to`, `define of` and the `is`-predicate examples,
+ * none of which are members of this set.
  */
 export function extractContextualKeywords(text) {
-  const enumeration = /By contrast, ([^.]*?) are \*\*not\*\* keywords/.exec(
-    text,
-  );
-  if (
-    enumeration === null ||
-    !text.includes("contextual keywords are exactly")
-  ) {
+  if (typeof text !== "string") {
     return null;
   }
-  const words = backtickedWords(enumeration[1]);
-  return words.length === 0 ? null : words;
+  for (const paragraph of text.split(/\r?\n\s*\r?\n/)) {
+    const enumeration =
+      /By contrast, ([^.]*?) are \*\*not\*\* keywords and \*\*not\*\* built-in names\./.exec(
+        paragraph,
+      );
+    const closure = /contextual keywords are exactly these (\w+)/.exec(
+      paragraph,
+    );
+    if (enumeration === null || closure === null) {
+      continue;
+    }
+    const words = backtickedWords(enumeration[1]);
+    const claimed = NUMBER_WORDS[closure[1].toLowerCase()];
+    if (words.length === 0 || claimed !== words.length) {
+      return null;
+    }
+    return words;
+  }
+  return null;
 }
 
 /**
@@ -1101,7 +1191,7 @@ export function contextualCarveOutFindings(manifest, api, io) {
   const declared = extractContextualKeywords(io.readText(GRAMMAR_PATH));
   if (declared === null) {
     return [
-      `${GRAMMAR_PATH}: could not locate the contextual-keyword enumeration ("By contrast, … are **not** keywords") together with its closing claim ("The contextual keywords are exactly …") — the carve-outs are derived from that sentence, so a reworded one leaves them underived`,
+      `${GRAMMAR_PATH}: could not derive the contextual keywords — one paragraph must enumerate them ("By contrast, … are **not** keywords and **not** built-in names.") AND close the set with a count that matches ("The contextual keywords are exactly these four"). A reworded, contradicted, or miscounted sentence leaves the carve-outs underived, which is a finding rather than a skip`,
     ];
   }
 
