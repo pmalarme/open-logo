@@ -57,6 +57,7 @@ on:
       - ".github/labels.yml"
       - ".github/labels-retired.yml"
       - ".github/scripts/validate-labels.py"
+      - ".github/workflows/label-drift.yml"
 
 permissions:
   contents: read

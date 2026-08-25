@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CONFIG_FILE,
-  countNamedNonFailingRules,
+  countNamedRuleCustomisations,
   extendsTargets,
   findBulkLinterDisables,
   findDisabledLinterOverrides,
@@ -49,9 +49,8 @@ const A_PREVIOUSLY_UNLINTED_FILE =
 /** The pre-fix globs, reused verbatim as the mutation this gate exists to catch. */
 const PRE_FIX_INCLUDES = ["packages/**/src/**/*.ts", "scripts/**/*.mjs"];
 
-const CHECK_LINT_SCOPE = fileURLToPath(
-  new URL("./check-lint-scope.mjs", import.meta.url),
-);
+/** The `npm run lint` entry point: Biome's diagnostics, then the scope gate, both blocking. */
+const LINT_RUNNER = fileURLToPath(new URL("./lint.mjs", import.meta.url));
 
 /** A Biome summary line for `count` files, in Biome's own singular/plural wording. */
 function summary(count) {
@@ -394,46 +393,50 @@ test("an extends cycle terminates instead of looping forever", () => {
   assert.equal(result.ok, true, result.lines.join("\n"));
 });
 
-test("countNamedNonFailingRules counts every non-failing named setting, never a bulk one", () => {
-  assert.equal(countNamedNonFailingRules(undefined), 0);
+test("countNamedRuleCustomisations counts every named rule entry, never a bulk one", () => {
+  assert.equal(countNamedRuleCustomisations(undefined), 0);
   assert.equal(
-    countNamedNonFailingRules({
+    countNamedRuleCustomisations({
       rules: {
         suspicious: { noSelfCompare: "off", noDebugger: { level: "off" } },
       },
     }),
     2,
   );
-  // INJECTED DRIFT: a downgrade is a suppression. A single `noDebugger: {level: "warn"}` let a
-  // planted `debugger;` through `npm run lint` while an earlier version of this counter said 0.
-  for (const level of ["warn", "info"]) {
+  // INJECTED DRIFT: two narrower versions of this counter were defeated in successive rounds — one
+  // counting only "off" (beaten by `{level: "warn"}`), then one counting non-failing levels (beaten
+  // by `{level: "error", options: {allow: ["log"]}}`, which suppresses at full severity). There is
+  // no reliable way to judge relaxation from a rule's shape, so every named entry counts.
+  for (const setting of [
+    "warn",
+    "info",
+    { level: "warn" },
+    { level: "error", options: { allow: ["log"] } },
+    "error",
+  ]) {
     assert.equal(
-      countNamedNonFailingRules({
-        rules: { suspicious: { noDebugger: level } },
+      countNamedRuleCustomisations({
+        rules: { suspicious: { noDebugger: setting } },
       }),
       1,
-      `a rule set to the bare string "${level}" must be counted`,
-    );
-    assert.equal(
-      countNamedNonFailingRules({
-        rules: { suspicious: { noDebugger: { level } } },
-      }),
-      1,
-      `a rule set to {level: "${level}"} must be counted`,
+      `a rule configured as ${JSON.stringify(setting)} must be counted`,
     );
   }
-  // A rule left failing, and the group's own keys, are not suppressions.
+  // The group's own keys configure the group, not a rule; the bulk audit already covers them.
   assert.equal(
-    countNamedNonFailingRules({
+    countNamedRuleCustomisations({
       rules: {
         recommended: false,
-        style: { recommended: false, useConst: "error" },
+        style: { recommended: false, preset: "none" },
       },
     }),
     0,
   );
-  // A bulk group disable is a finding, not a named setting, so it must not inflate this count.
-  assert.equal(countNamedNonFailingRules({ rules: { suspicious: "off" } }), 0);
+  // A bulk group disable is a finding, not a named entry, so it must not inflate this count.
+  assert.equal(
+    countNamedRuleCustomisations({ rules: { suspicious: "off" } }),
+    0,
+  );
 });
 
 test("INJECTED DRIFT: an extends target that climbs out of the repository is reported", () => {
@@ -447,31 +450,67 @@ test("INJECTED DRIFT: an extends target that climbs out of the repository is rep
   assert.match(result.lines.join("\n"), /outside the repository/);
 });
 
-test("the gate is actually wired into `npm run lint`, as a conjunction", () => {
-  // The gate's own wiring is a claim nothing re-derived, and the first attempt at this test was
-  // itself hollow: it matched the filename anywhere in the script, so flipping `&&` to `||` — which
-  // makes `npm run lint` exit 0 on a real Biome diagnostic — kept every test green. Presence is not
-  // the property that matters; sequencing is.
-  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
-  const script = manifest.scripts.lint;
+test("the gate is wired into `npm run lint`, and a real diagnostic makes it fail", () => {
+  // Two rounds were spent trying to ASSERT the old shell chain — first that it mentioned the gate
+  // (defeated by `&&` -> `||`), then that it was a two-stage conjunction (defeated by
+  // `biome lint . | node -e "…" && node …`, where a pipe masks Biome's exit while the text still
+  // parses as a valid conjunction). A shell string has unbounded ways to discard an exit code, so
+  // parsing it can never be complete. `npm run lint` is now one Node entry point, and this asserts
+  // BEHAVIOUR: a planted diagnostic must make it exit non-zero.
+  const manifest = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL("../package.json", import.meta.url)),
+      "utf8",
+    ),
+  );
+  assert.equal(manifest.scripts.lint, "node scripts/lint.mjs");
 
-  assert.doesNotMatch(
-    script,
-    /\|\||;/,
-    "the lint script must not swallow a failure with || or ;",
+  const directory = makeRepo({
+    includes: ["**/*.mjs"],
+    tracked: ["clean.mjs"],
+  });
+  const runLint = () => {
+    try {
+      execFileSync(process.execPath, [LINT_RUNNER], {
+        cwd: directory,
+        encoding: "utf8",
+        stdio: "pipe",
+      });
+      return 0;
+    } catch (error) {
+      return error.status;
+    }
+  };
+
+  assert.equal(runLint(), 0, "a clean repository must lint green");
+
+  // Plant a real diagnostic: `debugger` is `noDebugger`, an error in the recommended preset.
+  writeFileSync(
+    join(directory, "clean.mjs"),
+    "export function f() {\n  debugger;\n}\n",
   );
-  const stages = script.split("&&").map((stage) => stage.trim());
   assert.equal(
-    stages.length,
-    2,
-    `expected exactly two &&-chained stages, got: ${script}`,
+    runLint(),
+    1,
+    "a planted Biome diagnostic must make `npm run lint` exit non-zero",
   );
-  assert.match(stages[0], /^biome lint\b/, "Biome must run first");
-  assert.match(
-    stages[1],
-    /check-lint-scope\.mjs$/,
-    "the scope gate must run second",
+});
+
+test("INJECTED DRIFT: an extends chain longer than the hop budget is reported, not looped", () => {
+  // A synchronous infinite loop cannot be interrupted by a test timeout, so it burns the CI job
+  // rather than failing. Review found exactly that while mutating the extends guards.
+  const many = Array.from(
+    { length: 200 },
+    (_unused, index) => `config-${index}/biome.json`,
   );
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => many,
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: () => ({ linter: { enabled: true } }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /more than 64 Biome configurations/);
 });
 
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {
@@ -753,7 +792,7 @@ test("ACCEPTANCE #978: Biome checks a packages/*/src test file, rather than igno
 
 test("the CLI exits 0 and reports the reconciliation when the scope is right", () => {
   const directory = makeRepo({ includes: ["**/*.mjs"], tracked: ["a.mjs"] });
-  const output = execFileSync(process.execPath, [CHECK_LINT_SCOPE], {
+  const output = execFileSync(process.execPath, [LINT_RUNNER], {
     cwd: directory,
     encoding: "utf8",
   });
@@ -774,7 +813,7 @@ test("INJECTED DRIFT: the CLI exits non-zero when the scope is wrong", () => {
   let status = 0;
   let output = "";
   try {
-    output = execFileSync(process.execPath, [CHECK_LINT_SCOPE], {
+    output = execFileSync(process.execPath, [LINT_RUNNER], {
       cwd: directory,
       encoding: "utf8",
     });

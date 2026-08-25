@@ -1,6 +1,6 @@
 // Logic module for the **lint scope** half of the `npm run lint` Definition-of-Done gate
 // (issue #978, epic #901). Extracted so tests can import it directly for 100% coverage, keeping
-// `scripts/check-lint-scope.mjs` a thin CLI shell — the same shape `scripts/built-in-names-gate.mjs`
+// `scripts/lint.mjs` a thin CLI shell — the same shape `scripts/built-in-names-gate.mjs`
 // and `scripts/spec-citations-gate.mjs` already have. Unlike those, this CLI shell **is**
 // subprocess-tested (see `lint-scope-gate.test.mjs`), because a gate whose only kill switch is one
 // unexercised `process.exit` line can be neutered without a single test going red.
@@ -18,11 +18,12 @@
 // Biome as *explicitly ignored*, while `npm run coverage` held those same files to 100%
 // line/branch/function coverage. The repository demanded total coverage of a corpus it linted none
 // of.
-//
 // The exclusion was an accident of the glob rather than a decision, and the proof is that it was
 // inconsistent: `scripts/**/*.mjs` **was** linted including its `*.test.mjs` files, so an
 // identically-named file was linted in one directory and ignored in the other, with no rationale
-// recorded anywhere. `npm run lint` printed `Checked 123 files` and passed, which a maintainer
+// recorded anywhere. `npm run lint` printed `Checked 123 files` (measured at `b59f9bce`, before
+// this gate landed — the same globs today would print a different number, so treat it as dated
+// history rather than something to reproduce) and passed, which a maintainer
 // reasonably reads as "the repository is linted".
 //
 // That is this epic's subject exactly: **a green signal certifying materially less than its name
@@ -324,20 +325,27 @@ export function findBulkLinterDisables(linter, where) {
  * this number, so it cannot happen quietly. See the module header's limits section.
  */
 /**
- * Count the **named** rule settings that put a rule below failing severity — `"off"`, `"warn"` and
- * `"info"`, in both the bare-string and `{ "level": ... }` spellings.
+ * Count the **named rule customisations** in a configuration block: every entry under a rule group
+ * that names a specific rule, whatever it sets.
  *
- * Named suppression is the spelling issue #978 explicitly sanctions, so it is never a finding — but
- * the count is printed on every run, because the one way to defeat a bulk-disable audit while
- * staying within that sanction is to enumerate rules individually. That takes hundreds of lines of
+ * Named customisation is the spelling issue #978 explicitly sanctions, so it is never a finding —
+ * but the count is printed on every run, because the one way to defeat a bulk-disable audit while
+ * staying within that sanction is to configure rules individually. That takes hundreds of lines of
  * reviewable diff *and* moves this number, so it cannot happen quietly.
  *
- * It counts downgrades, not just disables, because review disproved the narrower version: a single
- * `noDebugger: { "level": "warn" }` let a planted `debugger;` through `npm run lint` while this
- * counter still reported **0**. A rule that cannot fail the build is suppressed whatever the word.
+ * **It counts every customisation, not just the ones that look like suppressions**, because review
+ * defeated two narrower versions in succession. First it counted only `"off"` — and
+ * `noDebugger: { "level": "warn" }` let a planted `debugger;` through while it printed 0. Then it
+ * counted non-failing *levels* — and `noConsole: { "level": "error", "options": { "allow": ["log"] } }`
+ * suppressed a planted `console.log` at full error severity while it printed 0 again.
+ *
+ * There is no reliable way to tell, from the shape of a rule's configuration, whether it has been
+ * relaxed: `options` are per-rule and open-ended. So the metric stops trying to judge and simply
+ * reports how many rules deviate from the preset at all. That is a number a reviewer can act on —
+ * it should be small, and every entry should carry a reason — and it cannot be gamed by choosing a
+ * subtler spelling.
  */
-export function countNamedNonFailingRules(linter) {
-  const nonFailing = new Set(["off", "warn", "info"]);
+export function countNamedRuleCustomisations(linter) {
   let count = 0;
   for (const [group, value] of Object.entries(linter?.rules ?? {})) {
     if (group === "recommended" || group === "preset") {
@@ -346,11 +354,9 @@ export function countNamedNonFailingRules(linter) {
     if (typeof value !== "object" || value === null) {
       continue;
     }
-    // No guard for the group's own `recommended`/`preset` keys: the first is a boolean and the
-    // second is `"recommended"`/`"none"`, so neither is ever a non-failing level and neither is
-    // counted. A guard for them was unreachable, and the coverage gate said so.
-    for (const setting of Object.values(value)) {
-      if (nonFailing.has(setting) || nonFailing.has(setting?.level)) {
+    for (const rule of Object.keys(value)) {
+      // The group's own keys configure the group, not a rule; the bulk audit already covers them.
+      if (rule !== "recommended" && rule !== "preset") {
         count += 1;
       }
     }
@@ -488,7 +494,18 @@ export function runLintScopeGate({
   const configurations = [];
   const seen = new Set();
   const worklist = [...listConfigs(cwd)];
+  // A hop budget as well as a `seen` set. `seen` bounds real paths, which normalise and repeat, but
+  // a pathological chain that resolves somewhere new every time would spin forever — and a
+  // synchronous infinite loop cannot be interrupted by a test timeout, so it burns the CI job
+  // rather than failing. Review found exactly that while mutating the guards below.
+  const MAX_CONFIG_HOPS = 64;
   while (worklist.length > 0) {
+    if (configurations.length >= MAX_CONFIG_HOPS) {
+      return fail(
+        `more than ${MAX_CONFIG_HOPS} Biome configurations were reachable through \`extends\`; ` +
+          "refusing to keep following a chain this long rather than looping.",
+      );
+    }
     const relative = worklist.shift();
     if (seen.has(relative)) {
       continue;
@@ -565,18 +582,18 @@ export function runLintScopeGate({
   }
 
   // The other door: in scope, but unlinted by a bulk disable at any level, in any configuration.
-  let nonFailing = 0;
+  let customisations = 0;
   for (const [relative, parsed] of configurations) {
     failures.push(
       ...findDisabledLinterOverrides(parsed).map(
         (finding) => `${relative}: ${finding}`,
       ),
     );
-    nonFailing += countNamedNonFailingRules(parsed?.linter);
+    customisations += countNamedRuleCustomisations(parsed?.linter);
     for (const override of Array.isArray(parsed?.overrides)
       ? parsed.overrides
       : []) {
-      nonFailing += countNamedNonFailingRules(override?.linter);
+      customisations += countNamedRuleCustomisations(override?.linter);
     }
   }
 
@@ -594,7 +611,7 @@ export function runLintScopeGate({
       `lint scope: ${corpus.length} source file(s) git knows about, all linted; Biome processed ` +
         `${processed.length} = ${corpus.length} + ${processed.length - corpus.length} ` +
         `(${CONFIG_FILE}, always processed); ${configurations.length} Biome configuration(s) ` +
-        `audited, ${nonFailing} named non-failing rule setting(s).`,
+        `audited, ${customisations} named rule customisation(s).`,
     ],
   };
 }

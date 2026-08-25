@@ -18,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 
+import yaml
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location(
     "validate_labels", os.path.join(HERE, "validate-labels.py")
@@ -384,6 +386,38 @@ expect(
     completed.returncode == 0,
     f"the shipped manifest must exit 0, got {completed.returncode}: {completed.stdout[-300:]}",
 )
+
+# --- The workflow that runs this gate must actually run it live ---------------------------------
+# Round-6 review: dropping `--live` from label-drift.yml leaves every offline check green while the
+# only direction that detects drift silently stops running. The workflow's own wiring is a claim
+# nothing re-derived, so it is asserted here.
+with open(os.path.join(REPO_ROOT, ".github", "workflows", "label-drift.yml"), encoding="utf-8") as fh:
+    drift_workflow = fh.read()
+
+expect(
+    "--live --proposed" in drift_workflow,
+    "label-drift.yml must run the pull-request path with --live --proposed",
+)
+expect(
+    "--base=" in drift_workflow,
+    "the pull-request path must pass the PR's base so --proposed excuses only added labels",
+)
+expect(
+    len([line for line in drift_workflow.splitlines() if "validate-labels.py --live" in line]) >= 2,
+    "label-drift.yml must invoke --live on BOTH the pull-request and the non-PR path",
+)
+drift_config = yaml.safe_load(drift_workflow)
+# PyYAML parses the bare `on:` key as the boolean True.
+drift_triggers = drift_config.get("on", drift_config.get(True, {}))
+expect(
+    ".github/workflows/label-drift.yml" in drift_triggers["pull_request"]["paths"],
+    "label-drift.yml must trigger on changes to itself, or an edit to it goes ungated",
+)
+for path in (".github/labels.yml", ".github/labels-retired.yml", ".github/scripts/validate-labels.py"):
+    expect(
+        path in drift_triggers["pull_request"]["paths"],
+        f"label-drift.yml must trigger on changes to {path}",
+    )
 
 if failures:
     print("LABEL GATE SELF-TEST FAILED:")
