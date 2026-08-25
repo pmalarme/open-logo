@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CONFIG_FILE,
+  extendsTargets,
   findBulkLinterDisables,
   findDisabledLinterOverrides,
   isSourcePath,
@@ -210,6 +211,12 @@ test("findBulkLinterDisables catches all three spellings, at block level and per
     )[0],
     /`suspicious` rule group/,
   );
+  // INJECTED DRIFT: a group disabled as the bare string, which Biome accepts and an audit that only
+  // walked object-valued groups let straight through.
+  assert.match(
+    findBulkLinterDisables({ rules: { suspicious: "off" } }, "x")[0],
+    /`suspicious` rule group/,
+  );
   assert.match(
     findBulkLinterDisables(
       { rules: { correctness: { recommended: false } } },
@@ -311,6 +318,61 @@ test("the success line derives its own arithmetic rather than asserting a litera
     result.lines.join("\n"),
     /Biome processed 3 = 2 \+ 1 \(biome\.json/,
   );
+});
+
+test("extendsTargets reads both the string and array spellings, ignoring non-strings", () => {
+  assert.deepEqual(extendsTargets({ extends: "./a.json" }), ["./a.json"]);
+  assert.deepEqual(extendsTargets({ extends: ["./a.json", "./b.json"] }), [
+    "./a.json",
+    "./b.json",
+  ]);
+  assert.deepEqual(extendsTargets({ extends: [1, null] }), []);
+  assert.deepEqual(extendsTargets({}), []);
+});
+
+test("INJECTED DRIFT: a disable hidden in an extended file, under any filename", () => {
+  // listConfigFiles matches on filename, so an `extends` target called anything else bypassed it
+  // entirely. The audit now follows the chain.
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => [CONFIG_FILE],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: (path) =>
+      path.includes("disabled")
+        ? { linter: { rules: { preset: "none" } } }
+        : { extends: ["./disabled.json"], linter: { enabled: true } },
+  });
+  const report = result.lines.join("\n");
+  assert.equal(result.ok, false, report);
+  assert.match(report, /disabled\.json/);
+  assert.match(report, /every rule group/);
+});
+
+test("INJECTED DRIFT: an extends target outside the tracked tree is reported, not followed", () => {
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => [CONFIG_FILE],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: () => ({
+      extends: ["@scope/biome-config"],
+      linter: { enabled: true },
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /outside the tracked tree/);
+});
+
+test("an extends cycle terminates instead of looping forever", () => {
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => [CONFIG_FILE],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: (path) =>
+      path.includes("other")
+        ? { extends: ["./biome.json"], linter: { enabled: true } }
+        : { extends: ["./other.json"], linter: { enabled: true } },
+  });
+  assert.equal(result.ok, true, result.lines.join("\n"));
 });
 
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {

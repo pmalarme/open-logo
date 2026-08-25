@@ -61,11 +61,16 @@
 // It checks **scope**, not **rule coverage**. `files.includes` is not the only way to stop linting
 // a file: a configuration can keep a file in scope — still counted, still "Checked" — while
 // switching its rules off, reproducing #978's effect through a door a scope check does not watch.
-// `findBulkLinterDisables` closes that door at both levels (the root block and every `overrides`
-// entry) and in all three spellings (`linter.enabled: false`, `rules.recommended: false`,
-// `rules.preset: "none"`), including per-rule-**group** disables such as
-// `rules.suspicious.preset: "none"`. Review found an earlier version catching only the override
-// level, so a root-level or group-level bulk disable passed.
+// `findBulkLinterDisables` closes that door at both levels (the top-level `linter` block and every
+// `overrides` entry) and in every spelling review has found: `linter.enabled: false`,
+// `rules.recommended: false`, `rules.preset: "none"`, the last two again inside any rule **group**
+// (`rules.suspicious.preset: "none"`), and a group disabled as the bare string
+// (`rules.suspicious: "off"`). Each of those passed some earlier version of this gate.
+//
+// The audit follows `extends` transitively, and is seeded with every tracked `biome.json`/
+// `biome.jsonc`. Both were holes: an extended file holds the same power under **any** filename
+// (review used a tracked `disabled.json`), and a nested config unlints a whole package while its
+// files stay in the processed list.
 //
 // Disabling a **named** rule is deliberately still allowed: issue #978's acceptance criterion is
 // that a rule inappropriate for a glob is disabled *by name with a written reason*, so the point is
@@ -93,7 +98,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * The extensions Biome can lint that this repository ships: the JavaScript/TypeScript family.
@@ -244,8 +249,14 @@ export function listSourceFiles(cwd) {
  */
 export function findBulkLinterDisables(linter, where) {
   const findings = [];
-  const bulk = (rules) =>
+  const bulkObject = (rules) =>
     rules?.recommended === false || rules?.preset === "none";
+  // A group is disabled wholesale either as an object (`{"preset": "none"}`) or, equivalently and
+  // legally in Biome, as the bare string `"off"`. Review found the string form bypassing an audit
+  // that only walked object-valued groups.
+  const bulkValue = (value) =>
+    value === "off" ||
+    (typeof value === "object" && value !== null && bulkObject(value));
 
   if (linter?.enabled === false) {
     findings.push(
@@ -253,7 +264,7 @@ export function findBulkLinterDisables(linter, where) {
     );
   }
   const rules = linter?.rules;
-  if (bulk(rules)) {
+  if (bulkObject(rules)) {
     findings.push(
       `${where} switches off the recommended preset for every rule group, unlinting those files ` +
         "while they stay in scope. Disable the specific rule by name instead, with a written " +
@@ -261,8 +272,8 @@ export function findBulkLinterDisables(linter, where) {
     );
   }
   for (const [group, value] of Object.entries(rules ?? {})) {
-    // `recommended`/`preset` are the block's own keys, handled above; every other object is a group.
-    if (typeof value === "object" && value !== null && bulk(value)) {
+    // `recommended`/`preset` are the block's own keys, handled above; every other entry is a group.
+    if (group !== "recommended" && group !== "preset" && bulkValue(value)) {
       findings.push(
         `${where} switches off the \`${group}\` rule group wholesale, unlinting those rules while ` +
           "the files stay in scope. Disable the specific rule by name instead, with a written " +
@@ -290,6 +301,26 @@ export function findDisabledLinterOverrides(config) {
     findings.push(...findBulkLinterDisables(override?.linter, where));
   });
   return findings;
+}
+
+/**
+ * Name the `extends` targets a configuration pulls in. An extended file can hold the disable while
+ * the configuration that names it looks innocent, and it need not be called `biome.json` — review
+ * defeated an earlier version with a tracked `disabled.json` referenced by `extends`, which
+ * {@link listConfigFiles} does not enumerate because it matches on filename.
+ *
+ * A package specifier (`"@scope/config"`) resolves inside `node_modules`, which is outside the
+ * tracked tree this gate reasons about; it is reported as unresolvable rather than followed, so it
+ * cannot pass unseen.
+ */
+export function extendsTargets(config) {
+  const value = config?.extends;
+  if (typeof value === "string") {
+    return [value];
+  }
+  return Array.isArray(value)
+    ? value.filter((entry) => typeof entry === "string")
+    : [];
 }
 
 /** Read and parse a Biome configuration file, or return `null` when it cannot be read or parsed. */
@@ -374,11 +405,22 @@ export function runLintScopeGate({
 
   // Every configuration must be readable BEFORE anything else is judged. An unreadable or
   // unparseable config used to make the override audit silently empty — the gate would then pass
-  // while checking one of its two doors, which is the exact failure this epic is about. And a
-  // NESTED config is audited too: it can unlint a whole package while its files stay in the
-  // processed list, so direction A never sees it.
+  // while checking one of its two doors, which is the exact failure this epic is about.
+  //
+  // The worklist is seeded with every tracked `biome.json`/`biome.jsonc` — a NESTED config can
+  // unlint a whole package while its files stay in the processed list, so direction A never sees it
+  // — and then follows `extends` transitively, because an extended file holds the same power under
+  // any name at all. Review defeated a filename-only version with a tracked `disabled.json`.
   const configurations = [];
-  for (const relative of listConfigs(cwd)) {
+  const seen = new Set();
+  const worklist = [...listConfigs(cwd)];
+  while (worklist.length > 0) {
+    const relative = worklist.shift();
+    if (seen.has(relative)) {
+      continue;
+    }
+    seen.add(relative);
+
     const path = cwd === undefined ? relative : join(cwd, relative);
     const parsed = config(path);
     if (parsed === null) {
@@ -388,6 +430,19 @@ export function runLintScopeGate({
       );
     }
     configurations.push([relative, parsed]);
+
+    for (const target of extendsTargets(parsed)) {
+      if (!target.startsWith(".")) {
+        // A package specifier resolves inside node_modules, outside the tracked tree this gate
+        // reasons about. Reported rather than followed, so it cannot pass unseen.
+        failures.push(
+          `\`${relative}\` extends \`${target}\`, a package outside the tracked tree. This gate ` +
+            "cannot audit it, and will not certify a lint scope it cannot see.",
+        );
+        continue;
+      }
+      worklist.push(toPosixPath(join(dirname(relative), target)));
+    }
   }
 
   // Direction A — every source file git knows about is one Biome linted.

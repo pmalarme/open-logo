@@ -14,6 +14,7 @@ import contextlib
 import importlib.util
 import io
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -167,9 +168,11 @@ expect(
     f"MUTATION: a manifested label missing from the repo must fail, got {errors}",
 )
 
-# --proposed downgrades exactly that case, because on a PR the sync has not run yet.
+# --proposed downgrades exactly that case when the branch adds the label, because on a PR the sync
+# has not run yet.
 errors, notes = gate.check_live(
-    {"area:ci", "area:ghost"}, set(), {"area:ci"}, {"area:ci": ["#1"]}, proposed=True
+    {"area:ci", "area:ghost"}, set(), {"area:ci"}, {"area:ci": ["#1"]},
+    proposed=True, added={"area:ghost"},
 )
 expect(errors == [], f"--proposed must not fail on a label the sync has not created yet, got {errors}")
 expect(
@@ -278,12 +281,13 @@ try:
     gate.gh_json = _fake_gh(real_names | {"area:invented"}, [issue(1, "area:invented")], [])
     expect(run_main(["--live"]) == 1, "live main() must fail on an unmanifested label in use")
 
-    # --proposed must downgrade direction B (a manifested label the sync has not created yet).
+    # --proposed must downgrade direction B, but ONLY for a label this branch actually adds.
     gate.gh_json = _fake_gh(real_names - {"area:ci"}, [], [])
     expect(run_main(["--live"]) == 1, "without --proposed, a label missing on the repo must fail")
     expect(
-        run_main(["--live", "--proposed"]) == 0,
-        "--proposed must downgrade a not-yet-synced label to a report",
+        run_main(["--live", "--proposed", "--base=HEAD"]) == 1,
+        "MUTATION: --proposed must NOT excuse a manifested label this branch did not add — a label "
+        "deleted off the repository must still fail",
     )
 
     # A gh failure must exit 1 rather than certify nothing.
@@ -295,6 +299,47 @@ try:
 finally:
     gate.gh_json = original_gh
     sys.argv = original_argv
+
+# --- --proposed excuses only the ADDED set ------------------------------------------------------
+errors, notes = gate.check_live(
+    {"area:ci", "area:new"}, set(), {"area:ci"}, {"area:ci": ["#1"]},
+    proposed=True, added={"area:new"},
+)
+expect(errors == [], f"--proposed must excuse a label this branch adds, got {errors}")
+expect(
+    any("proposed (not yet synced): area:new" in note for note in notes),
+    f"--proposed must still report the added label, got {notes}",
+)
+
+errors, _ = gate.check_live(
+    {"area:ci", "area:old"}, set(), {"area:ci"}, {"area:ci": ["#1"]},
+    proposed=True, added=set(),
+)
+expect(
+    any("area:old" in e and "does not exist on the repository" in e for e in errors),
+    f"MUTATION: --proposed must still fail on a pre-existing label missing from the repo, got {errors}",
+)
+
+# labels_added_against returns the difference, and degrades to "excuse nothing" on an unreadable base.
+expect(
+    gate.labels_added_against({"a", "b"}, "definitely-not-a-ref") == set(),
+    "an unreadable base must excuse nothing — the safe direction",
+)
+
+# --- The module's real process exit ---------------------------------------------------------------
+# main() returning 1 is not the same as the process exiting 1: `raise SystemExit(main())` is its own
+# line, and deleting it made a failing live run print failure and exit 0.
+completed = subprocess.run(
+    [sys.executable, os.path.join(HERE, "validate-labels.py"), "--live", "--base=HEAD"],
+    capture_output=True,
+    text=True,
+    cwd=REPO_ROOT,
+    env={**os.environ, "PATH": os.environ.get("PATH", ""), "GH_TOKEN": "invalid-on-purpose"},
+)
+expect(
+    completed.returncode in (0, 1),
+    f"the module must exit 0 or 1, never crash; got {completed.returncode}: {completed.stderr[-400:]}",
+)
 
 if failures:
     print("LABEL GATE SELF-TEST FAILED:")

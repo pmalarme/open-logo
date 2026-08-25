@@ -44,12 +44,12 @@ suites these workflows run; you wire and secure them.
   those applications (issue #972).
 - `label-drift.yml` — the detector that additive sync cannot be: compares the manifest against the
   repository **in both directions** via `.github/scripts/validate-labels.py --live`, failing when a
-  label in use on an open issue/PR is unmanifested, or when a **namespaced** label is in neither
-  `.github/labels.yml` nor `.github/labels-retired.yml`. Scheduled, dispatchable, run on manifest
-  PRs (with `--proposed`, since the sync only runs after merge) and after a successful `Label sync`
-  via `workflow_run` — not `push`, which would race the sync. It is deliberately not a per-PR
-  blocking gate, because its result depends on mutable repository state. The deterministic half
-  (`area:*`/`profile:*` against `validate-commits.py`'s `AREAS`/`PROFILES`) runs in `ci.yml`'s
+  label in use on an open issue/PR is unmanifested, or when a label **containing a colon** is in
+  neither `.github/labels.yml` nor `.github/labels-retired.yml`. Scheduled, dispatchable, run on
+  manifest PRs (with `--proposed`, since the sync only runs after merge) and after a successful
+  `Label sync` via `workflow_run` — not `push`, which would race the sync. It is deliberately not a
+  per-PR blocking gate, because its result depends on mutable repository state. The deterministic
+  half (`area:*`/`profile:*` against `validate-commits.py`'s `AREAS`/`PROFILES`) runs in `ci.yml`'s
   `meta` job on every PR.
 - `commitlint.yml` — Conventional Commits via `.github/scripts/validate-commits.py` (self-tested by
   `test-validate-commits.py`). The **PR title is blocking** (it is the squash-merge subject); commit

@@ -37,9 +37,10 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
   directions**, the same shape `built-in-names` uses for primitives:
   - **fails** when a label on an open issue/PR is not in the manifest; when a manifested label does
     not exist on the repo (downgraded to a report under `--proposed`, which the pull-request run
-    uses because the sync only runs after merge); and when a label carrying a **managed namespace**
-    (`agent:`/`type:`/`profile:`/`area:`/`level:`) is in neither `labels.yml` nor
-    `.github/labels-retired.yml`;
+    uses because the sync only runs after merge); and when a label **containing a colon** is in
+    neither `labels.yml` nor `.github/labels-retired.yml` — "contains a colon", not "starts with a
+    namespace the manifest defines", because the narrower test let a label in an entirely new
+    namespace (`infra:runner`) pass as a stock label;
   - **reports** GitHub's **unnamespaced** stock labels (`bug`/`wontfix`/…), which exist on every
     repository, and manifested labels nobody uses yet (`level:1`, `profile:localization`);
   - **fails offline** when `area:*`/`profile:*` and `validate-commits.py`'s `AREAS`/`PROFILES` stop

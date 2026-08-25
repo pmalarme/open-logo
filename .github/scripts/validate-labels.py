@@ -83,10 +83,13 @@ than no gate, because it also removes the human who was checking.
 Usage:
   python .github/scripts/validate-labels.py             # offline checks only (no network)
   python .github/scripts/validate-labels.py --live      # offline + live checks (needs gh + GH_TOKEN)
-  python .github/scripts/validate-labels.py --live --proposed
-        As --live, but direction B reports instead of failing. For the pull-request run: a PR that
-        ADDS a label is comparing a manifest against a repository the sync has not reached yet, so
-        the label is legitimately missing and failing there would be a false red on correct work.
+  python .github/scripts/validate-labels.py --live --proposed [--base=<ref>]
+        As --live, but a manifested label missing from the repository is reported instead of failing
+        **only when this branch adds it** (compared against `--base`, default `origin/main`). For
+        the pull-request run: a PR that ADDS a label is comparing a manifest against a repository the
+        sync has not reached yet, so failing there would be a false red on correct work. A label
+        missing for any *other* reason — one deleted off the repository, say — still fails, because
+        a blanket downgrade cannot tell those two apart.
 """
 
 from __future__ import annotations
@@ -103,6 +106,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 MANIFEST_PATH = ".github/labels.yml"
 RETIRED_PATH = ".github/labels-retired.yml"
+
+#: What `--proposed` compares the manifest against to decide which labels this branch actually adds.
+#: Overridable with `--base=<ref>`; the workflow passes the pull request's base.
+DEFAULT_BASE_REF = "origin/main"
 
 #: `core` is already a profile scope, so it is deliberately not duplicated as an area scope.
 AREA_SCOPE_EXEMPT = {"core"}
@@ -203,6 +210,26 @@ def check_retired(names: set[str], retired: list[dict]) -> tuple[list[str], list
     return errors, [f"retired declarations: {len(retired)} checked"]
 
 
+def labels_added_against(names: set[str], base_ref: str) -> set[str]:
+    """The manifest labels this branch ADDS relative to `base_ref`.
+
+    `--proposed` may only excuse these. Without the comparison it excused every missing label, so a
+    manifested label deleted off the repository looked identical to one the sync had not reached
+    yet. Returns an empty set when the base cannot be read, which makes `--proposed` excuse nothing
+    — the safe direction.
+    """
+    completed = subprocess.run(
+        ["git", "show", f"{base_ref}:{MANIFEST_PATH}"],
+        capture_output=True, text=True, check=False,
+    )
+    if completed.returncode != 0:
+        return set()
+    try:
+        return names - manifest_names(yaml.safe_load(completed.stdout) or [])
+    except yaml.YAMLError:
+        return set()
+
+
 def gh_json(args: list[str]) -> list[dict]:
     """Run a `gh` command that emits JSON, failing loudly rather than degrading to an empty list."""
     completed = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
@@ -227,10 +254,12 @@ def check_live(
     repo_labels: set[str],
     in_use: dict[str, list[str]],
     proposed: bool = False,
+    added: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Directions A-D. Returns (errors, notes)."""
     errors: list[str] = []
     notes: list[str] = []
+    added = set() if added is None else added
 
     # A — in use -> manifest. The direction that was missing.
     unmanifested = sorted(set(in_use) - names)
@@ -254,13 +283,17 @@ def check_live(
             f"label `{label}` is in {MANIFEST_PATH} but does not exist on the repository; "
             f"the label sync has not run or did not succeed."
         )
-        if proposed:
+        # `--proposed` downgrades ONLY a label this branch actually adds. A manifested label that is
+        # missing from the repository for any other reason is still a failure: review pointed out
+        # that a blanket downgrade cannot tell a newly proposed label from a pre-existing one that
+        # was deleted off the repository, and silently tolerating the second is drift.
+        if proposed and label in added:
             notes.append(f"    proposed (not yet synced): {label}")
         else:
             errors.append(message)
     notes.append(
         f"manifest -> repository: {len(names)} manifested label(s), {len(missing)} missing on the "
-        f"repo{' (reported, not failed: --proposed)' if proposed else ''}"
+        f"repo{f' ({len(added & set(missing))} newly proposed, reported not failed)' if proposed else ''}"
     )
 
     # C — repository -> manifest, split by namespace.
@@ -298,7 +331,10 @@ def main() -> int:
     argv = sys.argv[1:]
     live = "--live" in argv
     proposed = "--proposed" in argv
-
+    base_ref = next(
+        (arg.split("=", 1)[1] for arg in argv if arg.startswith("--base=")),
+        DEFAULT_BASE_REF,
+    )
     entries = load_manifest()
     names = manifest_names(entries)
     retired = load_yaml(RETIRED_PATH)
@@ -326,7 +362,12 @@ def main() -> int:
             print(f"  - could not read the live label state, so this gate would certify nothing: {exc}")
             return 1
         live_errors, live_notes = check_live(
-            names, retired_names, repo_labels, labels_in_use(issues, pulls), proposed
+            names,
+            retired_names,
+            repo_labels,
+            labels_in_use(issues, pulls),
+            proposed,
+            labels_added_against(names, base_ref) if proposed else set(),
         )
         errors += live_errors
         notes += live_notes

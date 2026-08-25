@@ -1,10 +1,12 @@
 # Namespaced labels that exist on the repository but are deliberately NOT in labels.yml.
 #
-# `.github/scripts/validate-labels.py` fails on any label carrying a managed prefix (agent:, type:,
-# profile:, area:, level:) that the manifest does not declare — that is how a convenient ad-hoc
-# label stops being invisible. This file is the declared, reasoned exception list, so a retired
-# label does not turn the gate permanently red and, more importantly, the *next* undeclared one
-# still fails.
+# `.github/scripts/validate-labels.py` fails on any label **containing a colon** that the manifest
+# does not declare — that is how a convenient ad-hoc label stops being invisible. The test is
+# deliberately "contains a colon" rather than "starts with a namespace the manifest defines": the
+# narrower rule let a label in an entirely new namespace (`infra:runner`) pass as though it were one
+# of GitHub's unnamespaced stock labels. This file is the declared, reasoned exception list, so a
+# retired label does not turn the gate permanently red and, more importantly, the *next* undeclared
+# one still fails.
 #
 # These are not deleted from the repository. Deleting a label deletes it off every issue that ever
 # carried it, including closed ones (measured: profile:core-language on 3, profile:interaction-events
