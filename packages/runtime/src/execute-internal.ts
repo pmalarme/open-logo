@@ -1187,7 +1187,7 @@ function executeTurtleStampCall(
 /**
  * `grid`'s default guide-line spacing in canvas units (`spec/geometry-module.md:272`: "Default
  * grid spacing is `20` canvas units"). `grid` takes no arguments (Kind C, arity 0), so this is the
- * only spacing the runtime ever emits — a future slice adding a `grid :spacing` overload would
+ * only spacing the runtime ever emits — a later change adding a `grid :spacing` overload would
  * change the arity table and this call site together, not this constant alone.
  */
 const DEFAULT_GRID_SPACING = 20;

@@ -37,7 +37,7 @@ forward 70
 
 The graded exercises ramp from two joined lines, to a mark with a visible gap, to the open
 challenge: a **house** — a square body and a triangle roof, each with a door and two windows —
-drawn with every side typed out one at a time, since `repeat` does not exist yet.
+drawn with every side typed out one at a time.
 
 **Lesson content:** [`level-1.ts`](../packages/edu/src/lessons/level-1.ts) (lesson
 `l1-first-marks`).

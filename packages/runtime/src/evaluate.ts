@@ -4966,8 +4966,8 @@ function isValueProducingStatement(statement: StatementNode): boolean {
  * Is `statement` a leading (non-final) comprehension body statement this evaluator can run?
  * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
  * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
- * supported (the assignment target/value that are not yet implemented are themselves silently
- * no-ops, per {@link executeAssign}'s own convention); any expression-shaped statement is
+ * supported (an unsupported assignment target/value is itself silently a no-op, per
+ * {@link executeAssign}'s own convention); any expression-shaped statement is
  * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
  * `For`/`Forever`/`ProcedureDef`) is not.
  */

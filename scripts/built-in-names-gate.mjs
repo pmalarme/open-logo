@@ -441,8 +441,9 @@ export function accessorFindings(manifest, api) {
 /**
  * Ask a registry's **lookup** accessor whether it holds `name`.
  *
- * @returns `true`/`false`, or `null` when the answer is unavailable — the accessor is `declared`,
- *   so the file itself says it does not exist yet. `null` is propagated rather than coerced to
+ * @returns `true`/`false`, or `null` when the answer is unavailable — the accessor's status is
+ *   `declared`, which {@link ACCESSOR_STATUSES} defines as decided but not created, so the file
+ *   itself says it must not resolve. `null` is propagated rather than coerced to
  *   `false`, so an unreachable direction is reported as unreachable instead of silently reading as
  *   "the implementation does not have it".
  */

@@ -6,10 +6,10 @@ description: >-
   every domain-adaptive QA that re-runs the Definition of Done from a clean tree), resolves *every*
   finding — blocking and non-blocking alike — over at most 10 iterations, and attaches all verdicts
   before opening the PR. A verdict certifies a commit, so the tree must be clean and pushed before
-  each dispatch and frozen once every verdict stamps one SHA. The orchestrator then does a final
-  verification and merges.
+  each dispatch, the dispatched SHA tagged, and the branch frozen once every verdict stamps one SHA.
+  The orchestrator then does a final verification and merges.
 created: 2026-07-17T00:00
-updated: 2026-08-22T00:00
+updated: 2026-08-25T00:00
 ---
 
 ## Purpose
@@ -87,9 +87,17 @@ in the same slice before the mechanical one held.
 2. **Verify every reviewer is idle before editing anything.** Not "try to remember not to edit
    mid-round" — *check*, every time, and only then touch the tree. This is the rule that actually
    worked.
-3. **Freeze once every verdict stamps one SHA.** Between the last `pass` and opening the PR, the
-   branch does not move. Any later commit — including a "quiet" formatting push — **voids every
-   verdict** and requires a full re-dispatch (see the round rules below).
+3. **Freeze once every verdict stamps one SHA — with a tag, not a declaration.** Between the last
+   `pass` and opening the PR, the branch does not move. Any later commit — including a "quiet"
+   formatting push — **voids every verdict** and requires a full re-dispatch (see the round rules
+   below). Make it mechanical: **tag the SHA you dispatch, and dispatch the tag.** A tag names one
+   commit; a branch name names whatever happens to be at its tip when the reviewer reads it, so a
+   later push silently moves what is under review. **A freeze declaration is not a mechanism.** On
+   **#952** the declaration was unreliable **four times in ten rounds** and cost **three
+   reviewer-rounds of measurement budget on that slice alone** — measured and reported by the QA
+   reviewer, not inferred. **Two of those four breaks happened because the author was applying
+   orchestrator instructions promptly**, which is exactly why this has to be a mechanism and not a
+   discipline: the failure mode is a conscientious author, not a careless one.
 4. **Reviewers assert cleanliness themselves.** Do not take it on trust from the author's report:
    run `git status --porcelain` and `git rev-parse HEAD` yourself, at the start **and** at the end
    of the review, and record both. If they differ, or the tree was dirty, say so and stamp nothing —
@@ -125,6 +133,39 @@ it measured, not merely which SHA:
    that silently matched nothing (a CRLF mismatch) once left an all-green suite reading as "my test
    is not load-bearing". `git diff` the file to confirm the change is present, then confirm it
    reached `dist`. **A mutation you did not verify applied is not a mutation test.**
+
+### The instrument may be measuring something other than what you think
+
+The rules above make the **tree** trustworthy. This one makes your **measurement of it** trustworthy
+— a different question, and the one that fails silently.
+
+**A tool that enumerates the repository through git cannot see an untracked file, so a green run over
+unstaged work certifies a tree that does not contain the work.** The worked example is the gate built
+in **#934**: `scripts/spec-citations-gate.mjs` walks the **tracked** set via `git ls-files`, and its
+verification run happened **before `git add`**. The gate had therefore never read its own source, and
+reported green. Its own reviewers caught it — nothing else could have.
+
+That instance is narrow; the class is not. Saga #572 produced at least four, and every one returns
+plausible output rather than an error:
+
+| trap | what was actually measured |
+| --- | --- |
+| `git ls-files` before `git add` | a tree without the new file |
+| `tsc -b` mtime after a `Copy-Item` restore | a stale `dist/`, while `git status` reads clean |
+| `node` v26 coverage | a report with **zero** `*.test.mjs` rows, printing 100% |
+| `highlight(src, {profiles})` (**#951**) | Core-only profiles — the options were bound to `document` |
+
+Each cost real work: the coverage one would have shipped a false 100%, and the `highlight` one
+produced **two** false issues (#832, #840) and a withdrawn Epic Gate PASS.
+
+So, before believing any green measurement: **state what the instrument enumerated** — which files,
+which profiles, which artifacts, which runtime — and confirm the thing you changed is inside that
+set. Name the oracle you checked it against (`git ls-files '*.test.mjs'` for the coverage case). A
+reviewer meeting a fifth variant should recognise the shape rather than the instance.
+
+**This is discipline, not a gate.** Nothing in CI enforces it, and per AGENTS.md *"policies,
+instructions and hooks are guidance; only CI is the gate."* Claiming otherwise here would be the very
+defect the rule exists to prevent.
 
 ## The checklist
 
@@ -257,7 +298,8 @@ ground out.
 ## Checklist (record on the PR)
 
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
-- [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
+- [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, **the dispatched SHA tagged and the tag dispatched**, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
+- [ ] **The instrument measured what you think**: each green run states what it enumerated (files, profiles, artifacts, runtime) and the work under review is inside that set — a `git ls-files` walk cannot see untracked work.
 - [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in `dist` before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.

@@ -80,7 +80,7 @@ function badTokenTexts(source, profiles) {
 }
 
 test("the registry still contributes the seven words this rule is about", () => {
-  // A canary on the sweeps below: if a future slice empties or renames the registry, every
+  // A canary on the sweeps below: if a later change empties or renames the registry, every
   // `for`-loop assertion would vacuously pass and this file would guard nothing.
   assert.deepEqual(PROFILE_WORDS.map(({ word }) => word).sort(), [
     "ask",

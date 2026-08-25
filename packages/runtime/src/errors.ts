@@ -221,8 +221,9 @@ export interface NotBooleanErrorParams {
 }
 
 /**
- * Params for an `ol-type` raised by `repeat`'s count when it is not a whole number
- * (`spec/execution-model.md:389-391` — TYPE is checked before RANGE).
+ * Params for an `ol-type` raised when a value that must be a whole number is not one
+ * (`spec/execution-model.md:389-391` — TYPE is checked before RANGE). `operation` names the
+ * primitive that raised it.
  */
 export interface WholeNumberTypeErrorParams {
   readonly actual: string;
@@ -230,7 +231,7 @@ export interface WholeNumberTypeErrorParams {
   readonly operation: string;
 }
 
-/** Params for an `ol-range` raised by a negative `repeat` count. */
+/** Params for an `ol-range` raised by a negative count; `operation` names the primitive. */
 export interface NegativeCountParams {
   readonly operation: string;
   readonly value: number;
@@ -940,10 +941,11 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-type`: `repeat`'s count is not a whole number (`spec/execution-model.md:389-391`) — the
-   * TYPE half of count validation, checked before the RANGE half {@link negativeCount} raises.
-   * `expected` is fixed to `"whole number"` (rather than the generic `"number"`
-   * {@link typeMismatch} uses) so the message names the concept precisely.
+   * `ol-type`: a value that must be a whole number is not one. Raised only through
+   * {@link requireWholeNumber}, whose `operation` argument names the primitive, so this diagnostic
+   * is not scoped to any one caller — `spec/execution-model.md:389-391` fixes the TYPE-before-RANGE
+   * order for `repeat`, one of those callers. `expected` is fixed to `"whole number"` (rather than
+   * the generic `"number"` {@link typeMismatch} uses) so the message names the concept precisely.
    */
   notWholeNumber(
     source_span: SourceSpan,
@@ -958,10 +960,10 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-range`: `repeat`'s count is a whole number but negative
-   * (`spec/execution-model.md:389-391`, `spec/error-model.md:101` — "a negative whole-number
-   * `repeat` count"). Only reached once {@link notWholeNumber} has already confirmed the value is
-   * a whole number.
+   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:389-391`;
+   * `spec/error-model.md:101` lists "a negative whole-number `repeat` count" as one instance of
+   * `ol-range`). `operation` names the primitive that raised it. Only reached once
+   * {@link requireWholeNumber} has already confirmed the value is a whole number.
    */
   negativeCount(
     source_span: SourceSpan,

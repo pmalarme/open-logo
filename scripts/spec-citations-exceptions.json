@@ -13,16 +13,6 @@
       "fingerprint": "4bfe57abad17bfdf"
     }
   ],
-  "docs/curriculum-overview.md": [
-    {
-      "subject": "does not exist yet",
-      "observed": "untracked",
-      "kind": "untracked-status-claim",
-      "issue": "#961",
-      "why": "Predates the gate: a forward-looking claim about this repository's own state that names no issue to re-check it against. Rewriting it to state what is true today, or naming the issue it waits on, is the sweep tracked below.",
-      "fingerprint": "cea6123835fdb086"
-    }
-  ],
   "docs/design-notes/0003-closed-comma-free-prefix-call-grammar.md": [
     {
       "subject": "spec/commands.md:1000",
@@ -131,16 +121,6 @@
       "fingerprint": "b5f8bbb5dfdaf20f"
     }
   ],
-  "packages/parser/src/checker-profile-word-position.test.mjs": [
-    {
-      "subject": "future slice",
-      "observed": "untracked",
-      "kind": "untracked-status-claim",
-      "issue": "#961",
-      "why": "Predates the gate: a forward-looking claim about this repository's own state that names no issue to re-check it against. Rewriting it to state what is true today, or naming the issue it waits on, is the sweep tracked below.",
-      "fingerprint": "7f1ac0d82518b0e1"
-    }
-  ],
   "packages/parser/src/checker-type-field.ts": [
     {
       "subject": "spec/tooling.md:193",
@@ -232,14 +212,6 @@
     }
   ],
   "packages/runtime/src/evaluate.ts": [
-    {
-      "subject": "not yet implemented",
-      "observed": "untracked",
-      "kind": "untracked-status-claim",
-      "issue": "#961",
-      "why": "Predates the gate: a forward-looking claim about this repository's own state that names no issue to re-check it against. Rewriting it to state what is true today, or naming the issue it waits on, is the sweep tracked below.",
-      "fingerprint": "f6fe1c8d00e60697"
-    },
     {
       "subject": "spec/commands.md:1189",
       "observed": "blank-region",
@@ -363,14 +335,6 @@
   ],
   "packages/runtime/src/execute-internal.ts": [
     {
-      "subject": "future slice",
-      "observed": "untracked",
-      "kind": "untracked-status-claim",
-      "issue": "#961",
-      "why": "Predates the gate: a forward-looking claim about this repository's own state that names no issue to re-check it against. Rewriting it to state what is true today, or naming the issue it waits on, is the sweep tracked below.",
-      "fingerprint": "9e26e1cbeffffd4e"
-    },
-    {
       "subject": "spec/commands.md:160",
       "observed": "blank-region",
       "kind": "stale-citation",
@@ -467,16 +431,6 @@
       "issue": "#948",
       "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
       "fingerprint": "b137ec1b106236ed"
-    }
-  ],
-  "scripts/built-in-names-gate.mjs": [
-    {
-      "subject": "does not exist yet",
-      "observed": "untracked",
-      "kind": "untracked-status-claim",
-      "issue": "#961",
-      "why": "Predates the gate: a forward-looking claim about this repository's own state that names no issue to re-check it against. Rewriting it to state what is true today, or naming the issue it waits on, is the sweep tracked below.",
-      "fingerprint": "5f6348131f1cd8ad"
     }
   ],
   "scripts/check-examples.test.mjs": [
