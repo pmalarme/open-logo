@@ -179,19 +179,22 @@ test("every Heritage surface spelling is a built-in name", () => {
   );
 });
 
-test("the form-head registries reach the predicate, not merely the keyword list", () => {
-  // **Read this test for what it does NOT prove today.** Every current form head is also a reserved
-  // keyword, so each of these names is true through the keyword leg as well — measured on the tree
-  // that closed issue #965: for all five, `primitiveArity` is `undefined` and none is a short
-  // alias, so the form-head registries supplied ZERO names the keyword leg had not. This assertion
-  // therefore cannot fail today by deleting the surface-spelling leg, and claiming otherwise would
-  // be the kind of green signal this epic exists to remove.
+test("every registered form head is a built-in name AND is carried by the surface registry", () => {
+  // **Read the title literally — it is the two properties asserted, not a claim that the surface
+  // registry is what makes the first one true.** Measured on the tree that closed issue #965:
+  // every current form head is ALSO a reserved keyword, `primitiveArity` is `undefined` for all
+  // five, and none is a short alias — so the form-head registries supply zero names the keyword leg
+  // had not already supplied, and deleting `isHeritageSurfaceSpelling` from the predicate fails
+  // nothing here. Saying otherwise would be the green-signal-certifying-less-than-it-appears defect
+  // this epic exists to remove.
   //
-  // What it does is fail the moment the registries stop coinciding — a form head registered without
-  // also being a reserved keyword, which is the exact case that would have been registered, listed
-  // in the manifest, passed `npm run built-in-names`, and still answered `false` at both declaration
-  // slots. The guard has to be in place before that slice, because that is the slice in which
-  // nothing else would fail.
+  // The second assertion is the load-bearing one and is NOT vacuous: it fails the moment a
+  // registered form head stops being enumerable as a surface spelling. Together they bite when the
+  // registries stop coinciding — a form head registered without also being a reserved keyword,
+  // which is the case that would otherwise be listed in the manifest, pass
+  // `npm run built-in-names`, and still leave `define <it>` accepted by both `check()` and
+  // `execute()`. Verified by registering exactly such a head against a predicate with the leg
+  // removed: `define zzz_head` checked completely clean, and all three tests here went red.
   const heads = [
     ...OL.heritageFormHeadNames(),
     ...OL.heritageWordedFormHeads(),
@@ -206,7 +209,7 @@ test("the form-head registries reach the predicate, not merely the keyword list"
     assert.equal(
       OL.heritageSurfaceSpellings().includes(head),
       true,
-      `${head} must reach isBuiltInName through the surface-spelling registry, not by luck`,
+      `${head} must be enumerable as a Heritage surface spelling, which is the registry isBuiltInName consults for form heads`,
     );
   }
 });

@@ -994,11 +994,12 @@ export function carveOutFindings(manifest, io) {
  * contextual one, or renaming one to a word the language does not contain (issue #964). The gate
  * printed its own emptiness and passed.
  *
- * That is not bookkeeping. `spec/educational-model.md:169` requires the geometry standard library to
- * stay **discoverable OpenLogo source** — `polygon`, `circle`, `arc`, `area`, `perimeter`, `star`
- * must remain procedures a learner can read and write, not opaque primitives — and these carve-outs
- * are how that survives contact with a completeness pass: they are the reason those names are absent
- * from the built-in list, and absent reasons get "fixed".
+ * That is not bookkeeping. `spec/conformance.md:88-91` is why these carve-outs exist at all: the
+ * Geometry procedures "are not opaque primitive shortcuts, and they are therefore **library
+ * procedures rather than built-in names**". Their absence from the built-in list is a *claim about
+ * the tree* — that the source is really there — and `spec/geometry-module.md:419` makes the
+ * learner-visible source "part of the contract". A carve-out silently deleted turns that claim into
+ * an oversight nobody can distinguish from a missing name.
  *
  * **An empty scan is a finding, not a vacuous pass.** A bijection between two empty sets holds, so
  * without this clause deleting `stdlib/` would satisfy the check that exists to protect it — the
@@ -1043,6 +1044,99 @@ export function stdlibCarveOutFindings(manifest, io) {
     if (!defined.has(name)) {
       findings.push(
         `excluded ${name}: reason "library" but no ${STDLIB_DIR}/**.logo file defines a procedure of that name`,
+      );
+    }
+  }
+  return findings;
+}
+
+/**
+ * The four **contextual keywords** `spec/grammar.md:380` names — the words that are structural by
+ * position without OpenLogo owning the name — extracted from the sentence that enumerates them:
+ * *"By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in
+ * names."*
+ *
+ * That sentence closes its own set two sentences later — *"The contextual keywords are exactly
+ * these four"* — which is what makes the list derivable rather than a second copy. Both anchors are
+ * required: the enumeration alone could grow a fifth word while the prose still said four, and the
+ * closure alone names no words. A missing anchor is a **finding**, not a skip, so a reworded
+ * paragraph fails loudly instead of silently checking nothing.
+ *
+ * Returns `null` when either anchor is absent. Bounded to the one sentence rather than the
+ * paragraph on purpose: the surrounding prose backticks `to`, `set ... to`, `define of` and the
+ * `is`-predicate examples, none of which are members of this set.
+ */
+export function extractContextualKeywords(text) {
+  const enumeration = /By contrast, ([^.]*?) are \*\*not\*\* keywords/.exec(
+    text,
+  );
+  if (
+    enumeration === null ||
+    !text.includes("contextual keywords are exactly")
+  ) {
+    return null;
+  }
+  const words = backtickedWords(enumeration[1]);
+  return words.length === 0 ? null : words;
+}
+
+/**
+ * The `contextual-keyword` carve-outs, bound to `spec/grammar.md`'s own enumeration in **both**
+ * directions, plus the claim each one actually makes about the implementation.
+ *
+ * {@link carveOutFindings} validates a contextual entry's shape — canonical spelling, a rationale,
+ * positions drawn from a closed vocabulary — but validating an entry cannot notice a **missing**
+ * one. Measured on the tree that filed issue #964: deleting the `of` carve-out left the gate at
+ * `0 finding(s)`, exit 0, and the summary still reported the remaining carve-outs as though the
+ * total were an assertion. The library half had the same hole in the other direction; this is the
+ * contextual half of the same fix.
+ *
+ * The third check is the one that makes the carve-out mean something. A contextual keyword's whole
+ * claim is *"structural in this position, and yet **not** a built-in name"*, so the entry is
+ * refuted the moment {@link isBuiltInName} starts answering `true` for the word — which is exactly
+ * what would happen if a later slice registered it as a keyword or a primitive without noticing the
+ * carve-out. That is a genuine implementation→manifest direction, not a restatement.
+ */
+export function contextualCarveOutFindings(manifest, api, io) {
+  const declared = extractContextualKeywords(io.readText(GRAMMAR_PATH));
+  if (declared === null) {
+    return [
+      `${GRAMMAR_PATH}: could not locate the contextual-keyword enumeration ("By contrast, … are **not** keywords") together with its closing claim ("The contextual keywords are exactly …") — the carve-outs are derived from that sentence, so a reworded one leaves them underived`,
+    ];
+  }
+
+  const findings = [];
+  const carvedOut = manifest.excluded
+    .filter((entry) => entry.reason === "contextual-keyword")
+    .map((entry) => entry.name);
+  // Fail closed on a missing accessor rather than throwing. `isBuiltInName` is what makes the third
+  // check mean anything, so an implementation that does not expose it leaves that direction
+  // unchecked — reported as a finding, never as a silent skip. `undefined` rather than `null` so
+  // the call below can be an optional chain, which is what Biome asks for; the two states are the
+  // same one state (no accessor) and only ever reached through the guard above.
+  const ownsName =
+    typeof api.isBuiltInName === "function" ? api.isBuiltInName : undefined;
+  if (ownsName === undefined) {
+    findings.push(
+      "the implementation exposes no isBuiltInName accessor, so the claim each contextual carve-out makes — structural by position, and yet NOT a built-in name — cannot be checked against it",
+    );
+  }
+  for (const word of declared) {
+    if (!carvedOut.includes(word)) {
+      findings.push(
+        `${GRAMMAR_PATH} names "${word}" a contextual keyword but ${MANIFEST_PATH} records no "contextual-keyword" carve-out for it — a word that is structural by position and absent from both names and excluded is indistinguishable from an oversight`,
+      );
+    }
+    if (ownsName?.(word)) {
+      findings.push(
+        `excluded ${word}: carved out as a contextual keyword, but isBuiltInName says OpenLogo owns the name — ${GRAMMAR_PATH} makes these "**not** keywords and **not** built-in names", so the carve-out and the implementation now disagree`,
+      );
+    }
+  }
+  for (const name of carvedOut) {
+    if (!declared.includes(name)) {
+      findings.push(
+        `excluded ${name}: reason "contextual-keyword" but ${GRAMMAR_PATH} does not name it among the contextual keywords, which it declares to be exactly ${declared.map((word) => `"${word}"`).join(", ")}`,
       );
     }
   }
@@ -1661,6 +1755,7 @@ export function runBuiltInNamesGate({
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
     ...stdlibCarveOutFindings(resolved, io),
+    ...contextualCarveOutFindings(resolved, api, io),
     ...profileInventoryFindings(resolved, api, io),
     ...profileCoverageFindings(resolved, api),
     ...proseFindings(resolved, io),
@@ -1673,8 +1768,21 @@ export function runBuiltInNamesGate({
   for (const finding of findings) {
     lines.push(`FAIL ${finding}`);
   }
+  // The carve-out total is broken out by reason because the two halves are bound to DIFFERENT
+  // authorities — the library ones to a walk of `stdlib/**.logo`, the contextual ones to
+  // `spec/grammar.md`'s own enumeration — and a single number would hide which of them a green run
+  // actually asserted. Reporting the scan surface beside the count is what makes it evidence
+  // rather than a tally of whatever the file happens to contain (epic #900).
+  const carveOutsByReason = resolved.excluded.reduce((counts, entry) => {
+    counts[entry.reason] = (counts[entry.reason] ?? 0) + 1;
+    return counts;
+  }, {});
+  const carveOutSummary = Object.keys(carveOutsByReason)
+    .sort()
+    .map((reason) => `${carveOutsByReason[reason]} ${reason}`)
+    .join(" + ");
   lines.push(
-    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs over ${io.listStdlibFiles().length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
+    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs (${carveOutSummary}) over ${io.listStdlibFiles().length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
   );
   if (unenumerable.length > 0) {
     lines.push(

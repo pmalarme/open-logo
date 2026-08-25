@@ -37,6 +37,7 @@ import {
   carveOutFindings,
   controlCharacterFindings,
   codeOnly,
+  contextualCarveOutFindings,
   definesProcedure,
   deriveSummary,
   describeAccessor,
@@ -45,6 +46,7 @@ import {
   duplicatedNames,
   entryFindings,
   extractConformanceProfiles,
+  extractContextualKeywords,
   extractGrammarKeywordBlock,
   extractToolingC19Mirror,
   extractToolingKeywordRow,
@@ -154,6 +156,9 @@ function tinyFixture() {
     // No profile-keyed primitive table: this fixture's `core-primitive` enumerates through its own
     // `coreNames`, so declaring one here would claim a registry the manifest defines no tag for.
     profilePrimitiveNames: () => [],
+    // The contextual carve-outs' claim is "not a built-in name", and this fixture's language owns
+    // only `define`/`print`, so its two contextual words are genuinely unowned.
+    isBuiltInName: (name) => name === "define" || name === "print",
   };
   return { manifest, api };
 }
@@ -164,9 +169,10 @@ function fakeIo(files, existing = Object.keys(files)) {
     readText: (path) => files[path],
     exists: (path) => existing.includes(path),
     isStdlibFile: (path) => existing.includes(path),
-    // Whatever the fixture put under `stdlib/`. A fixture that declares none still gets a non-empty
-    // scan surface, because an empty one is itself a finding and would drown every other assertion
-    // these doubles are making.
+    // Whatever the fixture put under `stdlib/`, which for most fixtures is nothing. A whole-gate
+    // fixture (one driven through `runBuiltInNamesGate`) must therefore declare a `stdlib/*.logo`
+    // file of its own, because an EMPTY scan is itself a finding since issue #964 — a bijection
+    // between two empty sets would otherwise certify the library's absence.
     listStdlibFiles: () =>
       Object.keys(files).filter(
         (path) => path.startsWith("stdlib/") && path.endsWith(".logo"),
@@ -187,14 +193,27 @@ test("the shipped manifest and the shipped implementation agree, in both directi
 test("the report names the totals it checked, so a green run is evidence rather than a bare OK", () => {
   const result = runBuiltInNamesGate();
   const summary = result.lines.find((line) => line.includes("0 finding(s)"));
-  // The stdlib file count is part of the summary because it is this gate's SCAN SURFACE: the
-  // carve-out total is only an assertion about the tree while something walked `stdlib/`, and a
-  // reader cannot tell a bound count from a tally of file contents unless the instrument says what
-  // it looked at (epic #900's "did the instrument audit itself?").
+  // The carve-out total is broken out by reason, and the stdlib file count is printed, because
+  // those are this gate's SCAN SURFACES: the two halves are bound to different authorities (a walk
+  // of `stdlib/**.logo`, and `spec/grammar.md`'s own enumeration), and one number would hide which
+  // of them a green run asserted (epic #900's "did the instrument audit itself?").
+  const byReason = REAL_MANIFEST.excluded.reduce((counts, entry) => {
+    counts[entry.reason] = (counts[entry.reason] ?? 0) + 1;
+    return counts;
+  }, {});
+  const breakdown = Object.keys(byReason)
+    .sort()
+    .map((reason) => `${byReason[reason]} ${reason}`)
+    .join(" + ");
   assert.equal(
     summary,
-    `built-in-names: ${REAL_MANIFEST.names.length} names, ${REAL_MANIFEST.excluded.length} carve-outs over ${REAL_IO.listStdlibFiles().length} stdlib file(s), ${Object.keys(REAL_MANIFEST.registries).length} registries, spec version ${REAL_MANIFEST.specVersion} — 0 finding(s)`,
+    `built-in-names: ${REAL_MANIFEST.names.length} names, ${REAL_MANIFEST.excluded.length} carve-outs (${breakdown}) over ${REAL_IO.listStdlibFiles().length} stdlib file(s), ${Object.keys(REAL_MANIFEST.registries).length} registries, spec version ${REAL_MANIFEST.specVersion} — 0 finding(s)`,
   );
+  // Both reasons must actually appear, or the breakdown is describing a set that no longer exists.
+  assert.deepEqual(Object.keys(byReason).sort(), [
+    "contextual-keyword",
+    "library",
+  ]);
 });
 
 test("every registry is enumerable, so the run reports no unreachable direction", () => {
@@ -759,6 +778,138 @@ test("logoFilesUnder normalises separators, sorts, and reports a missing directo
     true,
     "the walk must reach a nested .logo file",
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// The CONTEXTUAL carve-outs are bound to spec/grammar.md's own enumeration, both ways (issue #964).
+//
+// The library half above was only half the hole. Deleting the `of` carve-out left the gate at
+// `0 finding(s)`, exit 0, while the summary still presented every carve-out as asserted — a
+// per-entry validator cannot notice a MISSING entry, whatever the reason.
+// ---------------------------------------------------------------------------------------------
+
+test("the contextual carve-outs are exactly the four words spec/grammar.md names", () => {
+  // The control, and the cross-derivation: the manifest's set and the spec's sentence are produced
+  // by different instruments (a JSON read and a prose extraction) and must reconcile exactly.
+  assert.deepEqual(
+    contextualCarveOutFindings(REAL_MANIFEST, realParserApi, REAL_IO),
+    [],
+  );
+  const declared = extractContextualKeywords(REAL_IO.readText(GRAMMAR_PATH));
+  assert.deepEqual([...declared].sort(), ["a", "empty", "member", "of"]);
+  assert.deepEqual(
+    REAL_MANIFEST.excluded
+      .filter((entry) => entry.reason === "contextual-keyword")
+      .map((entry) => entry.name)
+      .sort(),
+    [...declared].sort(),
+  );
+});
+
+test("INJECTED DRIFT: deleting the `of` contextual carve-out is a finding", () => {
+  // The exact mutation that passed green before this check existed.
+  const manifest = manifestCopy();
+  manifest.excluded = manifest.excluded.filter((entry) => entry.name !== "of");
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some(
+      (finding) =>
+        finding.includes('names "of" a contextual keyword') &&
+        finding.includes("records no"),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a contextual carve-out the spec does not name is a finding", () => {
+  // The manifest->spec direction. `spec/grammar.md` closes the set ("exactly these four"), so an
+  // invented fifth is drift rather than an addition.
+  const manifest = manifestCopy();
+  manifest.excluded.push({
+    name: "beside",
+    reason: "contextual-keyword",
+    positions: ["is-predicate"],
+    rationale: "invented for this test",
+  });
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith('excluded beside: reason "contextual-keyword" but'),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a contextual word the implementation starts owning is a finding", () => {
+  // The implementation->manifest direction, and the substance of the carve-out: these words are
+  // structural by position *and* not built-in names. A later slice registering one as a keyword or
+  // a primitive refutes the entry, and this is what says so.
+  const api = { ...realParserApi, isBuiltInName: (name) => name === "of" };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), api });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some(
+      (finding) =>
+        finding.startsWith("excluded of: carved out as a contextual keyword") &&
+        finding.includes("isBuiltInName says OpenLogo owns the name"),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("the contextual extractor fails closed on a reworded or truncated sentence", () => {
+  // Fail closed, never silently skip: `spec/` is maintainer-owned, so this gate anchors on prose
+  // already there and a reworded paragraph must fail loudly rather than check nothing.
+  assert.equal(extractContextualKeywords(""), null);
+  // The enumeration without its closing claim: the list could grow a fifth word unobserved.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member` are **not** keywords and **not** built-in names.",
+    ),
+    null,
+  );
+  // The closing claim without the enumeration: names no words at all.
+  assert.equal(
+    extractContextualKeywords(
+      "The contextual keywords are exactly these four.",
+    ),
+    null,
+  );
+  // Present but empty of backticked words.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, those words are **not** keywords. The contextual keywords are exactly these four.",
+    ),
+    null,
+  );
+  // `contextualCarveOutFindings` reads exactly one document, so the double answers for that one
+  // and nothing else — a ternary falling back to the real reader would be a branch no test can
+  // reach, which is precisely the kind of unreachable clause this file warns about elsewhere.
+  const findings = contextualCarveOutFindings(REAL_MANIFEST, realParserApi, {
+    ...REAL_IO,
+    readText: () => "",
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(
+    findings[0].includes("leaves them underived"),
+    true,
+    findings.join("\n"),
+  );
+});
+
+test("a missing isBuiltInName accessor is a finding, not a crash", () => {
+  // Fail closed rather than throw: an implementation that stops exposing the predicate leaves the
+  // carve-outs' actual claim unchecked, and a stack trace out of the gate reads like a broken gate
+  // rather than the unchecked direction it is.
+  const findings = contextualCarveOutFindings(REAL_MANIFEST, {}, REAL_IO);
+  assert.deepEqual(findings, [
+    "the implementation exposes no isBuiltInName accessor, so the claim each contextual carve-out makes — structural by position, and yet NOT a built-in name — cannot be checked against it",
+  ]);
 });
 
 test("INJECTED DRIFT: promoting polygon to a built-in name breaks the carve-out", () => {
@@ -1728,7 +1879,18 @@ test("INJECTED DRIFT: a carve-out relabelled to escape its stdlib check", () => 
     [
       'excluded arc: reason "contextual-keyword" carries a source (stdlib/geometry/arc.logo) that nothing checks — only a "library" carve-out has one',
       "excluded arc: position(s) bogus are outside the closed vocabulary [is-predicate, value-of-reader]",
+      // Since issue #964 the relabel is caught from a third direction as well: `spec/grammar.md`
+      // closes the contextual set at four words, so relabelling a seventh name into it is drift
+      // whatever its positions say. The escape route this test names is now shut from both ends —
+      // the stdlib walk notices `arc` lost its library carve-out, and this notices it gained a
+      // contextual one it is not entitled to.
+      `excluded arc: reason "contextual-keyword" but ${GRAMMAR_PATH} does not name it among the contextual keywords, which it declares to be exactly "empty", "member", "of", "a"`,
     ],
+  );
+  assert.equal(
+    result.findings.some((finding) => finding.includes('defines "arc" but')),
+    true,
+    "the stdlib walk must also notice the library carve-out disappeared",
   );
 });
 
@@ -2597,7 +2759,10 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
   const { manifest, api } = tinyFixture();
   // The fixture ships one stdlib procedure and its carve-out, because since issue #964 an EMPTY
   // `stdlib/` scan is itself a finding — a bijection between two empty sets would otherwise let
-  // this whole-gate run pass while the check protecting the library certified its absence.
+  // this whole-gate run pass while the check protecting the library certified its absence. It also
+  // carries the two contextual carve-outs its own grammar text enumerates, for the same reason in
+  // the other half: the contextual set is derived from `spec/grammar.md`'s sentence, so a fixture
+  // whose grammar text names words it does not carve out is drift.
   manifest.excluded = [
     {
       name: "square",
@@ -2605,11 +2770,23 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
       source: "stdlib/square.logo",
       rationale: "OpenLogo source, not a primitive",
     },
+    {
+      name: "empty",
+      reason: "contextual-keyword",
+      positions: ["is-predicate"],
+      rationale: "structural by position only",
+    },
+    {
+      name: "member",
+      reason: "contextual-keyword",
+      positions: ["is-predicate"],
+      rationale: "structural by position only",
+    },
   ];
   const io = fakeIo({
     "stdlib/square.logo": "define square :size\nend\n",
     [GRAMMAR_PATH]:
-      "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
+      "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n\nBy contrast, `empty` and `member` are **not** keywords and **not** built-in names. The contextual keywords are exactly these two.\n",
     [TOOLING_PATH]:
       "x this is the C19 registry repeated y:\n\n`define`.\n\n| H |\n|---|\n| `keyword` | `define` The word-spelled operators are **not** in this class. omits zero, adds zero. independent. never paints. |\n",
     [CONFORMANCE_PATH]:

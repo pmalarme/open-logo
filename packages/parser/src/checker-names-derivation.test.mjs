@@ -135,6 +135,46 @@ test("every registered primitive of an active profile is callable without ol-unk
   assert.deepEqual([...new Set(notVisible)].sort(), ["challenge"]);
 });
 
+test("every withheld name is one a profile actually registers", () => {
+  // The half of the evaluator exception that IS checkable inside this package. It cannot detect
+  // that an evaluator has since shipped — that is a fact about `@openlogo/runtime`, which the
+  // parser must not depend on, so retiring an entry stays a human step. What it does catch is a
+  // typo, or a name left behind after its profile table was removed: either would withhold
+  // nothing while reading like a deliberate exception.
+  const withheld = OL.namesAwaitingAnEvaluator();
+  assert.ok(
+    withheld.length > 0,
+    "the exception set is empty; delete it instead",
+  );
+  const registered = new Set(
+    OL.OL_CHECK_PROFILES.flatMap((profile) =>
+      OL.profilePrimitiveNames(profile),
+    ),
+  );
+  const unregistered = withheld.filter((name) => !registered.has(name));
+  assert.deepEqual(
+    unregistered,
+    [],
+    "withheld names that no profile registers — each withholds nothing and hides a typo",
+  );
+  // And the exception must actually bite: a withheld name is the one thing a profile registers
+  // that stays unknown while its profile is active.
+  for (const name of withheld) {
+    assert.equal(
+      OL.isOptionalProfileName(name),
+      true,
+      `${name} is registered, so it must still classify as an optional-profile word`,
+    );
+    assert.equal(
+      checkCodes(name, [...OL.OL_CHECK_PROFILES]).includes(
+        "ol-unknown-command",
+      ),
+      true,
+      `${name} is withheld, so calling it must still be ol-unknown-command`,
+    );
+  }
+});
+
 test("a profile's names are invisible while the profile is inactive", () => {
   // The gate `spec/tooling.md:175-176` requires. The sweep above would also pass for a model that
   // ignored `profiles` entirely and made every name visible always; this is what rules that out.

@@ -18,11 +18,12 @@
  * the next profile as well as this one.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
- * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
- * words" on a distance tie) — a tie between a Core name and an optional-profile name is reachable
- * and MUST resolve in Core's favor, not by lexicographic order alone. Program-declared names
- * (procedures, struct constructors) are not part of it: they are the learner's own, and
- * `checker-unknown-command.ts` exempts them from demotion for that reason.
+ * did-you-mean tie-break (`spec/error-model.md:210-211`: on a distance tie, "prefer Core words over
+ * optional-profile words, then full canonical names over short aliases, then lexicographic order")
+ * — a tie between a Core name and an optional-profile name is reachable and MUST resolve in Core's
+ * favor, not by lexicographic order alone. Program-declared names (procedures, struct constructors)
+ * are not part of it: they are the learner's own, and `checker-unknown-command.ts` exempts them
+ * from demotion for that reason.
  */
 
 import type { CheckProfile } from "./check.js";
@@ -104,7 +105,7 @@ export function isOptionalProfileName(name: string): boolean {
  * {@link collectVisibleNames}'s unconditional procedure/struct walk). The did-you-mean tie-break
  * uses this to tell a user's `define fd … end` apart from the Heritage alias `fd` that happens to
  * share its spelling — a declared name must never be demoted as if it were the short alias
- * (`spec/error-model.md:145-146` orders full canonical names over *Heritage aliases*, not over a
+ * (`spec/error-model.md:210-211` orders full canonical names over *Heritage aliases*, not over a
  * learner's own procedures).
  */
 export function collectDeclaredNames(
@@ -139,12 +140,31 @@ export function collectDeclaredNames(
  * `challenge` is an optional-profile word is a question about the registry, not about what runs
  * today, and answering it correctly now is what makes that slice a deletion.
  *
- * This module cannot verify the claim — "an evaluator exists" is a fact about `@openlogo/runtime`,
- * which the parser must not depend on. `checker-names.test.mjs` pins the half that *is* checkable
- * from here: every entry must be a name some profile registers, so a typo or an entry left behind
- * after its evaluator shipped fails rather than silently widening the set.
+ * **What checks it, stated exactly.** This module cannot verify the claim itself — "an evaluator
+ * exists" is a fact about `@openlogo/runtime`, which the parser must not depend on — so the entry
+ * is a **manual cross-package exception**, and no test here can detect that an evaluator has since
+ * shipped. What {@link namesAwaitingAnEvaluator} makes checkable is the half that lives in this
+ * package: `checker-names-derivation.test.mjs` asserts every entry is a name some profile actually
+ * registers, so a typo or a name left behind after its table was removed fails rather than silently
+ * withholding nothing, and `profile-arity-derivation.test.mjs` pins that `challenge` is the only
+ * name withheld, so a second one cannot be added unremarked. Retiring the entry stays a human step,
+ * which is why it is one line with its reason beside it.
  */
 const NAMES_AWAITING_AN_EVALUATOR: ReadonlySet<string> = new Set(["challenge"]);
+
+/**
+ * The registered primitives the checker deliberately withholds from
+ * {@link collectVisibleNames} because no evaluator can run them yet. See
+ * {@link NAMES_AWAITING_AN_EVALUATOR} for why the exception exists and what does — and does not —
+ * enforce it.
+ *
+ * Exported because it is a **claim**, and a claim nothing can call is a claim nothing can check.
+ * The `challenge` misclassification survived precisely because the set it belonged to was
+ * unreachable from outside the module, so no test could name it.
+ */
+export function namesAwaitingAnEvaluator(): readonly string[] {
+  return [...NAMES_AWAITING_AN_EVALUATOR].sort();
+}
 
 /**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to
