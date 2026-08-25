@@ -195,6 +195,14 @@ is what prevents unbounded buildup. A handler that takes longer than its own
 interval therefore degrades to running back to back and can never build up an
 unbounded backlog.
 
+A handler does not extend the run's lifetime; that is the main line's business.
+Once the main line has finished and any already-started handler body has
+completed, the run closes and any occurrence still queued but not yet started is
+discarded. A program that wants its handlers to keep running says so explicitly,
+with `forever` or a long `wait` — and then a handler that keeps overrunning its
+interval keeps running back to back, bounded like any other non-terminating
+program by the execution budget.
+
 ```logo
 every 30 [
   right 15

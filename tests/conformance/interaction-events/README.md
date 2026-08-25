@@ -130,19 +130,26 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   the firing-time scope raises `ol-undefined-var` instead. Note this pins capture of the *environment*,
   which is weaker than capturing *values*: nothing is snapshotted and no fresh bindings are made,
   which is why #821's loop case is still open.
-  Maintainer ruling **#984** adds the three fixtures that pin how an **overrunning** handler behaves,
-  a region the corpus had left entirely open. `every-missed-occurrence-is-queued-and-runs` proves
-  coalescing is **required**: an interval arriving while the body is still running is queued, and the
-  trailing `wait 1` drains it at a tick where the handler is provably *not* due, so the second firing
-  can only be the queued occurrence. `every-queue-coalesces-to-one` proves the **cap** from the other
-  side — two intervals arrive while the handler is blocked, and only one drains. Its blocker is an
-  `on_key` handler rather than the `every` body itself, because a self-blocking body rebuilds the
-  backlog at every drain and so can never expose an uncapped queue; the key arrives on the same tick
-  the handler is due, so the whole batch is claimed up front and the handler sits claimed while the
-  `on_key` body's `wait 25` runs. `every-fixed-rate-interval-not-re-measured` pins the third rule
-  (`spec/interaction-events.md:182-186`): a body that takes three ticks under `every 2` fires three
-  times, where a fixed-**delay** scheduler re-measuring each period from its invocation's completion
-  fires twice.
+  Maintainer ruling **#984** adds the fixtures that pin how an **overrunning** handler behaves, a
+  region the corpus had left entirely open. `every-missed-occurrence-is-queued-and-runs` proves
+  coalescing is **required** and that the queued occurrence runs as soon as the handler is free,
+  inside the same dispatch: the outer `wait` has already spent its last tick, so a runtime that
+  defers the drain to a fresh checkpoint loses the occurrence outright. `every-queue-coalesces-to-one`
+  proves the **cap** — four intervals arrive while a once-firing `on_key` holds the thread, and only
+  one survives. Its outer `wait 26` is load-bearing and was the second design: a backlog drains one
+  occurrence per checkpoint, so with a short outer `wait` a capped and an uncapped queue are
+  measurably identical and the fixture pins nothing. `every-fixed-rate-interval-not-re-measured`
+  pins the third rule (`spec/interaction-events.md:183-187`) — a handler delayed by a one-time block
+  still finds its intervals on the original grid, where a fixed-**delay** clock re-measured from each
+  completion would have pushed the next one past the end of the run.
+  Two more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
+  `every-queued-occurrence-discarded-when-run-closes` shows a self-overrunning handler terminating
+  cleanly with its last queued occurrence discarded, and
+  `every-overrunning-handler-runs-back-to-back-under-forever` shows the same handler running back to
+  back until the budget raises `ol-limit` when the learner holds the run open explicitly. Neither is
+  sufficient alone: the discard rule by itself is satisfied by never draining at all — precisely the
+  defect this issue's first implementation shipped — and the `forever` fixture is what forbids that,
+  since a runtime that drops missed occurrences never accumulates the firings that exhaust the budget.
 - **`on_key/`** — the `on_key <key-word> <block>` keyboard handler (issue #684, slice I5):
   registration emits `primitive` after the handler is registered; a key press is host input, so with
   no host input supplied the handler is registered but never fires (locked by
@@ -347,19 +354,29 @@ to close, sitting inside the conformance corpus itself. Issue **#984** was then 
 
 1. **`when` is persistent** — its block runs each time its event occurs, once per occurrence
    (`spec/interaction-events.md:158-163`).
-2. **Coalescing one missed `every` occurrence is required**, not permitted (`:188-195`). The runtime's
+2. **Coalescing one missed `every` occurrence is required**, not permitted (`:189-196`). The runtime's
    contrary reading — that zero overlapping invocations satisfies an "at most one" *upper bound* —
    was rejected.
-3. **`every n` is fixed rate** (`:182-186`), a third rule the audit had not surfaced: the interval
+3. **`every n` is fixed rate** (`:183-187`), a third rule the audit had not surfaced: the interval
    clock keeps its own schedule and a late invocation does not re-measure the period.
+4. **A handler does not extend the run's lifetime** (`:198-204`), a fourth the ruling added while
+   settling the third: once the main line has finished and any already-started handler body has
+   completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
-Six fixtures land with it — three under `when/` and three under `every/`, described in those sections
-above. Two properties of this corpus are worth recording, because they are why the rules could ship
-undecided at all. First, **the ruling changed three normative rules and the corpus did not move**:
-910 fixtures passed before the runtime change and 910 passed after, so not one of them discriminated
-any of the three. A dimension nothing varies is a dimension nothing can observe. Second, the two
-`when` fixtures that pin persistence **must** use a vendor-prefixed event word
+Eight fixtures land with it — three under `when/` and five under `every/`, described in those
+sections above. Two properties of this corpus are worth recording, because they are why the rules
+could ship undecided at all. First, **the ruling changed three normative rules and the corpus did not
+move**: 910 fixtures passed before the runtime change and 910 passed after, so not one of them
+discriminated any of the three. A dimension nothing varies is a dimension nothing can observe.
+Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
-`"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams. Each of
-the six was mutation-verified — every one fails against at least one runtime mutated back to a
-rejected reading, and each rejected reading is caught by at least one of them.
+`"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
+
+Every one of the eight was mutation-verified against runtimes reverted to each rejected reading —
+including the drain, not merely the queueing. That distinction was not academic: this issue's first
+implementation queued correctly and drained only at the next event-loop checkpoint, which silently
+discarded the occurrence whenever the program's `wait`s ran out first, and its three `every` fixtures
+were written *from* that runtime and so encoded the defect rather than catching it. One of them was
+the failing case plus a single trailing `wait 1` token. A fixture derived from the implementation
+cannot falsify the implementation; only mutating the behaviour it claims to pin can show whether it
+pins anything.

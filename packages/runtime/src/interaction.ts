@@ -211,14 +211,15 @@ export function runWait(
 ): boolean {
   if (count === 0) {
     // `wait 0` yields to the event loop at the current tick without advancing it (a spec-mandated
-    // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can be due
-    // here: a handler's next-due tick is always at least its interval (>= 1) past its registration
-    // tick, so it is never due at a tick the clock has NOT just advanced to. But current-tick input
-    // — a `hostInput` key/click/named event scheduled at tick 0 (#684/#685/#686) — CAN be pending
-    // and its handler can halt (`return`/`stop`, a runtime error, or a cancelled/over-budget run),
-    // so the dispatch verdict MUST be honored exactly as it is on the per-tick advance below:
-    // abort before the primitive and report the interruption. (Ignoring it here swallowed a tick-0
-    // handler's halt — the "`wait 0` treated as a no-op" failure mode.)
+    // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can newly
+    // come DUE here: a handler's next-due tick is always at least its interval (>= 1) past its
+    // registration tick, so an interval is never reached at a tick the clock has NOT just advanced
+    // to. Two other things can still run, and both can halt, so the dispatch verdict MUST be
+    // honored exactly as it is on the per-tick advance below: current-tick input — a `hostInput`
+    // key/click/named event scheduled at tick 0 (#684/#685/#686) — CAN be pending, and an `every`
+    // occurrence already sitting in its one-slot queue is drained at any checkpoint where its
+    // handler is free (ruling #984), including this one. (Ignoring the verdict here swallowed a
+    // tick-0 handler's halt — the "`wait 0` treated as a no-op" failure mode.)
     if (yieldToEventLoop(tickClock, dispatch)) {
       return true;
     }
@@ -364,12 +365,12 @@ export interface WhenHandler {
  * recurs for the whole run.
  *
  * That `+= interval` — measured from the previous interval, never from the moment an invocation
- * finished — is the spec's **fixed rate** rule (`spec/interaction-events.md:182-186`, maintainer
+ * finished — is the spec's **fixed rate** rule (`spec/interaction-events.md:183-187`, maintainer
  * ruling #984): "each successive interval arrives `n` ticks after the previous interval, on that
  * original schedule. The period is never re-measured from the moment an invocation happens to
  * finish, so a late invocation does not push the following interval back."
  *
- * The three flags implement the spec's queueing rule (`spec/interaction-events.md:188-195`): "If a
+ * The three flags implement the spec's queueing rule (`spec/interaction-events.md:189-196`): "If a
  * prior invocation is still running when the next interval arrives, the implementation MUST queue
  * that occurrence and run it once the handler is free. … The queue holds **at most one** pending
  * invocation for that `every` handler". Handler invocations "run on the same OpenLogo execution
@@ -661,9 +662,9 @@ export function registerOnClickHandler(
  * `runWait` calls the dispatch once per tick (monotonically, never skipping a tick), the boundary is
  * reached at exactly `nextDueTick`. `nextDueTick` then advances by `interval` — measured from the
  * previous interval, never re-measured from an invocation's completion, which is the spec's fixed-rate
- * clock (`spec/interaction-events.md:182-186`). The arriving occurrence is put in the handler's
+ * clock (`spec/interaction-events.md:183-187`). The arriving occurrence is put in the handler's
  * one-slot queue (`queued`); a second arrival while that slot is full **coalesces** into it, so the
- * queue never exceeds the spec's "at most one pending invocation" (`:188-195`). Tick `0` is never an
+ * queue never exceeds the spec's "at most one pending invocation" (`:189-196`). Tick `0` is never an
  * arrival — a fresh handler's `nextDueTick` is always `>= interval > 0`.
  *
  * **Claim.** A queued occurrence is claimed for delivery as soon as the handler is free: not
@@ -697,6 +698,40 @@ export function claimDueEveryHandlers(
     }
   }
   return due;
+}
+
+/**
+ * The queued `every` occurrences that are runnable **right now**, in registration order — a handler
+ * whose one-slot queue is full and which is neither `running` nor already `claimed` into a batch.
+ * Unlike {@link claimDueEveryHandlers} this consults no tick: it is the drain half of the spec's
+ * queueing rule, "the implementation MUST queue that occurrence and **run it once the handler is
+ * free**" (`spec/interaction-events.md:189-196`, maintainer ruling #984).
+ *
+ * A handler becomes free the moment its body returns, so the drain must not wait for a fresh
+ * event-loop checkpoint. Requiring one is not a slower drain, it is a **lost** invocation: a program
+ * whose `wait`s are exhausted supplies no further checkpoint, so the queued occurrence would never
+ * run at all — observationally identical to the "drop the missed occurrence" reading the ruling
+ * rejects. {@link dispatchDueHandlers} therefore calls this after its tick batch and keeps calling it
+ * until it comes back empty.
+ *
+ * A handler that keeps overrunning its own interval re-queues during each drained invocation, so the
+ * drain loop is what makes it "degrade to running back to back" (`:193-195`). That is unbounded in
+ * time by design and bounded by the ordinary instruction budget: each firing is a charged
+ * instruction, so an endlessly-overrunning handler raises `ol-limit` exactly as `forever` does
+ * (`spec/interaction-events.md:79`), rather than looping forever in the host.
+ */
+export function claimQueuedEveryHandlers(
+  registry: EventHandlerRegistry,
+): readonly EveryHandler[] {
+  const drained: EveryHandler[] = [];
+  for (const handler of registry.everyHandlers) {
+    if (handler.queued && !handler.running && !handler.claimed) {
+      handler.queued = false;
+      handler.claimed = true;
+      drained.push(handler);
+    }
+  }
+  return drained;
 }
 
 /**

@@ -10,7 +10,7 @@
  * hands them over. Same rule `web-bootstrap.ts` and `execution-worker-runner.ts` already follow.
  *
  * ## The two ways to activate the drawing surface
- * `spec/interaction-events.md:233-234` says `on_click` runs "when the drawing surface is clicked
+ * `spec/interaction-events.md:241-242` says `on_click` runs "when the drawing surface is clicked
  * **or activated by an equivalent accessible action**". Both are wired, and neither is a fallback
  * for the other:
  * - the canvas's own pointer `click`;

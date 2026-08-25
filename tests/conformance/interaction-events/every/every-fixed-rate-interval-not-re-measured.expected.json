@@ -1,7 +1,18 @@
 {
-  "description": "MAINTAINER RULING #984, Q3: the interval clock is FIXED RATE -- `each successive interval arrives n ticks after the previous interval, on that original schedule. The period is never re-measured from the moment an invocation happens to finish` (spec/interaction-events.md:182-186). `every 2` with a body that takes 3 ticks overruns its own interval on every invocation, so the two readings separate immediately. Measured: the intervals stand at ticks 2, 4, 6, 8 and 10 no matter when a body ends, and the outer `wait 4`'s four checkpoints -- ticks 1, 2, 6 and 10, because each body's nested `wait 3` advances the shared clock -- fire the handler THREE times. Measured against a runtime mutated to the rejected fixed-DELAY reading, where each period is disarmed for the duration of an invocation and re-armed from its completion tick, the same program fires it only TWICE. Fixed delay also makes the queueing sentence at :188-195 dead text, since a new interval could never arrive while one was running -- which is the argument that settles it.",
+  "description": "MAINTAINER RULING #984, Q3: the interval clock is FIXED RATE -- `each successive interval arrives n ticks after the previous interval, on that original schedule. The period is never re-measured from the moment an invocation happens to finish` (spec/interaction-events.md:183-187). A one-time block is what separates the two readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is claimed, so the handler is delayed but its clock is not. Measured: intervals arrive at ticks 4, 8 and 12 -- the original grid -- and the run prints FOUR times. Under the rejected fixed-DELAY reading the period restarts from each invocation's completion instead, so the handler finishes around tick 10 and its next interval is pushed to tick 14, past the end of the outer `wait 12`; that runtime prints THREE times. Fixed delay is also self-defeating: it disarms the handler for the duration of an invocation, so a new interval could never arrive while one was running, and the queueing sentence at :189-196 would be dead text -- which is the argument that settles the question. Dropping the missed occurrence also prints 3 here, so this fixture is not by itself a proof of fixed rate; it is the `every-*-queued-and-runs` pair that separates those two, and this one that separates fixed rate from fixed delay.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 4,
+          "kind": "key",
+          "key": "space"
+        }
+      ]
+    }
+  },
   "events": [
     {
       "seq": 0,
@@ -9,7 +20,7 @@
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 1],
-        "end": [1, 32]
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -21,7 +32,7 @@
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 1],
-        "end": [1, 32]
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -33,22 +44,22 @@
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [2, 1],
-        "end": [2, 7]
+        "end": [2, 26]
       },
       "payload": {
-        "statement_kind": "Call"
+        "statement_kind": "ProfileStatement"
       }
     },
     {
       "seq": 3,
-      "kind": "instruction",
+      "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 1],
-        "end": [1, 6]
+        "start": [2, 1],
+        "end": [2, 26]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "name": "on_key"
       }
     },
     {
@@ -56,8 +67,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 11],
-        "end": [1, 23]
+        "start": [3, 1],
+        "end": [3, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -65,14 +76,14 @@
     },
     {
       "seq": 5,
-      "kind": "print",
+      "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 11],
-        "end": [1, 23]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
-        "values": ["slow"]
+        "statement_kind": "ProfileStatement"
       }
     },
     {
@@ -80,8 +91,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
+        "start": [2, 18],
+        "end": [2, 24]
       },
       "payload": {
         "statement_kind": "Call"
@@ -92,8 +103,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
+        "start": [2, 18],
+        "end": [2, 24]
       },
       "payload": {
         "name": "wait"
@@ -117,7 +128,7 @@
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 11],
-        "end": [1, 23]
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -129,38 +140,14 @@
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 11],
-        "end": [1, 23]
+        "end": [1, 20]
       },
       "payload": {
-        "values": ["slow"]
+        "values": ["a"]
       }
     },
     {
       "seq": 11,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 12,
-      "kind": "primitive",
-      "source_span": {
-        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
-      },
-      "payload": {
-        "name": "wait"
-      }
-    },
-    {
-      "seq": 13,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
@@ -172,60 +159,108 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 12,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 11],
-        "end": [1, 23]
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 15,
+      "seq": 13,
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
         "start": [1, 11],
-        "end": [1, 23]
+        "end": [1, 20]
       },
       "payload": {
-        "values": ["slow"]
+        "values": ["a"]
       }
     },
     {
-      "seq": 16,
+      "seq": 14,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 17,
-      "kind": "primitive",
+      "seq": 16,
+      "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [1, 24],
-        "end": [1, 30]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "name": "wait"
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
       }
     },
     {
       "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 20,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
-        "start": [2, 1],
-        "end": [2, 7]
+        "start": [3, 1],
+        "end": [3, 8]
       },
       "payload": {
         "name": "wait"

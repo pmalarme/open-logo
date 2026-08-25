@@ -539,7 +539,7 @@ export interface NonPositiveWidthParams {
 
 /**
  * Params for an `ol-range` raised by `set_tempo` (issue #689) when its argument is a number but not
- * positive and finite (`spec/interaction-events.md:281` — "one positive number"; the default tempo
+ * positive and finite (`spec/interaction-events.md:289` — "one positive number"; the default tempo
  * is `120`). Only reached once {@link requireNumber} has already confirmed the argument is a number
  * at all (a non-number raises `ol-type` first, mirroring {@link NonPositiveWidthParams}'s
  * `set_width` order). `value` is rendered as `String(value)` for the same JSON-safety reason as
@@ -1507,7 +1507,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range` (issue #689) — `set_tempo`'s argument is a number but not positive and finite
-   * (`spec/interaction-events.md:281`: "one positive number"). Only reached once
+   * (`spec/interaction-events.md:289`: "one positive number"). Only reached once
    * {@link requireNumber} has already confirmed the value is a number. See
    * {@link NonPositiveTempoParams}.
    */

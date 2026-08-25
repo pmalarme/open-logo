@@ -430,67 +430,108 @@ test("a return escaping an every handler registered inside a proc is still ol-re
 
 // --- The queueing rule: a missed occurrence is coalesced to one and RUN, never dropped -----------
 
-test("a re-entrant wait inside an every handler does not deliver a second overlapping invocation", () => {
+test("a re-entrant wait inside an every handler does not deliver a second OVERLAPPING invocation", () => {
   // The handler for `every 2` runs a nested `wait 2`. While that inner wait advances the clock past
   // another due tick for the SAME handler, the handler is already `running`, so the arriving
-  // occurrence is QUEUED rather than re-entered — at most one pending invocation, no unbounded
-  // buildup (`spec/interaction-events.md:188-195`). Nothing drains it here: the outer `wait 2` has
-  // spent both its ticks, so the program ends with the occurrence still queued. The single outer due
-  // tick therefore produces exactly one `print` from this handler. The companion test below adds the
-  // checkpoint that drains it.
+  // occurrence is QUEUED rather than re-entered — no invocation ever overlaps itself, which is what
+  // "at most one pending invocation" buys (`spec/interaction-events.md:189-196`). The queued
+  // occurrence is not lost: it is drained once the body returns, so the run prints twice. What is
+  // pinned here is the absence of OVERLAP, not the absence of a second run — the second `print`
+  // provably follows the first rather than interleaving with it.
   const result = execute('every 2 [ print "x" wait 2 ]\nwait 2', doc);
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
-  assert.equal(prints.length, 1);
+  assert.equal(prints.length, 2);
 });
 
-test("an occurrence missed while the handler was running is queued and RUNS at the next checkpoint", () => {
-  // Maintainer ruling #984: coalescing is REQUIRED, not optional. `every 3`'s body takes 4 ticks, so
-  // the interval that arrives at tick 6 lands while the tick-3 invocation is still running and must
-  // be queued. The trailing `wait 1` supplies one checkpoint, at tick 8 — where the handler is NOT
-  // due (its next interval is tick 9) and is free — so the ONLY thing that can produce a second
-  // `print` is the queued occurrence being drained. Two prints. Dropping the missed occurrence, the
-  // pre-#984 behaviour, prints once.
-  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3\nwait 1', doc);
+test("an occurrence missed while the handler was running is queued and RUNS once it is free", () => {
+  // Maintainer ruling #984: coalescing is REQUIRED, not optional, and the queued occurrence runs
+  // "once the handler is free" — not at whatever later checkpoint the program happens to supply.
+  // `every 3`'s body takes 4 ticks, so the interval arriving at tick 6 lands while the tick-3
+  // invocation is still running and must be queued. The body finishes at tick 7 and the queued
+  // occurrence is drained immediately after it, inside the SAME dispatch — note the outer `wait 3`
+  // has already spent its last tick, so a runtime that waits for a fresh checkpoint prints once and
+  // loses the occurrence, which is the rejected "drop it" reading wearing a different hat.
+  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc);
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
   assert.equal(prints.length, 2);
+});
+
+test("a queued-but-unstarted occurrence is discarded when the run closes", () => {
+  // The run-lifetime half of ruling #984: "the run's lifetime is the main line's business — an
+  // `every` handler does not extend it". The drained invocation above overruns in its turn and
+  // queues another occurrence, but the main line's `wait 3` is spent, so the run closes and that
+  // occurrence is discarded. Exactly two prints and NO diagnostic. Draining in a loop until the
+  // queues empty instead manufactures ticks the main line never asked for, running back to back
+  // until the budget raises `ol-limit` — measured at 333,333 prints before this was corrected.
+  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("under an explicit forever, an overrunning handler runs back to back until the budget stops it", () => {
+  // The counterpart: a learner who wants the timer to keep firing says so, and then
+  // `spec/interaction-events.md:189-196`'s "degrades to running back to back" applies, bounded by
+  // the ordinary instruction budget exactly as any non-terminating program is (`:79`). This is what
+  // keeps the discard rule honest — without it, "discarded when the run closes" could be satisfied
+  // by never draining at all.
+  const result = execute(
+    'every 2 [ print "a" wait 3 ]\nforever [ wait 1 ]',
+    doc,
+    {
+      instructionBudget: 60,
+    },
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.ok(
+    prints.length > 1,
+    "the handler fired repeatedly before the budget stopped it",
+  );
 });
 
 test("further intervals arriving while one is already queued coalesce: the queue never exceeds one", () => {
-  // `every 1` under a body that takes 5 ticks: intervals arrive on ticks 2,3,4,5,6 while the tick-1
-  // invocation runs — five missed occurrences, all coalescing into the single queue slot. The
-  // trailing `wait 1` drains exactly ONE of them, so the run prints twice, not six times. This is
-  // the "at most one pending invocation … prevents unbounded buildup" cap, measured.
-  const result = execute('every 1 [ print "a" wait 5 ]\nwait 1\nwait 1', doc);
+  // The cap. A once-firing `on_key` holds the thread for 17 ticks while the `every 4` handler is
+  // claimed, so four of its intervals (ticks 8, 12, 16, 20) arrive and all coalesce into the single
+  // slot. The outer `wait 26` keeps the run OPEN past the blockage, which is what makes the cap
+  // observable at all: a backlog drains one occurrence per checkpoint, so if the main line stopped
+  // supplying checkpoints when the block ended, a capped and an uncapped queue would be
+  // indistinguishable. Measured 7 prints here against 10 for an uncapped counter.
+  const result = execute(
+    'every 4 [ print "a" ]\non_key "space" [ wait 17 ]\nwait 26',
+    doc,
+    { hostInput: { events: [{ tick: 4, kind: "key", key: "space" }] } },
+  );
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
-  assert.equal(prints.length, 2);
+  assert.equal(prints.length, 7);
 });
 
 test("the interval clock is FIXED RATE: a late invocation does not re-measure the period", () => {
-  // Maintainer ruling #984, `spec/interaction-events.md:182-186`. `every 2` with a body that takes 3
-  // ticks, under `wait 4`. Fixed rate: intervals arrive at ticks 2, 4, 6, 8, 10 on their own
-  // schedule regardless of when a body finishes, and the outer wait's four checkpoints land on ticks
-  // 1, 2, 6 and 10 (the body's own nested waits advance the shared clock), firing the handler three
-  // times. Fixed DELAY — re-measuring the period from each completion — would push the next interval
-  // to completion+2, so the outer wait's checkpoints would find it due only twice. Three prints is
-  // therefore the fixed-rate signature.
-  const result = execute('every 2 [ print "slow" wait 3 ]\nwait 4', doc);
+  // Maintainer ruling #984, `spec/interaction-events.md:183-187`. A one-time block separates the two
+  // readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is
+  // claimed, so the handler is delayed but its clock is not — intervals stand at ticks 4, 8 and 12,
+  // the original grid, and the run prints four times. Under fixed DELAY the period would restart
+  // from each invocation's completion, pushing the next interval past the end of the outer
+  // `wait 12`; that runtime prints three times.
+  const result = execute(
+    'every 4 [ print "a" ]\non_key "space" [ wait 6 ]\nwait 12',
+    doc,
+    { hostInput: { events: [{ tick: 4, kind: "key", key: "space" }] } },
+  );
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
-  assert.equal(prints.length, 3);
+  assert.equal(prints.length, 4);
 });
 
 test("a sibling handler is not re-fired out of order by another handler's re-entrant wait", () => {
   // Both handlers are due on tick 2. The first handler's body runs a nested `wait 2`, advancing the
-  // clock to tick 4 — the second handler's next interval boundary. Without an up-front batch claim
-  // the second handler would fire during that inner wait (for tick 4) AND again from the outer
-  // tick-2 batch, printing "b" twice, out of chronological order. Because the outer batch marks both
-  // handlers `claimed` up front, the inner wait QUEUES the second handler's tick-4 occurrence
-  // instead of claiming it a second time, so it fires exactly once here, after "a", in registration
-  // order: ["a", "b"]. The queued occurrence is never drained — the outer `wait 2` has no checkpoint
-  // left — which is why the queueing rule does not disturb this ordering guarantee.
+  // clock to tick 4 — the second handler's next interval boundary. Because the outer batch marks
+  // both handlers `claimed` up front, the inner wait cannot claim the sibling a second time and
+  // fire it out of chronological order; it queues that occurrence instead. The batch therefore runs
+  // them once each in registration order, and the two queued tick-4 occurrences are then drained
+  // after it, again in registration order: a, b, a, b.
   const result = execute(
     'every 2 [ print "a" wait 2 ]\nevery 2 [ print "b" ]\nwait 2',
     doc,
@@ -500,7 +541,7 @@ test("a sibling handler is not re-fired out of order by another handler's re-ent
     effectEvents(result)
       .filter((event) => event.kind === "print")
       .map((event) => event.payload.values[0]),
-    ["a", "b"],
+    ["a", "b", "a", "b"],
   );
 });
 

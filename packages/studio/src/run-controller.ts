@@ -585,7 +585,7 @@ export interface RunController {
   step(): void;
   /**
    * Deliver one key press to the running program (#952), as the OpenLogo key word
-   * `spec/interaction-events.md:213-217` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
+   * `spec/interaction-events.md:221-225` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
    * The press is scheduled at the next studio tick and the current chain is replayed with it, so
@@ -619,7 +619,7 @@ export interface RunController {
   deliverKey(key: string): boolean;
   /**
    * Deliver one activation of the drawing surface to the running program (#952) — a pointer click
-   * **or** "an equivalent accessible action" (`spec/interaction-events.md:233-234`), which is why
+   * **or** "an equivalent accessible action" (`spec/interaction-events.md:241-242`), which is why
    * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
    * keyboard-reachable activation control is exactly as complete a click as a mouse is.
    *

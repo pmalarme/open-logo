@@ -1,12 +1,12 @@
 {
-  "description": "MAINTAINER RULING #984, Q2, the cap: the queue holds AT MOST ONE pending invocation, and further intervals arriving while it is full COALESCE into it rather than accumulating (spec/interaction-events.md:188-195). Pinning a cap needs a handler that is blocked while several of its intervals arrive and is then FREE, with no fresh interval, across several checkpoints -- which a self-blocking `every` body cannot provide, because each drained invocation immediately rebuilds the backlog. The blocker here is therefore an `on_key` handler, which fires once for the one key the host delivers. Measured: the key arrives at tick 10, on the same tick the `every 10` handler is due, so the tick's whole batch is claimed up front (spec/interaction-events.md:84-89 orders `on_key` before due `every`) and the `every` handler sits CLAIMED while the `on_key` body's `wait 25` runs ticks 11-35. Two of its intervals arrive in that window, at ticks 20 and 30, and coalesce into the one slot. The `on_key` body ends at tick 35; the `every` handler then runs from its original claim (print 1). The first `wait 0` yields at tick 35 -- no clock advance, and the handler is not due until tick 40 -- so the ONLY thing that can fire is the queued occurrence (print 2). The second and third `wait 0` yield at that same tick and fire NOTHING, which is the cap itself: two arrivals, one drain, empty. Measured against a runtime whose queue is an uncapped counter, the same program prints THREE times -- the unbounded buildup the sentence exists to forbid. It also fails a fixed-DELAY scheduler, which prints once.",
+  "description": "MAINTAINER RULING #984, Q2, the cap: the queue holds AT MOST ONE pending invocation, and further intervals arriving while it is full COALESCE into it rather than accumulating (spec/interaction-events.md:189-196). Pinning a cap needs the run to stay OPEN after the blockage clears, which is the whole design of this fixture: a queued backlog is drained one occurrence per event-loop checkpoint, so if the main line stops supplying checkpoints the moment the block ends, a capped and an uncapped queue are indistinguishable -- both simply stop. The measured trap: the same program with `wait 4` instead of `wait 26` prints twice under BOTH, and would have shipped as a cap fixture that pins no cap. Here a key press at tick 4 holds the execution thread for seventeen ticks while the `every 4` handler is claimed, and its intervals arrive on schedule at ticks 8, 12, 16 and 20 -- FOUR missed occurrences, all coalescing into the single slot. The outer `wait 26` then keeps the run open well past the blockage. Measured: SEVEN prints. Against a runtime whose queue is an uncapped counter the same program prints TEN -- exactly the three extra occurrences the cap discarded -- which is the unbounded buildup the sentence exists to forbid. Dropping the missed occurrence prints 6, and a fixed-delay clock prints 6.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "hostInput": {
       "events": [
         {
-          "tick": 10,
+          "tick": 4,
           "kind": "key",
           "key": "space"
         }
@@ -20,7 +20,7 @@
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
         "start": [1, 1],
-        "end": [1, 23]
+        "end": [1, 22]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -32,7 +32,7 @@
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
         "start": [1, 1],
-        "end": [1, 23]
+        "end": [1, 22]
       },
       "payload": {
         "name": "every"
@@ -127,8 +127,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [1, 12],
-        "end": [1, 21]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -139,8 +139,8 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [1, 12],
-        "end": [1, 21]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "values": ["a"]
@@ -148,30 +148,6 @@
     },
     {
       "seq": 11,
-      "kind": "primitive",
-      "source_span": {
-        "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [3, 1],
-        "end": [3, 8]
-      },
-      "payload": {
-        "name": "wait"
-      }
-    },
-    {
-      "seq": 12,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [4, 1],
-        "end": [4, 7]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 13,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
@@ -183,39 +159,63 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 12,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [1, 12],
-        "end": [1, 21]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
-      "seq": 15,
+      "seq": 13,
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [1, 12],
-        "end": [1, 21]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "values": ["a"]
       }
     },
     {
-      "seq": 16,
-      "kind": "primitive",
+      "seq": 14,
+      "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [4, 1],
-        "end": [4, 7]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
-        "name": "wait"
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
       }
     },
     {
@@ -223,44 +223,152 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [5, 1],
-        "end": [5, 7]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
-        "statement_kind": "Call"
+        "statement_kind": "ProfileStatement"
       }
     },
     {
       "seq": 18,
-      "kind": "primitive",
-      "source_span": {
-        "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [5, 1],
-        "end": [5, 7]
-      },
-      "payload": {
-        "name": "wait"
-      }
-    },
-    {
-      "seq": 19,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [6, 1],
-        "end": [6, 7]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
       }
     },
     {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
       "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queue-coalesces-to-one",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 29,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [6, 1],
-        "end": [6, 7]
+        "start": [3, 1],
+        "end": [3, 8]
       },
       "payload": {
         "name": "wait"
