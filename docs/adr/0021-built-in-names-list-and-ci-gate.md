@@ -9,7 +9,9 @@
   their public API only); [ADR-0012](0012-standard-library-location.md) (`stdlib/*.logo` — why
   `polygon` is a library, not a built-in);
   [LDR-0007](../design-notes/0007-binding-vs-registration.md) (the language-design decision this
-  record supplies the mechanism for); ruling #833 rule 7; slice #841 (the implementation)
+  record supplies the mechanism for); ruling #833 rule 7; slice #841 (the implementation); refined
+  by [ADR-0025](0025-token-class-declared-and-gated.md) (adds a second per-name axis, `tokenClass`,
+  and replaces this record's token-class change detector with a comparison)
 - Measurements: every present-tense statement about implementation behaviour in this record was
   measured at commit `1499e1e` and describes the tree as it stood when the record was accepted.
   Where a later slice is expected to change that behaviour, the record names the slice. Read every

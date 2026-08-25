@@ -753,11 +753,14 @@ export function highlight(
     }
     // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, which takes
     // no block, and Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but
-    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "and, while their profile is active,
-    // the profile block-heads together with the Sprites mode-switch command `tell`"). With the
+    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "Profile words — a profile's
+    // block-heads and its mode-switch commands — take this class while their profile is active").
+    // With the
     // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile word
     // whose profile is inactive". Those two clauses are the whole rule, and they are why this
-    // classifier needs an active-profile set at all (issue #740).
+    // classifier needs an active-profile set at all (issue #740). Which words those are is declared
+    // per name as `tokenClass` in `spec/built-in-names.json`, and `npm run built-in-names` re-paints
+    // every one of them through this function to check both halves (issue #959).
     //
     // `isKeyword`'s two-argument form IS this rule — `keywords.ts` defines it as the Core list OR
     // an active profile's words — so the registry stays the single entry point rather than this

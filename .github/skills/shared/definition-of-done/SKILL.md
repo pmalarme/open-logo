@@ -45,8 +45,10 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    prose lists that nothing used to check. Two of them are **compared**: `spec/grammar.md`'s
    normative keyword block, against the list, and `spec/tooling.md`'s C19 mirror, against that
    block. The third, `spec/tooling.md`'s `keyword` **token-class** enumeration (a different set from
-   the keyword list on purpose, `spec/grammar.md:378`), is **change-detected only** — an edit is
-   noticed, and nothing verifies the edited row is still correct. Adding or removing a **primitive**
+   the keyword list on purpose, `spec/grammar.md:378`), moved out of the row and into the list as a
+   per-name `tokenClass` (issue #959): the gate re-paints every name through the shipped
+   `highlight()` and compares in both directions, so a wrong class can no longer be green. Adding or
+   removing a **primitive**
    is therefore a deliberate **two-file** change — the registry and the list — and CI is red until
    both land; a **keyword** touches the prose lists too. The list is under `spec/`, so changing it
    needs a maintainer review via `CODEOWNERS`.

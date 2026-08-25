@@ -935,9 +935,11 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
 // to `{}` and every column read the Core-only answer.
 //
-// The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
-// (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
-// conformance harness asserts events and diagnostics but has no token-class channel. So for the
+// The `keyword` row of `spec/tooling.md`'s token-class table no longer enumerates the class: since
+// issue #959 each name's class is declared as `tokenClass` in `spec/built-in-names.json` and
+// `npm run built-in-names` re-paints every name through the shipped `highlight()` to compare. That
+// sweep covers each name in isolation; the conformance harness still has no token-class channel. So
+// for the
 // half stated above — that a profile set moves no NON-profile word — these four tests are the only
 // thing holding it; the profile words' own two directions are held by the per-profile suites, and
 // test 4 here keeps this block honest about them. Listed in the order they appear below:

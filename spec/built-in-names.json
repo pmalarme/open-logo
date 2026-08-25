@@ -1,6 +1,6 @@
 {
   "specVersion": "0.1.0",
-  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. Membership here answers one question only -- may a program declare this name? -- and never how a word is highlighted, which spec/tooling.md owns as an independent axis. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is. A note must be present and non-blank after trimming, and two further mechanical checks apply to its CONTENT -- no control character in any string value of this file, and no note naming an accessor the file declares. Nothing verifies the rest of what a note says. In particular the no-restatement rule below is stated in full and only partly enforced: the no-counts half is deliberately NOT checked, because checking it needs a list of counting words, which is itself the second list this file exists to remove. The rule: a note must never restate data this file already carries, because a restatement is a second list. This applies to `note` only -- `invariants`, `profiles.about`, `tokenClassKeyword` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
+  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. It carries TWO independent axes per name and neither determines the other (spec/grammar.md:378): `category` answers may a program DECLARE this name?, and `tokenClass` answers how is this word PAINTED? -- see `tokenClass` below, which spec/tooling.md's normative token-class model owns and this file enumerates. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is. A note must be present and non-blank after trimming, and two further mechanical checks apply to its CONTENT -- no control character in any string value of this file, and no note naming an accessor the file declares. Nothing verifies the rest of what a note says. In particular the no-restatement rule below is stated in full and only partly enforced: the no-counts half is deliberately NOT checked, because checking it needs a list of counting words, which is itself the second list this file exists to remove. The rule: a note must never restate data this file already carries, because a restatement is a second list. This applies to `note` only -- `invariants`, `profiles.about`, `tokenClass` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
   "invariants": {
     "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
     "precedence": "A name reachable from two registries is filed ONCE. Precedence is TWO-LEVEL and the order matters: first by CATEGORY, `keyword` beating `primitive` regardless of where the tags sit -- which is what files `thing` as a keyword though `core-primitive` also holds it; then, among registries of the SAME category, by the key order of `registries` below -- which is what files `to` under core-language rather than heritage, since `reserved` precedes `heritage-form-head`. Reordering `registries` therefore never changes a keyword/primitive verdict, only which same-category tag supplies the `profile`. Its `profile` follows the precedence-winning registry. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
@@ -244,15 +244,64 @@
     "modules": "The Modules profile's surface is the Core keywords `import` and `export` plus module resolution; it introduces no primitive of its own (spec/conformance.md's Modules section). ADR-0021 §5 additionally forbids a loaded library's procedures from ever entering this list -- they register through the ordinary phase-1 procedure table, so colliding with one raises ol-duplicate-definition, not ol-reserved-word.",
     "localization": "Localization ships `alias` keyword packs -- alternate spellings declared in OpenLogo source -- rather than primitives (spec/conformance.md's Localization section). An alias spelling a program declares is a program name, not a built-in one."
   },
-  "tokenClassKeyword": {
-    "about": "spec/tooling.md's `keyword` TOKEN CLASS is a different set from the keyword list above, on purpose (spec/grammar.md:378), and it cannot be derived: measured against shipped output it OMITS some keywords (`and`/`or`/`not`/`mod`, which are `operator`), ADDS four words that are not built-in names at all (`empty`/`member`/`of`/`a`), and adds the profile words. Both a positional rule and \"the keyword list minus the operators\" were tried and refuted by measurement in issue #855.",
-    "rowFingerprint": "5fe80a78d818c0162f94287110cf94a845e388d7cd4a1eb82e57ee0c9d1197b9",
-    "rowFingerprintReason": "A sha256 of the `keyword` row of spec/tooling.md's token-class table, byte for byte. It is a CHANGE DETECTOR and nothing more: it verifies the row has not changed, and verifies NOTHING about whether the row is correct. Stating that limit is the point. Issue #841 tried three stronger mechanisms across six review rounds -- hand-declared clause anchors (about twenty findings), then a fingerprint alone, then a fingerprint with derived claims layered on -- and every one of them overstated what it checked. The last and clearest: two clauses described as 'derived' were self-declared literals compared against the row, so they verified manifest-row AGREEMENT rather than truth, and inverting the sentence in both while recomputing the digest passed every check. The row is a long paragraph of English that spec/grammar.md:378 makes deliberately underivable; a mechanism claiming more than change detection over it has, repeatedly, been claiming something it did not check. What guards this row's CORRECTNESS is that spec/ is maintainer-owned under CODEOWNERS. What this digest guarantees is that a change to it cannot pass unseen -- silent drift becomes loud drift, which is the difference between the row shifting unnoticed and someone being made to look at it. The token-class enumeration therefore remains only partially guarded, and that gap is recorded on issue #841 rather than implied."
+  "tokenClass": {
+    "about": "How a conforming highlighter PAINTS each built-in name: spec/tooling.md's normative token-class model, declared here as data rather than enumerated in prose. This is a SECOND AXIS, INDEPENDENT of `category` above, and neither determines the other (spec/grammar.md:378). `category` answers may a program DECLARE this name?; `tokenClass` answers how is this word PAINTED? They disagree wherever the language spells an operator as a word: `and`, `or`, `not` and `mod` are category keyword and tokenClass operator. Their profile semantics differ too -- `category` is unconditional (spec/grammar.md:408), while `tokenClass` is the class WHILE THE ENTRY'S OWN PROFILE IS ACTIVE, so a non-core name painted keyword here falls back to primitive when its profile is inactive (spec/tooling.md:31). What issue #855 refuted was DERIVING this class from data that already existed -- a positional rule, and the keyword list minus the operators. DECLARING it as new data was never attempted; cannot be derived from the existing lists and cannot be written down are different claims, and issue #959 separated them. Every value here is COMPARED, in both directions, against @openlogo/parser's shipped highlight() output, so a value that is wrong cannot be green -- which is what the change detector this block replaces could never do.",
+    "classVocabulary": "A tokenClass is one of spec/tooling.md's normative token classes, and the gate requires membership in the implementation's own OL_TOKEN_CLASSES rather than a list restated here. Only three of them can be the class of a NAME: keyword, primitive, and operator. The other twelve classify punctuation, literals, comments, or a spelling that symbol discovery has resolved to a program's own procedure, type, or field -- none of which a built-in name is.",
+    "positionIndependence": "Every name below carries ONE class because every name below is painted the same wherever it appears, including the positions where the grammar admits it as an ordinary name (`local end`, `for end from 1 to 3`, `export end`, `:p.end`). That is a measured claim, not an assumption: the gate re-paints every name in each of those positions and fails if any two disagree. A word whose class DOES depend on position cannot be a row here at all -- see `contextual` below.",
+    "contextual": {
+      "about": "The four words that are painted keyword BY POSITION and are ordinary names everywhere else, so no single class above can express them. They are not built-in names at all (spec/grammar.md:378) and so are absent from `names`; their DECLARATION axis is the matching `excluded` carve-out with reason contextual-keyword, and the gate requires this set and that one to name the same words with the same positions, in both directions. Emptying either therefore fails against the other, and against spec/tooling.md's own two prose statements of the same set, which the gate compares word for word.",
+      "class": "keyword",
+      "elsewhereClass": "primitive",
+      "words": [
+        {
+          "name": "empty",
+          "positions": {
+            "is-predicate": ":x is empty"
+          },
+          "elsewhereProbes": [
+            "local empty",
+            "print empty"
+          ]
+        },
+        {
+          "name": "member",
+          "positions": {
+            "is-predicate": "2 is member of :nums"
+          },
+          "elsewhereProbes": [
+            "local member",
+            "print member"
+          ]
+        },
+        {
+          "name": "of",
+          "positions": {
+            "is-predicate": "2 is member of :nums",
+            "value-of-reader": "value of :d for key \"a\""
+          },
+          "elsewhereProbes": [
+            "local of",
+            "print of"
+          ]
+        },
+        {
+          "name": "a",
+          "positions": {
+            "is-predicate": ":p is a \"point\""
+          },
+          "elsewhereProbes": [
+            "local a",
+            "print a"
+          ]
+        }
+      ]
+    }
   },
   "names": [
     {
       "name": "abs",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -261,6 +310,7 @@
     {
       "name": "add",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -269,6 +319,7 @@
     {
       "name": "alias",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -277,6 +328,7 @@
     {
       "name": "and",
       "category": "keyword",
+      "tokenClass": "operator",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -285,6 +337,7 @@
     {
       "name": "ask",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "sprites",
       "registries": [
         "profile-reserved"
@@ -293,6 +346,7 @@
     {
       "name": "at",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -301,6 +355,7 @@
     {
       "name": "axes",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "geometry",
       "registries": [
         "geometry-primitive"
@@ -309,6 +364,7 @@
     {
       "name": "back",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -317,6 +373,7 @@
     {
       "name": "beep",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sound",
       "registries": [
         "sound-primitive"
@@ -325,6 +382,7 @@
     {
       "name": "between",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -333,6 +391,7 @@
     {
       "name": "bf",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -342,6 +401,7 @@
     {
       "name": "bk",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -351,6 +411,7 @@
     {
       "name": "bl",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -360,6 +421,7 @@
     {
       "name": "butfirst",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -368,6 +430,7 @@
     {
       "name": "butlast",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -376,6 +439,7 @@
     {
       "name": "by",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -384,6 +448,7 @@
     {
       "name": "challenge",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "tutor-ai",
       "registries": [
         "tutor-primitive"
@@ -392,6 +457,7 @@
     {
       "name": "clean",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -400,6 +466,7 @@
     {
       "name": "clear",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -408,6 +475,7 @@
     {
       "name": "clear_screen",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -416,6 +484,7 @@
     {
       "name": "cos",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -424,6 +493,7 @@
     {
       "name": "count",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -432,6 +502,7 @@
     {
       "name": "cs",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -441,6 +512,7 @@
     {
       "name": "debug",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "educational",
       "registries": [
         "educational-primitive"
@@ -449,6 +521,7 @@
     {
       "name": "define",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -457,6 +530,7 @@
     {
       "name": "dict",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -465,6 +539,7 @@
     {
       "name": "distance",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -473,6 +548,7 @@
     {
       "name": "each",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "sprites",
       "registries": [
         "profile-reserved"
@@ -481,6 +557,7 @@
     {
       "name": "else",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -489,6 +566,7 @@
     {
       "name": "empty?",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -497,6 +575,7 @@
     {
       "name": "end",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -505,6 +584,7 @@
     {
       "name": "every",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "interaction-events",
       "registries": [
         "profile-reserved"
@@ -513,6 +593,7 @@
     {
       "name": "explain",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "educational",
       "registries": [
         "educational-primitive"
@@ -521,6 +602,7 @@
     {
       "name": "export",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -529,6 +611,7 @@
     {
       "name": "false",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -537,6 +620,7 @@
     {
       "name": "fd",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -546,6 +630,7 @@
     {
       "name": "fill",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -554,6 +639,7 @@
     {
       "name": "filter",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -562,6 +648,7 @@
     {
       "name": "first",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -570,6 +657,7 @@
     {
       "name": "for",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -578,6 +666,7 @@
     {
       "name": "forever",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -586,6 +675,7 @@
     {
       "name": "forward",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -594,6 +684,7 @@
     {
       "name": "fput",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -602,6 +693,7 @@
     {
       "name": "from",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -610,6 +702,7 @@
     {
       "name": "grid",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "geometry",
       "registries": [
         "geometry-primitive"
@@ -618,6 +711,7 @@
     {
       "name": "heading",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -626,6 +720,7 @@
     {
       "name": "hide_turtle",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -634,6 +729,7 @@
     {
       "name": "hint",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "educational",
       "registries": [
         "educational-primitive"
@@ -642,6 +738,7 @@
     {
       "name": "home",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -650,6 +747,7 @@
     {
       "name": "ht",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -659,6 +757,7 @@
     {
       "name": "if",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -667,6 +766,7 @@
     {
       "name": "import",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -675,6 +775,7 @@
     {
       "name": "in",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -683,6 +784,7 @@
     {
       "name": "input",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "interaction-events",
       "registries": [
         "interaction-primitive"
@@ -691,6 +793,7 @@
     {
       "name": "insert",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -699,6 +802,7 @@
     {
       "name": "int",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -707,6 +811,7 @@
     {
       "name": "is",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -715,6 +820,7 @@
     {
       "name": "is_a?",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -723,6 +829,7 @@
     {
       "name": "key",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -731,6 +838,7 @@
     {
       "name": "keys",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -739,6 +847,7 @@
     {
       "name": "last",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -747,6 +856,7 @@
     {
       "name": "left",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -755,6 +865,7 @@
     {
       "name": "list",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -763,6 +874,7 @@
     {
       "name": "local",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -771,6 +883,7 @@
     {
       "name": "lowercase",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -779,6 +892,7 @@
     {
       "name": "lput",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -787,6 +901,7 @@
     {
       "name": "lt",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -796,6 +911,7 @@
     {
       "name": "make",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -805,6 +921,7 @@
     {
       "name": "map",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -813,6 +930,7 @@
     {
       "name": "measure",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "geometry",
       "registries": [
         "geometry-primitive"
@@ -821,6 +939,7 @@
     {
       "name": "member?",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -829,6 +948,7 @@
     {
       "name": "mod",
       "category": "keyword",
+      "tokenClass": "operator",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -837,6 +957,7 @@
     {
       "name": "new_turtle",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sprites",
       "registries": [
         "sprites-primitive"
@@ -845,6 +966,7 @@
     {
       "name": "not",
       "category": "keyword",
+      "tokenClass": "operator",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -853,6 +975,7 @@
     {
       "name": "note",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sound",
       "registries": [
         "sound-primitive"
@@ -861,6 +984,7 @@
     {
       "name": "on_click",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "interaction-events",
       "registries": [
         "profile-reserved"
@@ -869,6 +993,7 @@
     {
       "name": "on_key",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "interaction-events",
       "registries": [
         "profile-reserved"
@@ -877,6 +1002,7 @@
     {
       "name": "op",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -886,6 +1012,7 @@
     {
       "name": "or",
       "category": "keyword",
+      "tokenClass": "operator",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -894,6 +1021,7 @@
     {
       "name": "output",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -903,6 +1031,7 @@
     {
       "name": "pd",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -912,6 +1041,7 @@
     {
       "name": "pen_down",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -920,6 +1050,7 @@
     {
       "name": "pen_up",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -928,6 +1059,7 @@
     {
       "name": "pi",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -936,6 +1068,7 @@
     {
       "name": "pick",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -944,6 +1077,7 @@
     {
       "name": "play",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sound",
       "registries": [
         "sound-primitive"
@@ -952,6 +1086,7 @@
     {
       "name": "pos",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -960,6 +1095,7 @@
     {
       "name": "power",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -968,6 +1104,7 @@
     {
       "name": "pr",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -977,6 +1114,7 @@
     {
       "name": "print",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -985,6 +1123,7 @@
     {
       "name": "pu",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -994,6 +1133,7 @@
     {
       "name": "random",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1002,6 +1142,7 @@
     {
       "name": "randomize",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1010,6 +1151,7 @@
     {
       "name": "reduce",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1018,6 +1160,7 @@
     {
       "name": "remove",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1026,6 +1169,7 @@
     {
       "name": "repcount",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1034,6 +1178,7 @@
     {
       "name": "repeat",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1042,6 +1187,7 @@
     {
       "name": "rest",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sound",
       "registries": [
         "sound-primitive"
@@ -1050,6 +1196,7 @@
     {
       "name": "return",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1058,6 +1205,7 @@
     {
       "name": "reverse",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -1066,6 +1214,7 @@
     {
       "name": "right",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1074,6 +1223,7 @@
     {
       "name": "round",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1082,6 +1232,7 @@
     {
       "name": "rt",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -1091,6 +1242,7 @@
     {
       "name": "se",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -1100,6 +1252,7 @@
     {
       "name": "sentence",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1108,6 +1261,7 @@
     {
       "name": "set",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1116,6 +1270,7 @@
     {
       "name": "set_background",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1124,6 +1279,7 @@
     {
       "name": "set_color",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1132,6 +1288,7 @@
     {
       "name": "set_heading",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1140,6 +1297,7 @@
     {
       "name": "set_shape",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1148,6 +1306,7 @@
     {
       "name": "set_tempo",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sound",
       "registries": [
         "sound-primitive"
@@ -1156,6 +1315,7 @@
     {
       "name": "set_width",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1164,6 +1324,7 @@
     {
       "name": "set_xy",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1172,6 +1333,7 @@
     {
       "name": "setbg",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1181,6 +1343,7 @@
     {
       "name": "setcolor",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1190,6 +1353,7 @@
     {
       "name": "seth",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1199,6 +1363,7 @@
     {
       "name": "setwidth",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1208,6 +1373,7 @@
     {
       "name": "setxy",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1217,6 +1383,7 @@
     {
       "name": "show",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1225,6 +1392,7 @@
     {
       "name": "show_turtle",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1233,6 +1401,7 @@
     {
       "name": "sin",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1241,6 +1410,7 @@
     {
       "name": "sort",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -1249,6 +1419,7 @@
     {
       "name": "sqrt",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1257,6 +1428,7 @@
     {
       "name": "st",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "heritage",
       "registries": [
         "heritage-alias"
@@ -1266,6 +1438,7 @@
     {
       "name": "stamp",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1274,6 +1447,7 @@
     {
       "name": "stop",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1282,6 +1456,7 @@
     {
       "name": "strictly",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1290,6 +1465,7 @@
     {
       "name": "struct",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1298,6 +1474,7 @@
     {
       "name": "tan",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1306,6 +1483,7 @@
     {
       "name": "tell",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "sprites",
       "registries": [
         "profile-reserved"
@@ -1314,6 +1492,7 @@
     {
       "name": "thing",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -1323,6 +1502,7 @@
     {
       "name": "throw",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1331,6 +1511,7 @@
     {
       "name": "to",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -1340,6 +1521,7 @@
     {
       "name": "towards",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1348,6 +1530,7 @@
     {
       "name": "true",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1356,6 +1539,7 @@
     {
       "name": "turtles",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sprites",
       "registries": [
         "sprites-primitive"
@@ -1364,6 +1548,7 @@
     {
       "name": "type_of",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -1372,6 +1557,7 @@
     {
       "name": "uppercase",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1380,6 +1566,7 @@
     {
       "name": "value",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved",
@@ -1389,6 +1576,7 @@
     {
       "name": "values",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "data",
       "registries": [
         "data-primitive"
@@ -1397,6 +1585,7 @@
     {
       "name": "wait",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "interaction-events",
       "registries": [
         "interaction-primitive"
@@ -1405,6 +1594,7 @@
     {
       "name": "when",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "interaction-events",
       "registries": [
         "profile-reserved"
@@ -1413,6 +1603,7 @@
     {
       "name": "while",
       "category": "keyword",
+      "tokenClass": "keyword",
       "profile": "core-language",
       "registries": [
         "reserved"
@@ -1421,6 +1612,7 @@
     {
       "name": "who",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "sprites",
       "registries": [
         "sprites-primitive"
@@ -1429,6 +1621,7 @@
     {
       "name": "why",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "educational",
       "registries": [
         "educational-primitive"
@@ -1437,6 +1630,7 @@
     {
       "name": "word",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "core-language",
       "registries": [
         "core-primitive"
@@ -1445,6 +1639,7 @@
     {
       "name": "xcor",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1453,6 +1648,7 @@
     {
       "name": "ycor",
       "category": "primitive",
+      "tokenClass": "primitive",
       "profile": "turtle-rendering",
       "registries": [
         "turtle-primitive"
@@ -1527,7 +1723,7 @@
         "is-predicate",
         "value-of-reader"
       ],
-      "rationale": "Structural in two positions and a built-in name in neither (spec/grammar.md:380). `define of` is legal and `value of :d for key \"a\"` still reports the key's value afterwards. `positions` records where the grammar makes the word structural; it says nothing about how the word is painted, which is an independent axis (LDR-0007)."
+      "rationale": "Structural in two positions and a built-in name in neither (spec/grammar.md:380). `define of` is legal and `value of :d for key \"a\"` still reports the key's value afterwards. `positions` records where the grammar makes the word structural, which is an independent axis from how the word is painted (LDR-0007); the paint is declared separately under `tokenClass.contextual`, and the gate requires the two to record the same positions so neither can drift from the other."
     }
   ]
 }

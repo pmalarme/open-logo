@@ -12,7 +12,8 @@
 // and checker, so all four are proven here — not one representative:
 //
 //   1. Statement-level special-form heads — `make`, `to`, `output`, `op` (#151/#667). Reserved
-//      structural words, so `highlight()` classifies each `keyword` (`spec/tooling.md:30,91`),
+//      structural words, so `highlight()` classifies each `keyword` (`spec/tooling.md:30`, with the
+//      class each name carries declared as `tokenClass` in `spec/built-in-names.json`),
 //      exactly as their Core equivalents `set`/`define`/`return` are — never `primitive`. Recognition
 //      is the Layer-2 `heritageFormRule` profile gate (`checker-heritage-form.ts`), NOT a
 //      visible-name rule, because they lower onto the same Core AST nodes as their equivalents.

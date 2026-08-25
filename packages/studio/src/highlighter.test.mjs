@@ -151,8 +151,8 @@ const PROFILE_BLOCK_HEADS = Object.entries(OL_PROFILE_KEYWORDS).flatMap(
 );
 
 /**
- * The seven profile words the registry holds today (`spec/tooling.md:30`'s "the profile
- * block-heads together with the Sprites mode-switch command `tell`"). Asserted so the derivation
+ * The seven profile words the registry holds today (`spec/tooling.md:30`'s "a profile's
+ * block-heads and its mode-switch commands"). Asserted so the derivation
  * above cannot silently *shrink* — a `words.slice(0, 1)` slip would otherwise drop five words from
  * every profile test and stay green. Unlike a hand-written list, this pins the derivation's shape
  * rather than restating the words; when the registry legitimately grows, this failing is the

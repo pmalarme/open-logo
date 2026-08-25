@@ -9,8 +9,8 @@
 //      `highlight()` classifies it `primitive` (`spec/tooling.md:28-44`) and `semanticTokens()`
 //      layers `defaultLibrary` on it (`spec/tooling.md:278-280`), exactly as a Core command like
 //      `forward` is treated. Since issue #740 the highlighter DOES take an active-profile set, and
-//      that is precisely why this file matters: `spec/tooling.md:30` moves only "the profile
-//      block-heads together with the Sprites mode-switch command `tell`" into `keyword` while
+//      that is precisely why this file matters: `spec/tooling.md:30` moves only "a profile's
+//      block-heads and its mode-switch commands" into `keyword` while
 //      their profile is active, and `:31` keeps "profile primitives when enabled" in `primitive`.
 //      Sound has no block-heads at all, so all five commands must be unmoved in BOTH directions —
 //      this file is the control case that separates "classify by block-head-ness" from the wrong
@@ -149,8 +149,8 @@ test("semanticTokens: every Sound command carries defaultLibrary when nested in 
 // --- The control case for #740: an ACTIVE profile must NOT move a Sound command ---------------
 
 test("highlight: every Sound command stays primitive with the sound profile ACTIVE", () => {
-  // `spec/tooling.md:30` moves only "the profile block-heads together with the Sprites mode-switch
-  // command `tell`" into `keyword` while their profile is active; `:31` keeps "profile primitives
+  // `spec/tooling.md:30` moves only "a profile's block-heads and its mode-switch
+  // commands" into `keyword` while their profile is active; `:31` keeps "profile primitives
   // when enabled" in `primitive`. `spec/interaction-events.md:47` says the same in words:
   // "`input` and `wait` are ordinary primitives rather than block-heads, as are the Sound command
   // names".
