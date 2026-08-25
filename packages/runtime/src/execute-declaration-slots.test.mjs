@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -322,16 +322,20 @@ function everyBlockSlotInTheCorpus() {
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
     join(repositoryRoot, root),
   );
-  const visit = (directory) => {
+  // Seeded with every root, so the lookups below need no `?? 0` fallback — a fallback arm taken only
+  // when a root is missing is dead on a green tree.
+  const filesPerRoot = new Map(roots.map((root) => [root, 0]));
+  const visit = (directory, root) => {
     for (const entry of readdirSync(directory)) {
       const full = join(directory, entry);
       if (statSync(full).isDirectory()) {
-        visit(full);
+        visit(full, root);
       } else if (entry.endsWith(".logo")) {
         const { ast, diagnostics } = parse(readFileSync(full, "utf8"), full);
         if (diagnostics.length > 0) {
           continue;
         }
+        filesPerRoot.set(root, filesPerRoot.get(root) + 1);
         walk(ast, (node) => {
           for (const [field, value] of Object.entries(node)) {
             for (const item of Array.isArray(value) ? value : [value]) {
@@ -344,12 +348,23 @@ function everyBlockSlotInTheCorpus() {
       }
     }
   };
+  // Roots are visited unconditionally. An `existsSync` guard here used to skip a root that had been
+  // renamed or moved, and a skip is invisible in the direction that matters: `required` is *derived*
+  // from the corpus precisely so a construct fails the moment it has a fixture, and the assertion
+  // below is `required \ covered === []`, so a *smaller* `required` passes more easily. A construct
+  // whose only fixtures lived in the vanished root would silently stop being derived and this test
+  // would go green while proving strictly less. The `required.size >= coveredBlockSlots.size` floor
+  // is not protection: each of today's roots independently exhibits all the covered slots, so any
+  // one of them can disappear with the floor still satisfied (measured on #960). Without the guard a
+  // missing root throws `ENOENT` and names itself; `emptyRoots` catches the rest — a root that still
+  // exists but contributes nothing.
   for (const root of roots) {
-    if (existsSync(root)) {
-      visit(root);
-    }
+    visit(root, root);
   }
-  return slots;
+  return {
+    slots,
+    emptyRoots: roots.filter((root) => filesPerRoot.get(root) === 0),
+  };
 }
 
 /**
@@ -517,7 +532,10 @@ test("the wrapper axis COVERS every block-bearing slot the grammar actually has"
   // rather than sampling them. This is the assertion that makes it true, and it is derived from the
   // corpus rather than from a list kept here — so a construct added to the grammar fails this the
   // moment it has a fixture, instead of waiting for a reviewer to notice.
-  const required = everyBlockSlotInTheCorpus();
+  const { slots: required, emptyRoots } = everyBlockSlotInTheCorpus();
+  // A root that still exists but yields no parseable file shrinks `required` exactly as a missing
+  // one would, and the floor below cannot see it: the other roots keep it satisfied.
+  assert.deepEqual(emptyRoots, [], "every corpus root must contribute a file");
   // The floor is derived from the wrapper map's own distinct slots, not a literal — a hand-written
   // `>= 10` is the last remaining second source of truth in a file that spent a round removing them,
   // and it would go stale the day a slot is added.
