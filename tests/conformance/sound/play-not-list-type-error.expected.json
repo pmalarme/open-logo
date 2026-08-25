@@ -1,5 +1,5 @@
 {
-  "description": "issue #691: `play`'s single argument MUST be a list (spec/interaction-events.md:293-307, `ol-type` in the `play` entry). A word argument (here \"c4\") raises `ol-type` with expected:\"list\" at runtime; no `sound` event is emitted. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "description": "issue #691: `play`'s single argument MUST be a list (spec/interaction-events.md:312-326, `ol-type` in the `play` entry). A word argument (here \"c4\") raises `ol-type` with expected:\"list\" at runtime; no `sound` event is emitted. The instruction event is still emitted for the statement before the diagnostic halts it.",
   "profiles": ["sound"],
   "execute": true,
   "events": [

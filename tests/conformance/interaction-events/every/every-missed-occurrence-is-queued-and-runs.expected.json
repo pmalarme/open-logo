@@ -1,9 +1,6 @@
 {
   "description": "MAINTAINER RULING #984, Q2: coalescing is REQUIRED, not permitted -- `If a prior invocation is still running when the next interval arrives, the implementation MUST queue that occurrence and run it once the handler is free` (spec/interaction-events.md:188-195). The handler is registered at tick 0 with a body that takes 4 ticks, so its tick-3 invocation is still running when its next interval arrives at tick 6: that occurrence MUST be queued. The trailing `wait 1` supplies the checkpoint that drains it, at tick 8 -- a tick where the handler is NOT due (its next interval is tick 9) and is no longer running, so the second firing can only be the queued occurrence being run. Two handler-start `instruction` events at 1:1-1:6 (seq 3 and seq 10) and two `print`s. Measured against a runtime mutated to drop the missed occurrence -- the rejected permissive reading, which argued that ZERO overlapping invocations satisfies the `at most one` upper bound -- this program prints ONCE.",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [
     {
@@ -11,14 +8,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          29
-        ]
+        "start": [1, 1],
+        "end": [1, 29]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -29,14 +20,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          29
-        ]
+        "start": [1, 1],
+        "end": [1, 29]
       },
       "payload": {
         "name": "every"
@@ -47,14 +32,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -65,14 +44,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -83,14 +56,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -101,19 +68,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "a"
-        ]
+        "values": ["a"]
       }
     },
     {
@@ -121,14 +80,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          27
-        ]
+        "start": [1, 21],
+        "end": [1, 27]
       },
       "payload": {
         "statement_kind": "Call"
@@ -139,14 +92,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          27
-        ]
+        "start": [1, 21],
+        "end": [1, 27]
       },
       "payload": {
         "name": "wait"
@@ -157,14 +104,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "name": "wait"
@@ -175,14 +116,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          3,
-          1
-        ],
-        "end": [
-          3,
-          7
-        ]
+        "start": [3, 1],
+        "end": [3, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -193,14 +128,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -211,14 +140,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -229,19 +152,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          11
-        ],
-        "end": [
-          1,
-          20
-        ]
+        "start": [1, 11],
+        "end": [1, 20]
       },
       "payload": {
-        "values": [
-          "a"
-        ]
+        "values": ["a"]
       }
     },
     {
@@ -249,14 +164,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          27
-        ]
+        "start": [1, 21],
+        "end": [1, 27]
       },
       "payload": {
         "statement_kind": "Call"
@@ -267,14 +176,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          27
-        ]
+        "start": [1, 21],
+        "end": [1, 27]
       },
       "payload": {
         "name": "wait"
@@ -285,14 +188,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-missed-occurrence-is-queued-and-runs",
-        "start": [
-          3,
-          1
-        ],
-        "end": [
-          3,
-          7
-        ]
+        "start": [3, 1],
+        "end": [3, 7]
       },
       "payload": {
         "name": "wait"

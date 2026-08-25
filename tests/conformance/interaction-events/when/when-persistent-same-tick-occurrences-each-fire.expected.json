@@ -1,9 +1,6 @@
 {
   "description": "MAINTAINER RULING #984, Q1, the same-tick half: `once per occurrence` counts occurrences, not ticks. Two deliveries of `acme.shake` land on the SAME tick 1, and the single registered handler fires twice within that tick -- exactly as `on_key` already fired twice for a key pressed twice (`on-key-repeated-press-fires-twice`), which is the sibling asymmetry the ruling removed. This is a different code path from the across-tick fixture beside it: there, two separate drains each find one pending occurrence; here, ONE drain must preserve the multiplicity of its pending queue rather than collapsing it to a set. An implementation that de-duplicates same-tick occurrences prints once and passes the across-tick fixture, so both are needed.",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "hostInput": {
@@ -27,14 +24,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          36
-        ]
+        "start": [1, 1],
+        "end": [1, 36]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -45,14 +36,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          36
-        ]
+        "start": [1, 1],
+        "end": [1, 36]
       },
       "payload": {
         "name": "when"
@@ -63,14 +48,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -81,14 +60,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          5
-        ]
+        "start": [1, 1],
+        "end": [1, 5]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -99,14 +72,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
         "statement_kind": "Call"
@@ -117,19 +84,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
-        "values": [
-          "shook"
-        ]
+        "values": ["shook"]
       }
     },
     {
@@ -137,14 +96,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          5
-        ]
+        "start": [1, 1],
+        "end": [1, 5]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -155,14 +108,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
         "statement_kind": "Call"
@@ -173,19 +120,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
-        "values": [
-          "shook"
-        ]
+        "values": ["shook"]
       }
     },
     {
@@ -193,14 +132,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/when/when-persistent-same-tick-occurrences-each-fire",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "name": "wait"

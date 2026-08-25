@@ -1,9 +1,6 @@
 {
   "description": "MAINTAINER RULING #984, Q1: a `when` registration is PERSISTENT -- its block runs each time the named event occurs, once per occurrence (spec/interaction-events.md:158-163). One handler is registered for the vendor-prefixed event `acme.shake`, which the host then delivers on tick 1 and again on tick 2 during the `wait 2`. The handler fires on BOTH ticks: two handler-start `instruction` events carrying the `when` head's span at 1:1-1:5 (seq 3 and seq 6, spec/interaction-events.md:101-102) and two `print`s. A vendor-prefixed word is required to pin this at all: both standard v0.1 event words are inherently once-per-run -- `\"start\"` is the start of the interactive run and `\"stop\"` a requested stop notification (spec/interaction-events.md:152-156) -- so with `\"start\"` or `\"stop\"` a one-shot and a persistent implementation produce byte-identical streams. Measured against a runtime mutated back to the pre-ruling one-shot rule, this program prints ONCE; the corpus contained no fixture that delivered a named event twice, which is why the undecided rule shipped.",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "hostInput": {
@@ -27,14 +24,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          36
-        ]
+        "start": [1, 1],
+        "end": [1, 36]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -45,14 +36,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          36
-        ]
+        "start": [1, 1],
+        "end": [1, 36]
       },
       "payload": {
         "name": "when"
@@ -63,14 +48,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -81,14 +60,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          5
-        ]
+        "start": [1, 1],
+        "end": [1, 5]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -99,14 +72,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
         "statement_kind": "Call"
@@ -117,19 +84,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
-        "values": [
-          "shook"
-        ]
+        "values": ["shook"]
       }
     },
     {
@@ -137,14 +96,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          5
-        ]
+        "start": [1, 1],
+        "end": [1, 5]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -155,14 +108,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
         "statement_kind": "Call"
@@ -173,19 +120,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          1,
-          21
-        ],
-        "end": [
-          1,
-          34
-        ]
+        "start": [1, 21],
+        "end": [1, 34]
       },
       "payload": {
-        "values": [
-          "shook"
-        ]
+        "values": ["shook"]
       }
     },
     {
@@ -193,14 +132,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/when/when-persistent-vendor-event-fires-each-occurrence",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "name": "wait"

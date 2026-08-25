@@ -500,7 +500,7 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   background: var(--ol-button-reset);
 }
 
-/* #952 — `on_click`'s "equivalent accessible action" (spec/interaction-events.md:214-215): a real
+/* #952 — `on_click`'s "equivalent accessible action" (spec/interaction-events.md:233-234): a real
    button beside the canvas it activates, so the drawing surface is reachable without a pointer.
    Styled like the run controls but outside their toolbar, since it belongs to the turtle pane. */
 #canvas-activate-button {

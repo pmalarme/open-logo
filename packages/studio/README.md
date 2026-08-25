@@ -342,7 +342,7 @@ parsed and executed, never that any of its interaction did anything.
 installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
 
 - `deliverKey(keyWord)` — one key press, as the lowercase word
-  `spec/interaction-events.md:194-198` defines.
+  `spec/interaction-events.md:213-217` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
 `deliverKey` reports whether **that press actually ran a handler** — compared as a strict increase in
@@ -491,7 +491,7 @@ that read is withdrawn rather than left answerable over a `"stopped"` run.
 
 ### Supported key words
 
-`spec/interaction-events.md:197-198` asks implementations to document theirs.
+`spec/interaction-events.md:216-217` asks implementations to document theirs.
 `src/key-words.ts`'s `normalizeKeyWord` maps a browser `KeyboardEvent.key` onto:
 
 | Key | Word |

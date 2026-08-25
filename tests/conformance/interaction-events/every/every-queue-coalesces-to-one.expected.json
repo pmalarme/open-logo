@@ -1,9 +1,6 @@
 {
   "description": "MAINTAINER RULING #984, Q2, the cap: the queue holds AT MOST ONE pending invocation, and further intervals arriving while it is full COALESCE into it rather than accumulating (spec/interaction-events.md:188-195). Pinning a cap needs a handler that is blocked while several of its intervals arrive and is then FREE, with no fresh interval, across several checkpoints -- which a self-blocking `every` body cannot provide, because each drained invocation immediately rebuilds the backlog. The blocker here is therefore an `on_key` handler, which fires once for the one key the host delivers. Measured: the key arrives at tick 10, on the same tick the `every 10` handler is due, so the tick's whole batch is claimed up front (spec/interaction-events.md:84-89 orders `on_key` before due `every`) and the `every` handler sits CLAIMED while the `on_key` body's `wait 25` runs ticks 11-35. Two of its intervals arrive in that window, at ticks 20 and 30, and coalesce into the one slot. The `on_key` body ends at tick 35; the `every` handler then runs from its original claim (print 1). The first `wait 0` yields at tick 35 -- no clock advance, and the handler is not due until tick 40 -- so the ONLY thing that can fire is the queued occurrence (print 2). The second and third `wait 0` yield at that same tick and fire NOTHING, which is the cap itself: two arrivals, one drain, empty. Measured against a runtime whose queue is an uncapped counter, the same program prints THREE times -- the unbounded buildup the sentence exists to forbid. It also fails a fixed-DELAY scheduler, which prints once.",
-  "profiles": [
-    "core-language",
-    "interaction-events"
-  ],
+  "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
     "hostInput": {
@@ -22,14 +19,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          23
-        ]
+        "start": [1, 1],
+        "end": [1, 23]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -40,14 +31,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          23
-        ]
+        "start": [1, 1],
+        "end": [1, 23]
       },
       "payload": {
         "name": "every"
@@ -58,14 +43,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          27
-        ]
+        "start": [2, 1],
+        "end": [2, 27]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -76,14 +55,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          27
-        ]
+        "start": [2, 1],
+        "end": [2, 27]
       },
       "payload": {
         "name": "on_key"
@@ -94,14 +67,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          3,
-          1
-        ],
-        "end": [
-          3,
-          8
-        ]
+        "start": [3, 1],
+        "end": [3, 8]
       },
       "payload": {
         "statement_kind": "Call"
@@ -112,14 +79,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          2,
-          1
-        ],
-        "end": [
-          2,
-          7
-        ]
+        "start": [2, 1],
+        "end": [2, 7]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -130,14 +91,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          2,
-          18
-        ],
-        "end": [
-          2,
-          25
-        ]
+        "start": [2, 18],
+        "end": [2, 25]
       },
       "payload": {
         "statement_kind": "Call"
@@ -148,14 +103,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          2,
-          18
-        ],
-        "end": [
-          2,
-          25
-        ]
+        "start": [2, 18],
+        "end": [2, 25]
       },
       "payload": {
         "name": "wait"
@@ -166,14 +115,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -184,14 +127,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          12
-        ],
-        "end": [
-          1,
-          21
-        ]
+        "start": [1, 12],
+        "end": [1, 21]
       },
       "payload": {
         "statement_kind": "Call"
@@ -202,19 +139,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          12
-        ],
-        "end": [
-          1,
-          21
-        ]
+        "start": [1, 12],
+        "end": [1, 21]
       },
       "payload": {
-        "values": [
-          "a"
-        ]
+        "values": ["a"]
       }
     },
     {
@@ -222,14 +151,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          3,
-          1
-        ],
-        "end": [
-          3,
-          8
-        ]
+        "start": [3, 1],
+        "end": [3, 8]
       },
       "payload": {
         "name": "wait"
@@ -240,14 +163,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          4,
-          1
-        ],
-        "end": [
-          4,
-          7
-        ]
+        "start": [4, 1],
+        "end": [4, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -258,14 +175,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          1
-        ],
-        "end": [
-          1,
-          6
-        ]
+        "start": [1, 1],
+        "end": [1, 6]
       },
       "payload": {
         "statement_kind": "ProfileStatement"
@@ -276,14 +187,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          12
-        ],
-        "end": [
-          1,
-          21
-        ]
+        "start": [1, 12],
+        "end": [1, 21]
       },
       "payload": {
         "statement_kind": "Call"
@@ -294,19 +199,11 @@
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          1,
-          12
-        ],
-        "end": [
-          1,
-          21
-        ]
+        "start": [1, 12],
+        "end": [1, 21]
       },
       "payload": {
-        "values": [
-          "a"
-        ]
+        "values": ["a"]
       }
     },
     {
@@ -314,14 +211,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          4,
-          1
-        ],
-        "end": [
-          4,
-          7
-        ]
+        "start": [4, 1],
+        "end": [4, 7]
       },
       "payload": {
         "name": "wait"
@@ -332,14 +223,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          5,
-          1
-        ],
-        "end": [
-          5,
-          7
-        ]
+        "start": [5, 1],
+        "end": [5, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -350,14 +235,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          5,
-          1
-        ],
-        "end": [
-          5,
-          7
-        ]
+        "start": [5, 1],
+        "end": [5, 7]
       },
       "payload": {
         "name": "wait"
@@ -368,14 +247,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          6,
-          1
-        ],
-        "end": [
-          6,
-          7
-        ]
+        "start": [6, 1],
+        "end": [6, 7]
       },
       "payload": {
         "statement_kind": "Call"
@@ -386,14 +259,8 @@
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queue-coalesces-to-one",
-        "start": [
-          6,
-          1
-        ],
-        "end": [
-          6,
-          7
-        ]
+        "start": [6, 1],
+        "end": [6, 7]
       },
       "payload": {
         "name": "wait"
