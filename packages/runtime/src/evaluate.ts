@@ -4912,9 +4912,9 @@ function evaluateRandom(
 
 /**
  * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
- * "value-producing" for the block-result rule — mirrors the checker's `VALUE_PRODUCING_KINDS`
- * (issue #114) exactly, minus `IsPredicate` (not yet implemented by {@link evaluate}, so never
- * reachable here — {@link isSupportedExpression} already excludes it).
+ * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
+ * (issue #114) minus `PostfixExpression` and `IsPredicate`. A body ending in either is not
+ * value-producing here, so the comprehension is left un-evaluated rather than partially run.
  */
 const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
   "NumberLit",

@@ -352,7 +352,7 @@ export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
  *   never carry a diagnostic code without also carrying that diagnostic's own source span). The
  *   type system enforces this presence pairing via separate diagnostic/non-diagnostic arms
  *   below; it does NOT enforce that the span's *value* equals the diagnostic's own span — that
- *   equality is a residual runtime invariant left to later slices.
+ *   equality is a residual runtime invariant, not a type-level one.
  */
 export interface TutorOutputSegments {
   readonly segments: readonly [string, ...string[]];

@@ -2076,8 +2076,8 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validation is left-to-right and halts on the first offending element, so the earliest error wins.
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
- * duration }` {@link MelodyStep} (durations in beats, interpreted at the current tempo by replay
- * tools, never converted here — `spec/interaction-events.md:284-285`) — and emits exactly one
+ * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
+ * `spec/interaction-events.md:267-268`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a

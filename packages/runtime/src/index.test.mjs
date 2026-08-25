@@ -273,7 +273,7 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
 });
 
 test("execute leaves an unsupported `show` argument un-evaluated, emitting no print event", () => {
-  // A call to a name unknown to both the builtin whitelist and the procedure registry is not yet
+  // A call to a name unknown to both the builtin whitelist and the procedure registry is not
   // a supported expression — the same deferral `print` uses.
   const result = execute("show (nonexistent_builtin 1)", "main.logo");
   assert.deepEqual(result.diagnostics, []);
@@ -439,10 +439,9 @@ test("execute discards a trailing bare value inside an `if` body per the block-r
   );
 });
 
-test("execute leaves an `if` with an unsupported condition expression un-evaluated", () => {
-  // `:x is empty` is an `IsPredicate` — not in `isSupportedExpression`'s scope — so the whole
-  // `if` (condition and body alike) is left un-evaluated for that expression kind,
-  // exactly like an unsupported `print` argument. No diagnostic; execution just continues.
+test("execute skips an `if` body when a worded is-predicate condition is false", () => {
+  // `"a" is empty` evaluates to false (issue #99), so the body is skipped and only `print 2` runs.
+  // The `if` itself IS evaluated — three `instruction` events plus the one `print`.
   const result = execute(
     ':x = "a"\nif :x is empty [ print 1 ]\nprint 2',
     "main.logo",

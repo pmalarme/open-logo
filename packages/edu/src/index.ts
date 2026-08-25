@@ -1,15 +1,16 @@
 /**
  * `@openlogo/edu` — learner levels, the deterministic `explain`/`why`/`hint`/`debug` commands,
- * the geometry standard library (discoverable OpenLogo source), the Socratic AI tutor, and the
- * curriculum. Depends on `@openlogo/core` and `@openlogo/runtime`.
+ * the geometry standard library (discoverable OpenLogo source), the curriculum, and — once the
+ * Tutor (AI) profile lands — the Socratic AI tutor. Depends on `@openlogo/core` and
+ * `@openlogo/runtime`.
  *
  * Issue #189 fixed the read-only `Lesson`/`WorkedExample` data contract. Issue #328 adds the
  * first curriculum content on top of it — Level 1 and Level 2 lessons plus graded `Exercise`s
  * (`./lessons/level-1.ts`, `./lessons/level-2.ts`) — aggregated by `./lessons/registry.ts` into
  * the flat `LESSONS`/`EXERCISES` lists re-exported below. Issue #325 adds Level 3
- * (`./lessons/level-3.ts`, variables). Later levels (B3/B4) add their own `level-N.ts` module and
- * extend the registry additively. The Socratic AI tutor lands with the Tutor (AI) profile
- * (saga #573); `challenge` is registered as a name but has no behaviour yet.
+ * (`./lessons/level-3.ts`, variables). Levels 4 and 5 followed the same shape; Level 6 onward adds
+ * its own `level-N.ts` module and extends the registry additively. The Socratic AI tutor lands with
+ * the Tutor (AI) profile (saga #573); `challenge` is registered as a name but has no behaviour yet.
  */
 
 /** Marker export naming the package, retained alongside the real exports below. */
@@ -25,8 +26,7 @@ export type { Lesson, LearnerLevel, WorkedExample } from "./lesson.js";
 
 // A0 (#324): the tutor-output event kind's data-only input/output contracts, shared by the
 // A1-A5 slices that give `explain`/`why`/`hint`/`debug` their parser recognition, runtime
-// dispatch, and templates. Append-only — this export list is serialized with other in-flight
-// edu work (#189 lesson contract, M4 geometry stdlib).
+// dispatch, and templates. Append-only — this export list is serialized with other edu work.
 export type {
   TutorCommandMetadata,
   TutorContext,

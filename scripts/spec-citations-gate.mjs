@@ -157,11 +157,14 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  *
  * **A phrase split across a line wrap is invisible.** {@link collectStatusClaims} matches per line
  * while resolving the tracking issue over the flattened run, so "does not exist\n * yet" is
- * unreachable although the identical unwrapped sentence fails. Measured over the tracked tree: **3**
- * such claims, **2** of them untracked. Both were fixed by issue #961 by hand; making the matcher
- * wrap-safe means flattening *every* prose run rather than only the runs a per-line hit already
- * found, which is the quadratic case the note in `collectStatusClaims` warns about, so it is its own
- * change. Mode 4 coverage is partial, and the gate says so on every run.
+ * unreachable although the identical unwrapped sentence fails. Measured before issue #961's sweep:
+ * **4** such claims, **2** of them untracked (counting the vocabulary quotation in `AGENTS.md`);
+ * both untracked ones were fixed by hand there, so at this commit the untracked count is **0**.
+ * Making the matcher wrap-safe is mechanically straightforward — flatten every prose run with the
+ * same array-then-join technique used below, which is linear — but it changes what the gate reports
+ * (a claim's line must be mapped back from a run offset) and needs its own tests against the 100%
+ * coverage gate, so it is routed as its own change rather than bolted on here.
+ * Mode 4 coverage is partial, and the gate says so on every run.
  */
 export const STATUS_CLAIM_PHRASES = Object.freeze([
   "not yet implemented",

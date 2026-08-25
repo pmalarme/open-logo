@@ -10,9 +10,8 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. No trace-event payload
- * carries it: the payload types are enumerated in `@openlogo/core`'s `events.ts`, and none has a
- * tick or elapsed-time field — the `primitive` event `wait` emits carries only the primitive name.
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. It appears in no event
+ * payload — the `primitive` event `wait` emits carries only the primitive name.
  * The clock exists so that a program's event *sequence* is reproducible and
  * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
  * itself observable in the stream.
@@ -400,7 +399,7 @@ export interface EveryHandler {
  * `on_key` handler registers but is never delivered — exactly like a `when "stop"` handler in a
  * headless run (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
  * is a host concern outside this slice, so this handler carries no delivery-state flag: it holds the
- * captured block and scope, ready for an interactive host slice to deliver it. It lives in its own
+ * captured block and scope for an interactive host to deliver. It lives in its own
  * registration-ordered list so #686/I7 can impose the spec's same-tick delivery order
  * (`when`/`on_key`/`on_click` first, then due `every`) across handler kinds without reworking it.
  */
@@ -426,8 +425,8 @@ export interface OnKeyHandler {
  * `on_click` handler registers but is never delivered — exactly like a `when "stop"` handler (I3) or
  * an `on_key` handler (I5) in a headless run (locked by the `on-click-registered-not-delivered`
  * fixture). Synthesizing a click is a host concern outside this slice, so this handler carries no
- * delivery-state flag: it holds the captured block and scope, ready for an interactive host slice to
- * deliver it. It lives in its own registration-ordered list so #686/I7 can impose the spec's
+ * delivery-state flag: it holds the captured block and scope for an interactive host to
+ * deliver. It lives in its own registration-ordered list so #686/I7 can impose the spec's
  * same-tick delivery order (`when`, then `on_key`, then `on_click`, then due `every`) across handler
  * kinds without reworking it.
  */

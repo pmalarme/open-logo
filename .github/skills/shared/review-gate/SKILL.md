@@ -155,8 +155,8 @@ construction. A citation re-pointing tool reported *"each verified byte-identica
 48**: its shift regex matched only the **first** range of a citation, so a citation carrying a second
 range after a comma had its head moved and its tail left stranded on unrelated prose. The verifier
 used the same regex, so it confirmed the move it had itself mis-parsed. **A verifier built from the
-subject's own parser is a second opinion in name only.** (Reported to `@orchestrator` by the session
-that hit it; the figure is its measurement, not one re-derivable from this repository.)
+subject's own parser is a second opinion in name only.** (Commit `499da987` records the 48; its diff
+carries the two comma-tailed citations whose head moved while the tail did not.)
 
 **The operational form — and the only reliable check.** An instrument cannot detect its own blind
 spot, so the remedy is never a more careful pass with the same one: it is **a second,
