@@ -129,10 +129,18 @@ apply this automatically; **non-template creation must add the prefix by hand**.
 | `type:feature-request` | `[request]:` | feature-request.yml |
 | `type:slice` | `[slice]:` | feature-slice.yml |
 | `type:foundation` | `[foundation]:` | foundation.yml |
+| `type:task` | `[task]:` | _(none — derived)_ |
 | `type:chore` | `[chore]:` | _(none — derived)_ |
 
 Note the two non-identity cases: **`type:feature-request` → `[request]:`** (not `[feature-request]:`)
 and the template-less **`type:chore` → `[chore]:`**.
+
+**`type:task` vs `type:chore`** — the boundary, because they are the only two kinds with no template
+and no obvious edge between them. A **task** is engineering work with a definition of done that
+changes behaviour, a gate, or a contract, but is not a learner-facing vertical slice (e.g. "make
+profile-statement dispatch compile-time exhaustive"). A **chore** is upkeep that changes nothing an
+agent or learner can observe: a rename, a dependency bump, a typo. If it needs review for
+correctness rather than tidiness, it is a task.
 
 ### 3. Audit periodically
 

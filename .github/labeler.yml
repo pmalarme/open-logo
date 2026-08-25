@@ -50,7 +50,9 @@
       - any-glob-to-any-file: ["docs/**"]
 
 # --- area:* (all surfaces; owner-neutral) ---
-"area:grammar":
+# area:diagnostics has no path rule on purpose: the ol-* diagnostic surface spans parser, runtime
+# and core, so no changed path implies it. It is applied during triage.
+"area:parser":
   - changed-files:
       - any-glob-to-any-file: ["packages/parser/**"]
 
@@ -87,7 +89,14 @@
           - "tsconfig*.json"
           - "biome.json"
           - ".prettier*"
-          - "scripts/**"
+
+"area:tooling":
+  - changed-files:
+      - any-glob-to-any-file: ["scripts/**", ".github/scripts/**"]
+
+"area:testing":
+  - changed-files:
+      - any-glob-to-any-file: ["tests/**"]
 
 "area:docs":
   - changed-files:

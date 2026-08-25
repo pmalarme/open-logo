@@ -7,29 +7,40 @@ name: Label drift
 # manifest is *well-formed*, never that it is *complete with respect to labels actually in use*.
 #
 # This runs the live directions of `validate-labels.py`: it fails when a label on an open issue or
-# PR is missing from the manifest, or when a manifested label does not exist on the repository, and
-# reports (without failing) labels the repository carries that the manifest does not, plus
-# manifested labels nobody uses.
+# PR is missing from the manifest, when a manifested label does not exist on the repository, or when
+# a label carrying a managed namespace is in neither the manifest nor `.github/labels-retired.yml`.
+# GitHub's unnamespaced stock labels are reported, not failed.
 #
 # It is deliberately NOT part of the per-PR CI gate: its result depends on mutable repository state,
-# so an unrelated PR would go red because somebody mislabelled a different issue. It runs on a
-# schedule, on demand, and on the pull requests that actually edit the manifest — where comparing
-# the proposed manifest against the live world is exactly the review question.
+# so an unrelated PR would go red because somebody mislabelled a different issue. The deterministic
+# half — the `area:*`/`profile:*` labels against `validate-commits.py`'s `AREAS`/`PROFILES` — runs in
+# `ci.yml`'s `meta` job on every PR instead.
+#
+# Triggers, and why each is shaped this way:
+#   * pull_request on the manifest — comparing a *proposed* manifest against the live world is
+#     exactly the review question. It passes `--proposed`, because a PR that ADDS a label is
+#     compared against a repository the sync has not reached yet (sync runs after merge), and
+#     failing there would be a false red on correct work.
+#   * workflow_run after "Label sync" — NOT `push`, which would race the sync: both trigger on the
+#     same commit, and the drift check would read the repository before the new labels exist.
+#   * schedule — drift is introduced by hand at unpredictable times, so a daily sweep is what turns
+#     "nobody noticed for weeks" into "noticed by tomorrow".
 #
 # The sync stays additive on purpose; this workflow is the detector. The reasoning is recorded in
 # validate-labels.py's module docstring ("Why the sync stays additive").
 
 on:
   schedule:
-    # 06:15 UTC daily — drift is introduced by hand at unpredictable times, so a daily sweep is what
-    # turns "nobody noticed for weeks" into "noticed by tomorrow".
     - cron: "15 6 * * *"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Label sync"]
+    types: [completed]
   pull_request:
-    paths: [".github/labels.yml", ".github/scripts/validate-labels.py"]
-  push:
-    branches: [main]
-    paths: [".github/labels.yml", ".github/scripts/validate-labels.py"]
+    paths:
+      - ".github/labels.yml"
+      - ".github/labels-retired.yml"
+      - ".github/scripts/validate-labels.py"
 
 permissions:
   contents: read
@@ -39,6 +50,9 @@ permissions:
 jobs:
   drift:
     name: Labels in use match the manifest
+    # On a workflow_run trigger, only judge the repository after a sync that actually succeeded —
+    # a failed sync leaves it half-reconciled, and direction B would report that as manifest drift.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -49,4 +63,4 @@ jobs:
           python-version: "3.x"
       - run: pip install pyyaml
       - name: Compare the manifest against the repository, in both directions
-        run: python .github/scripts/validate-labels.py --live
+        run: python .github/scripts/validate-labels.py --live ${{ github.event_name == 'pull_request' && '--proposed' || '' }}

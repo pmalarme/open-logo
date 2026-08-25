@@ -1,0 +1,43 @@
+# Namespaced labels that exist on the repository but are deliberately NOT in labels.yml.
+#
+# `.github/scripts/validate-labels.py` fails on any label carrying a managed prefix (agent:, type:,
+# profile:, area:, level:) that the manifest does not declare — that is how a convenient ad-hoc
+# label stops being invisible. This file is the declared, reasoned exception list, so a retired
+# label does not turn the gate permanently red and, more importantly, the *next* undeclared one
+# still fails.
+#
+# These are not deleted from the repository. Deleting a label deletes it off every issue that ever
+# carried it, including closed ones (measured: profile:core-language on 3, profile:interaction-events
+# on 1, type:question on 1), and GitHub does not restore those applications. Retiring is a
+# maintainer/@product-owner decision; this file records the state until then.
+#
+# An entry here means: the label exists, nothing open uses it, and it must not be applied again.
+# Adding one is a review question — prefer relabelling the issues and manifesting the right label.
+
+- name: "area:infra"
+  replaced-by: "area:ci"
+  why: "Duplicate of area:ci ('CI / build pipelines'); `infra` is not a commit scope, so a PR titled fix(infra) fails the blocking check. Relabelled #978 (issue #972)."
+
+- name: "profile:core-language"
+  replaced-by: "profile:core"
+  why: "Spelling variant of profile:core, whose description is 'Core Language profile'. Relabelled #947, #818, #758, #757 (issue #972)."
+
+- name: "profile:interaction-events"
+  replaced-by: "profile:interaction"
+  why: "Spelling variant of profile:interaction, whose description is 'Interaction & Events profile'. Relabelled #732, #716 (issue #972)."
+
+- name: "profile:turtle"
+  replaced-by: "profile:turtle-rendering"
+  why: "Truncated spelling of profile:turtle-rendering; predates this slice and is applied to nothing, open or closed."
+
+- name: "type:enhancement"
+  replaced-by: "type:feature-request"
+  why: "GitHub's stock 'enhancement' re-spelled into the type: namespace; the manifest calls this kind 'Inbound idea / enhancement request'. Relabelled #372 (issue #972)."
+
+- name: "type:feature"
+  replaced-by: "type:slice"
+  why: "Predates the type: taxonomy, which splits user-facing work into slice/epic; applied to nothing, open or closed."
+
+- name: "type:question"
+  replaced-by: ""
+  why: "No manifested equivalent — the taxonomy has no question kind, and discussions are not issues here. Applied to one closed issue and nothing open."
