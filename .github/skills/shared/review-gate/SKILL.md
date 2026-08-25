@@ -138,24 +138,31 @@ The rules above make the **tree** trustworthy. This one makes your **measurement
 — a different question, and the one that fails silently.
 
 The principle: **an instrument inherits the blind spots of whatever it is built on, and reports
-success from inside them.** Two mechanisms produce this, and both return plausible output rather than
-an error.
+success from inside them.** Two mechanisms recur — they are not the only two, but they are the ones
+that keep costing work here — and both return plausible output rather than an error.
 
 **1. The instrument enumerates a narrower set than the truth.** A tool that enumerates the repository
 through git cannot see an untracked file, so a green run over unstaged work certifies a tree that
 does not contain the work. The worked example is the gate built in **#934**:
 `scripts/spec-citations-gate.mjs` walks the **tracked** set via `git ls-files`, and its verification
 run happened **before `git add`**. The gate had therefore never read its own source, and reported
-green. Its own reviewers caught it.
+green. Its own reviewers caught it. (Note it is a library module — the runner is
+`scripts/check-spec-citations.mjs`; executing the module directly exits `0` with no output, which is
+a silent green measuring nothing, and an instance of this very rule.)
 
 **2. The verifier shares the parser of the thing it verifies.** Then it cannot see the defect by
 construction. A citation re-pointing tool reported *"each verified byte-identical"* — **false for 2 of
 48**: its shift regex matched only the **first** range of a citation, so a citation carrying a second
 range after a comma had its head moved and its tail left stranded on unrelated prose. The verifier
 used the same regex, so it confirmed the move it had itself mis-parsed. **A verifier built from the
-subject's own parser is a second opinion in name only** — check it against something with an
-independent failure mode: a different parser, a hand-audited sample, or the artifact the claim is
-ultimately about.
+subject's own parser is a second opinion in name only.** (Reported to `@orchestrator` by the session
+that hit it; the figure is its measurement, not one re-derivable from this repository.)
+
+**The operational form — and the only reliable check.** An instrument cannot detect its own blind
+spot, so the remedy is never a more careful pass with the same one: it is **a second,
+differently-shaped instrument**. Re-running your own sweep more attentively re-measures the same set.
+Change the *shape* — a different enumerator, a different parser, a hand-audited sample, an external
+oracle such as issue state, or the artifact the claim is ultimately about.
 
 Saga #572 produced at least five instances:
 
@@ -267,6 +274,15 @@ exactly one of two states, recorded on the PR:
 The reviewer does not get a veto over the disposition, and the author does not get to ignore
 findings: the audit trail (fixed, or declined with a rationale/issue) is what makes the choice
 reviewable by `@orchestrator` and the maintainer.
+
+**When you fix false prose, delete rather than rewrite — but delete-don't-rewrite applies to a
+*claim*, not to a *sentence*.** A replacement sentence acquires a new false claim remarkably often:
+one slice produced one in four consecutive review rounds, including a source file misquoted inside
+quotation marks and a fabricated citation replaced by a false inference from a real one. Deletion has
+no such failure mode. But a sentence carrying three claims needs each measured **separately** —
+deleting all three because two are false discards a true one and replaces a compound claim with a
+compound omission, and any surviving forward-looking claim still owes a tracking issue. Measure per
+claim; delete the false ones; leave the true ones alone.
 
 ## Iterate until everything passes — at most 10 rounds
 

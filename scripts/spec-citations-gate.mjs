@@ -148,13 +148,20 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  * slices work ("later slices cite them as settled fact"), which claims nothing about pending work,
  * and the cost is recall: "a later slice adds…" is missed. **Not every entry below is anchored**, so
  * the list still fires on a counterfactual — prose that claims nothing pending. Issue #961 re-worded
- * the two sites that hit the bare `"future slice"` entry this way — the `grid :spacing` overload in
- * `execute-internal.ts` and the registry canary in `checker-profile-word-position.test.mjs`, both
- * conditionals about work nobody has planned. That, not a silent reword, is the disposition when
- * this mis-fires. Quoting such a phrase here is itself an
- * occurrence, tracked by the `#961` named just above — which is the mechanism working, not an
- * exemption.
- * Mode 4 coverage is partial, and the gate says so on every run.
+ * the two **untracked** sites that hit the bare `"future slice"` entry that way — the `grid :spacing`
+ * overload in `execute-internal.ts` and the registry canary in
+ * `checker-profile-word-position.test.mjs`, both conditionals about work nobody has planned. Adding
+ * a manifest exception, not a reword, is what those two would otherwise have needed. Quoting such a
+ * phrase here is itself an occurrence, tracked by the `#961` named just above — which is the
+ * mechanism working, not an exemption.
+ *
+ * **A phrase split across a line wrap is invisible.** {@link collectStatusClaims} matches per line
+ * while resolving the tracking issue over the flattened run, so "does not exist\n * yet" is
+ * unreachable although the identical unwrapped sentence fails. Measured over the tracked tree: **3**
+ * such claims, **2** of them untracked. Both were fixed by issue #961 by hand; making the matcher
+ * wrap-safe means flattening *every* prose run rather than only the runs a per-line hit already
+ * found, which is the quadratic case the note in `collectStatusClaims` warns about, so it is its own
+ * change. Mode 4 coverage is partial, and the gate says so on every run.
  */
 export const STATUS_CLAIM_PHRASES = Object.freeze([
   "not yet implemented",

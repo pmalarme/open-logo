@@ -310,7 +310,7 @@ export interface Environment {
    * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
    * current logical tick, shared by every recursive `executeStatements`/`evaluate` call
    * so a `wait`'s tick advance is observed program-wide. Headless execution
-   * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Timed
+   * state: it appears in no event payload (`interaction.ts`'s header). Timed
    * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;

@@ -8,11 +8,11 @@
  * (`./lessons/level-1.ts`, `./lessons/level-2.ts`) — aggregated by `./lessons/registry.ts` into
  * the flat `LESSONS`/`EXERCISES` lists re-exported below. Issue #325 adds Level 3
  * (`./lessons/level-3.ts`, variables). Later levels (B3/B4) add their own `level-N.ts` module and
- * extend the registry additively. The educational meta-commands, geometry stdlib, and AI tutor
- * land in later slices.
+ * extend the registry additively. The Socratic AI tutor lands with the Tutor (AI) profile
+ * (saga #573); `challenge` is registered as a name but has no behaviour yet.
  */
 
-/** Marker export so the M0 skeleton is a real ES module; replaced by real exports later. */
+/** Marker export naming the package, retained alongside the real exports below. */
 export const EDU_PACKAGE = "@openlogo/edu";
 
 export {

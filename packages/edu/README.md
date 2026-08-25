@@ -17,7 +17,7 @@ reasoning, and the AI tutor (Socratic, offline-degrading) behind a provider-neut
 
 `src/lesson.ts` exports the read-only, data-only `Lesson` type — the **single source of
 truth** the studio lesson pane ([#127](https://github.com/pmalarme/open-logo/issues/127))
-consumes. It has no authoring API, no runtime, and no AI (those land in later slices); a
+consumes. It has no authoring API, no runtime, and no AI; a
 `Lesson` is just data:
 
 - `objective` — the single idea the lesson teaches, tied to a `LearnerLevel` (`"1"`–`"6"`,

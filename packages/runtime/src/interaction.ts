@@ -10,9 +10,10 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. It does not appear in any
- * event payload: the `primitive` event `wait` emits carries no tick
- * count or elapsed time. The clock exists so that a program's event *sequence* is reproducible and
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. No trace-event payload
+ * carries it: the payload types are enumerated in `@openlogo/core`'s `events.ts`, and none has a
+ * tick or elapsed-time field — the `primitive` event `wait` emits carries only the primitive name.
+ * The clock exists so that a program's event *sequence* is reproducible and
  * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
  * itself observable in the stream.
  *
@@ -26,8 +27,9 @@
  * That is why the pause is an explicit per-tick advance ({@link advanceTickClock}
  * called once per tick inside {@link runWait}) rather than a single opaque
  * `tick += n`/blocking sleep: the per-tick step is the seam handler delivery hangs off.
- * `execute-internal.ts` passes a per-tick callback that calls `dispatchDueHandlers` for each tick
- * the clock advances to, so a `wait` keeps firing due handlers while it pauses. A
+ * `execute-internal.ts` passes a per-tick callback that calls `dispatchDueHandlers` at each tick
+ * the clock advances to — and once at the current tick for `wait 0`, which advances to none — so a
+ * `wait` keeps firing due handlers while it pauses. A
  * `wait` written as a blocking sleep could not do that.
  *
  * ## Why `input` has no event-loop checkpoint at all
@@ -64,7 +66,7 @@ import type { Environment } from "./evaluate.js";
  * `instructionCount`/`addressing` — rather than a plain field reassigned on {@link Environment}, so a
  * tick advance made from anywhere in the program (including deep inside a procedure call or loop
  * body) is observed by every later read in the same run. The clock is
- * headless logical state and MUST NOT appear in any event payload (see the file header).
+ * headless logical state and appears in no event payload (see the file header).
  */
 export interface TickClock {
   tick: number;
@@ -438,7 +440,7 @@ export interface OnClickHandler {
 /**
  * One host-supplied input delivery scheduled for a specific tick (issue #686, slice I7). This is the
  * headless, deterministic stand-in for the live keyboard/pointer/named events an interactive host
- * (the future studio, `spec/interaction-events.md`'s "interactive host") would deliver — supplied up
+ * (the studio, `spec/interaction-events.md`'s "interactive host") delivers — supplied up
  * front through `ExecuteOptions.hostInput` (see `index.ts`), exactly analogous to the pre-aborted
  * {@link CancellationSignal} a caller already supplies through `ExecuteOptions.signal`. It carries
  * **no** coordinates, timing, or device detail — only the `tick` it is delivered on plus the minimum

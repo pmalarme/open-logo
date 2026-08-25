@@ -440,9 +440,9 @@ test("execute discards a trailing bare value inside an `if` body per the block-r
 });
 
 test("execute leaves an `if` with an unsupported condition expression un-evaluated", () => {
-  // `:x is empty` is an `IsPredicate` — not yet in `isSupportedExpression`'s scope — so the whole
-  // `if` (condition and body alike) is left un-evaluated for that expression kind's own future
-  // slice, exactly like an unsupported `print` argument. No diagnostic; execution just continues.
+  // `:x is empty` is an `IsPredicate` — not in `isSupportedExpression`'s scope — so the whole
+  // `if` (condition and body alike) is left un-evaluated for that expression kind,
+  // exactly like an unsupported `print` argument. No diagnostic; execution just continues.
   const result = execute(
     ':x = "a"\nif :x is empty [ print 1 ]\nprint 2',
     "main.logo",

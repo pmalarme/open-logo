@@ -1866,9 +1866,8 @@ function isSoundNoteCall(statement: StatementNode): boolean {
  * (`ol-type` via {@link requireNumber}, then `ol-range` via `runtimeDiag.nonPositiveDuration`).
  *
  * On success it schedules the pitched sound — headlessly, so scheduling *is* emitting one `sound`
- * event carrying a {@link NoteSoundPayload} (the beat `duration` travels verbatim; replay tooling
- * interprets it at the tempo `set_tempo` last emitted, or at the default 120 when the program set
- * none), AFTER the sound
+ * event carrying a {@link NoteSoundPayload} (the beat `duration` travels verbatim; nothing here
+ * converts it to wall-clock), AFTER the sound
  * has been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit
  * `sound` events after sound state has been scheduled"). The event is emitted unconditionally even
  * in a muted environment ("Implementations that cannot play audio … MUST still emit `sound`
@@ -1987,8 +1986,8 @@ function isSoundRestCall(statement: StatementNode): boolean {
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which MUST be a positive finite number (`ol-range` via
  * `runtimeDiag.nonPositiveDuration` otherwise — folding `Infinity` in like `note`'s duration and
- * `set_tempo`'s tempo). On success it schedules silence for `duration` beats — interpreted at the
- * current tempo by replay tooling, as `note`/`play` durations are — and emits one `sound` event
+ * `set_tempo`'s tempo). On success it schedules silence for `duration` beats — carried verbatim in
+ * the payload, as `note`/`play` durations are — and emits one `sound` event
  * carrying a {@link RestSoundPayload}, "so replay tools can show the
  * silent interval" (`spec/interaction-events.md`), AFTER the silence has been scheduled and
  * unconditionally even in a muted environment. `rest` changes no sound state — silence is modeled
