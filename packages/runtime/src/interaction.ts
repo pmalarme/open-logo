@@ -10,10 +10,8 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. The normative event
- * envelope (`spec/execution-model.md:645-651`) has no timing or tick field, so this clock does not
- * appear in any event payload — the `primitive`
- * event `wait` emits carries no tick
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. It does not appear in any
+ * event payload: the `primitive` event `wait` emits carries no tick
  * count or elapsed time. The clock exists so that a program's event *sequence* is reproducible and
  * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
  * itself observable in the stream.
@@ -26,7 +24,7 @@
  * instructions that follow the `wait` are deferred until the pause completes."
  *
  * That is why the pause is an explicit per-tick advance ({@link advanceTickClock}
- * called once per tick inside {@link executeWaitCall}) rather than a single opaque
+ * called once per tick inside {@link runWait}) rather than a single opaque
  * `tick += n`/blocking sleep: the per-tick step is the seam handler delivery hangs off.
  * `execute-internal.ts` passes a per-tick callback that calls `dispatchDueHandlers` for each tick
  * the clock advances to, so a `wait` keeps firing due handlers while it pauses. A
@@ -312,8 +310,8 @@ export function takeInputResponse(
  * not run its block immediately unless the triggering event is already being delivered"). `"stop"`
  * is "a requested stop notification" — a batch run receives no such request, so a `when "stop"`
  * handler is accepted and registered but never fires here (exactly as a vendor event an
- * implementation does not deliver would not). An interactive host (a later slice, once cancellation
- * plumbing exists) delivers `"stop"` when a stop is actually requested; this slice does not
+ * implementation does not deliver would not). An interactive host delivers `"stop"` when a stop is
+ * actually requested; this slice does not
  * synthesize one on natural completion, which the spec does not define as a stop request.
  */
 export const STANDARD_EVENT_WORDS = Object.freeze({
@@ -471,8 +469,8 @@ export type HostInputEvent =
  * This is the structure the file header promised the rest of the track would hang off the tick
  * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
  * on registration (the run has already started). `every`/`on_key`/`on_click` (#683–#685) add their
- * own handler kinds alongside it (`every` in #683, `on_key` in #684), and an interactive host slice
- * later delivers `"stop"` and the timed/input events from it.
+ * own handler kinds alongside it (`every` in #683, `on_key` in #684), and an interactive host
+ * delivers `"stop"` and the timed/input events from it.
  *
  * `pendingEvents`/`pendingKeys`/`pendingClicks` (issue #686, slice I7) are the tick-scheduled
  * host-input queues {@link enqueueHostInput} fills from `ExecuteOptions.hostInput` and

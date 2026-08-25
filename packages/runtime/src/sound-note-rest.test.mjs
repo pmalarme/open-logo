@@ -3,8 +3,8 @@
 // takes a scientific-pitch-notation word (lowercase canonical spelling: `"c4"`, `"fs4"` sharp,
 // `"bb3"` flat) and a positive number of beats; a non-word pitch raises `ol-type` (expected:word), a
 // malformed pitch raises `ol-type` (expected:pitch), and a non-positive/non-finite duration raises
-// `ol-range`. `rest <dur>` takes a positive number of beats. Both emit their duration in beats and
-// emit a `sound` event AFTER scheduling — unconditionally, even when audio
+// `ol-range`. `rest <dur>` takes a positive number of beats. Both emit one `sound` event carrying
+// their duration in beats — unconditionally, even when audio
 // is unavailable/muted, so deterministic replay never depends on the speaker ("Implementations that
 // cannot play audio ... MUST still emit `sound` events"). `rest` emits its event "so replay tools
 // can show the silent interval".
@@ -46,7 +46,7 @@ test("note accepts a fractional positive duration and a numeric-word duration", 
   assert.deepEqual(durations, [0.5, 2]);
 });
 
-test("note and rest emit beat durations, with the tempo carried by its own event", () => {
+test("note and rest emit beat durations, with the tempo carried by a separate event", () => {
   // The runtime is headless: the `note` carries its duration in beats and the tempo travels as its
   // own earlier `sound` event. The note/rest payloads below are therefore the same whatever tempo
   // precedes them, and the run raises no diagnostic.

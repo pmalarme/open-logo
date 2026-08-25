@@ -137,18 +137,32 @@ it measured, not merely which SHA:
 The rules above make the **tree** trustworthy. This one makes your **measurement of it** trustworthy
 — a different question, and the one that fails silently.
 
-**A tool that enumerates the repository through git cannot see an untracked file, so a green run over
-unstaged work certifies a tree that does not contain the work.** The worked example is the gate built
-in **#934**: `scripts/spec-citations-gate.mjs` walks the **tracked** set via `git ls-files`, and its
-verification run happened **before `git add`**. The gate had therefore never read its own source, and
-reported green. Its own reviewers caught it.
+The principle: **an instrument inherits the blind spots of whatever it is built on, and reports
+success from inside them.** Two mechanisms produce this, and both return plausible output rather than
+an error.
 
-That instance is narrow; the class is not. Saga #572 produced at least four, and every one returns
-plausible output rather than an error:
+**1. The instrument enumerates a narrower set than the truth.** A tool that enumerates the repository
+through git cannot see an untracked file, so a green run over unstaged work certifies a tree that
+does not contain the work. The worked example is the gate built in **#934**:
+`scripts/spec-citations-gate.mjs` walks the **tracked** set via `git ls-files`, and its verification
+run happened **before `git add`**. The gate had therefore never read its own source, and reported
+green. Its own reviewers caught it.
+
+**2. The verifier shares the parser of the thing it verifies.** Then it cannot see the defect by
+construction. A citation re-pointing tool reported *"each verified byte-identical"* — **false for 2 of
+48**: its shift regex matched only the **first** range of a citation, so a citation carrying a second
+range after a comma had its head moved and its tail left stranded on unrelated prose. The verifier
+used the same regex, so it confirmed the move it had itself mis-parsed. **A verifier built from the
+subject's own parser is a second opinion in name only** — check it against something with an
+independent failure mode: a different parser, a hand-audited sample, or the artifact the claim is
+ultimately about.
+
+Saga #572 produced at least five instances:
 
 | trap | what was actually measured |
 | --- | --- |
 | `git ls-files` before `git add` | a tree without the new file |
+| a re-pointing tool verified by its own regex | only each citation's first range; comma-appended tails unchecked |
 | `tsc -b` mtime after a `Copy-Item` restore | a stale `dist/`, while `git status` reads clean |
 | `node` v26 coverage | a report with **zero** `*.test.mjs` rows, printing 100% |
 | `highlight(src, {profiles})` (**#951**) | Core-only profiles — the options were bound to `document` |
@@ -158,8 +172,9 @@ produced **two** false issues (#832, #840) and a withdrawn Epic Gate PASS.
 
 So, before believing any green measurement: **state what the instrument enumerated** — which files,
 which profiles, which artifacts, which runtime — and confirm the thing you changed is inside that
-set. Name the oracle you checked it against (`git ls-files '*.test.mjs'` for the coverage case). A
-reviewer meeting a fifth variant should recognise the shape rather than the instance.
+set. Name the oracle you checked it against (`git ls-files '*.test.mjs'` for the coverage case), and
+make sure that oracle does not share the instrument's own blind spot. A reviewer meeting a sixth
+variant should recognise the shape rather than the instance.
 
 **This is discipline, not a gate.** Nothing in CI enforces it, and per AGENTS.md *"Policies,
 instructions, and hooks are guidance; CI is the gate."* Claiming otherwise here would be the very
@@ -297,7 +312,7 @@ ground out.
 
 - [ ] All required reviews run as sub-agents, **all ≠ author** (at least two): the **logic/spec reviewer** — `rubber-duck` (Claude/GPT large session model) **or a named non-author fallback** — plus **every** dispatched domain QA expert; reviewers stayed read-only.
 - [ ] **Every reviewer read the commit its verdict names**: tree clean (`git status --porcelain` empty) and pushed before each dispatch, **the dispatched SHA tagged and the tag dispatched**, every reviewer idle before any edit, reviewers asserted cleanliness themselves, and the branch was **frozen** once all verdicts landed on one SHA.
-- [ ] **The instrument measured what you think**: each green run states what it enumerated (files, profiles, artifacts, runtime) and the work under review is inside that set — a `git ls-files` walk cannot see untracked work.
+- [ ] **The instrument measured what you think**: each green run states what it enumerated (files, profiles, artifacts, runtime) and the work under review is inside that set — a `git ls-files` walk cannot see untracked work, and a verifier sharing its subject's parser inherits its blind spot.
 - [ ] **Artifacts, not just a SHA**: the tree was never mutated while a reviewer was measuring it (no two writers on one `dist`); write-capable checks ran in a disposable checkout of the exact SHA outside the worktree; any mutation was confirmed applied via `git diff` and confirmed in `dist` before its result was believed.
 - [ ] Clean-tree DoD re-run — build **emits** verified (no stale-`.tsbuildinfo` no-op; TS 7 confirmed).
 - [ ] Spec-fidelity — canonical vocabulary; `ol-*` codes with spans; profile boundaries.
