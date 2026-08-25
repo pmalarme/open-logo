@@ -8,9 +8,15 @@
  * block-heads are available"), never a hardcoded "every optional profile active".
  *
  * **Nothing here enumerates profiles or names by hand.** Both exports below go through
- * {@link profileContributedNames}, which reads the profile-keyed registries — `signatures.ts`'s
+ * {@link profileContributedNames}, which sweeps the profile-keyed registries — `signatures.ts`'s
  * `PROFILE_PRIMITIVES` and `keywords.ts`'s `OL_PROFILE_KEYWORDS` — so a profile that gains a table
- * is covered the moment it lands. That is issue #966's subject: this module previously kept a
+ * is covered the moment it lands. Two things are named explicitly rather than derived, and both are
+ * claims rather than omissions: Core's profile-independent {@link OL_KEYWORDS}, which by definition
+ * cannot come from a profile-keyed table, and the one-entry
+ * {@link NAMES_AWAITING_AN_EVALUATOR} exception. Neither grows when a profile is added, which is
+ * the property a spread ladder cannot have.
+ *
+ * That is issue #966's subject: this module previously kept a
  * spread ladder *and* a nine-branch profile chain, both hand-extended one slice at a time, and the
  * ladder had already fallen behind the registry — it grew no Tutor arm when issue #838 registered
  * `TUTOR_PRIMITIVE_ARITY`, so `challenge` was treated as a Core word by the tie-break below while
@@ -39,7 +45,7 @@ import {
  * Every name conformance profile `profile` contributes to the checker's name model, from the
  * profile-keyed registries themselves rather than from a per-profile branch here.
  *
- * Three registries answer, and each is already keyed by profile, so a profile that gains a table
+ * Three registries answer, and two of them are keyed by profile, so a profile that gains a table
  * reaches both consumers below with **no edit to this module**:
  *
  * - {@link profileCallableNames} — the profile's primitives out of `signatures.ts`'s

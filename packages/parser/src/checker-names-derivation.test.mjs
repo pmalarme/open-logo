@@ -175,11 +175,23 @@ test("every withheld name is one a profile actually registers", () => {
   }
 });
 
-test("a profile's names are invisible while the profile is inactive", () => {
+test("a profile's callable names are invisible while the profile is inactive", () => {
   // The gate `spec/tooling.md:175-176` requires. The sweep above would also pass for a model that
   // ignored `profiles` entirely and made every name visible always; this is what rules that out.
+  //
+  // Covers every **callable** name an optional profile contributes — its primitives and, for
+  // Heritage, its short aliases — so the alias leg is exercised rather than primitives alone. The
+  // profile **keywords** (`ask`/`each`/`tell`, the four event heads) are deliberately excluded and
+  // the title says so: they are statement heads that take an argument and a block, so a bare `ask`
+  // does not parse at all and could not reach the visibility question this test asks. Their
+  // profile-gated behaviour is covered by `sprites-tooling.test.mjs` and
+  // `interaction-tooling.test.mjs`, which write the whole form.
   for (const profile of OPTIONAL_PROFILES) {
-    for (const name of OL.profilePrimitiveNames(profile)) {
+    const callable = [
+      ...OL.profilePrimitiveNames(profile),
+      ...(profile === "heritage" ? OL.heritageAliasNames() : []),
+    ];
+    for (const name of callable) {
       assert.equal(
         checkCodes(name, ["core-language"]).includes("ol-unknown-command"),
         true,

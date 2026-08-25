@@ -215,11 +215,16 @@ test("every registered form head is a built-in name AND is carried by the surfac
   }
 });
 
-test("a Heritage form head resolves to a Core spelling the predicate also owns", () => {
-  // `canonicalOfHeritageFormHead` resolves `to` → `define` and had no caller in this predicate's
-  // module (issue #965 item 3). It is consumed here rather than left as an accessor nothing calls:
-  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
-  // `define to` must be exactly as illegal as `define define`, and this is what asserts it.
+test("a Heritage form head and its Core canonical are both built-in names", () => {
+  // A membership-consistency assertion, and no more than that. `canonicalOfHeritageFormHead`
+  // resolves `to` → `define`, and this pins that the predicate answers alike for both sides of
+  // every such edge — Heritage being "alternate spellings only, no new semantics"
+  // (`spec/conformance.md:150`) means a spelling cannot be declarable while its canonical is not.
+  //
+  // What it does NOT do: it asserts nothing about the `ol-reserved-word` diagnostic itself (that is
+  // `checker-reserved-word.test.mjs`, which drives `check()`), and it does not rescue an unused
+  // accessor — `canonicalOfHeritageFormHead` already has production consumers in
+  // `checker-heritage-form.ts` and `checker-control-flow.ts`.
   for (const head of OL.heritageFormHeadNames()) {
     const canonical = OL.canonicalOfHeritageFormHead(head);
     assert.equal(

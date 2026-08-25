@@ -621,10 +621,17 @@ test("INJECTED DRIFT: emptying excluded leaves every stdlib procedure uncarved",
   const uncarved = result.findings.filter((finding) =>
     finding.includes('records no "library" carve-out'),
   );
-  assert.equal(
-    uncarved.length,
-    REAL_IO.listStdlibFiles().length,
-    result.findings.join("\n"),
+  // One finding per PROCEDURE the walk discovers, not per file: a file lawfully defining two would
+  // make a file-count comparison wrong while the gate was right.
+  const definedNames = new Set(
+    REAL_IO.listStdlibFiles().flatMap((file) =>
+      procedureNamesIn(REAL_IO.readText(file)),
+    ),
+  );
+  assert.equal(uncarved.length, definedNames.size, result.findings.join("\n"));
+  assert.ok(
+    definedNames.size > 0,
+    "nothing was scanned, so nothing was proven",
   );
 });
 
@@ -754,16 +761,89 @@ test("a stdlib walk that throws is a finding, not a crash", () => {
   );
 });
 
-test("a spec/grammar.md that cannot be read is a finding, not a crash", () => {
-  // Same rule, other document: the "could not derive the contextual keywords" finding exists for
-  // exactly this state, so throwing past it would replace a worded finding with a stack trace.
-  // `extractContextualKeywords` already answers `null` for non-string input, so the existing path
-  // takes over with no new branch.
+test("the stdlib is walked once per run, so the report cites the scan the checks used", () => {
+  // A non-idempotent port must not be able to make the two disagree. With the walk done twice, a
+  // second call that threw left validation seeing the library while the summary line reported
+  // `over 0 stdlib file(s)` beside `0 finding(s)` — a green run describing a tree it did not check.
   //
-  // Asserted on `contextualCarveOutFindings` rather than the whole gate because `proseFindings`
-  // reads the same document through its own unguarded call, predating this slice. Widening that is
-  // outside this slice's write-set and is reported to @orchestrator rather than fixed here; what
-  // this pins is that the check this slice ADDED does not crash.
+  // The counter alone is the assertion. A `throw` on the second call would read as a stronger
+  // guard and is strictly weaker: it can only ever be dead code while the fix holds, which is the
+  // unreachable-clause class this file has now produced three times.
+  let calls = 0;
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => {
+      calls += 1;
+      return REAL_IO.listStdlibFiles();
+    },
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(calls, 1, `the stdlib was walked ${calls} times, expected once`);
+  assert.deepEqual(result.findings, []);
+  assert.equal(
+    result.lines.some((line) =>
+      line.includes(
+        `over ${REAL_IO.listStdlibFiles().length} ${STDLIB_DIR} file(s)`,
+      ),
+    ),
+    true,
+    result.lines.join("\n"),
+  );
+});
+
+test("a spec document that cannot be read is a finding, not a crash", () => {
+  // Every prose anchor lives in a `spec/` document opened by path, and each read was unguarded:
+  // a permissions change or a race with a checkout threw out of the gate instead of reporting
+  // (issue #988). Each document is asserted separately so a guard added to one does not read as
+  // covering all three.
+  for (const path of [GRAMMAR_PATH, TOOLING_PATH, CONFORMANCE_PATH]) {
+    const io = {
+      ...REAL_IO,
+      readText: (candidate) => {
+        if (candidate === path) {
+          throw new Error("EACCES");
+        }
+        return REAL_IO.readText(candidate);
+      },
+    };
+    const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+    assert.equal(result.ok, false, `${path} must fail the run`);
+    assert.equal(
+      result.findings.some((finding) =>
+        finding.startsWith(`${path}: could not be read`),
+      ),
+      true,
+      `${path}: ${result.findings.join("\n")}`,
+    );
+    // And it must not become a silent pass: the anchors that went unchecked say so too.
+    assert.equal(
+      result.findings.some((finding) =>
+        finding.startsWith(`${path}: could not find`),
+      ),
+      true,
+      `${path} reported the read failure but not the unchecked anchor`,
+    );
+  }
+});
+
+test("every prose extractor fails closed on a non-string input", () => {
+  // What makes the read guard above safe with no extra branch at each call site: an unreadable
+  // document yields `undefined`, and each extractor answers `null` rather than throwing, so the
+  // existing "anchor has moved" finding fires.
+  for (const extract of [
+    extractGrammarKeywordBlock,
+    extractToolingC19Mirror,
+    extractToolingKeywordRow,
+    extractConformanceProfiles,
+    extractContextualKeywords,
+  ]) {
+    assert.equal(extract(undefined), null, extract.name);
+  }
+});
+
+test("contextualCarveOutFindings reports rather than throws when its document is unreadable", () => {
+  // The unit-level counterpart of the gate-wide assertion above: the check this slice added
+  // reports on its own, independent of the shared `readDocument` guard in `proseFindings`.
   const findings = contextualCarveOutFindings(REAL_MANIFEST, realParserApi, {
     ...REAL_IO,
     readText: () => {
@@ -900,9 +980,24 @@ test("stdlibCarveOutFindings is clean on the shipped tree, and says over how man
   const libraryCarveOuts = REAL_MANIFEST.excluded.filter(
     (entry) => entry.reason === "library",
   );
-  // Cross-derived: the file count and the carve-out count are produced by different instruments
-  // (a directory walk and a JSON read) and must reconcile — a bijection, not merely consistency.
-  assert.equal(stdlibFiles.length, libraryCarveOuts.length);
+  // Cross-derived: the carve-out set and the set of procedures the walk finds are produced by
+  // different instruments (a JSON read and a directory walk + header scan) and must reconcile
+  // exactly. Reconciled on PROCEDURE NAMES, not on file count — the bijection is names-to-names,
+  // and one file lawfully defining two procedures would fail a file-count comparison while being
+  // perfectly correct. The file count is reported separately, as scan-surface evidence.
+  const defined = stdlibFiles.flatMap((file) =>
+    procedureNamesIn(REAL_IO.readText(file)),
+  );
+  assert.deepEqual(
+    [...new Set(defined)].sort(),
+    libraryCarveOuts.map((entry) => entry.name).sort(),
+  );
+  assert.equal(
+    defined.length,
+    new Set(defined).size,
+    "a procedure defined twice would make the carve-out binding ambiguous",
+  );
+  assert.ok(stdlibFiles.length > 0, "the scan surface must not be empty");
   assert.deepEqual(
     stdlibFiles.filter((path) => !path.endsWith(".logo")),
     [],
@@ -1066,10 +1161,34 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
     ),
     null,
   );
-  // Both anchors must sit in ONE paragraph, so a closure elsewhere cannot stand in for this one's.
+  // TWO ANCHOR PAIRS IN DIFFERENT PARAGRAPHS. Returning on the first left a second, contradictory
+  // paragraph unread, so the document could disagree with itself while the gate reported nothing.
   assert.equal(
     extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names.\n\nThe contextual keywords are exactly these four;",
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;\n\nBy contrast, `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these one;",
+    ),
+    null,
+  );
+  // TWO CLOSING CLAIMS IN THE SAME PARAGRAPH. Matching once per paragraph left the second unread
+  // too — the same false pass one scope down, which is why both anchors are now counted
+  // document-wide rather than per paragraph.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four; the contextual keywords are exactly these one;",
+    ),
+    null,
+  );
+  // TWO ENUMERATIONS IN THE SAME PARAGRAPH, likewise.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty` are **not** keywords and **not** built-in names. By contrast, `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these one;",
+    ),
+    null,
+  );
+  // ORPHANED ANCHORS: one of each, but in different paragraphs, so neither closes the other.
+  assert.equal(
+    extractContextualKeywords(
+      "By contrast, `empty` are **not** keywords and **not** built-in names.\n\nThe contextual keywords are exactly these one;",
     ),
     null,
   );

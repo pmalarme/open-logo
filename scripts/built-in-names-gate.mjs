@@ -938,6 +938,30 @@ function listStdlibOrEmpty(io) {
 }
 
 /**
+ * `path`'s text, or `undefined` after recording a finding that names the document.
+ *
+ * Every prose anchor this gate reads lives in a `spec/` document it opens by path, and each of
+ * those reads was unguarded: a permissions change, a broken symlink, or a race with a checkout
+ * threw out of the gate instead of producing a finding, so the run died with a stack trace that
+ * reads like a broken gate rather than the unread document it is (issue #988).
+ *
+ * **It does not become a silent pass.** The read failure is a finding in its own right, and the
+ * extractors below all fail closed on a non-string input, so each anchor that could not be checked
+ * *also* reports itself. Two findings for one cause is the honest outcome: one names the cause, the
+ * others name exactly what went unchecked because of it. That is the #964 rule applied to this
+ * gate's own inputs — a check that passes when its data is absent is not a check.
+ */
+function readDocument(io, path, findings) {
+  const text = readOrUndefined(io, path);
+  if (text === undefined) {
+    findings.push(
+      `${path}: could not be read, so every anchor this gate reads in it went unchecked — a document the gate cannot open is a finding, never a skip`,
+    );
+  }
+  return text;
+}
+
+/**
  * The deliberate omissions, as data with reasons. Every one of them looks like an oversight to
  * anyone doing a "completeness" pass, which is exactly why the reasoning has to be machine-checked
  * rather than left in a comment.
@@ -1074,9 +1098,12 @@ export function carveOutFindings(manifest, io) {
  * them, and the decoy route additionally requires an edit to `spec/built-in-names.json`, which is
  * maintainer-owned through `CODEOWNERS`.
  */
-export function stdlibCarveOutFindings(manifest, io) {
+export function stdlibCarveOutFindings(
+  manifest,
+  io,
+  files = listStdlibOrEmpty(io),
+) {
   const findings = [];
-  const files = listStdlibOrEmpty(io);
 
   const carvedOut = new Set(
     manifest.excluded
@@ -1164,40 +1191,48 @@ const NUMBER_WORDS = {
  *    gate derived the wrong set and then forced the manifest to follow it. The count is parsed and
  *    reconciled against the words actually enumerated, **and the words must be distinct** — four
  *    words of which two are the same spelling satisfies a count of four while naming three.
- * 4. **Uniqueness.** Exactly **one** paragraph in the document may carry both anchors. Returning on
- *    the first match let a second, contradictory paragraph sit below it unread, so the document
- *    could disagree with itself while the gate reported nothing.
+ * 4. **Uniqueness, document-wide.** The document may contain exactly **one** enumeration and
+ *    exactly **one** closing claim, and they must share a paragraph. Two weaker rules each let the
+ *    document contradict itself unread: returning on the first *paragraph* that carried both left a
+ *    later contradictory paragraph unexamined, and matching once *within* a paragraph left a second
+ *    claim in the same paragraph unexamined. Every occurrence of each anchor is counted, so a
+ *    contradiction anywhere is a finding rather than a silently-preferred first match.
  *
- * Both anchors must sit in the **same paragraph**, so a sentence elsewhere in the document cannot
- * stand in as this one's closure. Returns `null` when any of the four fails — a **finding** at the
- * caller, never a skip, because `spec/` is maintainer-owned and this gate may not annotate the
- * documents it reads. The word list itself is bounded to the sentence rather than the paragraph:
- * the surrounding prose backticks `to`, `set ... to`, `define of` and the `is`-predicate examples,
- * none of which are members of this set.
+ * Returns `null` when any of the four fails — a **finding** at the caller, never a skip, because
+ * `spec/` is maintainer-owned and this gate may not annotate the documents it reads. The word list
+ * itself is bounded to the sentence rather than the paragraph: the surrounding prose backticks
+ * `to`, `set ... to`, `define of` and the `is`-predicate examples, none of which are members of
+ * this set.
  */
 export function extractContextualKeywords(text) {
   if (typeof text !== "string") {
     return null;
   }
-  const anchored = [];
-  for (const paragraph of text.split(/\r?\n\s*\r?\n/)) {
-    const enumeration =
-      /By contrast, ([^.]*?) are \*\*not\*\* keywords and \*\*not\*\* built-in names\./.exec(
-        paragraph,
-      );
-    const closure = /contextual keywords are exactly these ([a-z]+)[;.,]/.exec(
-      paragraph,
-    );
-    if (enumeration !== null && closure !== null) {
-      anchored.push({ enumeration, closure });
-    }
-  }
-  if (anchored.length !== 1) {
+  const ENUMERATION =
+    /By contrast, ([^.]*?) are \*\*not\*\* keywords and \*\*not\*\* built-in names\./g;
+  const CLOSURE = /contextual keywords are exactly these ([a-z]+)[;.,]/g;
+  // Counted document-wide, not per paragraph and not once per paragraph: either weaker rule leaves
+  // a contradicting second claim unread, which is the false pass this exists to close.
+  const enumerations = [...text.matchAll(ENUMERATION)];
+  const closures = [...text.matchAll(CLOSURE)];
+  if (enumerations.length !== 1 || closures.length !== 1) {
     return null;
   }
-  const [{ enumeration, closure }] = anchored;
+  const [enumeration] = enumerations;
+  const [closure] = closures;
+  // ...and the two must be the same paragraph, so a claim elsewhere cannot close this enumeration.
+  const paragraphs = text.split(/\r?\n\s*\r?\n/);
+  const paragraphOf = (match) =>
+    paragraphs.findIndex((paragraph) => paragraph.includes(match[0]));
+  if (paragraphOf(enumeration) !== paragraphOf(closure)) {
+    return null;
+  }
   const words = backtickedWords(enumeration[1]);
-  if (words.length === 0 || NUMBER_WORDS[closure[1]] !== words.length) {
+  // No `words.length === 0` clause: `NUMBER_WORDS` maps `one`..`ten`, so no key maps to 0 and the
+  // count comparison already rejects an empty enumeration. Adding the emptiness test back would be
+  // a clause that can never decide the outcome — the third such no-op caught in this file, and
+  // invisible to a 100%-branch-covered gate.
+  if (NUMBER_WORDS[closure[1]] !== words.length) {
     return null;
   }
   return new Set(words).size === words.length ? words : null;
@@ -1326,6 +1361,9 @@ export function backtickedWords(text) {
  * must never annotate the documents it reads. A missing anchor is a finding, not a skip.
  */
 export function extractGrammarKeywordBlock(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
   const lines = text.split(/\r?\n/);
   const anchor = lines.findIndex((line) =>
     line.includes("The normative OpenLogo keyword list is:"),
@@ -1362,6 +1400,9 @@ export function extractGrammarKeywordBlock(text) {
  * sentence. This is the list that had already silently drifted to 43 words.
  */
 export function extractToolingC19Mirror(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
   const lines = text.split(/\r?\n/);
   const anchor = lines.findIndex((line) =>
     line.includes("this is the C19 registry repeated"),
@@ -1406,6 +1447,9 @@ export function extractToolingC19Mirror(text) {
  * `` | `keyword` | ``. Requires **exactly one**, so a duplicate leaves nothing unambiguous to hash.
  */
 export function extractToolingKeywordRow(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
   const rows = text
     .split(/\r?\n/)
     .filter((line) => line.startsWith("| `keyword` |"));
@@ -1473,14 +1517,16 @@ export function rowFingerprintFindings(manifest, row) {
  */
 export function proseFindings(manifest, io) {
   const findings = [];
-  const grammarWords = extractGrammarKeywordBlock(io.readText(GRAMMAR_PATH));
+  const grammarWords = extractGrammarKeywordBlock(
+    readDocument(io, GRAMMAR_PATH, findings),
+  );
   if (grammarWords === null) {
     findings.push(
       `${GRAMMAR_PATH}: could not find the fenced keyword block after "The normative OpenLogo keyword list is:" — the anchor this gate reads has moved`,
     );
   }
 
-  const toolingText = io.readText(TOOLING_PATH);
+  const toolingText = readDocument(io, TOOLING_PATH, findings);
   const mirrorWords = extractToolingC19Mirror(toolingText);
   if (mirrorWords === null) {
     findings.push(
@@ -1552,6 +1598,9 @@ export function proseFindings(manifest, io) {
  * optional profile sections. Anchored on the existing headings, fail-closed if either moves.
  */
 export function extractConformanceProfiles(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
   const lines = text.split(/\r?\n/);
   const start = lines.indexOf("## Required profiles");
   const end = lines.indexOf("## Feature to profile table");
@@ -1575,7 +1624,9 @@ export function extractConformanceProfiles(text) {
  */
 export function profileInventoryFindings(manifest, api, io) {
   const findings = [];
-  const sections = extractConformanceProfiles(io.readText(CONFORMANCE_PATH));
+  const sections = extractConformanceProfiles(
+    readDocument(io, CONFORMANCE_PATH, findings),
+  );
   if (sections === null) {
     findings.push(
       `${CONFORMANCE_PATH}: could not find the profile sections between "## Required profiles" and "## Feature to profile table" — the anchor this gate reads has moved`,
@@ -1866,6 +1917,12 @@ export function runBuiltInNamesGate({
     resolved = loadManifest(manifestPath, io);
   }
 
+  // ONE walk per run, shared by the check and the report. Two walks let a non-idempotent port
+  // disagree with itself: validation could see the library while the summary line reported
+  // `over 0 stdlib file(s)` beside `0 finding(s)`, which is a green run describing a tree it did
+  // not check. The scan surface a report cites has to be the one the checks actually used.
+  const stdlibFiles = listStdlibOrEmpty(io);
+
   const findings = [
     ...versionFindings(resolved, api),
     ...narrativeFindings(resolved),
@@ -1877,7 +1934,7 @@ export function runBuiltInNamesGate({
     ...profilePrimitiveSweepFindings(resolved, api),
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
-    ...stdlibCarveOutFindings(resolved, io),
+    ...stdlibCarveOutFindings(resolved, io, stdlibFiles),
     ...contextualCarveOutFindings(resolved, api, io),
     ...profileInventoryFindings(resolved, api, io),
     ...profileCoverageFindings(resolved, api),
@@ -1905,7 +1962,7 @@ export function runBuiltInNamesGate({
     .map((reason) => `${carveOutsByReason[reason]} ${reason}`)
     .join(" + ");
   lines.push(
-    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs (${carveOutSummary}) over ${listStdlibOrEmpty(io).length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
+    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs (${carveOutSummary}) over ${stdlibFiles.length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
   );
   if (unenumerable.length > 0) {
     lines.push(
