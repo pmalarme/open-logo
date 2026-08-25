@@ -3212,7 +3212,7 @@ function isOnKeyStatement(statement: StatementNode): boolean {
  * registration forms emit `primitive` events after the handler is registered").
  *
  * Registration never fires the block: a key press is host input, and in a headless batch `execute()`
- * run there is no keyboard, so an `on_key` handler is registered but never delivered — exactly like a
+ * run with no host input supplied, an `on_key` handler is registered but never fires — exactly like a
  * `when "stop"` handler in a headless run. Synthesizing a key press is a host concern outside this
  * slice; the `on-key-registered-not-delivered` fixture locks that narrowing so it is falsifiable
  * rather than silently omitted.
@@ -3287,8 +3287,8 @@ function isOnClickStatement(statement: StatementNode): boolean {
  * `on_click` takes **no argument** — it is the only Interaction & Events block-head that takes just a
  * block (`spec/interaction-events.md` §Profile grammar: "`on_click` takes none") — so there is no
  * argument to evaluate or type-check, and the spec lists its errors as **none**. Registration never
- * fires the block: a click is host input, and in a headless batch `execute()` run there is no pointer
- * device, so an `on_click` handler is registered but never delivered — exactly like a `when "stop"`
+ * fires the block: a click is host input, and with no host input supplied
+ * an `on_click` handler is registered but never fires — exactly like a `when "stop"`
  * (I3) or an `on_key` (I5) handler in a headless run. Synthesizing a click is a host concern outside
  * this slice; the `on-click-registered-not-delivered` fixture locks that narrowing so it is
  * falsifiable rather than silently omitted.

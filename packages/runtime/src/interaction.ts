@@ -10,11 +10,12 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. It appears in no event
- * payload — the `primitive` event `wait` emits carries only the primitive name.
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. No **trace**-event payload
+ * carries a tick: the `primitive` event `wait` emits carries only the primitive name.
+ * (`HostInputEvent` below carries a `tick`, but it is host *input*, not a trace event.)
  * The clock exists so that a program's event *sequence* is reproducible and
  * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
- * itself observable in the stream.
+ * itself observable in the trace stream.
  *
  * ## Why `wait` is a per-tick loop, not a blocking sleep
  *
@@ -65,7 +66,7 @@ import type { Environment } from "./evaluate.js";
  * `instructionCount`/`addressing` — rather than a plain field reassigned on {@link Environment}, so a
  * tick advance made from anywhere in the program (including deep inside a procedure call or loop
  * body) is observed by every later read in the same run. The clock is
- * headless logical state and appears in no event payload (see the file header).
+ * headless logical state and appears in no trace-event payload (see the file header).
  */
 export interface TickClock {
   tick: number;
@@ -395,13 +396,13 @@ export interface EveryHandler {
  * supported key words, so any word is accepted and a handler for a key this host never delivers
  * simply never runs.
  *
- * A key press is **host input**: in a headless batch `execute()` run there is no keyboard, so an
- * `on_key` handler registers but is never delivered — exactly like a `when "stop"` handler in a
+ * A key press is **host input**: with no host input supplied, an
+ * `on_key` handler registers but never fires — exactly like a `when "stop"` handler in a
  * headless run (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
  * is a host concern outside this slice, so this handler carries no delivery-state flag: it holds the
  * captured block and scope for an interactive host to deliver. It lives in its own
- * registration-ordered list so #686/I7 can impose the spec's same-tick delivery order
- * (`when`/`on_key`/`on_click` first, then due `every`) across handler kinds without reworking it.
+ * registration-ordered list so the same-tick delivery order (#686/I7)
+ * (`when`/`on_key`/`on_click` first, then due `every`) holds across handler kinds without reworking it.
  */
 export interface OnKeyHandler {
   readonly key: string;
@@ -421,13 +422,13 @@ export interface OnKeyHandler {
  * event carries, and the {@link Environment} captured at registration time so the body later runs in
  * its **registration-time lexical scope** ("A handler block is a normal OpenLogo block").
  *
- * A click is **host input**: in a headless batch `execute()` run there is no pointer device, so an
- * `on_click` handler registers but is never delivered — exactly like a `when "stop"` handler (I3) or
+ * A click is **host input**: with no host input supplied, an
+ * `on_click` handler registers but never fires — exactly like a `when "stop"` handler (I3) or
  * an `on_key` handler (I5) in a headless run (locked by the `on-click-registered-not-delivered`
  * fixture). Synthesizing a click is a host concern outside this slice, so this handler carries no
  * delivery-state flag: it holds the captured block and scope for an interactive host to
- * deliver. It lives in its own registration-ordered list so #686/I7 can impose the spec's
- * same-tick delivery order (`when`, then `on_key`, then `on_click`, then due `every`) across handler
+ * deliver. It lives in its own registration-ordered list so the same-tick delivery order (#686/I7)
+ * (`when`, then `on_key`, then `on_click`, then due `every`) holds across handler
  * kinds without reworking it.
  */
 export interface OnClickHandler {

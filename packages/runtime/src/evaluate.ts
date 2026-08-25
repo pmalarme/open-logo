@@ -310,7 +310,7 @@ export interface Environment {
    * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
    * current logical tick, shared by every recursive `executeStatements`/`evaluate` call
    * so a `wait`'s tick advance is observed program-wide. Headless execution
-   * state: it appears in no event payload (`interaction.ts`'s header). Timed
+   * state: it appears in no trace-event payload (`interaction.ts`'s header). Timed
    * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
@@ -4914,7 +4914,8 @@ function evaluateRandom(
  * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
  * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
  * (issue #114) minus `PostfixExpression` and `IsPredicate`. A body ending in either is not
- * value-producing here, so the comprehension is left un-evaluated rather than partially run.
+ * value-producing here, and {@link asExpressionStatement} returns `undefined` for it, so the
+ * comprehension is left un-evaluated rather than partially run.
  */
 const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
   "NumberLit",

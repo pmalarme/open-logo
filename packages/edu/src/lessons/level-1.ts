@@ -51,7 +51,8 @@ export const level1Lessons: readonly Lesson[] = [
  * compose-a-recognizable-object rule from `spec/educational-model.md` and
  * `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house -- a square body and a
  * triangle roof, each with a door and two windows -- built entirely from Level 1 primitives,
- * with every side of the square and roof typed out one at a time.
+ * with every side of the square and roof typed out one at a time, since `repeat` is not
+ * introduced until Level 2.
  */
 export const level1Exercises: readonly Exercise[] = [
   {

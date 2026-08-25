@@ -3,8 +3,8 @@
 // exactly one `clear` event. `clear_screen` additionally homes position/heading and — since issue
 // #847 — makes that homing observable, emitting `move`/`turn` before the `clear` with NO
 // `draw-segment` whatever the pen state. `clean` leaves position/heading untouched and emits the
-// `clear` alone. Pen state and visibility are unchanged by either (this file does not exercise
-// color/width).
+// `clear` alone. Pen state and visibility are unchanged by either (this file never sets a
+// non-default pen color or width).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

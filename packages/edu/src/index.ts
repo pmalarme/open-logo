@@ -1,15 +1,15 @@
 /**
  * `@openlogo/edu` — learner levels, the deterministic `explain`/`why`/`hint`/`debug` commands,
  * the geometry standard library (discoverable OpenLogo source), the curriculum, and — once the
- * Tutor (AI) profile lands — the Socratic AI tutor. Depends on `@openlogo/core` and
+ * Tutor (AI) profile lands (saga #573) — the Socratic AI tutor. Depends on `@openlogo/core` and
  * `@openlogo/runtime`.
  *
  * Issue #189 fixed the read-only `Lesson`/`WorkedExample` data contract. Issue #328 adds the
  * first curriculum content on top of it — Level 1 and Level 2 lessons plus graded `Exercise`s
  * (`./lessons/level-1.ts`, `./lessons/level-2.ts`) — aggregated by `./lessons/registry.ts` into
  * the flat `LESSONS`/`EXERCISES` lists re-exported below. Issue #325 adds Level 3
- * (`./lessons/level-3.ts`, variables). Levels 4 and 5 followed the same shape; Level 6 onward adds
- * its own `level-N.ts` module and extends the registry additively. The Socratic AI tutor lands with
+ * (`./lessons/level-3.ts`, variables). Levels 4 and 5 followed the same shape; each level adds its
+ * own `level-N.ts` module and extends the registry additively. The Socratic AI tutor lands with
  * the Tutor (AI) profile (saga #573); `challenge` is registered as a name but has no behaviour yet.
  */
 

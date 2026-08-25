@@ -2,8 +2,8 @@
 
 The education layer: learner levels/curriculum, the deterministic meta-commands
 `explain`/`why`/`hint`/`debug`, the geometry standard library (discoverable `.logo` source) and its
-reasoning, and — once the Tutor (AI) profile lands — the AI tutor (Socratic, offline-degrading)
-behind a provider-neutral adapter.
+reasoning, and — once the Tutor (AI) profile lands (saga #573) — the AI tutor (Socratic,
+offline-degrading) behind a provider-neutral adapter.
 
 - **Source root:** `src/` — public entry `src/index.ts`; geometry stdlib as validated `.logo` source.
 - **Owners:** [`@geometry-teacher`](../../.github/agents/geometry-teacher.agent.md) +
@@ -42,7 +42,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   follows the compose-a-recognizable-object rule (`spec/educational-model.md`,
   `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house — a square body and a triangle
   roof, each with a door and two windows — with every side of the square and roof typed out one
-  at a time.
+  at a time, since `repeat` is not introduced until Level 2.
 - `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
   `repeat` as an effects-only block and `repcount`, including the canonical square worked
   example (`spec/educational-model.md:66-87`). The graded exercises follow the same
