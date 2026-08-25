@@ -934,11 +934,15 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * stay excluded.
  *
  * **What that buys is exhaustive dispatch, not a correct child list, and the difference matters.**
- * Every value those discriminants can take selects an explicit case; nothing here checks that the
- * case returns *every* node-valued field of its kind. A field added to an already-handled kind — or
- * a union member that reuses an existing discriminant value, which is the same thing at runtime —
- * compiles clean, and the field is silently absent from the child list. The holder is still reached;
- * the node in that field, and everything below it, is not. Issue #960 tracks that residual. See
+ * Every value those discriminants can take selects an explicit case; `tsc` does not check that the
+ * case returns *every* node-valued field of its kind — a field added to an already-handled kind, or
+ * a union member reusing an existing discriminant value, compiles clean with the field silently
+ * absent from the child list. That half is checked at test time instead, by
+ * `child-edges.test.mjs`: it derives each node's edges by reflection, from a source that does not
+ * use this function, and fails naming the dotted path of any field omitted here
+ * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). What
+ * survives is narrower — a node-valued field that **no** fixture populates, which is invisible to
+ * reflection too. See also
  * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {

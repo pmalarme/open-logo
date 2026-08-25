@@ -37,17 +37,24 @@ child-edge enumeration and recursion logic, which is the property that makes the
 anything. `walk` is retained as an integration check: the per-node comparison proves each child list
 is right, and `walk` proves the traversal built on it actually descends them.
 
-**Identity and multiplicity, not membership.** An earlier draft compared reachable *sets* and was
-defeated three ways by the non-author reviewer, each of which now fails:
+**Identity and multiplicity, not membership; and order.** An earlier draft compared reachable *sets*
+and was defeated four ways by the non-author reviewers, each of which now fails:
 
 - an **aliased** edge dropped from `childrenOf` while the node remained reachable by its other route
   (`ValueOfKey.key` aliased to `dictionary`) — set membership was unchanged, multiplicity was not;
 - a **spurious** edge, a parent's list carrying its own grandchild, which added nothing to the
   reachable set because that node was already in it;
-- a node inside a container `Object.entries` does not enumerate (a `Map`), invisible to reflection
-  and therefore agreeing with a `childrenOf` that also omitted it.
+- a **reordered** child list, which no set comparison can see at all — reversing `If`'s children
+  passed. `childrenOf` promises source order and `walk` is pre-order, so the order is observable to
+  every consumer; it is now asserted against the parser's own spans, which is the one comparison that
+  cannot be circular;
+- a node **hidden from enumeration** — inside a `Map`, behind a symbol key, behind a non-enumerable
+  property, or behind a prototype getter on a class instance — invisible to reflection and therefore
+  agreeing with a `childrenOf` that also omitted it.
 
-The third is why every container reflection descends into is tagged and compared as a whole set: an
+The last is why reflection reads with `Reflect.ownKeys` and property descriptors rather than
+`Object.entries`, refuses to invoke a getter (which may return a fresh object per call, making
+identity meaningless), and compares the prototype of every object it descends into as a whole set. An
 instrument that silently treats what it cannot read as empty is the defect it exists to detect,
 reproduced one level in.
 
@@ -76,10 +83,13 @@ contributes no path at all, which is exactly the distinction the list has to mak
 
 **Enforced.** For every node the parseable corpus produces, its child list is exactly the set of
 edges the node itself holds — same objects, same multiplicity — so a missing edge, an aliased edge
-dropped while the node stays otherwise reachable, and a spurious edge all fail. `walk` descends every
-edge those lists declare. No kinded, spanned shape appears that the oracle does not know. Reflection
-descends no container it cannot enumerate. The corpus exercises every declared path and instantiates
-every node kind.
+dropped while the node stays otherwise reachable, and a spurious edge all fail. Those children are
+**in source order**, asserted against the spans the parser recorded rather than against reflection's
+field order, because `walk` is pre-order and every consumer inherits that order. `walk` descends
+every edge those lists declare, and reaches the same node population reflection does. No kinded,
+spanned shape appears that the oracle does not know. Reflection descends only plain objects whose own
+keys it can all see. The corpus exercises every declared path, instantiates every node kind, and
+every root contributes.
 
 **Not enforced — this is an audit of the trees the corpus produces, not a proof about the type
 declarations.** A node-valued field that no `.logo` file populates is invisible to reflection.
@@ -88,6 +98,15 @@ two-place change, so adding a walkable field means declaring it, and the gate th
 fixture exercises it *and* `childrenOf` returns it. The surviving gap is a field added with **no**
 declaration and **no** fixture — the same shape, and the same accepted cost, as
 [ADR-0021](0021-built-in-names-list-and-ci-gate.md)'s two-file rule for primitives.
+
+**Not enforced — a hostile `Proxy`.** Reflection reads objects through `Reflect.ownKeys` and
+`Object.getOwnPropertyDescriptor`, so a symbol-keyed field, a non-enumerable field, a class instance,
+a null-prototype object and an `Object.create(proto)` result are all either read correctly or
+rejected by the prototype check. A `Proxy` whose `ownKeys` trap lies is not detectable from
+userland and would still hide a node. That is a limit of reflection itself rather than of this
+implementation, and it is recorded rather than papered over — an earlier draft of this ADR claimed
+the container check admitted nothing it could not enumerate, and the reviewer falsified that in one
+build with a class instance holding a node behind a prototype getter.
 
 A declaration-derived check would close it outright, and is **deferred on cost, not availability**.
 TypeScript 7 does ship a usable API: `typescript/unstable/sync` exports `Project`, `Program`,
@@ -112,20 +131,22 @@ reason on record has to be the true one.
 ## Consequences
 
 - Adding a node-valued field to an existing kind is a three-place change: the type, `childrenOf`, and
-  the declared path list — and a fixture must exercise it. Each missing piece fails the gate with the
-  field path named.
+  the declared path list — and a fixture must exercise it. Once the corpus produces the field, each
+  missing piece fails the gate with the field path named. A field that is declared nowhere *and*
+  exercised nowhere is the accepted residual above, not something this bullet claims to catch.
 - Aliasing is legitimate in the AST and stays legitimate: a node reachable by two fields must appear
   twice in its parent's child list. That is a real constraint the gate now enforces rather than an
   accident of how it compares.
 - The gate sits in the default test run, so it is enforced by CI without a separate script.
 - **Every assertion here is mutation-verified, not coverage-verified.** A recording path cannot
   execute on a green tree, so 100% coverage of the gate file says nothing about whether its findings
-  work. Six mutants discharge that, each firing in isolation: a node-valued field added to an
-  existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole point); an aliased
-  edge dropped while the node stays reachable by its other route; a spurious grandchild added to a
-  parent's list; a node hidden inside a `Map`; a kinded, spanned shape with an unknown `kind`; and a
-  declared path no fixture populates.
-- Instruments that derive from the AST may now state that a *populated* field is reached. They still
-  may not assume anything about a field no fixture populates.
+  work. Each assertion is discharged by at least one mutant that fires in isolation: a node-valued
+  field added to an existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole
+  point); an aliased edge dropped while the node stays reachable by its other route; a spurious
+  grandchild; a reversed child list; a node hidden behind a `Map`, a symbol key, or a prototype
+  getter on a class instance; a kinded, spanned shape with an unknown `kind`; a declared path no
+  fixture populates; a renamed corpus root; and a node kind no fixture instantiates.
+- Instruments that derive from the AST may now state that a *populated* field is reached, in the
+  order `childrenOf` declares. They still may not assume anything about a field no fixture populates.
 - The declared path list carries no count. It is a list, and its length is re-derivable from the
   tree, so a literal would be an unenforced assertion of exactly the kind this saga has been removing.

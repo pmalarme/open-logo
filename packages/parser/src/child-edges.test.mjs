@@ -155,14 +155,58 @@ const POPULATED_FIELD_PATHS = [
 
 const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(value.kind);
 
+/** Orders two nodes by where they start in the source. */
+const bySourcePosition = (left, right) =>
+  left.source_span.start[0] - right.source_span.start[0] ||
+  left.source_span.start[1] - right.source_span.start[1];
+
+/**
+ * A name for the shape of `value`, combining its `Object.prototype.toString` tag with whether its
+ * prototype is exactly `Object.prototype`. Deliberately branch-free: a conditional that only takes
+ * its second arm when something is already wrong is dead on a green tree, which is the same defect
+ * as a dead recording branch. Every object gets a name and the whole set is compared.
+ *
+ * A plain record is `[object Object]/plain`. A `Map` is `[object Map]/exotic`; a class instance, a
+ * null-prototype object and an `Object.create(proto)` result are all `…/exotic` — each can hold a
+ * node that enumeration will not report, and an instrument that treats what it cannot read as empty
+ * is the defect this file exists to detect, reproduced one level in.
+ */
+const shapeNameOf = (value) =>
+  `${Object.prototype.toString.call(value)}/${
+    // Array index rather than a ternary: both names exist unconditionally and one is selected by
+    // subscript, so there is no arm that goes untaken while the tree is green.
+    ["exotic", "plain"][
+      Number(Object.getPrototypeOf(value) === Object.prototype)
+    ]
+  }`;
+
+/** `[path, descriptor]` for every own property of `value` except its span — symbols included. */
+const fieldsOf = (value, path) =>
+  Reflect.ownKeys(value)
+    .filter((key) => key !== "source_span")
+    .map((key) => [
+      `${path}.${String(key)}`,
+      Object.getOwnPropertyDescriptor(value, key),
+    ]);
+
+// A data descriptor always carries `value`; an accessor descriptor carries `get`/`set` instead.
+// `Object.hasOwn` is a single always-evaluated expression, where `d.get !== undefined || …` would
+// leave a short-circuit arm untaken on a green tree.
+const isAccessorField = (field) => !Object.hasOwn(field[1], "value");
+const isDataField = (field) => Object.hasOwn(field[1], "value");
+const pathOfField = (field) => field[0];
+
 /**
  * Every `[path, node]` pair reachable from `value` **without passing through another node** —
  * descending through arrays and through wrapper objects (`DictEntryNode`, `PlaceSegment`, `IsTest`,
  * `ProcedureParam`) but stopping at the first node, which is the child edge itself.
  *
- * `foreignShapes` collects any kinded, spanned wrapper it passes through and `containerTags` every
- * non-node object it descends into, so both can be compared as whole sets rather than consulted by a
- * recogniser that silently skips what it knows.
+ * Enumeration is `Reflect.ownKeys`, not `Object.entries`, so a symbol-keyed or non-enumerable field
+ * is seen rather than silently skipped. `seen` collects everything this traversal had to trust: the
+ * `kind` of every kinded, spanned non-node; the prototype of every object descended into; and any
+ * accessor property, whose getter is deliberately **not** invoked, since a getter may return a fresh
+ * object per call and make identity comparison meaningless. All three are compared as whole sets,
+ * because a recogniser that skips what it knows is how the unknown case becomes reachable unnoticed.
  */
 function edgesUnder(value, path, seen, out) {
   if (Array.isArray(value)) {
@@ -181,16 +225,11 @@ function edgesUnder(value, path, seen, out) {
   if (typeof value.kind === "string" && value.source_span !== undefined) {
     seen.foreignShapes.add(value.kind);
   }
-  // Every container reflection descends into is tagged and compared as a whole set. Without this a
-  // `Map`, `Set` or any other object `Object.entries` does not enumerate would be treated as
-  // childless and its nodes would be invisible to this gate — which is exactly the silence it
-  // exists to detect, reproduced inside the instrument. Found by the #960 reviewer, which defeated
-  // an earlier version of this file with a `BlockNode` inside a populated `ReadonlyMap`.
-  seen.containerTags.add(Object.prototype.toString.call(value));
-  for (const [key, inner] of Object.entries(value)) {
-    if (key !== "source_span") {
-      edgesUnder(inner, `${path}.${key}`, seen, out);
-    }
+  seen.shapes.add(shapeNameOf(value));
+  const fields = fieldsOf(value, path);
+  seen.accessorFields.push(...fields.filter(isAccessorField).map(pathOfField));
+  for (const field of fields.filter(isDataField)) {
+    edgesUnder(field[1].value, pathOfField(field), seen, out);
   }
   return out;
 }
@@ -202,11 +241,14 @@ function edgesUnder(value, path, seen, out) {
  * version of this gate was defeated.
  */
 function reflectedEdgesOf(node, seen) {
+  seen.shapes.add(shapeNameOf(node));
   const edges = [];
-  for (const [field, value] of Object.entries(node)) {
-    if (field !== "kind" && field !== "source_span") {
-      edgesUnder(value, `${node.kind}.${field}`, seen, edges);
-    }
+  const fields = fieldsOf(node, node.kind).filter(
+    (field) => pathOfField(field) !== `${node.kind}.kind`,
+  );
+  seen.accessorFields.push(...fields.filter(isAccessorField).map(pathOfField));
+  for (const field of fields.filter(isDataField)) {
+    edgesUnder(field[1].value, pathOfField(field), seen, edges);
   }
   return edges;
 }
@@ -222,11 +264,17 @@ function auditTheCorpus() {
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
     join(repositoryRoot, root),
   );
-  const seen = { foreignShapes: new Set(), containerTags: new Set() };
+  const seen = {
+    foreignShapes: new Set(),
+    shapes: new Set(),
+    accessorFields: [],
+  };
   const populated = new Set();
   const kindsSeen = new Set();
   const childListRows = [];
   const unreachedByWalk = [];
+  const filesPerRoot = new Map();
+  let reflectedCount = 0;
   let nodeCount = 0;
   let fileCount = 0;
 
@@ -255,10 +303,12 @@ function auditTheCorpus() {
     for (const edge of edges) {
       populated.add(pathOf(edge));
     }
+    const returned = childrenOf(node);
     // The comparison this gate exists for: what the node itself holds, against what `childrenOf`
     // reports, as order-independent multisets of object identities. Built for every node whether or
     // not it matches, so the row-building code is never dead; the mismatch filter below is what
-    // turns rows into findings.
+    // turns rows into findings. Order is checked separately, against source position rather than
+    // against reflection's field order — see `outOfOrderRows`.
     childListRows.push({
       at: node.kind,
       edges: edges.map(pathOf).join(" "),
@@ -266,19 +316,29 @@ function auditTheCorpus() {
         .map((edge) => handleOf(edge[1]))
         .sort()
         .join(" "),
-      returned: childrenOf(node).map(handleOf).sort().join(" "),
+      returned: returned.map(handleOf).sort().join(" "),
+      // `childrenOf` promises its children "in source order" (`ast.ts`), and every traversal built
+      // on it inherits that promise — `walk` is pre-order, so the highlighter's semantic tokens and
+      // the studio's fold ranges both observe it. The identity multisets above are sorted and so
+      // deliberately blind to order, which let a reversed child list pass an earlier version of this
+      // gate. Both spellings are computed for every node, so neither is a projection that only a
+      // failing tree evaluates; the comparison is against the spans the parser recorded, which is
+      // the one ordering that cannot be circular.
+      order: returned.map(handleOf).join(" "),
+      sourceOrder: [...returned].sort(bySourcePosition).map(handleOf).join(" "),
     });
     for (const edge of edges) {
       auditNode(edge[1], reflectedNodes);
     }
   };
 
-  const auditFile = (file) => {
+  const auditFile = (file, root) => {
     const { ast, diagnostics } = parse(readFileSync(file, "utf8"), file);
     if (diagnostics.length > 0) {
       return;
     }
     fileCount += 1;
+    filesPerRoot.set(root, filesPerRoot.get(root) + 1);
     const walked = new Set();
     walk(ast, (node) => walked.add(node));
     nodeCount += walked.size;
@@ -287,6 +347,7 @@ function auditTheCorpus() {
     }
     const reflectedNodes = [];
     auditNode(ast, reflectedNodes);
+    reflectedCount += reflectedNodes.length;
     // `walk` retained as an integration check: the per-node comparison above proves each child list
     // is right, and this proves `walk` actually descends them. Spread-pushed from a filter with no
     // loop body, so nothing here is dead on a green tree — but note that coverage cannot reach these
@@ -297,31 +358,42 @@ function auditTheCorpus() {
     );
   };
 
-  const visit = (directory) => {
+  const visit = (directory, root) => {
     for (const entry of readdirSync(directory)) {
       const full = join(directory, entry);
       if (statSync(full).isDirectory()) {
-        visit(full);
+        visit(full, root);
       } else if (entry.endsWith(".logo")) {
-        auditFile(full);
+        auditFile(full, root);
       }
     }
   };
+  // Seeded with every root, so the count lookups below need no ?? 0 fallback -- a fallback arm
+  // that is only taken when a root is missing is dead on a green tree.
+  for (const root of roots) {
+    filesPerRoot.set(root, 0);
+  }
   const missingRoots = roots.filter((root) => !existsSync(root));
   for (const root of roots.filter((root) => existsSync(root))) {
-    visit(root);
+    visit(root, root);
   }
 
   return {
     mismatchedChildLists: childListRows.filter(
       (row) => row.reflected !== row.returned,
     ),
+    outOfOrderChildren: childListRows.filter(
+      (row) => row.order !== row.sourceOrder,
+    ),
     unreachedByWalk: [...new Set(unreachedByWalk)].sort(),
     foreignShapes: [...seen.foreignShapes].sort(),
-    containerTags: [...seen.containerTags].sort(),
+    shapes: [...seen.shapes].sort(),
+    accessorFields: [...new Set(seen.accessorFields)].sort(),
     missingRoots,
+    emptyRoots: roots.filter((root) => filesPerRoot.get(root) === 0),
     populated: [...populated].sort(),
     kindsSeen: [...kindsSeen].sort(),
+    reflectedCount,
     nodeCount,
     fileCount,
   };
@@ -352,17 +424,46 @@ test("no kinded, spanned shape outside the oracle appears anywhere in the corpus
   assert.deepEqual(audit.foreignShapes, KINDED_NON_NODE_SHAPES);
 });
 
-test("reflection descends only containers it can actually enumerate", () => {
-  // `Object.entries` sees a plain object's own properties and nothing else, so a `Map` or `Set` in
-  // the AST would be silently childless to this gate — the defect it exists to catch, reproduced
-  // inside the instrument. Every container descended into is tagged and compared as a whole set.
-  assert.deepEqual(audit.containerTags, ["[object Object]"]);
+test("every child list is in source order, as `childrenOf` promises", () => {
+  // Sorting the identity multisets above deliberately ignores order, so the "in source order"
+  // contract is asserted here on its own, against the spans the parser recorded rather than against
+  // reflection's field order — the one comparison that cannot be circular. Every traversal built on
+  // `childrenOf` inherits the promise: the highlighter's semantic tokens and the studio's fold
+  // ranges both consume it. Reversing a child list passed an earlier version of this gate.
+  assert.deepEqual(audit.outOfOrderChildren, []);
 });
 
-test("the corpus roots this gate claims to read all exist", () => {
+test("reflection descends only plain objects whose own keys it can all see", () => {
+  // `Object.entries` reads enumerable string keys of a plain object and nothing else, so a `Map`, a
+  // class instance, a null-prototype object or an `Object.create(proto)` result would be silently
+  // childless to this gate — the defect it exists to catch, reproduced inside the instrument.
+  // Enumeration is `Reflect.ownKeys` (symbols and non-enumerables included) and every prototype
+  // descended into is compared as a whole set.
+  //
+  // The residual, stated rather than papered over: a `Proxy` whose `ownKeys` trap lies is
+  // undetectable from userland and would still hide a node. That is a limit of reflection itself,
+  // not of this implementation, and no AST here is proxied.
+  assert.deepEqual(audit.shapes, ["[object Object]/plain"]);
+  // A getter is never invoked — it may return a fresh object per call, which would make identity
+  // comparison meaningless — so any accessor property is reported instead of silently traversed.
+  assert.deepEqual(audit.accessorFields, []);
+});
+
+test("the corpus roots this gate claims to read all exist and all contribute", () => {
   // A mistyped or moved root would make the audit quietly smaller rather than absent, and every
-  // assertion here is satisfied by an empty audit.
+  // assertion here is satisfied by an empty audit. `emptyRoots` covers the case the floors cannot:
+  // a root that still exists but yields no parseable file, which the whole-corpus floors absorb
+  // because the other roots keep them satisfied.
   assert.deepEqual(audit.missingRoots, []);
+  assert.deepEqual(audit.emptyRoots, []);
+});
+
+test("reflection and `walk` reach the same number of nodes", () => {
+  // Sound by construction — `auditNode` recurses on exactly the reflected edges, and the per-node
+  // comparison forces the two edge sets equal at each node, so equal populations follow by
+  // induction from the root. Asserted anyway: an argued invariant is one nobody re-checks, and this
+  // is the induction's base case made observable.
+  assert.equal(audit.reflectedCount, audit.nodeCount);
 });
 
 test("the corpus populates exactly the declared node-valued field paths", () => {
