@@ -93,10 +93,9 @@ in the same slice before the mechanical one held.
    below). Make it mechanical: **tag the SHA you dispatch, and dispatch the tag.** A tag names one
    commit; a branch name names whatever happens to be at its tip when the reviewer reads it, so a
    later push silently moves what is under review. **A freeze declaration is not a mechanism.** On
-   **#952** (PR **#982**) the declaration was unreliable **four times in ten rounds** — measured and
-   reported by the QA reviewer, not inferred. **Two of those four breaks happened because the author
-   was applying orchestrator instructions promptly**, which is exactly why this has to be a mechanism
-   and not a discipline: the failure mode is a conscientious author, not a careless one.
+   **#952** the author touched the tree during reviewer measurement **four times in ten rounds** —
+   recorded in PR **#982**'s own summary. That is why this has to be a mechanism rather than a
+   promise: a declaration is only as good as every subsequent decision to honour it.
 4. **Reviewers assert cleanliness themselves.** Do not take it on trust from the author's report:
    run `git status --porcelain` and `git rev-parse HEAD` yourself, at the start **and** at the end
    of the review, and record both. If they differ, or the tree was dirty, say so and stamp nothing —
@@ -142,7 +141,7 @@ The rules above make the **tree** trustworthy. This one makes your **measurement
 unstaged work certifies a tree that does not contain the work.** The worked example is the gate built
 in **#934**: `scripts/spec-citations-gate.mjs` walks the **tracked** set via `git ls-files`, and its
 verification run happened **before `git add`**. The gate had therefore never read its own source, and
-reported green. Its own reviewers caught it — nothing else could have.
+reported green. Its own reviewers caught it.
 
 That instance is narrow; the class is not. Saga #572 produced at least four, and every one returns
 plausible output rather than an error:

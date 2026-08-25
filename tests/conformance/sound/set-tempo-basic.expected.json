@@ -1,5 +1,5 @@
 {
-  "description": "issue #689: `set_tempo 90` (Sound profile, arity 1) sets the tempo replay tooling interprets `note`/`play`/`rest` beat durations at (default 120) and emits exactly one `sound` event with payload {command:\"set_tempo\", beats_per_minute:90}, AFTER the tempo state has been scheduled (spec/interaction-events.md#trace-stream-integration). Durations are in beats, never wall-clock; the stream is deterministic and headless.",
+  "description": "issue #689: `set_tempo 90` (Sound profile, arity 1) emits exactly one `sound` event with payload {command:\"set_tempo\", beats_per_minute:90}, AFTER the tempo state has been scheduled (spec/interaction-events.md#trace-stream-integration). `note`/`play`/`rest` durations are 'interpreted in beats at the current tempo' by replay tools, which read that tempo from this event; durations are never wall-clock, and the stream is deterministic and headless.",
   "profiles": ["sound"],
   "execute": true,
   "events": [

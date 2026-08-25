@@ -148,8 +148,10 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  * slices work ("later slices cite them as settled fact"), which claims nothing about pending work,
  * and the cost is recall: "a later slice adds…" is missed. **Not every entry below is anchored**, so
  * the list still fires on a counterfactual — prose that claims nothing pending. Issue #961 re-worded
- * one such site, whose text read "a future slice adding a `grid :spacing` overload would…"; that,
- * not a silent reword, is the disposition when this mis-fires. Quoting it here is itself an
+ * the two sites that hit the bare `"future slice"` entry this way — the `grid :spacing` overload in
+ * `execute-internal.ts` and the registry canary in `checker-profile-word-position.test.mjs`, both
+ * conditionals about work nobody has planned. That, not a silent reword, is the disposition when
+ * this mis-fires. Quoting such a phrase here is itself an
  * occurrence, tracked by the `#961` named just above — which is the mechanism working, not an
  * exemption.
  * Mode 4 coverage is partial, and the gate says so on every run.

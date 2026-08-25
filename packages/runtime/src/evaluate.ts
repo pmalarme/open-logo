@@ -266,9 +266,8 @@ export interface Environment {
    * {@link addressing}/{@link randomNumberGenerator}, a single shared mutable object rather than a
    * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
    * procedure, loop, or comprehension) is observed by every later
-   * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
-   * (issue #673) and the addressed-set model (`tell`/`ask`/`each`, {@link addressing}) are its
-   * clients.
+   * `new_turtle`/`turtles` in the run. It has exactly two readers: `new_turtle`, which
+   * allocates an id through it, and `turtles`, which enumerates it (issue #673).
    */
   readonly turtleWorld: TurtleWorld;
   /**

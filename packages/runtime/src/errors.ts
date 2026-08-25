@@ -960,9 +960,10 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:389-391`;
-   * `spec/error-model.md:101` lists "a negative whole-number `repeat` count" as one instance of
-   * `ol-range`). `operation` names the primitive that raised it. Only reached once
+   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:389-391` fixes the
+   * TYPE-before-RANGE order for `repeat`, one of the two callers; `spec/error-model.md:101` lists
+   * "a negative whole-number `repeat` count" as one instance of `ol-range`). `operation` names the
+   * primitive that raised it. Only reached once
    * {@link requireWholeNumber} has already confirmed the value is a whole number.
    */
   negativeCount(

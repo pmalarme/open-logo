@@ -10,10 +10,10 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. The trace stream is
- * "deterministic and headless" and "carries no timing or frames" (`spec/execution-model.md`'s
- * trace-and-event registry), so this clock MUST NOT leak into any event payload — the `primitive`
- * event `wait` emits carries only the primitive name ({@link PrimitivePayload}), never a tick
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. The normative event
+ * envelope (`spec/execution-model.md:645-651`) has no timing or tick field, so this clock does not
+ * appear in any event payload — the `primitive`
+ * event `wait` emits carries no tick
  * count or elapsed time. The clock exists so that a program's event *sequence* is reproducible and
  * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
  * itself observable in the stream.
@@ -23,19 +23,14 @@
  * `spec/interaction-events.md`'s "Trace stream integration" is explicit: "Unlike `input`, `wait`
  * does not block the event system. While a `wait` pause elapses, the tick clock keeps advancing
  * and registered `every`, `on_key`, and `on_click` handlers still fire; only the top-level
- * instructions that follow the `wait` are deferred until the pause completes." Those handlers do
- * not exist yet (they arrive with #682–#686), and the acceptance criterion that they keep firing
- * during a `wait` pause was moved to #686 precisely because it is not provable in this slice — so
- * this file does **not** implement or stub handler dispatch.
+ * instructions that follow the `wait` are deferred until the pause completes."
  *
- * What it DOES do is shape the pause as an explicit per-tick advance ({@link advanceTickClock}
+ * That is why the pause is an explicit per-tick advance ({@link advanceTickClock}
  * called once per tick inside {@link executeWaitCall}) rather than a single opaque
- * `tick += n`/blocking sleep. That per-tick step is the seam #682–#686 hang handler delivery off:
- * a later slice makes {@link advanceTickClock} (or a dispatch pass it calls) deliver any handlers
- * that came due on the tick it just advanced to, and every existing `wait` immediately gains the
- * "handlers keep firing while I pause" behavior with no change to this file's control flow. A
- * `wait` written as a blocking sleep would satisfy this slice's own tests and then have to be
- * thrown away.
+ * `tick += n`/blocking sleep: the per-tick step is the seam handler delivery hangs off.
+ * `execute-internal.ts` passes a per-tick callback that calls `dispatchDueHandlers` for each tick
+ * the clock advances to, so a `wait` keeps firing due handlers while it pauses. A
+ * `wait` written as a blocking sleep could not do that.
  *
  * ## Why `input` has no event-loop checkpoint at all
  *
