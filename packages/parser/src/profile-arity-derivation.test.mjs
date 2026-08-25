@@ -61,11 +61,13 @@ test("every registered primitive of every profile is arity-checked when its prof
   // runtime, and `checker-names.ts` deliberately withholds visibility from a name nothing can run,
   // so it is reported `ol-unknown-command` — alone, never alongside an arity finding. Asserting the
   // exception as an exact set rather than a skip makes this sweep the tripwire for the ONE way the
-  // derivation can still degrade: `collectVisibleNames` is not yet derived from the same registry
-  // (it hand-writes a branch per profile), so a future profile registered in `PROFILE_PRIMITIVES`
-  // — which TypeScript forces — but not made visible there would silently fall back to
-  // `ol-unknown-command` instead of being arity-checked. That failure is graceful, not wrong, but
-  // it is not silent: its name lands in `notYetVisible` and this assertion fails naming it.
+  // derivation can still degrade. Since issue #966 `collectVisibleNames` *is* derived from the same
+  // profile-keyed registry, so a future profile registered in `PROFILE_PRIMITIVES` — which
+  // TypeScript forces — is made visible with no edit there; what remains hand-written is the
+  // withholding itself (`NAMES_AWAITING_AN_EVALUATOR`), so a name left in that set after its
+  // evaluator shipped, or added to it without one, would fall back to `ol-unknown-command` instead
+  // of being arity-checked. That failure is graceful, not wrong, but it is not silent: its name
+  // lands in `notYetVisible` and this assertion fails naming it.
   const notYetVisible = [];
   const openVariadics = [];
   let registered = 0;

@@ -53,11 +53,13 @@ import {
   isCanonicalName,
   isStdlibSource,
   loadManifest,
+  logoFilesUnder,
   narrativeFindings,
   noteRestatementFindings,
   parseArgs,
   profileCoverageFindings,
   profileInventoryFindings,
+  procedureNamesIn,
   profilePrimitiveSweepFindings,
   proseFindings,
   registryHas,
@@ -65,6 +67,7 @@ import {
   resolveAccessor,
   rowFingerprintFindings,
   runBuiltInNamesGate,
+  stdlibCarveOutFindings,
   versionFindings,
 } from "./built-in-names-gate.mjs";
 
@@ -161,6 +164,13 @@ function fakeIo(files, existing = Object.keys(files)) {
     readText: (path) => files[path],
     exists: (path) => existing.includes(path),
     isStdlibFile: (path) => existing.includes(path),
+    // Whatever the fixture put under `stdlib/`. A fixture that declares none still gets a non-empty
+    // scan surface, because an empty one is itself a finding and would drown every other assertion
+    // these doubles are making.
+    listStdlibFiles: () =>
+      Object.keys(files).filter(
+        (path) => path.startsWith("stdlib/") && path.endsWith(".logo"),
+      ),
   };
 }
 
@@ -177,9 +187,13 @@ test("the shipped manifest and the shipped implementation agree, in both directi
 test("the report names the totals it checked, so a green run is evidence rather than a bare OK", () => {
   const result = runBuiltInNamesGate();
   const summary = result.lines.find((line) => line.includes("0 finding(s)"));
+  // The stdlib file count is part of the summary because it is this gate's SCAN SURFACE: the
+  // carve-out total is only an assertion about the tree while something walked `stdlib/`, and a
+  // reader cannot tell a bound count from a tally of file contents unless the instrument says what
+  // it looked at (epic #900's "did the instrument audit itself?").
   assert.equal(
     summary,
-    `built-in-names: ${REAL_MANIFEST.names.length} names, ${REAL_MANIFEST.excluded.length} carve-outs, ${Object.keys(REAL_MANIFEST.registries).length} registries, spec version ${REAL_MANIFEST.specVersion} — 0 finding(s)`,
+    `built-in-names: ${REAL_MANIFEST.names.length} names, ${REAL_MANIFEST.excluded.length} carve-outs over ${REAL_IO.listStdlibFiles().length} stdlib file(s), ${Object.keys(REAL_MANIFEST.registries).length} registries, spec version ${REAL_MANIFEST.specVersion} — 0 finding(s)`,
   );
 });
 
@@ -565,6 +579,185 @@ test("INJECTED DRIFT: deleting a stdlib/*.logo file breaks the Geometry carve-ou
     ),
     true,
     result.findings.join("\n"),
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// The carve-out set is bound to `stdlib/**.logo` in BOTH directions (issue #964).
+//
+// Before this, `definesProcedure` bound a carve-out's name to a file and NOTHING walked `stdlib/`,
+// so the binding ran one way only. Measured at tip `0277d5ff`: emptying `excluded` printed
+// `148 names, 0 carve-outs` and exited **0**. The gate reported its own emptiness and passed. The
+// tests below are that mutation and its neighbours, asserted rather than described.
+// ---------------------------------------------------------------------------------------------
+
+test("INJECTED DRIFT: emptying excluded leaves every stdlib procedure uncarved", () => {
+  // THE headline mutant. `spec/educational-model.md:169` needs the geometry stdlib to stay
+  // discoverable OpenLogo source, and these carve-outs are the reason those six names are absent
+  // from the built-in list — absent reasons are what a completeness pass "fixes".
+  const manifest = manifestCopy();
+  manifest.excluded = [];
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  const uncarved = result.findings.filter((finding) =>
+    finding.includes('records no "library" carve-out'),
+  );
+  assert.equal(
+    uncarved.length,
+    REAL_IO.listStdlibFiles().length,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a new stdlib procedure with no carve-out is a finding", () => {
+  // This issue's original direction: a seventh stdlib procedure needed no carve-out and the gate
+  // kept reporting the same total. Driven through the `io` port so no file is written to disk.
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => [
+      ...REAL_IO.listStdlibFiles(),
+      "stdlib/geometry/hexagon.logo",
+    ],
+    readText: (path) =>
+      path === "stdlib/geometry/hexagon.logo"
+        ? "define hexagon :size\n  repeat 6 [ forward :size right 60 ]\nend\n"
+        : REAL_IO.readText(path),
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      `stdlib/geometry/hexagon.logo defines "hexagon" but ${MANIFEST_PATH} records no "library" carve-out for it — a stdlib procedure absent from both names and excluded is indistinguishable from a name nobody has noticed is missing`,
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: a library carve-out no stdlib file defines is a finding", () => {
+  // The manifest→stdlib direction, which already existed through `isStdlibSource` +
+  // `definesProcedure` and is asserted here as the other half of the bijection: both directions
+  // named in one place, so a later reader can see the pair rather than infer it.
+  const manifest = manifestCopy();
+  manifest.excluded = manifest.excluded.filter(
+    (entry) => entry.name !== "polygon",
+  );
+  manifest.excluded.push({
+    name: "dodecagon",
+    reason: "library",
+    source: "stdlib/geometry/polygon.logo",
+    rationale: "invented for this test",
+  });
+  const result = runBuiltInNamesGate({ manifest });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.includes(
+      `excluded dodecagon: reason "library" but no ${STDLIB_DIR}/**.logo file defines a procedure of that name`,
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("an empty stdlib scan is a finding, not a bijection between two empty sets", () => {
+  // The anti-vacuity clause, and the reason this gate is not itself an instance of the defect it
+  // now catches: with `stdlib/` gone the two sets agree trivially, so the check written to protect
+  // the library would certify its absence. Everything else that mentions `stdlib` is driven by
+  // manifest entries that would be gone too, so nothing else would notice either.
+  const manifest = manifestCopy();
+  manifest.excluded = manifest.excluded.filter(
+    (entry) => entry.reason !== "library",
+  );
+  const io = { ...REAL_IO, listStdlibFiles: () => [] };
+  const result = runBuiltInNamesGate({ manifest, io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(`${STDLIB_DIR}/ holds no .logo file`),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("INJECTED DRIFT: one procedure name defined by two stdlib files is ambiguous", () => {
+  // A carve-out names ONE source file. Two files defining the same procedure would make the
+  // manifest→stdlib binding satisfiable by either, so the pair stops meaning what it says.
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => [
+      ...REAL_IO.listStdlibFiles(),
+      "stdlib/geometry/polygon-again.logo",
+    ],
+    readText: (path) =>
+      path === "stdlib/geometry/polygon-again.logo"
+        ? "define polygon :sides :size\nend\n"
+        : REAL_IO.readText(path),
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some(
+      (finding) =>
+        finding.includes('defines "polygon" in both') &&
+        finding.includes("polygon-again.logo"),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+});
+
+test("stdlibCarveOutFindings reads headers, not prose that merely mentions define", () => {
+  // `procedureNamesIn` is the one header scan both directions use, so its blind spots are the
+  // bijection's blind spots. Comments and string literals are blanked before the scan (`codeOnly`),
+  // which is what keeps a doc-comment example from registering a procedure nobody wrote.
+  assert.deepEqual(
+    procedureNamesIn(
+      '# define ghost\ndefine real :x\nend\n"define quoted"\n  define indented\nend\n',
+    ),
+    ["real", "indented"],
+  );
+  // A bare `define` with no name registers nothing rather than `undefined`.
+  assert.deepEqual(procedureNamesIn("define\n"), []);
+  assert.deepEqual(procedureNamesIn(undefined), []);
+  // The two directions agree by construction because they are one scan.
+  assert.equal(definesProcedure("define real :x\nend\n", "real"), true);
+  assert.equal(definesProcedure("define real :x\nend\n", "ghost"), false);
+});
+
+test("stdlibCarveOutFindings is clean on the shipped tree, and says over how many files", () => {
+  // The control for the five mutants above: they only mean something because this is empty.
+  assert.deepEqual(stdlibCarveOutFindings(REAL_MANIFEST, REAL_IO), []);
+  const stdlibFiles = REAL_IO.listStdlibFiles();
+  const libraryCarveOuts = REAL_MANIFEST.excluded.filter(
+    (entry) => entry.reason === "library",
+  );
+  // Cross-derived: the file count and the carve-out count are produced by different instruments
+  // (a directory walk and a JSON read) and must reconcile — a bijection, not merely consistency.
+  assert.equal(stdlibFiles.length, libraryCarveOuts.length);
+  assert.deepEqual(
+    stdlibFiles.filter((path) => !path.endsWith(".logo")),
+    [],
+    "the scan surface must be .logo files only",
+  );
+});
+
+test("logoFilesUnder normalises separators, sorts, and reports a missing directory as empty", () => {
+  // The scan surface itself. A missing directory must read as EMPTY rather than throw, because
+  // "the library is gone" is a finding this gate words for a human — a stack trace out of the
+  // walker would fail the run while reading like the gate itself was broken.
+  assert.deepEqual(logoFilesUnder("no/such/directory"), []);
+  const files = logoFilesUnder(STDLIB_DIR);
+  assert.deepEqual(files, [...files].sort(), "not sorted");
+  assert.deepEqual(
+    files.filter((path) => path.includes("\\")),
+    [],
+    "a Windows-separated path would not match a manifest source",
+  );
+  assert.equal(
+    files.includes("stdlib/geometry/polygon.logo"),
+    true,
+    "the walk must reach a nested .logo file",
   );
 });
 
@@ -2402,7 +2595,19 @@ test("the gate reads the manifest from disk when one is not supplied", () => {
 
 test("a run with every registry enumerable prints no unenumerable note", () => {
   const { manifest, api } = tinyFixture();
+  // The fixture ships one stdlib procedure and its carve-out, because since issue #964 an EMPTY
+  // `stdlib/` scan is itself a finding — a bijection between two empty sets would otherwise let
+  // this whole-gate run pass while the check protecting the library certified its absence.
+  manifest.excluded = [
+    {
+      name: "square",
+      reason: "library",
+      source: "stdlib/square.logo",
+      rationale: "OpenLogo source, not a primitive",
+    },
+  ];
   const io = fakeIo({
+    "stdlib/square.logo": "define square :size\nend\n",
     [GRAMMAR_PATH]:
       "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n",
     [TOOLING_PATH]:

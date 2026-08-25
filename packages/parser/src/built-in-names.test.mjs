@@ -161,3 +161,67 @@ test("isKeywordInAnyProfile still answers for the profile-independent Core keywo
   }
   assert.equal(OL.isKeywordInAnyProfile("square"), false);
 });
+
+// --- the Heritage surface registries, which contributed nothing at all (issue #965) --------------
+
+test("every Heritage surface spelling is a built-in name", () => {
+  // `heritageSurfaceSpellings()` is the enumerable definition of "a word that makes the reader take
+  // a Heritage spelling": the short aliases, the four form heads (`make`/`to`/`output`/`op`) and
+  // the worded reader's head (`value`). Driven off the registry, so a spelling added to any of the
+  // three tables is covered here with no edit.
+  const missed = OL.heritageSurfaceSpellings().filter(
+    (spelling) => !OL.isBuiltInName(spelling),
+  );
+  assert.deepEqual(
+    missed,
+    [],
+    "Heritage surface spellings the predicate misses",
+  );
+});
+
+test("the form-head registries reach the predicate, not merely the keyword list", () => {
+  // **Read this test for what it does NOT prove today.** Every current form head is also a reserved
+  // keyword, so each of these names is true through the keyword leg as well — measured on the tree
+  // that closed issue #965: for all five, `primitiveArity` is `undefined` and none is a short
+  // alias, so the form-head registries supplied ZERO names the keyword leg had not. This assertion
+  // therefore cannot fail today by deleting the surface-spelling leg, and claiming otherwise would
+  // be the kind of green signal this epic exists to remove.
+  //
+  // What it does is fail the moment the registries stop coinciding — a form head registered without
+  // also being a reserved keyword, which is the exact case that would have been registered, listed
+  // in the manifest, passed `npm run built-in-names`, and still answered `false` at both declaration
+  // slots. The guard has to be in place before that slice, because that is the slice in which
+  // nothing else would fail.
+  const heads = [
+    ...OL.heritageFormHeadNames(),
+    ...OL.heritageWordedFormHeads(),
+  ];
+  assert.ok(heads.length > 0, "no form heads registered");
+  for (const head of heads) {
+    assert.equal(
+      OL.isBuiltInName(head),
+      true,
+      `${head} is a registered Heritage form head, so a program may not declare it`,
+    );
+    assert.equal(
+      OL.heritageSurfaceSpellings().includes(head),
+      true,
+      `${head} must reach isBuiltInName through the surface-spelling registry, not by luck`,
+    );
+  }
+});
+
+test("a Heritage form head resolves to a Core spelling the predicate also owns", () => {
+  // `canonicalOfHeritageFormHead` resolves `to` → `define` and had no caller in this predicate's
+  // module (issue #965 item 3). It is consumed here rather than left as an accessor nothing calls:
+  // Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
+  // `define to` must be exactly as illegal as `define define`, and this is what asserts it.
+  for (const head of OL.heritageFormHeadNames()) {
+    const canonical = OL.canonicalOfHeritageFormHead(head);
+    assert.equal(
+      OL.isBuiltInName(head),
+      OL.isBuiltInName(canonical),
+      `${head} and its canonical ${canonical} must answer alike`,
+    );
+  }
+});

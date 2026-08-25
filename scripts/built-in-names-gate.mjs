@@ -51,7 +51,13 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import { join, sep } from "node:path";
 import * as parserApi from "@openlogo/parser";
 
@@ -146,27 +152,38 @@ export function isCanonicalName(name) {
 }
 
 /**
- * Does `source` define an OpenLogo procedure literally named `name`?
+ * Every OpenLogo procedure `source` defines, in file order.
  *
- * The path check above proves a *file* exists; this binds the carve-out's `name` to it.
- *
- * Deliberately a lexical scan for the `define` header rather than a parse: this module reads `spec/`
+ * Deliberately a lexical scan for `define` headers rather than a parse: this module reads `spec/`
  * and `stdlib/` as text and must not acquire a dependency on the runtime it is auditing. Tokenised
  * rather than matched with a regex built from manifest data, so a name carrying regex
  * metacharacters cannot change what is being asked. Anchored on the Core spelling
- * (`spec/grammar.md`), so a Heritage `to` header would not satisfy it — correct, because `stdlib/`
- * is Core-profile source.
+ * (`spec/grammar.md`), so a Heritage `to` header does not register — correct, because `stdlib/` is
+ * Core-profile source.
+ */
+export function procedureNamesIn(source) {
+  if (typeof source !== "string") {
+    return [];
+  }
+  const names = [];
+  for (const line of codeOnly(source).split("\n")) {
+    const words = line.trim().split(/\s+/);
+    if (words[0] === "define" && words[1] !== undefined && words[1] !== "") {
+      names.push(words[1]);
+    }
+  }
+  return names;
+}
+
+/**
+ * Does `source` define an OpenLogo procedure literally named `name`?
+ *
+ * The path check above proves a *file* exists; this binds the carve-out's `name` to it. It reads the
+ * same header scan {@link procedureNamesIn} does — one scan, asked in two directions — so the
+ * manifest→stdlib and stdlib→manifest checks cannot disagree about what a file defines.
  */
 export function definesProcedure(text, name) {
-  if (typeof text !== "string") {
-    return false;
-  }
-  return codeOnly(text)
-    .split("\n")
-    .some((line) => {
-      const words = line.trim().split(/\s+/);
-      return words[0] === "define" && words[1] === name;
-    });
+  return procedureNamesIn(text).includes(name);
 }
 
 /**
@@ -201,6 +218,26 @@ export function codeOnly(source) {
   return out;
 }
 
+/**
+ * Every `.logo` file under `directory`, at any depth, spelled the way the manifest spells a
+ * `source` — `/`-separated and relative to the repository root — so a finding can name the file in
+ * the manifest's own vocabulary on every platform.
+ *
+ * A missing or unreadable directory reports as **empty** rather than throwing, so "the library is
+ * gone" reaches {@link stdlibCarveOutFindings} as the finding it is instead of a stack trace that
+ * reads like a broken gate.
+ */
+export function logoFilesUnder(directory) {
+  try {
+    return readdirSync(directory, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".logo"))
+      .map((entry) => join(entry.parentPath, entry.name).split(sep).join("/"))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 /** Default filesystem port, so tests can drive every branch without touching disk. */
 export const REAL_IO = {
   readText: (path) => readFileSync(path, "utf8"),
@@ -223,6 +260,8 @@ export const REAL_IO = {
       return false;
     }
   },
+  // See {@link logoFilesUnder}: this gate's scan surface, disclosed in the summary line.
+  listStdlibFiles: () => logoFilesUnder(STDLIB_DIR),
 };
 
 /** Read and parse the authoritative list. */
@@ -946,6 +985,71 @@ export function carveOutFindings(manifest, io) {
 }
 
 /**
+ * The stdlib→manifest direction of the `library` carve-outs: **every procedure `stdlib/**.logo`
+ * defines must have one.**
+ *
+ * {@link carveOutFindings} binds each carve-out to a file. Nothing walked `stdlib/` itself, so the
+ * binding ran one way only and the whole set could evaporate unobserved: emptying `excluded`
+ * reported `0 carve-outs` and exited **0**, as did deleting the six `library` entries, deleting a
+ * contextual one, or renaming one to a word the language does not contain (issue #964). The gate
+ * printed its own emptiness and passed.
+ *
+ * That is not bookkeeping. `spec/educational-model.md:169` requires the geometry standard library to
+ * stay **discoverable OpenLogo source** — `polygon`, `circle`, `arc`, `area`, `perimeter`, `star`
+ * must remain procedures a learner can read and write, not opaque primitives — and these carve-outs
+ * are how that survives contact with a completeness pass: they are the reason those names are absent
+ * from the built-in list, and absent reasons get "fixed".
+ *
+ * **An empty scan is a finding, not a vacuous pass.** A bijection between two empty sets holds, so
+ * without this clause deleting `stdlib/` would satisfy the check that exists to protect it — the
+ * exact failure this issue is about, one level up. Nothing else in the gate would notice either,
+ * since every remaining `stdlib` assertion is driven by manifest entries that would also be gone.
+ */
+export function stdlibCarveOutFindings(manifest, io) {
+  const findings = [];
+  const files = io.listStdlibFiles();
+  if (files.length === 0) {
+    findings.push(
+      `${STDLIB_DIR}/ holds no .logo file — the library carve-outs are what keep the geometry standard library discoverable OpenLogo source (spec/educational-model.md:169, ADR-0012), and a bijection with an empty set asserts nothing`,
+    );
+    return findings;
+  }
+
+  const carvedOut = new Set(
+    manifest.excluded
+      .filter((entry) => entry.reason === "library")
+      .map((entry) => entry.name),
+  );
+  const defined = new Map();
+  for (const file of files) {
+    for (const name of procedureNamesIn(io.readText(file))) {
+      const first = defined.get(name);
+      if (first !== undefined) {
+        findings.push(
+          `${STDLIB_DIR} defines "${name}" in both ${first} and ${file} — a library carve-out names one source file, so two would make the binding ambiguous`,
+        );
+        continue;
+      }
+      defined.set(name, file);
+      if (!carvedOut.has(name)) {
+        findings.push(
+          `${file} defines "${name}" but ${MANIFEST_PATH} records no "library" carve-out for it — a stdlib procedure absent from both names and excluded is indistinguishable from a name nobody has noticed is missing`,
+        );
+      }
+    }
+  }
+
+  for (const name of carvedOut) {
+    if (!defined.has(name)) {
+      findings.push(
+        `excluded ${name}: reason "library" but no ${STDLIB_DIR}/**.logo file defines a procedure of that name`,
+      );
+    }
+  }
+  return findings;
+}
+
+/**
  * No unregistered profile. Every profile the checker knows must either ship at least one
  * `primitive` entry backed by a real registry, or be declared empty **with a reason**.
  *
@@ -1556,6 +1660,7 @@ export function runBuiltInNamesGate({
     ...profilePrimitiveSweepFindings(resolved, api),
     ...aliasFindings(resolved, api),
     ...carveOutFindings(resolved, io),
+    ...stdlibCarveOutFindings(resolved, io),
     ...profileInventoryFindings(resolved, api, io),
     ...profileCoverageFindings(resolved, api),
     ...proseFindings(resolved, io),
@@ -1569,7 +1674,7 @@ export function runBuiltInNamesGate({
     lines.push(`FAIL ${finding}`);
   }
   lines.push(
-    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs, ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
+    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs over ${io.listStdlibFiles().length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
   );
   if (unenumerable.length > 0) {
     lines.push(
