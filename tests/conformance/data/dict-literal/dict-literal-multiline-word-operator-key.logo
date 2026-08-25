@@ -1,40 +1,58 @@
-# `and`, `or`, `mod` and `is` are legal dictionary keys, so a worded operator that opens a line
-# inside a dict literal opens the NEXT ENTRY rather than continuing the previous entry's value
-# (issue #933). Both spellings of the separator count — spaced and glued. The glued form matters
-# most: both readings parse cleanly, so reading it as an operator would change the dictionary
-# silently instead of raising a diagnostic. Each entry is read back so the reading is proven, not
-# assumed — a dict's printed form does not show its entries.
+# `and`, `or`, `mod` and `is` are legal dictionary keys, so after a complete entry value a worded
+# operator is genuinely ambiguous. `spec/grammar.md:314`'s **Entry lookahead** rule settles it by
+# the token that follows, *"ignoring any line breaks between the two — so a dictionary written on
+# one line and the same dictionary written across several lines always read alike"* (issue #944,
+# maintainer ruling option 4; this file was written for #933's narrower rule and is re-derived here).
+#
+# The discriminator is the separator's LEXEME, not its position and not adjacency:
+#
+#   - a `colon` token opens the next entry           -> `mod: 2`, `mod : 2`, `and: 3`
+#   - a `variable` token is a variable-read          -> `mod :two`, `mod:two` stay OPERATORS
+#
+# Both readings parse cleanly, so reading either one wrongly changes the dictionary *silently*
+# instead of raising a diagnostic. Each entry is read back so the reading is proven, not assumed —
+# a dict's printed form does not show its entries.
 define two
   return 2
 end
 
-# A *variable* named `two` as well: in a dict-key position `mod:two` reads as a zero-arity call to
-# the procedure, while in an operator position `mod :two` reads this variable.
+# A *variable* named `two` as well, so the operator readings below have something to read.
 :two = 2
 
+# Colon separators: each of these opens the next entry, and the multi-line spelling must agree with
+# the one-line spelling of the same dictionary.
 :spaced = { a: 1
 mod: 2
 and : 3
-or:4
-is :two }
+or:4 }
 print :spaced.a
 print :spaced.mod
 print :spaced.and
 print :spaced.or
-print :spaced.is
 
+:one_line = { a: 1 mod: 2 and : 3 or:4 }
+print :one_line.a
+print :one_line.mod
+print :one_line.and
+print :one_line.or
+
+# Variable reads: `mod :two` and `mod:two` keep the word an OPERATOR, so each of these dictionaries
+# has ONE entry. Under #933's superseded rule they opened entries keyed `mod`; reading them that way
+# now would silently reparse a valid program.
+#
+# `is :two` belongs to this group and is deliberately NOT here: as an operator it is an
+# `is-predicate` missing its form word, so it raises `ol-bad-token` and cannot appear in a fixture
+# that executes. It is pinned in `packages/parser/src/multiline-expressions.test.mjs` instead.
 :glued = { a: 1
 mod:two }
-print :glued.mod
+print :glued.a
 
-# The separator may even sit on its own line: parseDictEntry skips newlines between a key and
-# its `:`, so this is an entry too, not `1 mod :two`.
 :split = { a: 1
 mod
 :two }
-print :split.mod
+print :split.a
 
-# With no separator after it, the same word IS an operator continuing the value above: this dict
+# With no separator after it, the same word is an operator continuing the value above: this dict
 # has ONE entry whose value is `5 mod 3`. The guard is scoped to the dictionary that owns the
 # newline, so inside a nested list or group the word is an operator again — and these use
 # `mod :two`, which reads BOTH ways without a diagnostic, so they detect a leaked guard.

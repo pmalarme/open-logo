@@ -319,16 +319,24 @@ test("reports comprehension syntax errors", () => {
   assert.deepEqual(codesOf("print map 5"), ["ol-bad-token"]); // binder not a name
   // A `{` binder is a different malformed shape than a number: it is itself a lexically valid,
   // balanced delimiter (unlike `5`), so it takes the `unexpected()` helper's dedicated `lbrace`
-  // branch rather than its generic `default` — `ol-unmatched-brace`, not `ol-bad-token`. This is
-  // an unrelated grammar production from the `dict-entry` malformed-key/separator fix (issues
+  // branch. Since `spec/error-model.md:165-169` made the delimiter class agnostic, that branch
+  // reports `ol-unmatched-brace` only when the `{` genuinely has no `}` — here it has one, so the
+  // brace is correctly matched and `ol-bad-token` is authoritative (issue #947). This is an
+  // unrelated grammar production from the `dict-entry` malformed-key/separator fix (issues
   // #520/#546, `unexpectedInDictEntry`/`skipMalformedDictKeyLiteral`): a comprehension binder
-  // position, not a dict-entry position, so it is out of scope for that fix and keeps its
-  // original `unexpected()` fallthrough behavior.
+  // position, not a dict-entry position.
   assert.deepEqual(codesOf("print map { a: 1 } in [1 2 3] [ :a ]"), [
-    "ol-unmatched-brace",
+    "ol-bad-token",
     "ol-bad-token",
     "ol-bad-token",
   ]);
+  // The same shape with the brace genuinely unclosed still reports it, so the line above is a
+  // narrowing of the diagnostic to matched braces, not a suppression of it.
+  assert.ok(
+    codesOf("print map { a: 1 in [1 2 3] [ :a ]").includes(
+      "ol-unmatched-brace",
+    ),
+  );
   assert.deepEqual(codesOf("print map x"), ["ol-bad-token"]); // missing `in`
   assert.deepEqual(codesOf("print map x in"), ["ol-bad-token"]); // iterable missing
   assert.deepEqual(codesOf("print reduce acc x in [1]"), ["ol-bad-token"]); // missing `from`
@@ -693,11 +701,13 @@ test("parses a destructuring `for [:x :y] in <expr>` binder", () => {
 });
 
 test("reports malformed destructuring for-in binders", () => {
-  // No names inside the brackets at all (empty pattern) — reported at the closing `]`.
-  assert.equal(codesOf("for [] in [1] [ print 1 ]")[0], "ol-unmatched-bracket");
+  // No names inside the brackets at all (empty pattern). The `[` and `]` are correctly matched, so
+  // the defect is the empty pattern between them and `ol-bad-token` is authoritative
+  // (`spec/error-model.md:165-169`, issue #947).
+  assert.equal(codesOf("for [] in [1] [ print 1 ]")[0], "ol-bad-token");
   // A bare (non-colon) name inside the brackets isn't a valid destructuring name.
   assert.equal(codesOf("for [x] in [1] [ print 1 ]")[0], "ol-bad-token");
-  // Unclosed pattern.
+  // Unclosed pattern — genuinely unmatched, so the delimiter diagnostic is correct and survives.
   assert.equal(
     codesOf("for [:x :y in [1] [ print 1 ]")[0],
     "ol-unmatched-bracket",

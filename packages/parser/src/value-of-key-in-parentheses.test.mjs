@@ -193,27 +193,25 @@ test("`value` and `key` remain legal data beside the parenthesized reader", () =
 });
 
 test("a bare `value` in parentheses is still rejected", () => {
-  // The reader is entered only when `of` directly follows, so parenthesizing a bare `value` must
-  // not smuggle it in as a callee. Assert the diagnostic's IDENTITY, not just that one exists: a
-  // count-only assertion passes when `ol-bad-token` is raised at the wrong offset, names the wrong
-  // token, or comes from the wrong stage.
+  // The reader is entered only when `of` follows, so parenthesizing a bare `value` must not smuggle
+  // it in as a callee. Assert the diagnostic's IDENTITY, not just that one exists: a count-only
+  // assertion passes when `ol-bad-token` is raised at the wrong offset, names the wrong token, or
+  // comes from the wrong stage.
   //
-  // This is the negative half of #830, and it is covered HERE ONLY — there is no conformance
-  // fixture for it, so no other implementation is held to the rule. A stack-neutral fixture would
-  // have to pin the two false `ol-unmatched-paren` that a balanced `( value )` still reports,
-  // which would make a defect normative; the recovery that would have removed them was dropped
-  // with the rest of the diagnostic-quality work. Tracked as @testing's N2, declined and routed
-  // rather than fixed. The filter is deliberate for the same reason: it asserts the diagnostic
-  // that is CORRECT without pinning the two that are not.
+  // This used to filter for the one CORRECT diagnostic in order to avoid pinning two false
+  // `ol-unmatched-paren` that a balanced `( value )` also reported — a defect (issue #879) that a
+  // stack-neutral fixture would have made normative. Those are gone: `spec/error-model.md:165-169`
+  // now forbids reporting a matched delimiter as unmatched, and the parser complies, so the whole
+  // diagnostic list can be asserted and the reason for the filter no longer exists.
   const diagnostics = allDiagnostics("print (value)\n");
-  const badToken = diagnostics.filter(
-    (diagnostic) => diagnostic.code === "ol-bad-token",
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-bad-token", "ol-bad-token", "ol-not-enough-inputs"],
   );
-  assert.equal(badToken.length, 1, "expected exactly one ol-bad-token");
-  assert.equal(badToken[0].params.text, "value");
-  assert.equal(badToken[0].stage, "parse");
-  assert.deepEqual(badToken[0].source_span.start, [1, 8]);
-  assert.deepEqual(badToken[0].source_span.end, [1, 13]);
+  assert.equal(diagnostics[0].params.text, "value");
+  assert.equal(diagnostics[0].stage, "parse");
+  assert.deepEqual(diagnostics[0].source_span.start, [1, 8]);
+  assert.deepEqual(diagnostics[0].source_span.end, [1, 13]);
   const { ast } = OL.parse("print (value)\n", doc);
   assert.equal(valueOfKeyCount(ast), 0);
   assert.equal(parenCallCallees(ast).includes("value"), false);

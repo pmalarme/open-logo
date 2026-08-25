@@ -1,0 +1,106 @@
+{
+  "description": "Issue #947, the negative direction of `a-matched-delimiter-is-never-reported-unmatched`. That fixture forbids the unmatched-delimiter class on delimiters that are matched; a parser could satisfy it by never emitting the class at all, which would satisfy the letter of the MUST NOT while destroying real error reporting. So this pins the opposite: a delimiter that genuinely has no partner IS still reported, for all three kinds and in both directions -- an opener with no closer (`( 1 + 2`, `[ 1 2`, `{ a: 1`, `:nums[1`) and a stray closer with no opener (`1 )`, `1 ]`, `1 }`). Only the two fixtures together pin the behaviour; either alone is satisfiable by a defect. `produce()` returns parse diagnostics without running `check()` when parsing produced any, so this expectation is the parse-stage diagnostics alone.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [17, 9],
+        "end": [17, 10]
+      },
+      "params": {
+        "delimiter": ")"
+      },
+      "message": "this ) doesn't have a matching parenthesis. a group needs both ( and ).",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [18, 9],
+        "end": [18, 10]
+      },
+      "params": {
+        "delimiter": "]"
+      },
+      "message": "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [19, 9],
+        "end": [19, 10]
+      },
+      "params": {
+        "delimiter": "}"
+      },
+      "message": "this } doesn't have a matching brace. dictionary literals need both { and }.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [22, 7],
+        "end": [22, 8]
+      },
+      "params": {
+        "delimiter": "("
+      },
+      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [25, 12],
+        "end": [25, 13]
+      },
+      "params": {
+        "delimiter": "["
+      },
+      "message": "this [ doesn't have a matching bracket. lists and blocks need both [ and ].",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-brace",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [24, 7],
+        "end": [24, 8]
+      },
+      "params": {
+        "delimiter": "{"
+      },
+      "message": "this { doesn't have a matching brace. dictionary literals need both { and }.",
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "heritage/check/a-genuinely-unmatched-delimiter-is-still-reported",
+        "start": [23, 7],
+        "end": [23, 8]
+      },
+      "params": {
+        "delimiter": "["
+      },
+      "message": "this [ doesn't have a matching bracket. lists and blocks need both [ and ].",
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

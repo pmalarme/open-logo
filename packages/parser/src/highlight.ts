@@ -443,10 +443,25 @@ export function highlight(
    * here; they are the shared helper's signature, kept because with them a wrong index degrades to
    * marking nothing, while without them it would mark the *wrong* token `keyword`.
    * Marking by token index leaves every other `of` in the same document untouched.
+   *
+   * The index walk skips `newline` tokens, because `byStart`/`byEnd` are built over the **raw** lex
+   * stream, which keeps them. Since #979 the reader may be written `value` ⏎ `of …`, and without
+   * this the marked index would land on the newline: `of` would then fall through to its ordinary
+   * classification and be painted `primitive`, re-opening #785 for the split spelling alone —
+   * a regression no parse diagnostic could show, since the program parses clean.
    */
   function markValueOfKeyPreposition(node: ValueOfKeyNode): void {
     const valueIndex = byStart.get(posKey(node.source_span.start)) as number;
-    markContextualWord(valueIndex + 1, "of");
+    markContextualWord(indexSkippingNewlines(valueIndex + 1), "of");
+  }
+
+  /** The first index at or after `index` whose token is not a `newline`. */
+  function indexSkippingNewlines(index: number): number {
+    let next = index;
+    while (lex[next]?.kind === "newline") {
+      next += 1;
+    }
+    return next;
   }
 
   // Run the positional pattern/field-list scan first: a `[` directly after `for`/`struct

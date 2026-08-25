@@ -318,9 +318,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   let pos = 0;
   let lastEnd: Position = [1, 1];
-  // True while parsing the VALUE of a dictionary entry, where {@link parseDictLiteral}'s loop makes
-  // a newline an entry *separator* rather than insignificant whitespace. See {@link isDictKeyAt}.
+  // True while parsing the VALUE of a dictionary entry. See {@link isDictKeyAt} for how a worded
+  // operator there is told apart from the key that opens the next entry.
   let inDictEntryValue = false;
+  // Which delimiters are genuinely unmatched, decided from the source once rather than from
+  // wherever a recovering parser happened to stop. See {@link findUnmatchedDelimiters}.
+  const unmatchedDelimiters = findUnmatchedDelimiters();
 
   /**
    * Run `parse` with the "directly inside a dictionary entry's value" flag set to `active`, then
@@ -356,6 +359,93 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return token;
   }
 
+  /**
+   * The delimiter tokens that are **genuinely** unmatched in this token stream, keyed by their
+   * start position (unique per token). Computed once, up front, by the standard stack walk.
+   *
+   * `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
+   * malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic — the class whose
+   * members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` —
+   * for a delimiter that is, in fact, correctly matched in the source."* Whether a delimiter is
+   * matched is a property of the **source**, not of how far a recovering parser happened to get, so
+   * it is answered here from the tokens rather than from parser state — which is what makes the
+   * answer the same on every recovery path (issues #879, #947, #980).
+   *
+   * A closer whose top-of-stack opener is a different kind (`( ]`) counts as unmatched and leaves
+   * that opener on the stack, so `( ]` reports both rather than silently pairing them.
+   */
+  function findUnmatchedDelimiters(): ReadonlySet<string> {
+    const unmatched = new Set<string>();
+    const openers: { kind: LexTokenKind; key: string }[] = [];
+    const closerOf: Partial<Record<LexTokenKind, LexTokenKind>> = {
+      rparen: "lparen",
+      rbracket: "lbracket",
+      rbrace: "lbrace",
+    };
+    for (const token of tokens) {
+      const key = positionKey(token.source_span.start);
+      if (
+        token.kind === "lparen" ||
+        token.kind === "lbracket" ||
+        token.kind === "lbrace"
+      ) {
+        openers.push({ kind: token.kind, key });
+        continue;
+      }
+      const wanted = closerOf[token.kind];
+      if (wanted === undefined) {
+        continue;
+      }
+      if (openers.at(-1)?.kind === wanted) {
+        openers.pop();
+      } else {
+        unmatched.add(key);
+      }
+    }
+    for (const opener of openers) {
+      unmatched.add(opener.key);
+    }
+    return unmatched;
+  }
+
+  /** `"line:column"` — a stable identity for a token, since no two tokens share a start. */
+  function positionKey(position: Position): string {
+    return `${position[0]}:${position[1]}`;
+  }
+
+  /**
+   * Is `token` a delimiter that is genuinely unmatched in the source? Every unmatched-delimiter
+   * diagnostic in this parser is gated on this, so a *matched* delimiter can never be reported as
+   * unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   */
+  function isGenuinelyUnmatched(token: LexToken): boolean {
+    return unmatchedDelimiters.has(positionKey(token.source_span.start));
+  }
+
+  /**
+   * The diagnostic for "I expected `open`'s closer here and found something else".
+   *
+   * When `open` really has no closer, that *is* the defect and the unmatched-delimiter diagnostic is
+   * correct. When it has one, the delimiters are balanced and the defect is whatever is sitting here
+   * instead — so this reports **that token** rather than the delimiter
+   * (`spec/error-model.md:165-169`: *"`ol-bad-token` alone is authoritative for the malformed-input
+   * class"*).
+   *
+   * Substituting, rather than staying silent, is the load-bearing half. Every caller reports and
+   * then abandons its construct; returning no diagnostic at all would hand the caller a silent
+   * success, and the tokens it walked away from would be re-read as statements — turning one honest
+   * error into a cascade of invented ones (issues #879, #947).
+   */
+  function unmatchedOpenerOr(
+    open: LexToken,
+    unmatchedFor: (span: SourceSpan, delimiter: never) => Diagnostic,
+    delimiter: string,
+  ): Diagnostic {
+    return isGenuinelyUnmatched(open)
+      ? unmatchedFor(open.source_span, delimiter as never)
+      : unexpected(current());
+  }
+
   function skipNewlines(): void {
     while (current().kind === "newline") {
       advance();
@@ -386,16 +476,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return makeSpan(document, start, lastEnd);
   }
 
+  /**
+   * The diagnostic for a token the grammar cannot use here. A **closing** delimiter is reported as
+   * unmatched only when it genuinely is — otherwise the offending token is the malformed input
+   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:165-169`). Before
+   * this gate, `print [ 1 + ]` reported `ol-unmatched-bracket` against a `]` that is correctly
+   * matched two characters from its `[` (issues #947, #879).
+   */
   function unexpected(token: LexToken): Diagnostic {
     switch (token.kind) {
       case "rbracket":
-        return parseDiag.unmatchedBracket(token.source_span, "]");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBracket(token.source_span, "]")
+          : parseDiag.badToken(token.source_span, token.text);
       case "rparen":
-        return parseDiag.unmatchedParen(token.source_span, ")");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedParen(token.source_span, ")")
+          : parseDiag.badToken(token.source_span, token.text);
       case "lbrace":
-        return parseDiag.unmatchedBrace(token.source_span, "{");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBrace(token.source_span, "{")
+          : parseDiag.badToken(token.source_span, token.text);
       case "rbrace":
-        return parseDiag.unmatchedBrace(token.source_span, "}");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBrace(token.source_span, "}")
+          : parseDiag.badToken(token.source_span, token.text);
       case "newline":
         return parseDiag.badToken(token.source_span, "end of line");
       case "eof":
@@ -714,29 +819,52 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Is the token at `offset` a worded operator being used as a **dictionary key** rather than as an
-   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, and inside a dictionary a
-   * newline *separates entries*: {@link parseDictEntry} skips newlines before the `:` separator, so
-   * in `{ a: 1` ⏎ `mod: 2 }` — and equally `mod : 2`, `mod:two`, `mod :two`, or `mod` ⏎ `:two` —
-   * the `mod` opens the next entry and must not be read as an operator continuing the previous
-   * entry's value. Adjacency is therefore not the discriminator; the enclosing context is.
+   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, so after a complete entry
+   * value the word is genuinely ambiguous — and `spec/grammar.md:314`'s **Entry lookahead** rule
+   * settles it by *"the next token after it, ignoring any line breaks between the two — so a
+   * dictionary written on one line and the same dictionary written across several lines always read
+   * alike"* (issue #944, maintainer ruling option 4).
    *
-   * Both spellings of the separator count: the bare `colon` token, and the `variable` token the
-   * lexer produces for a `:value` that {@link splitGluedColonToken} splits apart later. Missing
-   * either would be the worst kind of bug here — both readings parse cleanly, so the dictionary
-   * would change meaning *silently* rather than raising a diagnostic.
+   * The discriminator is the separator's **lexeme**, not its position and not adjacency:
    *
-   * Outside a dictionary entry value this never fires, so `print :total` ⏎ `mod :divisor` still
-   * continues as the one expression it plainly is. Only a worded operator can be a key; a symbolic
-   * one is not an identifier, so it never reaches this test with a `name` token.
+   * - a `colon` token is the next entry's key separator, so `{ a: 1 mod: 2 }`, `{ a: 1 mod : 2 }`
+   *   and `{ a: 1 and: 2 }` are each **two** entries;
+   * - a `variable` token is a `variable-read`, *"whose `:` is immediately followed by its name"*, and
+   *   keeps the word an operator — so `{ a: 1 mod :two }` and `{ a: 1 mod:two }` are **one** entry
+   *   whose value is `1 mod :two`.
+   *
+   * That second case is why this returns false for `variable`: reading it as a separator would
+   * silently reparse a currently-valid program into two entries with `two` as a bare word. Both
+   * readings parse cleanly, so the dictionary would change meaning with no diagnostic at all — the
+   * defect the ruling rejected option 2 for. In **key** position a `variable` token legitimately
+   * *is* the separator (`{ a:b }`), which is {@link splitGluedColonToken}'s job, not this one's.
+   *
+   * Newlines between the word and its separator are skipped because the rule says to ignore them,
+   * which is what makes the one-line and multi-line spellings agree. Outside a dictionary entry
+   * value this never fires, so `print :total` ⏎ `mod :divisor` still continues as the one expression
+   * it plainly is. Only a worded operator can be a key; a symbolic one is not an identifier, so it
+   * never reaches this test with a `name` token.
    */
   function isDictKeyAt(offset: number): boolean {
     if (!inDictEntryValue || peek(offset).kind !== "name") {
       return false;
     }
-    // Mirror parseDictEntry's own `skipNewlines()` between the key and its separator, so
-    // `mod` ⏎ `:two` is recognised as an entry exactly as `mod :two` is.
-    const after = peek(skippingNewlines(offset + 1));
-    return after.kind === "colon" || after.kind === "variable";
+    return peek(skippingNewlines(offset + 1)).kind === "colon";
+  }
+
+  /**
+   * Does the worded operator sitting at the **current** position open the next dictionary entry
+   * instead of continuing this one's value? `spec/grammar.md:314` settles that question *"once an
+   * entry's value is complete"* — which is here, at the top of each worded-operator loop — and
+   * settles it *"regardless of position"*, so it must be asked on one line exactly as it is asked
+   * across a newline (issue #944).
+   *
+   * Before the ruling this test lived only inside {@link continuesOnNextLine}, i.e. only on the
+   * newline path, which is precisely what made a newline significant inside a dict literal:
+   * `{ a: 1` ⏎ `mod: 2 }` read as two entries while `{ a: 1 mod: 2 }` raised `ol-bad-token`.
+   */
+  function opensNextDictEntry(): boolean {
+    return isDictKeyAt(0);
   }
 
   /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
@@ -804,7 +932,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (continuesOnNextLineWith("or")) {
         skipNewlines();
       }
-      if (!isName("or")) {
+      if (!isName("or") || opensNextDictEntry()) {
         break;
       }
       const opTok = current();
@@ -833,7 +961,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (continuesOnNextLineWith("and")) {
         skipNewlines();
       }
-      if (!isName("and")) {
+      if (!isName("and") || opensNextDictEntry()) {
         break;
       }
       const opTok = current();
@@ -873,7 +1001,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (continuesOnNextLineWith("is")) {
       skipNewlines();
     }
-    if (isName("is")) {
+    if (isName("is") && !opensNextDictEntry()) {
       return parseIsPredicate(first);
     }
     // A single comparison stays a Call; two or more become one ComparisonChain that stores each
@@ -1046,7 +1174,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         skipNewlines();
       }
       const token = current();
-      if (!isMultiplicativeOp(token)) {
+      if (!isMultiplicativeOp(token) || opensNextDictEntry()) {
         break;
       }
       const isMod = isKeywordToken(token, "mod");
@@ -1159,10 +1287,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `[ key-term ]` selector, interleaved freely (so `:a.b[1].c` yields field, selector, field).
    * A `[` is only a selector when it is lexically adjacent to what precedes it; a spaced `[`
    * belongs to something else (a list literal, a control body) and ends the chain.
+   *
+   * A `.field` may sit on the next line — `spec/grammar.md:34` makes newlines insignificant within
+   * one expression, and `postfix-expression` (:192) is one (issue #980). {@link continuesOnNextLine}
+   * guards the crossing: a `dot` can never begin a statement, so continuing onto one can swallow no
+   * valid reading. **A selector `[` deliberately does not cross**, because the same sentence gives a
+   * newline a competing job there — *"immediately after a control or procedure header, a newline
+   * selects the long `... end` body form"* — so `map n in :nums` ⏎ `[ … ]` is a long-form body, not
+   * a selector on `:nums`. Adjacency, which a newline breaks by construction, is what keeps those
+   * apart.
    */
   function collectPostfixSegments(): PlaceSegment[] {
     const segments: PlaceSegment[] = [];
     for (;;) {
+      if (continuesOnNextLineWithFieldPostfix()) {
+        skipNewlines();
+      }
       if (current().kind === "dot" && peek(1).kind === "name") {
         const dot = current();
         advance();
@@ -1191,7 +1331,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
           break;
         }
         if (current().kind !== "rbracket") {
-          diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+          diagnostics.push(
+            unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+          );
           break;
         }
         const close = current();
@@ -1243,6 +1385,19 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
   }
 
+  /**
+   * {@link continuesOnNextLine} for a `.field` postfix (issue #980). A `dot` begins no statement and
+   * is no dictionary key, so both of `continuesOnNextLine`'s guards are inert here and the two
+   * conditions that matter are stated directly: the next non-newline token is a `dot`, and a `name`
+   * follows it — the same pair {@link collectPostfixSegments} requires on one line.
+   */
+  function continuesOnNextLineWithFieldPostfix(): boolean {
+    return continuesOnNextLine(
+      (token, offset) =>
+        token.kind === "dot" && peek(offset + 1).kind === "name",
+    );
+  }
+
   function parsePostfix(): ExpressionNode | undefined {
     const primaryStart = current();
     const primaryStartIndex = pos;
@@ -1252,9 +1407,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     // A postfix read `:a.b.c` or `:nums[1]` grows the bare variable into a place; a plain `:a`
     // stays a VarRef. A `[` counts only when adjacent, so a spaced `[ … ]` stays a separate token.
+    // A `.field` may also sit on the next line (issue #980); see
+    // {@link continuesOnNextLineWithFieldPostfix} for why it crosses and the selector `[` does not.
     const hasPostfixAhead =
       (current().kind === "dot" && peek(1).kind === "name") ||
-      (current().kind === "lbracket" && currentAdjacentToPrev());
+      (current().kind === "lbracket" && currentAdjacentToPrev()) ||
+      continuesOnNextLineWithFieldPostfix();
     if (!hasPostfixAhead) {
       return primary;
     }
@@ -1339,11 +1497,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (lower === "map" || lower === "filter" || lower === "reduce") {
       return parseComprehension(token, lower);
     }
-    if (
-      lower === "value" &&
-      peek(1).kind === "name" &&
-      peek(1).text.toLowerCase() === "of"
-    ) {
+    if (lower === "value" && isKeywordToken(peek(skippingNewlines(1)), "of")) {
       return parseValueOfKey(token);
     }
     if (NON_PRIMARY_NAMES.has(lower)) {
@@ -1369,15 +1523,23 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
    *
    * Being one expression, it spans newlines: `spec/grammar.md:34` makes them insignificant inside
-   * it, so every slot from `of` onwards skips them (issue #962). Three of the four are positions
-   * where the reader has already committed and a newline is a parse error today whatever follows,
-   * so they use {@link skipNewlinesBeforeOperand}; only the tail's leading `for` faces a newline
-   * that could otherwise be a statement terminator, and it uses the guarded
-   * {@link continuesOnNextLineWithValueOfKeyTail}. The one internal newline still rejected is
-   * between `value` and `of`, which is the *interception* test above rather than a slot in here.
+   * it, so **every** internal slot skips them (issues #962, #979). Three are positions where the
+   * reader has already committed and a newline is a parse error today whatever follows, so they use
+   * {@link skipNewlinesBeforeOperand}; only the tail's leading `for` faces a newline that could
+   * otherwise be a statement terminator, and it uses the guarded
+   * {@link continuesOnNextLineWithValueOfKeyTail}.
+   *
+   * The newline between `value` and `of` is the fourth, and it is a slot of the *interception* test
+   * above rather than of this function — which is why #962 fixed the other three and left it. It
+   * needs no guard either: `value` is a reserved keyword that is never callable, so a bare `value`
+   * in expression position "is the head of the heritage `value of … for key …` reader where
+   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:390`). There is
+   * therefore no legal one-statement-per-line reading to swallow — `print value` ⏎ `of :d for key
+   * :k` was four `ol-bad-token` before this.
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
     advance(); // "value"
+    skipNewlinesBeforeOperand();
     advance(); // "of"
     skipNewlinesBeforeOperand();
     const dictionary = requireExpression();
@@ -1732,7 +1894,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (current().kind === "rparen") {
       advance();
     } else {
-      diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+      diagnostics.push(unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("));
     }
     return inner;
   }
@@ -2136,7 +2298,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (current().kind === "rparen") {
       advance();
     } else {
-      diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+      diagnostics.push(unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("));
     }
     return ast.local(names, spanToHere(open.source_span.start));
   }
@@ -2434,7 +2596,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     if (current().kind !== "rbracket") {
-      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      diagnostics.push(
+        unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+      );
       return undefined;
     }
     const close = current();
@@ -2577,7 +2741,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (current().kind === "rparen") {
         advance();
       } else {
-        diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+        diagnostics.push(
+          unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("),
+        );
       }
       if (defaultValue === undefined) {
         params.push({ name: sname(nameParam.value, nameParam) });
@@ -2817,7 +2983,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (closer.kind === "newline" || closer.kind === "eof") {
       // The field list was opened but never closed before the statement ended: the opening `[`
       // is the genuinely unmatched bracket (`spec/error-model.md:103`).
-      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      diagnostics.push(
+        unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+      );
       return undefined;
     }
     // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are

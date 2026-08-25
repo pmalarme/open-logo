@@ -31,6 +31,17 @@ function printedExpression(source) {
   return body[0].args[0];
 }
 
+/**
+ * `source`'s AST with every `source_span` stripped. Spans are exactly what a newline is *allowed*
+ * to change, so comparing two spellings means comparing the tree shape that survives that
+ * difference.
+ */
+function shapeOf(source) {
+  return JSON.stringify(OL.parse(source, doc).ast, (key, value) =>
+    key === "source_span" ? undefined : value,
+  );
+}
+
 /** Assert `node` is a binary `Call` to `operator` over two number literals. */
 function assertBinary(node, operator, left, right) {
   assert.equal(node.kind, "Call");
@@ -302,37 +313,89 @@ test("no word operator this admits can begin a statement", () => {
   }
 });
 
-// --- a word operator opening a line may still be a dictionary key --------------------------------
+// --- a word operator after a complete entry value: key, or continuation? -------------------------
 //
-// `and`, `or`, `mod` and `is` are legal key names, so a following dict-entry `:` means the word
-// opens the next entry rather than continuing the previous entry's value. The glued spelling
-// (`mod:two`) matters most: both readings parse cleanly, so getting it wrong would change the
-// dictionary silently instead of raising a diagnostic.
+// `and`, `or`, `mod` and `is` are legal key names, so after a complete entry value the word is
+// genuinely ambiguous. `spec/grammar.md:314`'s **Entry lookahead** rule settles it by the token that
+// follows, *"ignoring any line breaks between the two"* — which is what makes the one-line and
+// multi-line spellings agree (issue #944, maintainer ruling option 4).
+//
+// The discriminator is the separator's LEXEME: a `colon` token opens the next entry, a `variable`
+// token (`:two`, whose `:` is glued to its name) keeps the word an operator. Both readings parse
+// cleanly, so getting it wrong changes the dictionary silently instead of raising a diagnostic —
+// which is why these assert entry COUNTS and KEYS, never just the absence of diagnostics.
 
-test("a word operator followed by a dict separator opens the next entry", () => {
-  for (const entry of [
-    "mod: 2",
-    "and: 2",
-    "or: 2",
-    "is: 2",
-    "mod : 2",
-    "mod :two",
-    "mod\n:two",
-    "mod\n\n:two",
-  ]) {
-    const dict = printedExpression(`print { a: 1\n${entry} }`);
+test("a word operator followed by a key separator opens the next entry", () => {
+  // The `colon` spellings. Each is asserted on ONE line and across a newline, and the two must
+  // agree: before the ruling the one-line form raised `ol-bad-token` while the multi-line form read
+  // as two entries, which is exactly the asymmetry the rule removes.
+  for (const entry of ["mod: 2", "and: 2", "or: 2", "is: 2", "mod : 2"]) {
+    for (const source of [
+      `print { a: 1 ${entry} }`,
+      `print { a: 1\n${entry} }`,
+    ]) {
+      const dict = printedExpression(source);
 
-    assert.equal(dict.kind, "DictLit", entry);
-    assert.equal(dict.entries.length, 2, entry);
+      assert.equal(dict.kind, "DictLit", source);
+      assert.equal(dict.entries.length, 2, source);
+      assert.equal(dict.entries[0].key.value, "a", source);
+    }
   }
 });
 
-test("a word operator glued to its dict value opens the next entry", () => {
-  const dict = printedExpression("print { a: 1\nmod:two }");
+test("a word operator followed by a variable read continues the value", () => {
+  // The `variable` spellings — the regression a naive lookahead causes. `{ a: 1 mod :two }` is ONE
+  // entry whose value is `1 mod :two`; reading `:two` as a separator would silently reparse a
+  // currently-valid program into two entries with `two` as a bare word. Newlines are insignificant
+  // here, so every spelling below must agree with the one-line one.
+  for (const entry of ["mod :two", "mod:two", "mod\n:two", "mod\n\n:two"]) {
+    const dict = printedExpression(`print { a: 1\n${entry} }`);
 
-  assert.equal(dict.kind, "DictLit");
-  assert.equal(dict.entries.length, 2);
-  assert.equal(dict.entries[1].key.value, "mod");
+    assert.equal(dict.kind, "DictLit", entry);
+    assert.equal(dict.entries.length, 1, entry);
+    assert.equal(dict.entries[0].value.callee.name, "mod", entry);
+  }
+});
+
+test("`is` before a variable read is an is-predicate, not a key", () => {
+  // `is` belongs to the same group but cannot be shown as a clean single entry: read as an operator
+  // it is an `is-predicate` missing its form word (`empty`/`a <type>`/`member of`), so it is a parse
+  // error. That error IS the ruled reading — under #933's superseded rule `is :two` opened an entry
+  // keyed `is` and parsed clean, which is why this is pinned rather than left to a fixture: it is
+  // the one case in the family whose flip is visible as a diagnostic instead of as a tree.
+  for (const source of ["print { a: 1 is :two }", "print { a: 1\nis :two }"]) {
+    const { ast, diagnostics } = OL.parse(source, doc);
+
+    assert.ok(
+      diagnostics.some((diagnostic) => diagnostic.code === "ol-bad-token"),
+      source,
+    );
+    assert.ok(
+      ast.body[0].args[0].entries.every((entry) => entry.key.value !== "is"),
+      `${source} must not open an entry keyed \`is\``,
+    );
+  }
+});
+
+test("the one-line and multi-line spellings of a dict entry agree", () => {
+  // The ruling's acceptance criterion 4, asserted as AST equality rather than as a pair of
+  // hand-written expectations: whatever each spelling means, both must mean the SAME thing.
+  for (const entry of [
+    "and: 2",
+    "or: 2",
+    "mod: 2",
+    "is: 2",
+    "mod : 2",
+    "mod :two",
+    "mod:two",
+    "b: 2",
+  ]) {
+    assert.equal(
+      shapeOf(`print { a: 1 ${entry} }`),
+      shapeOf(`print { a: 1\n${entry} }`),
+      entry,
+    );
+  }
 });
 
 test("the dict-key guard is scoped to the dictionary that owns the newline", () => {
@@ -366,7 +429,9 @@ test("the dict-key guard is scoped to the dictionary that owns the newline", () 
 
 test("a malformed dict key does not swallow the entry after it", () => {
   // The recovery path parses an expression too, so it needs the same dict-entry scope; without it
-  // the `mod` key is consumed as `5 mod :two` and the entry disappears.
+  // the `mod` key is consumed as `5 mod :two` and the entry disappears. Under the ruling `mod`
+  // followed by the variable read `:two` is an OPERATOR, so the surviving entries are the malformed
+  // one's successor `ok` alone — the point being that recovery still reaches it.
   const { ast, diagnostics } = OL.parse(
     "print { [1] : 5\nmod\n:two\nok: 3 }",
     doc,
@@ -378,17 +443,8 @@ test("a malformed dict key does not swallow the entry after it", () => {
   );
   assert.deepEqual(
     ast.body[0].args[0].entries.map((entry) => entry.key.value),
-    ["mod", "ok"],
+    ["ok"],
   );
-});
-
-test("a word operator opening a line is a dict key even with a spaced or split separator", () => {
-  for (const entry of ["mod :two", "mod\n:two", "mod\n\n:two"]) {
-    const dict = printedExpression(`print { a: 1\n${entry} }`);
-
-    assert.equal(dict.entries.length, 2, entry);
-    assert.equal(dict.entries[1].key.value, "mod", entry);
-  }
 });
 
 test("outside a dictionary a word operator still continues onto a `:variable`", () => {
@@ -497,30 +553,25 @@ test("#944: ordinary one-line and multi-line entries are unaffected", () => {
   assert.equal(printedExpression("print { a: 1\nand: 2 }").entries.length, 2);
 });
 
-test("#944: the one-line word-key spellings it will fix still fail here", () => {
-  // Deliberately pinned as FAILING, and #944's implementation tripwire: when the separator
-  // lookahead lands, replace this test with the positive form — each spelling parses to TWO
-  // entries. Until then, if THIS change ever makes them parse, that is a scope escape.
+test("#944: the one-line word-key spellings now parse as two entries", () => {
+  // This test was pinned as deliberately FAILING until #944's separator lookahead landed, with the
+  // instruction to replace it with the positive form once it did. This is that replacement: each
+  // spelling parses clean into TWO entries, and agrees with its multi-line twin.
   //
-  // The assertions are ordered so a failure self-diagnoses. The count of 3 is a recovery-cascade
-  // artifact — one `ol-bad-token` per token left before the `}`, here `:`, `2` and `}` — so a
-  // future change to that cascade would move the third assertion while the first two still hold,
-  // which says "recovery changed", not "scope escaped".
-  for (const source of [
-    "print { a: 1 and: 2 }",
-    "print { a: 1 or: 2 }",
-    "print { a: 1 mod: 2 }",
-  ]) {
-    const codes = OL.parse(source, doc).diagnostics.map(
-      (diagnostic) => diagnostic.code,
-    );
+  // What it used to assert, and why the flip is the whole point: `{ a: 1 and: 2 }` raised three
+  // `ol-bad-token` — one per token left before the `}` — while `{ a: 1`⏎`and: 2 }` read as two
+  // entries, so a newline inside a dict literal was significant, against `spec/grammar.md:34`.
+  for (const entry of ["and: 2", "or: 2", "mod: 2", "is: 2"]) {
+    const source = `print { a: 1 ${entry} }`;
+    const dict = printedExpression(source);
 
-    assert.ok(codes.length > 0, source);
-    assert.ok(
-      codes.every((code) => code === "ol-bad-token"),
+    assert.equal(dict.entries.length, 2, source);
+    assert.deepEqual(
+      dict.entries.map((dictEntry) => dictEntry.key.value),
+      ["a", entry.slice(0, entry.indexOf(":"))],
       source,
     );
-    assert.equal(codes.length, 3, source);
+    assert.equal(shapeOf(source), shapeOf(`print { a: 1\n${entry} }`), source);
   }
 });
 

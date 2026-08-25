@@ -1,0 +1,71 @@
+# Issues #979 and #980, the execution half. Two readers did not honour `spec/grammar.md:34`'s
+# *"within a single expression … newlines are insignificant"*: the `value`/`of` interception of the
+# Heritage reader (#979), and the `.field` postfix (#980).
+#
+# The check twin proves these spellings are not DIAGNOSED. This one proves they MEAN what their
+# one-line spellings mean, which no diagnostic can show — #980's defect dropped the `.field`
+# entirely and left a bare variable read, a *smaller* tree rather than a malformed one, and #944's
+# sibling defect in this same slice reparsed a dictionary silently. So every spelling below prints
+# beside its one-line twin and the two payloads must be identical.
+#
+# `execute()` runs `parse()` and never `check()`, so the runtime holds its own copy of these rules.
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+:d = { a: 7 b: "a" }
+:k = "a"
+:nested = { inner: { x: 9 } }
+
+# #979 — a newline between `value` and `of`.
+print value
+of :d for key :k
+print value of :d for key :k
+
+# The same, wrapped in parentheses.
+print (value
+of :d for key :k)
+print (value of :d for key :k)
+
+# The same, inside a dict entry value — the container where a misreading is silent.
+print { a: value
+of :d for key :k }
+print { a: value of :d for key :k }
+
+# UPPERCASE, because keywords are case-insensitive (`spec/grammar.md:13`) and a continuation that
+# compared surface text would break only this spelling.
+print VALUE
+OF :d FOR KEY :k
+print VALUE OF :d FOR KEY :k
+
+# A newline at every internal slot of the reader at once.
+print value
+of
+:d
+for
+key
+:k
+print value of :d for key :k
+
+# #980 — a `.field` postfix on the next line, inside a parenthesized group. Under the defect this
+# printed the whole dictionary instead of the field, and raised two `ol-unmatched-paren` on
+# parentheses that are correctly matched.
+print ( :d
+.a )
+print ( :d .a )
+
+# The same inside a list literal and a dict entry value.
+print [ :d
+.a ]
+print [ :d .a ]
+
+print { x: :d
+.a }
+print { x: :d .a }
+
+# A chain split across two newlines.
+print ( :nested
+.inner
+.x )
+print ( :nested .inner .x )
+
+# Control: a newline still terminates a statement, so these stay TWO instructions and two prints.
+print 1
+print 2
