@@ -6,6 +6,7 @@ present) and temporary files, so it never touches the real tree. Exits non-zero 
 unexpected result.
 """
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -97,21 +98,17 @@ GATE_CASES = [
 for label, ci_document, other_document, should_pass in GATE_CASES:
     scratch = tempfile.mkdtemp()
     os.makedirs(os.path.join(scratch, ".github", "workflows"))
-    # Only the lint gate is asserted in these fixtures; the rest are supplied so the "wired" case
-    # is genuinely clean rather than passing because the check found nothing at all.
+    # `required` is derived from package.json, so the fixture needs one.
+    gate_names = [
+        "build", "typecheck", "lint", "format:check", "test",
+        "conformance", "examples", "built-in-names", "spec-citations", "coverage",
+    ]
+    with open(os.path.join(scratch, "package.json"), "w", encoding="utf-8") as fh:
+        json.dump({"scripts": {name: "x" for name in gate_names}}, fh)
+    # Only the lint gate varies per case; the rest are supplied so the "wired" case is genuinely
+    # clean rather than passing because the check found nothing at all.
     ci_document["jobs"].setdefault("all", {"steps": []})["steps"] = [
-        {"run": command}
-        for command in (
-            "npm run -s build",
-            "npm run -s typecheck",
-            "npm run -s format:check",
-            "npm run -s test",
-            "npm run -s conformance",
-            "npm run -s examples",
-            "npm run -s built-in-names",
-            "npm run -s spec-citations",
-            "npm run -s coverage",
-        )
+        {"run": f"npm run -s {name}"} for name in gate_names if name != "lint"
     ]
     with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
         yaml.safe_dump(ci_document, fh)
@@ -135,6 +132,42 @@ for label, ci_document, other_document, should_pass in GATE_CASES:
 shipped = validate_meta.check_gate_wiring()
 if shipped:
     failures.append(f"the shipped workflows must pass the gate-wiring check, got {shipped}")
+
+# MUTATION, parameterised over EVERY gate: dropping any one of them from ci.yml must fail. Review
+# found only `lint` was locked, so deleting the coverage step left the 100%-coverage gate unrun
+# with nothing red.
+ALL_GATES = [
+    "build", "typecheck", "lint", "format:check", "test",
+    "conformance", "examples", "built-in-names", "spec-citations", "coverage",
+]
+for dropped in ALL_GATES:
+    scratch = tempfile.mkdtemp()
+    os.makedirs(os.path.join(scratch, ".github", "workflows"))
+    with open(os.path.join(scratch, "package.json"), "w", encoding="utf-8") as fh:
+        json.dump({"scripts": {name: "x" for name in ALL_GATES}}, fh)
+    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(
+            {
+                "jobs": {
+                    "all": {
+                        "steps": [
+                            {"run": f"npm run -s {name}"}
+                            for name in ALL_GATES
+                            if name != dropped
+                        ]
+                    }
+                }
+            },
+            fh,
+        )
+    cwd = os.getcwd()
+    try:
+        os.chdir(scratch)
+        dropped_errors = validate_meta.check_gate_wiring()
+    finally:
+        os.chdir(cwd)
+    if not dropped_errors:
+        failures.append(f"MUTATION: dropping the `{dropped}` gate from ci.yml must fail, but passed")
 
 if failures:
     print("FRONTMATTER SELF-TEST FAILED:")

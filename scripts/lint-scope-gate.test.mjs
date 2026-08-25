@@ -78,6 +78,7 @@ function makeRepo({
   overrides,
   nestedConfigs = {},
   untrackedNestedConfigs = {},
+  gitignore = [],
 }) {
   const directory = mkdtempSync(join(tmpdir(), "openlogo-lint-scope-"));
   const git = (...args) =>
@@ -113,6 +114,12 @@ function makeRepo({
   // corpus mirrored that blind spot exactly — every nested-config fixture was tracked.
   for (const [where, nested] of Object.entries(untrackedNestedConfigs)) {
     write(`${where}/${CONFIG_FILE}`, JSON.stringify(nested));
+  }
+  // A `.gitignore` is the second half of that attack: it shrinks every git view, including
+  // `ls-files --others --exclude-standard`. No fixture in this suite wrote one until review pointed
+  // out that the whole `vcs.useIgnoreFile` interaction was therefore untested.
+  if (gitignore.length > 0) {
+    write(".gitignore", `${gitignore.join("\n")}\n`);
   }
 
   for (const name of [...tracked, ...untracked]) {
@@ -472,6 +479,17 @@ test("the gate is wired into `npm run lint`, and a real diagnostic makes it fail
     ),
   );
   assert.equal(manifest.scripts.lint, "node scripts/lint.mjs");
+  // npm runs `prelint` before and `postlint` after `lint`, outside the runner entirely. Review used
+  // that to strip a planted diagnostic in `prelint` and restore it in `postlint`: lint exited 0 with
+  // the violation present, and every test here still passed because they invoke the runner directly.
+  // The hook surface for one script is a closed pair of names, so assert both are absent.
+  for (const hook of ["prelint", "postlint"]) {
+    assert.equal(
+      manifest.scripts[hook],
+      undefined,
+      `\`${hook}\` runs outside scripts/lint.mjs and can subvert it; it must not exist`,
+    );
+  }
 
   const directory = makeRepo({
     includes: ["**/*.mjs"],
@@ -728,6 +746,50 @@ test("INJECTED DRIFT: an UNTRACKED nested biome.json is audited like a tracked o
   assert.equal(result.ok, false, report);
   assert.match(report, /packages\/core\/biome\.json/);
   assert.match(report, /every rule group/);
+});
+
+test("INJECTED DRIFT: an untracked AND gitignored nested biome.json is still audited", () => {
+  // The decisive attack, twice-fixed: a nested config that is untracked *and* `.gitignore`d is
+  // invisible to EVERY git view — `ls-files` misses it for being untracked, and
+  // `ls-files --others --exclude-standard` misses it for being ignored. Ignoring the package's
+  // sibling package.json/tsconfig.json removes them from Biome's processed list too (the repo sets
+  // `vcs.useIgnoreFile`), which suppresses the incidental direction-B tell. The result was
+  // `npm run lint` exiting 0 with a real `debugger;` present, reporting "all linted" and
+  // "0 named rule customisation(s)".
+  //
+  // Configurations are therefore discovered from the FILESYSTEM, which no ignore rule can shrink.
+  const directory = makeRepo({
+    includes: ["**/*.mjs"],
+    tracked: ["packages/core/src/values.test.mjs", "root.mjs"],
+    untrackedNestedConfigs: {
+      "packages/core": {
+        root: false,
+        linter: { enabled: true, rules: { preset: "none" } },
+      },
+    },
+    gitignore: [
+      "packages/core/biome.json",
+      "packages/core/package.json",
+      "packages/core/tsconfig.json",
+    ],
+  });
+  assert.ok(
+    listConfigFiles(directory).includes("packages/core/biome.json"),
+    "an ignored nested configuration must still be enumerated",
+  );
+  const result = runLintScopeGate({ cwd: directory });
+  const report = result.lines.join("\n");
+  assert.equal(result.ok, false, report);
+  assert.match(report, /packages\/core\/biome\.json/);
+});
+
+test("listConfigFiles fails closed on a directory it cannot read", () => {
+  // A directory the gate cannot read might hold a configuration that unlints the tree, so it
+  // refuses rather than skipping — the same fail-closed rule as an unreadable configuration.
+  assert.throws(
+    () => listConfigFiles(join(tmpdir(), "openlogo-no-such-directory-at-all")),
+    /Refusing to certify a lint scope it cannot see/,
+  );
 });
 
 test("listConfigFiles finds nested configurations, with the root one always first in the set", () => {

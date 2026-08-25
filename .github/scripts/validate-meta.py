@@ -73,61 +73,99 @@ def workflow_steps(document):
             yield job_name, job, step
 
 
+def is_fail_open(value):
+    """Whether a `continue-on-error` value lets a failure through.
+
+    Accepts the literal `true` and any expression, because `continue-on-error: ${{ true }}` parses as
+    the STRING `${{ true }}` — review used exactly that to slip past an `is True` check. An
+    expression here cannot be evaluated statically, so it is rejected rather than trusted, and a
+    legitimate one is declared in FAIL_OPEN_EXCEPTIONS with its reason.
+    """
+    if value is True:
+        return True
+    return isinstance(value, str) and value.strip() != "" and value.strip().lower() != "false"
+
+
+#: Steps allowed to be fail-open, each with the reason. Keyed by (workflow basename, step id).
+#: Declaring an exception is a review question — the point of the check is that a NEW one cannot
+#: appear silently, not that none may ever exist.
+FAIL_OPEN_EXCEPTIONS = {
+    ("dependency-review.yml", "actions/dependency-review-action@v5"): (
+        "Advisory while the repository is private and a hard gate once public: the Dependency Graph "
+        "it needs is a GHAS feature unavailable on private repos, so the action cannot succeed there. "
+        "The value is `${{ github.event.repository.private }}`, which flips to a blocking check "
+        "automatically when the repo goes public. See workflows.instructions.md."
+    ),
+}
+
+
 def check_gate_wiring():
     """Return errors for Definition-of-Done gates that CI does not run, or runs fail-open.
 
-    Two holes review found, both of which left every other check green (issue #978):
+    Three holes review found, each of which left every other check green (issue #978):
 
       * `.github/workflows/ci.yml` could stop invoking `npm run -s lint` — swap it for a second
         `format:check` and the required "Lint & format" job passes without linting anything.
-      * a `continue-on-error: true` on a gate job or step neuters it while its own self-tests still
-        pass, because those test the script, not whether anybody heeds its exit code.
+      * a `continue-on-error` on a gate job or step neuters it while its own self-tests still pass,
+        because those test the script, not whether anybody heeds its exit code.
+      * an `if:` condition on a gate step skips it entirely: `if: ${{ false }}` left both metadata
+        checks green while the lint step never ran.
 
-    A gate nothing invokes, or whose failure nothing heeds, is the same defect as a gate that checks
-    too little: a green signal certifying less than its name implies.
+    A gate nothing invokes, whose failure nothing heeds, or that never executes, is the same defect
+    as a gate that checks too little: a green signal certifying less than its name implies.
     """
     errors = []
 
-    # Every DoD script CI is expected to run, and the job it belongs to.
+    # Every DoD script CI is expected to run, derived from package.json rather than restated here —
+    # a hand-written list is an assertion nothing re-derives, which is this epic's own defect.
+    # `dev`, `clean`, lifecycle hooks (`pre*`/`post*`) and workspace-only scripts are not gates.
+    with open("package.json", encoding="utf-8") as fh:
+        scripts = (yaml.safe_load(fh) or {}).get("scripts", {})
+    not_gates = {"dev", "clean", "prepare", "format"}
     required = {
-        "build": "npm run -s build",
-        "typecheck": "npm run -s typecheck",
-        "lint": "npm run -s lint",
-        "format:check": "npm run -s format:check",
-        "test": "npm run -s test",
-        "conformance": "npm run -s conformance",
-        "examples": "npm run -s examples",
-        "built-in-names": "npm run -s built-in-names",
-        "spec-citations": "npm run -s spec-citations",
-        "coverage": "npm run -s coverage",
+        name: f"npm run -s {name}"
+        for name in scripts
+        if name not in not_gates and not name.startswith(("pre", "post"))
     }
     ci = load(".github/workflows/ci.yml")
-    ci_commands = {
-        line.strip()
-        for _job_name, _job, step in workflow_steps(ci)
-        for line in str(step.get("run", "")).splitlines()
-    }
+    gate_commands = set(required.values())
+    ci_commands = set()
+    for job_name, job, step in workflow_steps(ci):
+        commands = {line.strip() for line in str(step.get("run", "")).splitlines()}
+        running_a_gate = commands & gate_commands
+        if running_a_gate:
+            ci_commands |= commands
+            # A gate step must be unconditional: an `if:` can skip it without failing anything.
+            if "if" in step:
+                errors.append(
+                    f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} "
+                    f"under an `if:` condition, so the gate can be skipped without failing."
+                )
     for name, command in sorted(required.items()):
         if command not in ci_commands:
             errors.append(
-                f".github/workflows/ci.yml: no step runs `{command}`; the {name} gate would not "
-                f"run in CI even though every local check passes."
+                f".github/workflows/ci.yml: no unconditional step runs `{command}`; the {name} gate "
+                f"would not run in CI even though every local check passes."
             )
 
-    # No gate workflow may be fail-open. `continue-on-error` turns a red gate green.
-    for fp in sorted(glob.glob(".github/workflows/*.yml")):
+    # No gate workflow may be fail-open.
+    for fp in sorted(glob.glob(".github/workflows/*.y*ml")):
         document = load(fp)
         for job_name, job in (document.get("jobs") or {}).items():
-            if job.get("continue-on-error") is True:
+            if is_fail_open(job.get("continue-on-error")):
                 errors.append(
                     f"{fp}: job `{job_name}` sets continue-on-error, so it cannot fail the build."
                 )
             for step in job.get("steps") or []:
-                if step.get("continue-on-error") is True:
+                if is_fail_open(step.get("continue-on-error")):
                     label = step.get("name") or step.get("run") or step.get("uses") or "<step>"
+                    key = (os.path.basename(fp), str(step.get("uses") or step.get("name") or "").strip())
+                    if key in FAIL_OPEN_EXCEPTIONS:
+                        continue
                     errors.append(
                         f"{fp}: job `{job_name}` step `{str(label).splitlines()[0][:60]}` sets "
-                        f"continue-on-error, so its failure is ignored."
+                        f"continue-on-error, so its failure is ignored. If that is deliberate, "
+                        f"declare it in FAIL_OPEN_EXCEPTIONS with a reason."
                     )
     return errors
 
@@ -163,7 +201,7 @@ def main():
             errors.append(f".github/labeler.yml: label '{label}' is not defined in labels.yml")
 
     # All workflows must parse.
-    for fp in sorted(glob.glob(".github/workflows/*.yml")):
+    for fp in sorted(glob.glob(".github/workflows/*.y*ml")):
         load(fp)
 
     # The gates must actually be invoked, and must be allowed to fail the build.

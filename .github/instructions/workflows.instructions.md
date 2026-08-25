@@ -32,6 +32,13 @@ suites these workflows run; you wire and secure them.
   [ADR-0019](../../docs/adr/0019-adopt-agentic-workflows.md)), and **build/lint/test** jobs gated on
   `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}` until the toolchain lands. Do **not** use
   `hashFiles()` in a job-level `if` — it evaluates before checkout.
+- **Gate wiring is itself gated.** `validate-meta.py`'s `check_gate_wiring` asserts that every
+  Definition-of-Done script in `package.json` is actually invoked by an unconditional step in
+  `ci.yml`, and that no job or step in any workflow is fail-open. Three ways to silently disable a
+  gate were found in review (issue #978): swapping `npm run -s lint` for a second `format:check`;
+  `continue-on-error` (in any spelling, including `${{ … }}` expressions); and an `if:` on a gate
+  step. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private — is
+  declared in `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
   activates when `package.json` lands.
 - `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR. Needs the

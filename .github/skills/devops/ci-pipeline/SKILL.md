@@ -17,7 +17,7 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 
 | Gate | Runs | When |
 |---|---|---|
-| meta | markdown links, YAML lint (issue forms, labels, workflows), label taxonomy ↔ commit-scope mirror, spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
+| meta | markdown links, YAML lint (issue forms, labels, workflows), label taxonomy ↔ commit-scope mirror, **DoD gate wiring** (every gate actually invoked in `ci.yml`, no gate fail-open or `if:`-skippable), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
 | **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if recompiling changes any committed (or adds any uncommitted) `.lock.yml` (issue #597) | PRs (and pushes to `main`) touching `.github/workflows/**`, `.github/aw/**`, or the pairing-guard scripts |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
 | lint + format | `scripts/lint.mjs` (Biome + the lint-scope gate, which re-derives from git what Biome linted) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |

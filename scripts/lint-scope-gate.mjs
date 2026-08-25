@@ -119,7 +119,7 @@
 // paragraph named only `biome-ignore-all`, and review demonstrated the range form slipping past it.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -424,35 +424,68 @@ export function readConfig(path = CONFIG_FILE) {
 }
 
 /**
- * Every Biome configuration file **git knows about**, root first — tracked, plus
- * untracked-but-not-ignored, exactly as {@link listSourceFiles} enumerates the corpus.
+ * Every Biome configuration file in the tree, root first — discovered from the **filesystem**, not
+ * from git.
  *
- * A **nested** config (`"root": false`) can disable rules for a whole package while its files stay
- * in the processed list, so auditing only the root one leaves a door open that direction A cannot
- * see — measured, not assumed: a `packages/core/biome.json` with `rules.preset: "none"` left an
- * earlier version of this gate green while `packages/core` went unlinted.
+ * This is the one enumeration in this gate that deliberately does *not* use the git oracle, and the
+ * reason is the rule the rest of the gate is built on: **an oracle must be at least as strong as the
+ * thing it checks.** Biome discovers configurations by walking directories; it does not consult git.
+ * Two successive versions of this function used weaker views and were defeated:
  *
- * The untracked half matters more here than it does for the corpus, and an earlier version of this
- * function omitted it while claiming to enumerate "for the same reason the corpus is". Review
- * defeated that with an **untracked** nested config plus three `.gitignore` lines: the files stayed
- * in the processed list so direction A was blind, the ignore entries removed the incidental
- * direction-B tell, and `npm run lint` exited 0 with a real diagnostic present. A configuration is
- * strictly more powerful than a corpus member, so it cannot be enumerated through a weaker view.
+ *   * `git ls-files` alone missed an **untracked** nested config;
+ *   * adding `ls-files --others --exclude-standard` still missed an untracked config that was also
+ *     **`.gitignore`d** — `--exclude-standard` excludes ignored files by definition. Review planted
+ *     `packages/core/biome.json` with `rules.preset: "none"`, ignored it along with the sibling
+ *     `package.json`/`tsconfig.json` that would otherwise show up as unexpected processed paths, and
+ *     `npm run lint` exited 0 with a real `debugger;` in the tree, reporting "all linted" and
+ *     "0 named rule customisation(s)".
+ *
+ * A configuration is strictly more powerful than a corpus member: it decides whether the corpus is
+ * linted at all. So it is enumerated the way Biome finds it. The **corpus** keeps the git oracle,
+ * which is correct for the opposite reason — an ignored *source* file leaves both sets together, so
+ * the comparison stays consistent.
+ *
+ * Build output and dependencies are skipped: they are not part of this repository's configuration,
+ * and `node_modules` holds thousands of vendored files.
  */
-export function listConfigFiles(cwd) {
-  const enumerate = (args) =>
-    execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-    })
-      .split("\0")
-      .filter((path) => path !== "");
-  const known = [
-    ...enumerate(["ls-files", "-z"]),
-    ...enumerate(["ls-files", "--others", "--exclude-standard", "-z"]),
-  ].filter((path) => /(?:^|\/)biome\.jsonc?$/.test(path));
-  return [...new Set([CONFIG_FILE, ...known])].sort();
+export function listConfigFiles(cwd = ".") {
+  const skipDirectories = new Set([
+    ".git",
+    "node_modules",
+    "dist",
+    "web-dist",
+    "coverage",
+  ]);
+  const found = [];
+
+  const visit = (relative) => {
+    const absolute = relative === "" ? cwd : join(cwd, relative);
+    let entries;
+    try {
+      entries = readdirSync(absolute, { withFileTypes: true });
+    } catch (error) {
+      // Fail closed, like every other unknown in this gate: a directory it cannot read might hold a
+      // configuration that unlints the tree, and silently skipping it would certify a scope the gate
+      // never saw.
+      throw new Error(
+        `cannot read \`${relative === "" ? "." : relative}\` while looking for Biome ` +
+          `configurations (${error.message}). Refusing to certify a lint scope it cannot see.`,
+      );
+    }
+    for (const entry of entries) {
+      const child = relative === "" ? entry.name : `${relative}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (!skipDirectories.has(entry.name)) {
+          visit(child);
+        }
+      } else if (entry.name === "biome.json" || entry.name === "biome.jsonc") {
+        found.push(child);
+      }
+    }
+  };
+
+  visit("");
+  return [...new Set([CONFIG_FILE, ...found])].sort();
 }
 
 /**
