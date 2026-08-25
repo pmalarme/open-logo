@@ -79,16 +79,19 @@
 //
 // Disabling a **named** rule is deliberately still allowed: issue #978's acceptance criterion is
 // that a rule inappropriate for a glob is disabled *by name with a written reason*, so the point is
-// to force that spelling, not to forbid it. That leaves one theoretical bypass — enumerating every
-// rule individually as `"off"` — and this gate does **not** fail on it, because it cannot tell a
-// bad-faith enumeration from a long list of legitimate, reasoned suppressions.
+// to force that spelling, not to forbid it. That leaves one theoretical bypass — enumerating rules
+// individually — and this gate does **not** fail on it, because it cannot tell a bad-faith
+// enumeration from a long list of legitimate, reasoned suppressions.
 //
-// What it does instead is make it impossible to do quietly: the count of named disables is printed
-// on every run, so the jump from 0 to several hundred is visible in CI output as well as in the
-// hundreds of lines of reviewable diff such an attack requires. That is the honest boundary — a
-// *concise* disable is gated, a *verbose* one is surfaced. Deciding whether a named suppression is
-// justified is rule coverage, a separate capability from lint scope, and this gate does not pretend
-// to answer it.
+// What it does instead is make it impossible to do quietly: the count of named **non-failing**
+// settings is printed on every run, so the jump from 0 to several hundred is visible in CI output
+// as well as in the hundreds of lines of reviewable diff such an attack requires. "Non-failing"
+// rather than "disabled" because review disproved the narrower version — one
+// `noDebugger: { "level": "warn" }` let a planted `debugger;` through while the counter still said
+// 0. A rule that cannot fail the build is suppressed whatever word does it. That is the honest
+// boundary: a *concise* disable is gated, a *verbose* one is surfaced. Deciding whether a named
+// suppression is justified is rule coverage, a separate capability from lint scope, and this gate
+// does not pretend to answer it.
 //
 // It also does not read Biome's *other* inputs directly. Two of them matter, and review disproved
 // an earlier version of this paragraph, so what follows is measured rather than reasoned:
@@ -98,9 +101,13 @@
 //     it. Verified: a `packages/core/biome.json` with `rules.preset: "none"` left the gate green
 //     while `packages/core` went unlinted. Every tracked configuration file is therefore
 //     enumerated and audited, not just the root one.
-//   * `.gitignore` via `vcs.useIgnoreFile` removes files from the processed list, so direction A
-//     does catch that shape — and, because the corpus oracle is `git ls-files`, an ignored file
-//     leaves the corpus at the same time, which is the consistent answer rather than a false alarm.
+//   * `.gitignore` via `vcs.useIgnoreFile` removes a file from the processed list. For an
+//     **untracked** file that is the consistent answer rather than a false alarm, because the same
+//     entry removes it from the corpus too — the corpus oracle is `git ls-files`, which honours
+//     the same ignore rules. For a **tracked** file it is not symmetric: git still lists a tracked
+//     file even once it is ignored, so the file stays in the corpus, leaves the processed list, and
+//     direction A reports it as unlinted. Verified in review; stated here because "the sets move
+//     together" is true of only one of the two cases.
 //
 // The remaining door this gate does not watch is a `// biome-ignore-all lint: <reason>` comment at
 // the top of a file, which suppresses the whole file from inside it. It is out of scope here
@@ -316,7 +323,21 @@ export function findBulkLinterDisables(linter, where) {
  * enumerate every rule individually. That takes hundreds of lines of reviewable diff *and* moves
  * this number, so it cannot happen quietly. See the module header's limits section.
  */
-export function countNamedRuleDisables(linter) {
+/**
+ * Count the **named** rule settings that put a rule below failing severity — `"off"`, `"warn"` and
+ * `"info"`, in both the bare-string and `{ "level": ... }` spellings.
+ *
+ * Named suppression is the spelling issue #978 explicitly sanctions, so it is never a finding — but
+ * the count is printed on every run, because the one way to defeat a bulk-disable audit while
+ * staying within that sanction is to enumerate rules individually. That takes hundreds of lines of
+ * reviewable diff *and* moves this number, so it cannot happen quietly.
+ *
+ * It counts downgrades, not just disables, because review disproved the narrower version: a single
+ * `noDebugger: { "level": "warn" }` let a planted `debugger;` through `npm run lint` while this
+ * counter still reported **0**. A rule that cannot fail the build is suppressed whatever the word.
+ */
+export function countNamedNonFailingRules(linter) {
+  const nonFailing = new Set(["off", "warn", "info"]);
   let count = 0;
   for (const [group, value] of Object.entries(linter?.rules ?? {})) {
     if (group === "recommended" || group === "preset") {
@@ -326,10 +347,10 @@ export function countNamedRuleDisables(linter) {
       continue;
     }
     // No guard for the group's own `recommended`/`preset` keys: the first is a boolean and the
-    // second is `"recommended"`/`"none"`, so neither can equal `"off"` and neither is ever counted.
-    // A guard for them was unreachable, and the coverage gate said so.
+    // second is `"recommended"`/`"none"`, so neither is ever a non-failing level and neither is
+    // counted. A guard for them was unreachable, and the coverage gate said so.
     for (const setting of Object.values(value)) {
-      if (setting === "off" || setting?.level === "off") {
+      if (nonFailing.has(setting) || nonFailing.has(setting?.level)) {
         count += 1;
       }
     }
@@ -544,18 +565,18 @@ export function runLintScopeGate({
   }
 
   // The other door: in scope, but unlinted by a bulk disable at any level, in any configuration.
-  let namedDisables = 0;
+  let nonFailing = 0;
   for (const [relative, parsed] of configurations) {
     failures.push(
       ...findDisabledLinterOverrides(parsed).map(
         (finding) => `${relative}: ${finding}`,
       ),
     );
-    namedDisables += countNamedRuleDisables(parsed?.linter);
+    nonFailing += countNamedNonFailingRules(parsed?.linter);
     for (const override of Array.isArray(parsed?.overrides)
       ? parsed.overrides
       : []) {
-      namedDisables += countNamedRuleDisables(override?.linter);
+      nonFailing += countNamedNonFailingRules(override?.linter);
     }
   }
 
@@ -573,7 +594,7 @@ export function runLintScopeGate({
       `lint scope: ${corpus.length} source file(s) git knows about, all linted; Biome processed ` +
         `${processed.length} = ${corpus.length} + ${processed.length - corpus.length} ` +
         `(${CONFIG_FILE}, always processed); ${configurations.length} Biome configuration(s) ` +
-        `audited, ${namedDisables} named rule disable(s).`,
+        `audited, ${nonFailing} named non-failing rule setting(s).`,
     ],
   };
 }

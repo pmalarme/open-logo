@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CONFIG_FILE,
-  countNamedRuleDisables,
+  countNamedNonFailingRules,
   extendsTargets,
   findBulkLinterDisables,
   findDisabledLinterOverrides,
@@ -394,19 +394,37 @@ test("an extends cycle terminates instead of looping forever", () => {
   assert.equal(result.ok, true, result.lines.join("\n"));
 });
 
-test("countNamedRuleDisables counts only named disables, never a bulk one", () => {
-  assert.equal(countNamedRuleDisables(undefined), 0);
+test("countNamedNonFailingRules counts every non-failing named setting, never a bulk one", () => {
+  assert.equal(countNamedNonFailingRules(undefined), 0);
   assert.equal(
-    countNamedRuleDisables({
+    countNamedNonFailingRules({
       rules: {
         suspicious: { noSelfCompare: "off", noDebugger: { level: "off" } },
       },
     }),
     2,
   );
-  // A rule left on, and the group's own keys, are not disables.
+  // INJECTED DRIFT: a downgrade is a suppression. A single `noDebugger: {level: "warn"}` let a
+  // planted `debugger;` through `npm run lint` while an earlier version of this counter said 0.
+  for (const level of ["warn", "info"]) {
+    assert.equal(
+      countNamedNonFailingRules({
+        rules: { suspicious: { noDebugger: level } },
+      }),
+      1,
+      `a rule set to the bare string "${level}" must be counted`,
+    );
+    assert.equal(
+      countNamedNonFailingRules({
+        rules: { suspicious: { noDebugger: { level } } },
+      }),
+      1,
+      `a rule set to {level: "${level}"} must be counted`,
+    );
+  }
+  // A rule left failing, and the group's own keys, are not suppressions.
   assert.equal(
-    countNamedRuleDisables({
+    countNamedNonFailingRules({
       rules: {
         recommended: false,
         style: { recommended: false, useConst: "error" },
@@ -414,8 +432,8 @@ test("countNamedRuleDisables counts only named disables, never a bulk one", () =
     }),
     0,
   );
-  // A bulk group disable is a finding, not a named disable, so it must not inflate this count.
-  assert.equal(countNamedRuleDisables({ rules: { suspicious: "off" } }), 0);
+  // A bulk group disable is a finding, not a named setting, so it must not inflate this count.
+  assert.equal(countNamedNonFailingRules({ rules: { suspicious: "off" } }), 0);
 });
 
 test("INJECTED DRIFT: an extends target that climbs out of the repository is reported", () => {
@@ -429,12 +447,31 @@ test("INJECTED DRIFT: an extends target that climbs out of the repository is rep
   assert.match(result.lines.join("\n"), /outside the repository/);
 });
 
-test("the gate is actually wired into `npm run lint`", () => {
-  // The gate's own wiring is a claim nothing re-derived: deleting the ` && node
-  // scripts/check-lint-scope.mjs` half of the script disables it from the command CI runs, and
-  // every test here would still pass because they invoke the module directly.
+test("the gate is actually wired into `npm run lint`, as a conjunction", () => {
+  // The gate's own wiring is a claim nothing re-derived, and the first attempt at this test was
+  // itself hollow: it matched the filename anywhere in the script, so flipping `&&` to `||` — which
+  // makes `npm run lint` exit 0 on a real Biome diagnostic — kept every test green. Presence is not
+  // the property that matters; sequencing is.
   const manifest = JSON.parse(readFileSync("package.json", "utf8"));
-  assert.match(manifest.scripts.lint, /check-lint-scope\.mjs/);
+  const script = manifest.scripts.lint;
+
+  assert.doesNotMatch(
+    script,
+    /\|\||;/,
+    "the lint script must not swallow a failure with || or ;",
+  );
+  const stages = script.split("&&").map((stage) => stage.trim());
+  assert.equal(
+    stages.length,
+    2,
+    `expected exactly two &&-chained stages, got: ${script}`,
+  );
+  assert.match(stages[0], /^biome lint\b/, "Biome must run first");
+  assert.match(
+    stages[1],
+    /check-lint-scope\.mjs$/,
+    "the scope gate must run second",
+  );
 });
 
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {
