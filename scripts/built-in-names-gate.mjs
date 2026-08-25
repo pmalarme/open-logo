@@ -269,7 +269,17 @@ export const REAL_IO = {
   listStdlibFiles: () => logoFilesUnder(STDLIB_DIR),
 };
 
-/** Read and parse the authoritative list. */
+/**
+ * Read and parse the authoritative list.
+ *
+ * Deliberately **unguarded**, unlike the `spec/` document reads, and the asymmetry is the point.
+ * Those are anchors *inside* documents the gate audits, so failing to read one must degrade to a
+ * finding or the run would report on anchors it never saw. This is the gate's own authoritative
+ * input: with no manifest there is nothing to check, `runBuiltInNamesGate` has already asked
+ * `io.exists`, and a read or parse that fails after that is a broken invocation rather than a
+ * finding about the tree. It cannot produce a false green — the exception propagates and the CLI
+ * exits non-zero — so a guard here would only convert a loud failure into a quieter one.
+ */
 export function loadManifest(manifestPath = MANIFEST_PATH, io = REAL_IO) {
   return JSON.parse(io.readText(manifestPath));
 }

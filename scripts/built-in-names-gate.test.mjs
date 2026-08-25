@@ -797,8 +797,7 @@ test("every document is read once per run, so no check judges a different versio
   // a valid document and the other a doctored one, and the gate would report 0 findings on a
   // document that never existed. Every check would have passed against *a* version and none
   // against *the same* version.
-  const real = REAL_IO.readText(GRAMMAR_PATH);
-  const lines = real.split(/\r?\n/);
+  const lines = REAL_IO.readText(GRAMMAR_PATH).split(/\r?\n/);
   const anchored = lines.findIndex((line) =>
     line.includes("contextual keywords are exactly these"),
   );
@@ -813,22 +812,35 @@ test("every document is read once per run, so no check judges a different versio
         return REAL_IO.readText(path);
       }
       reads += 1;
-      // A port that alternates: valid first, contradictory second.
-      return reads === 1 ? real : doctored.join("\n");
+      return doctored.join("\n");
     },
   };
   const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  // One read is the guarantee: a port asked twice is a port that CAN answer differently, so
+  // proving it is asked once is proving no two checks can judge different bytes. Serving different
+  // content per call would be theatre — that arm is unreachable exactly while the fix holds.
   assert.equal(
     reads,
     1,
     `${GRAMMAR_PATH} was read ${reads} times, expected once`,
   );
-  assert.deepEqual(result.findings, []);
+  // And the bytes served actually reached the checks, so the cache is not returning something else.
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.includes("could not derive the contextual keywords"),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
 });
 
 test("a document that cannot be read stays unreadable for every check in the run", () => {
-  // The failure half of the same guarantee. A port that throws once and succeeds afterwards must
-  // not let one check call a document missing while another validates it.
+  // The failure half of the same guarantee. Both consumers of `spec/grammar.md` must see the same
+  // failure from one read: a port asked twice would throw twice, so `reads === 1` is what proves
+  // the thrown outcome is cached rather than re-attempted. The double therefore always throws —
+  // a "succeeds on the second call" arm could only ever be dead code while the fix holds, which is
+  // the unreachable-clause class this file has now produced four times.
   let reads = 0;
   const io = {
     ...REAL_IO,
@@ -837,10 +849,7 @@ test("a document that cannot be read stays unreadable for every check in the run
         return REAL_IO.readText(path);
       }
       reads += 1;
-      if (reads === 1) {
-        throw new Error("EACCES");
-      }
-      return REAL_IO.readText(path);
+      throw new Error("EACCES");
     },
   };
   const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
@@ -855,6 +864,15 @@ test("a document that cannot be read stays unreadable for every check in the run
       finding.startsWith(`${GRAMMAR_PATH}: could not be read`),
     ).length,
     1,
+    result.findings.join("\n"),
+  );
+  // Both consumers of the document saw the same failure from that one read: `proseFindings` (which
+  // records it) and `contextualCarveOutFindings` (which reports its own inability to derive).
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.includes("could not derive the contextual keywords"),
+    ),
+    true,
     result.findings.join("\n"),
   );
 });
