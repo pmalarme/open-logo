@@ -40,11 +40,13 @@ jobs:
         run: python .github/scripts/test-validate-meta.py
       - name: Validate the label taxonomy (offline directions)
         # Issue #972: .github/labels.yml is documented as "the single source of truth" but nothing
-        # re-derived it, so nine labels across four namespaces drifted into use unmanifested. This
-        # runs the deterministic half — the `area:*` labels against validate-commits.py's AREAS,
-        # which claims in a comment to mirror them and whose divergence blocks PR titles. The live
-        # half (against the repository's actual labels) needs a token and mutable repo state, so it
-        # runs in label-drift.yml rather than gating unrelated PRs on someone else's mislabelling.
+        # re-derived it, so labels drifted into use unmanifested across several namespaces. This
+        # runs the deterministic half — the `area:*` and `profile:*` labels against
+        # validate-commits.py's AREAS and PROFILES, which claim in a comment to mirror them and
+        # whose divergence blocks PR titles — plus the well-formedness of
+        # .github/labels-retired.yml. The live half (against the repository's actual labels) needs
+        # a token and mutable repo state, so it runs in label-drift.yml rather than gating
+        # unrelated PRs on someone else's mislabelling.
         run: python .github/scripts/validate-labels.py
       - name: Self-test the label taxonomy gate
         run: python .github/scripts/test-validate-labels.py

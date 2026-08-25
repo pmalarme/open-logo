@@ -52,13 +52,22 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 - Live directions run in `label-drift.yml` (schedule + dispatch + manifest PRs + after a successful
   `Label sync`, via `workflow_run` rather than `push`, which would race the sync); the offline
   mirrors run in `ci.yml`'s `meta` job on every PR. `test-validate-labels.py` mutation-tests both.
+- **Activation:** GitHub registers `schedule`/`workflow_dispatch`/`workflow_run` only from the
+  **default branch**, so those three stay dormant until the saga carrying `label-drift.yml`
+  promotes to `main`. `pull_request` runs from the PR head and works immediately. This is harmless
+  rather than a gap, because `label-sync.yml` is itself `push: branches: [main]` — the detector goes
+  live in the same promotion as the thing it detects.
 - **Adding an `area:*` or `profile:*` label is a two-file change** — the manifest and
   `validate-commits.py`'s `AREAS`/`PROFILES` — and the gate is the half that fails until both land.
-- **Known residual:** the per-PR (offline) half only checks the namespace mirrors. *Removing* a
-  manifested label that no scope, issue form or labeler rule references — `type:task`, say — passes
-  every per-PR check and is caught only by the live job (at worst a day later, or on the next
-  manifest PR). Closing that would mean querying the live repository on every PR, which is the
-  mutable-state dependency `label-drift.yml` exists to keep out of the blocking gate.
+- **Known residual, measured:** the per-PR (offline) half only checks the namespace mirrors, so
+  *removing* a manifested label that no scope, issue form or labeler rule references — `type:task`,
+  say — passes `validate-meta.py`, offline `validate-labels.py` and the self-test. It does **not**
+  escape the PR, though: `label-drift.yml` triggers on `.github/labels.yml`, and the
+  `--live --proposed` run CI performs there exits 1 on it. The genuine residual is therefore
+  narrower than "caught only by the daily job": it is drift introduced **outside** a manifest PR,
+  which the schedule catches within a day. Closing even that would mean querying the live repository
+  on every unrelated PR — the mutable-state dependency `label-drift.yml` exists to keep out of the
+  blocking gate.
 
 ## PR labeling (paths → labels)
 
@@ -73,14 +82,18 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
   |---|---|
   | `packages/core/**` | `agent:interpreter`, `area:core` |
   | `packages/runtime/**` | `agent:interpreter`, `area:runtime` |
-  | `packages/parser/**` | `area:grammar` (co-owned → owner set in triage) |
+  | `packages/parser/**` | `area:parser` (co-owned → owner set in triage; narrow to `area:grammar`/`highlighter`/`checker` in triage) |
   | `packages/turtle/**` | `agent:turtle-engine`, `area:rendering` |
   | `packages/studio/**` | `agent:learner-experience`, `area:studio` |
   | `packages/edu/**` | `area:edu` (co-owned → owner set in triage) |
-  | `tests/conformance/**` | `agent:testing` |
-  | `.github/workflows/**`, `.github/labeler.yml`, `.github/scripts/**` | `agent:devops`, `area:ci` |
+  | `tests/**` | `area:testing`; `tests/conformance/**` also `agent:testing` |
+  | `scripts/**`, `.github/scripts/**` | `area:tooling` (+ `agent:devops`) |
+  | `.github/workflows/**`, `.github/labeler.yml`, `.github/scripts/**`, build manifests | `agent:devops`, `area:ci` |
   | `spec/**`, `.github/ISSUE_TEMPLATE/**`, `.github/labels.yml` | `agent:product-owner` |
   | `docs/**` | `agent:documentation`, `area:docs` |
+
+  `area:diagnostics` has **no path rule on purpose**: the `ol-*` diagnostic surface spans parser,
+  runtime and core, so no changed path implies it. It is applied in triage.
 
 - Labeler is a **hint**, not the final word: it seeds `agent:*`/`area:*` from paths; `@product-owner`
   triage still confirms exactly one `agent:*` + one `type:*` and links the native sub-issue parent.

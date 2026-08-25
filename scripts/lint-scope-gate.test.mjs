@@ -17,16 +17,18 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
   CONFIG_FILE,
+  findBulkLinterDisables,
   findDisabledLinterOverrides,
   isSourcePath,
+  listConfigFiles,
   listSourceFiles,
   parseCheckedCount,
   parseProcessedFiles,
@@ -63,15 +65,28 @@ function verbose(processed, fixed = []) {
 
 /**
  * Build a throwaway git repository with its own `biome.json`, so a mutation can be applied to a real
- * Biome run without ever touching this repository's configuration.
+ * Biome run without ever touching this repository's configuration. `nestedConfigs` maps a directory
+ * to a config object written there, which is how the nested-config door is exercised for real.
  */
-function makeRepo({ includes, tracked = [], untracked = [], overrides }) {
+function makeRepo({
+  includes,
+  tracked = [],
+  untracked = [],
+  overrides,
+  nestedConfigs = {},
+}) {
   const directory = mkdtempSync(join(tmpdir(), "openlogo-lint-scope-"));
   const git = (...args) =>
     execFileSync("git", args, { cwd: directory, stdio: "ignore" });
   git("init");
   git("config", "user.email", "gate@example.invalid");
   git("config", "user.name", "gate");
+
+  const write = (relative, contents) => {
+    const target = join(directory, relative);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, contents);
+  };
 
   const config = {
     files: { includes },
@@ -82,13 +97,21 @@ function makeRepo({ includes, tracked = [], untracked = [], overrides }) {
   if (overrides !== undefined) {
     config.overrides = overrides;
   }
-  writeFileSync(join(directory, CONFIG_FILE), JSON.stringify(config));
+  write(CONFIG_FILE, JSON.stringify(config));
+
+  const nestedPaths = [];
+  for (const [where, nested] of Object.entries(nestedConfigs)) {
+    const relative = `${where}/${CONFIG_FILE}`;
+    write(relative, JSON.stringify(nested));
+    nestedPaths.push(relative);
+  }
 
   for (const name of [...tracked, ...untracked]) {
-    writeFileSync(join(directory, name), "export const value = 1;\n");
+    write(name, "export const value = 1;\n");
   }
-  if (tracked.length > 0) {
-    git("add", ...tracked);
+  const toStage = [...tracked, ...nestedPaths];
+  if (toStage.length > 0) {
+    git("add", ...toStage);
   }
   return directory;
 }
@@ -158,14 +181,72 @@ test("parseProcessedFiles returns null when Biome printed no list at all", () =>
   assert.equal(parseProcessedFiles(""), null);
 });
 
-test("findDisabledLinterOverrides names every way the linter is switched off for a glob", () => {
+test("findBulkLinterDisables catches all three spellings, at block level and per rule group", () => {
+  // Review found the first version watching only the overrides level: a root-level or a
+  // per-group bulk disable unlinted files while the gate stayed green.
+  assert.deepEqual(
+    findBulkLinterDisables(
+      { enabled: true, rules: { preset: "recommended" } },
+      "x",
+    ),
+    [],
+  );
+  assert.match(
+    findBulkLinterDisables({ enabled: false }, "x")[0],
+    /linter\.enabled: false/,
+  );
+  assert.match(
+    findBulkLinterDisables({ rules: { recommended: false } }, "x")[0],
+    /every rule group/,
+  );
+  assert.match(
+    findBulkLinterDisables({ rules: { preset: "none" } }, "x")[0],
+    /every rule group/,
+  );
+  assert.match(
+    findBulkLinterDisables(
+      { rules: { suspicious: { preset: "none" } } },
+      "x",
+    )[0],
+    /`suspicious` rule group/,
+  );
+  assert.match(
+    findBulkLinterDisables(
+      { rules: { correctness: { recommended: false } } },
+      "x",
+    )[0],
+    /`correctness` rule group/,
+  );
+  // A named-rule disable is deliberately allowed — #978 asks for that spelling, not for its ban.
+  assert.deepEqual(
+    findBulkLinterDisables(
+      { rules: { suspicious: { noSelfCompare: "off" } } },
+      "x",
+    ),
+    [],
+  );
+  assert.deepEqual(findBulkLinterDisables(undefined, "x"), []);
+});
+
+test("findDisabledLinterOverrides audits the root block and every override", () => {
   assert.deepEqual(
     findDisabledLinterOverrides({ linter: { enabled: true }, overrides: [] }),
     [],
   );
   assert.match(
     findDisabledLinterOverrides({ linter: { enabled: false } })[0],
-    /whole repository/,
+    /top-level `linter` block/,
+  );
+  // INJECTED DRIFT: the root-level bulk disable the earlier version missed entirely.
+  assert.match(
+    findDisabledLinterOverrides({ linter: { rules: { preset: "none" } } })[0],
+    /top-level `linter` block.*every rule group/s,
+  );
+  assert.match(
+    findDisabledLinterOverrides({
+      linter: { rules: { style: { preset: "none" } } },
+    })[0],
+    /top-level `linter` block.*`style` rule group/s,
   );
   assert.match(
     findDisabledLinterOverrides({
@@ -184,15 +265,52 @@ test("findDisabledLinterOverrides names every way the linter is switched off for
         },
       ],
     })[0],
-    /recommended preset/,
+    /every rule group/,
   );
   assert.match(
     findDisabledLinterOverrides({
       overrides: [{ linter: { rules: { preset: "none" } } }],
     })[0],
-    /recommended preset/,
+    /every rule group/,
   );
   assert.deepEqual(findDisabledLinterOverrides(null), []);
+});
+
+test("INJECTED DRIFT: an unreadable configuration fails closed instead of skipping the audit", () => {
+  // readConfig returns null for an unparseable biome.json. That used to make the override audit
+  // silently empty, so the gate passed having checked only one of its two doors.
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: () => null,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /could not be read or parsed/);
+});
+
+test("INJECTED DRIFT: a run in which Biome never processed biome.json fails closed", () => {
+  // Without this the reconciliation was arithmetic about a file that was never read, and the
+  // success line could report the impossible `1 = 1 + 1`.
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    biome: () => verbose(["a.ts"]),
+    config: () => ({ linter: { enabled: true } }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /did not process `biome\.json`/);
+});
+
+test("the success line derives its own arithmetic rather than asserting a literal", () => {
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts", "b.mjs"],
+    biome: () => verbose(["a.ts", "b.mjs", CONFIG_FILE]),
+    config: () => ({ linter: { enabled: true } }),
+  });
+  assert.equal(result.ok, true, result.lines.join("\n"));
+  assert.match(
+    result.lines.join("\n"),
+    /Biome processed 3 = 2 \+ 1 \(biome\.json/,
+  );
 });
 
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {
@@ -296,26 +414,24 @@ test("the gate passes when every source file git knows about is linted", () => {
 });
 
 test("INJECTED DRIFT: biome.json's includes narrowed back to the pre-fix globs", () => {
-  // The headline mutation, against the real binary in this repository's own tree via a temp config:
-  // under the pre-fix globs the gate must fail and name the test files that stop being linted.
-  const directory = mkdtempSync(join(tmpdir(), "openlogo-lint-scope-narrow-"));
-  writeFileSync(
-    join(directory, CONFIG_FILE),
-    JSON.stringify({
-      files: { includes: PRE_FIX_INCLUDES },
-      linter: { enabled: true, rules: { preset: "recommended" } },
-      formatter: { enabled: false },
-      assist: { enabled: false },
-    }),
-  );
-  const narrowed = (args, cwd) =>
-    runBiome(["lint", `--config-path=${directory}`, ...args.slice(1)], cwd);
-  const corpus = [
-    A_PREVIOUSLY_UNLINTED_FILE,
-    "packages/core/src/values.test.mjs",
-  ];
+  // The headline mutation. An earlier version of this test pointed the real binary at a temp
+  // config via `--config-path`, and review proved it vacuous: Biome treats that directory as the
+  // project root, so it processed ZERO files and the assertion fired for any globs at all —
+  // substituting the CORRECT globs left it green. It is now built the honest way, in a throwaway
+  // repository laid out like this one, so the pre-fix globs are genuinely exercised: a `.ts` file
+  // under packages/*/src and a scripts/*.mjs stay linted, while the `.test.mjs` corpus — the 191
+  // files issue #978 is about — does not.
+  const directory = makeRepo({
+    includes: PRE_FIX_INCLUDES,
+    tracked: [
+      "packages/parser/src/reader.ts",
+      "packages/parser/src/reader.test.mjs",
+      "packages/core/src/values.test.mjs",
+      "scripts/tool.mjs",
+    ],
+  });
 
-  const result = runLintScopeGate({ listFiles: () => corpus, biome: narrowed });
+  const result = runLintScopeGate({ cwd: directory });
   const report = result.lines.join("\n");
   assert.equal(
     result.ok,
@@ -324,11 +440,75 @@ test("INJECTED DRIFT: biome.json's includes narrowed back to the pre-fix globs",
   );
   assert.match(
     report,
-    /2 of 2 source file\(s\) git knows about are NOT linted/,
+    /2 of 4 source file\(s\) git knows about are NOT linted/,
+    report,
   );
-  for (const path of corpus) {
+  for (const path of [
+    "packages/parser/src/reader.test.mjs",
+    "packages/core/src/values.test.mjs",
+  ]) {
     assert.ok(report.includes(path), `${path} must be named as unlinted`);
   }
+  // And the two the pre-fix globs DID cover must not be reported — otherwise this would pass for
+  // the wrong reason, which is exactly how the previous version failed.
+  for (const path of ["packages/parser/src/reader.ts", "scripts/tool.mjs"]) {
+    assert.ok(
+      !report.includes(path),
+      `${path} was linted and must not be named`,
+    );
+  }
+});
+
+test("INJECTED DRIFT: a nested biome.json unlints a package while its files stay in scope", () => {
+  // The door direction A cannot see, and the one whose absence review demonstrated against the
+  // real binary: the affected files remain in Biome's processed list, so only reading every
+  // tracked configuration catches it.
+  const directory = makeRepo({
+    includes: ["**/*.mjs"],
+    tracked: ["packages/core/src/values.test.mjs", "root.mjs"],
+    nestedConfigs: {
+      "packages/core": {
+        root: false,
+        linter: { enabled: true, rules: { preset: "none" } },
+      },
+    },
+  });
+  const result = runLintScopeGate({ cwd: directory });
+  const report = result.lines.join("\n");
+  assert.equal(result.ok, false, report);
+  assert.match(report, /packages\/core\/biome\.json/);
+  assert.match(report, /every rule group/);
+});
+
+test("listConfigFiles finds nested configurations, with the root one always first in the set", () => {
+  const directory = makeRepo({
+    includes: ["**/*.mjs"],
+    tracked: ["root.mjs"],
+    nestedConfigs: { "packages/core": { root: false } },
+  });
+  assert.deepEqual(listConfigFiles(directory), [
+    "biome.json",
+    "packages/core/biome.json",
+  ]);
+  // In a repository with no nested configuration, the root one is still audited.
+  assert.deepEqual(listConfigFiles(makeRepo({ includes: ["**/*.mjs"] })), [
+    "biome.json",
+  ]);
+});
+
+test("INJECTED DRIFT: an unreadable NESTED configuration fails closed", () => {
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => [CONFIG_FILE, "packages/core/biome.json"],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: (path) =>
+      path.includes("core") ? null : { linter: { enabled: true } },
+  });
+  assert.equal(result.ok, false);
+  assert.match(
+    result.lines.join("\n"),
+    /packages\/core\/biome\.json.*could not be read/s,
+  );
 });
 
 test("INJECTED DRIFT: a source file dropped from includes is named as unlinted", () => {

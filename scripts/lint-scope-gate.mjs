@@ -59,13 +59,36 @@
 // ## What this gate does NOT check, stated rather than implied
 //
 // It checks **scope**, not **rule coverage**. `files.includes` is not the only way to stop linting
-// a file: an `overrides` entry can keep a file in scope — still counted, still "Checked" — while
+// a file: a configuration can keep a file in scope — still counted, still "Checked" — while
 // switching its rules off, reproducing #978's effect through a door a scope check does not watch.
-// `findDisabledLinterOverrides` closes the two forms that disable the linter wholesale for a glob.
+// `findBulkLinterDisables` closes that door at both levels (the root block and every `overrides`
+// entry) and in all three spellings (`linter.enabled: false`, `rules.recommended: false`,
+// `rules.preset: "none"`), including per-rule-**group** disables such as
+// `rules.suspicious.preset: "none"`. Review found an earlier version catching only the override
+// level, so a root-level or group-level bulk disable passed.
+//
 // Disabling a **named** rule is deliberately still allowed: issue #978's acceptance criterion is
 // that a rule inappropriate for a glob is disabled *by name with a written reason*, so the point is
 // to force that spelling, not to forbid it. A named-rule disable with no reason is a review
 // question, and this gate does not pretend to answer it.
+//
+// It also does not read Biome's *other* inputs directly. Two of them matter, and review disproved
+// an earlier version of this paragraph, so what follows is measured rather than reasoned:
+//
+//   * a **nested** `biome.json` (`"root": false`) deeper in the tree can disable rules for a whole
+//     package, and the affected files **stay in the processed list** — direction A does NOT catch
+//     it. Verified: a `packages/core/biome.json` with `rules.preset: "none"` left the gate green
+//     while `packages/core` went unlinted. Every tracked configuration file is therefore
+//     enumerated and audited, not just the root one.
+//   * `.gitignore` via `vcs.useIgnoreFile` removes files from the processed list, so direction A
+//     does catch that shape — and, because the corpus oracle is `git ls-files`, an ignored file
+//     leaves the corpus at the same time, which is the consistent answer rather than a false alarm.
+//
+// The remaining door this gate does not watch is a `// biome-ignore-all lint: <reason>` comment at
+// the top of a file, which suppresses the whole file from inside it. It is out of scope here
+// because it is *already* the spelling #978 asks for — an explicit, in-file, reason-carrying
+// suppression that shows up in review — but it is named so nobody mistakes silence for coverage.
+// `git grep -n 'biome-ignore-all'` is the review check.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -207,45 +230,96 @@ export function listSourceFiles(cwd) {
 }
 
 /**
- * Name the `overrides` entries that switch the linter off wholesale for a glob, which keeps files
- * "Checked" while unlinting them. See this module's header for why a **named**-rule disable is
- * deliberately not a finding.
+ * Name every way a configuration block switches the linter off **wholesale** for a set of files,
+ * which keeps them "Checked" while unlinting them. Applied to a configuration's top-level `linter`
+ * block and to each `overrides` entry, because the same shapes are legal in both.
+ *
+ * Bulk disabling has three spellings and two levels, and review found the first version of this
+ * function caught only some of them: `linter.enabled: false`, `linter.rules.recommended: false` and
+ * `linter.rules.preset: "none"` at the top of the block, plus the last two again inside any rule
+ * **group** (`rules.suspicious.preset: "none"`). Groups are enumerated rather than listed, so a
+ * group Biome adds later is covered without an edit here.
+ *
+ * See this module's header for why a **named**-rule disable is deliberately not a finding.
  */
-export function findDisabledLinterOverrides(config) {
+export function findBulkLinterDisables(linter, where) {
   const findings = [];
-  if (config?.linter?.enabled === false) {
+  const bulk = (rules) =>
+    rules?.recommended === false || rules?.preset === "none";
+
+  if (linter?.enabled === false) {
     findings.push(
-      "`linter.enabled` is false: the linter is switched off for the whole repository.",
+      `${where} sets \`linter.enabled: false\`, unlinting those files while they stay in scope.`,
     );
   }
+  const rules = linter?.rules;
+  if (bulk(rules)) {
+    findings.push(
+      `${where} switches off the recommended preset for every rule group, unlinting those files ` +
+        "while they stay in scope. Disable the specific rule by name instead, with a written " +
+        "reason (issue #978).",
+    );
+  }
+  for (const [group, value] of Object.entries(rules ?? {})) {
+    // `recommended`/`preset` are the block's own keys, handled above; every other object is a group.
+    if (typeof value === "object" && value !== null && bulk(value)) {
+      findings.push(
+        `${where} switches off the \`${group}\` rule group wholesale, unlinting those rules while ` +
+          "the files stay in scope. Disable the specific rule by name instead, with a written " +
+          "reason (issue #978).",
+      );
+    }
+  }
+  return findings;
+}
+
+/**
+ * Audit the whole configuration — root block and every `overrides` entry — for bulk linter
+ * disables. `null` (an unreadable or unparseable configuration) is the caller's problem, not a
+ * silent empty result: see {@link runLintScopeGate}, which fails on it.
+ */
+export function findDisabledLinterOverrides(config) {
+  const findings = [
+    ...findBulkLinterDisables(config?.linter, "its top-level `linter` block"),
+  ];
   const overrides = Array.isArray(config?.overrides) ? config.overrides : [];
   overrides.forEach((override, index) => {
     const where = `overrides[${index}]${
       override?.includes ? ` (${JSON.stringify(override.includes)})` : ""
     }`;
-    if (override?.linter?.enabled === false) {
-      findings.push(
-        `${where} sets \`linter.enabled: false\`, unlinting those files while they stay in scope.`,
-      );
-    }
-    const rules = override?.linter?.rules;
-    if (rules?.recommended === false || rules?.preset === "none") {
-      findings.push(
-        `${where} switches off the recommended preset, unlinting those files while they stay in ` +
-          "scope. Disable the specific rule by name instead, with a written reason (issue #978).",
-      );
-    }
+    findings.push(...findBulkLinterDisables(override?.linter, where));
   });
   return findings;
 }
 
-/** Read and parse `biome.json`, or return `null` when it cannot be read or parsed. */
+/** Read and parse a Biome configuration file, or return `null` when it cannot be read or parsed. */
 export function readConfig(path = CONFIG_FILE) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return null;
   }
+}
+
+/**
+ * Every tracked Biome configuration file, root first. A **nested** config (`"root": false`) can
+ * disable rules for a whole package while its files stay in the processed list, so auditing only
+ * the root one leaves a door open that direction A cannot see — measured, not assumed: a
+ * `packages/core/biome.json` with `rules.preset: "none"` left an earlier version of this gate green
+ * while `packages/core` went unlinted.
+ *
+ * Enumerated through git for the same reason the corpus is: it is the view that cannot be edited by
+ * the thing being checked.
+ */
+export function listConfigFiles(cwd) {
+  const tracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\0")
+    .filter((path) => /(?:^|\/)biome\.jsonc?$/.test(path));
+  return [...new Set([CONFIG_FILE, ...tracked])].sort();
 }
 
 /**
@@ -256,6 +330,7 @@ export function readConfig(path = CONFIG_FILE) {
 export function runLintScopeGate({
   cwd,
   listFiles = listSourceFiles,
+  listConfigs = listConfigFiles,
   biome = runBiome,
   config = readConfig,
 } = {}) {
@@ -297,6 +372,24 @@ export function runLintScopeGate({
   const linted = new Set(processed);
   const expected = new Set([...corpus, CONFIG_FILE]);
 
+  // Every configuration must be readable BEFORE anything else is judged. An unreadable or
+  // unparseable config used to make the override audit silently empty — the gate would then pass
+  // while checking one of its two doors, which is the exact failure this epic is about. And a
+  // NESTED config is audited too: it can unlint a whole package while its files stay in the
+  // processed list, so direction A never sees it.
+  const configurations = [];
+  for (const relative of listConfigs(cwd)) {
+    const path = cwd === undefined ? relative : join(cwd, relative);
+    const parsed = config(path);
+    if (parsed === null) {
+      return fail(
+        `\`${relative}\` could not be read or parsed, so the gate cannot tell whether the linter is ` +
+          "switched off for any glob. Refusing to certify a scope it cannot see.",
+      );
+    }
+    configurations.push([relative, parsed]);
+  }
+
   // Direction A — every source file git knows about is one Biome linted.
   const unlinted = corpus.filter((path) => !linted.has(path));
   if (unlinted.length > 0) {
@@ -306,6 +399,18 @@ export function runLintScopeGate({
       ...unlinted.map((path) => `  ${path}`),
       "Fix `files.includes` to cover them. Never re-narrow the globs to hide a finding: disable " +
         "the specific rule by name, with a written reason.",
+    );
+  }
+
+  // The configuration file is the one path this gate expects Biome to process beyond the corpus,
+  // and it is the whole explanation for the `+1`. Assert it rather than assume it: without this,
+  // a run in which Biome never reached biome.json still reconciled, and the success line reported
+  // the impossible `n = n + 1`.
+  if (!linted.has(CONFIG_FILE)) {
+    failures.push(
+      `Biome did not process \`${CONFIG_FILE}\`, which this gate models as always processed. The ` +
+        "reconciliation below would be arithmetic about a file that was never read — refusing to " +
+        "pass on it.",
     );
   }
 
@@ -319,18 +424,27 @@ export function runLintScopeGate({
     );
   }
 
-  // The other door: in scope, but unlinted by an override.
-  const configPath = cwd === undefined ? CONFIG_FILE : join(cwd, CONFIG_FILE);
-  failures.push(...findDisabledLinterOverrides(config(configPath)));
+  // The other door: in scope, but unlinted by a bulk disable at any level, in any configuration.
+  for (const [relative, parsed] of configurations) {
+    failures.push(
+      ...findDisabledLinterOverrides(parsed).map(
+        (finding) => `${relative}: ${finding}`,
+      ),
+    );
+  }
 
   if (failures.length > 0) {
     return fail(...failures);
   }
+  // Every term is measured: the sets have just been proven equal in both directions, and the
+  // difference is derived rather than written as a literal `1` — a hardcoded term in a
+  // reconciliation is the same unenforced assertion this gate exists to remove.
   return {
     ok: true,
     lines: [
       `lint scope: ${corpus.length} source file(s) git knows about, all linted; Biome processed ` +
-        `${processed.length} = ${corpus.length} + 1 (${CONFIG_FILE}, always processed).`,
+        `${processed.length} = ${corpus.length} + ${processed.length - corpus.length} ` +
+        `(${CONFIG_FILE}, always processed); ${configurations.length} Biome configuration(s) audited.`,
     ],
   };
 }

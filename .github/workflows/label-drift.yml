@@ -28,6 +28,22 @@ name: Label drift
 #
 # The sync stays additive on purpose; this workflow is the detector. The reasoning is recorded in
 # validate-labels.py's module docstring ("Why the sync stays additive").
+#
+# ## Activation — when each trigger actually starts firing
+#
+# GitHub only registers `schedule`, `workflow_dispatch` and `workflow_run` from the workflow file on
+# the **default branch**. This file is introduced on a `saga/*` branch, so until the saga promotes to
+# `main` those three are DORMANT — the daily sweep and the post-sync run do not exist yet, however
+# green this PR is. Nothing here can change that: it is a property of where the file lives, not of
+# what it says.
+#
+# `pull_request` is the exception, and it is the one that matters in the interim: for a
+# same-repository PR the workflow is taken from the PR's own head, so a PR touching the manifest is
+# gated from the moment this lands on the saga branch.
+#
+# That ordering is also why the dormancy is harmless rather than a gap: `label-sync.yml` is itself
+# `push: branches: [main]`, so no sync happens on a saga branch either. The detector's activation
+# tracks the thing it detects. Both go live in the same promotion.
 
 on:
   schedule:

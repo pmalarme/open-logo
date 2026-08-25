@@ -10,7 +10,9 @@ manifest and reality disagree, and a gate that passes on deliberately broken inp
 so each mutation below breaks one direction on purpose and requires the gate to notice.
 """
 
+import contextlib
 import importlib.util
+import io
 import os
 import sys
 
@@ -179,7 +181,7 @@ expect(
 # This is the hole the first round left: `area:infra` was treated exactly like GitHub's `wontfix`.
 errors, _ = gate.check_live({"area:ci"}, set(), {"area:ci", "area:infra"}, {"area:ci": ["#1"]})
 expect(
-    any("area:infra" in e and "managed namespace" in e for e in errors),
+    any("area:infra" in e and "is namespaced" in e for e in errors),
     f"MUTATION: an unmanifested namespaced label must fail even when nobody uses it, got {errors}",
 )
 
@@ -227,6 +229,72 @@ except RuntimeError as exc:
     expect("not authenticated" in str(exc), f"the raised error must carry gh's reason, got {exc}")
 finally:
     gate.subprocess.run = original_run
+
+# --- MUTATION: a label in an entirely NEW namespace must not pass as a stock label -------------
+# `managed_prefixes` derived the namespaces from the manifest, so `infra:runner` was classified
+# "unnamespaced (GitHub stock)" and passed. Somebody inventing a namespace is exactly this
+# direction's job.
+expect(gate.is_namespaced("infra:runner"), "a colon makes a label namespaced")
+expect(not gate.is_namespaced("good first issue"), "a stock label is not namespaced")
+errors, _ = gate.check_live({"area:ci"}, set(), {"area:ci", "infra:runner"}, {"area:ci": ["#1"]})
+expect(
+    any("infra:runner" in e and "is namespaced" in e for e in errors),
+    f"MUTATION: a label in an unknown namespace must fail direction C, got {errors}",
+)
+
+# --- main(): argv parsing, --proposed wiring, and the gh-failure exit path -----------------------
+# Round-2 review found main() entirely unexercised. It is the code CI actually runs.
+original_gh = gate.gh_json
+original_argv = sys.argv
+
+
+def _fake_gh(labels, issues, pulls):
+    def run(args):
+        if args[0] == "label":
+            return [{"name": name} for name in labels]
+        if args[0] == "issue":
+            return issues
+        return pulls
+
+    return run
+
+
+def run_main(argv):
+    """Call main() with argv, swallowing its report so the self-test's own output stays readable."""
+    sys.argv = ["validate-labels.py", *argv]
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured):
+        return gate.main()
+
+
+try:
+    expect(run_main([]) == 0, "offline main() must pass on the shipped manifest")
+
+    # --live with a clean world passes.
+    gate.gh_json = _fake_gh(real_names, [issue(1, "area:ci")], [])
+    expect(run_main(["--live"]) == 0, "live main() must pass when the world matches the manifest")
+
+    # An unmanifested label in use must make main() exit non-zero.
+    gate.gh_json = _fake_gh(real_names | {"area:invented"}, [issue(1, "area:invented")], [])
+    expect(run_main(["--live"]) == 1, "live main() must fail on an unmanifested label in use")
+
+    # --proposed must downgrade direction B (a manifested label the sync has not created yet).
+    gate.gh_json = _fake_gh(real_names - {"area:ci"}, [], [])
+    expect(run_main(["--live"]) == 1, "without --proposed, a label missing on the repo must fail")
+    expect(
+        run_main(["--live", "--proposed"]) == 0,
+        "--proposed must downgrade a not-yet-synced label to a report",
+    )
+
+    # A gh failure must exit 1 rather than certify nothing.
+    def _raise(_args):
+        raise RuntimeError("gh: not authenticated")
+
+    gate.gh_json = _raise
+    expect(run_main(["--live"]) == 1, "main() must exit 1 when the live state cannot be read")
+finally:
+    gate.gh_json = original_gh
+    sys.argv = original_argv
 
 if failures:
     print("LABEL GATE SELF-TEST FAILED:")

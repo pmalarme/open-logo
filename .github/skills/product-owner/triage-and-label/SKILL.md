@@ -31,13 +31,15 @@ tracks can pull their own work.
 
 ## Rules
 
-- **`area:*` labels and commit scopes are one taxonomy.** `validate-commits.py`'s `AREAS` mirrors the
-  `area:*` labels (minus `core`, already a profile scope), and `.github/scripts/validate-labels.py`
-  re-derives that mirror in CI. **Adding an `area:*` label is a two-file change** — the manifest and
-  `AREAS` — or every PR title scoped to it fails the blocking check.
-- **Never apply a label that is not in the manifest.** `label-drift.yml` fails on it (issue #972);
-  the additive label sync cannot remove it for you, and the drift shows up as somebody else's red
-  pipeline. Add it to `.github/labels.yml` first.
+- **`area:*`/`profile:*` labels and commit scopes are one taxonomy.** `validate-commits.py`'s
+  `AREAS` mirrors the `area:*` labels (minus `core`, already a profile scope) and its `PROFILES`
+  mirrors the `profile:*` labels; `.github/scripts/validate-labels.py` re-derives **both** mirrors in
+  CI. **Adding an `area:*` or `profile:*` label is a two-file change** — the manifest and the
+  matching scope set — or every PR title scoped to it fails the blocking check.
+- **Never apply a label that is not in the manifest.** `label-drift.yml` fails on it (issue #972) —
+  including a namespaced label nobody uses, which must instead be declared in
+  `.github/labels-retired.yml` with a reason. The additive label sync cannot remove it for you, and
+  the drift shows up as somebody else's red pipeline. Add it to `.github/labels.yml` first.
 - **Exactly one `agent:*` and one `type:*`** per issue; add `profile:*`/`area:*`/`level:*` as they apply.
 - **Hierarchy ≠ label:** an issue's place in the DAG is its **native sub-issue parent** (epic → saga,
   work issue → epic), **not** a `profile:*` label (the label says which profile the work touches; the

@@ -43,10 +43,13 @@ Live (needs `gh`; runs on a schedule, on demand, and after a label sync):
   B. **manifest -> repository.** Every manifested label exists on the repository. **FAILS**, except
      under `--proposed` (see below).
   C. **repository -> manifest.** Labels that exist on the repository but are not manifested.
-     **Split by namespace, because the two cases are not alike:**
-       * a label carrying a **managed prefix** (`agent:`/`type:`/`profile:`/`area:`/`level:`) is a
-         taxonomy label somebody created outside the manifest — it **FAILS** unless it is declared
-         in `.github/labels-retired.yml` with a reason. This is what stops the next `area:infra`;
+     **Split by shape, because the two cases are not alike:**
+       * a **namespaced** label (one containing a colon) is a taxonomy label somebody created
+         outside the manifest — it **FAILS** unless it is declared in `.github/labels-retired.yml`
+         with a reason. This is what stops the next `area:infra`. The test is "contains a colon",
+         not "starts with a namespace the manifest defines": the narrower rule let a label in an
+         entirely new namespace (`infra:runner`) pass as though it were a GitHub stock label, and
+         somebody inventing a namespace is exactly what this must catch;
        * anything **unnamespaced** is **REPORTED, not failed.** GitHub creates nine stock labels
          (`bug`, `duplicate`, `wontfix`, ...) on every repository, and failing on them would demand
          a destructive change nobody has decided on.
@@ -126,6 +129,17 @@ def manifest_names(entries: list[dict]) -> set[str]:
 def managed_prefixes(names: set[str]) -> set[str]:
     """The namespaces the manifest itself defines, derived rather than hard-coded."""
     return {name.split(":", 1)[0] + ":" for name in names if ":" in name}
+
+
+def is_namespaced(label: str) -> bool:
+    """Whether a label is a taxonomy label rather than one of GitHub's unnamespaced stock labels.
+
+    Deliberately "contains a colon" rather than "starts with a prefix the manifest defines": review
+    found the manifest-derived form let a label in an entirely NEW namespace (`infra:runner`) be
+    classified as a GitHub stock label and pass. Somebody inventing a namespace is precisely the
+    case this direction exists to catch, and it is the one the narrower rule missed.
+    """
+    return ":" in label
 
 
 def namespace_members(names: set[str], prefix: str, exempt: frozenset[str] | set[str]) -> set[str]:
@@ -217,7 +231,6 @@ def check_live(
     """Directions A-D. Returns (errors, notes)."""
     errors: list[str] = []
     notes: list[str] = []
-    prefixes = managed_prefixes(names)
 
     # A — in use -> manifest. The direction that was missing.
     unmanifested = sorted(set(in_use) - names)
@@ -252,11 +265,11 @@ def check_live(
 
     # C — repository -> manifest, split by namespace.
     unmanaged = sorted(repo_labels - names)
-    namespaced = [label for label in unmanaged if any(label.startswith(p) for p in prefixes)]
+    namespaced = [label for label in unmanaged if is_namespaced(label)]
     undeclared = [label for label in namespaced if label not in retired_names]
     for label in undeclared:
         errors.append(
-            f"label `{label}` carries a managed namespace but is in neither {MANIFEST_PATH} nor "
+            f"label `{label}` is namespaced but is in neither {MANIFEST_PATH} nor "
             f"{RETIRED_PATH}. Manifest it, or declare it retired with a reason."
         )
     notes.append(
@@ -265,7 +278,11 @@ def check_live(
         f"{len(unmanaged) - len(namespaced)} unnamespaced (GitHub stock; reported, not failed)"
     )
     for label in unmanaged:
-        kind = "retired" if label in retired_names else ("NAMESPACED" if label in namespaced else "stock")
+        kind = (
+            "retired"
+            if label in retired_names
+            else ("NAMESPACED" if label in namespaced else "stock")
+        )
         notes.append(f"    unmanaged [{kind}]: {label}{' (IN USE)' if label in in_use else ''}")
 
     # D — manifest -> in use. Reported: an unused label is a forecast, not a defect.
