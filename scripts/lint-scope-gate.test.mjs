@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CONFIG_FILE,
+  countNamedRuleDisables,
   extendsTargets,
   findBulkLinterDisables,
   findDisabledLinterOverrides,
@@ -217,6 +218,24 @@ test("findBulkLinterDisables catches all three spellings, at block level and per
     findBulkLinterDisables({ rules: { suspicious: "off" } }, "x")[0],
     /`suspicious` rule group/,
   );
+  // INJECTED DRIFT: a severity downgrade is the same wholesale operation in a softer word — every
+  // rule in the group drops below the level that fails a build.
+  for (const severity of ["warn", "info"]) {
+    assert.match(
+      findBulkLinterDisables({ rules: { suspicious: severity } }, "x")[0],
+      /`suspicious` rule group/,
+      `a group set to "${severity}" must be a finding`,
+    );
+  }
+  // INJECTED DRIFT: a domain switched off drops the rules that domain contributes.
+  assert.match(
+    findBulkLinterDisables({ domains: { test: "none" } }, "x")[0],
+    /`test` linter domain/,
+  );
+  assert.deepEqual(
+    findBulkLinterDisables({ domains: { test: "all" } }, "x"),
+    [],
+  );
   assert.match(
     findBulkLinterDisables(
       { rules: { correctness: { recommended: false } } },
@@ -373,6 +392,49 @@ test("an extends cycle terminates instead of looping forever", () => {
         : { extends: ["./other.json"], linter: { enabled: true } },
   });
   assert.equal(result.ok, true, result.lines.join("\n"));
+});
+
+test("countNamedRuleDisables counts only named disables, never a bulk one", () => {
+  assert.equal(countNamedRuleDisables(undefined), 0);
+  assert.equal(
+    countNamedRuleDisables({
+      rules: {
+        suspicious: { noSelfCompare: "off", noDebugger: { level: "off" } },
+      },
+    }),
+    2,
+  );
+  // A rule left on, and the group's own keys, are not disables.
+  assert.equal(
+    countNamedRuleDisables({
+      rules: {
+        recommended: false,
+        style: { recommended: false, useConst: "error" },
+      },
+    }),
+    0,
+  );
+  // A bulk group disable is a finding, not a named disable, so it must not inflate this count.
+  assert.equal(countNamedRuleDisables({ rules: { suspicious: "off" } }), 0);
+});
+
+test("INJECTED DRIFT: an extends target that climbs out of the repository is reported", () => {
+  const result = runLintScopeGate({
+    listFiles: () => ["a.ts"],
+    listConfigs: () => [CONFIG_FILE],
+    biome: () => verbose(["a.ts", CONFIG_FILE]),
+    config: () => ({ extends: ["../outside.json"], linter: { enabled: true } }),
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.lines.join("\n"), /outside the repository/);
+});
+
+test("the gate is actually wired into `npm run lint`", () => {
+  // The gate's own wiring is a claim nothing re-derived: deleting the ` && node
+  // scripts/check-lint-scope.mjs` half of the script disables it from the command CI runs, and
+  // every test here would still pass because they invoke the module directly.
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.match(manifest.scripts.lint, /check-lint-scope\.mjs/);
 });
 
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {

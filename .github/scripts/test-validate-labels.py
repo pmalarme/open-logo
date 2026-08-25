@@ -16,6 +16,7 @@ import io
 import os
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location(
@@ -25,6 +26,10 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 
 REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+
+#: Where the script looks for its manifests, relative to the working directory it is run in.
+MANIFEST_RELATIVE = os.path.join(".github", "labels.yml")
+RETIRED_RELATIVE = os.path.join(".github", "labels-retired.yml")
 
 failures = []
 
@@ -47,11 +52,6 @@ expect(
     gate.namespace_members({"area:grammar", "area:core", "type:bug", "profile:data"}, "area:", {"core"})
     == {"grammar"},
     "namespace_members must strip the prefix, drop other namespaces, and exempt core",
-)
-expect(
-    gate.managed_prefixes({"area:ci", "type:bug", "level:1", "unnamespaced"})
-    == {"area:", "type:", "level:"},
-    "managed_prefixes must derive the namespaces from the manifest, not hard-code them",
 )
 
 # --- Direction M: both mirrors ---------------------------------------------------------------
@@ -216,6 +216,20 @@ expect(
     f"direction C must mark an unmanaged namespaced label that is in use, got {notes}",
 )
 
+# A locally-created unnamespaced label is reported as LOCAL, not misdescribed as a GitHub default.
+errors, notes = gate.check_live(
+    {"area:ci"}, set(), {"area:ci", "wontfix", "agentic-workflows"}, {"area:ci": ["#1"]}
+)
+expect(errors == [], f"an unnamespaced local label must not fail the gate, got {errors}")
+expect(
+    any("unmanaged [stock]: wontfix" in note for note in notes),
+    f"a real GitHub stock label must be reported as stock, got {notes}",
+)
+expect(
+    any("unmanaged [LOCAL]: agentic-workflows" in note for note in notes),
+    f"a locally-created unnamespaced label must be reported as LOCAL, got {notes}",
+)
+
 # --- Fail closed: a gh failure raises rather than degrading to an empty result -------------------
 class _Failed:
     returncode = 1
@@ -237,7 +251,9 @@ finally:
 # `managed_prefixes` derived the namespaces from the manifest, so `infra:runner` was classified
 # "unnamespaced (GitHub stock)" and passed. Somebody inventing a namespace is exactly this
 # direction's job.
-expect(gate.is_namespaced("infra:runner"), "a colon makes a label namespaced")
+expect(
+    gate.is_namespaced("infra:runner"), "a colon makes a label namespaced"
+)
 expect(not gate.is_namespaced("good first issue"), "a stock label is not namespaced")
 errors, _ = gate.check_live({"area:ci"}, set(), {"area:ci", "infra:runner"}, {"area:ci": ["#1"]})
 expect(
@@ -328,17 +344,45 @@ expect(
 
 # --- The module's real process exit ---------------------------------------------------------------
 # main() returning 1 is not the same as the process exiting 1: `raise SystemExit(main())` is its own
-# line, and deleting it made a failing live run print failure and exit 0.
+# line, and deleting it made a failing live run print failure and exit 0. An earlier version of this
+# check accepted `returncode in (0, 1)`, which the deletion also satisfies — so it asserted nothing.
+#
+# Driven offline, so it is deterministic and needs no network: a scratch manifest carrying an
+# `area:*` label that `validate-commits.py`'s AREAS does not mirror is a guaranteed failure, and the
+# script reads its manifests relative to the working directory.
+scratch = tempfile.mkdtemp()
+os.makedirs(os.path.join(scratch, ".github"), exist_ok=True)
+with open(os.path.join(scratch, MANIFEST_RELATIVE), "w", encoding="utf-8") as handle:
+    handle.write('- { name: "area:definitely-not-a-scope", color: "c2e0c6", description: "x" }\n')
+with open(os.path.join(scratch, RETIRED_RELATIVE), "w", encoding="utf-8") as handle:
+    handle.write("[]\n")
+
 completed = subprocess.run(
-    [sys.executable, os.path.join(HERE, "validate-labels.py"), "--live", "--base=HEAD"],
+    [sys.executable, os.path.join(HERE, "validate-labels.py")],
+    capture_output=True,
+    text=True,
+    cwd=scratch,
+)
+expect(
+    completed.returncode == 1,
+    f"a failing offline run must exit exactly 1, got {completed.returncode}: {completed.stderr[-300:]}",
+)
+expect(
+    "LABEL VALIDATION FAILED" in completed.stdout,
+    f"the failing run must print its marker, got {completed.stdout[-300:]!r}",
+)
+
+# ...and the same invocation against the real manifest exits 0, so the check above is not merely
+# observing a script that always fails.
+completed = subprocess.run(
+    [sys.executable, os.path.join(HERE, "validate-labels.py")],
     capture_output=True,
     text=True,
     cwd=REPO_ROOT,
-    env={**os.environ, "PATH": os.environ.get("PATH", ""), "GH_TOKEN": "invalid-on-purpose"},
 )
 expect(
-    completed.returncode in (0, 1),
-    f"the module must exit 0 or 1, never crash; got {completed.returncode}: {completed.stderr[-400:]}",
+    completed.returncode == 0,
+    f"the shipped manifest must exit 0, got {completed.returncode}: {completed.stdout[-300:]}",
 )
 
 if failures:

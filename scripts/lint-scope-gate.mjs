@@ -14,9 +14,10 @@
 //
 // `biome.json`'s `files.includes` decides what `npm run lint` looks at, and **nothing re-derived
 // it**. It read `["packages/**/src/**/*.ts", "scripts/**/*.mjs"]`, so 191 tracked `*.mjs` files
-// under `packages/*/src/` — the entire unit-test corpus — were reported by Biome as *explicitly
-// ignored*, while `npm run coverage` held those same files to 100% line/branch/function coverage.
-// The repository demanded total coverage of a corpus it linted none of.
+// under `packages/*/src/` — most of the unit-test corpus, which is 202 repo-wide — were reported by
+// Biome as *explicitly ignored*, while `npm run coverage` held those same files to 100%
+// line/branch/function coverage. The repository demanded total coverage of a corpus it linted none
+// of.
 //
 // The exclusion was an accident of the glob rather than a decision, and the proof is that it was
 // inconsistent: `scripts/**/*.mjs` **was** linted including its `*.test.mjs` files, so an
@@ -62,20 +63,32 @@
 // a file: a configuration can keep a file in scope — still counted, still "Checked" — while
 // switching its rules off, reproducing #978's effect through a door a scope check does not watch.
 // `findBulkLinterDisables` closes that door at both levels (the top-level `linter` block and every
-// `overrides` entry) and in every spelling review has found: `linter.enabled: false`,
-// `rules.recommended: false`, `rules.preset: "none"`, the last two again inside any rule **group**
-// (`rules.suspicious.preset: "none"`), and a group disabled as the bare string
-// (`rules.suspicious: "off"`). Each of those passed some earlier version of this gate.
+// `overrides` entry) and in every **concise** spelling review has found: `linter.enabled: false`,
+// `rules.recommended: false`, `rules.preset: "none"`, a rule **group** set to any bare string
+// (`"off"` silences it; `"warn"`/`"info"` downgrade every rule in it below failing severity), a
+// group object that bulk-disables, and a `linter.domains` entry set to `"none"`. Each of those
+// passed some earlier version of this gate — three separate review rounds each defeated it with a
+// one-line edit, which is why the list is enumerated rather than described.
 //
 // The audit follows `extends` transitively, and is seeded with every tracked `biome.json`/
 // `biome.jsonc`. Both were holes: an extended file holds the same power under **any** filename
 // (review used a tracked `disabled.json`), and a nested config unlints a whole package while its
 // files stay in the processed list.
 //
+// ## The limit that remains, stated rather than implied
+//
 // Disabling a **named** rule is deliberately still allowed: issue #978's acceptance criterion is
 // that a rule inappropriate for a glob is disabled *by name with a written reason*, so the point is
-// to force that spelling, not to forbid it. A named-rule disable with no reason is a review
-// question, and this gate does not pretend to answer it.
+// to force that spelling, not to forbid it. That leaves one theoretical bypass — enumerating every
+// rule individually as `"off"` — and this gate does **not** fail on it, because it cannot tell a
+// bad-faith enumeration from a long list of legitimate, reasoned suppressions.
+//
+// What it does instead is make it impossible to do quietly: the count of named disables is printed
+// on every run, so the jump from 0 to several hundred is visible in CI output as well as in the
+// hundreds of lines of reviewable diff such an attack requires. That is the honest boundary — a
+// *concise* disable is gated, a *verbose* one is surfaced. Deciding whether a named suppression is
+// justified is rule coverage, a separate capability from lint scope, and this gate does not pretend
+// to answer it.
 //
 // It also does not read Biome's *other* inputs directly. Two of them matter, and review disproved
 // an earlier version of this paragraph, so what follows is measured rather than reasoned:
@@ -251,11 +264,13 @@ export function findBulkLinterDisables(linter, where) {
   const findings = [];
   const bulkObject = (rules) =>
     rules?.recommended === false || rules?.preset === "none";
-  // A group is disabled wholesale either as an object (`{"preset": "none"}`) or, equivalently and
-  // legally in Biome, as the bare string `"off"`. Review found the string form bypassing an audit
-  // that only walked object-valued groups.
+  // A group may be written as an object (`{"preset": "none"}`) or as a bare string. Any bare string
+  // is a wholesale operation on the whole group — `"off"` silences it, and `"warn"`/`"info"`
+  // downgrade every rule in it below the severity that fails a build, which is the same effect
+  // through a softer word. Review defeated two earlier versions here: first with `"off"`, then with
+  // `"warn"`.
   const bulkValue = (value) =>
-    value === "off" ||
+    typeof value === "string" ||
     (typeof value === "object" && value !== null && bulkObject(value));
 
   if (linter?.enabled === false) {
@@ -275,13 +290,51 @@ export function findBulkLinterDisables(linter, where) {
     // `recommended`/`preset` are the block's own keys, handled above; every other entry is a group.
     if (group !== "recommended" && group !== "preset" && bulkValue(value)) {
       findings.push(
-        `${where} switches off the \`${group}\` rule group wholesale, unlinting those rules while ` +
-          "the files stay in scope. Disable the specific rule by name instead, with a written " +
-          "reason (issue #978).",
+        `${where} sets the \`${group}\` rule group to \`${JSON.stringify(value)}\` wholesale, ` +
+          "silencing or downgrading every rule in it while the files stay in scope. Disable the " +
+          "specific rule by name instead, with a written reason (issue #978).",
+      );
+    }
+  }
+  // A domain switched off disables the rules that domain contributes — concise, and invisible to a
+  // rules-only audit.
+  for (const [domain, value] of Object.entries(linter?.domains ?? {})) {
+    if (value === "none") {
+      findings.push(
+        `${where} sets the \`${domain}\` linter domain to \`"none"\`, dropping the rules that ` +
+          "domain contributes while the files stay in scope (issue #978).",
       );
     }
   }
   return findings;
+}
+
+/**
+ * Count the **named** rule disables in a configuration block. Named disabling is the spelling
+ * issue #978 explicitly sanctions, so it is never a finding — but the count is printed on every
+ * run, because the one way to defeat a bulk-disable audit while staying within that sanction is to
+ * enumerate every rule individually. That takes hundreds of lines of reviewable diff *and* moves
+ * this number, so it cannot happen quietly. See the module header's limits section.
+ */
+export function countNamedRuleDisables(linter) {
+  let count = 0;
+  for (const [group, value] of Object.entries(linter?.rules ?? {})) {
+    if (group === "recommended" || group === "preset") {
+      continue;
+    }
+    if (typeof value !== "object" || value === null) {
+      continue;
+    }
+    // No guard for the group's own `recommended`/`preset` keys: the first is a boolean and the
+    // second is `"recommended"`/`"none"`, so neither can equal `"off"` and neither is ever counted.
+    // A guard for them was unreachable, and the coverage gate said so.
+    for (const setting of Object.values(value)) {
+      if (setting === "off" || setting?.level === "off") {
+        count += 1;
+      }
+    }
+  }
+  return count;
 }
 
 /**
@@ -441,7 +494,18 @@ export function runLintScopeGate({
         );
         continue;
       }
-      worklist.push(toPosixPath(join(dirname(relative), target)));
+      const resolved = toPosixPath(join(dirname(relative), target));
+      // `../` can climb out of the repository, where the gate's trust boundary — the tracked tree —
+      // no longer applies and the configuration becomes host-dependent. Report rather than follow.
+      if (resolved.startsWith("../") || resolved === "..") {
+        failures.push(
+          `\`${relative}\` extends \`${target}\`, which resolves outside the repository ` +
+            `(\`${resolved}\`). This gate only reasons about the tracked tree, and will not ` +
+            "certify a lint scope that depends on a file outside it.",
+        );
+        continue;
+      }
+      worklist.push(resolved);
     }
   }
 
@@ -480,12 +544,19 @@ export function runLintScopeGate({
   }
 
   // The other door: in scope, but unlinted by a bulk disable at any level, in any configuration.
+  let namedDisables = 0;
   for (const [relative, parsed] of configurations) {
     failures.push(
       ...findDisabledLinterOverrides(parsed).map(
         (finding) => `${relative}: ${finding}`,
       ),
     );
+    namedDisables += countNamedRuleDisables(parsed?.linter);
+    for (const override of Array.isArray(parsed?.overrides)
+      ? parsed.overrides
+      : []) {
+      namedDisables += countNamedRuleDisables(override?.linter);
+    }
   }
 
   if (failures.length > 0) {
@@ -493,13 +564,16 @@ export function runLintScopeGate({
   }
   // Every term is measured: the sets have just been proven equal in both directions, and the
   // difference is derived rather than written as a literal `1` — a hardcoded term in a
-  // reconciliation is the same unenforced assertion this gate exists to remove.
+  // reconciliation is the same unenforced assertion this gate exists to remove. The named-disable
+  // count is printed for the reason the header's limits section gives: it is the one bypass this
+  // gate deliberately does not fail on, so it must at least be impossible to perform quietly.
   return {
     ok: true,
     lines: [
       `lint scope: ${corpus.length} source file(s) git knows about, all linted; Biome processed ` +
         `${processed.length} = ${corpus.length} + ${processed.length - corpus.length} ` +
-        `(${CONFIG_FILE}, always processed); ${configurations.length} Biome configuration(s) audited.`,
+        `(${CONFIG_FILE}, always processed); ${configurations.length} Biome configuration(s) ` +
+        `audited, ${namedDisables} named rule disable(s).`,
     ],
   };
 }

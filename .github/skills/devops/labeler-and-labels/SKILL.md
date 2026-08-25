@@ -31,8 +31,10 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 - An additive sync can never notice a label created ad hoc through the API, so the manifest quietly
   became a *subset* of reality. Measured at `0277d5ff`: **10** `area:*` declared, **14** in use,
   **15** existing on the repository; across all namespaces **9 labels in use spanned 3 namespaces**
-  without being manifested, on **37** open issues/PRs. Re-derive with `validate-labels.py --live`,
-  which prints every direction's count — do not trust these numbers, which are prose.
+  without being manifested, on **37** open issues/PRs. Only the `10` is re-derivable
+  (`git show 0277d5ff:.github/labels.yml`) — the rest counted live repository state at that moment
+  and will not reproduce today. `validate-labels.py --live` prints each direction's **current**
+  count on every run; that is the number to trust.
 - `.github/scripts/validate-labels.py` closes it by comparing manifest and repository **in both
   directions**, the same shape `built-in-names` uses for primitives:
   - **fails** when a label on an open issue/PR is not in the manifest; when a manifested label does

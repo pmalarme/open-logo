@@ -12,9 +12,13 @@ in use on open issues, and **15** existed on the repository. Across all namespac
 use spanned 3 namespaces** (`area:` diagnostics/infra/parser/testing/tooling, `profile:`
 core-language/interaction-events, `type:` enhancement/task) without appearing in the manifest at
 all, on **37** distinct open issues/PRs. This change manifests 5 of those 9 and relabels the other 4
-onto manifested equivalents. Re-derive any of these with `validate-labels.py --live`, which prints
-every direction's count on every run; do not trust the numbers in this paragraph, which is prose and
-therefore exactly the kind of claim epic #901 exists to stop trusting.
+onto manifested equivalents.
+
+**Only the `10` is re-derivable** (`git show 0277d5ff:.github/labels.yml`). The other four counted
+*live* repository state at that moment, and live state has since moved — running `--live` today
+reports today's numbers and will not reproduce them. They are recorded as a measurement with a date,
+not as a claim anything re-checks; treat them as history. What `--live` does give you on every run
+is each direction's **current** count, which is the number to trust.
 
 The mechanism that would have made the manifest authoritative — `label-sync.yml` — is **additive by
 design** ("does not delete labels missing from the manifest"), so a label created ad hoc through the
@@ -52,7 +56,10 @@ Live (needs `gh`; runs on a schedule, on demand, and after a label sync):
          somebody inventing a namespace is exactly what this must catch;
        * anything **unnamespaced** is **REPORTED, not failed.** GitHub creates nine stock labels
          (`bug`, `duplicate`, `wontfix`, ...) on every repository, and failing on them would demand
-         a destructive change nobody has decided on.
+         a destructive change nobody has decided on. Those nine are named in `STOCK_LABELS`; an
+         unnamespaced label outside that set is reported as `LOCAL` rather than `stock`, because
+         counting instead of naming let this repository's locally-created `agentic-workflows` be
+         described as a GitHub default.
   D. **manifest -> in use.** Manifested labels nobody uses. **REPORTED, not failed.** `level:1`,
      `level:2` and `profile:localization` are legitimately reserved for work that has not started;
      an unused label is a forecast, not a defect.
@@ -111,6 +118,23 @@ RETIRED_PATH = ".github/labels-retired.yml"
 #: Overridable with `--base=<ref>`; the workflow passes the pull request's base.
 DEFAULT_BASE_REF = "origin/main"
 
+#: The labels GitHub creates on every new repository. Named rather than counted: review found the
+#: report calling this repo's locally-created `agentic-workflows` a "stock" label purely because it
+#: has no colon, which is a false negative in the one place the heuristic is supposed to be safe.
+#: Anything unnamespaced outside this set is reported as LOCAL — still not a failure, because
+#: failing would demand a destructive change nobody has decided on, but no longer misdescribed.
+STOCK_LABELS = frozenset({
+    "bug",
+    "documentation",
+    "duplicate",
+    "enhancement",
+    "good first issue",
+    "help wanted",
+    "invalid",
+    "question",
+    "wontfix",
+})
+
 #: `core` is already a profile scope, so it is deliberately not duplicated as an area scope.
 AREA_SCOPE_EXEMPT = {"core"}
 
@@ -131,11 +155,6 @@ def load_manifest(path: str = MANIFEST_PATH) -> list[dict]:
 def manifest_names(entries: list[dict]) -> set[str]:
     """The set of label names a label list declares."""
     return {entry["name"] for entry in entries}
-
-
-def managed_prefixes(names: set[str]) -> set[str]:
-    """The namespaces the manifest itself defines, derived rather than hard-coded."""
-    return {name.split(":", 1)[0] + ":" for name in names if ":" in name}
 
 
 def is_namespaced(label: str) -> bool:
@@ -308,14 +327,19 @@ def check_live(
     notes.append(
         f"repository -> manifest: {len(repo_labels)} label(s) on the repo, {len(unmanaged)} not "
         f"manifested - {len(namespaced)} namespaced ({len(undeclared)} undeclared), "
-        f"{len(unmanaged) - len(namespaced)} unnamespaced (GitHub stock; reported, not failed)"
+        f"{len([l for l in unmanaged if l in STOCK_LABELS])} GitHub stock, "
+        f"{len([l for l in unmanaged if not is_namespaced(l) and l not in STOCK_LABELS])} local "
+        f"unnamespaced (all reported, not failed)"
     )
     for label in unmanaged:
-        kind = (
-            "retired"
-            if label in retired_names
-            else ("NAMESPACED" if label in namespaced else "stock")
-        )
+        if label in retired_names:
+            kind = "retired"
+        elif label in namespaced:
+            kind = "NAMESPACED"
+        elif label in STOCK_LABELS:
+            kind = "stock"
+        else:
+            kind = "LOCAL"
         notes.append(f"    unmanaged [{kind}]: {label}{' (IN USE)' if label in in_use else ''}")
 
     # D — manifest -> in use. Reported: an unused label is a forecast, not a defect.
