@@ -1242,7 +1242,19 @@ const NUMBER_WORDS = {
  *    document contradict itself unread: returning on the first *paragraph* that carried both left a
  *    later contradictory paragraph unexamined, and matching once *within* a paragraph left a second
  *    claim in the same paragraph unexamined. Every occurrence of each anchor is counted, so a
- *    contradiction anywhere is a finding rather than a silently-preferred first match.
+ *    second claim **written in the anchors' own form** is a finding rather than a
+ *    silently-preferred first match.
+ *
+ * **The bound of 4, stated rather than left to be discovered.** A contradiction that *paraphrases*
+ * — "In contrast, …", "`quux` is **not** a keyword and **not** a built-in name", or a fifth word
+ * announced in a sentence resembling neither anchor — matches neither regex and is not seen. That
+ * is inherent to extracting a claim from prose, and it is why the count reconciliation in 3 is the
+ * real backstop: a maintainer who adds a fifth contextual keyword *and* updates "exactly these
+ * four" to "five" is caught even when the wording is new (measured: the paraphrase alone passes,
+ * the paraphrase plus an honest count fails). Only a change that adds a word, leaves the count
+ * stale, *and* avoids both anchor forms slips through. Closing that fully would need
+ * `spec/grammar.md` to declare the set in a machine-checkable form rather than prose, which is
+ * maintainer-owned via `CODEOWNERS` and belongs in its own slice.
  *
  * Returns `null` when any of the four fails — a **finding** at the caller, never a skip, because
  * `spec/` is maintainer-owned and this gate may not annotate the documents it reads. The word list
