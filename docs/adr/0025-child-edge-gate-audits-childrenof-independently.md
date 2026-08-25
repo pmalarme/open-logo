@@ -34,8 +34,9 @@ the edge. It compares that against `childrenOf(node)` by object **identity and m
 
 The two sides share `parse`, object identity and `OL_NODE_KINDS`. What they share nothing of is
 child-edge enumeration and recursion logic, which is the property that makes the comparison mean
-anything. `walk` is retained as an integration check: the per-node comparison proves each child list
-is right, and `walk` proves the traversal built on it actually descends them.
+anything. `walk` is retained as the integration check, compared as **identity multisets of visits per file** —
+not counts, which permit a traversal that visited a different set the same number of times, and not
+membership, which hides the multiplicity an aliased edge lives in.
 
 **Identity and multiplicity, not membership; and order.** An earlier draft compared reachable *sets*
 and was defeated four ways by the non-author reviewers, each of which now fails:
@@ -49,23 +50,27 @@ and was defeated four ways by the non-author reviewers, each of which now fails:
   every consumer; it is now asserted against the parser's own spans, which is the one comparison that
   cannot be circular;
 - a node **hidden from enumeration** — inside a `Map`, behind a symbol key, behind a non-enumerable
-  property, behind a prototype getter on a class instance, parked on an array's non-index own key, or
-  sitting at an ordinary array index behind an own `Symbol.iterator` that yields nothing — invisible
+  property, behind a prototype getter on a class instance, parked on an array's non-index own key,
+  sitting at an ordinary array index behind an own `Symbol.iterator` that yields nothing, or held by
+  an array *subclass* behind an inherited getter — invisible
   to reflection and therefore agreeing with a `childrenOf` that also omitted it.
 
 The last is why reflection reads objects with `Reflect.ownKeys` and property descriptors rather than
 `Object.entries`, reports rather than reads an accessor on a child-bearing field (a getter may return
 a fresh object per call, making identity meaningless), compares the shape of every object it descends
-into as a whole set, and compares every non-index own key it finds on an array against `["length"]`.
-**`for…of` reads an array's indices and nothing else**, so the array branch had to be converted too —
-it was the one enumeration path left on the old mechanism, and a node parked there was invisible
-exactly as a symbol-keyed field had been. An instrument that silently treats what it cannot read as
-empty is the defect it exists to detect, reproduced one level in; it took two rounds and two
-reviewers to remove it from every path rather than only the obvious one.
+into as a whole set, and reads arrays by own key rather than by iteration. **Array iteration is not a
+reliable enumeration**: `for…of` goes through `Symbol.iterator`, which a subclass or an own property
+can override to report contents that are not there, and it reads each index through its getter. So
+arrays are descended by descriptor, their prototype is checked against `Array.prototype` exactly, and
+every non-index own key is compared against `["length"]` — where "index" means a *canonical* index,
+since `"4294967295"`, `"00"`, `"1e2"` and `"-0"` are ordinary string properties that iteration never
+visits. An instrument that silently treats what it cannot read as empty is the defect it exists to
+detect, reproduced one level in; it took three rounds and two reviewers to remove it from every path
+rather than only the obvious one.
 
 The accessor claim is deliberately narrow: identifying a shape at all reads `kind`, `source_span` and
-`Symbol.toStringTag`, so this does not promise that no getter runs — only that a child-bearing field
-is never read through one.
+`Symbol.toStringTag`, so this does not promise that no getter runs — only that a child-bearing field,
+index or named, is never read through one.
 
 **The gate carries three self-checks, because an instrument that cannot see its own assumptions is
 the same defect one level up.**
@@ -97,9 +102,9 @@ dropped while the node stays otherwise reachable, and a spurious edge all fail. 
 field order, because `walk` is pre-order and every consumer inherits that order. `walk` descends
 every edge those lists declare, and reaches the same node population reflection does. No kinded,
 spanned shape appears that the oracle does not know. Reflection reads every own key of the shapes it
-descends — objects through `Reflect.ownKeys` and descriptors, arrays by index with their non-index
-own keys reported. The corpus exercises every declared path, instantiates every node kind, and every
-root clears a per-root floor.
+descends — objects and arrays alike, through `Reflect.ownKeys` and descriptors, with an array's
+non-index own keys reported and its prototype checked exactly. The corpus exercises every declared
+path, instantiates every node kind, and every root clears a per-root floor.
 
 **Not enforced — this is an audit of the trees the corpus produces, not a proof about the type
 declarations.** A node-valued field that no `.logo` file populates is invisible to reflection.
@@ -109,17 +114,21 @@ fixture exercises it *and* `childrenOf` returns it. The surviving gap is a field
 declaration and **no** fixture — the same shape, and the same accepted cost, as
 [ADR-0021](0021-built-in-names-list-and-ci-gate.md)'s two-file rule for primitives.
 
-**Not enforced — a hostile `Proxy`.** Reflection reads objects through `Reflect.ownKeys` and
-`Object.getOwnPropertyDescriptor`, and arrays by index with their non-index own keys reported, so a
+**Not enforced — a hostile `Proxy`.** Reflection reads objects **and arrays** through
+`Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, checking both prototypes exactly, so a
 symbol-keyed field, a non-enumerable field, a class instance, a null-prototype object, an
-`Object.create(proto)` result, an array expando and an own `Symbol.iterator` that lies about an
-array's contents are all either read correctly or rejected. A `Proxy` whose `ownKeys` trap lies is
+`Object.create(proto)` result, an array expando, a non-canonical index such as `"4294967295"`, an
+array subclass and an own `Symbol.iterator` that lies about an array's contents are all either read
+correctly or rejected. A `Proxy` whose `ownKeys` trap lies is
 not detectable from userland and would still hide a node. That is a limit of reflection itself rather
-than of this implementation, and it is recorded rather than papered over — two earlier drafts of this
-ADR claimed the container check admitted nothing it could not enumerate, and the reviewers falsified
-each in one build: first with a class instance holding a node behind a prototype getter, then with a
-node parked on an array's non-index own key, which `Reflect.ownKeys` reads perfectly well and this
-gate was simply not asking for.
+than of this implementation, and it is recorded rather than papered over — three earlier drafts of
+this ADR claimed the container check admitted nothing it could not enumerate, and the reviewers
+falsified each in one build: first with a class instance holding a node behind a prototype getter,
+then with a node parked on an array's non-index own key, and then — after the array branch had been
+hardened for exactly that — with an array *subclass* holding a node behind an inherited getter, the
+cross-product of the first two. Each fix closed one branch and left the other open, which is why the
+enforcement sentence above now names one mechanism applied to both rather than a mechanism per
+container.
 
 A declaration-derived check would close it outright, and is **deferred on cost, not availability**.
 TypeScript 7 does ship a usable API: `typescript/unstable/sync` exports `Project`, `Program`,
@@ -161,10 +170,13 @@ reason on record has to be the true one.
   field added to an existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole
   point); an aliased edge dropped while the node stays reachable by its other route; a spurious
   grandchild; a reversed child list; a node hidden behind a `Map`, a symbol key, a prototype getter
-  on a class instance, an array expando key, or an own `Symbol.iterator` that yields nothing; a
-  kinded, spanned shape with an unknown `kind`; an accessor property on a node; a declared path no
-  fixture populates; a renamed corpus root; a root that contributes too few files; and a node kind no
-  fixture instantiates.
+  on a class instance, an array expando, a non-canonical index such as `"4294967295"`, an array
+  subclass holding a node behind an inherited getter, an accessor on a valid index, or an own
+  `Symbol.iterator`
+  that yields nothing; a kinded, spanned shape with an unknown `kind`; an accessor property on a
+  node; a declared path no fixture populates; a renamed corpus root; a root that contributes too few
+  files; and a node kind no fixture instantiates. A **correct** alias is equally a regression case:
+  it must pass, and a draft that rejected it is recorded above.
 - Instruments that derive from the AST may now state that a *populated* field is reached, in the
   order `childrenOf` declares. They still may not assume anything about a field no fixture populates.
 - The declared path list carries no count. It is a list, and its length is re-derivable from the

@@ -177,32 +177,41 @@ const tiedStartCount = (children) =>
   ).length;
 
 /**
- * A name for the shape of `value`, combining its `Object.prototype.toString` tag with whether its
- * prototype is exactly `Object.prototype`. Deliberately branch-free: a conditional that only takes
- * its second arm when something is already wrong is dead on a green tree, which is the same defect
- * as a dead recording branch. Every object gets a name and the whole set is compared.
+ * A name for the shape of `value`: its `Object.prototype.toString` tag, plus whether its prototype is
+ * the exact one that shape is supposed to have — `Array.prototype` for an array, `Object.prototype`
+ * for a plain record. Deliberately branch-free: a conditional that only takes its second arm when
+ * something is already wrong is dead on a green tree, which is the same defect as a dead recording
+ * branch. Every object gets a name and the whole set is compared.
  *
- * A plain record is `[object Object]/plain`. A `Map` is `[object Map]/exotic`; a class instance, a
- * null-prototype object and an `Object.create(proto)` result are all `…/exotic` — each can hold a
- * node that enumeration will not report, and an instrument that treats what it cannot read as empty
- * is the defect this file exists to detect, reproduced one level in.
+ * A plain record is `[object Object]/plain` and an array `[object Array]/plain`. A `Map`, a class
+ * instance, a null-prototype object, an `Object.create(proto)` result and an **array subclass** are
+ * all `…/exotic` — each can hold a node that enumeration will not report, or lie about its own
+ * contents through an inherited iterator. The prototype half is what catches a subclass that
+ * overrides `Symbol.toStringTag` to report a tag it is not.
  */
 const shapeNameOf = (value) =>
   `${Object.prototype.toString.call(value)}/${
     // Array index rather than a ternary: both names exist unconditionally and one is selected by
     // subscript, so there is no arm that goes untaken while the tree is green.
     ["exotic", "plain"][
-      Number(Object.getPrototypeOf(value) === Object.prototype)
+      Number(
+        Object.getPrototypeOf(value) ===
+          expectedPrototypesOf[Number(Array.isArray(value))],
+      )
     ]
   }`;
 
-/** `[path, descriptor]` for every own property of `value` except its span — symbols included. */
+/** Indexed by `Number(Array.isArray(value))`, so the lookup needs no branch. */
+const expectedPrototypesOf = [Object.prototype, Array.prototype];
+
+/** `[path, descriptor, key]` for every own property of `value` except its span — symbols included. */
 const fieldsOf = (value, path) =>
   Reflect.ownKeys(value)
     .filter((key) => key !== "source_span")
     .map((key) => [
       `${path}.${String(key)}`,
       Object.getOwnPropertyDescriptor(value, key),
+      key,
     ]);
 
 // A data descriptor always carries `value`; an accessor descriptor carries `get`/`set` instead.
@@ -211,23 +220,32 @@ const fieldsOf = (value, path) =>
 const isAccessorField = (field) => !Object.hasOwn(field[1], "value");
 const isDataField = (field) => Object.hasOwn(field[1], "value");
 const pathOfField = (field) => field[0];
-
-/** True when `key` is an array index, i.e. one of the keys `for…of` actually reads. */
-const isIndexKey = (key) =>
-  typeof key === "string" && String(Number(key)) === key;
+const keyOfField = (field) => String(field[2]);
+const isIndexField = (field) => isIndexKey(field[2]);
+const isNonIndexField = (field) => !isIndexKey(field[2]);
 
 /**
- * The own keys of an array that are **not** indices. A well-formed array has exactly one, `length`;
- * anything else is a place `for…of` cannot look — an expando, or an own `Symbol.iterator` that lies
- * about the contents.
- *
- * Returned as names rather than paths, and always non-empty, so this is a whole-set comparison like
- * the other oracles here rather than a projection only a failing tree evaluates.
+ * The largest value a canonical array index can take. `2 ** 32 - 1` is the maximum `length`, so the
+ * highest index is one below it — `"4294967295"` is an ordinary string property, not an index, and a
+ * node parked there is somewhere `for…of` will never look.
  */
-const nonIndexKeysOf = (value) =>
-  Reflect.ownKeys(value)
-    .filter((key) => !isIndexKey(key))
-    .map(String);
+const ARRAY_LENGTH_LIMIT = 2 ** 32 - 1;
+
+/**
+ * True when `key` is a canonical array index — one of the keys array iteration actually reads.
+ *
+ * The canonical spelling test is the load-bearing half: `"00"`, `"1e2"`, `"-0"` and `" 1"` all
+ * *number* to something but are stored as ordinary string properties, so they must be reported, not
+ * descended. An earlier draft used `String(Number(key)) === key` alone, which the #960 reviewer
+ * broke five ways at once — `"4294967295"`, `"-1"`, `"1.5"`, `"NaN"` and `"Infinity"` all satisfy it
+ * and none is an index.
+ */
+const isIndexKey = (key) =>
+  typeof key === "string" &&
+  String(Number(key)) === key &&
+  Number.isInteger(Number(key)) &&
+  Number(key) >= 0 &&
+  Number(key) < ARRAY_LENGTH_LIMIT;
 
 /**
  * Every `[path, node]` pair reachable from `value` **without passing through another node** —
@@ -251,22 +269,24 @@ const nonIndexKeysOf = (value) =>
  */
 function edgesUnder(value, path, seen, out) {
   if (Array.isArray(value)) {
-    // Indices are what `for…of` reads. An array's *other* own keys — an expando, or an own
-    // `Symbol.iterator` that lies about the contents — are not, and a node parked on one is
-    // invisible exactly as a symbol-keyed field was to `Object.entries`. Found by the #960 reviewer,
-    // which defeated an earlier version of this file both ways with the gate fully green. Reported
-    // rather than descended, so `[]` stays the only path spelling this gate emits.
-    // Indices are what `for…of` reads. An array's *other* own keys — an expando, or an own
-    // `Symbol.iterator` that lies about the contents — are not, and a node parked on one is
-    // invisible exactly as a symbol-keyed field was to `Object.entries`. Found by the #960 reviewer,
-    // which defeated an earlier version of this file both ways with the gate fully green. The key
-    // names are collected and compared as a whole set against `["length"]`, so a newcomer breaks the
-    // equality rather than slipping past a recogniser.
-    for (const key of nonIndexKeysOf(value)) {
-      seen.arrayKeys.add(key);
+    // Read by own key, not by iteration. `for…of` goes through `Symbol.iterator`, which an array
+    // subclass or an own property can override to report contents that are not there — and it reads
+    // an index through its getter, which this gate refuses to do for object fields for the same
+    // reason. Indices are descended by descriptor; every *non*-index own key is reported by name and
+    // compared as a whole set against `["length"]`, so an expando, a `"4294967295"`, or an own
+    // `Symbol.iterator` breaks the equality instead of slipping past a recogniser. Each of those hid
+    // a node from an earlier version of this file with the gate fully green.
+    seen.shapes.add(shapeNameOf(value));
+    const fields = fieldsOf(value, path);
+    for (const field of fields.filter(isNonIndexField)) {
+      seen.arrayKeys.add(keyOfField(field));
     }
-    for (const item of value) {
-      edgesUnder(item, `${path}[]`, seen, out);
+    const indices = fields.filter(isIndexField);
+    seen.accessorFields.push(
+      ...indices.filter(isAccessorField).map(pathOfField),
+    );
+    for (const field of indices.filter(isDataField)) {
+      edgesUnder(field[1].value, `${path}[]`, seen, out);
     }
     return out;
   }
@@ -328,10 +348,8 @@ function auditTheCorpus() {
   const populated = new Set();
   const kindsSeen = new Set();
   const childListRows = [];
-  const unreachedByWalk = [];
+  const visitRows = [];
   const filesPerRoot = new Map();
-  let reflectedCount = 0;
-  let visitCount = 0;
   let nodeCount = 0;
   let fileCount = 0;
 
@@ -402,30 +420,29 @@ function auditTheCorpus() {
     fileCount += 1;
     filesPerRoot.set(root, filesPerRoot.get(root) + 1);
     const walked = new Set();
-    let walkVisits = 0;
+    const walkVisits = [];
     walk(ast, (node) => {
       walked.add(node);
-      // Counted separately from the set: `walk` calls the visitor once per *edge*, so an aliased
-      // node legitimately visited twice increments this twice while the set counts it once. The
-      // equality below compares visits to visits; the floor uses distinct nodes.
-      walkVisits += 1;
+      walkVisits.push(node);
     });
     nodeCount += walked.size;
-    visitCount += walkVisits;
     for (const node of walked) {
       kindsSeen.add(kindOf(node));
     }
     const reflectedNodes = [];
     auditNode(ast, reflectedNodes);
-    reflectedCount += reflectedNodes.length;
-    // `walk` retained as an integration check: the per-node comparison above proves each child list
-    // is right, and this proves `walk` actually descends them. Spread-pushed from a filter with no
-    // loop body, so nothing here is dead on a green tree — but note that coverage cannot reach these
-    // projections on a passing run either way. The mutants recorded in ADR-0025 are what discharge
-    // the recording paths; 100% coverage of this file is not evidence that they work.
-    unreachedByWalk.push(
-      ...reflectedNodes.filter((node) => !walked.has(node)).map(kindOf),
-    );
+    // `walk` retained as the integration check: the per-node comparison above proves each child list
+    // is right, and this proves `walk` actually descends them. Compared as **identity multisets of
+    // visits**, not counts and not membership. Counts alone let a reviewer construct a traversal
+    // that visited a different set the same number of times; membership alone hides multiplicity,
+    // which is what an aliased edge lives in. Both spellings are built for every file, so neither is
+    // a projection only a failing tree evaluates — and note coverage cannot reach the recording
+    // paths on a passing run either way; the mutants recorded in ADR-0025 are what discharge them.
+    visitRows.push({
+      file,
+      walked: walkVisits.map(handleOf).sort().join(" "),
+      reflected: reflectedNodes.map(handleOf).sort().join(" "),
+    });
   };
 
   const visit = (directory, root) => {
@@ -456,7 +473,7 @@ function auditTheCorpus() {
       (row) => row.order !== row.sourceOrder,
     ),
     tiedStartRows: childListRows.filter((row) => row.tiedStarts > 0),
-    unreachedByWalk: [...new Set(unreachedByWalk)].sort(),
+    visitMismatches: visitRows.filter((row) => row.walked !== row.reflected),
     foreignShapes: [...seen.foreignShapes].sort(),
     shapes: [...seen.shapes].sort(),
     accessorFields: [...new Set(seen.accessorFields)].sort(),
@@ -465,8 +482,6 @@ function auditTheCorpus() {
     thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
     populated: [...populated].sort(),
     kindsSeen: [...kindsSeen].sort(),
-    reflectedCount,
-    visitCount,
     nodeCount,
     fileCount,
   };
@@ -484,10 +499,12 @@ test("every node's child list is exactly the edges the node itself holds", () =>
   assert.deepEqual(audit.mismatchedChildLists, []);
 });
 
-test("`walk` descends every child edge the child lists declare", () => {
-  // The integration half: the assertion above proves each child list is correct, this proves the
-  // traversal built on it actually visits them.
-  assert.deepEqual(audit.unreachedByWalk, []);
+test("`walk` visits exactly the nodes the child lists declare, as often", () => {
+  // Compared per file as identity multisets, not counts and not membership. Counts alone let a
+  // traversal visit a *different* set the same number of times — the #960 reviewer built exactly
+  // that. Membership alone hides multiplicity, which is where an aliased edge lives: a node
+  // reachable by two fields is listed twice and visited twice, and that is legitimate.
+  assert.deepEqual(audit.visitMismatches, []);
 });
 
 test("no kinded, spanned shape outside the oracle appears anywhere in the corpus", () => {
@@ -514,19 +531,28 @@ test("reflection reads every own key of the shapes it descends", () => {
   // class instance, a null-prototype object or an `Object.create(proto)` result would be silently
   // childless to this gate — the defect it exists to catch, reproduced inside the instrument.
   // Enumeration is `Reflect.ownKeys` (symbols and non-enumerables included) and every prototype
-  // descended into is compared as a whole set.
+  // descended into is compared as a whole set — arrays included, which is what rejects an array
+  // *subclass* holding a node behind an inherited getter. Hardening the object branch alone left
+  // that cross-product open, with the gate fully green.
   //
   // The residual, stated rather than papered over: a `Proxy` whose `ownKeys` trap lies is
   // undetectable from userland and would still hide a node. That is a limit of reflection itself,
   // not of this implementation, and no AST here is proxied.
-  assert.deepEqual(audit.shapes, ["[object Object]/plain"]);
+  assert.deepEqual(audit.shapes, [
+    "[object Array]/plain",
+    "[object Object]/plain",
+  ]);
   // A getter is never invoked — it may return a fresh object per call, which would make identity
   // comparison meaningless — so any accessor property is reported instead of silently traversed.
+  // This holds for array *indices* too: they are read from their descriptors, not by `for…of`, which
+  // would have invoked the getter. An earlier version made this claim while its array branch read
+  // indices through iteration, so the sentence was true of objects and false of arrays.
   assert.deepEqual(audit.accessorFields, []);
-  // Arrays are read by index, which is what `for…of` sees. Their non-index own keys are not, so a
-  // node parked on one — an expando, or an own `Symbol.iterator` that lies about the contents — is
-  // reported here rather than silently passed over. `Reflect.ownKeys` reads these perfectly well, so
-  // unlike the `Proxy` above this is a case the gate closes rather than concedes.
+  // Arrays are enumerated by own key, so their non-index own keys are reported rather than passed
+  // over: a node parked on an expando, on `"4294967295"` (one past the last real index, and an
+  // ordinary string property), or behind an own `Symbol.iterator` that lies about the contents
+  // breaks this equality instead of slipping past. `Reflect.ownKeys` reads all of these perfectly
+  // well, so unlike the `Proxy` above this is a case the gate closes rather than concedes.
   assert.deepEqual(audit.arrayKeys, ["length"]);
 });
 
@@ -538,20 +564,6 @@ test("the corpus roots this gate claims to read all exist and all contribute", (
   // only loudly.
   assert.deepEqual(audit.missingRoots, []);
   assert.deepEqual(audit.thinRoots, []);
-});
-
-test("reflection and `walk` make the same number of visits", () => {
-  // Sound by construction — `auditNode` recurses on exactly the reflected edges, and the per-node
-  // comparison forces the two edge sets equal at each node, so equal visit counts follow by
-  // induction from the root. Asserted anyway: an argued invariant is one nobody re-checks.
-  //
-  // Both sides count *visits*, not distinct nodes. `walk` calls its visitor once per edge, so an
-  // aliased node — legitimately reachable by two fields and therefore listed twice — is visited
-  // twice. Comparing visits against a distinct-identity `Set` rejected exactly that legitimate case,
-  // which the #960 reviewer caught by aliasing `ValueOfKey.key` to `dictionary` *correctly*, with
-  // `childrenOf` still returning both edges. A gate that fails on valid input is worse than one that
-  // misses an invalid one.
-  assert.equal(audit.reflectedCount, audit.visitCount);
 });
 
 test("the corpus populates exactly the declared node-valued field paths", () => {
