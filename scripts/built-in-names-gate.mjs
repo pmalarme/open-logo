@@ -922,6 +922,22 @@ function readOrUndefined(io, path) {
 }
 
 /**
+ * `io.listStdlibFiles()`, or an empty list when the walk throws.
+ *
+ * The default port already catches inside {@link logoFilesUnder}, but `io` is injectable and the
+ * port boundary is where that guarantee has to hold: a throwing walk crashed the gate instead of
+ * producing the "defines no OpenLogo procedure" finding written for exactly that state. Empty is
+ * the honest answer — nothing was scanned — and the anti-vacuity clause turns it into a finding.
+ */
+function listStdlibOrEmpty(io) {
+  try {
+    return io.listStdlibFiles();
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The deliberate omissions, as data with reasons. Every one of them looks like an oversight to
  * anyone doing a "completeness" pass, which is exactly why the reasoning has to be machine-checked
  * rather than left in a comment.
@@ -1048,10 +1064,19 @@ export function carveOutFindings(manifest, io) {
  * kept the count non-zero while both sets were empty, so the countermeasure passed on exactly the
  * input it exists to reject. Nothing else in the gate would notice either, since every remaining
  * `stdlib` assertion is driven by manifest entries that would also be gone.
+ *
+ * **Read that guard as the floor it is: one procedure, not this library.** Replace the six geometry
+ * files with a single decoy that defines one procedure, and add a matching `library` carve-out, and
+ * the bijection holds again — this function proves *some* stdlib procedure exists and is declared,
+ * never that `polygon`/`star`/`circle`/`arc`/`area`/`perimeter` in particular do. That inventory is
+ * held elsewhere and deliberately not restated here: `tests/conformance/geometry/stdlib/
+ * source-drift.test.mjs` pins each procedure's source, `spec/examples/13-geometry-stdlib.logo` runs
+ * them, and the decoy route additionally requires an edit to `spec/built-in-names.json`, which is
+ * maintainer-owned through `CODEOWNERS`.
  */
 export function stdlibCarveOutFindings(manifest, io) {
   const findings = [];
-  const files = io.listStdlibFiles();
+  const files = listStdlibOrEmpty(io);
 
   const carvedOut = new Set(
     manifest.excluded
@@ -1196,7 +1221,7 @@ export function extractContextualKeywords(text) {
  * carve-out. That is a genuine implementation→manifest direction, not a restatement.
  */
 export function contextualCarveOutFindings(manifest, api, io) {
-  const declared = extractContextualKeywords(io.readText(GRAMMAR_PATH));
+  const declared = extractContextualKeywords(readOrUndefined(io, GRAMMAR_PATH));
   if (declared === null) {
     return [
       `${GRAMMAR_PATH}: could not derive the contextual keywords — one paragraph must enumerate them ("By contrast, … are **not** keywords and **not** built-in names.") AND close the set with a count that matches ("The contextual keywords are exactly these four"). A reworded, contradicted, or miscounted sentence leaves the carve-outs underived, which is a finding rather than a skip`,
@@ -1880,7 +1905,7 @@ export function runBuiltInNamesGate({
     .map((reason) => `${carveOutsByReason[reason]} ${reason}`)
     .join(" + ");
   lines.push(
-    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs (${carveOutSummary}) over ${io.listStdlibFiles().length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
+    `built-in-names: ${resolved.names.length} names, ${resolved.excluded.length} carve-outs (${carveOutSummary}) over ${listStdlibOrEmpty(io).length} ${STDLIB_DIR} file(s), ${Object.keys(resolved.registries).length} registries, spec version ${resolved.specVersion} — ${findings.length} finding(s)`,
   );
   if (unenumerable.length > 0) {
     lines.push(

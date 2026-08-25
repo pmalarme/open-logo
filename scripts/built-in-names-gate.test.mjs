@@ -727,6 +727,57 @@ test("a stdlib holding files but no procedure is the same finding", () => {
   );
 });
 
+test("a stdlib walk that throws is a finding, not a crash", () => {
+  // The port boundary is where the guarantee has to hold. `logoFilesUnder` catches internally, but
+  // `io` is injectable, so a throwing walk crashed the gate rather than producing the very
+  // "defines no OpenLogo procedure" finding written for a stdlib nothing could scan.
+  const io = {
+    ...REAL_IO,
+    listStdlibFiles: () => {
+      throw new Error("walker exploded");
+    },
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some((finding) =>
+      finding.startsWith(`${STDLIB_DIR}/ defines no OpenLogo procedure`),
+    ),
+    true,
+    result.findings.join("\n"),
+  );
+  // And the summary still renders, reporting the empty scan surface rather than throwing.
+  assert.equal(
+    result.lines.some((line) => line.includes(`over 0 ${STDLIB_DIR} file(s)`)),
+    true,
+    result.lines.join("\n"),
+  );
+});
+
+test("a spec/grammar.md that cannot be read is a finding, not a crash", () => {
+  // Same rule, other document: the "could not derive the contextual keywords" finding exists for
+  // exactly this state, so throwing past it would replace a worded finding with a stack trace.
+  // `extractContextualKeywords` already answers `null` for non-string input, so the existing path
+  // takes over with no new branch.
+  //
+  // Asserted on `contextualCarveOutFindings` rather than the whole gate because `proseFindings`
+  // reads the same document through its own unguarded call, predating this slice. Widening that is
+  // outside this slice's write-set and is reported to @orchestrator rather than fixed here; what
+  // this pins is that the check this slice ADDED does not crash.
+  const findings = contextualCarveOutFindings(REAL_MANIFEST, realParserApi, {
+    ...REAL_IO,
+    readText: () => {
+      throw new Error("EACCES");
+    },
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(
+    findings[0].includes("could not derive the contextual keywords"),
+    true,
+    findings.join("\n"),
+  );
+});
+
 test("a stdlib file that cannot be read is a finding, not a crash", () => {
   // `logoFilesUnder` catches so "the library is gone" arrives as a finding; every per-file read has
   // to do the same, or a permissions change or a broken symlink throws out of the gate and reads
