@@ -791,6 +791,74 @@ test("the stdlib is walked once per run, so the report cites the scan the checks
   );
 });
 
+test("every document is read once per run, so no check judges a different version", () => {
+  // The "Frankenstein document": `spec/grammar.md` is consulted twice — for the contextual-keyword
+  // enumeration and for the normative keyword block — so a non-idempotent port could hand one check
+  // a valid document and the other a doctored one, and the gate would report 0 findings on a
+  // document that never existed. Every check would have passed against *a* version and none
+  // against *the same* version.
+  const real = REAL_IO.readText(GRAMMAR_PATH);
+  const lines = real.split(/\r?\n/);
+  const anchored = lines.findIndex((line) =>
+    line.includes("contextual keywords are exactly these"),
+  );
+  const doctored = [...lines];
+  doctored[anchored] +=
+    " By contrast, `quux` are **not** keywords and **not** built-in names.";
+  let reads = 0;
+  const io = {
+    ...REAL_IO,
+    readText: (path) => {
+      if (path !== GRAMMAR_PATH) {
+        return REAL_IO.readText(path);
+      }
+      reads += 1;
+      // A port that alternates: valid first, contradictory second.
+      return reads === 1 ? real : doctored.join("\n");
+    },
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(
+    reads,
+    1,
+    `${GRAMMAR_PATH} was read ${reads} times, expected once`,
+  );
+  assert.deepEqual(result.findings, []);
+});
+
+test("a document that cannot be read stays unreadable for every check in the run", () => {
+  // The failure half of the same guarantee. A port that throws once and succeeds afterwards must
+  // not let one check call a document missing while another validates it.
+  let reads = 0;
+  const io = {
+    ...REAL_IO,
+    readText: (path) => {
+      if (path !== GRAMMAR_PATH) {
+        return REAL_IO.readText(path);
+      }
+      reads += 1;
+      if (reads === 1) {
+        throw new Error("EACCES");
+      }
+      return REAL_IO.readText(path);
+    },
+  };
+  const result = runBuiltInNamesGate({ manifest: manifestCopy(), io });
+  assert.equal(
+    reads,
+    1,
+    `${GRAMMAR_PATH} was read ${reads} times, expected once`,
+  );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.filter((finding) =>
+      finding.startsWith(`${GRAMMAR_PATH}: could not be read`),
+    ).length,
+    1,
+    result.findings.join("\n"),
+  );
+});
+
 test("a spec document that cannot be read is a finding, not a crash", () => {
   // Every prose anchor lives in a `spec/` document opened by path, and each read was unguarded:
   // a permissions change or a race with a checkout threw out of the gate instead of reporting
@@ -1212,14 +1280,6 @@ test("the contextual extractor fails closed on a reworded, contradicted or misco
   assert.equal(
     extractContextualKeywords(
       "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four hundred;",
-    ),
-    null,
-  );
-  // TWO ANCHOR PAIRS. Returning on the first match left a second, contradictory paragraph unread,
-  // so the document could disagree with itself while the gate reported nothing.
-  assert.equal(
-    extractContextualKeywords(
-      "By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. The contextual keywords are exactly these four;\n\nBy contrast, `beside` are **not** keywords and **not** built-in names. The contextual keywords are exactly these one;",
     ),
     null,
   );

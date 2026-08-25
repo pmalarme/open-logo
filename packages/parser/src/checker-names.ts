@@ -7,14 +7,14 @@
  * ("MUST use the active conformance profile set when deciding which primitives and profile
  * block-heads are available"), never a hardcoded "every optional profile active".
  *
- * **Nothing here enumerates profiles or names by hand.** Both exports below go through
+ * **The name universes are derived, with two explicit exceptions.** Both exports below go through
  * {@link profileContributedNames}, which sweeps the profile-keyed registries — `signatures.ts`'s
  * `PROFILE_PRIMITIVES` and `keywords.ts`'s `OL_PROFILE_KEYWORDS` — so a profile that gains a table
- * is covered the moment it lands. Two things are named explicitly rather than derived, and both are
- * claims rather than omissions: Core's profile-independent {@link OL_KEYWORDS}, which by definition
- * cannot come from a profile-keyed table, and the one-entry
- * {@link NAMES_AWAITING_AN_EVALUATOR} exception. Neither grows when a profile is added, which is
- * the property a spread ladder cannot have.
+ * is covered the moment it lands, and **no profile and no name is enumerated by hand**. Exactly two
+ * things are named here rather than derived, and both are claims rather than omissions: Core's
+ * profile-independent {@link OL_KEYWORDS}, which by definition cannot come from a profile-keyed
+ * table, and the one-entry {@link NAMES_AWAITING_AN_EVALUATOR} withholding. Neither grows when a
+ * profile is added, which is the property a spread ladder cannot have.
  *
  * That is issue #966's subject: this module previously kept a
  * spread ladder *and* a nine-branch profile chain, both hand-extended one slice at a time, and the
@@ -188,11 +188,12 @@ export function namesAwaitingAnEvaluator(): readonly string[] {
  * that the registry cannot answer. This is where this set and {@link isOptionalProfileName}'s
  * legitimately differ: both read the same profile registries, and only *callability* is filtered.
  *
- * Two things a *program* declares are added unconditionally, because they are not profile-owned at
- * all: every `define`d procedure, and — when `"data"` is active — every `struct` type's constructor
- * name, mirroring `@openlogo/runtime`'s phase-1 `collectStructs`. Declaration order and position do
- * not matter: OpenLogo procedures are available program-wide, not just after their `define`, and the
- * same is true of struct constructors.
+ * Two things a *program* declares are added on top, and they carry different gates. Every `define`d
+ * procedure is added **unconditionally** — procedures are not profile-owned, and declaration order
+ * and position do not matter, since OpenLogo procedures are available program-wide rather than only
+ * after their `define`. Every `struct` type's constructor name is added **only when `"data"` is
+ * active**, because `struct` is that profile's form; it mirrors `@openlogo/runtime`'s phase-1
+ * `collectStructs`, and it registers program-wide exactly as a procedure does.
  */
 export function collectVisibleNames(
   program: ProgramNode,

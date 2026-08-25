@@ -938,6 +938,42 @@ function listStdlibOrEmpty(io) {
 }
 
 /**
+ * `io` with every document read **at most once per run**, success or failure alike.
+ *
+ * Several checks read the same `spec/` document — `spec/grammar.md` is consulted both for the
+ * contextual-keyword enumeration and for the normative keyword block — and each read went to the
+ * port separately. A non-idempotent port could therefore hand one check a document with a valid
+ * keyword block and another a document declaring a fifth contextual keyword, and the gate would
+ * report `0 finding(s)` on a Frankenstein document that never existed: every check passed against
+ * *a* version, none against *the same* version.
+ *
+ * That is the same defect as walking `stdlib/` twice, one layer up, and it is worth closing at the
+ * port rather than at each call site: a future check that reads a document a third time inherits
+ * the guarantee instead of having to remember it. A thrown read is cached too, so a port that fails
+ * once and succeeds later cannot make two checks disagree about whether a document is readable.
+ */
+function oneReadPerDocument(io) {
+  const cache = new Map();
+  return {
+    ...io,
+    readText: (path) => {
+      if (!cache.has(path)) {
+        try {
+          cache.set(path, { text: io.readText(path) });
+        } catch (error) {
+          cache.set(path, { error });
+        }
+      }
+      const entry = cache.get(path);
+      if (Object.hasOwn(entry, "error")) {
+        throw entry.error;
+      }
+      return entry.text;
+    },
+  };
+}
+
+/**
  * `path`'s text, or `undefined` after recording a finding that names the document.
  *
  * Every prose anchor this gate reads lives in a `spec/` document it opens by path, and each of
@@ -1903,8 +1939,10 @@ export function runBuiltInNamesGate({
   manifestPath = MANIFEST_PATH,
   manifest,
   api = parserApi,
-  io = REAL_IO,
+  io: rawIo = REAL_IO,
 } = {}) {
+  // Every document this run reads is read once, so all checks judge the same bytes.
+  const io = oneReadPerDocument(rawIo);
   const lines = [];
   let resolved = manifest;
   if (resolved === undefined) {
