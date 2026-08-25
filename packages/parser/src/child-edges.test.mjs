@@ -155,6 +155,39 @@ const POPULATED_FIELD_PATHS = [
 
 const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(value.kind);
 
+/**
+ * Every `typeof` the traversal expects to meet in a node's fields, as a whole set.
+ *
+ * `object` covers nodes, wrapper objects, arrays, spans and `null`; the rest are leaf field values —
+ * names, numbers, flags, and absent optional fields. Notably **not** `function`: the reviewer of
+ * #960 hid a real `Call` node on a function-valued field, which the object test returns past as a
+ * childless leaf, so it was classified and enumerated by nothing at all.
+ *
+ * This list was predicted and then confirmed by the assertion below, which is what makes it a
+ * measurement rather than a guess: it is compared as a whole set, so an unanticipated container
+ * class fails here rather than being skipped.
+ */
+const EXPECTED_VALUE_TYPES = [
+  "boolean",
+  "number",
+  "object",
+  "string",
+  "undefined",
+];
+
+/**
+ * True when `descriptor` is a **data** descriptor whose value is a node.
+ *
+ * Reads the value off the descriptor rather than off the object, so an accessor is never invoked —
+ * which matters here because `Object.prototype.__proto__` is one, and triggering it would be the
+ * gate doing the very thing it forbids everywhere else.
+ */
+const descriptorHoldsWalkableNode = (descriptor) =>
+  Object.hasOwn(descriptor, "value") &&
+  typeof descriptor.value === "object" &&
+  descriptor.value !== null &&
+  isWalkableNode(descriptor.value);
+
 /** Orders two nodes by where they start in the source. */
 const bySourcePosition = (left, right) =>
   left.source_span.start[0] - right.source_span.start[0] ||
@@ -282,7 +315,32 @@ const isIndexKey = (key) =>
  * would surface as an unexpected entry in `shapes` or `foreignShapes` rather than passing silently.
  */
 function edgesUnder(value, path, seen, out) {
+  // Recorded for **every** value, before any branch, and compared as a whole set. This is what
+  // catches a container class the branches below do not have a case for — the #960 reviewer hid a
+  // real `Call` node on a **function**-valued field, which `typeof value !== "object"` returns past
+  // as a childless leaf, so it was classified by nothing, enumerated by nothing, and invisible to
+  // `childrenOf`, to `walk` and to all eight assertions at once.
+  //
+  // A `typeof value === "function"` branch would have been the obvious fix and is the wrong one
+  // twice over: it is a recording arm no green tree ever executes, which is the dead-code defect
+  // this file rejects everywhere else, and it closes exactly one container while leaving the next
+  // unnamed one open — the per-container blind spot, for the sixth time. Recording the type of
+  // every value unconditionally has neither property: nothing is dead, and a container class nobody
+  // anticipated breaks the equality rather than being silently skipped.
+  //
+  // Descending a function would be worse than rejecting it: `fieldsOf` would reach `prototype`,
+  // whose `constructor` points back, and recurse forever.
+  seen.valueTypes.add(typeof value);
   if (Array.isArray(value)) {
+    // Descriptors are snapshotted *first*, before `Object.prototype.toString` consults
+    // `Symbol.toStringTag` and before any other property is read. Ordering is load-bearing, not
+    // stylistic: the #960 reviewer wrote a getter that, when read, deleted a sibling field holding a
+    // real node and replaced itself with a plain data property. Every read is a chance for the
+    // subject to change, so the audit records what is there before it touches anything.
+    const fields = fieldsOf(value, path);
+    for (const field of fields) {
+      seen.descriptorKinds.add(descriptorKindOf(field));
+    }
     // Read by own key, not by iteration. `for…of` goes through `Symbol.iterator`, which an array
     // subclass or an own property can override to report contents that are not there — and it reads
     // an index through its getter, which this gate refuses to do for object fields for the same
@@ -291,10 +349,6 @@ function edgesUnder(value, path, seen, out) {
     // `Symbol.iterator` breaks the equality instead of slipping past a recogniser. Each of those hid
     // a node from an earlier version of this file with the gate fully green.
     seen.shapes.add(shapeNameOf(value));
-    const fields = fieldsOf(value, path);
-    for (const field of fields) {
-      seen.descriptorKinds.add(descriptorKindOf(field));
-    }
     for (const field of fields.filter(isNonIndexField)) {
       seen.arrayKeys.add(keyOfField(field));
     }
@@ -306,6 +360,12 @@ function edgesUnder(value, path, seen, out) {
   if (typeof value !== "object" || value === null) {
     return out;
   }
+  // Same ordering rule as the array branch above: snapshot the descriptors before classifying, so a
+  // `kind` accessor is recorded as one even if reading it would erase the evidence.
+  const fields = fieldsOf(value, path);
+  for (const field of fields) {
+    seen.descriptorKinds.add(descriptorKindOf(field));
+  }
   if (isWalkableNode(value)) {
     out.push([path, value]);
     return out;
@@ -314,10 +374,6 @@ function edgesUnder(value, path, seen, out) {
     seen.foreignShapes.add(value.kind);
   }
   seen.shapes.add(shapeNameOf(value));
-  const fields = fieldsOf(value, path);
-  for (const field of fields) {
-    seen.descriptorKinds.add(descriptorKindOf(field));
-  }
   for (const field of fields.filter(isDataField)) {
     edgesUnder(field[1].value, pathOfField(field), seen, out);
   }
@@ -331,14 +387,20 @@ function edgesUnder(value, path, seen, out) {
  * version of this gate was defeated.
  */
 function reflectedEdgesOf(node, seen) {
-  seen.shapes.add(shapeNameOf(node));
-  const edges = [];
-  const fields = fieldsOf(node, node.kind);
+  // Own descriptors before **any** property read, for the reason given in `edgesUnder`: a
+  // self-erasing accessor cannot be recorded by an audit that has already triggered it. That
+  // includes `node.kind`, which is itself a property — an earlier version read it to build the path
+  // prefix, `fieldsOf(node, node.kind)`, and so triggered the very getter it was about to classify.
+  // The prefix is applied after the snapshot instead.
+  const fields = fieldsOf(node, "");
   for (const field of fields) {
     seen.descriptorKinds.add(descriptorKindOf(field));
   }
+  seen.shapes.add(shapeNameOf(node));
+  const kind = node.kind;
+  const edges = [];
   for (const field of fields.filter(isDataField)) {
-    edgesUnder(field[1].value, pathOfField(field), seen, edges);
+    edgesUnder(field[1].value, `${kind}${pathOfField(field)}`, seen, edges);
   }
   return edges;
 }
@@ -358,6 +420,7 @@ function auditTheCorpus() {
     foreignShapes: new Set(),
     shapes: new Set(),
     descriptorKinds: new Set(),
+    valueTypes: new Set(),
     arrayKeys: new Set(),
   };
   const populated = new Set();
@@ -436,6 +499,13 @@ function auditTheCorpus() {
     }
     fileCount += 1;
     filesPerRoot.set(root, filesPerRoot.get(root) + 1);
+    // Reflection runs **first**, before `walk` is invoked at all. Ordering is load-bearing: the
+    // #960 reviewer wrote a `walk` that removed a child from the tree as it went, and because
+    // reflection ran afterwards it observed the already-truncated tree and agreed with it. The
+    // subject cannot be allowed to edit the evidence before the auditor reads it — the same reason
+    // descriptors are snapshotted before any property read in `edgesUnder`.
+    const reflectedNodes = [];
+    auditNode(ast, reflectedNodes);
     const walked = new Set();
     const walkVisits = [];
     walk(ast, (node) => {
@@ -446,8 +516,6 @@ function auditTheCorpus() {
     for (const node of walked) {
       kindsSeen.add(kindOf(node));
     }
-    const reflectedNodes = [];
-    auditNode(ast, reflectedNodes);
     // `walk` retained as the integration check: the per-node comparison above proves each child list
     // is right, and this proves `walk` actually descends them — **in the order it promises**. The
     // sequences are compared as ordered identity sequences, not as sets, not as counts, and not as
@@ -488,16 +556,42 @@ function auditTheCorpus() {
   }
   // Visited unconditionally. An earlier version guarded each root with `existsSync` and collected
   // the missing ones for a named assertion, which put a filter arm here that can only execute on a
-  // run that is already red -- the same dead-on-green claim the comment three lines above condemns,
-  // and the opposite of what the sibling gate in this diff does with its own `existsSync` guard.
-  // Two files in one change answering one question two ways is worse than either answer, so this
-  // one was deleted rather than argued: a missing root now throws `ENOENT` and names itself, and
-  // the per-root floor below is what catches a root that exists but has stopped contributing.
+  // run that is already red -- the same dead-on-green claim the comment three lines above condemns.
+  // The sibling gate `execute-declaration-slots.test.mjs` had reached the opposite answer in this
+  // same change, and two files in one diff answering one question two ways is worse than either
+  // answer, so this one was deleted rather than argued: a missing root now throws `ENOENT` and names
+  // itself, and the per-root floor below is what catches a root that exists but has collapsed.
   for (const root of roots) {
     visit(root, root);
   }
 
+  // `shapeNameOf` proves every value descended into has *exactly* one of these two prototypes. That
+  // is what rejects a class instance or an array subclass — and it says nothing about what the
+  // canonical prototypes themselves hold. The #960 reviewer installed a real `Call` node on
+  // `Array.prototype` and declared an inherited field of that type: every array kept its expected
+  // prototype, every own-key check passed, and the node was unreachable by both `childrenOf` and
+  // `walk` with the gate green. Exact identity matching cannot see it, because the identity is
+  // correct; what changed is the thing being pointed at.
+  //
+  // Rows are built for every own property of both prototypes and filtered afterwards, rather than
+  // filtered then projected, so nothing here is a path that only a broken tree evaluates. Descriptor
+  // values are read from the descriptor, so `Object.prototype.__proto__` — an accessor — is never
+  // invoked. These two prototypes are the entire inherited surface: the assertions alongside pin the
+  // chain above them, so there is no third prototype to check.
+  const canonicalPrototypeFields = [
+    ["Object.prototype", Object.prototype],
+    ["Array.prototype", Array.prototype],
+  ].flatMap(([name, prototype]) =>
+    Reflect.ownKeys(prototype).map((key) => ({
+      at: `${name}.${String(key)}`,
+      holdsNode: descriptorHoldsWalkableNode(
+        Object.getOwnPropertyDescriptor(prototype, key),
+      ),
+    })),
+  );
+
   return {
+    prototypeNodes: canonicalPrototypeFields.filter((row) => row.holdsNode),
     mismatchedChildLists: childListRows.filter(
       (row) => row.reflected !== row.returned,
     ),
@@ -509,6 +603,7 @@ function auditTheCorpus() {
     foreignShapes: [...seen.foreignShapes].sort(),
     shapes: [...seen.shapes].sort(),
     descriptorKinds: [...seen.descriptorKinds].sort(),
+    valueTypes: [...seen.valueTypes].sort(),
     arrayKeys: [...seen.arrayKeys].sort(),
     thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
     populated: [...populated].sort(),
@@ -592,6 +687,25 @@ test("reflection reads every own key of the shapes it descends", () => {
   // breaks this equality instead of slipping past. `Reflect.ownKeys` reads all of these perfectly
   // well, so unlike the `Proxy` above this is a case the gate closes rather than concedes.
   assert.deepEqual(audit.arrayKeys, ["length"]);
+  // And every value the traversal met was one of the types it has a case for. A container class the
+  // branches do not name — the reviewer used a **function**, which `typeof value !== "object"`
+  // returns past as a childless leaf — is otherwise classified by nothing and enumerated by
+  // nothing. Recorded unconditionally rather than as a `typeof === "function"` branch, which would
+  // be a recording arm no green tree executes and would close one container while leaving the next
+  // unnamed one open.
+  assert.deepEqual(audit.valueTypes, EXPECTED_VALUE_TYPES);
+  // And the two canonical prototypes hold no node themselves. Asserting that every value *has*
+  // `Object.prototype` or `Array.prototype` says nothing about what those objects contain — the
+  // #960 reviewer parked a real `Call` on `Array.prototype` and declared an inherited field of that
+  // type, leaving every array's prototype identity correct, every own-key check satisfied, and the
+  // node unreachable by `childrenOf` and `walk` with the gate green. Exact identity matching cannot
+  // see it, because the identity is not what changed.
+  assert.deepEqual(audit.prototypeNodes, []);
+  // Which is only exhaustive if these two are the whole inherited surface, so pin the chain above
+  // them rather than assuming it. Without this, re-pointing `Array.prototype`'s own prototype at a
+  // node-bearing object would reopen the gap one level higher.
+  assert.equal(Object.getPrototypeOf(Array.prototype), Object.prototype);
+  assert.equal(Object.getPrototypeOf(Object.prototype), null);
 });
 
 test("every corpus root this gate claims to read still contributes files", () => {

@@ -354,8 +354,9 @@ function everyBlockSlotInTheCorpus() {
   // below is `required \ covered === []`, so a *smaller* `required` passes more easily. A construct
   // whose only fixtures lived in the vanished root would silently stop being derived and this test
   // would go green while proving strictly less. The `required.size >= coveredBlockSlots.size` floor
-  // is not protection: each of today's roots independently exhibits all the covered slots, so any
-  // one of them can disappear with the floor still satisfied (measured on #960). Without the guard a
+  // is not protection: `tests/conformance` alone exhibits all ten covered slots (the other two roots
+  // exhibit 7 and 3, measured on #960), so dropping either of the smaller roots leaves the union
+  // unchanged and the floor satisfied. Without the guard a
   // missing root throws `ENOENT` and names itself; `thinRoots` catches a root that still exists but
   // has collapsed. It does not catch a root that has merely shrunk — measured on #960, this root set
   // can lose 68% of its non-conformance files with this gate green — because the alternative is a
@@ -537,7 +538,10 @@ test("the wrapper axis COVERS every block-bearing slot the grammar actually has"
   const { slots: required, thinRoots } = everyBlockSlotInTheCorpus();
   // A root that still exists but has been emptied shrinks `required` exactly as a missing one
   // would, and the floor below cannot see it: `tests/conformance` saturates every slot on its own,
-  // so the other roots keep it satisfied. A floor, not a census -- a root may shrink, but loudly.
+  // so the other roots keep it satisfied. `thinRoots` catches a root that has *collapsed*; it does
+  // not catch one that has merely shrunk, and saying otherwise overstates it — measured on #960,
+  // this root set can lose 68% of its non-conformance files with this gate green. A floor rather
+  // than a census, because a census asserts a count nothing re-derives.
   assert.deepEqual(thinRoots, [], "every corpus root must contribute files");
   // The floor is derived from the wrapper map's own distinct slots, not a literal — a hand-written
   // `>= 10` is the last remaining second source of truth in a file that spent a round removing them,
