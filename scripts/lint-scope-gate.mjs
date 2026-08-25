@@ -110,11 +110,13 @@
 //     direction A reports it as unlinted. Verified in review; stated here because "the sets move
 //     together" is true of only one of the two cases.
 //
-// The remaining door this gate does not watch is a `// biome-ignore-all lint: <reason>` comment at
-// the top of a file, which suppresses the whole file from inside it. It is out of scope here
-// because it is *already* the spelling #978 asks for — an explicit, in-file, reason-carrying
-// suppression that shows up in review — but it is named so nobody mistakes silence for coverage.
-// `git grep -n 'biome-ignore-all'` is the review check.
+// The remaining door this gate does not watch is an in-file suppression comment —
+// `// biome-ignore-all lint: <reason>` for a whole file, or a
+// `// biome-ignore-start` … `// biome-ignore-end` range. Both are out of scope here because they
+// are *already* the spelling #978 asks for — an explicit, in-file, reason-carrying suppression that
+// shows up in review — but they are named so nobody mistakes silence for coverage.
+// `git grep -nE 'biome-ignore-(all|start)'` is the review check; an earlier version of this
+// paragraph named only `biome-ignore-all`, and review demonstrated the range form slipping past it.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -194,6 +196,15 @@ export function parseProcessedFiles(output) {
   }
   return processed;
 }
+
+/**
+ * The exact Biome invocation `npm run lint` performs. Exported and pinned by a test, because a
+ * suppression flag added here — `--skip=lint/suspicious/noSelfCompare`, say — silences a rule for
+ * the whole repository while every behavioural test still passes: such a test can only plant one
+ * diagnostic at a time, so it proves the runner reacts to *that* rule, never that no rule was
+ * skipped. The argv is a small, closed thing; assert it exactly rather than sampling its effects.
+ */
+export const BIOME_LINT_ARGS = Object.freeze(["lint", "."]);
 
 /** Resolve Biome's platform-independent JS entry point, so it runs under `process.execPath`. */
 export function resolveBiomeEntry() {
@@ -413,24 +424,35 @@ export function readConfig(path = CONFIG_FILE) {
 }
 
 /**
- * Every tracked Biome configuration file, root first. A **nested** config (`"root": false`) can
- * disable rules for a whole package while its files stay in the processed list, so auditing only
- * the root one leaves a door open that direction A cannot see — measured, not assumed: a
- * `packages/core/biome.json` with `rules.preset: "none"` left an earlier version of this gate green
- * while `packages/core` went unlinted.
+ * Every Biome configuration file **git knows about**, root first — tracked, plus
+ * untracked-but-not-ignored, exactly as {@link listSourceFiles} enumerates the corpus.
  *
- * Enumerated through git for the same reason the corpus is: it is the view that cannot be edited by
- * the thing being checked.
+ * A **nested** config (`"root": false`) can disable rules for a whole package while its files stay
+ * in the processed list, so auditing only the root one leaves a door open that direction A cannot
+ * see — measured, not assumed: a `packages/core/biome.json` with `rules.preset: "none"` left an
+ * earlier version of this gate green while `packages/core` went unlinted.
+ *
+ * The untracked half matters more here than it does for the corpus, and an earlier version of this
+ * function omitted it while claiming to enumerate "for the same reason the corpus is". Review
+ * defeated that with an **untracked** nested config plus three `.gitignore` lines: the files stayed
+ * in the processed list so direction A was blind, the ignore entries removed the incidental
+ * direction-B tell, and `npm run lint` exited 0 with a real diagnostic present. A configuration is
+ * strictly more powerful than a corpus member, so it cannot be enumerated through a weaker view.
  */
 export function listConfigFiles(cwd) {
-  const tracked = execFileSync("git", ["ls-files", "-z"], {
-    cwd,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split("\0")
-    .filter((path) => /(?:^|\/)biome\.jsonc?$/.test(path));
-  return [...new Set([CONFIG_FILE, ...tracked])].sort();
+  const enumerate = (args) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .split("\0")
+      .filter((path) => path !== "");
+  const known = [
+    ...enumerate(["ls-files", "-z"]),
+    ...enumerate(["ls-files", "--others", "--exclude-standard", "-z"]),
+  ].filter((path) => /(?:^|\/)biome\.jsonc?$/.test(path));
+  return [...new Set([CONFIG_FILE, ...known])].sort();
 }
 
 /**

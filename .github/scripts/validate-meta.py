@@ -66,6 +66,72 @@ def check_frontmatter(path):
     return errors
 
 
+def workflow_steps(document):
+    """Yield (job_name, job, step) for every step in a parsed workflow."""
+    for job_name, job in (document.get("jobs") or {}).items():
+        for step in job.get("steps") or []:
+            yield job_name, job, step
+
+
+def check_gate_wiring():
+    """Return errors for Definition-of-Done gates that CI does not run, or runs fail-open.
+
+    Two holes review found, both of which left every other check green (issue #978):
+
+      * `.github/workflows/ci.yml` could stop invoking `npm run -s lint` — swap it for a second
+        `format:check` and the required "Lint & format" job passes without linting anything.
+      * a `continue-on-error: true` on a gate job or step neuters it while its own self-tests still
+        pass, because those test the script, not whether anybody heeds its exit code.
+
+    A gate nothing invokes, or whose failure nothing heeds, is the same defect as a gate that checks
+    too little: a green signal certifying less than its name implies.
+    """
+    errors = []
+
+    # Every DoD script CI is expected to run, and the job it belongs to.
+    required = {
+        "build": "npm run -s build",
+        "typecheck": "npm run -s typecheck",
+        "lint": "npm run -s lint",
+        "format:check": "npm run -s format:check",
+        "test": "npm run -s test",
+        "conformance": "npm run -s conformance",
+        "examples": "npm run -s examples",
+        "built-in-names": "npm run -s built-in-names",
+        "spec-citations": "npm run -s spec-citations",
+        "coverage": "npm run -s coverage",
+    }
+    ci = load(".github/workflows/ci.yml")
+    ci_commands = {
+        line.strip()
+        for _job_name, _job, step in workflow_steps(ci)
+        for line in str(step.get("run", "")).splitlines()
+    }
+    for name, command in sorted(required.items()):
+        if command not in ci_commands:
+            errors.append(
+                f".github/workflows/ci.yml: no step runs `{command}`; the {name} gate would not "
+                f"run in CI even though every local check passes."
+            )
+
+    # No gate workflow may be fail-open. `continue-on-error` turns a red gate green.
+    for fp in sorted(glob.glob(".github/workflows/*.yml")):
+        document = load(fp)
+        for job_name, job in (document.get("jobs") or {}).items():
+            if job.get("continue-on-error") is True:
+                errors.append(
+                    f"{fp}: job `{job_name}` sets continue-on-error, so it cannot fail the build."
+                )
+            for step in job.get("steps") or []:
+                if step.get("continue-on-error") is True:
+                    label = step.get("name") or step.get("run") or step.get("uses") or "<step>"
+                    errors.append(
+                        f"{fp}: job `{job_name}` step `{str(label).splitlines()[0][:60]}` sets "
+                        f"continue-on-error, so its failure is ignored."
+                    )
+    return errors
+
+
 def main():
     errors = []
 
@@ -99,6 +165,9 @@ def main():
     # All workflows must parse.
     for fp in sorted(glob.glob(".github/workflows/*.yml")):
         load(fp)
+
+    # The gates must actually be invoked, and must be allowed to fail the build.
+    errors.extend(check_gate_wiring())
 
     # Every agent and skill playbook must carry a valid name/description frontmatter block.
     agent_files = sorted(glob.glob(".github/agents/*.agent.md"))

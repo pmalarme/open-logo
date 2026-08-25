@@ -10,7 +10,8 @@
 //   * The mutations run against the **real Biome binary** in **throwaway git repositories**, not
 //     against a fake. A fake proves the comparison logic; only a real run proves the gate is wired
 //     to the tool whose behaviour it is asserting.
-//   * `check-lint-scope.mjs` is **spawned as a subprocess** and both its exit codes are asserted.
+//   * `lint.mjs` — the `npm run lint` entry point — is **spawned as a subprocess** and both its exit
+//     codes are asserted.
 //     Its `process.exit(result.ok ? 0 : 1)` is the gate's entire kill switch, and the first round
 //     had nothing exercising it: replacing it with a constant `0` left every test green while
 //     `npm run lint` passed on a tree with 200 unlinted files.
@@ -24,6 +25,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  BIOME_LINT_ARGS,
   CONFIG_FILE,
   countNamedRuleCustomisations,
   extendsTargets,
@@ -75,6 +77,7 @@ function makeRepo({
   untracked = [],
   overrides,
   nestedConfigs = {},
+  untrackedNestedConfigs = {},
 }) {
   const directory = mkdtempSync(join(tmpdir(), "openlogo-lint-scope-"));
   const git = (...args) =>
@@ -105,6 +108,11 @@ function makeRepo({
     const relative = `${where}/${CONFIG_FILE}`;
     write(relative, JSON.stringify(nested));
     nestedPaths.push(relative);
+  }
+  // Deliberately NOT staged: review defeated the gate with an untracked nested config, and the test
+  // corpus mirrored that blind spot exactly — every nested-config fixture was tracked.
+  for (const [where, nested] of Object.entries(untrackedNestedConfigs)) {
+    write(`${where}/${CONFIG_FILE}`, JSON.stringify(nested));
   }
 
   for (const name of [...tracked, ...untracked]) {
@@ -513,6 +521,22 @@ test("INJECTED DRIFT: an extends chain longer than the hop budget is reported, n
   assert.match(result.lines.join("\n"), /more than 64 Biome configurations/);
 });
 
+test("the Biome invocation is exactly `lint .`, with no suppression flags", () => {
+  // A behavioural test can only plant one diagnostic at a time, so it proves the runner reacts to
+  // THAT rule — never that no rule was skipped. Review exploited exactly that gap with
+  // `--skip=lint/suspicious/noSelfCompare`, which the planted-`debugger` test could not see. The
+  // argv is small and closed, so assert it exactly.
+  assert.deepEqual([...BIOME_LINT_ARGS], ["lint", "."]);
+  assert.ok(
+    Object.isFrozen(BIOME_LINT_ARGS),
+    "the argv must be frozen so it cannot be mutated at run time",
+  );
+  // And the runner must use it rather than building its own.
+  const runner = readFileSync(LINT_RUNNER, "utf8");
+  assert.match(runner, /\.\.\.BIOME_LINT_ARGS/);
+  assert.doesNotMatch(runner, /--skip|--only/);
+});
+
 test("readConfig parses this repository's configuration, and yields null for an unreadable one", () => {
   assert.ok(Array.isArray(readConfig().files.includes));
   assert.equal(
@@ -673,6 +697,32 @@ test("INJECTED DRIFT: a nested biome.json unlints a package while its files stay
       },
     },
   });
+  const result = runLintScopeGate({ cwd: directory });
+  const report = result.lines.join("\n");
+  assert.equal(result.ok, false, report);
+  assert.match(report, /packages\/core\/biome\.json/);
+  assert.match(report, /every rule group/);
+});
+
+test("INJECTED DRIFT: an UNTRACKED nested biome.json is audited like a tracked one", () => {
+  // The hole review found: `listConfigFiles` enumerated tracked files only, while the corpus
+  // enumerates tracked AND untracked. The affected files stay in the processed list, so direction A
+  // is blind, and `npm run lint` exited 0 with a real diagnostic present. A configuration is
+  // strictly more powerful than a corpus member; it cannot be enumerated through a weaker view.
+  const directory = makeRepo({
+    includes: ["**/*.mjs"],
+    tracked: ["packages/core/src/values.test.mjs", "root.mjs"],
+    untrackedNestedConfigs: {
+      "packages/core": {
+        root: false,
+        linter: { enabled: true, rules: { preset: "none" } },
+      },
+    },
+  });
+  assert.ok(
+    listConfigFiles(directory).includes("packages/core/biome.json"),
+    "an untracked nested configuration must be enumerated",
+  );
   const result = runLintScopeGate({ cwd: directory });
   const report = result.lines.join("\n");
   assert.equal(result.ok, false, report);

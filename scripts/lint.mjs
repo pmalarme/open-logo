@@ -26,11 +26,17 @@
 
 import { spawnSync } from "node:child_process";
 
-import { resolveBiomeEntry, runLintScopeGate } from "./lint-scope-gate.mjs";
+import {
+  BIOME_LINT_ARGS,
+  resolveBiomeEntry,
+  runLintScopeGate,
+} from "./lint-scope-gate.mjs";
 
-const biome = spawnSync(process.execPath, [resolveBiomeEntry(), "lint", "."], {
-  stdio: "inherit",
-});
+const biome = spawnSync(
+  process.execPath,
+  [resolveBiomeEntry(), ...BIOME_LINT_ARGS],
+  { stdio: "inherit" },
+);
 
 const scope = runLintScopeGate();
 for (const line of scope.lines) {
