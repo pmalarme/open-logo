@@ -222,8 +222,8 @@ export interface NotBooleanErrorParams {
 
 /**
  * Params for an `ol-type` raised when a value that must be a whole number is not one
- * (`spec/execution-model.md:389-391` — TYPE is checked before RANGE). `operation` names the
- * primitive that raised it.
+ * (`spec/execution-model.md:389-391` fixes the TYPE-before-RANGE order for `repeat`, one of the
+ * callers). `operation` names the primitive that raised it.
  */
 export interface WholeNumberTypeErrorParams {
   readonly actual: string;

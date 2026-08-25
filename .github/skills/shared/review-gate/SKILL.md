@@ -93,7 +93,7 @@ in the same slice before the mechanical one held.
    below). Make it mechanical: **tag the SHA you dispatch, and dispatch the tag.** A tag names one
    commit; a branch name names whatever happens to be at its tip when the reviewer reads it, so a
    later push silently moves what is under review. **A freeze declaration is not a mechanism.** On
-   **#952** the declaration was unreliable **four times in ten rounds** and cost **three
+   **#952** (PR **#982**) the declaration was unreliable **four times in ten rounds** and cost **three
    reviewer-rounds of measurement budget on that slice alone** — measured and reported by the QA
    reviewer, not inferred. **Two of those four breaks happened because the author was applying
    orchestrator instructions promptly**, which is exactly why this has to be a mechanism and not a
@@ -163,8 +163,8 @@ which profiles, which artifacts, which runtime — and confirm the thing you cha
 set. Name the oracle you checked it against (`git ls-files '*.test.mjs'` for the coverage case). A
 reviewer meeting a fifth variant should recognise the shape rather than the instance.
 
-**This is discipline, not a gate.** Nothing in CI enforces it, and per AGENTS.md *"policies,
-instructions and hooks are guidance; only CI is the gate."* Claiming otherwise here would be the very
+**This is discipline, not a gate.** Nothing in CI enforces it, and per AGENTS.md *"Policies,
+instructions, and hooks are guidance; CI is the gate."* Claiming otherwise here would be the very
 defect the rule exists to prevent.
 
 ## The checklist

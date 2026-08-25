@@ -120,8 +120,7 @@ known-ungated surface. The reviewer-side counterpart is `shared/review-gate` ite
 don't re-read. The measurement itself has the same problem one level down — a green run can enumerate
 something other than what you changed — and its rule lives there too, as
 [`shared/review-gate`](../review-gate/SKILL.md)'s *"The instrument may be measuring something other
-than what you think"*. That is a pointer, not an eleventh entry: like this section, it is discipline,
-while every numbered item above is CI-enforced.
+than what you think"*. That is a pointer, not an eleventh entry: like this section, it is discipline.
 
 ## Three-tier governance ladder (Issue → Epic → Saga)
 

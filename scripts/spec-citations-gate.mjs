@@ -143,11 +143,14 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  *
  * The vocabulary is deliberately narrow, favouring precision over recall, because a false positive is
  * fatal in a gate with no tolerance. A bare `TODO` is excluded: it appears in generated config and in
- * suggestion templates, where it is a placeholder rather than a claim. The slice phrases are anchored
- * to a forward-looking verb for the same reason — bare "later slice" also matches prose *about* how
- * slices work ("later slices cite them as settled fact"), which claims nothing about pending work.
- * The cost is recall: "a later slice adds…" is missed. Mode 4 coverage is partial, and the gate says
- * so on every run.
+ * suggestion templates, where it is a placeholder rather than a claim. Anchoring a slice phrase to a
+ * forward-looking verb serves the same end — bare "later slice" also matches prose *about* how
+ * slices work ("later slices cite them as settled fact"), which claims nothing about pending work,
+ * and the cost is recall: "a later slice adds…" is missed. **Not every entry below is anchored**, so
+ * the list still fires on a counterfactual ("a future-slice `grid :spacing` overload would…") —
+ * prose that claims nothing pending. Issue #961 re-worded two such sites rather than name an issue
+ * for work nobody has planned; that, not a silent reword, is the disposition when this mis-fires.
+ * Mode 4 coverage is partial, and the gate says so on every run.
  */
 export const STATUS_CLAIM_PHRASES = Object.freeze([
   "not yet implemented",
