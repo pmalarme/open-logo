@@ -34,12 +34,16 @@
  * {@link RunController.deliverKey} reports **synchronously that this very press ran a handler**,
  * which it answers by comparing `on_key` invocation markers across that one delivery.
  *
- * Two exceptions follow directly from that, and both under-suppress rather than over-suppress:
- * - **a host that settles across event-loop turns** (the Worker one) cannot answer in time, so it
- *   reports `false` for every press and **nothing is suppressed there at all** — the documented
- *   #975 capability gap;
+ * Two exceptions follow directly from that, and neither over-suppresses:
+ * - **a host that settles across event-loop turns** (the Worker one) cannot confirm in time, so it
+ *   reports `false` for every press and **nothing is suppressed there at all**. The handler still
+ *   *runs* — this is a gap in confirmation, not in delivery — which is the documented #975 gap;
  * - **a program whose `on_key` key word is not a literal** reports `false` too, so the press is
  *   delivered and the handler fires, but the browser default stands.
+ *
+ * Both are *conservative*: the studio declines to intercept a key it cannot prove ran a handler.
+ * That is different in kind from a press past the program's last usable tick, where nothing ran and
+ * not suppressing is simply *exact*.
  *
  * The unit of the decision is the **individual press**, not the program: a program registering
  * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
@@ -149,13 +153,20 @@ export function suppressesBrowserDefault(keyWord: string): boolean {
 
 /**
  * Handle one `keydown` on the canvas: normalize it to an OpenLogo key word, deliver it, and suppress
- * the browser's own scrolling only if that press **ran a handler** and the key is one that would
- * otherwise scroll.
+ * the browser's own scrolling only on **synchronous confirmation** that the press ran a handler, for
+ * a key that would otherwise scroll.
  *
- * Reports the key word the press ran a handler for, or `null` when it ran none — a bare modifier, a
- * key no `on_key` names, a program with no `on_key` at all, a press past the program's last usable
- * tick, or any press under a host that settles across event-loop turns. Exported so the decision is
- * testable without a DOM.
+ * Reports the key word that confirmation names, or `null` when there is none. `null` covers two
+ * genuinely different situations, and conflating them is what this wording exists to avoid:
+ * - **Nothing ran, and that is known.** A bare modifier, a key no `on_key` names, a program with no
+ *   `on_key` at all, or a press past the program's last usable tick. Not suppressing is *exact*.
+ * - **Something may have run, but it cannot be confirmed in time.** Under a host that settles across
+ *   event-loop turns the handler does fire — measured, a Worker press reported `null` with
+ *   `preventDefault` never called while the program still printed `"hit"` — and a non-literal
+ *   `on_key` key word is unknowable before the run. Not suppressing is *conservative*: the studio
+ *   declines to intercept a key it cannot prove was the program's.
+ *
+ * Exported so the decision is testable without a DOM.
  */
 export function handleCanvasKeyDown(
   controller: RunController,
