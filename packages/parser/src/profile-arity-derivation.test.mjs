@@ -60,12 +60,14 @@ test("every registered primitive of every profile is arity-checked when its prof
   // Tutor's `challenge` is the one registered primitive with no checker visibility yet: it has no
   // runtime, and `checker-names.ts` deliberately withholds visibility from a name nothing can run,
   // so it is reported `ol-unknown-command` — alone, never alongside an arity finding. Asserting the
-  // exception as an exact set rather than a skip makes this sweep the tripwire for the ONE way the
-  // derivation can still degrade: `collectVisibleNames` is not yet derived from the same registry
-  // (it hand-writes a branch per profile), so a future profile registered in `PROFILE_PRIMITIVES`
-  // — which TypeScript forces — but not made visible there would silently fall back to
-  // `ol-unknown-command` instead of being arity-checked. That failure is graceful, not wrong, but
-  // it is not silent: its name lands in `notYetVisible` and this assertion fails naming it.
+  // exception as an exact set rather than a skip is what keeps a SECOND withheld name from being
+  // added unremarked. Since issue #966 `collectVisibleNames` is derived from the same profile-keyed
+  // registry, so a profile registered in `PROFILE_PRIMITIVES` — which TypeScript forces — is made
+  // visible with no edit there; what stays hand-written is the withholding itself
+  // (`namesAwaitingAnEvaluator()`), and this is the assertion that prices it. Note what neither
+  // this test nor any other in this package can detect: that Tutor's evaluator has SHIPPED and the
+  // entry is now stale. That is a fact about `@openlogo/runtime`, which the parser must not depend
+  // on, so retiring the entry is a human step.
   const notYetVisible = [];
   const openVariadics = [];
   let registered = 0;

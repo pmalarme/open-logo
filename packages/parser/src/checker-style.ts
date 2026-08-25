@@ -142,9 +142,8 @@ import type {
 } from "./ast.js";
 import { childrenOf, walk } from "./ast.js";
 import type { CheckProfile, CheckRule } from "./check.js";
+import { isBuiltInName } from "./built-in-names.js";
 import { producesValue } from "./checker-control-flow.js";
-import { OL_PROFILE_KEYWORDS, isKeyword } from "./keywords.js";
-import { heritageSurfaceSpellings, primitiveArity } from "./signatures.js";
 
 /** The `form` param {@link uselessValueRule} reports for each control-block kind it judges. */
 const CONTROL_FORM: Readonly<
@@ -317,63 +316,22 @@ export function equalityConfusionRule(
 const NAME_CASE_PATTERN = /^[a-z][a-z0-9_]*[?!]?$/;
 
 /**
- * Every conformance profile that contributes keywords, read straight off
- * {@link OL_PROFILE_KEYWORDS}'s own keys rather than named here, so a profile that registers
- * keywords later is consulted without editing this module (issue #854).
- */
-const KEYWORD_CONTRIBUTING_PROFILES: readonly string[] =
-  Object.keys(OL_PROFILE_KEYWORDS);
-
-/** {@link heritageSurfaceSpellings} as a lookup set, built once (issue #854). */
-const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
-  heritageSurfaceSpellings(),
-);
-
-/**
- * Is `name` a **built-in name** — the union `spec/grammar.md:414` defines as "exactly the keywords
- * listed above plus every primitive … so there is no second list to keep in step"? Matching
- * lowercases first, because OpenLogo identifiers are case-insensitive with lowercase canonical,
- * which is the whole premise of a *casing* lint.
+ * The casing lint's built-in-name question is **the shared predicate**, not a local composition.
  *
- * This is deliberately **three registry consultations, not a list** (issue #854, epic #900's
- * through-line: *no component enumerates built-in names by hand*). Before this, the rule matched
- * callees against a literal `CORE_CALLEE_NAMES` set, so `PRINT` was linted and `FORWARD`, `HOME`,
- * `PLAY`, `NEW_TURTLE` — every non-Core primitive a learner actually types first — were silent,
- * and keyword casing was gated on a hand-written table of *node kinds* that never listed `Assign`
- * or `ValueOfKey`, so `MAKE "x" 1` and `VALUE of :d for key "a"` were silent too. Each of the
- * three sources here is the same one its owning subsystem already fails closed on:
+ * It used to be one: `isKeyword` + `primitiveArity` + `heritageSurfaceSpellings`, with a comment
+ * conceding that it agreed with `built-in-names.ts` as "a fact about the registry, not a property
+ * either module guarantees", and deferring the narrowing to a corpus sweep that closed without
+ * doing it. Measured before the collapse (issue #965): the two agreed on all **148** names of the
+ * complete registry universe, but **13** of them — `bf bk bl cs fd ht lt pd pr pu rt se st` — were
+ * true on one side through alias resolution and on the other through the surface-spelling registry.
+ * Names that coincide through different legs are not names that correspond, and nothing compared
+ * them, so the agreement was an unenforced assertion inside the epic that forbids them.
  *
- * - {@link isKeyword} over {@link OL_KEYWORDS} plus every {@link OL_PROFILE_KEYWORDS} profile —
- *   the one registry the highlighter and the checker share (`parser.instructions.md` forbids
- *   forking it). The profile list is derived from the registry's own keys, so a profile that
- *   registers keywords later is picked up here with no edit.
- * - {@link primitiveArity} — the reader's single primitive lookup, which iterates
- *   `signatures.ts`'s `PROFILE_PRIMITIVE_ARITY_TABLES`. A new profile slice adds its arity table
- *   *there* (`signatures.ts` says so in as many words), and this rule absorbs it automatically —
- *   the same structural fix #885 applied to `NON_PRIMARY_NAMES`, whose first live test was #837's
- *   `mod`.
- * - {@link heritageSurfaceSpellings} — the enumerable definition of "a Heritage surface spelling"
- *   (short aliases + form heads + worded-form heads, issue #852). Heritage aliases carry no arity
- *   of their own, so {@link primitiveArity} cannot see them; this is the registry that does.
- *
- * The bound of this derivation is exactly "what the parser knows", and **that bound has already
- * been tested in flight**. When this rule was first written, the Tutor profile's `challenge`
- * (`spec/conformance.md`) was the one built-in name with no registry at all, so `CHALLENGE`
- * reported only `ol-unknown-command` and earned no casing warning. Issue #838 then registered
- * `TUTOR_PRIMITIVE_ARITY` in `signatures.ts`'s `PROFILE_PRIMITIVE_ARITY_TABLES` — and this rule
- * began covering `challenge` **with no edit here at all**, exactly as a derived set should. That is
- * the same absorption #885's `NON_PRIMARY_NAMES` demonstrated when #837 added `mod`, and it is the
- * property a hand-written list cannot have: the fix for the *next* profile is already written.
- *
- * A name no registry carries is still not silently *skipped* here — it is unknown to every parser
- * component alike, and `ol-unknown-command` says so.
- *
- * **This rule deliberately does not consume `built-in-names.ts`.** The third source above is
- * {@link heritageSurfaceSpellings}, which carries Heritage **form heads** as well as short aliases,
- * while `built-in-names.ts` reaches Heritage only through alias resolution. They agree — a fact
- * about the registry, not a property either module guarantees. Narrowing the three sources to one
- * is epic #900's endpoint and belongs with the corpus sweep in issue #842, not to a slice whose
- * subject is the declaration rule.
+ * `built-in-names.ts` now consults the surface-spelling registry itself, which was this rule's only
+ * substantive extra source, so there is nothing left for a second composition to carry. Everything
+ * the deleted block documented still holds and is documented there: the derivation is registry
+ * consultations rather than a list (issue #854), and its bound was tested in flight when issue #838
+ * registered `TUTOR_PRIMITIVE_ARITY` and this rule began covering `challenge` with no edit at all.
  *
  * Membership is **profile-independent on purpose** — see {@link nameCaseRule} for why. It is also
  * independent of what the program *declares*: `spec/grammar.md:363` is "a program may not declare
@@ -381,14 +339,6 @@ const HERITAGE_SURFACE_SPELLINGS: ReadonlySet<string> = new Set(
  * that could make `PRINT`'s casing stop mattering. A call to a name that is in no registry — an
  * ordinary user procedure — is left alone by construction, with no exemption needed.
  */
-function isBuiltInName(name: string): boolean {
-  const lower = name.toLowerCase();
-  return (
-    isKeyword(lower, KEYWORD_CONTRIBUTING_PROFILES) ||
-    primitiveArity(lower) !== undefined ||
-    HERITAGE_SURFACE_SPELLINGS.has(lower)
-  );
-}
 
 /** Build an `ol-style-name-case` at `name`'s own span. */
 function nameCaseDiagnostic(name: SpannedName): Diagnostic {

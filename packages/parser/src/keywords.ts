@@ -179,6 +179,22 @@ const PROFILE_KEYWORDS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
 );
 
 /**
+ * The keywords one conformance profile contributes, in registration order, or an empty list for a
+ * profile that contributes none — the enumerable counterpart of {@link isProfileKeyword}, read
+ * straight off {@link OL_PROFILE_KEYWORDS}.
+ *
+ * It exists so a consumer that must *list* a profile's reserved heads (the checker's visible-name
+ * model, `checker-names.ts`) reads them from the same profile-keyed registry that answers whether a
+ * word **is** one, instead of keeping a parallel per-profile table beside it. Core's keywords are
+ * deliberately not reachable here: {@link OL_KEYWORDS} is profile-independent by definition, and
+ * folding it in would make `isKeyword`'s profile gate — the paint axis `spec/tooling.md:30` asks
+ * for — answer `true` for a Core word under a profile that does not contribute it.
+ */
+export function profileKeywords(profile: string): readonly string[] {
+  return OL_PROFILE_KEYWORDS[profile as KeywordProfile] ?? [];
+}
+
+/**
  * Is `name` a keyword of one of the given `activeProfiles`? A word counts only when at least one
  * profile that contributes it is active — a Core-only caller (empty or Core-only `activeProfiles`)
  * never gets a match here. Matching is case-insensitive, like {@link isKeyword}.
