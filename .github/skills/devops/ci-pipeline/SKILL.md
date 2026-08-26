@@ -93,29 +93,19 @@ a hand-edited or stale lock file.
 
 ## Rules
 
-- **Guard code jobs** so the pipeline is green before any toolchain exists and activates
-  automatically once it lands. Detect the manifest in the always-on `meta` job (after checkout) and
-  gate code jobs on its output — **not** on `hashFiles()` in a job-level `if`, which evaluates before
-  checkout and is unreliable:
+- **Do not guard code jobs any more.** The pipeline once carried a `has_toolchain` output on the
+  always-on `meta` job so it could be green before any toolchain existed, and gated the code jobs on
+  it. `package.json` landed in M0, so that condition can no longer be false — a guard for a case
+  that cannot happen is **dead code in a gate**, i.e. an unenforced claim about an impossible state,
+  and it was also a live bypass: setting `has_toolchain=false` skipped every code gate while
+  `validate-meta.py` stayed green. It was deleted, and `PERMITTED_JOB_CONDITIONS` is now **empty**
+  — a job that runs a Definition-of-Done gate carries **no** job-level `if:` at all. Path-scoped
+  jobs that run no gate command (`studio-visual`, `codeql`) may still be conditional.
 
-  ```yaml
-  jobs:
-    meta:
-      outputs:
-        has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
-      steps:
-        - uses: actions/checkout@v4
-        - id: detect
-          run: |
-            if [ -f package.json ]; then
-              echo "has_toolchain=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
-            fi
-    build:
-      needs: meta
-      if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
-  ```
+  If you ever do need a computed condition, derive it in the always-on `meta` job **after checkout**
+  and never from `hashFiles()` in a job-level `if`, which evaluates before checkout and is
+  unreliable. Pin the value the condition reads, not just its text: review skipped every code gate
+  with `has_toolchain: ${{ 'false' }}` while the whitelisted condition string was untouched.
 - **No `--if-present`.** Once the toolchain lands, each DoD script (`build`, `typecheck`, `lint`,
   `format:check`, `test`, `conformance`, `examples`) MUST exist — call them plainly so a missing gate
   is a real failure, not a silent pass.
@@ -134,10 +124,9 @@ a hand-edited or stale lock file.
 2. Trigger on `pull_request` and `push` to `main`; set `permissions:` to least privilege.
 3. Make the new gate a **required check** (repo settings / branch protection) once it is stable.
 4. Keep the meta job always-on so docs/label/workflow drift is caught even pre-toolchain.
-
 ## Checklist
 - [ ] Each DoD item maps to a CI gate; names are clear.
-- [ ] Code jobs gated on the `meta` job's `has_toolchain` output; meta job always runs.
+- [ ] Gate jobs carry **no** job-level `if:` (`PERMITTED_JOB_CONDITIONS` is empty); the meta job always runs.
 - [ ] No `--if-present` — every DoD script is called plainly so a missing gate fails.
 - [ ] Conformance runs by profile along the DAG.
 - [ ] Actions pinned; permissions least-privilege; no bypass of review.

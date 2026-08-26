@@ -14,7 +14,6 @@ import contextlib
 import importlib.util
 import io
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -399,61 +398,41 @@ drift_config = yaml.safe_load(drift_workflow)
 # PyYAML parses the bare `on:` key as the boolean True.
 drift_triggers = drift_config.get("on", drift_config.get(True, {}))
 
+#: The COMPLETE `run:` scalars label-drift.yml must contain, matched exactly.
+#:
+#: Not a substring check, and not a shell tokeniser. Review defeated both in successive rounds — an
+#: `echo` prefix leaves every substring intact, and `|| true` or `if false; then … fi` survives
+#: tokenisation. Deciding "does this command actually run?" from arbitrary shell is undecidable in
+#: general, so the workflow carries no shell: each branch is its own step with an `if:` condition,
+#: and each `run:` is one exact command. An allow-list of exact scalars IS decidable.
+REQUIRED_DRIFT_COMMANDS = {
+    "python .github/scripts/validate-labels.py --live --proposed "
+    "--base=origin/${{ github.base_ref }}",
+    "python .github/scripts/validate-labels.py --live",
+}
 
-def shell_invocations(script):
-    """Every command in a `run:` block, as a list of argv-ish tokens with continuations joined.
-
-    Substring matching is not execution matching: review defeated the previous version by prefixing
-    the command with `echo`, which leaves every substring — `--live --proposed`, `--base=`, the
-    script path — intact while running nothing. So the workflow's `run:` block is tokenised and the
-    FIRST token of each command must be the interpreter, not a bystander.
-    """
-    joined = re.sub(r"\\\s*\n\s*", " ", script)
-    commands = []
-    for line in joined.splitlines():
-        stripped = line.strip()
-        if stripped == "" or stripped.startswith("#"):
-            continue
-        # Split on shell separators so `foo && bar` yields two commands.
-        for part in re.split(r"&&|\|\||;|\|", stripped):
-            tokens = part.split()
-            if tokens:
-                commands.append(tokens)
-    return commands
-
-
-drift_commands = [
-    tokens
+drift_runs = {
+    str(step.get("run", "")).strip()
     for job in (drift_config.get("jobs") or {}).values()
     for step in (job.get("steps") or [])
-    for tokens in shell_invocations(str(step.get("run", "")))
-]
-validate_invocations = [
-    tokens
-    for tokens in drift_commands
-    if tokens[0] in {"python", "python3"}
-    and any(token.endswith("validate-labels.py") for token in tokens[1:2])
-]
+    if step.get("run")
+}
 
-expect(
-    len(validate_invocations) >= 2,
-    f"label-drift.yml must EXECUTE validate-labels.py on both the pull-request and the non-PR "
-    f"path (interpreter as the first token, not merely mentioned); found {len(validate_invocations)}: "
-    f"{[' '.join(t) for t in drift_commands]}",
-)
-expect(
-    all("--live" in tokens for tokens in validate_invocations),
-    f"every validate-labels.py invocation in label-drift.yml must pass --live; got "
-    f"{[' '.join(t) for t in validate_invocations]}",
-)
-expect(
-    any("--proposed" in tokens for tokens in validate_invocations),
-    "the pull-request path must pass --proposed",
-)
-expect(
-    any(any(token.startswith("--base=") for token in tokens) for tokens in validate_invocations),
-    "the pull-request path must pass the PR's base so --proposed excuses only added labels",
-)
+for command in sorted(REQUIRED_DRIFT_COMMANDS):
+    expect(
+        command in drift_runs,
+        f"label-drift.yml must contain a step whose complete `run:` is exactly `{command}`. "
+        f"Found: {sorted(drift_runs)}",
+    )
+
+# ...and no step may wrap the gate in shell that could discard its exit code.
+for run in sorted(drift_runs):
+    if "validate-labels.py" in run:
+        expect(
+            run in REQUIRED_DRIFT_COMMANDS,
+            f"label-drift.yml runs validate-labels.py in a command that is not an exact approved "
+            f"scalar: `{run}`. Add a step per branch rather than shell control flow.",
+        )
 
 expect(
     ".github/workflows/label-drift.yml" in drift_triggers["pull_request"]["paths"],

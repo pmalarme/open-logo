@@ -1,0 +1,36 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+  },
+  // SCOPE IS NOT GUARDED. Narrowing these globs so `packages/**/*.mjs` stops being covered
+  // silently re-creates issue #978: every `*.test.mjs` under `packages/*/src/` was linted by
+  // nobody while `npm run coverage` demanded 100% of the same files, and Biome reported them as
+  // "explicitly ignored" with no rationale recorded anywhere. Nothing here currently FAILS if that
+  // happens again -- the gate that would make it impossible is issue #991 (Slice B). Until #991
+  // lands, this list is a convention, not a contract.
+  "files": {
+    "includes": [
+      "packages/**/*.ts",
+      "packages/**/*.mjs",
+      "scripts/**/*.mjs",
+      "tests/**/*.mjs",
+      "!**/dist",
+      "!**/web-dist",
+    ],
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+    },
+  },
+  "formatter": {
+    "enabled": false,
+  },
+  "assist": {
+    "enabled": false,
+  },
+}

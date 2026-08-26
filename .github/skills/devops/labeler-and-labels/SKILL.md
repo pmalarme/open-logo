@@ -72,8 +72,10 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
   `validate-labels.py` in CI therefore does not mean "no label drift"** — it means the mirrors
   agree. The script prints that caveat on every offline run rather than leaving it to this table.
 - **What re-checks it after promotion:** the daily `schedule` and the `workflow_run` after `Label
-  sync` both activate the moment this lands on `main`, and the first run reconciles whatever drifted
-  in the interim. Wiring `--live` into the per-PR job instead was considered and **not** taken: it
+  sync` both activate the moment this lands on `main`, and the first run **reports** whatever
+  drifted in the interim — it exits 1 and names the offenders; it never mutates labels, so someone
+  still has to grow the manifest or relabel. Wiring `--live` into the per-PR job instead was
+  considered and **not** taken: it
   needs a token, and it makes an unrelated PR go red because somebody else mislabelled an issue.
 - **Adding an `area:*` or `profile:*` label is a two-file change** — the manifest and
   `validate-commits.py`'s `AREAS`/`PROFILES` — and the gate is the half that fails until both land.

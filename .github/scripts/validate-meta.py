@@ -99,25 +99,65 @@ FAIL_OPEN_EXCEPTIONS = {
 }
 
 
-#: The Python metadata gates CI must run, alongside the npm ones derived from package.json. These
-#: have no npm script, so nothing derived them and `check_gate_wiring` did not require them — review
-#: deleted both offline label steps from `ci.yml` and the wiring guard stayed green.
-REQUIRED_PYTHON_GATES = (
-    "python .github/scripts/validate-meta.py",
-    "python .github/scripts/test-validate-meta.py",
-    "python .github/scripts/validate-labels.py",
-    "python .github/scripts/test-validate-labels.py",
-    "python .github/scripts/validate-lockfile-registry.py",
-    "python .github/scripts/test-validate-lockfile-registry.py",
-    "python .github/scripts/validate-workflow-lockfiles.py",
-    "python .github/scripts/test-validate-workflow-lockfiles.py",
-)
+#: Python metadata gates that legitimately run somewhere other than `ci.yml`, with the reason.
+#: A declared, reasoned exception — the same shape as FAIL_OPEN_EXCEPTIONS and labels-retired.yml —
+#: so a NEW script cannot quietly escape the requirement.
+PYTHON_GATE_EXCEPTIONS = {
+    "validate-commits.py": "runs in commitlint.yml, which lints the PR title and commit subjects",
+    "test-validate-commits.py": "self-test for validate-commits.py; runs in commitlint.yml",
+}
 
-#: The one job-level `if:` a gate job may carry: the toolchain guard every code job is gated on
-#: while the workspace manifest may be absent. Anything else can switch a gate off silently.
-PERMITTED_JOB_CONDITIONS = frozenset(
-    {"${{ needs.meta.outputs.has_toolchain == 'true' }}"}
-)
+
+def required_python_gates():
+    """The Python metadata gates `ci.yml` must run, **derived from disk**.
+
+    This used to be a hand-written tuple, and its self-test iterated over that same tuple — so
+    emptying it produced zero mutants and a vacuous pass, with the success line unchanged because
+    the printed count was static. That is issue #964's defect (`excluded = []` printed
+    `0 carve-outs` and exited 0), and worse: here the collapse to zero was invisible.
+
+    It is worse still in context, because the comment six lines below in `check_gate_wiring` says a
+    hand-written list "is an assertion nothing re-derives, which is this epic's own defect" — the
+    file stated the rule and then broke it. The npm half was always derived from `package.json` and
+    was always solid; only this half was hand-written, and that was the whole bug.
+
+    Now derived the same way: every `validate-*.py` / `test-validate-*.py` under `.github/scripts/`,
+    minus the declared exceptions. Adding a gate script requires no edit here; removing one from
+    `ci.yml` fails.
+    """
+    found = set()
+    for pattern in ("validate-*.py", "test-validate-*.py"):
+        for path in glob.glob(os.path.join(".github", "scripts", pattern)):
+            name = os.path.basename(path)
+            if name not in PYTHON_GATE_EXCEPTIONS:
+                found.add(f"python .github/scripts/{name}")
+    return sorted(found)
+
+#: Job-level conditions permitted on a job that runs a Definition-of-Done gate: **none**.
+#:
+#: There used to be one — `needs.meta.outputs.has_toolchain == 'true'`, guarding the code jobs while
+#: the workspace manifest might not exist yet. Review pointed out that pinning the condition's *text*
+#: while leaving the *value it reads* unpinned is the same defect one level down: forcing
+#: `has_toolchain=false` skipped every code gate and this guard still passed. The manifest has
+#: existed since M0, so the guard was dead code — a claim about a case that cannot happen — and it
+#: was deleted rather than pinned. An empty allow-list is both stronger and smaller: a gate job may
+#: not be conditional at all.
+PERMITTED_JOB_CONDITIONS = frozenset()
+
+
+def npm_gate_scripts():
+    """The npm Definition-of-Done gates, derived from `package.json` rather than restated.
+
+    `dev`, `clean`, `prepare`, `format` and the `pre*`/`post*` lifecycle hooks are not gates.
+    """
+    with open("package.json", encoding="utf-8") as handle:
+        scripts = (yaml.safe_load(handle) or {}).get("scripts", {})
+    not_gates = {"dev", "clean", "prepare", "format"}
+    return sorted(
+        name
+        for name in scripts
+        if name not in not_gates and not name.startswith(("pre", "post"))
+    )
 
 
 def check_gate_wiring():
@@ -137,20 +177,15 @@ def check_gate_wiring():
     """
     errors = []
 
-    # Every DoD script CI is expected to run, derived from package.json rather than restated here —
-    # a hand-written list is an assertion nothing re-derives, which is this epic's own defect.
-    # `dev`, `clean`, lifecycle hooks (`pre*`/`post*`) and workspace-only scripts are not gates.
-    with open("package.json", encoding="utf-8") as fh:
-        scripts = (yaml.safe_load(fh) or {}).get("scripts", {})
-    not_gates = {"dev", "clean", "prepare", "format"}
-    required = {
-        name: f"npm run -s {name}"
-        for name in scripts
-        if name not in not_gates and not name.startswith(("pre", "post"))
-    }
+    # Both halves are derived, never restated — a hand-written list is an assertion nothing
+    # re-derives, which is this epic's own defect. The npm half comes from package.json; the Python
+    # half from the scripts on disk. Review emptied a hand-written version of the latter and every
+    # check still passed, so this comment used to sit six lines above the rule it broke.
+    required = {name: f"npm run -s {name}" for name in npm_gate_scripts()}
     ci = load(".github/workflows/ci.yml")
-    gate_commands = set(required.values()) | set(REQUIRED_PYTHON_GATES)
-    for command in REQUIRED_PYTHON_GATES:
+    python_gates = required_python_gates()
+    gate_commands = set(required.values()) | set(python_gates)
+    for command in python_gates:
         required[command] = command
 
     ci_commands = set()
@@ -259,7 +294,9 @@ def main():
 
     print(f"meta validation passed: {len(label_names)} labels, "
           f"{len(glob.glob('.github/ISSUE_TEMPLATE/*.yml'))} issue forms, "
-          f"{len(agent_files)} agents, {len(skill_files)} skills checked")
+          f"{len(agent_files)} agents, {len(skill_files)} skills, "
+          f"{len(required_python_gates())} python gate(s) + "
+          f"{len(npm_gate_scripts())} npm gate(s) wired")
 
 
 if __name__ == "__main__":

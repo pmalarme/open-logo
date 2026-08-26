@@ -83,11 +83,16 @@ jobs:
         with:
           python-version: "3.x"
       - run: pip install pyyaml
-      - name: Compare the manifest against the repository, in both directions
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            python .github/scripts/validate-labels.py --live --proposed \
-              --base="origin/${{ github.base_ref }}"
-          else
-            python .github/scripts/validate-labels.py --live
-          fi
+      # Two steps with `if:` conditions rather than one `run:` containing shell control flow. The
+      # guard that asserts this workflow really executes the gate matches the COMPLETE `run:` scalar
+      # against an allow-list; it does not parse shell. Two rounds of review defeated parsing —
+      # first a substring check (beaten by an `echo` prefix), then a tokeniser (beaten by
+      # `|| true` and by `if false; then … fi`). Deciding "does this command run?" from arbitrary
+      # shell is undecidable in general, so the shell is removed instead of parsed: one scalar, one
+      # command, exact match.
+      - name: Compare the manifest against the repository (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: python .github/scripts/validate-labels.py --live --proposed --base=origin/${{ github.base_ref }}
+      - name: Compare the manifest against the repository
+        if: ${{ github.event_name != 'pull_request' }}
+        run: python .github/scripts/validate-labels.py --live

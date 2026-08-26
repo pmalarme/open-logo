@@ -24,29 +24,46 @@ suites these workflows run; you wire and secure them.
   `.github/scripts/validate-meta.py`, a `.github/scripts/validate-workflow-lockfiles.py` guard
   against orphaned `.md`/`.lock.yml` pairs — scoped to only the `.md` files gh-aw actually
   compiles (frontmatter opener + top-level `on:` trigger, matched exactly the way gh-aw matches
-  them), never a `README.md`, plain doc, import fragment, or subdirectory file — plus a `detect` step exposing `has_toolchain`), a path-scoped
+  them), never a `README.md`, plain doc, import fragment, or subdirectory file), a path-scoped
   **`workflows-compile`** job that recompiles every `gh-aw` agentic-workflow source
   with the pinned `gh-aw compile` and fails on any diff (issue #597 — see
   [ci-pipeline](../skills/devops/ci-pipeline/SKILL.md); rationale for adopting `gh-aw` itself,
   its guardrails, governance boundary, and kill-switch:
-  [ADR-0019](../../docs/adr/0019-adopt-agentic-workflows.md)), and **build/lint/test** jobs gated on
-  `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}` until the toolchain lands. Do **not** use
-  `hashFiles()` in a job-level `if` — it evaluates before checkout.
+  [ADR-0019](../../docs/adr/0019-adopt-agentic-workflows.md)). Do **not** use
+  `hashFiles()` in a job-level `if` — it evaluates before checkout. The **build/lint/test** jobs
+  used to be gated on `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}`; `package.json` has
+  existed since M0, so that condition could no longer be false and the guard was **dead code in a
+  gate** — a claim about a case that cannot happen. It was deleted, which is why **no** job-level
+  condition on a gate job is permitted any more (`PERMITTED_JOB_CONDITIONS` is empty).
 - **Gate wiring is itself gated.** `validate-meta.py`'s `check_gate_wiring` asserts that every
   Definition-of-Done gate — the npm scripts derived from `package.json` **and** the Python metadata
-  gates in `REQUIRED_PYTHON_GATES` — is invoked by an unconditional step in `ci.yml`, and that no
-  job or step in any workflow is fail-open or skippable. Five ways to silently disable a gate were
-  found in review (issue #978): swapping `npm run -s lint` for a second `format:check`;
-  `continue-on-error` in any spelling, including `${{ … }}` expressions; an `if:` on a gate **step**;
-  an `if:` on a gate **job** (which switched off the whole lint job while the guard stayed green —
-  only the `has_toolchain` condition in `PERMITTED_JOB_CONDITIONS` is allowed); and deleting the
-  Python gates, which had no npm script and so were never derived. A deliberate fail-open —
-  `dependency-review.yml` is advisory while the repo is private — is declared in
-  `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently.
-- **Assert execution, not text.** `test-validate-labels.py` tokenises `label-drift.yml`'s `run:`
-  blocks and requires the interpreter to be the **first token** of the command. Substring matching
-  was defeated by prefixing `echo`, which leaves `--live`, `--proposed` and the script path all
-  present while running nothing.
+  gates derived from `.github/scripts/{validate,test-validate}-*.py` — is invoked by an
+  unconditional step **in `ci.yml`**, and that no job or step in any workflow is fail-open or
+  skippable. Note the asymmetry deliberately: the *fail-open* sweep reads every workflow, but the
+  *wiring* half reads `ci.yml` only, so a gate deleted from another workflow (e.g.
+  `commitlint.yml`) is **not** detected — that is the current limit, not an oversight.
+  Six ways to silently disable a gate were found in review (issue #978): swapping
+  `npm run -s lint` for a second `format:check`; `continue-on-error` in any spelling, including
+  `${{ … }}` expressions; an `if:` on a gate **step**; an `if:` on a gate **job** (which switched
+  off the whole lint job while the guard stayed green); deleting the Python gates, which had no npm
+  script and so were never derived; and **emptying the inventory itself** — the Python set was once
+  a hand-written tuple whose self-test iterated over that same tuple, so clearing it produced zero
+  mutants and a vacuous pass (issue #964's defect). Both halves are now derived from disk, both
+  derived counts are printed so a collapse to zero is visible, and `test-validate-meta.py` holds an
+  **independent** expected list that the derivation, `package.json`, and `ci.yml` must all agree
+  with. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private — is
+  declared in `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently; the
+  two Python scripts that legitimately run outside `ci.yml` are declared the same way in
+  `PYTHON_GATE_EXCEPTIONS`.
+- **Match whole commands, not fragments.** `test-validate-labels.py` requires each `label-drift.yml`
+  `run:` scalar that mentions `validate-labels.py` to **equal** an approved command in
+  `REQUIRED_DRIFT_COMMANDS`. Two weaker versions were defeated: substring matching fell to prefixing
+  `echo`, and tokenising fell to `… || true` and `if false; then … fi`. Shell is Turing-complete, so
+  deciding "does this command actually run?" by parsing it is undecidable in general; an allow-list
+  of exact scalars is decidable. Conditional branches are therefore expressed as **separate steps
+  with `if:` conditions**, never as shell control flow inside one `run:`. This checks invocation
+  **shape** — that the workflow can only invoke the command in an approved form — it does not prove
+  the step is reached at runtime.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
   activates when `package.json` lands.
 - `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR. Needs the
