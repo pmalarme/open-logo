@@ -592,6 +592,48 @@ test("contextual: empty/member/of/a stay keyword when a newline separates them f
   }
 });
 
+test("contextual: a PARENTHESISED or multiline operand still reaches the is-predicate's word", () => {
+  // Regression, issue #959 review rounds 4-5. `markIsPredicateKeywords` stepped a fixed one token
+  // past `node.operand.source_span.end` to find `is`, but the operand's span is the INNER
+  // expression's — a parenthesised operand leaves its `)` in between, and a multiline one leaves
+  // newlines too. The scan landed on whichever came first, marked nothing, and painted the
+  // predicate's own word `primitive` in a position `spec/tooling.md:30` gives `keyword`.
+  //
+  // Every is-predicate form is covered, in both the single-line and the multiline shape, because
+  // the defect was in the shared scan rather than in any one form.
+  const classOf = (source, word) =>
+    OL.highlight(source, doc, { profiles: ALL_PROFILES }).find(
+      (token) => token.text === word,
+    )?.class;
+
+  for (const [source, word] of [
+    ['(value of :d for key "x") is empty', "empty"],
+    ["((:x)) is empty", "empty"],
+    ["(2) is member of :nums", "member"],
+    ['(:p) is a "point"', "a"],
+    ['(\n  value of :d for key "x"\n) is empty', "empty"],
+    ["(:x\n) is empty", "empty"],
+    ["(2\n) is member of :nums", "member"],
+    ['(\n  :p\n) is a "point"', "a"],
+    ['  (\n    value of :d for key "x"\n  ) is empty', "empty"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse cleanly for this to be a highlighting claim`,
+    );
+    assert.equal(classOf(source, word), "keyword", JSON.stringify(source));
+  }
+  // `is member of` marks two words, and the second is found by offset from the first — so the
+  // parenthesised form has to be checked for both.
+  assert.equal(classOf("(2) is member of :nums", "of"), "keyword");
+  assert.equal(classOf("(2\n) is member of :nums", "of"), "keyword");
+  // And the scan must not run past a real `is` onto something else: an unparenthesised operand is
+  // unchanged, and a word outside any predicate is still an ordinary name.
+  assert.equal(classOf("print :x is empty", "empty"), "keyword");
+  assert.equal(classOf("local empty", "empty"), "primitive");
+});
+
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
   // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
   // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are

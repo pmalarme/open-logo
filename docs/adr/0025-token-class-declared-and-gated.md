@@ -154,6 +154,13 @@ Stated because the mechanism it replaces failed three times by claiming more tha
   Concretely: the `keyword` token class is compared in both directions over the **flat** names, but
   a *contextual* word the implementation started painting and this file does not declare would not
   be detected.
+- **A profile rule keyed on a *conjunction* of two or more non-keyword profiles.** The sweep
+  enumerates every subset of the profiles that contribute keywords, and removes each remaining
+  profile **one at a time** from the otherwise-full set. That catches any dependency on a single
+  profile's presence or absence, which is what a real gating bug looks like. It does not enumerate
+  the full product — twelve profiles is 4096 sets and the gate re-paints nine probes per set per
+  name — so a highlighter wrong only when, say, Sound is present *and* Modules is absent *and*
+  Geometry is absent would pass. Measured: a two-profile conjunction mutant returns no findings.
 - **The gate's own position vocabulary.** `CONTEXTUAL_POSITION_NODE_KINDS` and
   `CONTEXTUAL_POSITIONS` are literals in `scripts/`; deleting a position from *both* of them and
   from both manifest axes leaves this gate quiet. What catches it is the unit suite, which pins

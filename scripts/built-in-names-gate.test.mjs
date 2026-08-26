@@ -2972,6 +2972,14 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   // institutionalised a defect in the very axis this slice exists to make checkable, so it was
   // fixed instead.
   assert.equal(inside(nested, "empty", "IsPredicate"), true);
+  // INDENTED and MULTILINE, which a width-based rank got wrong: a span ending on a later line at a
+  // smaller column has a NEGATIVE column delta, and "-30" sorts after "-20" lexically while being
+  // the narrower of the two, so the OUTER node won (issue #959 review round 5, finding 2). The rank
+  // is by containment — latest start, earliest end — over absolute positions.
+  const indented = '  (\n    value of :d for key "x"\n  ) is empty';
+  assert.equal(inside(indented, "of", "ValueOfKey"), true);
+  assert.equal(inside(indented, "of", "IsPredicate"), false);
+  assert.equal(inside(indented, "empty", "IsPredicate"), true);
 
   const swapped = manifestCopy();
   swapped.tokenClass.contextual.words.find(

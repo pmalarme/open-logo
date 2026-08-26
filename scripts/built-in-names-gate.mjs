@@ -1902,21 +1902,22 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
     return afterStart && beforeEnd;
   };
   // "Innermost" as ONE sortable key rather than a chain of `||` comparisons, whose later links are
-  // unreachable while spans nest strictly — dead branches that a coverage gate rightly rejects and
-  // that a test could only reach by fabricating an AST. The key is a fixed-width string so ordering
-  // is total and deterministic: narrower first, then the later-starting node (the inner one of two
-  // equal widths), then the kind. Line-major width, so a multi-line span never looks narrower than a
-  // single-line one nested inside it.
+  // unreachable while spans nest strictly — dead branches that a coverage gate rightly rejects.
+  //
+  // The key ranks by CONTAINMENT, using absolute positions: among nodes that all contain the token,
+  // the innermost is the one that starts latest and ends earliest. Span *widths* were tried and are
+  // wrong — a span ending on a later line at a smaller column has a NEGATIVE column delta, and
+  // `"-30"` sorts after `"-20"` lexically while being the narrower of the two, so an indented
+  // multiline probe picked the outer node (issue #959 review round 5, finding 2). Every component
+  // here is non-negative, so fixed-width padding gives a total order that agrees with containment.
   const pad = (value) => String(value).padStart(9, "0");
   const rankOf = (node) => {
     const span = node.source_span;
-    const lines = span.end[0] - span.start[0];
-    const columns = span.end[1] - span.start[1];
     return [
-      pad(lines),
-      pad(columns),
       pad(1e8 - span.start[0]),
       pad(1e8 - span.start[1]),
+      pad(span.end[0]),
+      pad(span.end[1]),
       node.kind,
     ].join(":");
   };
