@@ -150,29 +150,34 @@ it — the three-place change described under Consequences. The surviving gap is
 **Not enforced — a hostile `Proxy`, and reflection's own reach.** Reflection reads objects **and
 arrays** through
 `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, checking both prototypes exactly and
-excluding no key by name; it snapshots the **whole reachable graph** before anything else reads it;
-it records the `typeof` of every value it meets; and it classifies every own property of the two
-canonical prototypes, reporting a node or an accessor that could return one. So a symbol-keyed
+excluding no key by name; it snapshots the **whole reachable graph** before anything else reads it,
+invoking no user code at all while it does so;
+it records the `typeof` of every value it meets; and it compares the intrinsic prototypes against a
+**pristine realm**'s own-key sets. So a symbol-keyed
 field, a non-enumerable field, a class instance, a null-prototype object, an
 `Object.create(proto)` result, an array expando, a non-canonical index such as `"4294967295"`, an
 array subclass, a node parked under a `source_span` key, an own `Symbol.iterator` that lies about
 an array's contents, a **function** carrying a node, a **self-erasing accessor** that deletes its
-sibling when read, a `walk` or an ancestor's `childrenOf` that **edits the tree mid-audit**, and a
-node installed on `Array.prototype` **itself** — behind a data property or a getter — are all
+sibling when read, a `walk` or an ancestor's `childrenOf` that **edits the tree mid-audit**, a
+`Symbol.toStringTag` **getter** that erases a descendant before the snapshot reaches it, and a node
+installed on an intrinsic prototype — as a data property, behind a getter, or inside a wrapper
+object — are all
 either read correctly or rejected.
 
 Two things remain, and both are stated rather than closed:
 
 - **A `Proxy` whose `ownKeys` trap lies** is not detectable from userland and would still hide a
   node. That is a limit of reflection itself rather than of this implementation.
-- **A node reachable only through an inherited member that is not a field of any node type** — the
-  reviewer's example was `Function.prototype`, reached via `node.toString.someProperty`. This is out
-  of the model on purpose. The subject of #960 is a **declared node-valued field** that `childrenOf`
-  forgot; `node.toString` is not one, and no plausible `childrenOf` returns it. It is also
-  unreachable *by this gate* by construction, since every descended value must have exactly
-  `Object.prototype` or `Array.prototype` and no function is ever descended. Chasing it would mean
-  auditing `Function.prototype`, then `String.prototype`, then every intrinsic — enumeration with no
-  termination condition, which is the failure mode this ADR is about.
+- a node reachable only through an inherited member that is not a field of any node type — the
+  reviewer's example was `Function.prototype`, reached via `node.toString.someProperty`. The
+  *declared-field* boundary still holds: the subject of #960 is a declared node-valued field that
+  `childrenOf` forgot, and `node.toString` is not one. But `Function.prototype` is now audited
+  anyway, because the pristine-realm comparison costs one more entry in a list, so the boundary no
+  longer has to carry that case. An earlier draft justified excluding it as "enumeration with no
+  termination condition", which the reviewer correctly called inaccurate — a visited-identity set
+  terminates over the finite intrinsic graph. The honest reason was always scope, not tractability,
+  and an argument that overstates its own necessity is the weaker one even when its conclusion
+  stands.
 
 Recording the boundary is the point. It is drawn where the threat model is, not where the last
 mutant happened to land.
@@ -212,11 +217,22 @@ gate is built the second way in each instance:
   `childrenOf`, or a child's `source_span` getter feeding the handle function, could erase a
   **descendant's** field while the audit was still walking down to it. Reflection is now a complete
   phase, and `childrenOf`, the span helpers and `walk` all run after it.
-- the fix for a polluted prototype is to audit **the prototypes themselves**, classifying every own
-  property rather than only reading data descriptors — a getter holds its value outside the
-  descriptor, so a data-only check reads straight past it. Asserting that a value has exactly
-  `Array.prototype` says nothing about what `Array.prototype` contains, and the chain above those
-  two is pinned so the check is exhaustive rather than merely two-deep.
+- the fix for a polluted prototype is to check the intrinsic prototypes against **a pristine realm**,
+  not to recognise the shape of the last attack. Three successive versions were defeated in turn — a
+  node parked on `Array.prototype` as a data property, then the same node behind a **getter** whose
+  value is not in the descriptor, then a node inside a plain **wrapper object** that is neither —
+  and each fix recognised only the shape it had been shown. What all three share is that they *add
+  an own key*, so `node:vm` supplies a fresh realm and the comparison is against its key set. The
+  baseline cannot drift, because the same Node computes both sides, and it needs no hand-maintained
+  list of what a prototype is supposed to contain. Asserting that a value has exactly
+  `Array.prototype` says nothing about what `Array.prototype` contains; the chain above is pinned so
+  the check is exhaustive rather than merely deep.
+- the fix for a tag getter is **deletion**, not deferral. `Object.prototype.toString.call` consults
+  `Symbol.toStringTag`, so naming a shape with it *invoked an inherited getter* — user code, during
+  the phase that claims to run none, which a reviewer used to delete a populated descendant field
+  before the snapshot reached its owner. The tag carried no detection power the prototype comparison
+  did not already have, so it is gone rather than moved to a later phase. **A read you do not need
+  is a read you cannot be attacked through.**
 
 A declaration-derived check would close it outright, and is **deferred on cost, not availability**.
 TypeScript 7 does ship a usable API: `typescript/unstable/sync` exports `Project`, `Program`,
@@ -278,14 +294,15 @@ reason on record has to be the true one.
   grandchild; a reversed child list; a node hidden behind a `Map`, a symbol key, a prototype getter
   on a class instance, an array expando, a non-canonical index such as `"4294967295"`, an array
   subclass holding a node behind an inherited getter, an accessor on a valid index, a node parked
-  under a `source_span` key, a node on a function-valued field, a self-erasing accessor, a node
-  installed on `Array.prototype`, or an own `Symbol.iterator`
+  under a `source_span` key, a node on a function-valued field, a self-erasing accessor, a
+  `Symbol.toStringTag` getter that erases a descendant, a node installed on an intrinsic prototype
+  as a data property, behind a getter, or inside a wrapper object, or an own `Symbol.iterator`
   that yields nothing; a kinded, spanned shape with an unknown `kind`; an accessor property on a
   node; a `walk` made post-order; a `walk` with its sibling order reversed; a `walk` that removes a
-  node as it goes;
+  node as it goes; an ancestor's `childrenOf` that erases a descendant's field;
   a declared path no fixture populates; a renamed corpus root; a root that contributes too few
   files; and a node kind no fixture instantiates. A **correct** alias is equally a regression case:
-  it must pass, and a draft that rejected it is recorded above.
+  it must pass, and it now has its own test rather than a promise.
 - Instruments that derive from the AST may now state that a *populated* field is reached, in the
   order `childrenOf` declares. They still may not assume anything about a field no fixture populates.
 - The declared path list carries no count. It is a list, and its length is re-derivable from the

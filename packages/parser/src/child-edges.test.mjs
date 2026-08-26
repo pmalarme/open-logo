@@ -50,6 +50,7 @@
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -176,31 +177,43 @@ const EXPECTED_VALUE_TYPES = [
 ];
 
 /**
- * How an own property of a canonical prototype is classified for the audit below.
+ * How an own property of an intrinsic prototype is classified for the audit below.
  *
- * `data-node` is the direct attack: a node parked on `Array.prototype` itself. `accessor` is the
- * indirect one the #960 reviewer used next — a getter on `Object.prototype` returning a node, which
- * a data-only check reads straight past, because the value is not in the descriptor. Reporting the
- * accessor rather than invoking it keeps the gate's own rule: a getter may return a fresh object per
- * call, and this gate never reads one to decide anything.
+ * `unexpected-key` is the general case and the one that matters: every prototype-pollution attack
+ * the #960 reviewers built worked by **adding** a key, whatever it then held — a node, a getter
+ * returning one, or a plain wrapper object containing one. Comparing against a pristine realm
+ * catches all three without needing to recognise any of them.
+ *
+ * `data-node` and `accessor` remain for a key that *does* exist in a pristine realm but has been
+ * given a node, or replaced by a getter that could return one. An accessor is reported, never
+ * invoked, which is this gate's rule everywhere else.
  *
  * Array-subscript selection rather than nested ternaries, so no arm goes untaken on a green tree.
- * The `!== null` conjunct is a **guard**, not a recording arm: neither canonical prototype has a
+ * The `!== null` conjunct is a **guard**, not a recording arm: no intrinsic prototype has a
  * null-valued own data property today, so it never decides anything — but a guard that is
  * unreachable is safe, where a *recording* path that is unreachable is a claim about a case that
  * cannot happen and gets deleted. The file draws that line deliberately.
  */
-const canonicalPrototypeFieldKind = (descriptor) =>
-  ["accessor", "data-other", "data-node"][
-    Number(Object.hasOwn(descriptor, "value")) *
+const canonicalPrototypeFieldKind = (descriptor, isPristineKey) =>
+  ["unexpected-key", "accessor", "data-other", "data-node"][
+    Number(isPristineKey) *
       (1 +
-        Number(
-          Object.hasOwn(descriptor, "value") &&
-            typeof descriptor.value === "object" &&
-            descriptor.value !== null &&
-            isWalkableNode(descriptor.value),
-        ))
+        Number(Object.hasOwn(descriptor, "value")) *
+          (1 +
+            Number(
+              Object.hasOwn(descriptor, "value") &&
+                typeof descriptor.value === "object" &&
+                descriptor.value !== null &&
+                isWalkableNode(descriptor.value),
+            )))
   ];
+
+/** Indexed by the same names the pristine realm reports, so the two sides cannot drift apart. */
+const LIVE_INTRINSIC_PROTOTYPES = {
+  "Object.prototype": Object.prototype,
+  "Array.prototype": Array.prototype,
+  "Function.prototype": Function.prototype,
+};
 
 /** Orders two nodes by where they start in the source. */
 const bySourcePosition = (left, right) =>
@@ -224,20 +237,28 @@ const tiedStartCount = (children) =>
   ).length;
 
 /**
- * A name for the shape of `value`: its `Object.prototype.toString` tag, plus whether its prototype is
+ * A name for the shape of `value`: whether it is an array or a record, and whether its prototype is
  * the exact one that shape is supposed to have — `Array.prototype` for an array, `Object.prototype`
  * for a plain record. Deliberately branch-free: a conditional that only takes its second arm when
  * something is already wrong is dead on a green tree, which is the same defect as a dead recording
  * branch. Every object gets a name and the whole set is compared.
  *
- * A plain record is `[object Object]/plain` and an array `[object Array]/plain`. A `Map`, a class
- * instance, a null-prototype object, an `Object.create(proto)` result and an **array subclass** are
- * all `…/exotic` — each can hold a node that enumeration will not report, or lie about its own
- * contents through an inherited iterator. The prototype half is what catches a subclass that
- * overrides `Symbol.toStringTag` to report a tag it is not.
+ * A plain record is `object/plain` and an array `array/plain`. A `Map`, a class instance, a
+ * null-prototype object, an `Object.create(proto)` result and an **array subclass** are all
+ * `…/exotic` — each can hold a node that enumeration will not report, or lie about its own contents
+ * through an inherited iterator.
+ *
+ * **Reads no property of `value`.** An earlier version named the shape with
+ * `Object.prototype.toString.call(value)`, which consults `Symbol.toStringTag` and therefore
+ * *invokes an inherited getter* — user code, running during the snapshot phase that claims to run
+ * none. The #960 reviewer put a `Symbol.toStringTag` getter on a root's prototype that deleted a
+ * populated descendant field and then restored the canonical prototype, and the gate passed 9/9.
+ * The tag carried no detection power the prototype comparison did not already have — a subclass
+ * lying about its tag is caught by its prototype either way — so it is gone rather than deferred.
+ * `Object.getPrototypeOf` and `Array.isArray` read internal slots and invoke nothing.
  */
 const shapeNameOf = (value) =>
-  `${Object.prototype.toString.call(value)}/${
+  `${["object", "array"][Number(Array.isArray(value))]}/${
     // Array index rather than a ternary: both names exist unconditionally and one is selected by
     // subscript, so there is no arm that goes untaken while the tree is green.
     ["exotic", "plain"][
@@ -619,41 +640,49 @@ function auditTheCorpus() {
     visit(root, root);
   }
 
-  // `shapeNameOf` proves every value descended into has *exactly* one of these two prototypes. That
-  // is what rejects a class instance or an array subclass — and it says nothing about what the
-  // canonical prototypes themselves hold. The #960 reviewer parked a real `Call` on
-  // `Array.prototype` and declared an inherited field of that type: every array kept its expected
-  // prototype, every own-key check passed, and the node was unreachable by both `childrenOf` and
-  // `walk` with the gate green. Exact identity matching cannot see it, because the identity is not
-  // what changed. A getter on `Object.prototype` returning a node defeated the first fix for the
-  // same reason one level in — a data-only check reads straight past it, since the value is not in
-  // the descriptor at all.
+  // `shapeNameOf` proves every value descended into has *exactly* one of these prototypes. That is
+  // what rejects a class instance or an array subclass — and it says nothing about what those
+  // prototypes themselves hold. The #960 reviewer defeated three successive versions of this check:
+  // a real `Call` parked on `Array.prototype` as a data property; then the same node behind a
+  // **getter** on `Object.prototype`, whose value is not in the descriptor at all; then a
+  // node inside a plain **wrapper object** on `Object.prototype`, which is neither a node nor an
+  // accessor and so was classified `data-other` and filtered away. Each fix caught the shape it was
+  // shown and missed the next one — the per-container blind spot, at one remove.
   //
-  // So every own property of both prototypes is classified, and anything that is not an ordinary
-  // non-node data property is reported: a node, or an accessor that could return one. The accessor
-  // is reported rather than invoked, which is this gate's rule everywhere else.
+  // So this is not a fourth classification. Every one of these attacks works by **adding an own
+  // property to an intrinsic prototype**, so the check is that the intrinsic prototypes still have
+  // exactly the own keys a *pristine realm* has. `node:vm` gives a fresh realm whose intrinsics
+  // nothing has touched, and comparing key sets against it is version-independent by construction:
+  // the baseline is computed by the same Node that runs the test, so it cannot drift, and it needs
+  // no hand-maintained list of what a prototype is supposed to contain.
   //
-  // Rows are built for every property and filtered afterwards, rather than filtered then projected,
-  // so nothing here is a path only a broken tree evaluates. These two prototypes are the entire
-  // inherited surface *of the values this gate descends into*, which the assertions alongside pin
-  // from both ends: every descended value has exactly one of these prototypes, the chain above them
-  // terminates, and no function is ever descended.
-  const canonicalPrototypeFields = [
-    ["Object.prototype", Object.prototype],
-    ["Array.prototype", Array.prototype],
-  ].flatMap(([name, prototype]) =>
-    Reflect.ownKeys(prototype).map((key) => ({
-      at: `${name}.${String(key)}`,
-      kind: canonicalPrototypeFieldKind(
-        Object.getOwnPropertyDescriptor(prototype, key),
-      ),
-    })),
+  // `Function.prototype` is included, which also closes the reviewer's `node.toString.someProperty`
+  // route without auditing every intrinsic reachable from it.
+  //
+  // The shallow node/accessor classification is kept alongside, because a key-set comparison cannot
+  // see a node written over an *existing* intrinsic — though overwriting `Object.prototype.toString`
+  // with an AST node breaks the runtime long before it reaches this gate.
+  const pristine = runInNewContext(
+    "({ 'Object.prototype': Object.prototype, 'Array.prototype': Array.prototype, 'Function.prototype': Function.prototype })",
+  );
+  const canonicalPrototypeFields = Object.entries(pristine).flatMap(
+    ([name, pristinePrototype]) => {
+      const live = LIVE_INTRINSIC_PROTOTYPES[name];
+      const pristineKeys = Reflect.ownKeys(pristinePrototype).map(String);
+      return Reflect.ownKeys(live).map((key) => ({
+        at: `${name}.${String(key)}`,
+        kind: canonicalPrototypeFieldKind(
+          Object.getOwnPropertyDescriptor(live, key),
+          pristineKeys.includes(String(key)),
+        ),
+      }));
+    },
   );
 
   return {
-    prototypeAnomalies: canonicalPrototypeFields.filter(
-      (row) => row.kind !== "data-other",
-    ),
+    prototypeAnomalies: canonicalPrototypeFields
+      .filter((row) => row.kind !== "data-other")
+      .sort((left, right) => left.at.localeCompare(right.at)),
     mismatchedChildLists: childListRows.filter(
       (row) => row.reflected !== row.returned,
     ),
@@ -756,10 +785,7 @@ test("reflection reads every own key of the shapes it descends", () => {
   // The residual, stated rather than papered over: a `Proxy` whose `ownKeys` trap lies is
   // undetectable from userland and would still hide a node. That is a limit of reflection itself,
   // not of this implementation, and no AST here is proxied.
-  assert.deepEqual(audit.shapes, [
-    "[object Array]/plain",
-    "[object Object]/plain",
-  ]);
+  assert.deepEqual(audit.shapes, ["array/plain", "object/plain"]);
   // A getter is never invoked — it may return a fresh object per call, which would make identity
   // comparison meaningless — so every field's descriptor kind is recorded and the whole set is
   // compared. Recorded for *every* field, unconditionally: an earlier spelling collected only the
@@ -786,24 +812,31 @@ test("reflection reads every own key of the shapes it descends", () => {
   // be a recording arm no green tree executes and would close one container while leaving the next
   // unnamed one open.
   assert.deepEqual(audit.valueTypes, EXPECTED_VALUE_TYPES);
-  // And the two canonical prototypes hold no node themselves, and no accessor that could return
-  // one. Asserting that every value *has* `Object.prototype` or `Array.prototype` says nothing
-  // about what those objects contain — the #960 reviewer parked a real `Call` on `Array.prototype`
-  // and declared an inherited field of that type, leaving every array's prototype identity correct,
-  // every own-key check satisfied, and the node unreachable by `childrenOf` and `walk` with the
-  // gate green; then defeated the data-only fix with a getter on `Object.prototype`, whose value is
-  // not in the descriptor at all.
+  // And the intrinsic prototypes are still the ones a pristine realm ships. Asserting that every
+  // value *has* `Object.prototype` or `Array.prototype` says nothing about what those objects
+  // contain, and three successive versions of this check were defeated in turn: a node parked on
+  // `Array.prototype` as a data property, then the same node behind a **getter** whose value is not
+  // in the descriptor, then a node inside a plain **wrapper object** that is neither. Each fix
+  // recognised the shape it had been shown.
   //
-  // Compared as a whole set against the realm's own baseline, so a *new* accessor breaks it rather
-  // than being waved through by name. `__proto__` is the one accessor a pristine realm ships.
+  // The general property is that all three *add a key*, so the baseline is a fresh realm's own-key
+  // set rather than a hand-maintained list. It cannot drift, because the same Node computes both
+  // sides. The three accessors below are the ones a pristine realm ships — `__proto__` on
+  // `Object.prototype`, and the poisoned `caller`/`arguments` pair on `Function.prototype`. That
+  // last pair is the argument for measuring the baseline rather than predicting it: this assertion
+  // was written expecting one entry. Sorted by path, so the comparison does not depend on the order
+  // `Reflect.ownKeys` happens to report.
   assert.deepEqual(audit.prototypeAnomalies, [
+    { at: "Function.prototype.arguments", kind: "accessor" },
+    { at: "Function.prototype.caller", kind: "accessor" },
     { at: "Object.prototype.__proto__", kind: "accessor" },
   ]);
-  // Which is only exhaustive if these two are the whole inherited surface of what this gate
-  // descends into, so pin it from both ends rather than assuming it: `shapes` above proves every
-  // descended value has exactly one of these prototypes, `valueTypes` proves no function is ever
-  // descended, and this proves the chain above them terminates. Without the last one, re-pointing
-  // `Array.prototype`'s own prototype at a node-bearing object would reopen the gap one level up.
+  // Which is only exhaustive if these are the whole inherited surface of what this gate descends
+  // into, so pin it from every side rather than assuming it: `shapes` above proves every descended
+  // value has exactly `Object.prototype` or `Array.prototype`, `valueTypes` proves no function is
+  // ever descended, `Function.prototype` is audited anyway, and this proves the chain above them
+  // terminates. Without the last one, re-pointing `Array.prototype`'s own prototype at a
+  // node-bearing object would reopen the gap one level up.
   assert.equal(Object.getPrototypeOf(Array.prototype), Object.prototype);
   assert.equal(Object.getPrototypeOf(Object.prototype), null);
 });
