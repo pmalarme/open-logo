@@ -143,7 +143,8 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `every-fixed-rate-interval-not-re-measured`
   pins the third rule (`spec/interaction-events.md:183-187`) — a handler delayed by a one-time block
   still finds its intervals on the original grid (ticks 4, 8, 12, 16), where a fixed-**delay** clock
-  re-measured from each completion slips off those boundaries and fires one time fewer. That fixture delays the handler with a FOREIGN `on_key` body, so it cannot separate fixed rate from a scheduler that merely re-measures the period from each completion -- its `every` body is instantaneous, so completion and start share a tick. `every-fixed-rate-survives-a-slow-body` closes that gap with a body that itself takes two ticks: nine firings under fixed rate against five under a completion-re-measured clock. Both are needed; neither catches the mutation the other does.
+  that disarms the handler while an invocation runs slips off those boundaries and fires one time
+  fewer. That fixture delays the handler with a FOREIGN `on_key` body, so it cannot separate fixed rate from a scheduler that merely re-measures the period from each completion -- its `every` body is instantaneous, so completion and start share a tick. `every-fixed-rate-survives-a-slow-body` closes that gap with a body that itself takes two ticks: nine firings under fixed rate against five under a completion-re-measured clock. Both are needed; neither catches the mutation the other does.
   Three more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
   `every-queued-occurrence-discarded-when-run-closes` shows a self-overrunning handler terminating
   cleanly with its last queued occurrence discarded;
@@ -383,6 +384,8 @@ that gap, and each is mutation-verified against the readings the rulings reject.
 Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
+
+One coverage note, recorded because it is easy to misread the list above as complete: the rule that a handler body does NOT open a main-line boundary -- so a drained occurrence cannot re-enter its own handler -- is pinned by none of the eleven. It is caught by the pre-existing `every-sibling-not-reordered-by-nested-wait`, plus a stack-specific unit test. That is not a hole, but the guarantee lives outside the group that was added for it.
 
 Every one of the eleven was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first
