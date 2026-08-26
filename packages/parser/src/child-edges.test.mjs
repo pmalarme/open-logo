@@ -278,7 +278,12 @@ const tiedStartCount = (children) =>
  * populated descendant field and then restored the canonical prototype, and the gate passed 9/9.
  * The tag carried no detection power the prototype comparison did not already have — a subclass
  * lying about its tag is caught by its prototype either way — so it is gone rather than deferred.
- * `Object.getPrototypeOf` and `Array.isArray` read internal slots and invoke nothing.
+ * `Object.getPrototypeOf` and `Array.isArray` read internal slots and invoke nothing — **on any value
+ * that is not a `Proxy`.** `Object.getPrototypeOf` triggers a proxy's `getPrototypeOf` trap, and the
+ * #960 reviewer used exactly that: a proxied `Program.body` that enumerated its own keys truthfully
+ * and deleted `Call.args[0]` from the trap, leaving the gate 9/9 green. That is the hostile-`Proxy`
+ * residual ADR-0025 records, reached through a second trap rather than through `ownKeys`; no AST
+ * here is proxied.
  */
 const shapeNameOf = (value) =>
   `${["object", "array"][Number(Array.isArray(value))]}/${

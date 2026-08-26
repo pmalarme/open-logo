@@ -177,8 +177,12 @@ identity, once on own-versus-inherited.
 
 So the boundary is stated, not claimed closed:
 
-- **A hostile `Proxy`** whose `ownKeys` trap lies is not detectable from userland. A limit of
-  reflection itself.
+- **A hostile `Proxy`** whose traps lie is not detectable from userland. A limit of
+  reflection itself. Two traps reach this gate, and both were demonstrated: an `ownKeys` trap that
+  under-reports keys, and a **`getPrototypeOf`** trap — a proxied `Program.body` that enumerated its
+  own keys truthfully and deleted `Call.args[0]` from the trap, leaving the gate green. The second is
+  worth naming separately because the shape check looks like pure internal-slot reading and is not:
+  `Object.getPrototypeOf` is itself a trappable operation. No AST here is proxied.
 - **An intrinsic the instrument calls, replaced rather than added.** This gate runs in the **same
   realm** as its subject, so every builtin it uses is one the subject could have swapped. Measured:
   replacing `Object.prototype.toString` — which the shape namer called during the snapshot phase —
@@ -197,12 +201,28 @@ So the boundary is stated, not claimed closed:
   `Object.prototype.kind` with a plain data property flips both branches and makes `childrenOf`
   return a metadata `SpannedName` as a child.
 
-  This is **detected today, incidentally rather than by design**, and the distinction is worth
-  recording: reflection now classifies by *own data* `kind` while `childrenOf` classifies by `in`, so
-  under pollution the two **diverge** and the mismatch fires. Before the own-descriptor fix both
-  consulted the prototype chain, would have **agreed**, and would have mirrored the corruption
-  silently. A gate that catches something because two implementations disagree is not the same as one
-  that catches it because a rule forbids it, and the difference matters the day the subject changes.
+  This is **detected today, and the mechanism depends on which variant you build** — worth recording
+  precisely, because "the gate catches it" and "a rule forbids it" are not the same claim.
+
+  A **persistent** pollution is caught **by design**: `kind` is then an unexpected own key still
+  present at the end of the run, so the pristine-realm check fires alongside the divergence.
+
+  A **self-removing** one — a getter that deletes itself once read — is gone before that check looks,
+  and is caught only **incidentally**: reflection classifies by *own data* `kind` while `childrenOf`
+  classifies by `in`, so under pollution the two **diverge** and the child-list comparison fires. The
+  no-read rule is what keeps reflection's snapshot honest enough for that divergence to exist; the
+  assertion that reports it is the comparison.
+
+  Before the own-descriptor fix both sides consulted the prototype chain, would have **agreed**, and
+  would have mirrored the corruption silently. **A gate that catches something because two
+  implementations disagree is not the same as one that catches it because a rule forbids it**, and
+  the difference matters the day the subject changes.
+
+  Two of the three pollution values measured never reach that comparison at all: `"ForIn"` raises
+  `TypeError: Cannot use 'in' operator … in undefined`, and `undefined` raises `childrenOf has no
+  case for node kind undefined`. Both still fail the run, so nothing passes silently — but what stops
+  them is the **subject's own bug-guard crashing**, not this gate's assertion, and a residual list
+  should not take credit for that.
 
 **Both require a deliberately hostile construction.** Against the threat this gate exists for — a
 developer adds a node-valued field and forgets `childrenOf` — it is complete: ten rounds of attack
