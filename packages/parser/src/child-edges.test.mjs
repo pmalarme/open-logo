@@ -548,8 +548,15 @@ function auditTheCorpus() {
     //     because the old design interleaved reflect-and-compare per node. Snapshotting one node
     //     before reading it is not enough; the graph has to be snapshotted before the graph is read.
     //
-    // So phase 1 calls only `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, which invoke no
-    // user code at all. `childrenOf`, `handleOf`, `bySourcePosition` and `walk` all come after it.
+    // So phase 1 **reads no property of any value**: `kind` comes from its own data descriptor,
+    // `source_span` from key presence, and shape from `Array.isArray` and `Object.getPrototypeOf`.
+    // The claim is deliberately about *property reads*, not about builtins — phase 1 also calls
+    // `Object.hasOwn`, `Set.prototype.add` and `Array.prototype.filter`, every one of which the
+    // subject could have replaced, because this gate runs in the subject's realm. That residual is
+    // recorded in ADR-0025 rather than claimed away; an earlier version of this comment said phase 1
+    // "calls only `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, which invoke no user code
+    // at all", and a reviewer falsified it in one build. `childrenOf`, `handleOf`,
+    // `bySourcePosition` and `walk` all come after this phase, and do read properties.
     const snapshot = [];
     const edgesByNode = new Map();
     const collect = (node) => {

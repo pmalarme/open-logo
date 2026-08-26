@@ -88,9 +88,10 @@ gate with the node unreachable by both `childrenOf` and `walk`. Nothing needs ex
 finds no node and contributes no field path. **A name-based exclusion is a blind spot with a name,
 and it does not stop being one because the name is usually metadata.**
 
-The accessor claim is deliberately narrow: identifying a shape at all reads `kind`, `source_span` and
-`Symbol.toStringTag`, so this does not promise that no getter runs — only that a child-bearing field,
-index or named, is never read through one.
+The accessor claim used to be narrow because identifying a shape read `kind`, `source_span` and
+`Symbol.toStringTag`. It no longer needs to be: nothing in the snapshot phase reads a property at
+all, so no getter runs there — a child-bearing field is never read through one, and neither is the
+classification that decides what a value *is*.
 
 Descriptor kinds are recorded for **every** field and compared as a whole set, rather than collecting
 just the accessors. Collecting only the offenders is a projection that runs solely on a tree already
@@ -150,7 +151,7 @@ it — the three-place change described under Consequences. The surviving gap is
 **What the reflection side enforces.** It reads objects **and arrays** through
 `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, checking both prototypes exactly and
 excluding no key by name; it snapshots the **whole reachable graph** before anything else reads it,
-reading no property of any value while it does so — `kind` comes from its own data descriptor,
+**reading no property of any value** while it does so — `kind` comes from its own data descriptor,
 `source_span` from key presence, and shape from `Array.isArray` and `Object.getPrototypeOf`;
 it records the `typeof` of every value it meets; and it compares the intrinsic prototypes against a
 **pristine realm**'s own-key sets, **by symbol identity rather than by description**. So a symbol-keyed
@@ -182,9 +183,10 @@ So the boundary is stated, not claimed closed:
   realm** as its subject, so every builtin it uses is one the subject could have swapped. Measured:
   replacing `Object.prototype.toString` — which the shape namer called during the snapshot phase —
   erased **77 real AST nodes** with the gate green. That route is closed by deleting the read; the
-  class is not, because the pristine-realm check compares own-key *sets* and so sees an intrinsic
-  **added**, not one **swapped**. Capturing intrinsics at module load does not help, because the
-  subject is imported first.
+  class is not, because the pristine-realm check compares own-key sets **once, at the end of the
+  run** — so it sees an intrinsic that is still polluted when it looks, and not one **swapped**, nor
+  one added during the audit and deleted again before it looks. Capturing intrinsics at module load
+  does not help, because the subject is imported first.
 
 **Both require a deliberately hostile construction.** Against the threat this gate exists for — a
 developer adds a node-valued field and forgets `childrenOf` — it is complete: nine rounds of attack
