@@ -469,6 +469,49 @@ test("a queued-but-unstarted occurrence is discarded when the run closes", () =>
   assert.deepEqual(result.diagnostics, []);
 });
 
+test("a halt from the boundary drain propagates and stops the run", () => {
+  // The drain at a main-line statement boundary is a real handler dispatch, so it passes the same
+  // budget/cancellation gate as any other: `guardHandlerDispatch` refuses a firing the budget cannot
+  // afford and the halt propagates instead of the statement running. Measured against the same
+  // program WITHOUT the trailing `print` at the same budget of 9, which completes cleanly with no
+  // diagnostic — so the `ol-limit` here is caused specifically by the boundary drain being attempted,
+  // not by the budget being too small for the program's own statements.
+  const source = 'every 3 [ print "a" wait 4 ]\nwait 3\nprint "main"';
+  const halted = execute(source, doc, { instructionBudget: 9 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(
+    effectEvents(halted)
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values[0]),
+    ["a", "a"],
+  );
+  const withoutTail = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc, {
+    instructionBudget: 9,
+  });
+  assert.deepEqual(withoutTail.diagnostics, []);
+});
+
+test("a queued occurrence still RUNS when the main line has statements left", () => {
+  // The other side of the same boundary, and the defect a review caught: "discard when the run
+  // closes" must not become "discard whenever the tick dispatch is over". This is the program above
+  // plus one more top-level statement, so the run is still open and the handler is free — that
+  // occurrence must run. Measured a, a, a, main: the third fires at the statement boundary before
+  // `print "main"`, and the one ITS body queues is discarded when the main line ends, so the count
+  // does not run away. Draining only inside the tick dispatch prints a, a, main.
+  const result = execute(
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint "main"',
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    effectEvents(result)
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values[0]),
+    ["a", "a", "a", "main"],
+  );
+});
+
 test("under an explicit forever, an overrunning handler runs back to back until the budget stops it", () => {
   // The counterpart: a learner who wants the timer to keep firing says so, and then
   // `spec/interaction-events.md:189-196`'s "degrades to running back to back" applies, bounded by

@@ -4752,8 +4752,15 @@ function canonicalizeHeritageAliasCall(
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
+  onStatementBoundary?: () => ExecSignal | undefined,
 ): ExecSignal {
   for (const rawStatement of statements) {
+    if (onStatementBoundary) {
+      const boundarySignal = onStatementBoundary();
+      if (boundarySignal) {
+        return boundarySignal;
+      }
+    }
     // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
     // no new semantics" (`spec/conformance.md:150`): the reader recorded the Core name the alias
     // spells on the node's `canonical` field. Normalizing the callee to that Core name ONCE here —
@@ -5572,6 +5579,45 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
  * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
  * `execute()` runs `parse()` only, never `check()`.
  */
+/**
+ * Run the program's top level, giving a queued `every` occurrence a chance to run **between
+ * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:189-204`).
+ *
+ * The end-of-tick drain in {@link dispatchDueHandlers} covers the occurrences that were queued while
+ * a `wait` was still advancing the clock, but a drained invocation's own body can outrun the
+ * interval and queue another one *after* that dispatch has finished. If the main line still has
+ * statements to run, the run has not closed, so discarding that occurrence would be the rejected
+ * "drop the missed occurrence" reading — the handler is free and the spec says to run it. The main
+ * line's own statement boundary is the checkpoint that lets it.
+ *
+ * Draining once per boundary — rather than looping until the queues are empty — is what keeps ruling
+ * 4 intact: a handler that keeps overrunning gets exactly one invocation per statement the main line
+ * still has, never an unbounded catch-up that manufactures ticks nobody asked for. The drain runs
+ * **before** each statement rather than after, so there is no boundary after the last one: when the
+ * main line finishes, whatever is still queued but unstarted is discarded, exactly as ruling 4 says.
+ *
+ * Implemented as a callback threaded into {@link executeStatements} rather than by running the top
+ * level one statement at a time, because a statement list is **not** just a sequence: the
+ * educational meta-commands resolve their target by looking back through their own sibling list
+ * ({@link findPrecedingSiblingStatement}), so slicing the top level into single-statement calls
+ * silently strips `explain`/`why`/`debug`/`hint` of their targets. Only the top-level call passes a
+ * callback, so nested bodies — procedures, loops, handler blocks — are unaffected.
+ */
+function executeMainLine(
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  return executeStatements(statements, environment, () => {
+    for (const handler of claimQueuedEveryHandlers(environment.eventHandlers)) {
+      const drained = invokeEveryHandler(handler, environment);
+      if (drained.kind !== "normal") {
+        return drained;
+      }
+    }
+    return undefined;
+  });
+}
+
 export function runProgram(
   source: string,
   document: string,
@@ -5605,7 +5651,7 @@ export function runProgram(
       options,
       source,
     );
-    const signal = executeStatements(program.body, environment);
+    const signal = executeMainLine(program.body, environment);
     const diagnostic =
       signal.kind === "halt"
         ? signal.diagnostic

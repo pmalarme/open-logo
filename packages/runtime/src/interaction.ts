@@ -383,8 +383,9 @@ export interface WhenHandler {
  *   chronological order.
  * - `queued` is the spec's at-most-one queue itself: an interval that arrives while the handler is
  *   `running` or `claimed` sets it, and further intervals **coalesce** into the same slot rather than
- *   accumulating. The next {@link yieldToEventLoop} checkpoint at which the handler is free drains it,
- *   even on a tick where no new interval is due.
+ *   accumulating. The next point at which the handler is free drains it — the end of the tick's
+ *   dispatch batch, or the main line's next statement boundary ({@link claimQueuedEveryHandlers}) —
+ *   so the drain never waits for a fresh event-loop checkpoint the program may never supply.
  *
  * Draining at the next checkpoint — rather than looping on the spot when a body returns — is what
  * keeps a saturated handler bounded by the program's own `wait`s: the queued invocation runs on the
@@ -675,7 +676,7 @@ export function registerOnClickHandler(
  * prevents a sibling's nested `wait` from re-claiming an occurrence an outer batch already owns
  * (which would otherwise fire it twice, out of chronological order).
  *
- * The caller ({@link dispatchEveryHandlers}) invokes each returned handler via
+ * The caller ({@link dispatchDueHandlers}) invokes each returned handler via
  * {@link invokeEveryHandler}, which clears `claimed` and sets `running`. Returns a fresh array so a
  * handler body that registers a further `every` mid-dispatch does not extend the batch being
  * delivered on this tick; a tick with nothing to run yields an empty array — a well-defined no-op,
@@ -711,14 +712,18 @@ export function claimDueEveryHandlers(
  * event-loop checkpoint. Requiring one is not a slower drain, it is a **lost** invocation: a program
  * whose `wait`s are exhausted supplies no further checkpoint, so the queued occurrence would never
  * run at all — observationally identical to the "drop the missed occurrence" reading the ruling
- * rejects. {@link dispatchDueHandlers} therefore calls this after its tick batch and keeps calling it
- * until it comes back empty.
+ * rejects. There are therefore two callers, each draining **once**: {@link dispatchDueHandlers}
+ * after its tick batch, and `executeMainLine` before each top-level statement.
  *
- * A handler that keeps overrunning its own interval re-queues during each drained invocation, so the
- * drain loop is what makes it "degrade to running back to back" (`:193-195`). That is unbounded in
- * time by design and bounded by the ordinary instruction budget: each firing is a charged
- * instruction, so an endlessly-overrunning handler raises `ol-limit` exactly as `forever` does
- * (`spec/interaction-events.md:79`), rather than looping forever in the host.
+ * Neither loops until the queue is empty, and that is ruling 4 (`spec/interaction-events.md:198-204`):
+ * a handler does not extend the run's lifetime. A drained invocation whose own body overruns
+ * re-queues, so looping would run that occurrence and the next, manufacturing ticks the main line
+ * never asked for until the budget raised `ol-limit`. Draining once per real boundary instead gives
+ * an overrunning handler exactly one invocation per statement the main line still has — it
+ * "degrade[s] to running back to back" (`:193-195`) for as long as the program stays open, and
+ * whatever is still queued but unstarted when the main line finishes is discarded. Under an explicit
+ * `forever` that back-to-back running is bounded by the ordinary instruction budget, since each
+ * firing is a charged instruction (`spec/interaction-events.md:79`).
  */
 export function claimQueuedEveryHandlers(
   registry: EventHandlerRegistry,

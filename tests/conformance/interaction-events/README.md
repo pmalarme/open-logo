@@ -136,17 +136,24 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   inside the same dispatch: the outer `wait` has already spent its last tick, so a runtime that
   defers the drain to a fresh checkpoint loses the occurrence outright. `every-queue-coalesces-to-one`
   proves the **cap** — four intervals arrive while a once-firing `on_key` holds the thread, and only
-  one survives. Its outer `wait 26` is load-bearing and was the second design: a backlog drains one
-  occurrence per checkpoint, so with a short outer `wait` a capped and an uncapped queue are
-  measurably identical and the fixture pins nothing. `every-fixed-rate-interval-not-re-measured`
+  one survives. Its outer `wait 26` is load-bearing and was the second design: a backlog drains at a
+  bounded rate — at most one occurrence per tick dispatch and one per main-line statement boundary —
+  so with a short outer `wait` the run closes before an uncapped queue can show itself, a capped and
+  an uncapped queue are measurably identical, and the fixture pins nothing.
+  `every-fixed-rate-interval-not-re-measured`
   pins the third rule (`spec/interaction-events.md:183-187`) — a handler delayed by a one-time block
-  still finds its intervals on the original grid, where a fixed-**delay** clock re-measured from each
-  completion would have pushed the next one past the end of the run.
-  Two more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
+  still finds its intervals on the original grid (ticks 4, 8, 12, 16), where a fixed-**delay** clock
+  re-measured from each completion slips off those boundaries and fires one time fewer.
+  Three more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
   `every-queued-occurrence-discarded-when-run-closes` shows a self-overrunning handler terminating
-  cleanly with its last queued occurrence discarded, and
+  cleanly with its last queued occurrence discarded;
+  `every-queued-occurrence-runs-while-main-line-continues` is that same program with one more
+  top-level statement, where the run is still open and the occurrence therefore MUST run — the pair
+  brackets the exact boundary between "run it once the handler is free" and "discard once the main
+  line finishes", which an implementation can otherwise satisfy one of while violating the other; and
   `every-overrunning-handler-runs-back-to-back-under-forever` shows the same handler running back to
-  back until the budget raises `ol-limit` when the learner holds the run open explicitly. Neither is
+  back until the budget raises `ol-limit` when the learner holds the run open explicitly. Neither of
+  the last two is
   sufficient alone: the discard rule by itself is satisfied by never draining at all — precisely the
   defect this issue's first implementation shipped — and the `forever` fixture is what forbids that,
   since a runtime that drops missed occurrences never accumulates the firings that exhaust the budget.
@@ -363,7 +370,7 @@ to close, sitting inside the conformance corpus itself. Issue **#984** was then 
    settling the third: once the main line has finished and any already-started handler body has
    completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
-Eight fixtures land with it — three under `when/` and five under `every/`, described in those
+Nine fixtures land with it — three under `when/` and six under `every/`, described in those
 sections above. Two properties of this corpus are worth recording, because they are why the rules
 could ship undecided at all. First, **the ruling changed three normative rules and the corpus did not
 move**: 910 fixtures passed before the runtime change and 910 passed after, so not one of them
@@ -372,7 +379,7 @@ Second, the two `when` fixtures that pin persistence **must** use a vendor-prefi
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
 
-Every one of the eight was mutation-verified against runtimes reverted to each rejected reading —
+Every one of the nine was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first
 implementation queued correctly and drained only at the next event-loop checkpoint, which silently
 discarded the occurrence whenever the program's `wait`s ran out first, and its three `every` fixtures
