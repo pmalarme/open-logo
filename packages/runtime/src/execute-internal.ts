@@ -5607,7 +5607,15 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
  * **before** each statement rather than after, so there is no boundary after the last one: when the
  * main line finishes, whatever is still queued but unstarted is discarded, exactly as ruling 4 says.
  *
- * Implemented as a callback threaded into {@link executeStatements} rather than by running the top
+ * Implemented as a hook on a shared {@link Environment} box rather than as a parameter threaded
+ * through each call site. Child environments are built by spreading the parent, so the box reaches
+ * procedure bodies and control-form bodies **by construction** — a `repeat`/`while`/`if`/`for` body
+ * and a procedure called from the main line are all still the main line, and the run has not closed
+ * while any of them is running. Handler bodies are the one exception and opt out explicitly
+ * ({@link executeHandlerBody}); comprehension bodies are expressions that never reach this function,
+ * so they run the same hook at their own per-iteration progress point in `evaluate.ts`.
+ *
+ * The hook fires inside {@link executeStatements} rather than by running the top
  * level one statement at a time, because a statement list is **not** just a sequence: the
  * educational meta-commands resolve their target by looking back through their own sibling list
  * ({@link findPrecedingSiblingStatement}), so slicing the top level into single-statement calls

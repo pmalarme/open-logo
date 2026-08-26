@@ -712,8 +712,11 @@ export function claimDueEveryHandlers(
  * event-loop checkpoint. Requiring one is not a slower drain, it is a **lost** invocation: a program
  * whose `wait`s are exhausted supplies no further checkpoint, so the queued occurrence would never
  * run at all — observationally identical to the "drop the missed occurrence" reading the ruling
- * rejects. There are therefore two callers, each draining **once**: {@link dispatchDueHandlers}
- * after its tick batch, and `executeMainLine` before each top-level statement.
+ * rejects. There are therefore three callers, each draining **once**: {@link dispatchDueHandlers}
+ * after its tick batch, `executeStatements` before each statement of the main line (which reaches
+ * procedure and control-form bodies through the shared `mainLineBoundary` box, but never a handler
+ * body), and `evaluate.ts`'s comprehension loops at each iteration, since a comprehension body is an
+ * expression that never reaches `executeStatements`.
  *
  * Neither loops until the queue is empty, and that is ruling 4 (`spec/interaction-events.md:198-204`):
  * a handler does not extend the run's lifetime. A drained invocation whose own body overruns

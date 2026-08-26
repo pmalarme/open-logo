@@ -5239,6 +5239,31 @@ function comprehensionDuplicateBinder(
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
  * empty, `spec/execution-model.md:402`).
  */
+/**
+ * Run the main line's statement-boundary hook at a comprehension iteration and report a halting
+ * diagnostic, or `undefined` to continue (maintainer ruling #984,
+ * `spec/interaction-events.md:189-204`).
+ *
+ * A comprehension body is an **expression**, so it never reaches `executeStatements` and never sees
+ * that function's per-statement boundary — yet each iteration is main-line progress exactly as a
+ * `repeat` iteration is, and the run has not closed while one is running. Measured before this was
+ * added: `repeat 3` and `for … in [1 2 3]` each gave a queued `every` occurrence three chances to
+ * run, while the equivalent `map … in [1 2 3]` gave it none.
+ *
+ * Paired with the existing per-iteration {@link checkExecutionLimits} call, which is the same
+ * "one unit of main-line progress" point. The hook only ever reports `halt`: a `return`/`stop`
+ * escaping a drained handler body is converted to its diagnostic inside `invokeEveryHandler`, so
+ * there is no non-halt signal for an expression context to be unable to represent.
+ */
+function comprehensionBoundaryDiagnostic(
+  environment: Environment,
+): Diagnostic | undefined {
+  const signal = environment.mainLineBoundary.fn?.();
+  return signal !== undefined && signal.kind === "halt"
+    ? signal.diagnostic
+    : undefined;
+}
+
 function evaluateComprehension(
   node: ComprehensionNode,
   environment: Environment,
@@ -5277,6 +5302,10 @@ function evaluateComprehension(
       if (limitDiagnostic) {
         return fail(limitDiagnostic);
       }
+      const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+      if (boundaryDiagnostic) {
+        return fail(boundaryDiagnostic);
+      }
       const bound = bindElement(node.binder, element);
       if (!bound.ok) {
         return fail(bound.diagnostic);
@@ -5301,6 +5330,10 @@ function evaluateComprehension(
     const limitDiagnostic = checkExecutionLimits(environment, node.source_span);
     if (limitDiagnostic) {
       return fail(limitDiagnostic);
+    }
+    const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+    if (boundaryDiagnostic) {
+      return fail(boundaryDiagnostic);
     }
     const bound = bindElement(node.binder, element);
     if (!bound.ok) {

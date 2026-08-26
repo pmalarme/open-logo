@@ -492,6 +492,47 @@ test("a halt from the boundary drain propagates and stops the run", () => {
   assert.deepEqual(withoutTail.diagnostics, []);
 });
 
+test("the main-line boundary reaches every container, including a comprehension body", () => {
+  // Ruling #984's "run it once the handler is free" holds for as long as the main line has not
+  // finished — and a `repeat` body, a `for … in` body, and a `map` iteration are all main-line
+  // progress. The first two go through the statement executor and inherit its per-statement
+  // boundary; a comprehension body is an EXPRESSION and does not, so it runs the same hook at its
+  // own per-iteration point. Measured before that was added: the two loops gave a queued occurrence
+  // three chances each and the comprehension gave it none — 6, 6, 3. All three now agree.
+  const handlerPrints = (source) =>
+    effectEvents(execute(source, doc)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude = 'every 3 [ print "a" wait 4 ]\nwait 3\n';
+  assert.equal(handlerPrints(`${prelude}repeat 3 [ print "y" ]`), 6);
+  assert.equal(handlerPrints(`${prelude}for i in [1 2 3] [ print "y" ]`), 6);
+  assert.equal(handlerPrints(`${prelude}print map i in [1 2 3] [ :i ]`), 6);
+});
+
+test("a halt from the comprehension boundary propagates out of the comprehension", () => {
+  // The per-iteration boundary inside a comprehension is a real handler dispatch, so the budget gate
+  // can refuse a drained firing — and a comprehension is an EXPRESSION context, which has no way to
+  // carry an execution signal. The halt therefore has to surface as the evaluation's own diagnostic.
+  // Measured at a budget of 19: the handler fires five times and the run then stops with `ol-limit`,
+  // against six firings and no diagnostic at a budget of 24.
+  const source =
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint map i in [1 2 3] [ :i ]';
+  const halted = execute(source, doc, { instructionBudget: 19 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  const clean = execute(source, doc, { instructionBudget: 24 });
+  assert.deepEqual(clean.diagnostics, []);
+});
+
+test("the same halt propagates out of a reduce comprehension", () => {
+  // `reduce` has its own iteration loop, so its boundary is a separate code path from `map`/`filter`.
+  const source =
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint reduce sum i in [1 2 3] from 0 [ :sum + :i ]';
+  const halted = execute(source, doc, { instructionBudget: 19 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+});
+
 test("a queued occurrence still RUNS when the main line has statements left", () => {
   // The other side of the same boundary, and the defect a review caught: "discard when the run
   // closes" must not become "discard whenever the tick dispatch is over". This is the program above

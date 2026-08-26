@@ -150,7 +150,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `every-queued-occurrence-runs-while-main-line-continues` is that same program with one more
   top-level statement, where the run is still open and the occurrence therefore MUST run — the pair
   brackets the exact boundary between "run it once the handler is free" and "discard once the main
-  line finishes", which an implementation can otherwise satisfy one of while violating the other; and
+  line finishes", which an implementation can otherwise satisfy one of while violating the other.
+  `every-queued-occurrence-runs-inside-a-comprehension` extends that same guarantee to the one
+  main-line container that does not go through the statement executor: a comprehension body is an
+  **expression**, so it needs its own per-iteration boundary — measured at three handler firings
+  against six for an equivalent `repeat` or `for … in` before it was added. And
   `every-overrunning-handler-runs-back-to-back-under-forever` shows the same handler running back to
   back until the budget raises `ol-limit` when the learner holds the run open explicitly. Neither of
   the last two is
@@ -370,17 +374,17 @@ to close, sitting inside the conformance corpus itself. Issue **#984** was then 
    settling the third: once the main line has finished and any already-started handler body has
    completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
-Ten fixtures land with it — three under `when/` and seven under `every/`, described in those
+Eleven fixtures land with it — three under `when/` and eight under `every/`, described in those
 sections above. Two properties of this corpus are worth recording, because they are why the rules
-could ship undecided at all. First, **the ruling changed three normative rules and the corpus did not
-move**: 910 fixtures passed before the runtime change and 910 passed after, so not one of them
-discriminated any of the three. The nine fixtures below were added precisely to close
+could ship undecided at all. First, **the ruling's first three rules changed nothing the corpus could
+see**: 910 fixtures passed before that runtime change and 910 passed after, so not one of them
+discriminated any of the three. The ten fixtures here were added precisely to close
 that gap, and each is mutation-verified against the readings the rulings reject. A dimension nothing varies is a dimension nothing can observe.
 Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
 
-Every one of the ten was mutation-verified against runtimes reverted to each rejected reading —
+Every one of the eleven was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first
 implementation queued correctly and drained only at the next event-loop checkpoint, which silently
 discarded the occurrence whenever the program's `wait`s ran out first, and its three `every` fixtures
