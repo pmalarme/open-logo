@@ -52,7 +52,8 @@ npm ci && npm run build && npm run typecheck && npm run lint && npm run format:c
   `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. A **keyword**
   edits more: those two, plus `spec/grammar.md`'s normative block and `spec/tooling.md`'s C19 mirror
   (which that gate compares), plus each name's `tokenClass` in `spec/built-in-names.json` (which
-  that gate re-paints through the shipped `highlight()` and compares in both directions, issue
+  that gate re-paints through the shipped `highlight()` and compares; the reverse direction covers
+  the name sources it reads, not arbitrary output, issue
   #959), plus
   `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`, which `npm run test` asserts rather than
   `npm run built-in-names`. `packages/parser/src/keywords.ts` carries the list and names the gate

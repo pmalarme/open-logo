@@ -2980,6 +2980,15 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   assert.equal(inside(indented, "of", "ValueOfKey"), true);
   assert.equal(inside(indented, "of", "IsPredicate"), false);
   assert.equal(inside(indented, "empty", "IsPredicate"), true);
+  // The DEEP-indent probe, which is what actually pins the rank: both column deltas go negative
+  // only when the reader starts around column >= 24 and ends on the next line at a small column, so
+  // a 2- or 6-column indent is not enough (the line delta dominates). Reverting `rankOf` to a
+  // width-based key, or dropping its zero-padding, passes all ten gates and every other assertion
+  // here while mislabelling `value-of-reader` as `is-predicate` — found by the round-6 QA mutation
+  // hunt as the one mutation nothing caught.
+  const deepIndent = `(${" ".repeat(24)}value of :d for key\n"x") is empty`;
+  assert.equal(inside(deepIndent, "of", "ValueOfKey"), true);
+  assert.equal(inside(deepIndent, "of", "IsPredicate"), false);
 
   const swapped = manifestCopy();
   swapped.tokenClass.contextual.words.find(

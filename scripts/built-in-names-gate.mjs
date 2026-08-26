@@ -39,7 +39,10 @@
  *
  * `spec/built-in-names.json` carries two independent per-name axes and neither determines the other
  * (`spec/grammar.md:378`): `category` (may a program **declare** this name?) and `tokenClass` (how is
- * this word **painted**?). Both are compared against the implementation in both directions.
+ * this word **painted**?). `category` is compared against the implementation in both directions;
+ * `tokenClass` is measured declaration-first and compared back over the enumerable name sources
+ * only. ADR-0025 names each mechanism and what it does not reach — "both directions" over-describes
+ * the paint axis, and this file must not restate it.
  *
  * `tokenClass` replaces a content fingerprint over `spec/tooling.md`'s `keyword` token-class row
  * (issue #959). That fingerprint could tell you the row had moved and nothing about whether it was
@@ -1723,9 +1726,10 @@ export function tokenClassFindings(manifest, api) {
  * Each stage answered a mutant its predecessor let through: two endpoints hid a word gated on the
  * *wrong* profile; three sets hid a word wrong only in a partial combination; and holding the
  * non-contributing profiles permanently active hid a highlighter that mispainted whenever Sound was
- * absent (issue #959 review rounds 2-4). **The limit, stated rather than implied:** leave-one-out
- * catches any dependency on a *single* non-contributing profile, not one keyed on a conjunction of
- * two or more. ADR-0025 records that.
+ * absent (issue #959 review rounds 2-4). **The limit, measured rather than assumed:** the three
+ * presence-patterns these stages reach — all absent, all present, all-but-one — realise all four
+ * valuations of any *pair*, so every two-profile conjunction is caught (72 of 72 over `repeat`).
+ * A rule needing one profile present and **two** absent escapes (504 of 504). ADR-0025 records it.
  */
 export function profileGatingFindings(api, entry) {
   const contributing = Object.keys(api.OL_PROFILE_KEYWORDS ?? {});

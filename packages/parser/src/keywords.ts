@@ -61,7 +61,8 @@
  * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
  *   (`spec/grammar.md:378`). Since issue #959 the row no longer enumerates it: each name's class is
  *   declared as `tokenClass` in `spec/built-in-names.json`, and the same gate re-paints every name
- *   through `highlight()` and compares in both directions.
+ *   through `highlight()` and compares. The reverse direction reads the name **sources**
+ *   `highlight()` classifies from — this array among them — rather than arbitrary output.
  * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by the
  *   pre-existing `npm run test`, not by `npm run built-in-names`.
  *

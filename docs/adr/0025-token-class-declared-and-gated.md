@@ -154,13 +154,15 @@ Stated because the mechanism it replaces failed three times by claiming more tha
   Concretely: the `keyword` token class is compared in both directions over the **flat** names, but
   a *contextual* word the implementation started painting and this file does not declare would not
   be detected.
-- **A profile rule keyed on a *conjunction* of two or more non-keyword profiles.** The sweep
-  enumerates every subset of the profiles that contribute keywords, and removes each remaining
-  profile **one at a time** from the otherwise-full set. That catches any dependency on a single
-  profile's presence or absence, which is what a real gating bug looks like. It does not enumerate
-  the full product — twelve profiles is 4096 sets and the gate re-paints nine probes per set per
-  name — so a highlighter wrong only when, say, Sound is present *and* Modules is absent *and*
-  Geometry is absent would pass. Measured: a two-profile conjunction mutant returns no findings.
+- **A profile rule keyed on at least one profile *present* and at least two *absent*.** The sweep
+  reaches exactly three presence-patterns over the non-keyword-contributing profiles: all absent
+  (the Core-only baseline), all present, and all-present-except-exactly-one (leave-one-out). That
+  covers every dependency on a **single** profile, and — because those patterns realise all four
+  valuations of any *pair* — every two-profile conjunction as well. Measured over `repeat`: **72 of
+  72** two-profile conjunctions are caught, **0** escape. What escapes needs a third profile to be
+  simultaneously absent: measured, **504 of 504** mutants of the form "A present, B and C absent"
+  return no findings. Enumerating the full product is not an option — twelve profiles is 4096 sets
+  and the gate re-paints nine probes per set per name.
 - **The gate's own position vocabulary.** `CONTEXTUAL_POSITION_NODE_KINDS` and
   `CONTEXTUAL_POSITIONS` are literals in `scripts/`; deleting a position from *both* of them and
   from both manifest axes leaves this gate quiet. What catches it is the unit suite, which pins
