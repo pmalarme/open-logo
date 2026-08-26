@@ -167,7 +167,7 @@ const PROFILE_BLOCK_HEAD_COUNT = 7;
  * `tell <turtle|turtle-list>` and `ask <turtle|turtle-list> <block>`
  * (`spec/turtles-and-sprites.md:22-23`) take turtle *values*, not words, and
  * `when <event-word> <block>`/`on_key <key-word> <block>`
- * (`spec/interaction-events.md:27,29`) take words, not conditions.
+ * (`spec/interaction-events.md:27, 29`) take words, not conditions.
  */
 const PROFILE_BLOCK_HEAD_SOURCE = [
   ":t = new_turtle",

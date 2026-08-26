@@ -104,6 +104,7 @@ import {
   claimPendingClickHandlers,
   claimPendingEventHandlers,
   claimPendingKeyHandlers,
+  claimQueuedEveryHandlers,
   createEventHandlerRegistry,
   createTickClock,
   emitEveryPrimitive,
@@ -3029,6 +3030,29 @@ function dispatchDueHandlers(
   // at the first non-normal signal.
   for (const invoke of invocations) {
     const signal = invoke();
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  // Drain the one-slot `every` queues ONCE, after this tick's batch. A handler is free the moment
+  // its body returns, and the spec requires a queued occurrence to run "once the handler is free"
+  // (`spec/interaction-events.md:189-196`) — NOT at whatever later checkpoint the program happens to
+  // supply. Deferring it to the next tick silently drops the occurrence whenever the program's
+  // `wait`s are exhausted first, which is the "drop the missed occurrence" reading ruling #984
+  // rejects.
+  //
+  // Draining once per dispatch rather than looping until the queues are empty is the other half of
+  // that ruling: "the run's lifetime is the main line's business — an `every` handler does not
+  // extend it" (`spec/interaction-events.md:198-204`). A drained invocation whose own body outruns
+  // the interval re-queues, and looping here would run that occurrence too, and the next,
+  // manufacturing ticks the main line never asked for until the budget raised `ol-limit`. Instead
+  // the re-queued occurrence waits for the next checkpoint the MAIN LINE provides. A program that
+  // wants the timer to keep firing says so explicitly — `forever`, or a longer `wait` — and then
+  // back-to-back running continues until the budget bounds it (`spec/interaction-events.md:79`). A
+  // program whose main line has finished simply closes, discarding whatever is still queued but not
+  // yet started.
+  for (const handler of claimQueuedEveryHandlers(registry)) {
+    const signal = invokeEveryHandler(handler, environment);
     if (signal.kind !== "normal") {
       return signal;
     }

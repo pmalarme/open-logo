@@ -22,7 +22,7 @@
  * are C3 Sprites primitives (`spec/turtles-and-sprites.md:17`) with no more specific event kind,
  * which is exactly what `primitive`, "the generic catch-all for a primitive without a more specific
  * event" (`spec/execution-model.md:703`), exists for — the same reading under which the Interaction
- * registration *forms* emit `primitive` (`spec/interaction-events.md:105-106,120-122`). So the
+ * registration *forms* emit `primitive` (`spec/interaction-events.md:105-106, 120-122`). So the
  * addressed set becomes observable with **no** new kind, no spec change, and no consumer change: an
  * addressing-unaware renderer just sees one more inert `primitive` event.
  */

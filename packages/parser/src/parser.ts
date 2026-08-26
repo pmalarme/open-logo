@@ -145,7 +145,7 @@ const END_LABELS = new Set<string>([
   // Profile block-head labels: a labeled `end` after a profile block (`end ask`, `end each`,
   // `end when`, `end every`, `end on_key`, `end on_click`) must be recognized as a closer so the
   // block-tail machinery can match it against its opener and raise `ol-mismatched-end` on a wrong
-  // label (`spec/turtles-and-sprites.md:167,170`, `spec/interaction-events.md:62,65`). `tell` is
+  // label (`spec/turtles-and-sprites.md:167,170`, `spec/interaction-events.md:62, 65`). `tell` is
   // absent: it is a bodyless mode-switch command with no block and therefore no `end`.
   "ask",
   "each",
