@@ -159,10 +159,13 @@ const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(value.kind);
 /**
  * Every `typeof` the traversal expects to meet in a node's fields, as a whole set.
  *
- * `object` covers nodes, wrapper objects, arrays, spans and `null`; the rest are leaf field values —
- * names, numbers, flags, and absent optional fields. Notably **not** `function`: the reviewer of
+ * `object` covers nodes, wrapper objects, arrays and spans; the rest are leaf field values — names,
+ * numbers, flags, and absent optional fields. Notably **not** `function`: the reviewer of
  * #960 hid a real `Call` node on a function-valued field, which the object test returns past as a
  * childless leaf, so it was classified and enumerated by nothing at all.
+ *
+ * No corpus field value is `null` — an earlier version of this comment claimed `object` covered it,
+ * which was a guess sitting inside a sentence claiming to be a measurement.
  *
  * This list was predicted and then confirmed by the assertion below, which is what makes it a
  * measurement rather than a guess: it is compared as a whole set, so an unanticipated container
@@ -371,11 +374,11 @@ function edgesUnder(value, path, seen, out) {
   // whose `constructor` points back, and recurse forever.
   seen.valueTypes.add(typeof value);
   if (Array.isArray(value)) {
-    // Descriptors are snapshotted *first*, before `Object.prototype.toString` consults
-    // `Symbol.toStringTag` and before any other property is read. Ordering is load-bearing, not
-    // stylistic: the #960 reviewer wrote a getter that, when read, deleted a sibling field holding a
-    // real node and replaced itself with a plain data property. Every read is a chance for the
-    // subject to change, so the audit records what is there before it touches anything.
+    // Descriptors are snapshotted *first*, before any property of `value` is read. Ordering is
+    // load-bearing, not stylistic: the #960 reviewer wrote a getter that, when read, deleted a
+    // sibling field holding a real node and replaced itself with a plain data property. Every read
+    // is a chance for the subject to change, so the audit records what is there before it touches
+    // anything.
     const fields = fieldsOf(value, path);
     for (const field of fields) {
       seen.descriptorKinds.add(descriptorKindOf(field));
@@ -396,6 +399,8 @@ function edgesUnder(value, path, seen, out) {
     }
     return out;
   }
+  // `=== null` is a **guard**: no corpus field value is `null` today, so it never decides anything.
+  // Unreachable guards are safe here; unreachable *recording* paths are not, and get deleted.
   if (typeof value !== "object" || value === null) {
     return out;
   }
@@ -409,6 +414,9 @@ function edgesUnder(value, path, seen, out) {
     out.push([path, value]);
     return out;
   }
+  // The `source_span !== undefined` conjunct is a **guard**: every kinded value in the corpus is
+  // also spanned, so it never decides anything today. Guards may be unreachable; recording paths
+  // may not.
   if (typeof value.kind === "string" && value.source_span !== undefined) {
     seen.foreignShapes.add(value.kind);
   }
@@ -519,6 +527,9 @@ function auditTheCorpus() {
     const collect = (node) => {
       const edges = reflectedEdgesOf(node, seen);
       snapshot.push([node, edges]);
+      // A **guard**: the corpus contains no aliased node, so this never decides anything today. It
+      // exists because an alias would otherwise overwrite its own entry, and the pre-order below
+      // reads this map. Unreachable guards are safe; unreachable recording paths are not.
       if (!edgesByNode.has(node)) {
         edgesByNode.set(node, edges);
       }

@@ -178,6 +178,20 @@ Two things remain, and both are stated rather than closed:
   terminates over the finite intrinsic graph. The honest reason was always scope, not tractability,
   and an argument that overstates its own necessity is the weaker one even when its conclusion
   stands.
+- **an intrinsic the instrument itself calls, replaced rather than added.** This gate runs in the
+  same realm as its subject, so every builtin it uses — `Reflect.ownKeys`,
+  `Object.getOwnPropertyDescriptor`, `Array.prototype.filter` — is a method the subject could have
+  replaced. A reviewer demonstrated the class by replacing `Object.prototype.toString`, which the
+  shape namer called during the snapshot phase, and erasing 77 real nodes with the gate green.
+  That specific route is closed by **deletion** — the tag read is gone, because it bought no
+  detection the prototype comparison did not already provide — but the class is not closed, and the
+  pristine-realm check does not close it either: it compares own-key *sets*, so it sees an intrinsic
+  **added** and not one **swapped**. Capturing intrinsics at module load does not help, because the
+  subject is imported first and would already have swapped them.
+
+  This is the same shape as the `Proxy` limit — an instrument cannot bootstrap trust in the realm it
+  is running inside — and it is the strongest argument for #986's declaration-derived checker, which
+  reads type declarations rather than live objects and so shares no realm with its subject at all.
 
 Recording the boundary is the point. It is drawn where the threat model is, not where the last
 mutant happened to land.
@@ -275,7 +289,7 @@ reason on record has to be the true one.
 - **Every assertion here is mutation-verified, not coverage-verified.** A recording path cannot
   execute on a green tree, so 100% coverage of the gate file says nothing about whether its findings
   work. Most assertions are discharged by at least one mutant that fires them **in isolation**, and
-  two are not — named here rather than left under a blanket claim, because an overstated
+  one is not — named here rather than left under a blanket claim, because an overstated
   verification claim is the same defect as an unenforced count:
   - `mismatchedChildLists` is **dominated** by the `walk` comparison under every natural mutant,
     since `walk` is literally `visit(node); for (const child of childrenOf(node))` — so a child-list
@@ -284,9 +298,14 @@ reason on record has to be the true one.
     that names the offending **dotted field path**, and because the compensating world is the real
     one for `registerDeclarations`, the checkers and the highlighter, which call `childrenOf`
     directly rather than through `walk`.
-  - `tiedStartRows` has no isolating mutant either: giving two *distinct* siblings a shared start
-    also trips the source-order comparison, which is evaluated first. It is a tripwire for a
-    condition that does not occur today, not a finding the corpus can produce.
+
+  A previous draft of this bullet also listed `tiedStartRows` as having no isolating mutant. That was
+  **false, and false in the understating direction** — a reviewer produced one in a single build
+  (giving a `While` body its condition's start position: the tie assertion fires alone, the
+  source-order assertion passes). The reason is written three lines from the assertion itself:
+  `Array.prototype.sort` is stable, so a tied pair keeps its original order and *cannot* trip the
+  order comparison. Understating what a gate proves is a smaller error than overstating it, and it
+  is the same error — a claim about the tree that nothing re-derived.
 
   The rest each isolate: a node-valued
   field added to an existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole
