@@ -1708,55 +1708,82 @@ export function tokenClassFindings(manifest, api) {
 }
 
 /**
- * The profile half of the paint rule, checked over **every combination** of the profiles that
- * contribute keywords, and with the profiles that contribute none both present and absent.
+ * The profile half of the paint rule.
  *
- * Two endpoints were not enough: a word gated on the *wrong* profile answered identically at "all
- * profiles" and "Core alone". Three sets were not enough either — a word wrong only in a partial
- * combination survived, and a probe that painted nothing under one combination was masked by the
- * others. And enumerating only the keyword-contributing subsets left the remaining profiles
- * permanently active, so a highlighter that mispainted whenever Sound was absent still passed
- * (issue #959 review rounds 2-3). Only `OL_PROFILE_KEYWORDS`'s own keys contribute keywords, so the
- * space is small and is swept in full, each subset once with the non-contributing profiles active
- * and once without: a gated word must be `keyword` exactly when its own profile is in the subset,
- * every other name must be unmoved by any of them, and every probe must paint the word every time.
+ * Two axes, swept separately because the full product is not enumerable — twelve profiles is 4096
+ * sets, and the gate re-paints nine probes per set per name:
+ *
+ * - **gating.** Every subset of the profiles that contribute keywords, each swept twice: over Core
+ *   Language alone, and over Core plus every non-contributing profile. A gated word must be
+ *   `keyword` exactly when its own profile is in the subset.
+ * - **invariance.** With every keyword-contributing profile active, each non-contributing profile is
+ *   removed **one at a time**. No profile that contributes no keywords may move any class, so a
+ *   single-profile dependency is caught wherever it sits.
+ *
+ * Each stage answered a mutant its predecessor let through: two endpoints hid a word gated on the
+ * *wrong* profile; three sets hid a word wrong only in a partial combination; and holding the
+ * non-contributing profiles permanently active hid a highlighter that mispainted whenever Sound was
+ * absent (issue #959 review rounds 2-4). **The limit, stated rather than implied:** leave-one-out
+ * catches any dependency on a *single* non-contributing profile, not one keyed on a conjunction of
+ * two or more. ADR-0025 records that.
  */
 export function profileGatingFindings(api, entry) {
   const contributing = Object.keys(api.OL_PROFILE_KEYWORDS ?? {});
   const others = api.OL_CHECK_PROFILES.filter(
-    (profile) => !contributing.includes(profile),
+    (profile) =>
+      !contributing.includes(profile) && !CORE_ONLY_PROFILES.includes(profile),
   );
   const gated =
     entry.tokenClass === "keyword" && contributing.includes(entry.profile);
-  const findings = [];
+  const sets = [];
   for (let mask = 0; mask < 2 ** contributing.length; mask += 1) {
     const active = contributing.filter((_, index) => (mask >> index) & 1);
-    for (const [baseline, baselineDescribe] of [
-      [CORE_ONLY_PROFILES, "Core Language alone"],
-      [[...CORE_ONLY_PROFILES, ...others], "every non-keyword profile"],
-    ]) {
-      const profiles = [...baseline, ...active];
-      const expected =
-        gated && !active.includes(entry.profile)
-          ? "primitive"
-          : entry.tokenClass;
-      const painted = paintedClasses(api, entry.name, profiles);
-      const describe = `over ${baselineDescribe}${active.length === 0 ? " with no keyword-contributing profile active" : ` plus ${active.join(" + ")}`}`;
-      if (painted.silent.length > 0) {
-        findings.push(
-          `${entry.name}: the highlighter emits no token for it ${describe} in ${painted.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing under any profile set`,
-        );
-        continue;
-      }
-      if (painted.classes.size === 1 && painted.classes.has(expected)) {
-        continue;
-      }
+    const describeActive =
+      active.length === 0
+        ? "with no keyword-contributing profile active"
+        : `plus ${active.join(" + ")}`;
+    sets.push([
+      [...CORE_ONLY_PROFILES, ...active],
+      active,
+      `over Core Language alone ${describeActive}`,
+    ]);
+    sets.push([
+      [...CORE_ONLY_PROFILES, ...others, ...active],
+      active,
+      `over every non-keyword profile ${describeActive}`,
+    ]);
+  }
+  for (const omitted of others) {
+    sets.push([
+      [
+        ...CORE_ONLY_PROFILES,
+        ...others.filter((profile) => profile !== omitted),
+        ...contributing,
+      ],
+      contributing,
+      `with every profile active except ${omitted}`,
+    ]);
+  }
+
+  const findings = [];
+  for (const [profiles, active, describe] of sets) {
+    const expected =
+      gated && !active.includes(entry.profile) ? "primitive" : entry.tokenClass;
+    const painted = paintedClasses(api, entry.name, profiles);
+    if (painted.silent.length > 0) {
       findings.push(
-        gated
-          ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
-          : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
+        `${entry.name}: the highlighter emits no token for it ${describe} in ${painted.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing under any profile set`,
       );
+      continue;
     }
+    if (painted.classes.size === 1 && painted.classes.has(expected)) {
+      continue;
+    }
+    findings.push(
+      gated
+        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
+        : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
+    );
   }
   return findings;
 }
@@ -1874,11 +1901,25 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
       line < endLine || (line === endLine && column <= endColumn);
     return afterStart && beforeEnd;
   };
-  // A span's width as one number, so "innermost" is a numeric comparison rather than a branch whose
-  // untaken side depends on the order `walk` happens to visit parents and children in. Line-major,
-  // so a multi-line span never looks narrower than a single-line one nested inside it.
-  const width = (span) =>
-    (span.end[0] - span.start[0]) * 1e6 + (span.end[1] - span.start[1]);
+  // "Innermost" as ONE sortable key rather than a chain of `||` comparisons, whose later links are
+  // unreachable while spans nest strictly — dead branches that a coverage gate rightly rejects and
+  // that a test could only reach by fabricating an AST. The key is a fixed-width string so ordering
+  // is total and deterministic: narrower first, then the later-starting node (the inner one of two
+  // equal widths), then the kind. Line-major width, so a multi-line span never looks narrower than a
+  // single-line one nested inside it.
+  const pad = (value) => String(value).padStart(9, "0");
+  const rankOf = (node) => {
+    const span = node.source_span;
+    const lines = span.end[0] - span.start[0];
+    const columns = span.end[1] - span.start[1];
+    return [
+      pad(lines),
+      pad(columns),
+      pad(1e8 - span.start[0]),
+      pad(1e8 - span.start[1]),
+      node.kind,
+    ].join(":");
+  };
   return api
     .highlight(source, "<contextual-probe>", {
       profiles: api.OL_CHECK_PROFILES,
@@ -1888,12 +1929,15 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
         token.text.toLowerCase() === name && token.class === expectedClass,
     )
     .some((token) => {
-      const innermost = nodes
-        .filter((node) => within(token.source_span.start, node.source_span))
-        .sort(
-          (left, right) => width(left.source_span) - width(right.source_span),
-        );
-      return innermost[0]?.kind === kind;
+      const byRank = new Map(
+        nodes
+          .filter((node) => within(token.source_span.start, node.source_span))
+          .map((node) => [rankOf(node), node]),
+      );
+      // Default `.sort()` — no comparator, so no branch of this module's own to leave untaken. The
+      // keys are fixed-width strings, so lexicographic order IS the intended order.
+      const innermost = [...byRank.keys()].sort()[0];
+      return byRank.get(innermost)?.kind === kind;
     });
 }
 
@@ -2175,15 +2219,18 @@ export function reEnumerationFindings(row, names) {
   // Identifier-aware boundaries, NOT `\b`: OpenLogo names may end in `?` or `!`
   // (`spec/grammar.md:15`), and `\b` cannot match after a non-word character, so
   // `member?, empty?, and list?` slipped past a `\b`-anchored rule entirely (issue #959 review
-  // round 3, finding 3).
-  const before = "(?<![a-z0-9_?!])";
-  const after = "(?![a-z0-9_?!])";
+  // round 3, finding 3). The classes are Unicode-aware because a user name may contain Unicode
+  // letters (`spec/tooling.md:24`), so `éset` is ONE identifier and must not read as a boundary
+  // before `set` (round 4).
+  const identifier = "[\\p{L}\\p{N}_?!]";
+  const before = `(?<!${identifier})`;
+  const after = `(?!${identifier})`;
   // A separator is a comma, or `and`/`or` with or without the Oxford comma before it: `a, b and c`
   // escaped a comma-only rule.
   const separator = "(?:\\s*,\\s*|\\s*,?\\s+(?:and|or)\\s+)";
   const list = new RegExp(
     `${before}${alternation}${after}(?:${separator}${alternation}${after}){2,}`,
-    "gi",
+    "giu",
   );
   const prose = row.replace(/`[^`]+`/g, " ");
   for (const run of prose.match(list) ?? []) {

@@ -2966,20 +2966,12 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   const nested = '(value of :d for key "x") is empty';
   assert.equal(inside(nested, "of", "ValueOfKey"), true);
   assert.equal(inside(nested, "of", "IsPredicate"), false);
-  // Measured, and deliberately asserted rather than assumed: with a PARENTHESISED operand the
-  // highlighter paints this `empty` `primitive`, not `keyword`, even though the parser does build
-  // the `IsPredicate`. That is a pre-existing behaviour of `highlight.ts`'s index arithmetic
-  // (the operand's span ends at the ValueOfKey, one token before the `)`), untouched by this slice
-  // and outside its write-set. It is pinned here so the contextual probes above are never widened
-  // onto a form whose painting nobody has checked.
-  assert.equal(
-    realParserApi
-      .highlight(nested, "<probe>", {
-        profiles: realParserApi.OL_CHECK_PROFILES,
-      })
-      .find((token) => token.text === "empty").class,
-    "primitive",
-  );
+  // `empty` in the same probe IS the is-predicate's own word, and is painted `keyword` there. It
+  // was `primitive` until round 4: `highlight.ts` stepped a fixed one token past the operand's
+  // span, which a parenthesised operand ends before its own `)`. Pinning that would have
+  // institutionalised a defect in the very axis this slice exists to make checkable, so it was
+  // fixed instead.
+  assert.equal(inside(nested, "empty", "IsPredicate"), true);
 
   const swapped = manifestCopy();
   swapped.tokenClass.contextual.words.find(
@@ -3249,6 +3241,15 @@ test("INJECTED DRIFT: an enumeration written to dodge the backticked-word scan",
     ]).length,
     1,
   );
+  // A name ending in `!` behaves the same way.
+  assert.equal(
+    reEnumerationFindings("Also set!, get!, and run! here.", [
+      "set!",
+      "get!",
+      "run!",
+    ]).length,
+    1,
+  );
   // The boundaries are identifier-aware in both directions: a longer name that merely CONTAINS
   // three shorter ones is not a list.
   assert.deepEqual(
@@ -3257,6 +3258,12 @@ test("INJECTED DRIFT: an enumeration written to dodge the backticked-word scan",
       "and",
       "more",
     ]),
+    [],
+  );
+  // And Unicode-aware, because a user name may carry Unicode letters (`spec/tooling.md:24`), so
+  // `éset` is ONE identifier and must not read as a boundary before `set` (round 4).
+  assert.deepEqual(
+    reEnumerationFindings("éset, end, and return", ["set", "end", "return"]),
     [],
   );
   // A row with no code spans and no list at all has nothing to report either.
@@ -3433,31 +3440,38 @@ test("a word painted the contextual class but enclosed by no position node fails
 test("INJECTED DRIFT: a highlighter wrong only when a NON-keyword profile is absent", () => {
   // Enumerating only the keyword-contributing subsets left every other profile permanently active,
   // so a rule keyed on Sound's absence answered correctly in every set the gate tried (issue #959
-  // review round 3, finding 2). Each subset is now swept over Core alone as well.
-  const api = {
-    ...realParserApi,
-    highlight: (source, document, options) =>
-      realParserApi
-        .highlight(source, document, options)
-        .map((token) =>
-          token.text === "repeat" && !options.profiles.includes("sound")
-            ? { ...token, class: "primitive" }
-            : token,
-        ),
-  };
-  const findings = profileGatingFindings(
-    api,
-    entryFor(REAL_MANIFEST, "repeat"),
-  );
-  assert.equal(
-    findings.some(
-      (finding) =>
-        finding.startsWith("repeat:") &&
-        finding.includes("over Core Language alone"),
-    ),
-    true,
-    findings.join("\n"),
-  );
+  // review round 3, finding 2). Each subset is now swept over Core alone as well, and each
+  // non-contributing profile is additionally removed one at a time from the otherwise-full set,
+  // which is what catches a rule keyed on a MIXED configuration — Sound present, Modules absent
+  // (round 4, finding 1).
+  for (const [label, wrongWhen] of [
+    ["absent from a Core-only set", (profiles) => !profiles.includes("sound")],
+    [
+      "absent from an otherwise-full set",
+      (profiles) => profiles.includes("sound") && !profiles.includes("modules"),
+    ],
+  ]) {
+    const api = {
+      ...realParserApi,
+      highlight: (source, document, options) =>
+        realParserApi
+          .highlight(source, document, options)
+          .map((token) =>
+            token.text === "repeat" && wrongWhen(options.profiles)
+              ? { ...token, class: "primitive" }
+              : token,
+          ),
+    };
+    const findings = profileGatingFindings(
+      api,
+      entryFor(REAL_MANIFEST, "repeat"),
+    );
+    assert.equal(
+      findings.some((finding) => finding.startsWith("repeat:")),
+      true,
+      `${label} survived: ${findings.join("\n")}`,
+    );
+  }
   // And the shipped highlighter is quiet over the whole sweep.
   assert.deepEqual(
     profileGatingFindings(realParserApi, entryFor(REAL_MANIFEST, "repeat")),

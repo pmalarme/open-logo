@@ -44,7 +44,21 @@ treated them as one.
 
 **Each name in `spec/built-in-names.json` carries a `tokenClass` beside its `category`, and
 `npm run built-in-names` compares that declaration against `@openlogo/parser`'s shipped
-`highlight()` output in both directions.**
+`highlight()` output.**
+
+The comparison is not one mechanism, and the three it is made of cover different amounts. Stated
+plainly here because "in both directions" over-describes two of them:
+
+- **Declared name → highlighter, measured.** Every entry's class is re-painted through `highlight()`
+  in nine positions and over the profile sweep below. This is the strong half.
+- **Highlighter → declaration, over the name *sources*.** The reverse direction reads
+  `OL_WORD_OPERATORS`, `OL_KEYWORDS` and `OL_PROFILE_KEYWORDS` — the sets `highlight()` classifies
+  from — and set-compares them against the declared classes. It is a comparison against enumerable
+  sources, **not** against arbitrary `highlight()` output: a class the highlighter derived some
+  other way would not appear in it.
+- **The contextual four, declaration-first only.** Each declared word is probed in the positions it
+  claims and outside them. Nothing enumerates the positional marking, so a contextual word the
+  implementation started painting and this file does not declare would not be detected.
 
 1. **Two axes, explicitly independent.** `category` answers *may a program declare this name?*
    `tokenClass` answers *how is this word painted?* Neither determines the other, and they are not
@@ -148,9 +162,12 @@ Stated because the mechanism it replaces failed three times by claiming more tha
 
 ## Consequences
 
-- A factually wrong token class can no longer be green. The mutation that proved the old mechanism
-  hollow — invert the claim, recompute the digest — has no counterpart here, because there is
-  nothing to recompute: the comparison's other side is the running highlighter.
+- A **declared** token class that is factually wrong can no longer be green. The mutation that
+  proved the old mechanism hollow — invert the claim, recompute the digest — has no counterpart
+  here, because there is nothing to recompute: the comparison's other side is the running
+  highlighter. What that does **not** extend to is a class the highlighter derives from something no
+  registry enumerates, or a contextual word it paints that this file never declares; those are in
+  the limits above.
 - **Adding a primitive stays a two-file change** — the registry and the list — and now carries a
   third obligation: the new entry needs a `tokenClass`, and a wrong one fails rather than passing
   unexamined. A **keyword** was already more than two files (`spec/grammar.md`'s normative block and
