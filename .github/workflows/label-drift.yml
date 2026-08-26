@@ -1,0 +1,98 @@
+name: Label drift
+
+# Issue #972: `.github/labels.yml` is documented as the single source of truth for labels, but
+# `label-sync.yml` is additive by design — it never deletes — so nothing could detect a label that
+# was created ad hoc through the API and applied to issues. The manifest described a subset of
+# reality rather than defining it, and `validate-meta.py` did not notice because it checks the
+# manifest is *well-formed*, never that it is *complete with respect to labels actually in use*.
+#
+# This runs the live directions of `validate-labels.py`: it fails when a label on an open issue or
+# PR is missing from the manifest, when a manifested label does not exist on the repository, or when
+# a label **containing a colon** is in neither the manifest nor `.github/labels-retired.yml`.
+# GitHub's unnamespaced stock labels are reported, not failed.
+#
+# It is deliberately NOT part of the per-PR CI gate: its result depends on mutable repository state,
+# so an unrelated PR would go red because somebody mislabelled a different issue. The deterministic
+# half — the `area:*`/`profile:*` labels against `validate-commits.py`'s `AREAS`/`PROFILES` — runs in
+# `ci.yml`'s `meta` job on every PR instead.
+#
+# Triggers, and why each is shaped this way:
+#   * pull_request on the manifest — comparing a *proposed* manifest against the live world is
+#     exactly the review question. It passes `--proposed`, because a PR that ADDS a label is
+#     compared against a repository the sync has not reached yet (sync runs after merge), and
+#     failing there would be a false red on correct work.
+#   * workflow_run after "Label sync" — NOT `push`, which would race the sync: both trigger on the
+#     same commit, and the drift check would read the repository before the new labels exist.
+#   * schedule — drift is introduced by hand at unpredictable times, so a daily sweep is what turns
+#     "nobody noticed for weeks" into "noticed by tomorrow".
+#
+# The sync stays additive on purpose; this workflow is the detector. The reasoning is recorded in
+# validate-labels.py's module docstring ("Why the sync stays additive").
+#
+# ## Activation — when each trigger actually starts firing
+#
+# GitHub only registers `schedule`, `workflow_dispatch` and `workflow_run` from the workflow file on
+# the **default branch**. This file is introduced on a `saga/*` branch, so until the saga promotes to
+# `main` those three are DORMANT — the daily sweep and the post-sync run do not exist yet, however
+# green this PR is. Nothing here can change that: it is a property of where the file lives, not of
+# what it says.
+#
+# `pull_request` is the exception, and it is the one that matters in the interim: for a
+# same-repository PR the workflow is taken from the PR's own head, so a PR touching the manifest is
+# gated from the moment this lands on the saga branch.
+#
+# That is the whole of the interim coverage. #972's subject is a label created ad hoc **through the
+# API**, which happens independently of `label-sync.yml` and of any pull request — so between now and
+# promotion, that drift goes undetected. `labeler-and-labels/SKILL.md` states the residual in full.
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Label sync"]
+    types: [completed]
+  pull_request:
+    paths:
+      - ".github/labels.yml"
+      - ".github/labels-retired.yml"
+      - ".github/scripts/validate-labels.py"
+      - ".github/workflows/label-drift.yml"
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  drift:
+    name: Labels in use match the manifest
+    # On a workflow_run trigger, only judge the repository after a sync that actually succeeded —
+    # a failed sync leaves it half-reconciled, and direction B would report that as manifest drift.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `--proposed` compares the manifest against its merge base to decide which labels this
+          # branch genuinely adds, so the base ref must be present in the clone.
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      # Two steps with `if:` conditions rather than one `run:` containing shell control flow. The
+      # guard that asserts this workflow really executes the gate matches the COMPLETE `run:` scalar
+      # against an allow-list; it does not parse shell. Two rounds of review defeated parsing —
+      # first a substring check (beaten by an `echo` prefix), then a tokeniser (beaten by
+      # `|| true` and by `if false; then … fi`). Deciding "does this command run?" from arbitrary
+      # shell is undecidable in general, so the shell is removed instead of parsed: one scalar, one
+      # command, exact match.
+      - name: Compare the manifest against the repository (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: python .github/scripts/validate-labels.py --live --proposed --base=origin/${{ github.base_ref }}
+      - name: Compare the manifest against the repository
+        if: ${{ github.event_name != 'pull_request' }}
+        run: python .github/scripts/validate-labels.py --live

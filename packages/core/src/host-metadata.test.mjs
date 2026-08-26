@@ -67,7 +67,6 @@ test("getHostMetadata is immutable: top-level and nested objects are frozen", ()
   assert.equal(Object.isFrozen(metadata.renderingTargets), true);
 
   assert.throws(() => {
-    "use strict";
     // @ts-expect-error -- intentionally mutating a readonly array to prove it is frozen.
     metadata.supportedProfiles.push("sprites");
   }, TypeError);

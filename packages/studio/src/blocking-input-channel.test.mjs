@@ -35,7 +35,7 @@ function makeNotifyRecorder() {
   const calls = [];
   return {
     calls,
-    notify(control, index) {
+    notify(_control, index) {
       calls.push(index);
       return 1;
     },
@@ -50,7 +50,7 @@ function makeWait(onPark) {
   const state = { parkCount: 0, intervals: [] };
   return {
     state,
-    wait(control, index, expected, timeoutMs) {
+    wait(_control, _index, _expected, timeoutMs) {
       state.parkCount += 1;
       state.intervals.push(timeoutMs);
       onPark?.(state.parkCount);

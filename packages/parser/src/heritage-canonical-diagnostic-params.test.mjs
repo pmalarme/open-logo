@@ -532,7 +532,6 @@ test("the worded-form registry's entries are frozen, so no consumer can poison w
     );
     assert.throws(
       () => {
-        "use strict";
         form.head = "poisoned";
       },
       TypeError,
@@ -540,7 +539,6 @@ test("the worded-form registry's entries are frozen, so no consumer can poison w
     );
     assert.throws(
       () => {
-        "use strict";
         form.node = "DictLit";
       },
       TypeError,

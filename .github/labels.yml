@@ -26,6 +26,7 @@
 - { name: "type:conformance", color: "0e8a16", description: "Conformance fixtures / harness work" }
 - { name: "type:foundation",  color: "6f42c1", description: "Toolchain / monorepo / CI setup (mostly M0)" }
 - { name: "type:docs",        color: "0075ca", description: "Documentation task" }
+- { name: "type:task",        color: "c5def5", description: "A concrete engineering task that is not a user-facing slice" }
 - { name: "type:chore",       color: "bfdadc", description: "Small maintenance task" }
 
 # --- Spec profile the work touches (the parent saga, set via native sub-issue, says where it lands) ---
@@ -43,15 +44,19 @@
 - { name: "profile:tutor-ai",         color: "fbca04", description: "Tutor (AI) profile" }
 
 # --- Cross-cutting domain (orthogonal to the owning agent) ---
+- { name: "area:parser",      color: "c2e0c6", description: "@openlogo/parser as a whole — prefer grammar/highlighter/checker when the work sits in one of them" }
 - { name: "area:grammar",     color: "c2e0c6", description: "EBNF grammar / reserved words" }
 - { name: "area:highlighter", color: "c2e0c6", description: "Syntax highlighting / token classes" }
 - { name: "area:checker",     color: "c2e0c6", description: "Syntax + semantic checker / linter" }
 - { name: "area:core",        color: "c2e0c6", description: "Core value/type model, ol-* diagnostics, event registry" }
+- { name: "area:diagnostics", color: "c2e0c6", description: "The ol-* diagnostic surface: codes, messages, spans, did-you-mean" }
 - { name: "area:runtime",     color: "c2e0c6", description: "Evaluator / runtime" }
 - { name: "area:rendering",   color: "c2e0c6", description: "Turtle rendering / export" }
 - { name: "area:studio",      color: "c2e0c6", description: "Browser studio UI" }
 - { name: "area:edu",         color: "c2e0c6", description: "Education layer" }
-- { name: "area:ci",          color: "c2e0c6", description: "CI / build / tooling" }
+- { name: "area:ci",          color: "c2e0c6", description: "CI / build pipelines" }
+- { name: "area:tooling",     color: "c2e0c6", description: "Developer tooling: the Definition-of-Done gates, scripts and generators" }
+- { name: "area:testing",     color: "c2e0c6", description: "Test suites, conformance fixtures and QA harnesses" }
 - { name: "area:docs",        color: "c2e0c6", description: "Docs surface" }
 
 # --- Curriculum learner level (progression, not a profile) ---

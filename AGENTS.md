@@ -40,9 +40,10 @@ docs/delivery.md       Release + saga strategy
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
+.github/labels-retired.yml  Namespaced labels kept on the repo but never applied again (reasoned)
 .github/labeler.yml    Path→label rules for PR auto-labeling
-.github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
-.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/scripts/        Metadata + commit-convention + label-taxonomy validation, label sync (run by CI)
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, label drift — owned by @devops
 .github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
 .github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate

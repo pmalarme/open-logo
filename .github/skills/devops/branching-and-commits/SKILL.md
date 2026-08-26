@@ -79,9 +79,10 @@ and the Copilot agent policy are guidance (see `devops/agent-policy`).
   is valid (CI emits a "consider adding a scope" notice, never a failure). When present, every scope
   must come from the allowlist: a **profile** (`core`, `turtle-rendering`, `data`, `geometry`,
   `heritage`, `sprites`, `interaction`, `sound`, `modules`, `localization`, `educational`,
-  `tutor-ai`) or an **area** mirroring the `area:*` labels (`grammar`, `highlighter`, `checker`,
-  `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs` — `core` is covered by the profile scope
-  above); governance/infra scopes `spec` (the maintainer-owned `spec/` surface), `deps`, `release`,
+  `tutor-ai`) or an **area** mirroring the `area:*` labels (`parser`, `grammar`, `highlighter`,
+  `checker`, `diagnostics`, `runtime`, `rendering`, `studio`, `edu`, `ci`, `tooling`, `testing`,
+  `docs` — `core` is covered by the profile scope above); governance/infra scopes `spec` (the
+  maintainer-owned `spec/` surface), `deps`, `release`,
   `repo`, `meta` are also allowed.
 - **subject** — imperative, concise, no trailing period.
 

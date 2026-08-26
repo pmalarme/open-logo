@@ -31,16 +31,35 @@ function event(kind, payload, turtleId = 0) {
  * causes: `forward 100` → `move` + `draw-segment`; `right 90` → `turn`. Four iterations of two
  * instructions each yields exactly 8 instruction-steps, matching the issue's acceptance
  * criteria.
+ *
+ * The movement follows the heading, so the four segments really do close a square. An earlier
+ * version advanced `y` only and ignored `heading` entirely, emitting a straight line whose `move`
+ * payloads contradicted its own `turn` payloads — the geometry below is only asserted for the first
+ * step, so nothing caught it. Biome's `useConst` did: it fired precisely because `x` was dead, and
+ * that deadness was the defect rather than a style nit.
+ *
+ * Headings are degrees clockwise from up (`spec/rendering.md`), so the four cardinal offsets are
+ * exact integers and no floating-point rounding enters the fixture.
  */
+const STEP = 100;
+const OFFSET_BY_HEADING = new Map([
+  [0, [0, STEP]],
+  [90, [STEP, 0]],
+  [180, [0, -STEP]],
+  [270, [-STEP, 0]],
+]);
+
 function repeat4ForwardRightEvents() {
   const events = [];
   let x = 0;
   let y = 0;
   let heading = 0;
   for (let i = 0; i < 4; i++) {
-    // forward 100
+    // forward 100 — along the current heading, not along a fixed axis.
     const from = [x, y];
-    y += 100;
+    const [dx, dy] = OFFSET_BY_HEADING.get(heading);
+    x += dx;
+    y += dy;
     const to = [x, y];
     events.push(event("instruction", { text: "forward 100" }));
     events.push(event("move", { from, to, heading }));
@@ -670,9 +689,17 @@ test("reset() restores the controller's world to its seed", () => {
     { initialState },
   );
   controller.seekToEnd();
-  assert.notDeepEqual(controller.getSnapshot().state, initialState);
+  // The square closes, so at the end the turtle is back at its start position and heading — the
+  // playback state deep-equals the seed by value. What must differ is identity: playback recomputes
+  // a state object, and the scene has accumulated the four drawn sides. (An earlier version
+  // asserted `notDeepEqual` here, which only held because the fixture drew a straight line to
+  // y=400 instead of the square it documents.)
+  assert.notEqual(controller.getSnapshot().state, initialState);
+  assert.equal(controller.getSnapshot().scene.items.length, 4);
+
   controller.reset();
-  const { world, state } = controller.getSnapshot();
+  const { world, state, scene } = controller.getSnapshot();
   assert.equal(state, initialState);
+  assert.equal(scene.items.length, 0);
   assert.deepEqual([...world.turtles.keys()], [OL.MAIN_TURTLE_ID]);
 });
