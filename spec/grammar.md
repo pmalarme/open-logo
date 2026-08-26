@@ -247,6 +247,8 @@ set people.tom.age to 9
 
 A colon place starts with `:` and a name. A bare place is the same syntax without `:` and appears only after `set` before `to`. Both may have any number of postfixes. A postfix is either `[ key-term ]` or `.identifier`.
 
+**Selector adjacency is whitespace-agnostic.** A selector `[` binds as a postfix only when it is *lexically adjacent* to what precedes it — zero width between them. Any whitespace, including a space, a tab, indentation, or a **newline**, separates the two tokens and therefore breaks that adjacency. This does not contradict newlines being insignificant within an expression: a space is insignificant too, and it still separates. So `:nums[1]` is a selector, while `:nums [1]` and `:nums` followed by `[1]` on the next line are a place and a separate list literal, alike. The same rule is what keeps a multi-line control or comprehension body a body rather than a selector on the header's last operand.
+
 Selector brackets contain exactly one key-term, not a general unparenthesized expression:
 
 ```logo

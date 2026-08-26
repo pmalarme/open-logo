@@ -20,12 +20,25 @@
 // single line with no continuation to fix. That measurement is pinned below, because it is the
 // reason the slice needed both halves rather than one.
 //
-// **Order matters, and this file is written to expose it.** Fixing B first would have silenced
-// #980's phantom while `( :d`⏎`.a )` still parsed into the wrong tree — `:d` alone, `.a` dropped,
-// no diagnostic. So A was fixed first and each phantom was confirmed to vanish *as a cascade*, with
-// the diagnostic itself untouched; only what genuinely remained was B. Every test here therefore
-// asserts the TREE where a tree is at stake, and the diagnostic only where the diagnostic is the
-// subject.
+// **Order matters, and this file is written to expose it.** A was fixed first and each phantom was
+// confirmed to vanish *as a cascade*, with the diagnostic itself untouched; only what genuinely
+// remained was B. Fixing B first would have removed #980's phantom parens while the expression
+// still parsed to a tree that differs from its one-line spelling.
+//
+// **What the #980 defect actually did, measured at `0277d5ff` for `:d = { a: 7 b: "a" }`** — it
+// differed by container, which is why one sentence about it would be wrong:
+//
+//   `print ( :d` ⏎ `.a )`      2× `ol-unmatched-paren`; the field SURVIVED. `parseParenthesized`
+//                              skips newlines after its inner expression, so the `.` was already
+//                              current — only the phantom diagnostics were wrong here.
+//   `print [ :d` ⏎ `.a ]`      `ol-bad-token`; the field was DROPPED, `.a` became a separate call.
+//   `print { x: :d` ⏎ `.a }`   2× `ol-bad-token`; dropped.
+//   `print :d` ⏎ `.a`          `ol-bad-token`; dropped, and split into separate statements.
+//
+// So "the field was silently dropped" is true for three containers and false for the parenthesized
+// one, and "no diagnostic" is false for all four. What is uniformly true is that the TREE differed
+// from the one-line spelling — in three containers by being *smaller* rather than malformed, a
+// shape no diagnostic describes. That is what these tests assert.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -153,16 +166,19 @@ test("a newline inside an expression produces the AST of its one-line spelling",
 });
 
 test("a postfix read across a newline reaches the field, not just the base", () => {
-  // Names the #980 misreading rather than trusting the tree comparison to have covered it: the
-  // defect dropped `.a` entirely and left a bare `VarRef`, which is a *smaller* tree, not a
-  // malformed one.
-  const { ast } = OL.parse(`${PRELUDE}print ( :d\n.a )\n`, doc);
+  // Names the #980 misreading rather than trusting the tree comparison to have covered it. The
+  // container is chosen deliberately: in a LIST the defect dropped `.a` and left a bare read, which
+  // is a *smaller* tree rather than a malformed one — the shape no diagnostic describes. (In a
+  // parenthesized group the field survived and only the phantom parens were wrong; see the header.)
+  const { ast } = OL.parse(`${PRELUDE}print [ :d\n.a ]\n`, doc);
   const printed = ast.body.at(-1).args[0];
 
-  assert.equal(printed.kind, "Place");
-  assert.equal(printed.base.name, "d");
+  assert.equal(printed.kind, "ListLit");
+  assert.equal(printed.elements.length, 1);
+  assert.equal(printed.elements[0].kind, "Place");
+  assert.equal(printed.elements[0].base.name, "d");
   assert.deepEqual(
-    printed.segments.map((segment) => segment.name.name),
+    printed.elements[0].segments.map((segment) => segment.name.name),
     ["a"],
   );
 });

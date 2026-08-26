@@ -17,6 +17,20 @@ print ( :nums
 [1] )
 print ( :nums [1] )
 
+# The regression this direction had to avoid, and the half its execution twin cannot carry: a
+# newline after a comprehension or control header selects the long `... end` body form
+# (`spec/grammar.md:34`), so the `[` binds as a BODY, not as a selector on the header's last
+# operand. A narrowing can only make the `[` LESS likely to bind, so these are strictly more
+# protected than before — asserted here rather than assumed. Each raises `ol-missing-end`.
+print map n in :nums
+[ :n ]
+
+print filter n in :nums
+[ :n ]
+
+repeat 2
+[ print 1 ]
+
 # The dict entry lookahead must not fire while the value is owed an operand. `sentence` takes two
 # inputs and has one, so no entry opens and the entry is malformed — as the spec's own
 # `{ a: 1 + b: 2 }` example is.

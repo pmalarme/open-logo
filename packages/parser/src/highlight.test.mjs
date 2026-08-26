@@ -306,6 +306,42 @@ test("dict-key: a glued dict-entry value that is a word-spelled operator classif
   ]);
 });
 
+test("dict-key: a worded operator followed by a key separator classifies dict-key, not operator", () => {
+  // Issue #944's ruling, acceptance criterion 3, and the reason it was called out at length: the
+  // `dict-key` class is derived from the parsed AST, so the paint follows the parser
+  // **automatically** — and that automatic follow is exactly why it needs pinning, because nothing
+  // would fail if it stopped following. The lookahead decides this split; these two assertions are
+  // what make that decision visible to the token classes.
+  //
+  // The separator's LEXEME is the discriminator: a `colon` token opens the next entry, so `mod` is
+  // a key; a `variable` token is a variable-read, so `mod` stays an operator. Both spellings parse
+  // clean, which is why a swap between them would otherwise be silent.
+  assert.deepEqual(classes("print { a: 1 mod: 2 }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["dict-key", "mod", undefined],
+    ["operator", ":", undefined],
+    ["number", "2", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a worded operator followed by a variable read stays operator, not dict-key", () => {
+  assert.deepEqual(classes("print { a: 1 mod :two }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["operator", "mod", undefined],
+    [":variable", ":two", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
 test("dict-key: multiple glued dict entries each split their own colon independently", () => {
   assert.deepEqual(classes("print { a:1 b:2 }"), [
     ["primitive", "print", undefined],

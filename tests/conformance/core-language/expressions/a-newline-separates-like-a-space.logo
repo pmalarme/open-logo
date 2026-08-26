@@ -8,9 +8,9 @@
 # `[ :nums [1] ]` read a second element. The two spellings now agree.
 #
 # A list literal is the container used here because both spellings are execution-valid in it, so
-# the ruling can be proven as a VALUE rather than as a diagnostic. The malformed containers — a
-# parenthesized group, and the top level, where the spaced spelling is an arity error for reasons
-# unrelated to adjacency — have their agreement pinned in the companion check fixture instead.
+# the ruling can be proven as a VALUE rather than as a diagnostic. The parenthesized container is
+# malformed in BOTH spellings, so its agreement is pinned in the companion check fixture. The top
+# level is excluded from both: its spaced spelling is an arity error unrelated to adjacency.
 #
 # The glued spelling is printed too and must NOT match, or this fixture would still pass if
 # adjacency stopped working altogether.
@@ -24,8 +24,8 @@ print [ :nums [1] ]
 # Glued: `[1]` is a selector, so this prints the element rather than a second list.
 print [ :nums[1] ]
 
-# The regression this direction had to avoid. A newline after a comprehension header selects the
-# long body form (`spec/grammar.md:34`), so the `[` binds as a BODY, not as a selector on `:nums`.
-# A narrowing can only make the `[` less likely to bind, so this is strictly more protected than
-# before — asserted here rather than assumed.
+# The regression this direction had to avoid, in the container where it can be proven as a value:
+# the one-line comprehension still maps rather than indexing `:nums`. Its SPLIT form is a parse
+# error (`ol-missing-end`, the long-body form), so it cannot execute and is pinned in the companion
+# check fixture instead.
 print map n in :nums [ :n ]

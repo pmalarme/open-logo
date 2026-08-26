@@ -45,8 +45,9 @@ key
 print value of :d for key :k
 
 # #980 — a `.field` postfix on the next line, inside a parenthesized group. Under the defect this
-# printed the whole dictionary instead of the field, and raised two `ol-unmatched-paren` on
-# parentheses that are correctly matched.
+# raised two `ol-unmatched-paren` on parentheses that are correctly matched. In THIS container the
+# field itself survived; in a list, dict entry or at the top level the defect dropped it instead,
+# which is why the rows below cover all four rather than generalising from one.
 print ( :d
 .a )
 print ( :d .a )
