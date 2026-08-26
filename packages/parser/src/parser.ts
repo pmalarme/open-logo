@@ -422,8 +422,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Is `token` a delimiter that is genuinely unmatched in the source? Every unmatched-delimiter
-   * diagnostic in this parser is gated on this, so a *matched* delimiter can never be reported as
-   * unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
+   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   *
+   * Four sites report without calling it — `parser.ts:1686`, `parser.ts:1719`, `parser.ts:1950` and
+   * `parser.ts:2081` — and are correct without it, because each sits inside `if (token.kind ===
+   * "eof")`: having consumed to end of input without meeting the closer is itself proof that no later
+   * closer exists, which is strictly stronger than this balance walk. Gating them anyway would add a
+   * call whose `false` branch is unreachable, and the coverage gate rejects unreachable branches.
+   * Those four are pinned exactly-once by `GENUINELY_UNMATCHED` in
+   * `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.
    */
   function isGenuinelyUnmatched(token: LexToken): boolean {
     return unmatchedDelimiters.has(positionKey(token.source_span.start));

@@ -361,29 +361,31 @@ export function highlight(
    * the first, and {@link markValueOfKeyPreposition} below handles the second. `is` itself,
    * `between`, and `strictly` are already globally reserved.
    *
-   * `node.operand`'s span always ends at a real, non-`eof` token, and the parser only ever
-   * builds an `IsPredicateNode` when `is` is the literal next raw token after the operand
-   * (`isName` reads `current()` directly, with no `skipNewlines` between) — so `byEnd` always
-   * resolves and `isIndex` always lands on that `is` token.
+   * `node.operand`'s span always ends at a real, non-`eof` token, so `byEnd` always resolves.
    *
-   * **Every index after `is` walks past newlines** (issue #995). An earlier version of this comment
-   * asserted the opposite — "the grammar requires each word directly adjacent in the token stream
-   * (no `skipNewlines` between them), so once `is` is found the rest are just the following raw
-   * token indexes" — and that sentence is what kept the defect invisible, because it told each
-   * later reader the raw offsets were safe. They are not: `parseIsPredicate` calls
-   * `skipNewlinesBeforeOperand` at four slots (`parser.ts:1078`, `parser.ts:1088`,
-   * `parser.ts:1091`, `parser.ts:1108`, from issue #933), so `print :x is` ⏎ `empty` is a legal
-   * predicate whose `empty` sat one index past
-   * where this looked. It fell through to its ordinary classification and was painted `primitive`,
-   * exactly as `of` was in #785 — and, like #785, in a program that parses **completely clean**, so
-   * no diagnostic could ever surface it. `of` is found from `member`'s own index rather than
-   * `isIndex + 2`, because an arbitrary number of newlines may separate the two.
+   * **Every index here walks past newlines, including the one that finds `is` itself** (issue
+   * #995). Two earlier versions of this comment asserted adjacency instead, and both were false:
+   * one claimed the words after `is` are "directly adjacent in the token stream (no `skipNewlines`
+   * between them)", the other that "`is` is the literal next raw token after the operand". Neither
+   * holds. `parseComparison` runs `if (continuesOnNextLineWith("is")) { skipNewlines(); }` at
+   * `parser.ts:1030` immediately before testing for `is` at `parser.ts:1033`, and
+   * `parseIsPredicate` then calls `skipNewlinesBeforeOperand` at four further slots
+   * (`parser.ts:1078`, `parser.ts:1088`, `parser.ts:1091`, `parser.ts:1108`, from issue #933).
+   *
+   * So `print :x` ⏎ `is empty` and `print :x is` ⏎ `empty` are both legal predicates, and a raw
+   * offset lands on a newline token in each. The word then falls through to its ordinary
+   * classification and is painted `primitive` — exactly as `of` was in #785, and, like #785, in a
+   * program that parses **completely clean**, so no diagnostic could ever surface it. A token-class
+   * assertion is the only instrument that can see it.
+   *
+   * Each index is therefore derived from the previous *resolved* one rather than by arithmetic on
+   * `isIndex`, so an arbitrary number of newlines between any two words resolves.
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(
       posKey(node.operand.source_span.end),
     ) as number;
-    const isIndex = operandEndIndex + 1;
+    const isIndex = indexSkippingNewlines(operandEndIndex + 1);
     const formIndex = indexSkippingNewlines(isIndex + 1);
     switch (node.test.form) {
       case "empty":
@@ -445,21 +447,23 @@ export function highlight(
    * redefinable and remains an ordinary name outside these two positions (`:of`, `define of`,
    * `{ of: 2 }`) — see `keywords.ts`, which deliberately omits all four contextual words.
    *
-   * The node's span starts at its own `value` token, and the parser only builds a
-   * `ValueOfKeyNode` when `of` is the literal next raw token (`peek(1)`, no `skipNewlines`
-   * between) — so `byStart` always resolves and `of` is always the following index. That makes
-   * **both** halves of {@link markContextualWord}'s guard redundant defence-in-depth on this path
-   * rather than live branches: the token there is always a `name` token, and its text is always
-   * `of`. Deleting either half leaves the whole suite green (verified), so neither is pinned from
-   * here; they are the shared helper's signature, kept because with them a wrong index degrades to
+   * The node's span starts at its own `value` token, so `byStart` always resolves. `of` is found
+   * by walking past any `newline` tokens, because `byStart`/`byEnd` are built over the **raw** lex
+   * stream, which keeps them. An earlier version of this comment claimed the parser only builds a
+   * `ValueOfKeyNode` when `of` is the literal next raw token, "`peek(1)`, no `skipNewlines`
+   * between". That was true when it was written and my own #979 change falsified it without
+   * updating it: `parser.ts:1551` now reads `isKeywordToken(peek(skippingNewlines(1)), "of")`, so
+   * the reader may be written `value` ⏎ `of …`. Without the walk the marked index would land on
+   * the newline, `of` would fall through to its ordinary classification and be painted `primitive`,
+   * re-opening #785 for the split spelling alone — a regression no parse diagnostic could show,
+   * since the program parses clean.
+   *
+   * Both halves of {@link markContextualWord}'s guard are redundant defence-in-depth on this path
+   * rather than live branches: the token there is always a `name` token whose text is always `of`.
+   * Deleting either half leaves the whole suite green (verified), so neither is pinned from here;
+   * they are the shared helper's signature, kept because with them a wrong index degrades to
    * marking nothing, while without them it would mark the *wrong* token `keyword`.
    * Marking by token index leaves every other `of` in the same document untouched.
-   *
-   * The index walk skips `newline` tokens, because `byStart`/`byEnd` are built over the **raw** lex
-   * stream, which keeps them. Since #979 the reader may be written `value` ⏎ `of …`, and without
-   * this the marked index would land on the newline: `of` would then fall through to its ordinary
-   * classification and be painted `primitive`, re-opening #785 for the split spelling alone —
-   * a regression no parse diagnostic could show, since the program parses clean.
    */
   function markValueOfKeyPreposition(node: ValueOfKeyNode): void {
     const valueIndex = byStart.get(posKey(node.source_span.start)) as number;

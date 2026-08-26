@@ -31,6 +31,11 @@ function printedExpression(source) {
   return body[0].args[0];
 }
 
+/** The diagnostic codes `source` raises, in order. */
+function codesOf(source) {
+  return OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code);
+}
+
 /**
  * `source`'s AST with every `source_span` stripped. Spans are exactly what a newline is *allowed*
  * to change, so comparing two spellings means comparing the tree shape that survives that
@@ -399,32 +404,55 @@ test("the one-line and multi-line spellings of a dict entry agree", () => {
 });
 
 test("the dict-key guard is scoped to the dictionary that owns the newline", () => {
-  // Each case uses `mod :two` — a shape that reads BOTH ways without a diagnostic — because
-  // `mod 2` cannot detect a leaked guard: `isDictKeyAt` only fires before a `:` separator, so a
-  // witness without one passes whether or not the enclosing container cleared the flag.
-  const fromList = printedExpression("print { a: [1\nmod :two] }");
+  // Each case uses a `mod:` COLON shape, because that is the only shape that reaches the guard at
+  // all. `isDictKeyAt` fires only when the token after the word is a raw `colon`; in `mod :two`,
+  // `:two` lexes as a `variable`, so the guard returns false regardless of whether the enclosing
+  // container cleared `inDictEntryValue`. An earlier version of this test used `mod :two` and was
+  // therefore non-discriminating: it passed whether or not the flag leaked. It was written for
+  // #933's rule, under which `isDictKeyAt` still had a `variable` arm; the #944 ruling removed that
+  // arm and left the witness unable to witness. Review caught it.
+  //
+  // The invariant: `inDictEntryValue` belongs to the dictionary that owns the newline, so inside a
+  // NESTED container a `mod:` is not an entry separator. Each nested case is malformed in exactly
+  // the same way its one-line spelling is, and the dict control beside it — where the entry SHOULD
+  // open — stays clean, so the pair fails in both directions if the flag leaks or is never set.
+  for (const [label, source, expected] of [
+    ["list", "print { a: [1\nmod: 2] }", ["ol-bad-token", "ol-bad-token"]],
+    [
+      "paren",
+      "print { a: (1\nmod: 2) }",
+      ["ol-bad-token", "ol-bad-token", "ol-bad-token"],
+    ],
+    [
+      "paren call",
+      "print { a: (sum 1\nmod: 2) }",
+      ["ol-bad-token", "ol-bad-token"],
+    ],
+    [
+      "comprehension body",
+      "print { a: map n in [1 2] [ :n\nmod: 2 ] }",
+      ["ol-bad-token", "ol-bad-token"],
+    ],
+  ]) {
+    assert.deepEqual(codesOf(source), expected, label);
+    assert.deepEqual(
+      codesOf(source.replace("\n", " ")),
+      expected,
+      `${label}: the one-line spelling must be malformed the same way`,
+    );
+  }
 
-  assert.equal(fromList.entries[0].value.kind, "ListLit");
-  assert.equal(fromList.entries[0].value.elements.length, 1);
-  assert.equal(fromList.entries[0].value.elements[0].callee.name, "mod");
+  // The control: in the dictionary itself the separator DOES open the next entry, both spellings.
+  for (const source of ["print { a: 1 mod: 2 }", "print { a: 1\nmod: 2 }"]) {
+    const dict = printedExpression(source);
 
-  // A plain parenthesized group differs only in its DIAGNOSTICS when the flag leaks — the guard
-  // declines, the group never sees its `)`, and `ol-unmatched-paren` fires twice. `parseClean`
-  // inside `printedExpression` is what makes this case load-bearing.
-  const fromParen = printedExpression("print { a: (1\nmod :two) }");
-
-  assert.equal(fromParen.entries[0].value.callee.name, "mod");
-
-  const fromParenCall = printedExpression("print { a: (sum 1\nmod :two) }");
-
-  assert.equal(fromParenCall.entries[0].value.kind, "ParenCall");
-  assert.equal(fromParenCall.entries[0].value.args.length, 1);
-
-  const fromBlock = printedExpression(
-    "print { a: map n in [1 2] [ :n\nmod :two ] }",
-  );
-
-  assert.equal(fromBlock.entries[0].value.kind, "Comprehension");
+    assert.equal(dict.entries.length, 2, source);
+    assert.deepEqual(
+      dict.entries.map((entry) => entry.key.value),
+      ["a", "mod"],
+      source,
+    );
+  }
 });
 
 test("a malformed dict key does not swallow the entry after it", () => {

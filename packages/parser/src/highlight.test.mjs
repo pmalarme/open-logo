@@ -525,40 +525,58 @@ test("contextual: empty/member/a are keyword only immediately after is, and so i
 });
 
 test("contextual: empty/member/of/a stay keyword when a newline separates them from `is` (issue #995)", () => {
-  // `parseIsPredicate` calls `skipNewlinesBeforeOperand` at four slots (`parser.ts:1078`,
-  // `parser.ts:1088`, `parser.ts:1091`, `parser.ts:1108`, from issue #933), so every spelling
-  // below is a LEGAL predicate that parses with ZERO diagnostics. The highlighter located each
-  // word by a raw offset from `is`, so the offset landed on the newline token and the word fell
-  // through to `primitive`.
+  // A newline is legal at FIVE points in an `is` predicate, not four: `parseComparison` runs
+  // `if (continuesOnNextLineWith("is")) { skipNewlines(); }` at `parser.ts:1030` before testing for
+  // `is` at `parser.ts:1033`, and `parseIsPredicate` then calls `skipNewlinesBeforeOperand` at
+  // `parser.ts:1078`, `parser.ts:1088`, `parser.ts:1091` and `parser.ts:1108` (issue #933). So the
+  // newline can precede `is` itself, which is the row a first pass at this fix missed.
   //
-  // That is #785's shape in the sibling reader, and it is why this pin has to exist: the programs
-  // parse completely clean, so no diagnostic could ever surface the defect — a token-class
-  // assertion is the ONLY instrument that can see it. Measured at `0277d5ff`, every split
-  // spelling here classified its word `primitive`; the one-line spellings, pinned in the test
-  // above, were correct throughout, which is exactly why varying the container was not enough.
-  const wordIn = (source, text) =>
-    OL.highlight(source, doc).find((token) => token.text === text).class;
-
+  // Every spelling below therefore parses with ZERO diagnostics, which is asserted rather than
+  // assumed: if one of them ever became a parse error, the classification assertion beside it would
+  // still pass and pin nothing.
+  //
+  // The defect this pins is that the highlighter located each word by raw offsets from `is`. What
+  // the stale offset LANDED on varied by row -- for `is` ⏎ `member of`, the old `of` offset was
+  // `isIndex + 2`, which lands on `member`, not on the newline -- so the mechanism is deliberately
+  // not generalised here. The invariant is the outcome: at `0277d5ff` every split spelling below
+  // classified its word `primitive`, and the one-line spellings pinned in the test above were
+  // correct throughout, which is exactly why varying the container without varying the newline
+  // could not have found this.
+  //
+  // Like #785, these programs parse completely clean, so no diagnostic could ever surface the
+  // defect: a token-class assertion is the only instrument that can see it.
   for (const [source, text] of [
+    // The newline before `is`.
+    ["print :x\nis empty", "empty"],
+    ["print :x\nis member of [1 2 3]", "member"],
+    ["print :x\nis member of [1 2 3]", "of"],
+    ['print :x\nis a "number"', "a"],
+    ["print :x\n\nis empty", "empty"],
+    // The newline after `is`.
     ["print :x is\nempty", "empty"],
     ["print :x is\n\nempty", "empty"],
     ["print :x is\nmember of [1 2 3]", "member"],
     ["print :x is\nmember of [1 2 3]", "of"],
-    ["print :x is member\nof [1 2 3]", "of"],
-    // Two newlines between `member` and `of`: `of` is found from `member`'s own index rather than
-    // `is + 2`, so an arbitrary gap resolves rather than only a single line break.
-    ["print :x is member\n\nof [1 2 3]", "of"],
-    // The `a` form was the row nobody had measured, and it was broken: at `0277d5ff` this
-    // classified `a` as `primitive` while its one-line spelling was already correct.
     ['print :x is\na "number"', "a"],
     ['print :x is\n\na "number"', "a"],
+    // The newline between `member` and `of`: `of` is found from `member`'s own resolved index
+    // rather than `isIndex + 2`, so an arbitrary gap resolves rather than only a single break.
+    ["print :x is member\nof [1 2 3]", "of"],
+    ["print :x is member\n\nof [1 2 3]", "of"],
+    // Both at once.
+    ["print :x\nis\nempty", "empty"],
+    ["print :x\nis member\nof [1 2 3]", "of"],
   ]) {
     assert.equal(
       OL.parse(source, doc).diagnostics.length,
       0,
       `${JSON.stringify(source)} must parse clean, or the pin proves nothing`,
     );
-    assert.equal(wordIn(source, text), "keyword", JSON.stringify(source));
+    assert.equal(
+      OL.highlight(source, doc).find((token) => token.text === text).class,
+      "keyword",
+      JSON.stringify(source),
+    );
   }
 });
 
