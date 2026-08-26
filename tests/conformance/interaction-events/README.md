@@ -379,7 +379,7 @@ Eleven fixtures land with it — three under `when/` and eight under `every/`, d
 sections above. Two properties of this corpus are worth recording, because they are why the rules
 could ship undecided at all. First, **the ruling's first three rules changed nothing the corpus could
 see**: 910 fixtures passed before that runtime change and 910 passed after, so not one of them
-discriminated any of the three. The ten fixtures here were added precisely to close
+discriminated any of the three. The fixtures listed above were added precisely to close
 that gap, and each is mutation-verified against the readings the rulings reject. A dimension nothing varies is a dimension nothing can observe.
 Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
