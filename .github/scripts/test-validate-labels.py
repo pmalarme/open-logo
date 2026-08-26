@@ -14,6 +14,7 @@ import contextlib
 import importlib.util
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -394,21 +395,66 @@ expect(
 with open(os.path.join(REPO_ROOT, ".github", "workflows", "label-drift.yml"), encoding="utf-8") as fh:
     drift_workflow = fh.read()
 
-expect(
-    "--live --proposed" in drift_workflow,
-    "label-drift.yml must run the pull-request path with --live --proposed",
-)
-expect(
-    "--base=" in drift_workflow,
-    "the pull-request path must pass the PR's base so --proposed excuses only added labels",
-)
-expect(
-    len([line for line in drift_workflow.splitlines() if "validate-labels.py --live" in line]) >= 2,
-    "label-drift.yml must invoke --live on BOTH the pull-request and the non-PR path",
-)
 drift_config = yaml.safe_load(drift_workflow)
 # PyYAML parses the bare `on:` key as the boolean True.
 drift_triggers = drift_config.get("on", drift_config.get(True, {}))
+
+
+def shell_invocations(script):
+    """Every command in a `run:` block, as a list of argv-ish tokens with continuations joined.
+
+    Substring matching is not execution matching: review defeated the previous version by prefixing
+    the command with `echo`, which leaves every substring — `--live --proposed`, `--base=`, the
+    script path — intact while running nothing. So the workflow's `run:` block is tokenised and the
+    FIRST token of each command must be the interpreter, not a bystander.
+    """
+    joined = re.sub(r"\\\s*\n\s*", " ", script)
+    commands = []
+    for line in joined.splitlines():
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("#"):
+            continue
+        # Split on shell separators so `foo && bar` yields two commands.
+        for part in re.split(r"&&|\|\||;|\|", stripped):
+            tokens = part.split()
+            if tokens:
+                commands.append(tokens)
+    return commands
+
+
+drift_commands = [
+    tokens
+    for job in (drift_config.get("jobs") or {}).values()
+    for step in (job.get("steps") or [])
+    for tokens in shell_invocations(str(step.get("run", "")))
+]
+validate_invocations = [
+    tokens
+    for tokens in drift_commands
+    if tokens[0] in {"python", "python3"}
+    and any(token.endswith("validate-labels.py") for token in tokens[1:2])
+]
+
+expect(
+    len(validate_invocations) >= 2,
+    f"label-drift.yml must EXECUTE validate-labels.py on both the pull-request and the non-PR "
+    f"path (interpreter as the first token, not merely mentioned); found {len(validate_invocations)}: "
+    f"{[' '.join(t) for t in drift_commands]}",
+)
+expect(
+    all("--live" in tokens for tokens in validate_invocations),
+    f"every validate-labels.py invocation in label-drift.yml must pass --live; got "
+    f"{[' '.join(t) for t in validate_invocations]}",
+)
+expect(
+    any("--proposed" in tokens for tokens in validate_invocations),
+    "the pull-request path must pass --proposed",
+)
+expect(
+    any(any(token.startswith("--base=") for token in tokens) for tokens in validate_invocations),
+    "the pull-request path must pass the PR's base so --proposed excuses only added labels",
+)
+
 expect(
     ".github/workflows/label-drift.yml" in drift_triggers["pull_request"]["paths"],
     "label-drift.yml must trigger on changes to itself, or an edit to it goes ungated",

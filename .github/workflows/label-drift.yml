@@ -41,9 +41,9 @@ name: Label drift
 # same-repository PR the workflow is taken from the PR's own head, so a PR touching the manifest is
 # gated from the moment this lands on the saga branch.
 #
-# That ordering is also why the dormancy is harmless rather than a gap: `label-sync.yml` is itself
-# `push: branches: [main]`, so no sync happens on a saga branch either. The detector's activation
-# tracks the thing it detects. Both go live in the same promotion.
+# That is the whole of the interim coverage. #972's subject is a label created ad hoc **through the
+# API**, which happens independently of `label-sync.yml` and of any pull request — so between now and
+# promotion, that drift goes undetected. `labeler-and-labels/SKILL.md` states the residual in full.
 
 on:
   schedule:

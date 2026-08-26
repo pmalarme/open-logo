@@ -33,12 +33,20 @@ suites these workflows run; you wire and secure them.
   `if: ${{ needs.meta.outputs.has_toolchain == 'true' }}` until the toolchain lands. Do **not** use
   `hashFiles()` in a job-level `if` — it evaluates before checkout.
 - **Gate wiring is itself gated.** `validate-meta.py`'s `check_gate_wiring` asserts that every
-  Definition-of-Done script in `package.json` is actually invoked by an unconditional step in
-  `ci.yml`, and that no job or step in any workflow is fail-open. Three ways to silently disable a
-  gate were found in review (issue #978): swapping `npm run -s lint` for a second `format:check`;
-  `continue-on-error` (in any spelling, including `${{ … }}` expressions); and an `if:` on a gate
-  step. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private — is
-  declared in `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently.
+  Definition-of-Done gate — the npm scripts derived from `package.json` **and** the Python metadata
+  gates in `REQUIRED_PYTHON_GATES` — is invoked by an unconditional step in `ci.yml`, and that no
+  job or step in any workflow is fail-open or skippable. Five ways to silently disable a gate were
+  found in review (issue #978): swapping `npm run -s lint` for a second `format:check`;
+  `continue-on-error` in any spelling, including `${{ … }}` expressions; an `if:` on a gate **step**;
+  an `if:` on a gate **job** (which switched off the whole lint job while the guard stayed green —
+  only the `has_toolchain` condition in `PERMITTED_JOB_CONDITIONS` is allowed); and deleting the
+  Python gates, which had no npm script and so were never derived. A deliberate fail-open —
+  `dependency-review.yml` is advisory while the repo is private — is declared in
+  `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently.
+- **Assert execution, not text.** `test-validate-labels.py` tokenises `label-drift.yml`'s `run:`
+  blocks and requires the interpreter to be the **first token** of the command. Substring matching
+  was defeated by prefixing `echo`, which leaves `--live`, `--proposed` and the script path all
+  present while running nothing.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
   activates when `package.json` lands.
 - `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR. Needs the

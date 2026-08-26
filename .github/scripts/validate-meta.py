@@ -99,6 +99,27 @@ FAIL_OPEN_EXCEPTIONS = {
 }
 
 
+#: The Python metadata gates CI must run, alongside the npm ones derived from package.json. These
+#: have no npm script, so nothing derived them and `check_gate_wiring` did not require them — review
+#: deleted both offline label steps from `ci.yml` and the wiring guard stayed green.
+REQUIRED_PYTHON_GATES = (
+    "python .github/scripts/validate-meta.py",
+    "python .github/scripts/test-validate-meta.py",
+    "python .github/scripts/validate-labels.py",
+    "python .github/scripts/test-validate-labels.py",
+    "python .github/scripts/validate-lockfile-registry.py",
+    "python .github/scripts/test-validate-lockfile-registry.py",
+    "python .github/scripts/validate-workflow-lockfiles.py",
+    "python .github/scripts/test-validate-workflow-lockfiles.py",
+)
+
+#: The one job-level `if:` a gate job may carry: the toolchain guard every code job is gated on
+#: while the workspace manifest may be absent. Anything else can switch a gate off silently.
+PERMITTED_JOB_CONDITIONS = frozenset(
+    {"${{ needs.meta.outputs.has_toolchain == 'true' }}"}
+)
+
+
 def check_gate_wiring():
     """Return errors for Definition-of-Done gates that CI does not run, or runs fail-open.
 
@@ -128,7 +149,10 @@ def check_gate_wiring():
         if name not in not_gates and not name.startswith(("pre", "post"))
     }
     ci = load(".github/workflows/ci.yml")
-    gate_commands = set(required.values())
+    gate_commands = set(required.values()) | set(REQUIRED_PYTHON_GATES)
+    for command in REQUIRED_PYTHON_GATES:
+        required[command] = command
+
     ci_commands = set()
     for job_name, job, step in workflow_steps(ci):
         commands = {line.strip() for line in str(step.get("run", "")).splitlines()}
@@ -140,6 +164,16 @@ def check_gate_wiring():
                 errors.append(
                     f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} "
                     f"under an `if:` condition, so the gate can be skipped without failing."
+                )
+            # ...and so can a job-level `if:`, which review used to switch the whole lint job — and
+            # therefore #978's fix — off while this guard stayed green. Only the toolchain condition
+            # every code job legitimately carries is permitted.
+            condition = job.get("if")
+            if condition is not None and str(condition).strip() not in PERMITTED_JOB_CONDITIONS:
+                errors.append(
+                    f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} but "
+                    f"the JOB carries `if: {condition}`, so the whole job can be skipped without "
+                    f"failing. Permitted: {sorted(PERMITTED_JOB_CONDITIONS)}."
                 )
     for name, command in sorted(required.items()):
         if command not in ci_commands:

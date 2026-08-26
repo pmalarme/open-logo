@@ -93,12 +93,32 @@ GATE_CASES = [
         {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
         False,
     ),
+    (
+        "MUTATION: a gate JOB carries `if: false`",
+        {"jobs": {"lint": {"if": "${{ false }}", "steps": [{"run": "npm run -s lint"}]}}},
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        False,
+    ),
+    (
+        "the permitted toolchain condition on a gate job is allowed",
+        {
+            "jobs": {
+                "lint": {
+                    "if": "${{ needs.meta.outputs.has_toolchain == 'true' }}",
+                    "steps": [{"run": "npm run -s lint"}],
+                }
+            }
+        },
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        True,
+    ),
 ]
 
 for label, ci_document, other_document, should_pass in GATE_CASES:
     scratch = tempfile.mkdtemp()
     os.makedirs(os.path.join(scratch, ".github", "workflows"))
-    # `required` is derived from package.json, so the fixture needs one.
+    # `required` is derived from package.json plus the Python metadata gates, so the fixture needs
+    # both a package.json and a step for every Python gate.
     gate_names = [
         "build", "typecheck", "lint", "format:check", "test",
         "conformance", "examples", "built-in-names", "spec-citations", "coverage",
@@ -109,7 +129,7 @@ for label, ci_document, other_document, should_pass in GATE_CASES:
     # clean rather than passing because the check found nothing at all.
     ci_document["jobs"].setdefault("all", {"steps": []})["steps"] = [
         {"run": f"npm run -s {name}"} for name in gate_names if name != "lint"
-    ]
+    ] + [{"run": command} for command in validate_meta.REQUIRED_PYTHON_GATES]
     with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
         yaml.safe_dump(ci_document, fh)
     with open(os.path.join(scratch, ".github", "workflows", "other.yml"), "w", encoding="utf-8") as fh:
@@ -155,6 +175,10 @@ for dropped in ALL_GATES:
                             for name in ALL_GATES
                             if name != dropped
                         ]
+                        + [
+                            {"run": command}
+                            for command in validate_meta.REQUIRED_PYTHON_GATES
+                        ]
                     }
                 }
             },
@@ -168,6 +192,41 @@ for dropped in ALL_GATES:
         os.chdir(cwd)
     if not dropped_errors:
         failures.append(f"MUTATION: dropping the `{dropped}` gate from ci.yml must fail, but passed")
+
+# MUTATION, parameterised over EVERY Python metadata gate: dropping any one from ci.yml must fail.
+# Review deleted both offline label steps and the wiring guard stayed green, because `required` was
+# derived from package.json and these have no npm script.
+for dropped_python in validate_meta.REQUIRED_PYTHON_GATES:
+    scratch = tempfile.mkdtemp()
+    os.makedirs(os.path.join(scratch, ".github", "workflows"))
+    with open(os.path.join(scratch, "package.json"), "w", encoding="utf-8") as fh:
+        json.dump({"scripts": {name: "x" for name in ALL_GATES}}, fh)
+    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(
+            {
+                "jobs": {
+                    "all": {
+                        "steps": [{"run": f"npm run -s {name}"} for name in ALL_GATES]
+                        + [
+                            {"run": command}
+                            for command in validate_meta.REQUIRED_PYTHON_GATES
+                            if command != dropped_python
+                        ]
+                    }
+                }
+            },
+            fh,
+        )
+    cwd = os.getcwd()
+    try:
+        os.chdir(scratch)
+        dropped_errors = validate_meta.check_gate_wiring()
+    finally:
+        os.chdir(cwd)
+    if not dropped_errors:
+        failures.append(
+            f"MUTATION: dropping `{dropped_python}` from ci.yml must fail, but passed"
+        )
 
 if failures:
     print("FRONTMATTER SELF-TEST FAILED:")
