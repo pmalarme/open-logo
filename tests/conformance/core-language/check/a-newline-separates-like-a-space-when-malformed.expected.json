@@ -1,5 +1,5 @@
 {
-  "description": "The agreement half of the adjacency ruling, for the containers where both spellings are malformed and so cannot be proven as a value, plus the round-2 review finding on the entry lookahead and the regression the ruling's direction had to avoid. A newline separates exactly like a space (`spec/grammar.md:248`), so the newline and spaced spellings of the parenthesized source must produce the SAME diagnostics -- the assertion is that they are malformed in the SAME WAY, not merely that they are malformed. Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, runs the same shapes in the container where both spellings are well-formed. Both fixtures are regression guards, NOT witnesses: neither could have detected this fix, because the container that exhibited the defect differed only in its AST, and a fixture sees events and diagnostics, never a tree. The comprehension and control rows are the guard: a newline after a header selects the long `... end` body form (`spec/grammar.md:34`), so the `[` binds as a BODY rather than as a selector on the header's last operand, and each raises `ol-missing-end`. A narrowing can only make the `[` LESS likely to bind, so those are strictly more protected than before -- asserted here rather than assumed, and asserted in their SPLIT form, which is the only form that exercises the newline. The dict rows pin `spec/grammar.md:314`: a call still owed an operand is unfinished exactly as an operator is, so the unfinished value's own grammar position wins and no entry opens. Measured at `0277d5ff` before the fix -- and stated for the SPLIT spelling, because an earlier version of this description attributed it to the one-line spelling, which is false -- `{ a: sentence 1` + newline + `mod: 2 }` parsed CLEAN into two entries, `a` and `mod`, leaving `sentence` one argument short, which `check()` then reported as `ol-not-enough-inputs` on a program the grammar says is simply a malformed entry -- as its own `{ a: 1 + b: 2 }` example is. The one-line `{ a: sentence 1 mod: 2 }` behaved correctly at that tip: it raised `ol-bad-token` twice at parse stage, opened no entry keyed `mod`, and so never reached `check()` at all. The newline was the whole of the difference, which is this slice's thesis. Both spellings of each are here because the one-line and multi-line forms must agree; the complete-call counterpart, where the key DOES open its entry, pulls the opposite way and is pinned in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.",
+  "description": "The agreement half of the adjacency ruling, for the containers where both spellings are malformed and so cannot be proven as a value, plus the round-2 review finding on the entry lookahead and the regression the ruling's direction had to avoid. A newline separates exactly like a space (`spec/grammar.md:248`), so the newline and spaced spellings of the parenthesized source must produce the SAME diagnostics -- the assertion is that they are malformed in the SAME WAY, not merely that they are malformed. Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, runs the same shapes in the container where both spellings are well-formed. Neither fixture could have detected the ADJACENCY ruling specifically: the container that exhibited it differed only in its AST, and a fixture sees events and diagnostics, never a tree. THIS fixture is load-bearing all the same, and the scoping matters -- do not read 'not an adjacency witness' as 'proves nothing' and prune it. It is the core-language witness for the OTHER mechanism in this slice, the phantom unmatched-delimiter report: measured whole-file at `0277d5ff` it raised 11 diagnostics (`ol-unmatched-paren` x4, `ol-missing-end` x3, `ol-bad-token` x4), and here it raises 19, with the parenthesized rows raising the substituted `ol-bad-token` and no `ol-unmatched-paren` at all. Its twin, by contrast, passes unchanged against that same pre-fix parser. The comprehension and control rows are the guard: a newline after a header selects the long `... end` body form (`spec/grammar.md:34`), so the `[` binds as a BODY rather than as a selector on the header's last operand, and each raises `ol-missing-end`. A narrowing can only make the `[` LESS likely to bind, so those are strictly more protected than before -- asserted here rather than assumed, and asserted in their SPLIT form, which is the only form that exercises the newline. The dict rows pin `spec/grammar.md:314`: a call still owed an operand is unfinished exactly as an operator is, so the unfinished value's own grammar position wins and no entry opens. Measured at `0277d5ff` before the fix -- and stated for the SPLIT spelling, because an earlier version of this description attributed it to the one-line spelling, which is false -- `{ a: sentence 1` + newline + `mod: 2 }` parsed CLEAN into two entries, `a` and `mod`, leaving `sentence` one argument short, which `check()` then reported as `ol-not-enough-inputs` on a program the grammar says is simply a malformed entry -- as its own `{ a: 1 + b: 2 }` example is. The one-line `{ a: sentence 1 mod: 2 }` behaved correctly at that tip: it raised `ol-bad-token` twice at parse stage, opened no entry keyed `mod`, and so never reached `check()` at all. The newline was the whole of the difference, which is this slice's thesis. Both spellings of each are here because the one-line and multi-line forms must agree; the complete-call counterpart, where the key DOES open its entry, pulls the opposite way and is pinned in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.",
   "profiles": ["core-language", "data"],
   "check": true,
   "events": [],
@@ -8,8 +8,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [19, 1],
-        "end": [19, 2]
+        "start": [26, 1],
+        "end": [26, 2]
       },
       "params": {
         "text": "["
@@ -22,8 +22,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [19, 5],
-        "end": [19, 6]
+        "start": [26, 5],
+        "end": [26, 6]
       },
       "params": {
         "text": ")"
@@ -36,8 +36,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [20, 15],
-        "end": [20, 16]
+        "start": [27, 15],
+        "end": [27, 16]
       },
       "params": {
         "text": "["
@@ -50,8 +50,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [20, 19],
-        "end": [20, 20]
+        "start": [27, 19],
+        "end": [27, 20]
       },
       "params": {
         "text": ")"
@@ -64,8 +64,8 @@
       "code": "ol-missing-end",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [27, 7],
-        "end": [27, 10]
+        "start": [34, 7],
+        "end": [34, 10]
       },
       "params": {
         "opener": "map",
@@ -79,8 +79,8 @@
       "code": "ol-missing-end",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [30, 7],
-        "end": [30, 13]
+        "start": [37, 7],
+        "end": [37, 13]
       },
       "params": {
         "opener": "filter",
@@ -94,8 +94,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [39, 23],
-        "end": [39, 26]
+        "start": [46, 23],
+        "end": [46, 26]
       },
       "params": {
         "text": "mod"
@@ -108,8 +108,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [39, 26],
-        "end": [39, 27]
+        "start": [46, 26],
+        "end": [46, 27]
       },
       "params": {
         "text": ":"
@@ -122,8 +122,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [39, 30],
-        "end": [39, 31]
+        "start": [46, 30],
+        "end": [46, 31]
       },
       "params": {
         "text": "}"
@@ -136,8 +136,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [41, 1],
-        "end": [41, 4]
+        "start": [48, 1],
+        "end": [48, 4]
       },
       "params": {
         "text": "mod"
@@ -150,8 +150,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [41, 4],
-        "end": [41, 5]
+        "start": [48, 4],
+        "end": [48, 5]
       },
       "params": {
         "text": ":"
@@ -164,8 +164,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [41, 8],
-        "end": [41, 9]
+        "start": [48, 8],
+        "end": [48, 9]
       },
       "params": {
         "text": "}"
@@ -178,8 +178,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [42, 23],
-        "end": [42, 26]
+        "start": [49, 23],
+        "end": [49, 26]
       },
       "params": {
         "text": "and"
@@ -192,8 +192,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [42, 26],
-        "end": [42, 27]
+        "start": [49, 26],
+        "end": [49, 27]
       },
       "params": {
         "text": ":"
@@ -206,8 +206,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [42, 30],
-        "end": [42, 31]
+        "start": [49, 30],
+        "end": [49, 31]
       },
       "params": {
         "text": "}"
@@ -220,8 +220,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [44, 1],
-        "end": [44, 4]
+        "start": [51, 1],
+        "end": [51, 4]
       },
       "params": {
         "text": "and"
@@ -234,8 +234,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [44, 4],
-        "end": [44, 5]
+        "start": [51, 4],
+        "end": [51, 5]
       },
       "params": {
         "text": ":"
@@ -248,8 +248,8 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [44, 8],
-        "end": [44, 9]
+        "start": [51, 8],
+        "end": [51, 9]
       },
       "params": {
         "text": "}"
@@ -262,8 +262,8 @@
       "code": "ol-missing-end",
       "source_span": {
         "document": "core-language/check/a-newline-separates-like-a-space-when-malformed",
-        "start": [33, 1],
-        "end": [33, 7]
+        "start": [40, 1],
+        "end": [40, 7]
       },
       "params": {
         "opener": "repeat",

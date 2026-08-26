@@ -358,32 +358,43 @@ export function highlight(
    * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md:97-99`
    * is the normative highlighter instruction and names two: "only inside an `is`-predicate or the
    * heritage `value of … for key` reader, and as ordinary names elsewhere". This function handles
-   * the first — `spec/grammar.md:234` states its adjacency rule — and
-   * {@link markValueOfKeyPreposition} below handles the second. `is` itself, `between`, and
-   * `strictly` are already globally reserved. The grammar requires each word directly adjacent in
-   * the token stream (no `skipNewlines` between them), so once `is` is found the rest are just the
-   * following raw token indexes.
+   * the first, and {@link markValueOfKeyPreposition} below handles the second. `is` itself,
+   * `between`, and `strictly` are already globally reserved.
    *
    * `node.operand`'s span always ends at a real, non-`eof` token, and the parser only ever
    * builds an `IsPredicateNode` when `is` is the literal next raw token after the operand
    * (`isName` reads `current()` directly, with no `skipNewlines` between) — so `byEnd` always
    * resolves and `isIndex` always lands on that `is` token.
+   *
+   * **Every index after `is` walks past newlines** (issue #995). An earlier version of this comment
+   * asserted the opposite — "the grammar requires each word directly adjacent in the token stream
+   * (no `skipNewlines` between them), so once `is` is found the rest are just the following raw
+   * token indexes" — and that sentence is what kept the defect invisible, because it told each
+   * later reader the raw offsets were safe. They are not: `parseIsPredicate` calls
+   * `skipNewlinesBeforeOperand` at four slots (`parser.ts:1078`, `parser.ts:1088`,
+   * `parser.ts:1091`, `parser.ts:1108`, from issue #933), so `print :x is` ⏎ `empty` is a legal
+   * predicate whose `empty` sat one index past
+   * where this looked. It fell through to its ordinary classification and was painted `primitive`,
+   * exactly as `of` was in #785 — and, like #785, in a program that parses **completely clean**, so
+   * no diagnostic could ever surface it. `of` is found from `member`'s own index rather than
+   * `isIndex + 2`, because an arbitrary number of newlines may separate the two.
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(
       posKey(node.operand.source_span.end),
     ) as number;
     const isIndex = operandEndIndex + 1;
+    const formIndex = indexSkippingNewlines(isIndex + 1);
     switch (node.test.form) {
       case "empty":
-        markContextualWord(isIndex + 1, "empty");
+        markContextualWord(formIndex, "empty");
         break;
       case "member-of":
-        markContextualWord(isIndex + 1, "member");
-        markContextualWord(isIndex + 2, "of");
+        markContextualWord(formIndex, "member");
+        markContextualWord(indexSkippingNewlines(formIndex + 1), "of");
         break;
       case "a":
-        markContextualWord(isIndex + 1, "a");
+        markContextualWord(formIndex, "a");
         break;
       case "between":
         break;

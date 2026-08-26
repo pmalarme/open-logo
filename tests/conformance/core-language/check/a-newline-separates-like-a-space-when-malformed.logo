@@ -4,9 +4,16 @@
 # being that they are malformed in the same way, not that they are malformed at all.
 #
 # Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, runs the same
-# shapes in the container where both spellings are well-formed. Both fixtures are regression guards,
-# not witnesses: neither could have detected this fix, because the container that exhibited the
-# defect differed only in its AST, and a fixture sees events and diagnostics, never a tree.
+# shapes in the container where both spellings are well-formed. Neither fixture could have detected
+# the ADJACENCY ruling specifically: the container that exhibited it differed only in its AST, and a
+# fixture sees events and diagnostics, never a tree.
+#
+# THIS fixture is load-bearing all the same, and the scoping matters — do not read "not an adjacency
+# witness" as "proves nothing" and prune it. It is the core-language witness for the OTHER mechanism
+# in this slice, the phantom unmatched-delimiter report. Measured whole-file at `0277d5ff`: 11
+# diagnostics, `ol-unmatched-paren` x4 + `ol-missing-end` x3 + `ol-bad-token` x4. Here: 19, with the
+# parenthesized rows raising the substituted `ol-bad-token` and no `ol-unmatched-paren` at all. Its
+# twin, by contrast, passes unchanged against that same pre-fix parser.
 #
 # The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
 # operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position

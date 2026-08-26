@@ -524,6 +524,44 @@ test("contextual: empty/member/a are keyword only immediately after is, and so i
   );
 });
 
+test("contextual: empty/member/of/a stay keyword when a newline separates them from `is` (issue #995)", () => {
+  // `parseIsPredicate` calls `skipNewlinesBeforeOperand` at four slots (`parser.ts:1078`,
+  // `parser.ts:1088`, `parser.ts:1091`, `parser.ts:1108`, from issue #933), so every spelling
+  // below is a LEGAL predicate that parses with ZERO diagnostics. The highlighter located each
+  // word by a raw offset from `is`, so the offset landed on the newline token and the word fell
+  // through to `primitive`.
+  //
+  // That is #785's shape in the sibling reader, and it is why this pin has to exist: the programs
+  // parse completely clean, so no diagnostic could ever surface the defect — a token-class
+  // assertion is the ONLY instrument that can see it. Measured at `0277d5ff`, every split
+  // spelling here classified its word `primitive`; the one-line spellings, pinned in the test
+  // above, were correct throughout, which is exactly why varying the container was not enough.
+  const wordIn = (source, text) =>
+    OL.highlight(source, doc).find((token) => token.text === text).class;
+
+  for (const [source, text] of [
+    ["print :x is\nempty", "empty"],
+    ["print :x is\n\nempty", "empty"],
+    ["print :x is\nmember of [1 2 3]", "member"],
+    ["print :x is\nmember of [1 2 3]", "of"],
+    ["print :x is member\nof [1 2 3]", "of"],
+    // Two newlines between `member` and `of`: `of` is found from `member`'s own index rather than
+    // `is + 2`, so an arbitrary gap resolves rather than only a single line break.
+    ["print :x is member\n\nof [1 2 3]", "of"],
+    // The `a` form was the row nobody had measured, and it was broken: at `0277d5ff` this
+    // classified `a` as `primitive` while its one-line spelling was already correct.
+    ['print :x is\na "number"', "a"],
+    ['print :x is\n\na "number"', "a"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse clean, or the pin proves nothing`,
+    );
+    assert.equal(wordIn(source, text), "keyword", JSON.stringify(source));
+  }
+});
+
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
   // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
   // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
