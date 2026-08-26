@@ -506,6 +506,21 @@ REQUIRED_DRIFT_TRIGGERS = {
         ]
     },
 }
+def comparable_trigger(configuration):
+    """Normalise a trigger mapping so ORDER of a string list is not part of the pin.
+
+    Pinning the whole mapping with `==` made an alphabetical re-sort of `pull_request.paths` fail,
+    and the message blamed a retimed or branch-filtered trigger -- none of which had happened. A
+    path filter is a set union with no negations, so its order carries no meaning and a formatter
+    could trip the gate for nothing. Membership is what matters, and membership is what is pinned.
+    """
+    if isinstance(configuration, dict):
+        return {key: comparable_trigger(value) for key, value in configuration.items()}
+    if isinstance(configuration, list) and all(isinstance(item, str) for item in configuration):
+        return sorted(configuration)
+    return configuration
+
+
 expect(
     set(drift_triggers) == set(REQUIRED_DRIFT_TRIGGERS),
     f"label-drift.yml's trigger set is pinned to {sorted(REQUIRED_DRIFT_TRIGGERS)}, but is "
@@ -519,12 +534,16 @@ for trigger, configuration in REQUIRED_DRIFT_TRIGGERS.items():
         f"manifest change. Found triggers: {sorted(drift_triggers)}",
     )
     if trigger in drift_triggers:
+        expected = comparable_trigger(configuration)
+        actual = comparable_trigger(drift_triggers[trigger])
         expect(
-            drift_triggers[trigger] == configuration,
-            f"label-drift.yml's `{trigger}` trigger is pinned to {configuration!r}, but is "
-            f"{drift_triggers[trigger]!r}. A retimed, retargeted or branch-filtered trigger "
-            f"changes what is detected and when -- and on a non-default branch `pull_request` is "
-            f"the only live coverage there is.",
+            actual == expected,
+            f"label-drift.yml's `{trigger}` trigger does not match its pin.\n"
+            f"      expected: {expected!r}\n"
+            f"      actual:   {actual!r}\n"
+            f"      String-list ORDER is normalised, so this is a real difference in what the "
+            f"trigger does -- a changed cron, a different workflow target, an added `branches:` "
+            f"filter, or an added/removed path.",
         )
 
 if failures:

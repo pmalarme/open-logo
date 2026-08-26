@@ -82,22 +82,38 @@ suites these workflows run; you wire and secure them.
   - run: "npm run -s lint"          # quoting is fine
   ```
 
-  and **not** as a block scalar (`run: |`), even one holding a single command — both readers reject
-  that, deliberately, because the textual reader must skip block bodies to avoid matching a
-  `run:`-looking line inside one, and a form only one reader accepts is a false red waiting to
-  happen. Inline comments and quotes are **stripped, never forbidden**: an earlier text reader
-  required the command to end the line, so `run: npm run -s lint # required gate` failed the
-  self-test while production passed. **A false red is worse than a missed bypass** — a gate that
-  cries wolf gets deleted by the next maintainer — so the legal shapes are locked by fixtures that
-  assert they are *accepted*, alongside the mutants that assert bypasses are caught. Non-gate steps
-  are unaffected: a multiline `run:` there remains ordinary CI authoring.
+  and **not** as a block scalar — `|`, `|-`, `>` or `>-` — even one holding a single command. Be
+  precise about why, because the obvious statement is false: **a block scalar containing the command
+  DOES run it.** It is unsupported because the two readers do not agree on it. The textual reader
+  skips block bodies (it must, or it would match a `run:`-looking line inside one), while PyYAML
+  hands production the string — and for the **chomped** forms `|-` and `>-` it strips the trailing
+  newline, so production sees an ordinary single-line command and accepts it. So `|` and `>` are
+  rejected by both readers; `|-` and `>-` are rejected by the textual reader alone. **All four are
+  closed by the combination**, which is the independent reader doing exactly what it exists for:
+  the two instruments have genuinely different shapes, and they disagree precisely where those
+  shapes differ. A form only one reader accepts is a false red waiting to happen, so the supported
+  spelling is the one they both accept.
+
+  Inline comments and quotes are **stripped, never forbidden**, and the two must be handled in the
+  right order: an earlier reader required the command to end the line, so
+  `run: npm run -s lint # required gate` failed the self-test while production passed; a later one
+  dequoted *after* comment-stripping, so `run: "npm run -s lint" # required gate` — the form the
+  block above documents — failed while production passed. **A false red is worse than a missed
+  bypass** (a gate that cries wolf gets deleted by the next maintainer), and worse still is a gate
+  whose own documentation promises a form its reader rejects. The legal shapes are therefore locked
+  by fixtures asserting they are *accepted*, alongside the mutants asserting bypasses are *caught*:
+  a gate is falsifiable in two directions and only one of them used to be tested. Non-gate steps are
+  unaffected: a multiline `run:` there remains ordinary CI authoring.
 - **Presence is not execution, in every workflow.** `PYTHON_GATE_EXCEPTIONS` declares the gates that
   legitimately run outside `ci.yml`, and each declared entry must be invoked by a **complete
-  approved `run:` command** in the workflow its reason names. Asserting the script's *filename*
-  appeared there was defeated by `echo python .github/scripts/validate-commits.py` — the filename
-  survived in a comment and in the neighbouring self-test step, so the substring was intact while
-  nothing ran. That is the round-1 `echo` defeat resurfacing in the one file the fix had not
-  reached.
+approved `run:` command** in `commitlint.yml`, which this check names as a **literal** — it does
+**not** parse the entry's prose reason, so rewriting that reason to say "runs in label-sync.yml"
+changes nothing and the check stays green. The reason is documentation for a human; the workflow
+it is checked against is hard-coded alongside the approved command. Asserting the script's
+*filename* appeared there was defeated by `echo python .github/scripts/validate-commits.py` — the
+filename survived in a comment and in the neighbouring self-test step, so the substring was intact
+while nothing ran. That is the round-1 `echo` defeat resurfacing in the one file the fix had not
+reached.
 - **`label-drift.yml`'s triggers are pinned as complete mappings, not merely present.**
   `REQUIRED_DRIFT_TRIGGERS` fixes the whole trigger set and each trigger's configuration:
   `schedule` (with its cron), `workflow_dispatch`, `workflow_run` (workflow name and types), and

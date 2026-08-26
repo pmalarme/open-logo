@@ -225,6 +225,14 @@ GATE_CASES = [
         False,
     ),
     (
+        # A matrix refactor on a gate-hosting job is good-faith maintenance, and an empty axis runs
+        # zero jobs. Round 6 guarded only the anchor, which left the ordinary case open.
+        "MUTATION: a gate-hosting job carries a strategy with an empty axis",
+        {"jobs": {"lint": {"strategy": {"matrix": {"node": []}}, "steps": [{"run": "npm run -s lint"}]}}},
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        False,
+    ),
+    (
         "a gate job depending on the permitted anchor is allowed",
         {"jobs": {"lint": {"needs": "meta", "steps": [{"run": "npm run -s lint"}]}}},
         {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
@@ -237,8 +245,24 @@ GATE_CASES = [
 ANCHOR_CASES = [
     ("MUTATION: the permitted anchor job is itself conditional", {"if": "${{ false }}"}),
     ("MUTATION: the permitted anchor job depends on another job", {"needs": ["other"]}),
+    # Round 6 added the anchor `strategy:` check WITHOUT its mutant, so the check protecting the
+    # anchor was itself unprotected -- disabling it passed. Same shape as the vacuous drop-loops.
+    ("MUTATION: the permitted anchor job carries a strategy", {"strategy": {"matrix": {"python": []}}}),
     ("MUTATION: the permitted anchor job does not exist", None),
 ]
+
+
+def gate_wiring_errors(scratch, document, python_gates=None):
+    """Seed a scratch repo, write `document` as ci.yml, and return check_gate_wiring's errors."""
+    seed_scratch(scratch, python_gates=python_gates)
+    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(document, fh)
+    cwd = os.getcwd()
+    try:
+        os.chdir(scratch)
+        return validate_meta.check_gate_wiring()
+    finally:
+        os.chdir(cwd)
 
 
 def build_ci(ci_document, anchor_overrides=()):
@@ -300,6 +324,29 @@ for anchor_label, anchor_overrides in ANCHOR_CASES:
         os.chdir(cwd)
     if not anchor_errors:
         failures.append(f"{anchor_label}: expected FAIL, got PASS")
+
+# The anchor cases above put every gate step in `meta`, so the general gate-hosting-job checks fire
+# on it too and the anchor-specific ones are not the thing being measured -- disabling the anchor
+# `strategy:` check left the self-test green. This case isolates it: `meta` is a BARE anchor hosting
+# no gate step, which is the configuration where the anchor check is the only guard there is.
+# Without this, a check added in round 6 would have stayed unfalsifiable, which is the same shape as
+# the vacuous drop-loops it was added alongside.
+bare_anchor_ci = {
+    "jobs": {
+        "meta": {"strategy": {"matrix": {"python": []}}, "steps": [{"run": "echo anchor"}]},
+        "gates": {
+            "needs": "meta",
+            "steps": [{"run": f"npm run -s {name}"} for name in ALL_GATES]
+            + [{"run": command} for command in EXPECTED_PYTHON_GATES],
+        },
+    }
+}
+bare_anchor_errors = gate_wiring_errors(tempfile.mkdtemp(), bare_anchor_ci)
+if not any("must not carry a `strategy:`" in error for error in bare_anchor_errors):
+    failures.append(
+        "MUTATION: a BARE anchor job (hosting no gate step) carrying a `strategy:` must fail, but "
+        f"the anchor check did not fire (errors={bare_anchor_errors})"
+    )
 
 # The shipped workflows must themselves satisfy it.
 shipped = validate_meta.check_gate_wiring()
@@ -371,14 +418,27 @@ def plain_run_commands(text):
             continue
         plain = PLAIN_RUN.match(line)
         if plain:
-            value = plain.group(2)
-            # Strip a trailing YAML comment: ` #...` preceded by whitespace, outside quotes.
-            unquoted = value.strip()
-            if not (unquoted[:1] in {"'", '"'}):
-                value = re.split(r"\s+#", value, maxsplit=1)[0]
-            value = value.strip()
+            value = plain.group(2).strip()
+            # DEQUOTE FIRST, then strip the trailing comment.
+            #
+            # The previous order skipped comment-stripping whenever the scalar was quoted, so
+            # `run: "npm run -s lint" # required gate` -- a form this repository's own instructions
+            # and commit body both promise works, and which PyYAML does accept -- failed the
+            # self-test while production passed. The contract and the reader disagreed, and the
+            # contract was the thing this change had just written.
             if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
                 value = value[1:-1]
+            elif value[:1] in {"'", '"'}:
+                # Quoted, with something after the closing quote: take the quoted body and require
+                # the remainder to be nothing but a comment.
+                quote = value[0]
+                closing = value.find(quote, 1)
+                if closing != -1:
+                    remainder = value[closing + 1 :].strip()
+                    if remainder.startswith("#") or not remainder:
+                        value = value[1:closing]
+            else:
+                value = re.split(r"\s+#", value, maxsplit=1)[0]
             found.add(value.strip())
         index += 1
     return found
@@ -406,8 +466,20 @@ READER_CASES = [
     ("inline comment is stripped, NOT rejected", "      - run: npm run -s lint # required\n", True),
     ("single-quoted", "      - run: 'npm run -s lint'\n", True),
     ("double-quoted", '      - run: "npm run -s lint"\n', True),
+    # Both of these are legal YAML and PyYAML accepts them, so the reader must too -- the
+    # instructions promise this form and a reader that rejects it makes the promise false.
+    ("double-quoted + comment", '      - run: "npm run -s lint" # required\n', True),
+    ("single-quoted + comment", "      - run: 'npm run -s lint' # required\n", True),
     ("inside a block scalar is NOT counted", "      - run: |\n          run: npm run -s lint\n", False),
     ("block body is NOT counted", "      - run: |\n          npm run -s lint\n", False),
+    # The four block spellings, including the CHOMPED ones. PyYAML strips the trailing newline for
+    # `|-` and `>-`, so production sees a single-line string and accepts them while this reader
+    # skips them. That disagreement is not a defect to paper over: it is the two instruments having
+    # genuinely different shapes, which is the property the independent reader exists to provide.
+    # The COMBINED gate closes all four; only their overlap differs.
+    ("block |- is NOT counted", "      - run: |-\n          npm run -s lint\n", False),
+    ("block > is NOT counted", "      - run: >\n          npm run -s lint\n", False),
+    ("block >- is NOT counted", "      - run: >-\n          npm run -s lint\n", False),
 ]
 for reader_label, snippet, should_find in READER_CASES:
     if ("npm run -s lint" in plain_run_commands(snippet)) != should_find:
@@ -466,18 +538,6 @@ def drop_loop_ci(npm_gates, python_gates, extra_jobs=None):
         + [{"run": command} for command in python_gates]
     }
     return {"jobs": jobs}
-
-
-def gate_wiring_errors(scratch, document, python_gates=None):
-    seed_scratch(scratch, python_gates=python_gates)
-    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
-        yaml.safe_dump(document, fh)
-    cwd = os.getcwd()
-    try:
-        os.chdir(scratch)
-        return validate_meta.check_gate_wiring()
-    finally:
-        os.chdir(cwd)
 
 
 # CONTROL: the unmutated scratch tree must produce ZERO errors. Without this, every mutation below

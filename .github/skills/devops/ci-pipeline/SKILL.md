@@ -127,9 +127,10 @@ a hand-edited or stale lock file.
 ## Checklist
 - [ ] Each DoD item maps to a CI gate; names are clear.
 - [ ] Every gate step is a **single-line `run:` scalar equal to the approved command** — quoting and
-      a trailing `#` comment are fine, a block scalar (`run: |`) is not, and there is no custom
-      `shell:` and no step-level `if:`. A gate command buried in `run: |` is accepted by any
-      line-wise reader and never runs.
+      a trailing `#` comment are fine, a block scalar (`run: |`, `|-`, `>`, `>-`) is not, and there
+      is no custom `shell:` and no step-level `if:`. A block scalar holding the command **does**
+      run it; it is unsupported because the two independent readers do not agree on it, and one
+      spelling both accept is worth more than either tolerance.
 - [ ] Gate jobs carry **no** job-level `if:` (`PERMITTED_JOB_CONDITIONS` is empty) and depend only on
       `PERMITTED_GATE_JOB_NEEDS` — GitHub skips a job whose dependency was skipped; the meta job
       always runs and has no `needs:` of its own.

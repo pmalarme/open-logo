@@ -271,6 +271,17 @@ def check_gate_wiring():
                 f"{sorted(PERMITTED_GATE_JOB_NEEDS)}, because GitHub skips a job whose dependency "
                 f"was skipped."
             )
+        # ...and so can a `strategy:`. `strategy.matrix.node: []` expands to ZERO jobs, so the gate
+        # runs nothing while the job still "exists", is unconditional, and depends only on the
+        # anchor. This check was added in round 6 for the anchor ALONE, which left the far more
+        # ordinary case open: a matrix refactor on the lint job is good-faith maintenance, and it
+        # executed zero lint jobs while both readers stayed green.
+        if job.get("strategy"):
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} but "
+                f"carries a `strategy:` — an empty matrix axis expands to zero jobs, so the gate "
+                f"would run nothing while nothing goes red. Found: {job.get('strategy')}."
+            )
 
     # The whitelist above is only sound while every permitted dependency is itself unconditional,
     # so assert that here instead of assuming it.
