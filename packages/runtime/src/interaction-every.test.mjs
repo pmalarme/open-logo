@@ -13,7 +13,7 @@
 // `*.test.mjs`, so a local coverage green can be a false positive CI (Node 22) then fails. These
 // tests deliberately exercise every branch of the `every` registry (`interaction.ts`'s
 // `registerEveryHandler`/`claimDueEveryHandlers`/`emitEveryPrimitive`) and dispatch
-// (`isEveryStatement`/`executeEveryStatement`/`invokeEveryHandler`/`dispatchEveryHandlers`) so the
+// (`isEveryStatement`/`executeEveryStatement`/`invokeEveryHandler`/`dispatchDueHandlers/claimQueuedEveryHandlers`) so the
 // Node-22 CI gate sees full coverage.
 
 import assert from "node:assert/strict";

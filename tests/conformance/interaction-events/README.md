@@ -143,7 +143,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `every-fixed-rate-interval-not-re-measured`
   pins the third rule (`spec/interaction-events.md:183-187`) — a handler delayed by a one-time block
   still finds its intervals on the original grid (ticks 4, 8, 12, 16), where a fixed-**delay** clock
-  re-measured from each completion slips off those boundaries and fires one time fewer.
+  re-measured from each completion slips off those boundaries and fires one time fewer. That fixture delays the handler with a FOREIGN `on_key` body, so it cannot separate fixed rate from a scheduler that merely re-measures the period from each completion -- its `every` body is instantaneous, so completion and start share a tick. `every-fixed-rate-survives-a-slow-body` closes that gap with a body that itself takes two ticks: nine firings under fixed rate against five under a completion-re-measured clock. Both are needed; neither catches the mutation the other does.
   Three more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
   `every-queued-occurrence-discarded-when-run-closes` shows a self-overrunning handler terminating
   cleanly with its last queued occurrence discarded;
@@ -370,16 +370,17 @@ to close, sitting inside the conformance corpus itself. Issue **#984** was then 
    settling the third: once the main line has finished and any already-started handler body has
    completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
-Nine fixtures land with it — three under `when/` and six under `every/`, described in those
+Ten fixtures land with it — three under `when/` and seven under `every/`, described in those
 sections above. Two properties of this corpus are worth recording, because they are why the rules
 could ship undecided at all. First, **the ruling changed three normative rules and the corpus did not
 move**: 910 fixtures passed before the runtime change and 910 passed after, so not one of them
-discriminated any of the three. A dimension nothing varies is a dimension nothing can observe.
+discriminated any of the three. The nine fixtures below were added precisely to close
+that gap, and each is mutation-verified against the readings the rulings reject. A dimension nothing varies is a dimension nothing can observe.
 Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
 
-Every one of the nine was mutation-verified against runtimes reverted to each rejected reading —
+Every one of the ten was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first
 implementation queued correctly and drained only at the next event-loop checkpoint, which silently
 discarded the occurrence whenever the program's `wait`s ran out first, and its three `every` fixtures

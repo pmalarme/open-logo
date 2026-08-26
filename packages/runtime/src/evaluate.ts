@@ -83,6 +83,7 @@ import type {
 } from "@openlogo/parser";
 import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
 import {
@@ -260,6 +261,25 @@ export interface Environment {
   readonly lastCallSpan: { span: SourceSpan | null };
   readonly instructionBudget: number;
   readonly instructionCount: { count: number };
+  /**
+   * The main line's statement-boundary hook (maintainer ruling #984,
+   * `spec/interaction-events.md:189-204`). While set, {@link executeStatements} runs it before each
+   * statement, giving a queued `every` occurrence the chance to run that the ruling requires: "run it
+   * once the handler is free" for as long as the main line has not finished.
+   *
+   * A shared mutable box — like {@link instructionCount} and `addressing` — rather than a plain
+   * field, because a child environment is built by spreading the parent (`{...environment, frames}`),
+   * so the box reference propagates automatically into procedure bodies and control-form bodies.
+   * That is what makes the boundary reach the whole **main line** rather than only its top-level
+   * statement list: a `repeat` body or a procedure called from the main line is still the main line,
+   * and the run has not closed while either is executing.
+   *
+   * Handler bodies are the exception, and they suppress it by clearing `fn` for the duration of the
+   * body: a handler invocation must not open a boundary inside itself, or a drained occurrence could
+   * re-enter its own handler. `undefined` therefore means "not on the main line" — during a handler
+   * body, and for the whole of a headless run that never registers one.
+   */
+  readonly mainLineBoundary: { fn: (() => ExecSignal | undefined) | undefined };
   readonly signal?: CancellationSignal;
   /**
    * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
@@ -557,6 +577,7 @@ export function createEnvironment(): Environment {
   return {
     frames: [new Map()],
     repeatTurns: [],
+    mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
     events: [],

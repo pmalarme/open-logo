@@ -1713,7 +1713,7 @@ function executeTurtleHeadingCall(
 }
 
 /**
- * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:259-272`). Same
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:286-299`). Same
  * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
  * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
  * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
@@ -1729,7 +1729,7 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which must additionally be positive and finite
- * (`spec/interaction-events.md:262` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * (`spec/interaction-events.md:289` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
  * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
  * emits one `sound` event
@@ -1797,7 +1797,7 @@ function executeSoundSetTempoCall(
 }
 
 /**
- * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:309-324`). Same
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:336-351`). Same
  * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
  */
 function isSoundBeepCall(statement: StatementNode): boolean {
@@ -1810,7 +1810,7 @@ function isSoundBeepCall(statement: StatementNode): boolean {
 /**
  * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
  * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
- * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:317`)
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:344`)
  * — the runtime models that scheduling purely as the event emission, never as a real audio device,
  * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
  * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
@@ -1846,7 +1846,7 @@ function executeSoundBeepCall(
 }
 
 /**
- * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:274-291`). Same
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:301-318`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`note` takes a pitch word and a duration number).
  */
@@ -1970,7 +1970,7 @@ function executeSoundNoteCall(
 }
 
 /**
- * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:326-341`). Same
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:353-368`). Same
  * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
  * primitive.
  */
@@ -2052,7 +2052,7 @@ function executeSoundRestCall(
 }
 
 /**
- * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:293-307`). Same
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:320-334`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`play` takes one melody list).
  */
@@ -2067,7 +2067,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
  * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
  * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
- * MUST be even" (`spec/interaction-events.md:301-303`) — an odd length raises `ol-range`
+ * MUST be even" (`spec/interaction-events.md:328-330`) — an odd length raises `ol-range`
  * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
  * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
  * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
@@ -2077,7 +2077,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
  * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
- * `spec/interaction-events.md:267-268`) — and emits exactly one
+ * `spec/interaction-events.md:294-295`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a
@@ -2448,7 +2448,7 @@ function invokeWhenHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -2532,6 +2532,26 @@ function executeWhenStatement(
     }
   }
   return undefined;
+}
+
+/**
+ * Run one handler block with the main-line statement boundary SUPPRESSED for its duration
+ * (ruling #984). A handler body is not the main line: opening a boundary inside it would let a
+ * drained `every` occurrence re-enter its own handler, and would keep the run alive on work the
+ * program never asked for. Restores the previous hook on every exit path, including a halt, so a
+ * handler that stops the run cannot leave the main line permanently boundary-less.
+ */
+function executeHandlerBody(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  const suppressed = environment.mainLineBoundary.fn;
+  environment.mainLineBoundary.fn = undefined;
+  try {
+    return executeStatements(body, environment);
+  } finally {
+    environment.mainLineBoundary.fn = suppressed;
+  }
 }
 
 /**
@@ -2820,10 +2840,12 @@ function isEveryStatement(statement: StatementNode): boolean {
  * after-effect events. Unlike {@link invokeWhenHandler}, an `every` handler is marked `running` for
  * the duration of its body (and has its batch `claimed` flag cleared as it starts), so a re-entrant
  * `wait` inside the body cannot deliver a second overlapping invocation of the same handler: that
- * arriving interval is queued instead and drained at the first checkpoint after the body returns
- * ({@link claimDueEveryHandlers}), which is the spec's required "queue that occurrence and run it
- * once the handler is free", capped at one pending invocation
- * (`spec/interaction-events.md:188-195`). Returns the body's
+ * arriving interval is queued instead and drained as soon as the handler is free
+ * ({@link claimQueuedEveryHandlers}) — at the end of the dispatch batch, or at the main line's next
+ * statement boundary, never at some later checkpoint the program might never supply. That is the
+ * spec's required "queue that occurrence and run it once the handler is free", capped at one pending
+ * invocation
+ * (`spec/interaction-events.md:189-196`). Returns the body's
  * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
@@ -2847,7 +2869,7 @@ function invokeEveryHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   handler.running = false;
   if (signal.kind === "return") {
     return halt(
@@ -2889,7 +2911,7 @@ function invokeOnKeyHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -2926,7 +2948,7 @@ function invokeOnClickHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -4157,7 +4179,7 @@ function evaluateCondition(
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
  */
-type ExecSignal =
+export type ExecSignal =
   | { readonly kind: "normal" }
   | { readonly kind: "halt"; readonly diagnostic: Diagnostic }
   | {
@@ -4752,14 +4774,17 @@ function canonicalizeHeritageAliasCall(
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
-  onStatementBoundary?: () => ExecSignal | undefined,
 ): ExecSignal {
   for (const rawStatement of statements) {
-    if (onStatementBoundary) {
-      const boundarySignal = onStatementBoundary();
-      if (boundarySignal) {
-        return boundarySignal;
-      }
+    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:189-204`). Runs
+    // before each statement so a queued `every` occurrence gets its "once the handler is free" turn
+    // while the main line has not finished, and NOT after the last statement — that missing final
+    // boundary is exactly what makes the ruling's discard-at-close observable. The hook is carried on
+    // a shared box that child environments inherit, so it reaches procedure and control-form bodies
+    // (still the main line) while handler bodies clear it for their duration.
+    const boundarySignal = environment.mainLineBoundary.fn?.();
+    if (boundarySignal) {
+      return boundarySignal;
     }
     // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
     // no new semantics" (`spec/conformance.md:150`): the reader recorded the Core name the alias
@@ -5422,6 +5447,7 @@ function createExecutionEnvironment(
       DEFAULT_INSTRUCTION_BUDGET,
     ),
     instructionCount: { count: 0 },
+    mainLineBoundary: { fn: undefined },
     signal: options?.signal,
     turtleWorld: new TurtleWorld(),
     addressing: createTurtleAddressing(mainTurtleState),
@@ -5565,21 +5591,6 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
 }
 
 /**
- * Parse `source` and run it, sharing {@link execute}'s and
- * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
- * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
- * `forever` loop never stops on its OWN account there; it is still budgeted and cancellable via
- * `options` (issue #102). Only the test-only entry point below ever supplies
- * `foreverIterationLimit`.
- *
- * A `"return"`/`"stop"` signal that escapes {@link executeStatements} unconsumed means it was
- * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
- * it reaches here) — this is `ol-return-outside-proc`/`ol-stop-outside-proc` (issue #97), the
- * runtime's own copy of the semantic checker's rule of the same name
- * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
- * `execute()` runs `parse()` only, never `check()`.
- */
-/**
  * Run the program's top level, giving a queued `every` occurrence a chance to run **between
  * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:189-204`).
  *
@@ -5607,7 +5618,7 @@ function executeMainLine(
   statements: readonly StatementNode[],
   environment: Environment,
 ): ExecSignal {
-  return executeStatements(statements, environment, () => {
+  environment.mainLineBoundary.fn = () => {
     for (const handler of claimQueuedEveryHandlers(environment.eventHandlers)) {
       const drained = invokeEveryHandler(handler, environment);
       if (drained.kind !== "normal") {
@@ -5615,9 +5626,29 @@ function executeMainLine(
       }
     }
     return undefined;
-  });
+  };
+  try {
+    return executeStatements(statements, environment);
+  } finally {
+    environment.mainLineBoundary.fn = undefined;
+  }
 }
 
+/**
+ * Parse `source` and run it, sharing {@link execute}'s and
+ * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
+ * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
+ * `forever` loop never stops on its OWN account there; it is still budgeted and cancellable via
+ * `options` (issue #102). Only the test-only entry point below ever supplies
+ * `foreverIterationLimit`.
+ *
+ * A `"return"`/`"stop"` signal that escapes {@link executeStatements} unconsumed means it was
+ * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
+ * it reaches here) — this is `ol-return-outside-proc`/`ol-stop-outside-proc` (issue #97), the
+ * runtime's own copy of the semantic checker's rule of the same name
+ * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
+ * `execute()` runs `parse()` only, never `check()`.
+ */
 export function runProgram(
   source: string,
   document: string,
