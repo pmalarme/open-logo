@@ -330,125 +330,214 @@ if derived_npm != sorted(ALL_GATES):
 # An INDEPENDENT reader, deliberately not the one validate-meta.py uses.
 #
 # Review's rule: a verifier that shares the parser of the thing it verifies inherits its blind spot.
-# The previous version of this block called PyYAML and split each `run:` scalar into lines — exactly
-# what the production side did — so when that reader accepted a command buried in a multiline block,
-# this check accepted it too and reported nothing.
+# An earlier version called PyYAML and split each `run:` scalar into lines — exactly what the
+# production side did — so when that reader accepted a command buried in a multiline block, this
+# check accepted it too and reported nothing.
 #
-# So this one does not parse YAML at all. It reads ci.yml as TEXT and requires each gate command to
-# appear as a complete, single-line `run:` mapping. A command hidden inside a `run: |` block cannot
-# match, because a block scalar's body lines are indented continuation text, not `run:` lines.
+# So this one does not parse YAML at all. It reads ci.yml as TEXT. Two corrections review found in
+# the first text version, which are opposite errors and both mattered:
+#
+#   * too STRICT — it required the command to end the line, so an ordinary inline comment
+#     (`run: npm run -s lint # required gate`) made the self-test red while production was happy.
+#     A gate that cries wolf gets deleted by the next maintainer, so a false red is worse than a
+#     missed bypass. Inline comments are NOT forbidden; they are stripped, exactly as YAML says.
+#   * too PERMISSIVE — its regex matched a `run:`-looking line INSIDE a `run: |` block, so it was
+#     leaning on the production parser to reject that, which is the very coupling it exists to
+#     remove. Block extents are now skipped by indentation.
+#
+# Both readers therefore agree on one documented lexical form: a gate step is a single-line
+# `run: <command>`, optionally quoted, optionally followed by a `#` comment.
+BLOCK_RUN = re.compile(r"^(\s*)(?:-\s+)?run:\s*[|>][+-]?\d*\s*$")
+PLAIN_RUN = re.compile(r"^(\s*)(?:-\s+)?run:[ \t]+(.*)$")
+
+
+def plain_run_commands(text):
+    """Every single-line `run:` command in `text`, with block-scalar bodies skipped."""
+    found = set()
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        block = BLOCK_RUN.match(line)
+        if block:
+            # Skip the body: every following line that is blank or indented deeper than the key.
+            indent = len(block.group(1))
+            index += 1
+            while index < len(lines):
+                body = lines[index]
+                if body.strip() and (len(body) - len(body.lstrip())) <= indent:
+                    break
+                index += 1
+            continue
+        plain = PLAIN_RUN.match(line)
+        if plain:
+            value = plain.group(2)
+            # Strip a trailing YAML comment: ` #...` preceded by whitespace, outside quotes.
+            unquoted = value.strip()
+            if not (unquoted[:1] in {"'", '"'}):
+                value = re.split(r"\s+#", value, maxsplit=1)[0]
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            found.add(value.strip())
+        index += 1
+    return found
+
+
 with open(os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8") as fh:
-    shipped_ci_text = fh.read()
+    shipped_ci_commands = plain_run_commands(fh.read())
 
 for command in EXPECTED_PYTHON_GATES + [f"npm run -s {name}" for name in ALL_GATES]:
-    pattern = re.compile(r"^\s*(?:-\s+)?run:[ \t]+" + re.escape(command) + r"[ \t]*$", re.MULTILINE)
-    if not pattern.search(shipped_ci_text):
+    if command not in shipped_ci_commands:
+        # Do NOT say "has no step running X" -- QA's point on the false-red case: when the command
+        # IS present but written in an unsupported spelling, that message asserts something untrue
+        # about the tree. A gate that lies while failing is worse than one that merely fails, so the
+        # message states what this reader looked for and shows what it actually found.
         failures.append(
-            f"ci.yml has no single-line `run: {command}` step, which this test requires "
-            f"independently of validate-meta.py's reader"
+            f"ci.yml has no single-line `run: {command}` step that this reader recognises. It "
+            f"reads the file as text (independently of validate-meta.py's YAML reader), accepting "
+            f"a plain, single- or double-quoted scalar with an optional trailing `#` comment, and "
+            f"skipping block-scalar bodies. Commands it did recognise: {sorted(shipped_ci_commands)}"
         )
 
-# The declared exceptions must be real scripts that really run elsewhere, not a way to shrink the
-# derived set silently.
+# Self-check the independent reader on both correction cases, so neither can regress unseen.
+READER_CASES = [
+    ("plain", "      - run: npm run -s lint\n", True),
+    ("inline comment is stripped, NOT rejected", "      - run: npm run -s lint # required\n", True),
+    ("single-quoted", "      - run: 'npm run -s lint'\n", True),
+    ("double-quoted", '      - run: "npm run -s lint"\n', True),
+    ("inside a block scalar is NOT counted", "      - run: |\n          run: npm run -s lint\n", False),
+    ("block body is NOT counted", "      - run: |\n          npm run -s lint\n", False),
+]
+for reader_label, snippet, should_find in READER_CASES:
+    if ("npm run -s lint" in plain_run_commands(snippet)) != should_find:
+        failures.append(
+            f"independent reader: {reader_label} — expected "
+            f"{'to find' if should_find else 'NOT to find'} the command, got the opposite"
+        )
+
+# The declared exceptions must be real scripts that are really INVOKED elsewhere, not a way to
+# shrink the derived set silently.
+#
+# This used to assert the script's filename appeared anywhere in the named workflow. Review defeated
+# that by replacing the blocking invocation with `echo python .github/scripts/validate-commits.py`:
+# the filename survived in a comment and in the neighbouring test-validate-commits.py step, so the
+# substring was still present while nothing ran. That is round 1's `echo` defeat, in the one file
+# the fix had not reached. Substring presence is not execution, so the complete `run:` scalar must
+# equal the approved command — the same rule ci.yml's gate steps already obey, read with the same
+# independent reader.
+EXPECTED_EXCEPTION_COMMANDS = {
+    "validate-commits.py": "python .github/scripts/validate-commits.py",
+    "test-validate-commits.py": "python .github/scripts/test-validate-commits.py",
+}
 for name, reason in validate_meta.PYTHON_GATE_EXCEPTIONS.items():
     if not os.path.exists(os.path.join(REPO_ROOT, ".github", "scripts", name)):
         failures.append(f"PYTHON_GATE_EXCEPTIONS names `{name}`, which does not exist")
     if not reason.strip():
         failures.append(f"PYTHON_GATE_EXCEPTIONS entry `{name}` has no reason")
-    with open(os.path.join(REPO_ROOT, ".github", "workflows", "commitlint.yml"), encoding="utf-8") as fh:
-        if name not in fh.read():
-            failures.append(
-                f"PYTHON_GATE_EXCEPTIONS claims `{name}` runs in commitlint.yml, but it is not there"
-            )
-
-for dropped in ALL_GATES:
-    scratch = tempfile.mkdtemp()
-    seed_scratch(scratch)
-    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
-        yaml.safe_dump(
-            {
-                "jobs": {
-                    "all": {
-                        "steps": [
-                            {"run": f"npm run -s {name}"}
-                            for name in ALL_GATES
-                            if name != dropped
-                        ]
-                        + [{"run": command} for command in EXPECTED_PYTHON_GATES]
-                    }
-                }
-            },
-            fh,
+    expected_command = EXPECTED_EXCEPTION_COMMANDS.get(name)
+    if expected_command is None:
+        failures.append(
+            f"PYTHON_GATE_EXCEPTIONS names `{name}`, but this test declares no approved command "
+            f"for it, so its invocation would go unchecked"
         )
+        continue
+    with open(os.path.join(REPO_ROOT, ".github", "workflows", "commitlint.yml"), encoding="utf-8") as fh:
+        commitlint_commands = plain_run_commands(fh.read())
+    if expected_command not in commitlint_commands:
+        failures.append(
+            f"PYTHON_GATE_EXCEPTIONS claims `{name}` runs in commitlint.yml, but no single-line "
+            f"`run: {expected_command}` step is there. Found: {sorted(commitlint_commands)}"
+        )
+
+def drop_loop_ci(npm_gates, python_gates, extra_jobs=None):
+    """A scratch ci.yml whose gate steps live in the anchor job `meta`.
+
+    These loops previously named the job `all`. Round 4 taught `check_gate_wiring` to require the
+    permitted anchor to exist, so an anchor-less scratch tree ALWAYS produced an error, `if not
+    dropped_errors:` became dead, and **18 mutation cases silently passed for free** — the #964
+    vacuity class, inside the fix for the vacuity class, introduced by the fix itself. The control
+    assertion below is the general remedy: a mutation loop needs a clean control, or every mutant
+    passes for nothing.
+    """
+    jobs = dict(extra_jobs or {})
+    jobs["meta"] = {
+        "steps": [{"run": f"npm run -s {name}"} for name in npm_gates]
+        + [{"run": command} for command in python_gates]
+    }
+    return {"jobs": jobs}
+
+
+def gate_wiring_errors(scratch, document, python_gates=None):
+    seed_scratch(scratch, python_gates=python_gates)
+    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(document, fh)
     cwd = os.getcwd()
     try:
         os.chdir(scratch)
-        dropped_errors = validate_meta.check_gate_wiring()
+        return validate_meta.check_gate_wiring()
     finally:
         os.chdir(cwd)
+
+
+# CONTROL: the unmutated scratch tree must produce ZERO errors. Without this, every mutation below
+# is vacuous — which is exactly what happened between round 3 and round 4, undetected.
+control_errors = gate_wiring_errors(
+    tempfile.mkdtemp(), drop_loop_ci(ALL_GATES, EXPECTED_PYTHON_GATES)
+)
+if control_errors:
+    failures.append(
+        "CONTROL: the unmutated drop-loop scratch tree must produce no errors, but produced "
+        f"{control_errors}. Every drop mutation below would pass for free."
+    )
+
+dropped_mutants_fired = 0
+for dropped in ALL_GATES:
+    dropped_errors = gate_wiring_errors(
+        tempfile.mkdtemp(),
+        drop_loop_ci([name for name in ALL_GATES if name != dropped], EXPECTED_PYTHON_GATES),
+    )
     if not dropped_errors:
         failures.append(f"MUTATION: dropping the `{dropped}` gate from ci.yml must fail, but passed")
+    else:
+        dropped_mutants_fired += 1
 
 
 # MUTATION, parameterised over EVERY Python metadata gate: dropping any one from ci.yml must fail.
 # Review deleted both offline label steps and the wiring guard stayed green, because the required set
 # was hand-written and these have no npm script.
 for dropped_python in EXPECTED_PYTHON_GATES:
-    scratch = tempfile.mkdtemp()
-    seed_scratch(scratch)
-    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
-        yaml.safe_dump(
-            {
-                "jobs": {
-                    "all": {
-                        "steps": [{"run": f"npm run -s {name}"} for name in ALL_GATES]
-                        + [
-                            {"run": command}
-                            for command in EXPECTED_PYTHON_GATES
-                            if command != dropped_python
-                        ]
-                    }
-                }
-            },
-            fh,
-        )
-    cwd = os.getcwd()
-    try:
-        os.chdir(scratch)
-        dropped_errors = validate_meta.check_gate_wiring()
-    finally:
-        os.chdir(cwd)
+    dropped_errors = gate_wiring_errors(
+        tempfile.mkdtemp(),
+        drop_loop_ci(
+            ALL_GATES, [c for c in EXPECTED_PYTHON_GATES if c != dropped_python]
+        ),
+    )
     if not dropped_errors:
         failures.append(
             f"MUTATION: dropping `{dropped_python}` from ci.yml must fail, but passed"
         )
+    else:
+        dropped_mutants_fired += 1
 
 # MUTATION: a Python gate script exists on disk but ci.yml never runs it. The derivation must pull
 # it in unprompted — this is the direction that catches a NEW gate nobody wired.
-scratch = tempfile.mkdtemp()
-seed_scratch(scratch, python_gates=EXPECTED_PYTHON_GATES + ["python .github/scripts/validate-brand-new.py"])
-with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
-    yaml.safe_dump(
-        {
-            "jobs": {
-                "all": {
-                    "steps": [{"run": f"npm run -s {name}"} for name in ALL_GATES]
-                    + [{"run": command} for command in EXPECTED_PYTHON_GATES]
-                }
-            }
-        },
-        fh,
-    )
-cwd = os.getcwd()
-try:
-    os.chdir(scratch)
-    unwired_errors = validate_meta.check_gate_wiring()
-finally:
-    os.chdir(cwd)
+unwired_errors = gate_wiring_errors(
+    tempfile.mkdtemp(),
+    drop_loop_ci(ALL_GATES, EXPECTED_PYTHON_GATES),
+    python_gates=EXPECTED_PYTHON_GATES + ["python .github/scripts/validate-brand-new.py"],
+)
 if not any("validate-brand-new.py" in e for e in unwired_errors):
     failures.append(
         "MUTATION: a new gate script that ci.yml does not run must fail, but passed "
         f"(errors={unwired_errors})"
+    )
+
+# The count is DERIVED and printed, so a collapse to zero is visible rather than inferred.
+if dropped_mutants_fired != len(ALL_GATES) + len(EXPECTED_PYTHON_GATES):
+    failures.append(
+        f"MUTATION: expected {len(ALL_GATES) + len(EXPECTED_PYTHON_GATES)} drop mutants to fire, "
+        f"got {dropped_mutants_fired}"
     )
 
 
@@ -461,6 +550,7 @@ if failures:
 print(
     f"validate-meta self-test passed: {len(CASES)} frontmatter cases, "
     f"{len(GATE_CASES)} gate-wiring cases, {len(ANCHOR_CASES)} anchor cases, "
+    f"{dropped_mutants_fired} drop mutants fired, "
     # Print the DERIVED sizes, not just the fixture count. Review emptied the old hand-written
     # tuple and the collapse to zero was invisible because the printed number was static.
     f"{len(derived_python)} python gate(s) + {len(derived_npm)} npm gate(s) cross-checked"

@@ -481,6 +481,52 @@ for path in (".github/labels.yml", ".github/labels-retired.yml", ".github/script
         f"label-drift.yml must trigger on changes to {path}",
     )
 
+#: Every trigger label-drift.yml must declare, with the COMPLETE configuration each is pinned to.
+#:
+#: Review deleted `schedule`, `workflow_dispatch` and `workflow_run` and everything stayed green.
+#: QA then found the worse variant: adding `branches: ["release-please--*"]` to `pull_request` --
+#: every existing pin byte-identical -- also passed. That one matters most, because on a non-default
+#: branch the other three triggers are DORMANT (GitHub registers schedule/workflow_run only from the
+#: default branch), so `pull_request` on those four paths is the ENTIRE live #972 coverage that
+#: exists today. A `branches:` filter switches it off silently.
+#:
+#: So each trigger's whole mapping is compared, not just its presence and not just one field.
+#: Trigger refactoring -- adding `branches: [main]`, dropping a cron to save Actions minutes -- is
+#: routine maintenance, which is what makes this a plausible accident rather than a hostile one.
+REQUIRED_DRIFT_TRIGGERS = {
+    "schedule": [{"cron": "15 6 * * *"}],
+    "workflow_dispatch": None,
+    "workflow_run": {"workflows": ["Label sync"], "types": ["completed"]},
+    "pull_request": {
+        "paths": [
+            ".github/labels.yml",
+            ".github/labels-retired.yml",
+            ".github/scripts/validate-labels.py",
+            ".github/workflows/label-drift.yml",
+        ]
+    },
+}
+expect(
+    set(drift_triggers) == set(REQUIRED_DRIFT_TRIGGERS),
+    f"label-drift.yml's trigger set is pinned to {sorted(REQUIRED_DRIFT_TRIGGERS)}, but is "
+    f"{sorted(drift_triggers)}. An added trigger is as much a change in what runs as a deleted one.",
+)
+for trigger, configuration in REQUIRED_DRIFT_TRIGGERS.items():
+    expect(
+        trigger in drift_triggers,
+        f"label-drift.yml must declare the `{trigger}` trigger. Without it the daily/API-drift "
+        f"detection that #972 exists for is gone, and `pull_request` alone only fires on a "
+        f"manifest change. Found triggers: {sorted(drift_triggers)}",
+    )
+    if trigger in drift_triggers:
+        expect(
+            drift_triggers[trigger] == configuration,
+            f"label-drift.yml's `{trigger}` trigger is pinned to {configuration!r}, but is "
+            f"{drift_triggers[trigger]!r}. A retimed, retargeted or branch-filtered trigger "
+            f"changes what is detected and when -- and on a non-default branch `pull_request` is "
+            f"the only live coverage there is.",
+        )
+
 if failures:
     print("LABEL GATE SELF-TEST FAILED:")
     for failure in failures:

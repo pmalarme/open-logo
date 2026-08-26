@@ -126,9 +126,10 @@ a hand-edited or stale lock file.
 4. Keep the meta job always-on so docs/label/workflow drift is caught even pre-toolchain.
 ## Checklist
 - [ ] Each DoD item maps to a CI gate; names are clear.
-- [ ] Every gate step is a **single-line `run:` scalar equal to the approved command** — no multiline
-      block, no custom `shell:`, no step-level `if:`. A gate command buried in `run: |` is accepted
-      by any line-wise reader and never runs.
+- [ ] Every gate step is a **single-line `run:` scalar equal to the approved command** — quoting and
+      a trailing `#` comment are fine, a block scalar (`run: |`) is not, and there is no custom
+      `shell:` and no step-level `if:`. A gate command buried in `run: |` is accepted by any
+      line-wise reader and never runs.
 - [ ] Gate jobs carry **no** job-level `if:` (`PERMITTED_JOB_CONDITIONS` is empty) and depend only on
       `PERMITTED_GATE_JOB_NEEDS` — GitHub skips a job whose dependency was skipped; the meta job
       always runs and has no `needs:` of its own.

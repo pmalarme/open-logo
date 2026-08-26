@@ -72,9 +72,50 @@ suites these workflows run; you wire and secure them.
 - **A verifier must not share the parser of the thing it verifies.** `test-validate-meta.py` used to
   read `ci.yml` with PyYAML and split each `run:` into lines — exactly what the production side did
   — so it inherited that reader's blind spot and reported nothing when the reader was wrong. It now
-  reads `ci.yml` as **text** and requires each gate command to appear as a complete single-line
-  `run:` mapping. The two sides share no code: a mutant that weakens the gate's reader to substring
-  matching is still caught by the test.
+  reads `ci.yml` as **text** and counts only single-line `run:` commands, skipping block-scalar
+  bodies by indentation. The two sides share no code: a mutant that weakens the gate's reader to
+  substring matching is still caught by the test.
+- **One documented spelling for a gate step, so the two readers cannot disagree.** Write it as:
+
+  ```yaml
+  - run: npm run -s lint            # a trailing comment is fine
+  - run: "npm run -s lint"          # quoting is fine
+  ```
+
+  and **not** as a block scalar (`run: |`), even one holding a single command — both readers reject
+  that, deliberately, because the textual reader must skip block bodies to avoid matching a
+  `run:`-looking line inside one, and a form only one reader accepts is a false red waiting to
+  happen. Inline comments and quotes are **stripped, never forbidden**: an earlier text reader
+  required the command to end the line, so `run: npm run -s lint # required gate` failed the
+  self-test while production passed. **A false red is worse than a missed bypass** — a gate that
+  cries wolf gets deleted by the next maintainer — so the legal shapes are locked by fixtures that
+  assert they are *accepted*, alongside the mutants that assert bypasses are caught. Non-gate steps
+  are unaffected: a multiline `run:` there remains ordinary CI authoring.
+- **Presence is not execution, in every workflow.** `PYTHON_GATE_EXCEPTIONS` declares the gates that
+  legitimately run outside `ci.yml`, and each declared entry must be invoked by a **complete
+  approved `run:` command** in the workflow its reason names. Asserting the script's *filename*
+  appeared there was defeated by `echo python .github/scripts/validate-commits.py` — the filename
+  survived in a comment and in the neighbouring self-test step, so the substring was intact while
+  nothing ran. That is the round-1 `echo` defeat resurfacing in the one file the fix had not
+  reached.
+- **`label-drift.yml`'s triggers are pinned as complete mappings, not merely present.**
+  `REQUIRED_DRIFT_TRIGGERS` fixes the whole trigger set and each trigger's configuration:
+  `schedule` (with its cron), `workflow_dispatch`, `workflow_run` (workflow name and types), and
+  `pull_request` (its `paths`). Deleting the first three left everything green while removing
+  detection of a label created ad hoc **through the API**. Worse, adding
+  `branches: ["release-please--*"]` to `pull_request` also passed with every other pin
+  byte-identical — and that is the severe one, because on a **non-default branch the other three
+  triggers are dormant**, so `pull_request` on those paths is the *entire* live #972 coverage that
+  exists today. Adding `branches: [main]`, or dropping a cron to save Actions minutes, is routine
+  maintenance, which is what makes this a plausible accident rather than a hostile one.
+- **A mutation loop needs a clean control, or every mutant passes for free.** Round 4 taught
+  `check_gate_wiring` to require the permitted anchor to exist, and the drop-loop scratch trees
+  named their job `all` — so they always produced an error, `if not dropped_errors:` became dead,
+  and **18 mutation cases silently went vacuous**: the #964 class, inside the fix for the #964
+  class, introduced by the fix. Nothing reported it, because a mutation loop that never fires looks
+  exactly like a mutation loop where every mutant is caught. `test-validate-meta.py` now asserts the
+  **unmutated** scratch tree produces zero errors, counts the mutants that actually fired, and
+  **prints that count** — a collapse to zero is now visible rather than inferred.
   Both derived counts are printed so a collapse to zero is visible, and `test-validate-meta.py`
   holds an **independent** expected list that the derivation, `package.json`, and `ci.yml` must all
   agree with. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private

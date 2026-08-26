@@ -55,6 +55,12 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 - Live directions run in `label-drift.yml` (schedule + dispatch + manifest PRs + after a successful
   `Label sync`, via `workflow_run` rather than `push`, which would race the sync); the offline
   mirrors run in `ci.yml`'s `meta` job on every PR. `test-validate-labels.py` mutation-tests both.
+  All four triggers are **pinned** there (`REQUIRED_DRIFT_TRIGGERS`) as complete mappings — cron,
+  `workflow_run` target, and `pull_request`'s `paths` included. Review deleted `schedule`,
+  `workflow_dispatch` and `workflow_run` and everything stayed green; QA then added
+  `branches: ["release-please--*"]` to `pull_request`, which also passed. That second one is the
+  severe case: on a non-default branch the other three are dormant, so **`pull_request` is the only
+  live coverage there is**, and a branch filter switches it off with every other pin unchanged.
 - **Which direction runs where — and the gap, stated rather than implied.** This matters more than
   it looks: the direction that detects #972's actual defect is **not** in the per-PR gate.
 

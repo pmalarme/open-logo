@@ -221,6 +221,19 @@ def check_gate_wiring():
             # it cannot un-gate anything, because a gate command hidden inside it would have to
             # match exactly to count, and it does not.
             continue
+        if "\n" in str(raw_run):
+            # A block scalar (`run: |`) that happens to hold exactly one command DOES run it, so
+            # this is not a correctness hazard — it is an ambiguity hazard. The independent reader
+            # in test-validate-meta.py works on text and must skip block extents to avoid matching
+            # a `run:`-looking line inside one, so if this side accepted the block form the two
+            # readers would disagree and the self-test would go red on a workflow that is fine.
+            # One documented spelling, accepted by both, is worth more than either tolerance.
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs `{command}` as a multi-line "
+                f"block scalar. Write a gate step as a single-line `run: {command}` so both the "
+                f"structural and the textual reader agree on what is wired."
+            )
+            continue
         ci_commands.add(command)
         running_a_gate = {command}
         if step.get("shell") is not None:
@@ -278,6 +291,16 @@ def check_gate_wiring():
             errors.append(
                 f".github/workflows/ci.yml: job `{anchor}` is the permitted gate dependency, so it "
                 f"must not itself depend on another job, but it needs {anchor_job.get('needs')}."
+            )
+        if anchor_job.get("strategy"):
+            # A `strategy.matrix` whose axis is an empty list expands to ZERO jobs, so the anchor
+            # runs nothing while still existing, being unconditional, and having no `needs`. Review
+            # judged it an implausible accident and therefore a residual; it costs one field in a
+            # block that already asserts three, so it is closed rather than documented.
+            errors.append(
+                f".github/workflows/ci.yml: job `{anchor}` is the permitted gate dependency, so it "
+                f"must not carry a `strategy:` — an empty matrix axis expands to zero jobs and "
+                f"silently runs nothing. Found: {anchor_job.get('strategy')}."
             )
 
     for name, command in sorted(required.items()):
