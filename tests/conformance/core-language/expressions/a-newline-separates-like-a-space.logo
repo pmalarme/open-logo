@@ -4,13 +4,20 @@
 #
 # This is a NARROWING. A newline token's `end` is the next line's column 1, so once a container
 # skipped it the following `[` tested as adjacent — a skipped newline *manufactured* an adjacency
-# the source never had, and `[ :nums` ⏎ `[1] ]` read `[1]` as a selector on `:nums` while
-# `[ :nums [1] ]` read a second element. The two spellings now agree.
+# the source never had.
+#
+# THIS FIXTURE IS A REGRESSION GUARD, NOT A WITNESS. Measured against a parser built at `0277d5ff`
+# before the fix, the list literal ALREADY agreed: both `[ :nums` ⏎ `[1] ]` and `[ :nums [1] ]`
+# printed `[[10 20 30] [1]]`, and only the glued spelling printed `[10]`. The container that
+# exhibited the defect was the parenthesized group, and only in its AST — at that tip both of its
+# spellings raised the same two diagnostics. So no fixture can witness this fix: an execution
+# fixture compares printed values and a check fixture compares diagnostics. That witness is the
+# parse-shape comparison in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.
 #
 # A list literal is the container used here because both spellings are execution-valid in it, so
-# the ruling can be proven as a VALUE rather than as a diagnostic. The parenthesized container is
-# malformed in BOTH spellings, so its agreement is pinned in the companion check fixture. The top
-# level is excluded from both: its spaced spelling is an arity error unrelated to adjacency.
+# the agreement can be pinned as a VALUE. The parenthesized container is malformed in BOTH
+# spellings, so its agreement is pinned in the companion check fixture. The top level is excluded
+# from both: its spaced spelling is an arity error unrelated to adjacency.
 #
 # The glued spelling is printed too and must NOT match, or this fixture would still pass if
 # adjacency stopped working altogether.

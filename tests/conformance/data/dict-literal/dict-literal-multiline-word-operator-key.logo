@@ -43,6 +43,13 @@ print :one_line.or
 # `is :two` belongs to this group and is deliberately NOT here: as an operator it is an
 # `is-predicate` missing its form word, so it raises `ol-bad-token` and cannot appear in a fixture
 # that executes. It is pinned in `packages/parser/src/multiline-expressions.test.mjs` instead.
+#
+# HONEST LIMIT of the next two read-backs, raised by review: neither DISCRIMINATES the two readings.
+# `1 mod :two` is `1 mod 2` = 1, and under the superseded reading `a` would also be 1, so both print
+# the same. They pin that the value survives, not which reading produced it. The reading itself is
+# pinned by unit tests (`packages/parser/src/multiline-expressions.test.mjs:363-366`). A
+# discriminating row would need to read the entry SET back, and no `keys of`-style primitive exists
+# to do that, so it is not expressible here today.
 :glued = { a: 1
 mod:two }
 print :glued.a
