@@ -144,6 +144,16 @@ def required_python_gates():
 #: not be conditional at all.
 PERMITTED_JOB_CONDITIONS = frozenset()
 
+#: Jobs a gate job may depend on: exactly the always-on `meta` job.
+#:
+#: GitHub skips a job whose `needs` target was skipped, so a gate job pointed at a dormant job is
+#: switched off while its own `if:` stays clean — review's finding 3. Traversing the dependency
+#: graph to decide reachability is the analysis trap that defeated two earlier rounds; this is a set
+#: membership test instead. `check_gate_wiring` additionally asserts that every job named here
+#: exists, carries no `if:`, and has no `needs:` of its own, so the whitelist cannot be satisfied by
+#: an anchor that is itself conditional.
+PERMITTED_GATE_JOB_NEEDS = frozenset({"meta"})
+
 
 def npm_gate_scripts():
     """The npm Definition-of-Done gates, derived from `package.json` rather than restated.
@@ -190,26 +200,86 @@ def check_gate_wiring():
 
     ci_commands = set()
     for job_name, job, step in workflow_steps(ci):
-        commands = {line.strip() for line in str(step.get("run", "")).splitlines()}
-        running_a_gate = commands & gate_commands
-        if running_a_gate:
-            ci_commands |= commands
-            # A gate step must be unconditional: an `if:` can skip it without failing anything.
-            if "if" in step:
-                errors.append(
-                    f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} "
-                    f"under an `if:` condition, so the gate can be skipped without failing."
-                )
-            # ...and so can a job-level `if:`, which review used to switch the whole lint job — and
-            # therefore #978's fix — off while this guard stayed green. Only the toolchain condition
-            # every code job legitimately carries is permitted.
-            condition = job.get("if")
-            if condition is not None and str(condition).strip() not in PERMITTED_JOB_CONDITIONS:
-                errors.append(
-                    f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} but "
-                    f"the JOB carries `if: {condition}`, so the whole job can be skipped without "
-                    f"failing. Permitted: {sorted(PERMITTED_JOB_CONDITIONS)}."
-                )
+        raw_run = step.get("run")
+        if raw_run is None:
+            continue
+        # FORBID what cannot be analysed, rather than analysing it.
+        #
+        # This used to split a `run:` scalar into lines and accept any line that matched, so
+        #   run: |
+        #     if false; then npm run -s lint; fi
+        # certified a lint that never runs — and review's third round showed the same construct
+        # defeats any line-wise reader, because reachability inside a shell block is undecidable.
+        # "Is this step reached?" is unbounded in GitHub Actions (step `if`, job `if`, `needs`,
+        # shell control flow, `continue-on-error`, triggers, `strategy`, `container`). "Is this
+        # step written in the one permitted shape?" is a closed question. So a gate step must be a
+        # SINGLE-LINE scalar whose complete trimmed text equals the approved command, run by the
+        # default shell. Anything else is refused without being interpreted.
+        command = str(raw_run).strip()
+        if command not in gate_commands:
+            # Not a gate step. A multiline block here is ordinary CI authoring and stays legal;
+            # it cannot un-gate anything, because a gate command hidden inside it would have to
+            # match exactly to count, and it does not.
+            continue
+        ci_commands.add(command)
+        running_a_gate = {command}
+        if step.get("shell") is not None:
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs `{command}` under a custom "
+                f"`shell:`, which changes how — and whether — the command executes."
+            )
+        # A gate step must be unconditional: an `if:` can skip it without failing anything.
+        if "if" in step:
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} "
+                f"under an `if:` condition, so the gate can be skipped without failing."
+            )
+        # ...and so can a job-level `if:`, which review used to switch the whole lint job — and
+        # therefore #978's fix — off while this guard stayed green. `PERMITTED_JOB_CONDITIONS` is
+        # empty: the one condition that used to be whitelisted guarded a case that can no longer
+        # occur, so it was deleted rather than trusted.
+        condition = job.get("if")
+        if condition is not None and str(condition).strip() not in PERMITTED_JOB_CONDITIONS:
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} but "
+                f"the JOB carries `if: {condition}`, so the whole job can be skipped without "
+                f"failing. Permitted: {sorted(PERMITTED_JOB_CONDITIONS)}."
+            )
+        # ...and so can a DEPENDENCY: GitHub skips a job whose `needs` target was skipped, so
+        # pointing a gate job at a dormant job switches it off while its own `if:` stays clean.
+        # This does NOT traverse the graph — that is the analysis trap again. It is a set
+        # membership test against one known-unconditional job, asserted below.
+        needs = job.get("needs")
+        needs_set = frozenset([needs] if isinstance(needs, str) else (needs or []))
+        if not needs_set <= PERMITTED_GATE_JOB_NEEDS:
+            errors.append(
+                f".github/workflows/ci.yml: job `{job_name}` runs {sorted(running_a_gate)} but "
+                f"depends on {sorted(needs_set)}; a gate job may only depend on "
+                f"{sorted(PERMITTED_GATE_JOB_NEEDS)}, because GitHub skips a job whose dependency "
+                f"was skipped."
+            )
+
+    # The whitelist above is only sound while every permitted dependency is itself unconditional,
+    # so assert that here instead of assuming it.
+    for anchor in sorted(PERMITTED_GATE_JOB_NEEDS):
+        anchor_job = (ci.get("jobs") or {}).get(anchor)
+        if anchor_job is None:
+            errors.append(
+                f".github/workflows/ci.yml: gate jobs may depend on `{anchor}`, but no such job "
+                f"exists, so the dependency whitelist asserts nothing."
+            )
+            continue
+        if anchor_job.get("if") is not None:
+            errors.append(
+                f".github/workflows/ci.yml: job `{anchor}` is the permitted gate dependency, so it "
+                f"must be unconditional, but it carries `if: {anchor_job.get('if')}`."
+            )
+        if anchor_job.get("needs"):
+            errors.append(
+                f".github/workflows/ci.yml: job `{anchor}` is the permitted gate dependency, so it "
+                f"must not itself depend on another job, but it needs {anchor_job.get('needs')}."
+            )
+
     for name, command in sorted(required.items()):
         if command not in ci_commands:
             errors.append(

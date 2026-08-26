@@ -8,6 +8,7 @@ unexpected result.
 import importlib.util
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -195,18 +196,73 @@ GATE_CASES = [
         {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
         False,
     ),
+    (
+        # Finding 1: a multiline `run:` hid a command from the line-wise reader, so
+        # `if false; then npm run -s lint; fi` certified a lint that never ran. The scalar must now
+        # EQUAL the command, so a block scalar can never satisfy the requirement.
+        "MUTATION: a gate command is buried in a multiline `run:` block",
+        {"jobs": {"lint": {"steps": [{"run": "if false; then npm run -s lint; fi\n"}]}}},
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        False,
+    ),
+    (
+        "MUTATION: a gate step runs under a custom `shell:`",
+        {"jobs": {"lint": {"steps": [{"run": "npm run -s lint", "shell": "python"}]}}},
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        False,
+    ),
+    (
+        # Finding 2: GitHub skips a job whose `needs` target was skipped, so a gate job pointed at a
+        # dormant job is switched off while its own `if:` stays clean.
+        "MUTATION: a gate job depends on a job that is not the permitted anchor",
+        {
+            "jobs": {
+                "dormant": {"if": "${{ false }}", "steps": [{"run": "echo hi"}]},
+                "lint": {"needs": ["dormant"], "steps": [{"run": "npm run -s lint"}]},
+            }
+        },
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        False,
+    ),
+    (
+        "a gate job depending on the permitted anchor is allowed",
+        {"jobs": {"lint": {"needs": "meta", "steps": [{"run": "npm run -s lint"}]}}},
+        {"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}},
+        True,
+    ),
 ]
+
+# The anchor `meta` job the whitelist names must exist and be unconditional; these two cases assert
+# the guard notices when it is not, so the whitelist cannot be satisfied vacuously.
+ANCHOR_CASES = [
+    ("MUTATION: the permitted anchor job is itself conditional", {"if": "${{ false }}"}),
+    ("MUTATION: the permitted anchor job depends on another job", {"needs": ["other"]}),
+    ("MUTATION: the permitted anchor job does not exist", None),
+]
+
+
+def build_ci(ci_document, anchor_overrides=()):
+    """Assemble a scratch ci.yml: the case's own jobs plus an unconditional `meta` anchor.
+
+    `meta` carries every gate the case is not varying, mirroring the real workflow, so a passing
+    case passes because the wiring is genuinely complete rather than because nothing was found.
+    """
+    document = {"jobs": dict(ci_document.get("jobs") or {})}
+    if anchor_overrides is not None:
+        anchor = {
+            "steps": [{"run": f"npm run -s {name}"} for name in ALL_GATES if name != "lint"]
+            + [{"run": command} for command in EXPECTED_PYTHON_GATES]
+        }
+        anchor.update(anchor_overrides)
+        document["jobs"]["meta"] = anchor
+    return document
+
 
 for label, ci_document, other_document, should_pass in GATE_CASES:
     scratch = tempfile.mkdtemp()
     seed_scratch(scratch)
-    # Only the lint gate varies per case; the rest are supplied so the "wired" case is genuinely
-    # clean rather than passing because the check found nothing at all.
-    ci_document["jobs"].setdefault("all", {"steps": []})["steps"] = [
-        {"run": f"npm run -s {name}"} for name in ALL_GATES if name != "lint"
-    ] + [{"run": command} for command in EXPECTED_PYTHON_GATES]
     with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
-        yaml.safe_dump(ci_document, fh)
+        yaml.safe_dump(build_ci(ci_document), fh)
     with open(os.path.join(scratch, ".github", "workflows", "other.yml"), "w", encoding="utf-8") as fh:
         yaml.safe_dump(other_document, fh)
 
@@ -222,6 +278,28 @@ for label, ci_document, other_document, should_pass in GATE_CASES:
             f"{label}: expected {'PASS' if should_pass else 'FAIL'}, got "
             f"{'PASS' if gate_passed else 'FAIL'} (errors={gate_errors})"
         )
+
+for anchor_label, anchor_overrides in ANCHOR_CASES:
+    scratch = tempfile.mkdtemp()
+    seed_scratch(scratch)
+    with open(os.path.join(scratch, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(
+            build_ci(
+                {"jobs": {"lint": {"needs": "meta", "steps": [{"run": "npm run -s lint"}]}}},
+                anchor_overrides,
+            ),
+            fh,
+        )
+    with open(os.path.join(scratch, ".github", "workflows", "other.yml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump({"jobs": {"drift": {"steps": [{"run": "python x.py"}]}}}, fh)
+    cwd = os.getcwd()
+    try:
+        os.chdir(scratch)
+        anchor_errors = validate_meta.check_gate_wiring()
+    finally:
+        os.chdir(cwd)
+    if not anchor_errors:
+        failures.append(f"{anchor_label}: expected FAIL, got PASS")
 
 # The shipped workflows must themselves satisfy it.
 shipped = validate_meta.check_gate_wiring()
@@ -249,17 +327,26 @@ if derived_npm != sorted(ALL_GATES):
         f"derived={derived_npm} expected={sorted(ALL_GATES)}"
     )
 
+# An INDEPENDENT reader, deliberately not the one validate-meta.py uses.
+#
+# Review's rule: a verifier that shares the parser of the thing it verifies inherits its blind spot.
+# The previous version of this block called PyYAML and split each `run:` scalar into lines — exactly
+# what the production side did — so when that reader accepted a command buried in a multiline block,
+# this check accepted it too and reported nothing.
+#
+# So this one does not parse YAML at all. It reads ci.yml as TEXT and requires each gate command to
+# appear as a complete, single-line `run:` mapping. A command hidden inside a `run: |` block cannot
+# match, because a block scalar's body lines are indented continuation text, not `run:` lines.
 with open(os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8") as fh:
-    shipped_ci = yaml.safe_load(fh)
-shipped_ci_runs = {
-    line.strip()
-    for job in (shipped_ci.get("jobs") or {}).values()
-    for step in (job.get("steps") or [])
-    for line in str(step.get("run", "")).splitlines()
-}
+    shipped_ci_text = fh.read()
+
 for command in EXPECTED_PYTHON_GATES + [f"npm run -s {name}" for name in ALL_GATES]:
-    if command not in shipped_ci_runs:
-        failures.append(f"ci.yml does not run `{command}`, which this test requires independently")
+    pattern = re.compile(r"^\s*(?:-\s+)?run:[ \t]+" + re.escape(command) + r"[ \t]*$", re.MULTILINE)
+    if not pattern.search(shipped_ci_text):
+        failures.append(
+            f"ci.yml has no single-line `run: {command}` step, which this test requires "
+            f"independently of validate-meta.py's reader"
+        )
 
 # The declared exceptions must be real scripts that really run elsewhere, not a way to shrink the
 # derived set silently.
@@ -373,7 +460,7 @@ if failures:
 
 print(
     f"validate-meta self-test passed: {len(CASES)} frontmatter cases, "
-    f"{len(GATE_CASES)} gate-wiring cases, "
+    f"{len(GATE_CASES)} gate-wiring cases, {len(ANCHOR_CASES)} anchor cases, "
     # Print the DERIVED sizes, not just the fixture count. Review emptied the old hand-written
     # tuple and the collapse to zero was invisible because the printed number was static.
     f"{len(derived_python)} python gate(s) + {len(derived_npm)} npm gate(s) cross-checked"

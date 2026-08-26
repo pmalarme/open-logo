@@ -40,30 +40,56 @@ suites these workflows run; you wire and secure them.
   gates derived from `.github/scripts/{validate,test-validate}-*.py` — is invoked by an
   unconditional step **in `ci.yml`**, and that no job or step in any workflow is fail-open or
   skippable. Note the asymmetry deliberately: the *fail-open* sweep reads every workflow, but the
-  *wiring* half reads `ci.yml` only, so a gate deleted from another workflow (e.g.
-  `commitlint.yml`) is **not** detected — that is the current limit, not an oversight.
-  Six ways to silently disable a gate were found in review (issue #978): swapping
+  *wiring* half reads `ci.yml` only. That limit is narrower than it first appears, and the
+  disclosure should not under-sell it: the two scripts declared in `PYTHON_GATE_EXCEPTIONS` **are**
+  covered, because `test-validate-meta.py` asserts each declared exception really appears in the
+  workflow its reason names — deleting the `validate-commits.py` steps from `commitlint.yml` leaves
+  `validate-meta.py` at exit 0 but fails the self-test. The genuine residual is a gate that lives in
+  a workflow other than `ci.yml` **and** is not a declared exception; there is none today.
+  Nine ways to silently disable a gate were found in review (issue #978): swapping
   `npm run -s lint` for a second `format:check`; `continue-on-error` in any spelling, including
   `${{ … }}` expressions; an `if:` on a gate **step**; an `if:` on a gate **job** (which switched
   off the whole lint job while the guard stayed green); deleting the Python gates, which had no npm
-  script and so were never derived; and **emptying the inventory itself** — the Python set was once
+  script and so were never derived; **emptying the inventory itself** — the Python set was once
   a hand-written tuple whose self-test iterated over that same tuple, so clearing it produced zero
-  mutants and a vacuous pass (issue #964's defect). Both halves are now derived from disk, both
-  derived counts are printed so a collapse to zero is visible, and `test-validate-meta.py` holds an
-  **independent** expected list that the derivation, `package.json`, and `ci.yml` must all agree
-  with. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private — is
-  declared in `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently; the
-  two Python scripts that legitimately run outside `ci.yml` are declared the same way in
+  mutants and a vacuous pass (issue #964's defect); burying a gate command inside a **multiline
+  `run:` block** (`run: |` + `if false; then npm run -s lint; fi`), which every line-wise reader
+  accepts; running it under a custom **`shell:`**; and pointing a gate job's **`needs`** at a job
+  that is itself skipped, which GitHub then skips too while the gate job's own `if:` stays clean.
+- **Forbid what you cannot analyse.** *"Is this step reached?"* is unbounded in GitHub Actions —
+  step `if`, job `if`, `needs`, shell control flow, `continue-on-error`, triggers, `strategy`,
+  `container`. Deciding it by parsing is undecidable, which is why three successive readers were
+  defeated: a substring check (beaten by an `echo` prefix), a shell tokeniser (beaten by `|| true`
+  and `if false; then … fi`), and a line-wise scalar reader (beaten by a multiline `run:`).
+  *"Is this step written in the one permitted shape?"* is a **closed** question, so that is what is
+  checked instead. A gate step is a **single-line `run:` scalar whose complete trimmed text equals
+  the approved command**, with no `shell:`, no step `if:`, no job `if:`
+  (`PERMITTED_JOB_CONDITIONS` is empty), and `needs` drawn only from `PERMITTED_GATE_JOB_NEEDS` —
+  a **set membership test**, not a graph traversal. `check_gate_wiring` additionally asserts each
+  permitted anchor exists, carries no `if:`, and has no `needs:` of its own, so the whitelist cannot
+  be satisfied by an anchor that is itself dormant. Non-gate steps are unaffected: a multiline
+  `run:` remains ordinary CI authoring.
+- **A verifier must not share the parser of the thing it verifies.** `test-validate-meta.py` used to
+  read `ci.yml` with PyYAML and split each `run:` into lines — exactly what the production side did
+  — so it inherited that reader's blind spot and reported nothing when the reader was wrong. It now
+  reads `ci.yml` as **text** and requires each gate command to appear as a complete single-line
+  `run:` mapping. The two sides share no code: a mutant that weakens the gate's reader to substring
+  matching is still caught by the test.
+  Both derived counts are printed so a collapse to zero is visible, and `test-validate-meta.py`
+  holds an **independent** expected list that the derivation, `package.json`, and `ci.yml` must all
+  agree with. A deliberate fail-open — `dependency-review.yml` is advisory while the repo is private
+  — is declared in `FAIL_OPEN_EXCEPTIONS` with its reason, so a **new** one cannot appear silently;
+  the two Python scripts that legitimately run outside `ci.yml` are declared the same way in
   `PYTHON_GATE_EXCEPTIONS`.
-- **Match whole commands, not fragments.** `test-validate-labels.py` requires each `label-drift.yml`
-  `run:` scalar that mentions `validate-labels.py` to **equal** an approved command in
-  `REQUIRED_DRIFT_COMMANDS`. Two weaker versions were defeated: substring matching fell to prefixing
-  `echo`, and tokenising fell to `… || true` and `if false; then … fi`. Shell is Turing-complete, so
-  deciding "does this command actually run?" by parsing it is undecidable in general; an allow-list
-  of exact scalars is decidable. Conditional branches are therefore expressed as **separate steps
-  with `if:` conditions**, never as shell control flow inside one `run:`. This checks invocation
-  **shape** — that the workflow can only invoke the command in an approved form — it does not prove
-  the step is reached at runtime.
+- **Match whole steps, not fragments.** `test-validate-labels.py` requires each `label-drift.yml`
+  step that mentions `validate-labels.py` to be an exact approved **`(run, if)` pair** in
+  `REQUIRED_DRIFT_STEPS`, and pins the job's own `if:` and its absence of `needs:`. Those two steps
+  genuinely need a condition (the PR branch passes `--proposed`, the non-PR branch does not), so
+  they cannot be required unconditional the way `ci.yml`'s gate steps are — and review switched both
+  off with `if: false` while every exact command stayed intact. Pinning the pair closes that with no
+  new analysis: the same allow-list mechanism, one field wider. This checks invocation **shape** —
+  that the workflow can only invoke the command in an approved form — it does not prove the step is
+  reached at runtime.
 - `codeql.yml` — CodeQL JS/TS scan (PRs, `main`, weekly); guarded by its own `detect` job so it
   activates when `package.json` lands.
 - `dependency-review.yml` — blocks new high-severity/deny-listed dependencies on every PR. Needs the

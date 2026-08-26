@@ -398,41 +398,78 @@ drift_config = yaml.safe_load(drift_workflow)
 # PyYAML parses the bare `on:` key as the boolean True.
 drift_triggers = drift_config.get("on", drift_config.get(True, {}))
 
-#: The COMPLETE `run:` scalars label-drift.yml must contain, matched exactly.
+#: The COMPLETE `run:` scalars label-drift.yml must contain, each paired with the COMPLETE `if:`
+#: condition it is allowed to carry.
 #:
 #: Not a substring check, and not a shell tokeniser. Review defeated both in successive rounds — an
 #: `echo` prefix leaves every substring intact, and `|| true` or `if false; then … fi` survives
 #: tokenisation. Deciding "does this command actually run?" from arbitrary shell is undecidable in
 #: general, so the workflow carries no shell: each branch is its own step with an `if:` condition,
 #: and each `run:` is one exact command. An allow-list of exact scalars IS decidable.
-REQUIRED_DRIFT_COMMANDS = {
-    "python .github/scripts/validate-labels.py --live --proposed "
-    "--base=origin/${{ github.base_ref }}",
-    "python .github/scripts/validate-labels.py --live",
+#:
+#: The condition is pinned for the same reason the command is. These two steps genuinely need an
+#: `if:` (the PR branch passes `--proposed`, the non-PR branch does not), so they cannot simply be
+#: required unconditional the way ci.yml's gate steps are — and review switched both off with
+#: `if: false` while every exact command stayed intact. Pinning the pair closes that without adding
+#: any analysis: it is the same mechanism, one field wider.
+REQUIRED_DRIFT_STEPS = {
+    (
+        "python .github/scripts/validate-labels.py --live --proposed "
+        "--base=origin/${{ github.base_ref }}",
+        "${{ github.event_name == 'pull_request' }}",
+    ),
+    (
+        "python .github/scripts/validate-labels.py --live",
+        "${{ github.event_name != 'pull_request' }}",
+    ),
 }
+REQUIRED_DRIFT_COMMANDS = {command for command, _ in REQUIRED_DRIFT_STEPS}
 
-drift_runs = {
-    str(step.get("run", "")).strip()
+drift_steps = {
+    (str(step.get("run", "")).strip(), str(step.get("if", "")).strip())
     for job in (drift_config.get("jobs") or {}).values()
     for step in (job.get("steps") or [])
     if step.get("run")
 }
+drift_runs = {run for run, _ in drift_steps}
 
-for command in sorted(REQUIRED_DRIFT_COMMANDS):
+for command, condition in sorted(REQUIRED_DRIFT_STEPS):
     expect(
-        command in drift_runs,
-        f"label-drift.yml must contain a step whose complete `run:` is exactly `{command}`. "
-        f"Found: {sorted(drift_runs)}",
+        (command, condition) in drift_steps,
+        f"label-drift.yml must contain a step whose complete `run:` is exactly `{command}` AND "
+        f"whose complete `if:` is exactly `{condition}`. Found: {sorted(drift_steps)}",
     )
 
-# ...and no step may wrap the gate in shell that could discard its exit code.
-for run in sorted(drift_runs):
+# ...and no step may wrap the gate in shell that could discard its exit code, or carry a condition
+# other than the one approved for it.
+for run, condition in sorted(drift_steps):
     if "validate-labels.py" in run:
         expect(
-            run in REQUIRED_DRIFT_COMMANDS,
-            f"label-drift.yml runs validate-labels.py in a command that is not an exact approved "
-            f"scalar: `{run}`. Add a step per branch rather than shell control flow.",
+            (run, condition) in REQUIRED_DRIFT_STEPS,
+            f"label-drift.yml runs validate-labels.py in a step that is not an exact approved "
+            f"(command, condition) pair: run=`{run}` if=`{condition}`. Add a step per branch "
+            f"rather than shell control flow, and do not change the condition.",
         )
+
+# The job those steps live in must not be conditional in a way that skips them wholesale, and must
+# not depend on another job that could be skipped. Same forbid-don't-analyse rule as ci.yml.
+DRIFT_JOB_CONDITION = (
+    "${{ github.event_name != 'workflow_run' || "
+    "github.event.workflow_run.conclusion == 'success' }}"
+)
+for job_name, job in (drift_config.get("jobs") or {}).items():
+    if not any("validate-labels.py" in str(step.get("run", "")) for step in (job.get("steps") or [])):
+        continue
+    expect(
+        str(job.get("if", "")).strip() == DRIFT_JOB_CONDITION,
+        f"label-drift.yml job `{job_name}` runs the gate, so its `if:` is pinned to the approved "
+        f"workflow_run guard. Found: `{job.get('if')}`",
+    )
+    expect(
+        not job.get("needs"),
+        f"label-drift.yml job `{job_name}` runs the gate, so it must not depend on another job "
+        f"that could be skipped. Found needs: {job.get('needs')}",
+    )
 
 expect(
     ".github/workflows/label-drift.yml" in drift_triggers["pull_request"]["paths"],
