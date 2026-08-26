@@ -218,11 +218,19 @@ So the boundary is stated, not claimed closed:
   implementations disagree is not the same as one that catches it because a rule forbids it**, and
   the difference matters the day the subject changes.
 
-  Two of the three pollution values measured never reach that comparison at all: `"ForIn"` raises
-  `TypeError: Cannot use 'in' operator … in undefined`, and `undefined` raises `childrenOf has no
-  case for node kind undefined`. Both still fail the run, so nothing passes silently — but what stops
-  them is the **subject's own bug-guard crashing**, not this gate's assertion, and a residual list
-  should not take credit for that.
+  **Which of the two mechanisms actually fires also depends on the polluting *value*, not only on
+  the variant.** Under the persistent variant, `"ForIn"` raises `TypeError: Cannot use 'in' operator
+  … in undefined` and `undefined` raises `childrenOf has no case for node kind undefined`; `"Call"`,
+  `"SpannedName"`, `"Word"` and `"Number"` abort the audit likewise. Those still fail the run, so
+  nothing passes silently — but what stops them is the **subject's own bug-guard crashing**, not this
+  gate's assertion, and a residual list should not take credit for that. Only a *leaf* kind
+  (`NumberLit`, `BooleanLit`, `Stop`) lets `childrenOf` survive far enough for the two designed
+  checks to be the things that fire. Under the self-removing variant the same two values **do** reach
+  the comparison.
+
+  The generalisation, which is the part worth keeping: **this residual is detected by a patchwork —
+  one designed check, one incidental divergence, and one crash — and which one you get depends on the
+  payload.** That is exactly the difference between "the gate catches it" and "a rule forbids it".
 
 **Both require a deliberately hostile construction.** Against the threat this gate exists for — a
 developer adds a node-valued field and forgets `childrenOf` — it is complete: ten rounds of attack
