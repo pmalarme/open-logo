@@ -1526,10 +1526,15 @@ export function extractToolingKeywordRow(text) {
  * closing phrase is what makes each anchor unique — "The words " opens the sentence this reads in
  * `spec/tooling.md`, and it also opens several earlier ones.
  *
- * Fail-closed on purpose: a missing anchor returns `null` and its caller reports the anchor as
- * moved, rather than an empty list that would compare equal to nothing and pass.
+ * Fail-closed on purpose: a missing anchor — or a document that could not be read at all, which
+ * `readDocument` reports as `undefined` after recording its own finding — returns `null`, and its
+ * caller reports the anchor as moved rather than comparing against an empty list that would match
+ * nothing and pass.
  */
 export function wordsBetween(text, open, close) {
+  if (typeof text !== "string") {
+    return null;
+  }
   const end = text.indexOf(close);
   if (end === -1) {
     return null;
@@ -1852,16 +1857,21 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
     const [endLine, endColumn] = span.end;
     const afterStart =
       line > startLine || (line === startLine && column >= startColumn);
-    const beforeEnd = line < endLine || (line === endLine && column <= endColumn);
+    const beforeEnd =
+      line < endLine || (line === endLine && column <= endColumn);
     return afterStart && beforeEnd;
   };
   return api
-    .highlight(source, "<contextual-probe>", { profiles: api.OL_CHECK_PROFILES })
+    .highlight(source, "<contextual-probe>", {
+      profiles: api.OL_CHECK_PROFILES,
+    })
     .filter(
       (token) =>
         token.text.toLowerCase() === name && token.class === expectedClass,
     )
-    .some((token) => spans.some((span) => within(token.source_span.start, span)));
+    .some((token) =>
+      spans.some((span) => within(token.source_span.start, span)),
+    );
 }
 
 /**

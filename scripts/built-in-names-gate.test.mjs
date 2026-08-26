@@ -74,7 +74,7 @@ import {
   resolveAccessor,
   runBuiltInNamesGate,
   stdlibCarveOutFindings,
-  parsesInto,
+  paintedInsideNode,
   profileGatingFindings,
   reEnumerationFindings,
   renderNameList,
@@ -152,6 +152,11 @@ function tinyFixture() {
             positions: { "is-predicate": ":x is empty" },
             elsewhereProbes: ["local empty"],
           },
+          {
+            name: "of",
+            positions: { "value-of-reader": 'value of :d for key "a"' },
+            elsewhereProbes: ["local of"],
+          },
         ],
       },
     },
@@ -178,13 +183,26 @@ function tinyFixture() {
         positions: ["is-predicate"],
         rationale: "a tiny fixture",
       },
+      {
+        name: "of",
+        reason: "contextual-keyword",
+        positions: ["value-of-reader"],
+        rationale: "a tiny fixture",
+      },
     ],
   };
   // A fake highlighter and reader, so the paint axis runs on the fixture too. Both are crude — the
-  // highlighter word-splits and the reader reports an `IsPredicate` for any `... is empty` — and
-  // neither is ever the oracle for a real token-class assertion: every one of those uses the shipped
-  // `@openlogo/parser`. They exist so the fixture exercises the same code path.
+  // highlighter word-splits and carries synthetic single-line spans, and the reader reports an
+  // `IsPredicate` for `... is empty` and a `ValueOfKey` for `value ... of` — and neither is ever the
+  // oracle for a real token-class assertion: every one of those uses the shipped `@openlogo/parser`.
+  // They exist so the fixture exercises the same code path, including the occurrence-bound position
+  // check, which needs real `source_span`s on both the tokens and the nodes.
   const tinyClasses = { define: "keyword", print: "primitive" };
+  const tinySpan = (start, end) => ({
+    document: "<probe>",
+    start: [1, start],
+    end: [1, end],
+  });
   const api = {
     OPENLOGO_VERSION: "9.9.9",
     OL_CHECK_PROFILES: ["core-language"],
@@ -195,18 +213,25 @@ function tinyFixture() {
     highlight: (source) =>
       [...source.matchAll(/[a-z_?]+/g)].map((match) => ({
         class:
-          match[0] === "empty"
-            ? source.includes(" is empty")
+          match[0] === "empty" || match[0] === "of"
+            ? source.includes(" is empty") || source.includes("value of ")
               ? "keyword"
               : "primitive"
             : (tinyClasses[match[0]] ?? "primitive"),
         text: match[0],
+        source_span: tinySpan(match.index + 1, match.index + match[0].length),
       })),
     parse: (source) => ({ ast: { kind: "Program", source } }),
     walk: (ast, visit) => {
       visit(ast);
+      // Spans cover the whole source, which is enough for the containment test and keeps the fake
+      // from having to model real grammar.
+      const whole = tinySpan(1, ast.source.length);
       if (ast.source.includes(" is empty")) {
-        visit({ kind: "IsPredicate" });
+        visit({ kind: "IsPredicate", source_span: whole });
+      }
+      if (ast.source.includes("value of ")) {
+        visit({ kind: "ValueOfKey", source_span: whole });
       }
     },
     WORDS: ["define"],
@@ -2700,7 +2725,7 @@ test("INJECTED DRIFT: a profile word declared Core, so nothing checks that it fa
     findings.some(
       (finding) =>
         finding.startsWith("tell:") &&
-        finding.includes("under Core Language alone"),
+        finding.includes("no keyword-contributing profile active"),
     ),
     true,
     findings.join("\n"),
@@ -2809,10 +2834,15 @@ test("INJECTED DRIFT: the contextual exception set emptied — the mutation issu
   );
   const synchronized = contextualTokenClassFindings(everySide, realParserApi);
   assert.deepEqual(
-    synchronized.map((finding) =>
-      finding.includes("words is empty") ? "words" : "carve-outs",
-    ),
-    ["words", "carve-outs"],
+    synchronized.map((finding) => {
+      if (finding.includes("words is empty")) {
+        return "words";
+      }
+      return finding.includes("no contextual word claims position")
+        ? "unclaimed-positions"
+        : "carve-outs";
+    }),
+    ["words", "carve-outs", "unclaimed-positions"],
     synchronized.join("\n"),
   );
 
@@ -2828,7 +2858,7 @@ test("INJECTED DRIFT: the contextual exception set emptied — the mutation issu
     assert.deepEqual(contextualDeclaration(manifest).words, []);
     assert.equal(
       contextualTokenClassFindings(manifest, realParserApi).length,
-      5,
+      6,
     );
   }
   assert.equal(contextualDeclaration(REAL_MANIFEST).class, "keyword");
@@ -2916,18 +2946,20 @@ test("INJECTED DRIFT: a contextual position that no probe covers, and a probe fo
 test("INJECTED DRIFT: a contextual probe that does not put the word in the position it claims", () => {
   // The probes are measured AND parsed, so a probe cannot be wrong-but-green: this is what stops
   // the exception set from becoming four unverified assertions with example text beside them.
-  // Parsing is what catches a probe that paints the right class from the WRONG position — swapping
-  // `of`'s two probes left the Heritage reader unexercised and used to pass (issue #959 review).
-  assert.equal(parsesInto(realParserApi, ":x is empty", "IsPredicate"), true);
-  assert.equal(
-    parsesInto(realParserApi, 'value of :d for key "a"', "ValueOfKey"),
-    true,
-  );
-  assert.equal(
-    parsesInto(realParserApi, "2 is member of :nums", "ValueOfKey"),
-    false,
-  );
-  assert.equal(parsesInto(realParserApi, "local empty", "IsPredicate"), false);
+  // The node is bound to the PAINTED OCCURRENCE's own span, not merely present somewhere in the
+  // tree — a probe carrying both forms has an `IsPredicate` while `of` is painted through the
+  // `ValueOfKey`, and "is there such a node" declared the wrong position verified (issue #959
+  // review round 2, finding 1).
+  const inside = (source, name, kind) =>
+    paintedInsideNode(realParserApi, source, name, "keyword", kind);
+  assert.equal(inside(":x is empty", "empty", "IsPredicate"), true);
+  assert.equal(inside('value of :d for key "a"', "of", "ValueOfKey"), true);
+  assert.equal(inside("2 is member of :nums", "of", "ValueOfKey"), false);
+  assert.equal(inside("local empty", "empty", "IsPredicate"), false);
+  // The occurrence-bound case: both node kinds exist, but `of` is painted inside the ValueOfKey.
+  const both = 'print (value of :d for key "x") == (:x is empty)';
+  assert.equal(inside(both, "of", "ValueOfKey"), true);
+  assert.equal(inside(both, "of", "IsPredicate"), false);
 
   const swapped = manifestCopy();
   swapped.tokenClass.contextual.words.find(
@@ -2935,7 +2967,7 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   ).positions["value-of-reader"] = "2 is member of :nums";
   assert.equal(
     contextualTokenClassFindings(swapped, realParserApi).some((finding) =>
-      finding.includes("does not parse into a ValueOfKey node"),
+      finding.includes("is not inside a ValueOfKey node"),
     ),
     true,
   );
@@ -2946,7 +2978,7 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   ).positions = { "is-predicate": ":x is empty", "value-of-reader": "x" };
   assert.equal(
     contextualTokenClassFindings(unverifiable, realParserApi).some((finding) =>
-      finding.includes("does not parse into a ValueOfKey node"),
+      finding.includes("is not inside a ValueOfKey node"),
     ),
     true,
   );
@@ -3301,6 +3333,36 @@ test("INJECTED DRIFT: a highlighter that stops painting a word in ONE position o
   );
 });
 
+test("INJECTED DRIFT: a highlighter that stops painting a word under ONE profile combination", () => {
+  // The silent-probe rule has to hold under every profile set, not only the widest one: a probe
+  // that emitted nothing under Core+Sprites was masked because the other combinations still yielded
+  // `keyword` (issue #959 review round 2, finding 4). This is that mutant.
+  const api = {
+    ...realParserApi,
+    highlight: (source, document, options) =>
+      realParserApi
+        .highlight(source, document, options)
+        .filter(
+          (token) =>
+            !(
+              source === "local tell" &&
+              token.text === "tell" &&
+              options.profiles.includes("sprites")
+            ),
+        ),
+  };
+  const findings = profileGatingFindings(api, entryFor(REAL_MANIFEST, "tell"));
+  assert.equal(
+    findings.some(
+      (finding) =>
+        finding.startsWith("tell: the highlighter emits no token for it") &&
+        finding.includes('"local tell"'),
+    ),
+    true,
+    findings.join("\n"),
+  );
+});
+
 test("INJECTED DRIFT: a profile word gated on the WRONG profile", () => {
   // Comparing only "all profiles" against "Core alone" left the OWNING profile unchecked: a
   // highlighter that gated `tell` on Interaction rather than Sprites answered identically at both
@@ -3340,7 +3402,7 @@ test("the paint axis is compared implementation-first too, over the sources high
 
   const invented = {
     ...realParserApi,
-    OL_WORD_OPERATORS: [...realParserApi.OL_WORD_OPERATORS, "xor"],
+    OL_WORD_OPERATORS: new Set([...realParserApi.OL_WORD_OPERATORS, "xor"]),
   };
   assert.equal(
     tokenClassSourceFindings(REAL_MANIFEST, invented).some((finding) =>
@@ -3363,16 +3425,16 @@ test("the paint axis is compared implementation-first too, over the sources high
   );
 
   // Fails closed: a source that stops being exported is a finding, not a skipped comparison.
-  for (const accessor of [
-    "OL_WORD_OPERATORS",
-    "OL_KEYWORDS",
-    "OL_PROFILE_KEYWORDS",
+  for (const [accessor, expect] of [
+    ["OL_WORD_OPERATORS", "no enumerable OL_WORD_OPERATORS"],
+    ["OL_KEYWORDS", "exposes no OL_KEYWORDS"],
+    ["OL_PROFILE_KEYWORDS", "exposes no OL_PROFILE_KEYWORDS"],
   ]) {
     const { [accessor]: removed, ...api } = realParserApi;
     assert.notEqual(removed, undefined);
     assert.equal(
       tokenClassSourceFindings(REAL_MANIFEST, api).some((finding) =>
-        finding.includes(`exposes no ${accessor}`),
+        finding.includes(expect),
       ),
       true,
       accessor,
@@ -3914,18 +3976,18 @@ test("a run with every registry enumerable prints no unenumerable note", () => {
       rationale: "structural by position only",
     },
     {
-      name: "member",
+      name: "of",
       reason: "contextual-keyword",
-      positions: ["is-predicate"],
+      positions: ["value-of-reader"],
       rationale: "structural by position only",
     },
   ];
   const io = fakeIo({
     "stdlib/square.logo": "define square :size\nend\n",
     [GRAMMAR_PATH]:
-      "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n\nBy contrast, `empty` and `member` are **not** keywords and **not** built-in names. The contextual keywords are exactly these two.\n",
+      "The normative OpenLogo keyword list is:\n\n```logo\ndefine\n```\n\nBy contrast, `empty` and `of` are **not** keywords and **not** built-in names. The contextual keywords are exactly these two.\n",
     [TOOLING_PATH]:
-      "x this is the C19 registry repeated y:\n\n`define`.\n\nThe words `empty` and `member` are contextual keywords here.\n\n| H |\n|---|\n| `keyword` | Declared in built-in-names.json. The contextual words `empty`, and `member` take this class only in the structural positions described under [Reserved words](#reserved-words-for-tooling), and are ordinary names elsewhere. Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not. |\n",
+      "x this is the C19 registry repeated y:\n\n`define`.\n\nThe words `empty` and `of` are contextual keywords here.\n\n| H |\n|---|\n| `keyword` | Declared in built-in-names.json. The contextual words `empty`, and `of` take this class only in the structural positions described under [Reserved words](#reserved-words-for-tooling), and are ordinary names elsewhere. Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not. |\n",
     [CONFORMANCE_PATH]:
       "## Required profiles\n### Core Language\n## Feature to profile table\n",
   });
