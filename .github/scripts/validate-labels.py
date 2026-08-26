@@ -396,7 +396,17 @@ def main() -> int:
         errors += live_errors
         notes += live_notes
     else:
-        notes.append("live checks skipped (offline mode); run with --live to compare against the repository")
+        notes.append(
+            "live checks SKIPPED (offline mode). The offline half only re-derives the "
+            "area:*/profile:* <-> commit-scope mirrors; it CANNOT detect a label in use that the "
+            "manifest does not declare, which is issue #972's actual subject."
+        )
+        notes.append(
+            "    That direction needs `--live` (gh + a token) and runs only in label-drift.yml, "
+            "which is dormant on a non-default branch: GitHub registers schedule/workflow_run only "
+            "from the default branch. Until this saga promotes to main, the only live coverage is "
+            "the pull_request trigger on manifest changes. See labeler-and-labels/SKILL.md."
+        )
 
     for note in notes:
         print(f"  {note}")

@@ -40,13 +40,17 @@ jobs:
         run: python .github/scripts/test-validate-meta.py
       - name: Validate the label taxonomy (offline directions)
         # Issue #972: .github/labels.yml is documented as "the single source of truth" but nothing
-        # re-derived it, so labels drifted into use unmanifested across several namespaces. This
-        # runs the deterministic half — the `area:*` and `profile:*` labels against
-        # validate-commits.py's AREAS and PROFILES, which claim in a comment to mirror them and
-        # whose divergence blocks PR titles — plus the well-formedness of
-        # .github/labels-retired.yml. The live half (against the repository's actual labels) needs
-        # a token and mutable repo state, so it runs in label-drift.yml rather than gating
-        # unrelated PRs on someone else's mislabelling.
+        # re-derived it, so labels drifted into use unmanifested across several namespaces.
+        #
+        # READ THIS BEFORE TRUSTING A GREEN RUN. This step runs the OFFLINE half only: the
+        # `area:*`/`profile:*` labels against validate-commits.py's AREAS/PROFILES, plus the
+        # well-formedness of .github/labels-retired.yml. It does **not** detect a label in use that
+        # the manifest does not declare — #972's actual subject — because that needs `gh` and a
+        # token. That direction lives in label-drift.yml, and on a non-default branch GitHub
+        # registers only its `pull_request` trigger, so it covers manifest PRs and nothing else
+        # until this saga promotes to `main`. Wiring `--live` into this job is a real design
+        # decision (token scope, mutable repo state failing unrelated PRs) and is deliberately NOT
+        # taken here. The script says the same thing out loud on every offline run.
         run: python .github/scripts/validate-labels.py
       - name: Self-test the label taxonomy gate
         run: python .github/scripts/test-validate-labels.py

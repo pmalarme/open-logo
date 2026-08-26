@@ -55,11 +55,26 @@ sync with that manifest and (b) auto-applies path-derived labels to PRs.
 - Live directions run in `label-drift.yml` (schedule + dispatch + manifest PRs + after a successful
   `Label sync`, via `workflow_run` rather than `push`, which would race the sync); the offline
   mirrors run in `ci.yml`'s `meta` job on every PR. `test-validate-labels.py` mutation-tests both.
-- **Activation:** GitHub registers `schedule`/`workflow_dispatch`/`workflow_run` only from the
-  **default branch**, so those three stay dormant until the saga carrying `label-drift.yml`
-  promotes to `main`. `pull_request` runs from the PR head and works immediately. This is harmless
-  rather than a gap, because `label-sync.yml` is itself `push: branches: [main]` — the detector goes
-  live in the same promotion as the thing it detects.
+- **Which direction runs where — and the gap, stated rather than implied.** This matters more than
+  it looks: the direction that detects #972's actual defect is **not** in the per-PR gate.
+
+  | direction | needs | runs in | on a `saga/*` branch |
+  |---|---|---|---|
+  | `area:*`/`profile:*` ↔ commit scopes | nothing | `ci.yml` meta job, every PR | ✅ active |
+  | retired-list well-formedness | nothing | `ci.yml` meta job, every PR | ✅ active |
+  | **label in use but unmanifested** | `gh` + token | `label-drift.yml` | ⚠️ **manifest PRs only** |
+  | manifested but missing on repo | `gh` + token | `label-drift.yml` | ⚠️ **manifest PRs only** |
+  | namespaced but undeclared | `gh` + token | `label-drift.yml` | ⚠️ **manifest PRs only** |
+
+  GitHub registers `schedule` and `workflow_run` **only from the default branch**, so until the
+  saga promotes to `main` the daily sweep and the post-sync run do not exist; only
+  `pull_request` (taken from the PR head) fires, and only on manifest changes. **A green
+  `validate-labels.py` in CI therefore does not mean "no label drift"** — it means the mirrors
+  agree. The script prints that caveat on every offline run rather than leaving it to this table.
+- **What re-checks it after promotion:** the daily `schedule` and the `workflow_run` after `Label
+  sync` both activate the moment this lands on `main`, and the first run reconciles whatever drifted
+  in the interim. Wiring `--live` into the per-PR job instead was considered and **not** taken: it
+  needs a token, and it makes an unrelated PR go red because somebody else mislabelled an issue.
 - **Adding an `area:*` or `profile:*` label is a two-file change** — the manifest and
   `validate-commits.py`'s `AREAS`/`PROFILES` — and the gate is the half that fails until both land.
 - **Known residual, measured:** the per-PR (offline) half only checks the namespace mirrors, so

@@ -156,7 +156,7 @@ can report a false-green that CI (Node 22) then fails. From the repo root:
 npm ci               # restore the workspace from the committed lockfile
 npm run build        # tsc -b — emits dist/*.js + *.d.ts across all packages
 npm run typecheck    # tsc -b type-check
-npm run lint         # scripts/lint.mjs: Biome, then the lint-scope gate re-derives what it linted
+npm run lint         # Biome
 npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
