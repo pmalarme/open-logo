@@ -150,12 +150,12 @@ function tinyFixture() {
           {
             name: "empty",
             positions: { "is-predicate": ":x is empty" },
-            elsewhereProbes: ["local empty"],
+            elsewhereProbes: ["local empty", "print empty"],
           },
           {
             name: "of",
             positions: { "value-of-reader": 'value of :d for key "a"' },
-            elsewhereProbes: ["local of"],
+            elsewhereProbes: ["local of", "print of"],
           },
         ],
       },
@@ -2960,6 +2960,26 @@ test("INJECTED DRIFT: a contextual probe that does not put the word in the posit
   const both = 'print (value of :d for key "x") == (:x is empty)';
   assert.equal(inside(both, "of", "ValueOfKey"), true);
   assert.equal(inside(both, "of", "IsPredicate"), false);
+  // NESTED, which containment alone accepted: the ValueOfKey sits INSIDE the IsPredicate, so any
+  // enclosing node matched and the wrong label passed (issue #959 review round 3, finding 1). The
+  // innermost position node is what decides.
+  const nested = '(value of :d for key "x") is empty';
+  assert.equal(inside(nested, "of", "ValueOfKey"), true);
+  assert.equal(inside(nested, "of", "IsPredicate"), false);
+  // Measured, and deliberately asserted rather than assumed: with a PARENTHESISED operand the
+  // highlighter paints this `empty` `primitive`, not `keyword`, even though the parser does build
+  // the `IsPredicate`. That is a pre-existing behaviour of `highlight.ts`'s index arithmetic
+  // (the operand's span ends at the ValueOfKey, one token before the `)`), untouched by this slice
+  // and outside its write-set. It is pinned here so the contextual probes above are never widened
+  // onto a form whose painting nobody has checked.
+  assert.equal(
+    realParserApi
+      .highlight(nested, "<probe>", {
+        profiles: realParserApi.OL_CHECK_PROFILES,
+      })
+      .find((token) => token.text === "empty").class,
+    "primitive",
+  );
 
   const swapped = manifestCopy();
   swapped.tokenClass.contextual.words.find(
@@ -3218,6 +3238,27 @@ test("INJECTED DRIFT: an enumeration written to dodge the backticked-word scan",
     ]).length,
     0,
   );
+  // A trailing `?` is an identifier character in OpenLogo but not a regex word character, so a
+  // `\b`-anchored rule could not match after it and `member?, empty?, and list?` escaped entirely
+  // (issue #959 review round 3, finding 3).
+  assert.equal(
+    reEnumerationFindings("Also member?, empty?, and list? here.", [
+      "member?",
+      "empty?",
+      "list?",
+    ]).length,
+    1,
+  );
+  // The boundaries are identifier-aware in both directions: a longer name that merely CONTAINS
+  // three shorter ones is not a list.
+  assert.deepEqual(
+    reEnumerationFindings("the word setxy_and_more appears", [
+      "set",
+      "and",
+      "more",
+    ]),
+    [],
+  );
   // A row with no code spans and no list at all has nothing to report either.
   assert.deepEqual(reEnumerationFindings("plain prose only", ["a", "b"]), []);
 });
@@ -3360,6 +3401,99 @@ test("INJECTED DRIFT: a highlighter that stops painting a word under ONE profile
     ),
     true,
     findings.join("\n"),
+  );
+});
+
+test("a word painted the contextual class but enclosed by no position node fails", () => {
+  // The guard that keeps `reduce` from throwing on an empty set, and a real state: a highlighter
+  // that paints a word `keyword` in a source whose parse builds no position form at all. Unreachable
+  // through the shipped probes, so it is exercised directly rather than left as a dead branch.
+  const api = {
+    OL_CHECK_PROFILES: ["core-language"],
+    highlight: () => [
+      {
+        text: "empty",
+        class: "keyword",
+        source_span: { start: [9, 9], end: [9, 14] },
+      },
+    ],
+    parse: () => ({ ast: {} }),
+    walk: (_ast, visit) =>
+      visit({
+        kind: "IsPredicate",
+        source_span: { start: [1, 1], end: [1, 5] },
+      }),
+  };
+  assert.equal(
+    paintedInsideNode(api, ":x is empty", "empty", "keyword", "IsPredicate"),
+    false,
+  );
+});
+
+test("INJECTED DRIFT: a highlighter wrong only when a NON-keyword profile is absent", () => {
+  // Enumerating only the keyword-contributing subsets left every other profile permanently active,
+  // so a rule keyed on Sound's absence answered correctly in every set the gate tried (issue #959
+  // review round 3, finding 2). Each subset is now swept over Core alone as well.
+  const api = {
+    ...realParserApi,
+    highlight: (source, document, options) =>
+      realParserApi
+        .highlight(source, document, options)
+        .map((token) =>
+          token.text === "repeat" && !options.profiles.includes("sound")
+            ? { ...token, class: "primitive" }
+            : token,
+        ),
+  };
+  const findings = profileGatingFindings(
+    api,
+    entryFor(REAL_MANIFEST, "repeat"),
+  );
+  assert.equal(
+    findings.some(
+      (finding) =>
+        finding.startsWith("repeat:") &&
+        finding.includes("over Core Language alone"),
+    ),
+    true,
+    findings.join("\n"),
+  );
+  // And the shipped highlighter is quiet over the whole sweep.
+  assert.deepEqual(
+    profileGatingFindings(realParserApi, entryFor(REAL_MANIFEST, "repeat")),
+    [],
+  );
+});
+
+test("INJECTED DRIFT: the contextual elsewhere probes thinned to a single context", () => {
+  // `elsewhereProbes` was checked only for length > 0, so dropping the reporter-argument context
+  // from all four words left the whole DoD green with a byte-identical summary line (issue #959
+  // review round 3, QA finding F2).
+  const manifest = manifestCopy();
+  for (const word of manifest.tokenClass.contextual.words) {
+    word.elsewhereProbes = [`local ${word.name}`];
+  }
+  const findings = contextualTokenClassFindings(manifest, realParserApi);
+  assert.equal(
+    findings.filter((finding) =>
+      finding.includes(
+        "context — an ordinary-name claim shown in one position",
+      ),
+    ).length,
+    4,
+    findings.join("\n"),
+  );
+  // The contexts are rendered from the word's own name, so the check cannot be satisfied by
+  // another word's probe.
+  const borrowed = manifestCopy();
+  borrowed.tokenClass.contextual.words.find(
+    (word) => word.name === "a",
+  ).elsewhereProbes = ["local a", "print empty"];
+  assert.equal(
+    contextualTokenClassFindings(borrowed, realParserApi).some((finding) =>
+      finding.startsWith("tokenClass.contextual a: no elsewhereProbe"),
+    ),
+    true,
   );
 });
 

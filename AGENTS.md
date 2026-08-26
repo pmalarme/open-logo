@@ -186,8 +186,8 @@ that the gate could only **change-detect** — inverting the row's meaning and r
 passed every check. What issue #855 had refuted was *deriving* the class from the lists that already
 existed; *declaring* it was never tried. So each name now carries a `tokenClass` beside its
 `category` — two independent axes, "may a program declare this name?" and "how is this word
-painted?" — and the gate re-paints every name through the shipped `highlight()` in seven grammatical
-positions and compares in both directions, including the profile fallback of `spec/tooling.md:31`.
+painted?" — and the gate re-paints every name through the shipped `highlight()` in nine grammatical
+positions and compares in both directions, including the profile gating of `spec/tooling.md:31`.
 The four words that are keywords **by position only** (`empty`, `member`, `of`, `a`) cannot be table
 rows, so they are a declared exception set, pinned against their `excluded` carve-outs and against
 both prose statements of them.

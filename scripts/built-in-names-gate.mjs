@@ -1709,19 +1709,21 @@ export function tokenClassFindings(manifest, api) {
 
 /**
  * The profile half of the paint rule, checked over **every combination** of the profiles that
- * contribute keywords rather than over a few hand-picked sets.
+ * contribute keywords, and with the profiles that contribute none both present and absent.
  *
  * Two endpoints were not enough: a word gated on the *wrong* profile answered identically at "all
  * profiles" and "Core alone". Three sets were not enough either — a word wrong only in a partial
  * combination survived, and a probe that painted nothing under one combination was masked by the
- * others (issue #959 review round 2, finding 4). Only `OL_PROFILE_KEYWORDS`'s own keys contribute
- * keywords, so the combination space is small and is enumerated in full: for each subset, a gated
- * word must be `keyword` exactly when its own profile is in the subset, and every other name must be
- * unmoved by any subset. Every probe must paint the word in every combination.
+ * others. And enumerating only the keyword-contributing subsets left the remaining profiles
+ * permanently active, so a highlighter that mispainted whenever Sound was absent still passed
+ * (issue #959 review rounds 2-3). Only `OL_PROFILE_KEYWORDS`'s own keys contribute keywords, so the
+ * space is small and is swept in full, each subset once with the non-contributing profiles active
+ * and once without: a gated word must be `keyword` exactly when its own profile is in the subset,
+ * every other name must be unmoved by any of them, and every probe must paint the word every time.
  */
 export function profileGatingFindings(api, entry) {
   const contributing = Object.keys(api.OL_PROFILE_KEYWORDS ?? {});
-  const core = api.OL_CHECK_PROFILES.filter(
+  const others = api.OL_CHECK_PROFILES.filter(
     (profile) => !contributing.includes(profile),
   );
   const gated =
@@ -1729,28 +1731,32 @@ export function profileGatingFindings(api, entry) {
   const findings = [];
   for (let mask = 0; mask < 2 ** contributing.length; mask += 1) {
     const active = contributing.filter((_, index) => (mask >> index) & 1);
-    const profiles = [...core, ...active];
-    const expected =
-      gated && !active.includes(entry.profile) ? "primitive" : entry.tokenClass;
-    const painted = paintedClasses(api, entry.name, profiles);
-    const describe =
-      active.length === 0
-        ? "with no keyword-contributing profile active"
-        : `with ${active.join(" + ")} active`;
-    if (painted.silent.length > 0) {
+    for (const [baseline, baselineDescribe] of [
+      [CORE_ONLY_PROFILES, "Core Language alone"],
+      [[...CORE_ONLY_PROFILES, ...others], "every non-keyword profile"],
+    ]) {
+      const profiles = [...baseline, ...active];
+      const expected =
+        gated && !active.includes(entry.profile)
+          ? "primitive"
+          : entry.tokenClass;
+      const painted = paintedClasses(api, entry.name, profiles);
+      const describe = `over ${baselineDescribe}${active.length === 0 ? " with no keyword-contributing profile active" : ` plus ${active.join(" + ")}`}`;
+      if (painted.silent.length > 0) {
+        findings.push(
+          `${entry.name}: the highlighter emits no token for it ${describe} in ${painted.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing under any profile set`,
+        );
+        continue;
+      }
+      if (painted.classes.size === 1 && painted.classes.has(expected)) {
+        continue;
+      }
       findings.push(
-        `${entry.name}: the highlighter emits no token for it ${describe} in ${painted.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing under any profile set`,
+        gated
+          ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
+          : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
       );
-      continue;
     }
-    if (painted.classes.size === 1 && painted.classes.has(expected)) {
-      continue;
-    }
-    findings.push(
-      gated
-        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
-        : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
-    );
   }
   return findings;
 }
@@ -1835,22 +1841,29 @@ export function tokenClassSourceFindings(manifest, api) {
  * Existence of such a node anywhere is not enough, and that is the whole point: a probe carrying
  * *both* forms — `print (value of :d for key "x") == (:x is empty)` — has an `IsPredicate` node
  * while the word `of` is painted through the `ValueOfKey`, so a bare "is there such a node" test
- * declared the wrong position verified (issue #959 review round 2, finding 1). Binding the node to
- * the token's own position is what makes the position label a claim rather than a caption.
+ * declared the wrong position verified (issue #959 review round 2, finding 1).
  *
- * `parse` never throws on malformed input, so a probe that does not parse simply has no such node
- * and fails.
+ * Containment alone was not enough either: nodes **nest**, so
+ * `(value of :d for key "x") is empty` puts `of` inside a `ValueOfKey` that is itself inside the
+ * outer `IsPredicate`, and any-ancestor matching accepted the wrong label again (round 3, finding
+ * 1). So the test is on the **innermost** node containing the painted occurrence: the position a
+ * word occupies is the narrowest form that encloses it, not every form above it.
+ *
+ * `parse` never throws on malformed input, so a probe that does not parse has no enclosing node
+ * beyond the program itself and fails.
  */
 export function paintedInsideNode(api, source, name, expectedClass, kind) {
-  const spans = [];
+  // Only the kinds this gate can label a position with are candidates. Narrower nodes that are not
+  // positions at all (a literal, a variable reference) say nothing about which structural form the
+  // word sits in, while `ValueOfKey` nested inside `IsPredicate` says everything — that pair is the
+  // whole point (issue #959 review round 3, finding 1).
+  const positionKinds = Object.values(CONTEXTUAL_POSITION_NODE_KINDS);
+  const nodes = [];
   api.walk(api.parse(source, "<contextual-probe>").ast, (node) => {
-    if (node.kind === kind) {
-      spans.push(node.source_span);
+    if (node.source_span !== undefined && positionKinds.includes(node.kind)) {
+      nodes.push(node);
     }
   });
-  if (spans.length === 0) {
-    return false;
-  }
   const within = (position, span) => {
     const [line, column] = position;
     const [startLine, startColumn] = span.start;
@@ -1861,6 +1874,11 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
       line < endLine || (line === endLine && column <= endColumn);
     return afterStart && beforeEnd;
   };
+  // A span's width as one number, so "innermost" is a numeric comparison rather than a branch whose
+  // untaken side depends on the order `walk` happens to visit parents and children in. Line-major,
+  // so a multi-line span never looks narrower than a single-line one nested inside it.
+  const width = (span) =>
+    (span.end[0] - span.start[0]) * 1e6 + (span.end[1] - span.start[1]);
   return api
     .highlight(source, "<contextual-probe>", {
       profiles: api.OL_CHECK_PROFILES,
@@ -1869,9 +1887,14 @@ export function paintedInsideNode(api, source, name, expectedClass, kind) {
       (token) =>
         token.text.toLowerCase() === name && token.class === expectedClass,
     )
-    .some((token) =>
-      spans.some((span) => within(token.source_span.start, span)),
-    );
+    .some((token) => {
+      const innermost = nodes
+        .filter((node) => within(token.source_span.start, node.source_span))
+        .sort(
+          (left, right) => width(left.source_span) - width(right.source_span),
+        );
+      return innermost[0]?.kind === kind;
+    });
 }
 
 /**
@@ -2008,6 +2031,19 @@ export function contextualTokenClassFindings(manifest, api) {
         `tokenClass.contextual ${word.name}: records no elsewhereProbes — without one, nothing shows the word is an ordinary name outside its positions, which is the whole reason it is not a row in names`,
       );
     }
+    // Each declared context must actually be rendered, so the set cannot be thinned to whichever
+    // probe happens to be first (issue #959 review round 3, QA finding F2).
+    const uncovered = Object.entries(CONTEXTUAL_ELSEWHERE_CONTEXTS)
+      .filter(
+        ([, render]) =>
+          !(word.elsewhereProbes ?? []).includes(render(word.name)),
+      )
+      .map(([context]) => context);
+    if (uncovered.length > 0) {
+      findings.push(
+        `tokenClass.contextual ${word.name}: no elsewhereProbe puts it in the ${uncovered.join(", ")} context — an ordinary-name claim shown in one position only is thinner than it reads`,
+      );
+    }
     for (const probe of word.elsewhereProbes ?? []) {
       const painted = api
         .highlight(probe, "<contextual-probe>", {
@@ -2092,6 +2128,19 @@ export const REQUIRED_ROW_SENTENCES = [
 ];
 
 /**
+ * The contexts every contextual word must be shown to be an ordinary name in.
+ *
+ * `elsewhereProbes` was checked only for `length > 0`, so thinning all four words to one probe each
+ * — dropping the whole reporter-argument context — left the DoD green with a byte-identical summary
+ * (issue #959 review round 3, QA finding F2). The declaration names the contexts; each word must
+ * carry a probe rendering each of them, so a context cannot be dropped from one word or from all.
+ */
+export const CONTEXTUAL_ELSEWHERE_CONTEXTS = {
+  "local-binder": (name) => `local ${name}`,
+  "reporter-argument": (name) => `print ${name}`,
+};
+
+/**
  * A re-enumeration of the class written to dodge {@link backtickedWords}, which only sees
  * individually backticked bare words.
  *
@@ -2123,11 +2172,17 @@ export function reEnumerationFindings(row, names) {
     .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .sort((left, right) => right.length - left.length);
   const alternation = `(?:${escaped.join("|")})`;
+  // Identifier-aware boundaries, NOT `\b`: OpenLogo names may end in `?` or `!`
+  // (`spec/grammar.md:15`), and `\b` cannot match after a non-word character, so
+  // `member?, empty?, and list?` slipped past a `\b`-anchored rule entirely (issue #959 review
+  // round 3, finding 3).
+  const before = "(?<![a-z0-9_?!])";
+  const after = "(?![a-z0-9_?!])";
   // A separator is a comma, or `and`/`or` with or without the Oxford comma before it: `a, b and c`
   // escaped a comma-only rule.
   const separator = "(?:\\s*,\\s*|\\s*,?\\s+(?:and|or)\\s+)";
   const list = new RegExp(
-    `\\b${alternation}\\b(?:${separator}${alternation}\\b){2,}`,
+    `${before}${alternation}${after}(?:${separator}${alternation}${after}){2,}`,
     "gi",
   );
   const prose = row.replace(/`[^`]+`/g, " ");

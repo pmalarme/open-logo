@@ -64,12 +64,15 @@ treated them as one.
    `positionIndependence` claim is executed rather than assumed. Measured at 0.1.0: **148 names, 97
    `primitive`, 47 `keyword`, 4 `operator`, and 148 of 148 position-invariant.**
 
-3. **The profile rule is checked against the profile the entry names.** Three profile sets, not two:
-   all profiles, Core plus the entry's own, and all except the entry's own. A name painted `keyword`
-   by a non-Core profile must be `keyword` in the first two and `primitive` in the third
-   (`spec/tooling.md:31`); every other name must be unmoved by any of them. Comparing only
-   "all profiles" against "Core alone" left *ownership* unchecked — gating `tell` on Interaction
-   instead of Sprites answered identically at both endpoints. Measured, exactly seven names move:
+3. **The profile rule is checked against the profile the entry names.** Every subset of the
+   keyword-contributing profiles, each swept twice — once over Core Language alone, once with every
+   non-keyword-contributing profile also active. A name painted `keyword` by a non-Core profile must
+   be `keyword` exactly when its own profile is in the subset and `primitive` otherwise
+   (`spec/tooling.md:31`); every other name must be unmoved by any of them, and every probe must
+   paint the word every time. Comparing only "all profiles" against "Core alone" left *ownership*
+   unchecked — gating `tell` on Interaction instead of Sprites answered identically at both
+   endpoints — and holding the non-contributing profiles permanently active hid a highlighter that
+   mispainted whenever Sound was absent. Measured, exactly seven names move:
    `ask`, `each`, `tell`, `when`, `every`, `on_key`, `on_click`.
 
 4. **The implementation is compared to the file, not only the file to the implementation.** `names`
@@ -119,21 +122,39 @@ Stated because the mechanism it replaces failed three times by claiming more tha
   could recompute alone.
 - **The rest of the row's prose.** Sentences carrying no data are not compared, beyond the
   three-names-in-a-row rule and the backticked-name set comparison. A false claim written in prose
-  that names nothing is still maintainer-reviewed, not machine-checked.
+  that names nothing is still maintainer-reviewed, not machine-checked. Measured: adding *"A
+  conforming highlighter never paints a contextual word with this class"* to the row passes the
+  whole Definition of Done.
+- **The re-enumeration rule is a heuristic, not a proof.** It rejects a run of three or more
+  built-in names joined by commas and/or `and`/`or`, in any case, with identifier-aware boundaries
+  so a trailing `?` cannot slip past. It raises the cost of copying the enumeration back into prose;
+  it does not establish that no enumeration can be expressed. What is *guaranteed* is the verbatim
+  rendering of the two data-bearing sentences and the both-directions set comparison of the names
+  the row backticks.
 - **The narrative fields** of `spec/built-in-names.json`. `narrativeFindings` requires them to be
   present and non-blank; nothing verifies what they say. That was already true of every `about` in
   that file and is unchanged here.
 - **The positional marking inside `highlight.ts`.** It is decided from parsed structure rather than
   from a set, so it cannot be enumerated from outside; the contextual probes measure it word by
   word instead, which covers the declared words and cannot prove the absence of an undeclared one.
+  Concretely: the `keyword` token class is compared in both directions over the **flat** names, but
+  a *contextual* word the implementation started painting and this file does not declare would not
+  be detected.
+- **The gate's own position vocabulary.** `CONTEXTUAL_POSITION_NODE_KINDS` and
+  `CONTEXTUAL_POSITIONS` are literals in `scripts/`; deleting a position from *both* of them and
+  from both manifest axes leaves this gate quiet. What catches it is the unit suite, which pins
+  `of`'s two positions against the shipped manifest — a pin that lives in `npm run test`, not in
+  `npm run built-in-names`.
 
 ## Consequences
 
 - A factually wrong token class can no longer be green. The mutation that proved the old mechanism
   hollow — invert the claim, recompute the digest — has no counterpart here, because there is
   nothing to recompute: the comparison's other side is the running highlighter.
-- **Adding a primitive or keyword stays a two-file change** and now carries a third obligation: the
-  new entry needs a `tokenClass`, and a wrong one fails rather than passing unexamined.
+- **Adding a primitive stays a two-file change** — the registry and the list — and now carries a
+  third obligation: the new entry needs a `tokenClass`, and a wrong one fails rather than passing
+  unexamined. A **keyword** was already more than two files (`spec/grammar.md`'s normative block and
+  `spec/tooling.md`'s C19 mirror), and this adds the same third obligation to it.
 - The gate now depends on `@openlogo/parser`'s `highlight()`, not only on its name registries. It
   **fails closed** if no `highlight()` is exported, because a paint axis that silently checks
   nothing is worse than none.
