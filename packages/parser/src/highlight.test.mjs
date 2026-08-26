@@ -525,26 +525,34 @@ test("contextual: empty/member/a are keyword only immediately after is, and so i
 });
 
 test("contextual: empty/member/of/a stay keyword when a newline separates them from `is` (issue #995)", () => {
-  // A newline is legal at FIVE points in an `is` predicate, not four: `parseComparison` runs
-  // `if (continuesOnNextLineWith("is")) { skipNewlines(); }` at `parser.ts:1030` before testing for
-  // `is` at `parser.ts:1033`, and `parseIsPredicate` then calls `skipNewlinesBeforeOperand` at
-  // `parser.ts:1078`, `parser.ts:1088`, `parser.ts:1091` and `parser.ts:1108` (issue #933). So the
-  // newline can precede `is` itself, which is the row a first pass at this fix missed.
+  // A newline is legal at more points in an `is` predicate than a reader expects, and exactly THREE
+  // of them can move a word this test checks: before `is` (`parseComparison` guards the operator
+  // with `continuesOnNextLineWith("is")` and skips before testing `isName("is")`), before the form
+  // word, and between `member` and `of` (`parseIsPredicate`'s `skipNewlinesBeforeOperand` calls,
+  // issue #933). The newline before `is` is the one a first pass at this fix missed. The remaining
+  // skip points in `parseIsPredicate` and `parseBetween` sit after the last contextual word, before
+  // an operand or a type literal, so they cannot shift an index used here.
   //
-  // Every spelling below therefore parses with ZERO diagnostics, which is asserted rather than
-  // assumed: if one of them ever became a parse error, the classification assertion beside it would
-  // still pass and pin nothing.
+  // Cited by role rather than by line: nothing gates an intra-repo `file:line` citation — the
+  // spec-citations gate covers only `spec/*.md` — and an earlier revision of this comment carried
+  // six `parser.ts` line numbers that a sibling edit in the same commit had already shifted.
   //
-  // The defect this pins is that the highlighter located each word by raw offsets from `is`. What
-  // the stale offset LANDED on varied by row -- for `is` ⏎ `member of`, the old `of` offset was
-  // `isIndex + 2`, which lands on `member`, not on the newline -- so the mechanism is deliberately
-  // not generalised here. The invariant is the outcome: at `0277d5ff` every split spelling below
-  // classified its word `primitive`, and the one-line spellings pinned in the test above were
-  // correct throughout, which is exactly why varying the container without varying the newline
-  // could not have found this.
+  // Every spelling below parses with ZERO diagnostics, which is asserted rather than assumed: if
+  // one of them ever became a parse error, the classification assertion beside it would still pass
+  // and pin nothing.
+  //
+  // What the stale offset LANDED on varied by row -- for `is` ⏎ `member of`, the old `of` offset
+  // was `isIndex + 2`, which lands on `member`, not on the newline -- so the mechanism is
+  // deliberately not generalised here. The invariant is the outcome: at `0277d5ff` every split
+  // spelling below classified its word `primitive`, and the one-line spellings pinned in the test
+  // above were correct throughout, which is exactly why varying the container without varying the
+  // newline could not have found this.
   //
   // Like #785, these programs parse completely clean, so no diagnostic could ever surface the
   // defect: a token-class assertion is the only instrument that can see it.
+  //
+  // The `rparen` axis (`print (:x) is empty`) is a separate, independent way for these offsets to
+  // miss, and is issue #959's; it is deliberately not pinned here.
   for (const [source, text] of [
     // The newline before `is`.
     ["print :x\nis empty", "empty"],

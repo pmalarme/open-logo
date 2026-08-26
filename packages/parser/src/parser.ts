@@ -425,13 +425,24 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
    * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
    *
-   * Four sites report without calling it — `parser.ts:1686`, `parser.ts:1719`, `parser.ts:1950` and
-   * `parser.ts:2081` — and are correct without it, because each sits inside `if (token.kind ===
-   * "eof")`: having consumed to end of input without meeting the closer is itself proof that no later
-   * closer exists, which is strictly stronger than this balance walk. Gating them anyway would add a
-   * call whose `false` branch is unreachable, and the coverage gate rejects unreachable branches.
-   * Those four are pinned exactly-once by `GENUINELY_UNMATCHED` in
-   * `packages/parser/src/newline-continuations-and-delimiters.test.mjs`.
+   * Four sites report without calling it, and are correct without it: the end-of-input branches of
+   * the list literal, the dict literal, the parenthesized call, and the block body. Each sits inside
+   * `if (token.kind === "eof")`, and having consumed to end of input without meeting the closer is
+   * itself proof that no later closer exists — strictly stronger than this balance walk. Gating them
+   * anyway would add a call whose `false` branch is unreachable, and the coverage gate rejects
+   * unreachable branches.
+   *
+   * All four are pinned exactly-once by `GENUINELY_UNMATCHED` in
+   * `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. Two of them were **not**,
+   * until review measured it: an earlier revision of this comment asserted the coverage without
+   * checking it, and the paren-call and block-body branches had no witness, because a plain
+   * `print ( 1 + 2` reaches the *gated* paren path rather than the end-of-input one. Reaching each
+   * branch takes a specific shape — `print (sum 1 2` for the call, `repeat 2 [ print 1` for the
+   * block — which is exactly why the claim could not be made by reading.
+   *
+   * Cited by role rather than by line: an earlier revision named the four by `parser.ts:<line>`, and
+   * those line numbers were invalidated by the length of this very comment, which sits above them in
+   * the same file. Nothing gates an intra-repo `file:line` citation.
    */
   function isGenuinelyUnmatched(token: LexToken): boolean {
     return unmatchedDelimiters.has(positionKey(token.source_span.start));

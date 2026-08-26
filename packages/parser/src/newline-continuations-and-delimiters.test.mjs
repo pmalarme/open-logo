@@ -422,6 +422,13 @@ const GENUINELY_UNMATCHED = [
     "for [:x :y in [1] [ print 1 ]",
     "ol-unmatched-bracket",
   ],
+  // The next two reach end-of-input branches that report WITHOUT the `isGenuinelyUnmatched` gate,
+  // and nothing witnessed them until review measured which branch each row above actually reaches.
+  // Neither is reachable by a shape already listed: `print ( 1 + 2` takes the *gated* paren path,
+  // not the end-of-input one, so it left the paren-call branch uncovered despite looking like its
+  // witness. Rows here are cheap; a report site with no witness is not.
+  ["unclosed paren call", "print (sum 1 2", "ol-unmatched-paren"],
+  ["unclosed block body", "repeat 2 [ print 1", "ol-unmatched-bracket"],
 ];
 
 test("a genuinely unmatched delimiter is still reported, exactly once", () => {

@@ -367,10 +367,20 @@ export function highlight(
    * #995). Two earlier versions of this comment asserted adjacency instead, and both were false:
    * one claimed the words after `is` are "directly adjacent in the token stream (no `skipNewlines`
    * between them)", the other that "`is` is the literal next raw token after the operand". Neither
-   * holds. `parseComparison` runs `if (continuesOnNextLineWith("is")) { skipNewlines(); }` at
-   * `parser.ts:1030` immediately before testing for `is` at `parser.ts:1033`, and
-   * `parseIsPredicate` then calls `skipNewlinesBeforeOperand` at four further slots
-   * (`parser.ts:1078`, `parser.ts:1088`, `parser.ts:1091`, `parser.ts:1108`, from issue #933).
+   * holds. `parseComparison` guards the operator with `continuesOnNextLineWith("is")` and skips
+   * before testing `isName("is")`, and `parseIsPredicate` then calls `skipNewlinesBeforeOperand`
+   * before the form word and again before `of` (issue #933).
+   *
+   * **Exactly three of those positions can move a word this function classifies** — before `is`,
+   * before the form word, and between `member` and `of`. `parseIsPredicate` and `parseBetween`
+   * skip newlines at several further points, but each of those sits *after* the last contextual
+   * word, before an operand or a type literal, so none can shift an index used here.
+   *
+   * Cited by role rather than by line on purpose. Line numbers into this file are the wrong-passage
+   * mode waiting to happen and nothing gates them: `npm run spec-citations` validates only
+   * `spec/*.md` references, and an earlier revision of this very comment cited six `parser.ts`
+   * lines that its own sibling edit had already shifted, with the gate reporting zero failures.
+   * A role survives an insertion; a line number does not.
    *
    * So `print :x` ⏎ `is empty` and `print :x is` ⏎ `empty` are both legal predicates, and a raw
    * offset lands on a newline token in each. The word then falls through to its ordinary
@@ -378,8 +388,14 @@ export function highlight(
    * program that parses **completely clean**, so no diagnostic could ever surface it. A token-class
    * assertion is the only instrument that can see it.
    *
-   * Each index is therefore derived from the previous *resolved* one rather than by arithmetic on
-   * `isIndex`, so an arbitrary number of newlines between any two words resolves.
+   * Each index is derived from the previous *resolved* one rather than by arithmetic on `isIndex`,
+   * so an arbitrary number of newlines between any two words resolves.
+   *
+   * **This guards the newline axis only.** A `)` between the operand and `is` is a second,
+   * independent way for these offsets to miss — `print (:x) is empty` still classifies `empty` as
+   * `primitive` here, cleanly parsed — and it is fixed by issue #959, which owns the `rparen`
+   * skip and merges after this. Do not read `indexSkippingNewlines` at every position as meaning
+   * the function is fully guarded; that inference is what this comment got wrong twice already.
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(
@@ -452,8 +468,9 @@ export function highlight(
    * stream, which keeps them. An earlier version of this comment claimed the parser only builds a
    * `ValueOfKeyNode` when `of` is the literal next raw token, "`peek(1)`, no `skipNewlines`
    * between". That was true when it was written and my own #979 change falsified it without
-   * updating it: `parser.ts:1551` now reads `isKeywordToken(peek(skippingNewlines(1)), "of")`, so
-   * the reader may be written `value` ⏎ `of …`. Without the walk the marked index would land on
+   * updating it: `parseNamePrimary`'s `value` interception now tests
+   * `isKeywordToken(peek(skippingNewlines(1)), "of")`, so the reader may be written
+   * `value` ⏎ `of …`. Without the walk the marked index would land on
    * the newline, `of` would fall through to its ordinary classification and be painted `primitive`,
    * re-opening #785 for the split spelling alone — a regression no parse diagnostic could show,
    * since the program parses clean.

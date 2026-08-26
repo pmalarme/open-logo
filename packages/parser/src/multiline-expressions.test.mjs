@@ -413,33 +413,43 @@ test("the dict-key guard is scoped to the dictionary that owns the newline", () 
   // arm and left the witness unable to witness. Review caught it.
   //
   // The invariant: `inDictEntryValue` belongs to the dictionary that owns the newline, so inside a
-  // NESTED container a `mod:` is not an entry separator. Each nested case is malformed in exactly
-  // the same way its one-line spelling is, and the dict control beside it — where the entry SHOULD
-  // open — stays clean, so the pair fails in both directions if the flag leaks or is never set.
-  for (const [label, source, expected] of [
-    ["list", "print { a: [1\nmod: 2] }", ["ol-bad-token", "ol-bad-token"]],
-    [
-      "paren",
-      "print { a: (1\nmod: 2) }",
-      ["ol-bad-token", "ol-bad-token", "ol-bad-token"],
-    ],
-    [
-      "paren call",
-      "print { a: (sum 1\nmod: 2) }",
-      ["ol-bad-token", "ol-bad-token"],
-    ],
-    [
-      "comprehension body",
-      "print { a: map n in [1 2] [ :n\nmod: 2 ] }",
-      ["ol-bad-token", "ol-bad-token"],
-    ],
-  ]) {
-    assert.deepEqual(codesOf(source), expected, label);
-    assert.deepEqual(
-      codesOf(source.replace("\n", " ")),
-      expected,
-      `${label}: the one-line spelling must be malformed the same way`,
+  // NESTED container a `mod:` is not an entry separator.
+  //
+  // Each row asserts BOTH an absolute diagnostic count AND shape equality with its one-line
+  // spelling, because neither alone is sufficient and the mutation proves it. Shape equality alone
+  // does NOT discriminate: a leaked flag moves the newline spelling and its one-line twin together,
+  // so they still agree and the row passes. An absolute count alone would not catch a wrong tree
+  // that happens to produce the same diagnostics -- the defect this whole slice exists to fix. An
+  // earlier revision of this test asserted only codes; a later one replaced them with only shape
+  // equality and silently stopped discriminating at all. Both are needed.
+  const shapeOf = (source) =>
+    JSON.stringify(OL.parse(source, doc).ast, (key, value) =>
+      key === "source_span" ? undefined : value,
     );
+
+  for (const [label, source, expected] of [
+    ["list", "print { a: [1\nmod: 2] }", 2],
+    ["paren", "print { a: (1\nmod: 2) }", 3],
+    ["paren call", "print { a: (sum 1\nmod: 2) }", 2],
+    ["comprehension body", "print { a: map n in [1 2] [ :n\nmod: 2 ] }", 2],
+  ]) {
+    const oneLine = source.replace("\n", " ");
+
+    assert.equal(
+      shapeOf(source),
+      shapeOf(oneLine),
+      `${label}: the newline spelling must read exactly as the one-line spelling`,
+    );
+    for (const [spelling, text] of [
+      ["split", source],
+      ["one-line", oneLine],
+    ]) {
+      assert.deepEqual(
+        codesOf(text),
+        Array.from({ length: expected }, () => "ol-bad-token"),
+        `${label} (${spelling}): a leaked guard changes this count`,
+      );
+    }
   }
 
   // The control: in the dictionary itself the separator DOES open the next entry, both spellings.
