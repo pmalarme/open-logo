@@ -154,7 +154,27 @@ const POPULATED_FIELD_PATHS = [
   "While.condition",
 ];
 
-const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(value.kind);
+/**
+ * The `kind` a value declares as its own **data** property — read from the descriptor, never from
+ * the value.
+ *
+ * `value.kind` looks equivalent and is not: `kind` can be **inherited**, and an inherited accessor is
+ * invisible to `fieldsOf`, which enumerates own keys. So a getter on the prototype was never recorded
+ * as an accessor *and* ran during the snapshot phase, which is user code in the one phase that
+ * claims to invoke none. The #960 reviewer used exactly that to delete a descendant before the
+ * snapshot reached it.
+ *
+ * An inherited `kind` therefore makes a value *not a node* for this gate's purposes, which is the
+ * conservative direction: it stops being skipped as a known shape and starts being reported.
+ */
+const ownDataKindOf = (value) =>
+  Reflect.ownKeys(value)
+    .filter((key) => key === "kind")
+    .map((key) => Object.getOwnPropertyDescriptor(value, key))
+    .filter(isDataDescriptor)
+    .map((descriptor) => descriptor.value)[0];
+
+const isWalkableNode = (value) => WALKABLE_NODE_KINDS.has(ownDataKindOf(value));
 
 /**
  * Every `typeof` the traversal expects to meet in a node's fields, as a whole set.
@@ -301,7 +321,8 @@ const fieldsOf = (value, path) =>
 // `Object.hasOwn` is a single always-evaluated expression, where `d.get !== undefined || …` would
 // leave a short-circuit arm untaken on a green tree. Array index rather than a ternary for the same
 // reason: both names exist unconditionally and one is selected by subscript.
-const isDataField = (field) => Object.hasOwn(field[1], "value");
+const isDataDescriptor = (descriptor) => Object.hasOwn(descriptor, "value");
+const isDataField = (field) => isDataDescriptor(field[1]);
 const descriptorKindOf = (field) =>
   ["accessor", "data"][Number(Object.hasOwn(field[1], "value"))];
 const pathOfField = (field) => field[0];
@@ -350,11 +371,13 @@ const isIndexKey = (key) =>
  * array. All of them are compared as whole sets, because a recogniser that skips what it knows is
  * how the unknown case becomes reachable unnoticed.
  *
- * The narrow claim is deliberate. This does not promise that *no* getter runs: classifying a value
- * reads `value.kind` and `value.source_span`, and `Object.prototype.toString.call` consults
- * `Symbol.toStringTag`, any of which could be an accessor. Those reads are how a shape is
- * identified at all, so they cannot be avoided without a different oracle — and an accessor there
- * would surface as an unexpected entry in `shapes` or `foreignShapes` rather than passing silently.
+ * **No property of `value` is ever read during this phase.** Classification uses own *descriptors*
+ * only — `kind` from its own data descriptor, `source_span` by key presence — and shape naming uses
+ * `Array.isArray` and `Object.getPrototypeOf`, which read internal slots. Three earlier versions
+ * each read something and each was defeated through it: a `Symbol.toStringTag` getter, a
+ * self-erasing own `kind` getter, and an **inherited** `kind` getter that `fieldsOf` could not see
+ * at all because it enumerates own keys. The rule that survived is not "guard each read" but
+ * "do not read".
  */
 function edgesUnder(value, path, seen, out) {
   // Recorded for **every** value, before any branch, and compared as a whole set. This is what
@@ -414,11 +437,15 @@ function edgesUnder(value, path, seen, out) {
     out.push([path, value]);
     return out;
   }
-  // The `source_span !== undefined` conjunct is a **guard**: every kinded value in the corpus is
-  // also spanned, so it never decides anything today. Guards may be unreachable; recording paths
-  // may not.
-  if (typeof value.kind === "string" && value.source_span !== undefined) {
-    seen.foreignShapes.add(value.kind);
+  // Classified from the snapshotted own **data** descriptors, never by reading a property — the
+  // `source_span` presence test included. An inherited accessor for either is invisible to
+  // `fieldsOf` and would run user code here, in the phase that claims to run none.
+  const foreignKind = ownDataKindOf(value);
+  if (
+    typeof foreignKind === "string" &&
+    fields.some((field) => keyOfField(field) === "source_span")
+  ) {
+    seen.foreignShapes.add(foreignKind);
   }
   seen.shapes.add(shapeNameOf(value));
   for (const field of fields.filter(isDataField)) {
@@ -436,15 +463,16 @@ function edgesUnder(value, path, seen, out) {
 function reflectedEdgesOf(node, seen) {
   // Own descriptors before **any** property read, for the reason given in `edgesUnder`: a
   // self-erasing accessor cannot be recorded by an audit that has already triggered it. That
-  // includes `node.kind`, which is itself a property — an earlier version read it to build the path
+  // includes `kind`, which is itself a property — an earlier version read it to build the path
   // prefix, `fieldsOf(node, node.kind)`, and so triggered the very getter it was about to classify.
-  // The prefix is applied after the snapshot instead.
+  // Reading it from its own data descriptor rather than off the object closes the inherited case
+  // too, which `fieldsOf` cannot see at all.
   const fields = fieldsOf(node, "");
   for (const field of fields) {
     seen.descriptorKinds.add(descriptorKindOf(field));
   }
   seen.shapes.add(shapeNameOf(node));
-  const kind = node.kind;
+  const kind = ownDataKindOf(node);
   const edges = [];
   for (const field of fields.filter(isDataField)) {
     edgesUnder(field[1].value, `${kind}${pathOfField(field)}`, seen, edges);
@@ -679,12 +707,18 @@ function auditTheCorpus() {
   const canonicalPrototypeFields = Object.entries(pristine).flatMap(
     ([name, pristinePrototype]) => {
       const live = LIVE_INTRINSIC_PROTOTYPES[name];
-      const pristineKeys = Reflect.ownKeys(pristinePrototype).map(String);
+      // Compared **by identity**, not by `String(key)`. Well-known symbols are shared across realms
+      // (`vm.runInNewContext("Symbol.iterator") === Symbol.iterator`, measured), so identity is
+      // available and is the only sound comparison: `String(Symbol("Symbol.iterator"))` is
+      // byte-identical to `String(Symbol.iterator)`, so a freshly minted symbol that merely
+      // *imitates* a well-known description was classified as pristine and filtered away. The #960
+      // reviewer buried a real node under exactly that key and the gate stayed 9/9 green.
+      const pristineKeys = new Set(Reflect.ownKeys(pristinePrototype));
       return Reflect.ownKeys(live).map((key) => ({
         at: `${name}.${String(key)}`,
         kind: canonicalPrototypeFieldKind(
           Object.getOwnPropertyDescriptor(live, key),
-          pristineKeys.includes(String(key)),
+          pristineKeys.has(key),
         ),
       }));
     },

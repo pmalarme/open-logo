@@ -147,56 +147,73 @@ it — the three-place change described under Consequences. The surviving gap is
 **no** declaration and **no** fixture — the same shape, and the same accepted cost, as
 [ADR-0021](0021-built-in-names-list-and-ci-gate.md)'s two-file rule for primitives.
 
-**Not enforced — a hostile `Proxy`, and reflection's own reach.** Reflection reads objects **and
-arrays** through
+**What the reflection side enforces.** It reads objects **and arrays** through
 `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, checking both prototypes exactly and
 excluding no key by name; it snapshots the **whole reachable graph** before anything else reads it,
-invoking no user code at all while it does so;
+reading no property of any value while it does so — `kind` comes from its own data descriptor,
+`source_span` from key presence, and shape from `Array.isArray` and `Object.getPrototypeOf`;
 it records the `typeof` of every value it meets; and it compares the intrinsic prototypes against a
-**pristine realm**'s own-key sets. So a symbol-keyed
+**pristine realm**'s own-key sets, **by symbol identity rather than by description**. So a symbol-keyed
 field, a non-enumerable field, a class instance, a null-prototype object, an
 `Object.create(proto)` result, an array expando, a non-canonical index such as `"4294967295"`, an
 array subclass, a node parked under a `source_span` key, an own `Symbol.iterator` that lies about
 an array's contents, a **function** carrying a node, a **self-erasing accessor** that deletes its
-sibling when read, a `walk` or an ancestor's `childrenOf` that **edits the tree mid-audit**, a
+sibling when read, an **inherited** `kind` getter that `fieldsOf` cannot see, a `walk` or an
+ancestor's `childrenOf` that **edits the tree mid-audit**, a
 `Symbol.toStringTag` **getter** that erases a descendant before the snapshot reaches it, and a node
-installed on an intrinsic prototype — as a data property, behind a getter, or inside a wrapper
-object — are all
+installed on an intrinsic prototype — as a data property, behind a getter, inside a wrapper
+object, or under a symbol whose *description* imitates a well-known one — are all
 either read correctly or rejected.
 
-Two things remain, and both are stated rather than closed:
+**Not enforced — the residuals, named with their mutants.** Nine rounds of adversarial review by two
+non-author reviewers produced a defeat every round, and the sequence is the finding: each fix closed
+the container or the read it was shown, and the next round found the adjacent one. Rounds 7–9 stopped
+adding cases and started adding rules — record the `typeof` of every value; snapshot the whole graph
+before reading it; compare intrinsics against a pristine realm; delete reads you do not need. **The
+rules were strictly better and still did not terminate**, because each is quantified over a set that
+must itself be enumerated correctly, and round 9 broke the enumeration twice: once on symbol
+identity, once on own-versus-inherited.
 
-- **A `Proxy` whose `ownKeys` trap lies** is not detectable from userland and would still hide a
-  node. That is a limit of reflection itself rather than of this implementation.
-- a node reachable only through an inherited member that is not a field of any node type — the
-  reviewer's example was `Function.prototype`, reached via `node.toString.someProperty`. The
-  *declared-field* boundary still holds: the subject of #960 is a declared node-valued field that
-  `childrenOf` forgot, and `node.toString` is not one. But `Function.prototype` is now audited
-  anyway, because the pristine-realm comparison costs one more entry in a list, so the boundary no
-  longer has to carry that case. An earlier draft justified excluding it as "enumeration with no
-  termination condition", which the reviewer correctly called inaccurate — a visited-identity set
-  terminates over the finite intrinsic graph. The honest reason was always scope, not tractability,
-  and an argument that overstates its own necessity is the weaker one even when its conclusion
-  stands.
-- **an intrinsic the instrument itself calls, replaced rather than added.** This gate runs in the
-  same realm as its subject, so every builtin it uses — `Reflect.ownKeys`,
-  `Object.getOwnPropertyDescriptor`, `Array.prototype.filter` — is a method the subject could have
-  replaced. A reviewer demonstrated the class by replacing `Object.prototype.toString`, which the
-  shape namer called during the snapshot phase, and erasing 77 real nodes with the gate green.
-  That specific route is closed by **deletion** — the tag read is gone, because it bought no
-  detection the prototype comparison did not already provide — but the class is not closed, and the
-  pristine-realm check does not close it either: it compares own-key *sets*, so it sees an intrinsic
-  **added** and not one **swapped**. Capturing intrinsics at module load does not help, because the
-  subject is imported first and would already have swapped them.
+So the boundary is stated, not claimed closed:
 
-  This is the same shape as the `Proxy` limit — an instrument cannot bootstrap trust in the realm it
-  is running inside — and it is the strongest argument for #986's declaration-derived checker, which
-  reads type declarations rather than live objects and so shares no realm with its subject at all.
+- **A hostile `Proxy`** whose `ownKeys` trap lies is not detectable from userland. A limit of
+  reflection itself.
+- **An intrinsic the instrument calls, replaced rather than added.** This gate runs in the **same
+  realm** as its subject, so every builtin it uses is one the subject could have swapped. Measured:
+  replacing `Object.prototype.toString` — which the shape namer called during the snapshot phase —
+  erased **77 real AST nodes** with the gate green. That route is closed by deleting the read; the
+  class is not, because the pristine-realm check compares own-key *sets* and so sees an intrinsic
+  **added**, not one **swapped**. Capturing intrinsics at module load does not help, because the
+  subject is imported first.
 
-Recording the boundary is the point. It is drawn where the threat model is, not where the last
-mutant happened to land.
+**Both require a deliberately hostile construction.** Against the threat this gate exists for — a
+developer adds a node-valued field and forgets `childrenOf` — it is complete: nine rounds of attack
+found **zero** false positives and no defect reachable without adversarial intent. Against a hostile
+subject it is not, and by the measurement above it cannot be.
 
-Treat both as the current state of an argument the reviewers have won every round so far, not as a
+That is the argument for [#986](https://github.com/pmalarme/open-logo/issues/986)'s
+declaration-derived checker, and it is now evidence rather than preference: a type declaration is a
+**finite closed set** read in a **different realm** from the subject, so it terminates where this
+cannot. An honest limit in an immutable document outlives a claim that ages badly.
+
+Two notes on where that boundary sits.
+
+A node reachable only through an inherited member that is not a field of any node type — the
+reviewer's example was `Function.prototype`, reached via `node.toString.someProperty` — is out of
+the *declared-field* model: the subject of #960 is a declared node-valued field that `childrenOf`
+forgot, and `node.toString` is not one. But `Function.prototype` is audited
+anyway, because the pristine-realm comparison costs one more entry in a list, so the boundary no
+longer has to carry that case. An earlier draft justified excluding it as "enumeration with no
+termination condition", which the reviewer correctly called inaccurate — a visited-identity set
+terminates over the finite intrinsic graph. The honest reason was always scope, not tractability,
+and an argument that overstates its own necessity is the weaker one even when its conclusion
+stands.
+
+The same-realm limit is the same shape as the `Proxy` one: **an instrument cannot bootstrap trust in
+the realm it is running inside.** Recording the boundary is the point. It is drawn where the threat
+model is, not where the last mutant happened to land.
+
+Treat both residuals as the current state of an argument the reviewers won every round, not as a
 settled result.
 **Every previous
 draft of this paragraph asserted the container check admitted nothing it could not enumerate, and a
@@ -210,7 +227,10 @@ leaf, plus a **self-erasing accessor** that deleted its node-bearing sibling the
 read `kind`, plus a node installed on `Array.prototype` **itself**, where exact prototype identity
 still matched because the identity was not what changed — and then, once that was audited for data
 properties, the same node behind a **getter** on `Object.prototype`, whose value is not in the
-descriptor at all. The count of those drafts is deliberately
+descriptor at all — and finally, in round 9, two breaks of the *enumeration itself* rather than of
+the rules: a symbol whose **description** imitated `Symbol.iterator`, which a stringified key
+comparison could not tell from the real one, and an **inherited** `kind` getter, which `fieldsOf`
+cannot see because it enumerates own keys. The count of those drafts is deliberately
 not written down: it was
 wrong within one review round every time it was, which is the same unenforced-assertion rule that
 kept derived counts out of ADR-0024. The pattern they share is worth more than the tally — **a
