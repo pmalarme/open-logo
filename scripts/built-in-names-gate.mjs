@@ -1703,34 +1703,47 @@ export function tokenClassFindings(manifest, api) {
 }
 
 /**
- * The profile half of the paint rule, checked against the profile the entry itself names.
+ * The profile half of the paint rule, checked over **every combination** of the profiles that
+ * contribute keywords rather than over a few hand-picked sets.
  *
- * Three profile sets, because two were not enough to pin ownership: **all** profiles, **Core plus
- * this entry's own**, and **all except this entry's own**. A gated word must be `keyword` in the
- * first two and `primitive` in the third; every other name must be unmoved in all three.
+ * Two endpoints were not enough: a word gated on the *wrong* profile answered identically at "all
+ * profiles" and "Core alone". Three sets were not enough either — a word wrong only in a partial
+ * combination survived, and a probe that painted nothing under one combination was masked by the
+ * others (issue #959 review round 2, finding 4). Only `OL_PROFILE_KEYWORDS`'s own keys contribute
+ * keywords, so the combination space is small and is enumerated in full: for each subset, a gated
+ * word must be `keyword` exactly when its own profile is in the subset, and every other name must be
+ * unmoved by any subset. Every probe must paint the word in every combination.
  */
 export function profileGatingFindings(api, entry) {
-  const own = entry.profile;
-  const gated = own !== "core-language" && entry.tokenClass === "keyword";
-  const withoutOwn = api.OL_CHECK_PROFILES.filter((profile) => profile !== own);
-  const expectations = gated
-    ? [
-        [[...CORE_ONLY_PROFILES, own], "keyword", `with ${own} active`],
-        [withoutOwn, "primitive", `with ${own} inactive`],
-      ]
-    : [
-        [CORE_ONLY_PROFILES, entry.tokenClass, "under Core Language alone"],
-        [withoutOwn, entry.tokenClass, `with ${own} inactive`],
-      ];
+  const contributing = Object.keys(api.OL_PROFILE_KEYWORDS ?? {});
+  const core = api.OL_CHECK_PROFILES.filter(
+    (profile) => !contributing.includes(profile),
+  );
+  const gated =
+    entry.tokenClass === "keyword" && contributing.includes(entry.profile);
   const findings = [];
-  for (const [profiles, expected, describe] of expectations) {
+  for (let mask = 0; mask < 2 ** contributing.length; mask += 1) {
+    const active = contributing.filter((_, index) => (mask >> index) & 1);
+    const profiles = [...core, ...active];
+    const expected =
+      gated && !active.includes(entry.profile) ? "primitive" : entry.tokenClass;
     const painted = paintedClasses(api, entry.name, profiles);
+    const describe =
+      active.length === 0
+        ? "with no keyword-contributing profile active"
+        : `with ${active.join(" + ")} active`;
+    if (painted.silent.length > 0) {
+      findings.push(
+        `${entry.name}: the highlighter emits no token for it ${describe} in ${painted.silent.map((source) => JSON.stringify(source)).join(", ")} — an unpainted position proves nothing under any profile set`,
+      );
+      continue;
+    }
     if (painted.classes.size === 1 && painted.classes.has(expected)) {
       continue;
     }
     findings.push(
       gated
-        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile, and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
+        ? `${entry.name}: must be "${expected}" ${describe} but the highlighter paints it ${[...painted.classes].join(" and ")} — spec/tooling.md:30 gates a profile word on ITS OWN profile (${entry.profile}), and spec/tooling.md:31 makes it "primitive" while that profile is inactive`
         : `${entry.name}: is painted "${entry.tokenClass}" under every profile but ${[...painted.classes].join(" and ")} ${describe} — only a profile's structural words move`,
     );
   }
@@ -1756,16 +1769,18 @@ export function profileGatingFindings(api, entry) {
  * {@link contextualTokenClassFindings} probes word by word instead.
  */
 export function tokenClassSourceFindings(manifest, api) {
-  const sources = [
-    ["OL_WORD_OPERATORS", api.OL_WORD_OPERATORS],
-    ["OL_KEYWORDS", api.OL_KEYWORDS],
-  ];
-  for (const [accessor, value] of sources) {
-    if (!Array.isArray(value)) {
-      return [
-        `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no ${accessor}, so a word it paints that this file does not list would pass unseen`,
-      ];
-    }
+  if (
+    !(api.OL_WORD_OPERATORS instanceof Set) &&
+    !Array.isArray(api.OL_WORD_OPERATORS)
+  ) {
+    return [
+      `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no enumerable OL_WORD_OPERATORS, so a word it paints that this file does not list would pass unseen`,
+    ];
+  }
+  if (!Array.isArray(api.OL_KEYWORDS)) {
+    return [
+      `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no OL_KEYWORDS, so a word it paints that this file does not list would pass unseen`,
+    ];
   }
   if (
     api.OL_PROFILE_KEYWORDS === null ||
@@ -1775,7 +1790,9 @@ export function tokenClassSourceFindings(manifest, api) {
       `${MANIFEST_PATH}: the paint axis cannot be compared implementation-first — @openlogo/parser exposes no OL_PROFILE_KEYWORDS, so a profile word it paints that this file does not list would pass unseen`,
     ];
   }
-  const operators = api.OL_WORD_OPERATORS.map((word) => word.toLowerCase());
+  const operators = [...api.OL_WORD_OPERATORS].map((word) =>
+    word.toLowerCase(),
+  );
   const keywordSources = [
     ...api.OL_KEYWORDS,
     ...Object.values(api.OL_PROFILE_KEYWORDS).flat(),
@@ -1807,20 +1824,44 @@ export function tokenClassSourceFindings(manifest, api) {
 }
 
 /**
- * Does `source` parse into an AST containing at least one node of `kind`?
+ * Does the occurrence of `name` that `highlight()` paints `expectedClass` in `source` sit **inside**
+ * a node of `kind`?
  *
- * This is what turns a contextual position label from a caption into a claim: the probe must really
- * build the grammatical form its position names. `parse` never throws on malformed input, so a probe
- * that does not parse simply yields no such node and fails.
+ * Existence of such a node anywhere is not enough, and that is the whole point: a probe carrying
+ * *both* forms — `print (value of :d for key "x") == (:x is empty)` — has an `IsPredicate` node
+ * while the word `of` is painted through the `ValueOfKey`, so a bare "is there such a node" test
+ * declared the wrong position verified (issue #959 review round 2, finding 1). Binding the node to
+ * the token's own position is what makes the position label a claim rather than a caption.
+ *
+ * `parse` never throws on malformed input, so a probe that does not parse simply has no such node
+ * and fails.
  */
-export function parsesInto(api, source, kind) {
-  let found = false;
+export function paintedInsideNode(api, source, name, expectedClass, kind) {
+  const spans = [];
   api.walk(api.parse(source, "<contextual-probe>").ast, (node) => {
     if (node.kind === kind) {
-      found = true;
+      spans.push(node.source_span);
     }
   });
-  return found;
+  if (spans.length === 0) {
+    return false;
+  }
+  const within = (position, span) => {
+    const [line, column] = position;
+    const [startLine, startColumn] = span.start;
+    const [endLine, endColumn] = span.end;
+    const afterStart =
+      line > startLine || (line === startLine && column >= startColumn);
+    const beforeEnd = line < endLine || (line === endLine && column <= endColumn);
+    return afterStart && beforeEnd;
+  };
+  return api
+    .highlight(source, "<contextual-probe>", { profiles: api.OL_CHECK_PROFILES })
+    .filter(
+      (token) =>
+        token.text.toLowerCase() === name && token.class === expectedClass,
+    )
+    .some((token) => spans.some((span) => within(token.source_span.start, span)));
 }
 
 /**
@@ -1884,6 +1925,21 @@ export function contextualTokenClassFindings(manifest, api) {
     );
   }
   const named = new Set(words.map((word) => word.name));
+  // Every position this gate knows how to verify must be claimed by at least one word. Without it,
+  // thinning a word's `positions` on BOTH axes at once passed: the two are pinned against each
+  // other, so a synchronized shrink satisfied both and silently dropped the only probe holding a
+  // normative position (issue #959 review round 2, QA finding N1).
+  const claimed = new Set(
+    words.flatMap((word) => Object.keys(word.positions ?? {})),
+  );
+  const unclaimed = Object.keys(CONTEXTUAL_POSITION_NODE_KINDS).filter(
+    (position) => !claimed.has(position),
+  );
+  if (unclaimed.length > 0) {
+    findings.push(
+      `${MANIFEST_PATH}: no contextual word claims position(s) ${unclaimed.join(", ")} — spec/grammar.md:380 makes each of them structural, and the probe is the only thing proving the highlighter paints a word "${declared.class}" there`,
+    );
+  }
   for (const name of carveOuts.keys()) {
     if (!named.has(name)) {
       findings.push(
@@ -1918,9 +1974,11 @@ export function contextualTokenClassFindings(manifest, api) {
         findings.push(
           `tokenClass.contextual ${word.name}: position ${position} has no AST node kind this gate can verify a probe against — an unverifiable position label is decorative`,
         );
-      } else if (!parsesInto(api, probe, kind)) {
+      } else if (
+        !paintedInsideNode(api, probe, word.name, declared.class, kind)
+      ) {
         findings.push(
-          `tokenClass.contextual ${word.name}: probe ${JSON.stringify(probe)} does not parse into a ${kind} node, so it does not put the word in the ${position} position it is labelled with`,
+          `tokenClass.contextual ${word.name}: in probe ${JSON.stringify(probe)} the occurrence painted "${declared.class}" is not inside a ${kind} node, so the probe does not put the word in the ${position} position it is labelled with`,
         );
       }
       const painted = api
@@ -2024,18 +2082,25 @@ export const REQUIRED_ROW_SENTENCES = [
 ];
 
 /**
- * A re-enumeration of the class that {@link backtickedWords} cannot see, because it is not written
- * as individually backticked words.
+ * A re-enumeration of the class written to dodge {@link backtickedWords}, which only sees
+ * individually backticked bare words.
  *
- * Two shapes, both measured as escapes before this existed (issue #959 review, finding F2): a bare
- * comma-separated English list, and one code span holding several space-separated names. Detected as
- * **list syntax** — three or more built-in names in a row — rather than by scanning for individual
- * words, which is unusable here: `in`, `to`, `set`, `for`, `value` and `key` are all built-in names
- * and all ordinary English, so a per-word scan fires on the row's own prose.
+ * Two shapes, both measured as escapes before this existed: a run of names in one code span, and a
+ * bare English list. Detected as **list syntax** — three or more built-in names in a row, joined by
+ * commas and/or `and`/`or`, in any case — rather than by scanning for individual words, which is
+ * unusable here: `in`, `to`, `set`, `for`, `value` and `key` are all built-in names and all ordinary
+ * English, so a per-word scan fires on the row's own prose. Names are regex-escaped, because
+ * `member?` and `empty?` carry a metacharacter.
+ *
+ * **This is a heuristic, and the ADR says so.** It raises the cost of copying the enumeration back
+ * into prose; it is not a proof that no enumeration can be expressed. What is *guaranteed* is the
+ * verbatim rendering of the two data-bearing sentences ({@link generatedRowClauses}) and the
+ * both-directions set comparison of the names the row backticks.
  */
 export function reEnumerationFindings(row, names) {
   const findings = [];
-  const isName = (word) => names.includes(word.toLowerCase());
+  const lower = names.map((name) => name.toLowerCase());
+  const isName = (word) => lower.includes(word.toLowerCase());
   for (const span of row.match(/`[^`]+`/g) ?? []) {
     const words = span.slice(1, -1).trim().split(/\s+/);
     if (words.length >= 3 && words.every(isName)) {
@@ -2044,11 +2109,18 @@ export function reEnumerationFindings(row, names) {
       );
     }
   }
-  const prose = row.replace(/`[^`]+`/g, " ");
+  const escaped = lower
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .sort((left, right) => right.length - left.length);
+  const alternation = `(?:${escaped.join("|")})`;
+  // A separator is a comma, or `and`/`or` with or without the Oxford comma before it: `a, b and c`
+  // escaped a comma-only rule.
+  const separator = "(?:\\s*,\\s*|\\s*,?\\s+(?:and|or)\\s+)";
   const list = new RegExp(
-    `\\b(?:${names.join("|")})\\b(?:,\\s+(?:and\\s+)?(?:${names.join("|")})\\b){2,}`,
-    "g",
+    `\\b${alternation}\\b(?:${separator}${alternation}\\b){2,}`,
+    "gi",
   );
+  const prose = row.replace(/`[^`]+`/g, " ");
   for (const run of prose.match(list) ?? []) {
     findings.push(
       `${TOOLING_PATH}: the \`keyword\` token-class row holds the list "${run}" — three or more built-in names in a row is the class enumerated back into prose, which ${MANIFEST_PATH} is the home for`,

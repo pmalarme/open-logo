@@ -109,21 +109,24 @@ export interface Token {
 
 /**
  * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
- * `operator`, never `keyword`. Checked before the {@link isKeyword} lookup so none of the four
+ * `operator`, never `keyword`. Consulted before the {@link isKeyword} lookup so none of the four
  * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
  * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
  *
- * **Exported because it is a name source no registry enumerates.** The four are built-in names, so
- * `spec/built-in-names.json` lists them — but it lists them by *category*, and this set is the only
- * place the implementation says how they are *painted*. Without an enumerator the built-in-names
- * gate could compare the manifest's declared classes to what `highlight()` paints for names it
- * already knows, and never notice a **fifth** word added here that the manifest does not list at all
- * (issue #959 review). It is the paint axis's counterpart to the registries' `enumerate` accessors.
+ * **Exported as the set classification actually reads, not as a copy of it.** The four are built-in
+ * names, so `spec/built-in-names.json` lists them — but it lists them by *category*, and this is the
+ * only place the implementation says how they are *painted*. The built-in-names gate enumerates this
+ * export to catch a **fifth** word added here that the manifest does not list (issue #959 review).
+ * That comparison is only worth as much as the export being the very object {@link highlight}
+ * consults, so there is deliberately no second internal literal to drift from it.
  */
-export const OL_WORD_OPERATORS = ["and", "or", "not", "mod"] as const;
-
-const WORD_OPERATORS = new Set<string>(OL_WORD_OPERATORS);
+export const OL_WORD_OPERATORS: ReadonlySet<string> = new Set([
+  "and",
+  "or",
+  "not",
+  "mod",
+]);
 
 /** Lexical token kinds that carry highlightable content — never `newline`/`eof`. */
 type ContentTokenKind = Exclude<LexTokenKind, "newline" | "eof">;
@@ -753,7 +756,7 @@ export function highlight(
       };
     }
     const lower = token.text.toLowerCase();
-    if (WORD_OPERATORS.has(lower)) {
+    if (OL_WORD_OPERATORS.has(lower)) {
       return {
         class: "operator",
         text: token.text,
