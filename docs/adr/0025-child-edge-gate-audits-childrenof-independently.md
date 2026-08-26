@@ -251,10 +251,28 @@ reason on record has to be the true one.
   constraint rather than an accident of how it compares — and a draft of it briefly *rejected* the
   legitimate case, by comparing reflection's visit count against a distinct-identity set. A gate that
   fails on valid input is worse than one that misses an invalid one; both counts are visits now.
+  **The corpus cannot supply this case** — the parser makes a fresh object per source position, so
+  no natural alias occurs — which is why the same-object exemption in the tie check carries its own
+  regression test rather than relying on the corpus. Until a reviewer asked, that promise was
+  asserted here and enforced nowhere.
 - The gate sits in the default test run, so it is enforced by CI without a separate script.
 - **Every assertion here is mutation-verified, not coverage-verified.** A recording path cannot
   execute on a green tree, so 100% coverage of the gate file says nothing about whether its findings
-  work. Each assertion is discharged by at least one mutant that fires in isolation: a node-valued
+  work. Most assertions are discharged by at least one mutant that fires them **in isolation**, and
+  two are not — named here rather than left under a blanket claim, because an overstated
+  verification claim is the same defect as an unenforced count:
+  - `mismatchedChildLists` is **dominated** by the `walk` comparison under every natural mutant,
+    since `walk` is literally `visit(node); for (const child of childrenOf(node))` — so a child-list
+    defect necessarily perturbs the visit sequence too. It isolates only under a *compensating*
+    mutant, where a second traversal cancels the first. It stays because it is the only assertion
+    that names the offending **dotted field path**, and because the compensating world is the real
+    one for `registerDeclarations`, the checkers and the highlighter, which call `childrenOf`
+    directly rather than through `walk`.
+  - `tiedStartRows` has no isolating mutant either: giving two *distinct* siblings a shared start
+    also trips the source-order comparison, which is evaluated first. It is a tripwire for a
+    condition that does not occur today, not a finding the corpus can produce.
+
+  The rest each isolate: a node-valued
   field added to an existing kind with `childrenOf` untouched (`tsc` exits 0, which is the whole
   point); an aliased edge dropped while the node stays reachable by its other route; a spurious
   grandchild; a reversed child list; a node hidden behind a `Map`, a symbol key, a prototype getter

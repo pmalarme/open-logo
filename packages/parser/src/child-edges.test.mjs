@@ -41,9 +41,9 @@
 //
 // **What this gate does not close.** It is an audit of the trees the corpus actually produces, not a
 // proof about the type declarations. A node-valued field that no `.logo` file populates is invisible
-// to reflection — which is exactly why self-check 3 exists, and why `POPULATED_FIELD_PATHS` is a
-// deliberate two-place change: adding a walkable field means declaring it here, and the gate then
-// fails until a fixture exercises it *and* `childrenOf` returns it.
+// to reflection — which is exactly why self-check 3 exists, and why `POPULATED_FIELD_PATHS` makes
+// adding a walkable field a deliberate **three**-place change: the type declaration, `childrenOf`,
+// and the declared path list here — after which the gate still fails until a fixture exercises it.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -185,6 +185,10 @@ const EXPECTED_VALUE_TYPES = [
  * call, and this gate never reads one to decide anything.
  *
  * Array-subscript selection rather than nested ternaries, so no arm goes untaken on a green tree.
+ * The `!== null` conjunct is a **guard**, not a recording arm: neither canonical prototype has a
+ * null-valued own data property today, so it never decides anything — but a guard that is
+ * unreachable is safe, where a *recording* path that is unreachable is a claim about a case that
+ * cannot happen and gets deleted. The file draws that line deliberately.
  */
 const canonicalPrototypeFieldKind = (descriptor) =>
   ["accessor", "data-other", "data-node"][
@@ -296,6 +300,10 @@ const ARRAY_LENGTH_LIMIT = 2 ** 32 - 1;
  * descended. An earlier draft used `String(Number(key)) === key` alone, which the #960 reviewer
  * broke five ways at once — `"4294967295"`, `"-1"`, `"1.5"`, `"NaN"` and `"Infinity"` all satisfy it
  * and none is an index.
+ *
+ * The `typeof` conjunct is a **guard**, not a recording arm: an array in a clean AST has only index
+ * keys and `"length"`, so it never decides anything today. A guard that is unreachable is safe; a
+ * *recording* path that is unreachable is a claim about a case that cannot happen, and gets deleted.
  */
 const isIndexKey = (key) =>
   typeof key === "string" &&
@@ -704,6 +712,36 @@ test("every child list is in source order, as `childrenOf` promises", () => {
   // And no two siblings share a start position, which is what makes the comparison above total:
   // `sort` is stable, so a tied pair would keep `returned`'s own order and could never disagree.
   assert.deepEqual(audit.tiedStartRows, []);
+});
+
+test("a node aliased by two fields is a tie with itself, and legitimate", () => {
+  // The exemption in `tiedStartCount` exists for exactly one case — aliasing — and until the #960
+  // reviewer pointed it out, *nothing exercised it*. ADR-0025 promised that a correct alias "must
+  // pass" and no test made that promise fail if it stopped being true, which is an unenforced
+  // assertion of precisely the kind this saga exists to remove. The corpus cannot supply the case:
+  // the parser makes a fresh object per source position, so no natural alias occurs.
+  //
+  // Aliasing is legitimate — a node reachable by two fields must appear twice in its parent's child
+  // list, and `walk` must visit it twice — so this is a *regression* case, asserting the gate does
+  // not fail on valid input. A gate that rejects valid input is worse than one that misses invalid
+  // input, and an earlier draft of this file did exactly that.
+  const span = (line, column) => ({
+    document: "test",
+    start: [line, column],
+    end: [line, column + 1],
+  });
+  const aliased = { kind: "NumberLit", source_span: span(1, 1), value: 1 };
+  const distinct = { kind: "NumberLit", source_span: span(1, 1), value: 2 };
+  const later = { kind: "NumberLit", source_span: span(2, 1), value: 3 };
+
+  // The same object twice: no order to get wrong between a reference and itself.
+  assert.equal(tiedStartCount([aliased, aliased]), 0);
+  // Two *distinct* nodes sharing a start: a real tie, which a stable sort cannot order, so the
+  // source-order comparison could silently accept either arrangement. This is the case the
+  // assertion above is guarding against ever appearing unnoticed.
+  assert.equal(tiedStartCount([distinct, aliased]), 1);
+  // And an ordinary pair with different starts is not a tie either way round.
+  assert.equal(tiedStartCount([aliased, later]), 0);
 });
 
 test("reflection reads every own key of the shapes it descends", () => {
