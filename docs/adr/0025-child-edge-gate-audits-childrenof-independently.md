@@ -166,11 +166,11 @@ installed on an intrinsic prototype — as a data property, behind a getter, ins
 object, or under a symbol whose *description* imitates a well-known one — are all
 either read correctly or rejected.
 
-**Not enforced — the residuals, named with their mutants.** Nine rounds of adversarial review by two
+**Not enforced — the residuals, named with their mutants.** Ten rounds of adversarial review by two
 non-author reviewers produced a defeat every round, and the sequence is the finding: each fix closed
-the container or the read it was shown, and the next round found the adjacent one. Rounds 7–9 stopped
+the container or the read it was shown, and the next round found the adjacent one. Rounds 7–10 stopped
 adding cases and started adding rules — record the `typeof` of every value; snapshot the whole graph
-before reading it; compare intrinsics against a pristine realm; delete reads you do not need. **The
+before reading it; compare intrinsics against a pristine realm; read no property at all. **The
 rules were strictly better and still did not terminate**, because each is quantified over a set that
 must itself be enumerated correctly, and round 9 broke the enumeration twice: once on symbol
 identity, once on own-versus-inherited.
@@ -182,14 +182,30 @@ So the boundary is stated, not claimed closed:
 - **An intrinsic the instrument calls, replaced rather than added.** This gate runs in the **same
   realm** as its subject, so every builtin it uses is one the subject could have swapped. Measured:
   replacing `Object.prototype.toString` — which the shape namer called during the snapshot phase —
-  erased **77 real AST nodes** with the gate green. That route is closed by deleting the read; the
+  erased **77 real AST nodes** with the gate green (a past mutant measurement, not a claim about the
+  current tree). That route is closed by deleting the read; the
   class is not, because the pristine-realm check compares own-key sets **once, at the end of the
   run** — so it sees an intrinsic that is still polluted when it looks, and not one **swapped**, nor
   one added during the audit and deleted again before it looks. Capturing intrinsics at module load
-  does not help, because the subject is imported first.
+  does not help, because the subject is imported first. Both halves of that sentence are measured: a
+  self-removing inherited getter passes the end-of-run check in every run, and the gate catches it
+  only through the no-read rule.
+- **The same realm, reached through the *subject* rather than the instrument.** The no-read
+  discipline hardens this gate; nothing hardens `childrenOf`. It discriminates with
+  `"kind" in node.binder` in two places, and `in` is a **HasProperty** check — it walks the prototype
+  chain but invokes no getter, so it is invisible to a rule about *reads*. Polluting
+  `Object.prototype.kind` with a plain data property flips both branches and makes `childrenOf`
+  return a metadata `SpannedName` as a child.
+
+  This is **detected today, incidentally rather than by design**, and the distinction is worth
+  recording: reflection now classifies by *own data* `kind` while `childrenOf` classifies by `in`, so
+  under pollution the two **diverge** and the mismatch fires. Before the own-descriptor fix both
+  consulted the prototype chain, would have **agreed**, and would have mirrored the corruption
+  silently. A gate that catches something because two implementations disagree is not the same as one
+  that catches it because a rule forbids it, and the difference matters the day the subject changes.
 
 **Both require a deliberately hostile construction.** Against the threat this gate exists for — a
-developer adds a node-valued field and forgets `childrenOf` — it is complete: nine rounds of attack
+developer adds a node-valued field and forgets `childrenOf` — it is complete: ten rounds of attack
 found **zero** false positives and no defect reachable without adversarial intent. Against a hostile
 subject it is not, and by the measurement above it cannot be.
 
