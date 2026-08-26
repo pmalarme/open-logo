@@ -1282,12 +1282,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * records the real answer at the moment the newline is consumed, which is the only moment it is
    * still knowable.
    *
-   * Two sibling adjacency tests need no such flag and are left alone, because they compare *tokens*
-   * rather than positions and a newline is itself a token: {@link isNegativeNumberLiteralAt} peeks
-   * at two adjacent stream slots, and {@link isDictKeyAt} compares the separator's lexeme kind.
-   * That is the shape to prefer — this flag exists only because `lastEnd` is a position. The fourth
-   * site, {@link peekAdjacent}, is immune the same way: a newline token ends its caller's walk
-   * before it is reached, so it states the invariant instead of re-testing it.
+   * Two sibling adjacency tests need no such flag and are left alone. Their immunity is not that
+   * they avoid positions — {@link isNegativeNumberLiteralAt} compares positions exactly as this
+   * does — but that they read the **raw token stream**, where a newline still occupies a slot, and
+   * so is *in the way* rather than already skipped past: that one peeks at two neighbouring stream
+   * slots, and {@link isDictKeyAt} inspects the separator's own lexeme kind. Reading the stream
+   * unskipped is the shape to prefer — this flag exists only because `lastEnd` is a position left
+   * behind *after* the newline was consumed. The fourth site, {@link peekAdjacent}, is immune the
+   * same way: a newline token ends its caller's walk before it is reached, so it states the
+   * invariant a later caller must preserve instead of re-testing it.
    */
   function currentAdjacentToPrev(): boolean {
     if (sawWhitespaceGap) {
