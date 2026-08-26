@@ -3,7 +3,9 @@
 - Status: Accepted
 - Date: 2026-08-24
 - Deciders: OpenLogo maintainer (@pmalarme) + `@interpreter`, on issue #925
-- Related: [ADR-0006](0006-cross-cutting-contracts.md) (the AST is a cross-cutting contract)
+- Related: [ADR-0006](0006-cross-cutting-contracts.md) (the AST is a cross-cutting contract),
+  refined by [ADR-0025](0025-child-edge-gate-audits-childrenof-independently.md) (the child-edge
+  gate closes the residual recorded below, for every field the corpus populates)
 
 ## Context
 
