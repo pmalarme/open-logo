@@ -17,7 +17,9 @@
 # A list literal is the container used here because both spellings are execution-valid in it, so
 # the agreement can be pinned as a VALUE. The parenthesized container is malformed in BOTH
 # spellings, so its agreement is pinned in the companion check fixture. The top level is excluded
-# from both: its spaced spelling is an arity error unrelated to adjacency.
+# from both: its spaced spelling raises `ol-bad-token` at PARSE stage (so `check()` never runs) and
+# its newline spelling is two statements, neither of which is about adjacency — statement
+# delimitation is issue #983's subject, not this slice's.
 #
 # The glued spelling is printed too and must NOT match, or this fixture would still pass if
 # adjacency stopped working altogether.

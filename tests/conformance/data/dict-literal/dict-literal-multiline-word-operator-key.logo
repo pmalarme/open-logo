@@ -44,20 +44,23 @@ print :one_line.or
 # `is-predicate` missing its form word, so it raises `ol-bad-token` and cannot appear in a fixture
 # that executes. It is pinned in `packages/parser/src/multiline-expressions.test.mjs` instead.
 #
-# HONEST LIMIT of the next two read-backs, raised by review: neither DISCRIMINATES the two readings.
-# `1 mod :two` is `1 mod 2` = 1, and under the superseded reading `a` would also be 1, so both print
-# the same. They pin that the value survives, not which reading produced it. The reading itself is
-# pinned by unit tests (`packages/parser/src/multiline-expressions.test.mjs:363-366`). A
-# discriminating row would need to read the entry SET back, and no `keys of`-style primitive exists
-# to do that, so it is not expressible here today.
+# The next two dictionaries are read back TWICE, and the second read-back is the discriminating one.
+# This corrects a claim an earlier revision of this comment made — that no primitive could read the
+# entry set back, so `.a` was the best check available. `keys` does exactly that, and review caught
+# it. `.a` alone cannot discriminate: `1 mod :two` is `1 mod 2` = 1, and under the superseded
+# reading `a` is 1 as well, so both readings print the same. `keys` shows the entry SET, which is
+# precisely where the two readings differ. The operator reading is pinned additionally in
+# `packages/parser/src/multiline-expressions.test.mjs:346-358`.
 :glued = { a: 1
 mod:two }
 print :glued.a
+print keys :glued
 
 :split = { a: 1
 mod
 :two }
 print :split.a
+print keys :split
 
 # With no separator after it, the same word is an operator continuing the value above: this dict
 # has ONE entry whose value is `5 mod 3`. The guard is scoped to the dictionary that owns the

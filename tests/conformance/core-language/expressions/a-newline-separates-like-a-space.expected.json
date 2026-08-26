@@ -1,5 +1,5 @@
 {
-  "description": "The maintainer's adjacency ruling on issue #944's sibling question: a newline separates exactly like a space -- always, everywhere. Adjacency is whitespace-agnostic; a newline is insignificant to the GRAMMAR, not invisible to the LEXER, and it is now written down normatively at `spec/grammar.md:248`. This is a NARROWING, and the mechanism is why it was invisible: a newline token's `end` IS the next line's column 1, so once a container skipped the newline the following `[` tested as adjacent to what preceded it -- a skipped newline MANUFACTURED an adjacency the source never had. THIS FIXTURE IS A REGRESSION GUARD, NOT A WITNESS, and saying so is the correction of a false claim this description previously carried. Measured against a parser built at `0277d5ff` before the fix, the list literal ALREADY agreed: `[ :nums` + newline + `[1] ]` and `[ :nums [1] ]` both printed `[[10 20 30] [1]]`, and only the GLUED `[ :nums[1] ]` printed `[10]`. The container that actually exhibited the defect was the parenthesized group, and it exhibited it only in the AST -- at that tip both of its spellings raised the same two diagnostics -- so no fixture can witness this fix, because an execution fixture compares printed values and a check fixture compares diagnostics. That witness is the parse-shape comparison in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. What this fixture pins is that the agreement holds as a VALUE and keeps holding, which is why a list literal is the container: both spellings execute in it. The parenthesized container is malformed in BOTH spellings, so its agreement is pinned in the companion `core-language/check/a-newline-separates-like-a-space-when-malformed`; the top level is excluded from both, because its spaced spelling is an arity error unrelated to adjacency. The glued spelling is printed too and must NOT match the other two: without it this fixture would still pass if adjacency stopped working altogether, since all three spellings would then agree on the non-selector reading. The final row is the one-line comprehension, which still maps rather than indexing `:nums`; its SPLIT form is a parse error and so lives in the check twin.",
+  "description": "The maintainer's adjacency ruling on issue #944's sibling question: a newline separates exactly like a space -- always, everywhere. Adjacency is whitespace-agnostic; a newline is insignificant to the GRAMMAR, not invisible to the LEXER, and it is now written down normatively at `spec/grammar.md:248`. This is a NARROWING, and the mechanism is why it was invisible: a newline token's `end` IS the next line's column 1, so once a container skipped the newline the following `[` tested as adjacent to what preceded it -- a skipped newline MANUFACTURED an adjacency the source never had. THIS FIXTURE IS A REGRESSION GUARD, NOT A WITNESS, and saying so is the correction of a false claim this description previously carried. Measured against a parser built at `0277d5ff` before the fix, the list literal ALREADY agreed: `[ :nums` + newline + `[1] ]` and `[ :nums [1] ]` both printed `[[10 20 30] [1]]`, and only the GLUED `[ :nums[1] ]` printed `[10]`. The container that actually exhibited the defect was the parenthesized group, and it exhibited it only in the AST -- at that tip both of its spellings raised the same two diagnostics -- so no fixture can witness this fix, because an execution fixture compares printed values and a check fixture compares diagnostics. That witness is the parse-shape comparison in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. What this fixture pins is that the agreement holds as a VALUE and keeps holding, which is why a list literal is the container: both spellings execute in it. The parenthesized container is malformed in BOTH spellings, so its agreement is pinned in the companion `core-language/check/a-newline-separates-like-a-space-when-malformed`; the top level is excluded from both, because its spaced spelling raises `ol-bad-token` at PARSE stage -- so `check()` never runs -- and its newline spelling is two statements; neither is about adjacency, and statement delimitation is issue #983's subject rather than this slice's. The glued spelling is printed too and must NOT match the other two: without it this fixture would still pass if adjacency stopped working altogether, since all three spellings would then agree on the non-selector reading. The final row is the one-line comprehension, which still maps rather than indexing `:nums`; its SPLIT form is a parse error and so lives in the check twin.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
@@ -8,8 +8,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [24, 1],
-        "end": [24, 21]
+        "start": [26, 1],
+        "end": [26, 21]
       },
       "payload": {
         "statement_kind": "Assign"
@@ -20,8 +20,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [27, 1],
-        "end": [28, 6]
+        "start": [29, 1],
+        "end": [30, 6]
       },
       "payload": {
         "statement_kind": "Call"
@@ -32,8 +32,8 @@
       "kind": "print",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [27, 1],
-        "end": [28, 6]
+        "start": [29, 1],
+        "end": [30, 6]
       },
       "payload": {
         "values": [[[10, 20, 30], [1]]]
@@ -44,8 +44,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [29, 1],
-        "end": [29, 20]
+        "start": [31, 1],
+        "end": [31, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -56,8 +56,8 @@
       "kind": "print",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [29, 1],
-        "end": [29, 20]
+        "start": [31, 1],
+        "end": [31, 20]
       },
       "payload": {
         "values": [[[10, 20, 30], [1]]]
@@ -68,8 +68,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [32, 1],
-        "end": [32, 19]
+        "start": [34, 1],
+        "end": [34, 19]
       },
       "payload": {
         "statement_kind": "Call"
@@ -80,8 +80,8 @@
       "kind": "print",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [32, 1],
-        "end": [32, 19]
+        "start": [34, 1],
+        "end": [34, 19]
       },
       "payload": {
         "values": [[10]]
@@ -92,8 +92,8 @@
       "kind": "instruction",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [38, 1],
-        "end": [38, 28]
+        "start": [40, 1],
+        "end": [40, 28]
       },
       "payload": {
         "statement_kind": "Call"
@@ -104,8 +104,8 @@
       "kind": "print",
       "source_span": {
         "document": "core-language/expressions/a-newline-separates-like-a-space",
-        "start": [38, 1],
-        "end": [38, 28]
+        "start": [40, 1],
+        "end": [40, 28]
       },
       "payload": {
         "values": [[10, 20, 30]]

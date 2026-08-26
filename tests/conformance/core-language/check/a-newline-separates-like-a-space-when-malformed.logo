@@ -3,8 +3,10 @@
 # newline and spaced spellings of each source below must produce the SAME diagnostics — the point
 # being that they are malformed in the same way, not that they are malformed at all.
 #
-# Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, proves the
-# ruling as a value in a list literal, where both spellings run.
+# Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, runs the same
+# shapes in the container where both spellings are well-formed. Both fixtures are regression guards,
+# not witnesses: neither could have detected this fix, because the container that exhibited the
+# defect differed only in its AST, and a fixture sees events and diagnostics, never a tree.
 #
 # The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
 # operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position
