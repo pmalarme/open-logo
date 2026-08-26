@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -298,15 +298,15 @@ function declarationSource({
  * **One blind spot this derivation cannot see, stated because "derived, not listed" is the claim it
  * rests on:** it walks with `walk`, whose child list is a hand-written per-kind switch
  * (`packages/parser/src/ast.ts`'s `childrenOf`) — and so does `registerDeclarations`. Since #925
- * that switch handles every node *kind* or fails to compile, but a node-valued *field* added to an
- * already-handled kind still has no child edge and no compile error (#960). A slot on a node `walk`
- * reaches is *not* the blind spot: this visitor reads every field of every node it visits, so a new
- * slot enters `required` without a wrapper and the assertion below goes red. What hides is a slot
- * on a node `walk` never reaches at all — one sitting beneath a missing edge — and the *contents*
- * of any slot: declarations inside them would never be registered, and they would never enter this
- * set, so this test would stay green about its own gap. The instrument and the subject share a
- * traversal. It is narrow, and all ten of today's slots are reached — but it is the assumption
- * underneath the enumeration.
+ * that switch handles every node *kind* or fails to compile, and since #960 the field half is closed
+ * for every field the corpus populates: `packages/parser/src/child-edges.test.mjs` audits
+ * `childrenOf` by reflection, from a source that does not use it, and fails naming the dotted path
+ * of any node-valued field `walk` does not descend
+ * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). All ten
+ * slots below are `BlockNode`-typed fields the corpus populates, so all ten are covered by it. What
+ * survives is narrower: a slot on a node-valued field that **no** fixture populates, which is
+ * invisible to reflection too. The instrument and the subject still share a traversal — that is why
+ * the surviving case is stated rather than assumed away.
  *
  * Paths resolve from this file, not from `process.cwd()`: a package-scoped run
  * (`cd packages/runtime && node --test src/…`) would otherwise find no corpus at all.
@@ -322,16 +322,20 @@ function everyBlockSlotInTheCorpus() {
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
     join(repositoryRoot, root),
   );
-  const visit = (directory) => {
+  // Seeded with every root, so the lookups below need no `?? 0` fallback — a fallback arm taken only
+  // when a root is missing is dead on a green tree.
+  const filesPerRoot = new Map(roots.map((root) => [root, 0]));
+  const visit = (directory, root) => {
     for (const entry of readdirSync(directory)) {
       const full = join(directory, entry);
       if (statSync(full).isDirectory()) {
-        visit(full);
+        visit(full, root);
       } else if (entry.endsWith(".logo")) {
         const { ast, diagnostics } = parse(readFileSync(full, "utf8"), full);
         if (diagnostics.length > 0) {
           continue;
         }
+        filesPerRoot.set(root, filesPerRoot.get(root) + 1);
         walk(ast, (node) => {
           for (const [field, value] of Object.entries(node)) {
             for (const item of Array.isArray(value) ? value : [value]) {
@@ -344,12 +348,26 @@ function everyBlockSlotInTheCorpus() {
       }
     }
   };
+  // Roots are visited unconditionally. An `existsSync` guard here used to skip a root that had been
+  // renamed or moved, and a skip is invisible in the direction that matters: `required` is *derived*
+  // from the corpus precisely so a construct fails the moment it has a fixture, and the assertion
+  // below is `required \ covered === []`, so a *smaller* `required` passes more easily. A construct
+  // whose only fixtures lived in the vanished root would silently stop being derived and this test
+  // would go green while proving strictly less. The `required.size >= coveredBlockSlots.size` floor
+  // is not protection: `tests/conformance` alone exhibits all ten covered slots (the other two roots
+  // exhibit 7 and 3, measured on #960), so dropping either of the smaller roots leaves the union
+  // unchanged and the floor satisfied. Without the guard a
+  // missing root throws `ENOENT` and names itself; `thinRoots` catches a root that still exists but
+  // has collapsed. It does not catch a root that has merely shrunk — measured on #960, this root set
+  // can lose 68% of its non-conformance files with this gate green — because the alternative is a
+  // census, which asserts a count nothing re-derives and fails on ordinary growth.
   for (const root of roots) {
-    if (existsSync(root)) {
-      visit(root);
-    }
+    visit(root, root);
   }
-  return slots;
+  return {
+    slots,
+    thinRoots: roots.filter((root) => filesPerRoot.get(root) < 3),
+  };
 }
 
 /**
@@ -517,7 +535,14 @@ test("the wrapper axis COVERS every block-bearing slot the grammar actually has"
   // rather than sampling them. This is the assertion that makes it true, and it is derived from the
   // corpus rather than from a list kept here — so a construct added to the grammar fails this the
   // moment it has a fixture, instead of waiting for a reviewer to notice.
-  const required = everyBlockSlotInTheCorpus();
+  const { slots: required, thinRoots } = everyBlockSlotInTheCorpus();
+  // A root that still exists but has been emptied shrinks `required` exactly as a missing one
+  // would, and the floor below cannot see it: `tests/conformance` saturates every slot on its own,
+  // so the other roots keep it satisfied. `thinRoots` catches a root that has *collapsed*; it does
+  // not catch one that has merely shrunk, and saying otherwise overstates it — measured on #960,
+  // this root set can lose 68% of its non-conformance files with this gate green. A floor rather
+  // than a census, because a census asserts a count nothing re-derives.
+  assert.deepEqual(thinRoots, [], "every corpus root must contribute files");
   // The floor is derived from the wrapper map's own distinct slots, not a literal — a hand-written
   // `>= 10` is the last remaining second source of truth in a file that spent a round removing them,
   // and it would go stale the day a slot is added.
