@@ -25,8 +25,11 @@
 //      *reader* arity but deliberately deferred its *checker visibility* to this slice; before I8
 //      `wait` raised `ol-unknown-command` even under an active `interaction-events` profile — a
 //      profile whose own primitive is unknown is not conformant. I8 registers it in
-//      `collectVisibleNames`' `interaction-events` gate (via `interactionPrimitiveNames()`), so it
-//      now checks clean with the profile active and stays `ol-unknown-command` without it. I8 also
+//      `collectVisibleNames`' `interaction-events` gate, so it
+//      now checks clean with the profile active and stays `ol-unknown-command` without it. (Since
+//      issue #966 that gate is a sweep of the profile-keyed registry rather than a per-profile
+//      branch calling a per-profile accessor, so the wiring this slice added is now automatic.) I8
+//      also
 //      gives it the static arity range its fixed-arity shape requires, so a wrong input count is
 //      caught at `stage=semantic` exactly as Sound's identically-shaped `set_tempo` already was.
 //

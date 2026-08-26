@@ -265,10 +265,9 @@ export interface Environment {
    * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
    * {@link addressing}/{@link randomNumberGenerator}, a single shared mutable object rather than a
    * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
-   * procedure, loop, or comprehension sharing this same `Environment`) is observed by every later
-   * `new_turtle`/`turtles`/`who` in the run. The Sprites `new_turtle`/`turtles`/`who` reporters
-   * (issue #673) are its only clients; the addressed-set model (`tell`/`ask`/`each`) layers on it
-   * in later slices.
+   * procedure, loop, or comprehension) is observed by every later
+   * `new_turtle`/`turtles` in the run. It has exactly two readers: `new_turtle`, which
+   * allocates an id through it, and `turtles`, which enumerates it (issue #673).
    */
   readonly turtleWorld: TurtleWorld;
   /**
@@ -302,32 +301,32 @@ export interface Environment {
    * The shared, mutable `random`/`randomize` generator state (issue #287,
    * `random-number-generator.ts`). A box like `instructionCount`/`addressing` rather than a plain
    * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
-   * including deep inside a procedure call or loop body sharing this same `Environment` — is
+   * including deep inside a procedure call or loop body — is
    * observed by every later draw in the same run.
    */
   readonly randomNumberGenerator: RandomNumberGeneratorState;
   /**
    * The Interaction & Events tick clock (issue #680, `spec/interaction-events.md`, §Time, ticks,
    * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
-   * current logical tick, shared by every recursive `executeStatements`/`evaluate` call against
-   * this same environment so a `wait`'s tick advance is observed program-wide. Headless execution
-   * state: it MUST NOT appear in any event payload (`interaction.ts`'s header). Future timed
-   * handlers (`every <n>`, #683) read it; #682–#686 deliver due handlers as it advances.
+   * current logical tick, shared by every recursive `executeStatements`/`evaluate` call
+   * so a `wait`'s tick advance is observed program-wide. Headless execution
+   * state: it appears in no trace-event payload (`interaction.ts`'s header). Timed
+   * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
   /**
    * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
-   * the tempo `set_tempo` sets and `note`/`play`/`rest` will read. A box like
+   * the tempo `set_tempo` sets. A box like
    * `instructionCount`/`addressing`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
-   * made from anywhere in the program — including deep inside a procedure call or loop body sharing
-   * this same `Environment` — is observed by every later sound command in the same run.
+   * made from anywhere in the program — including deep inside a procedure call or loop body —
+   * updates the one state the run carries.
    */
   readonly sound: SoundState;
   /**
    * The Interaction & Events event-handler registry (issue #682, `interaction.ts`) — every `when`
    * handler registered so far, in registration order. Like {@link Environment.tickClock}/`sound`, a
    * shared mutable box so a `when` registered from anywhere in the program (including inside a
-   * procedure or loop body sharing this same `Environment`) is observed by the `"start"`/`"stop"`
+   * procedure or loop body) is observed by the `"start"`/`"stop"`
    * dispatch. Headless execution state: it never appears in an event payload — the handler blocks it
    * holds emit the ordinary `instruction`/effect events when they run, nothing more. `every`/
    * `on_key`/`on_click` (#683–#685) extend it; same-tick dispatch order + cancellation is #686/I7.
@@ -4913,9 +4912,10 @@ function evaluateRandom(
 
 /**
  * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
- * "value-producing" for the block-result rule — mirrors the checker's `VALUE_PRODUCING_KINDS`
- * (issue #114) exactly, minus `IsPredicate` (not yet implemented by {@link evaluate}, so never
- * reachable here — {@link isSupportedExpression} already excludes it).
+ * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
+ * (issue #114) minus `PostfixExpression` and `IsPredicate`. A body ending in either is not
+ * value-producing here, and {@link asExpressionStatement} returns `undefined` for it, so the
+ * comprehension is left un-evaluated rather than partially run.
  */
 const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
   "NumberLit",
@@ -4966,8 +4966,8 @@ function isValueProducingStatement(statement: StatementNode): boolean {
  * Is `statement` a leading (non-final) comprehension body statement this evaluator can run?
  * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
  * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
- * supported (the assignment target/value that are not yet implemented are themselves silently
- * no-ops, per {@link executeAssign}'s own convention); any expression-shaped statement is
+ * supported (an unsupported assignment target/value is itself silently a no-op, per
+ * {@link executeAssign}'s own convention); any expression-shaped statement is
  * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
  * `For`/`Forever`/`ProcedureDef`) is not.
  */

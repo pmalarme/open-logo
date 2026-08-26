@@ -1187,7 +1187,7 @@ function executeTurtleStampCall(
 /**
  * `grid`'s default guide-line spacing in canvas units (`spec/geometry-module.md:272`: "Default
  * grid spacing is `20` canvas units"). `grid` takes no arguments (Kind C, arity 0), so this is the
- * only spacing the runtime ever emits — a future slice adding a `grid :spacing` overload would
+ * only spacing the runtime ever emits — a later change adding a `grid :spacing` overload would
  * change the arity table and this call site together, not this constant alone.
  */
 const DEFAULT_GRID_SPACING = 20;
@@ -1731,8 +1731,8 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * {@link requireNumber}), which must additionally be positive and finite
  * (`spec/interaction-events.md:262` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
- * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` (the
- * shared tempo `note`/`play`/`rest` will read once #690/#691 land) and emits one `sound` event
+ * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
+ * emits one `sound` event
  * carrying a {@link SetTempoSoundPayload}, AFTER the tempo state has been updated
  * (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound` events after
  * sound state has been scheduled"). Returns an {@link ExecSignal} to halt on, or `undefined` for
@@ -1865,9 +1865,9 @@ function isSoundNoteCall(statement: StatementNode): boolean {
  * word-then-recognized two-stage check); the second MUST be a positive finite number
  * (`ol-type` via {@link requireNumber}, then `ol-range` via `runtimeDiag.nonPositiveDuration`).
  *
- * On success it schedules the pitched sound — headlessly, so scheduling *is* reading the current
- * tempo from `environment.sound.tempo` (`set_tempo`'s state; the beat `duration` is interpreted at
- * that tempo) and emitting one `sound` event carrying a {@link NoteSoundPayload}, AFTER the sound
+ * On success it schedules the pitched sound — headlessly, so scheduling *is* emitting one `sound`
+ * event carrying a {@link NoteSoundPayload} (the beat `duration` travels verbatim; nothing here
+ * converts it to wall-clock), AFTER the sound
  * has been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit
  * `sound` events after sound state has been scheduled"). The event is emitted unconditionally even
  * in a muted environment ("Implementations that cannot play audio … MUST still emit `sound`
@@ -1986,8 +1986,9 @@ function isSoundRestCall(statement: StatementNode): boolean {
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which MUST be a positive finite number (`ol-range` via
  * `runtimeDiag.nonPositiveDuration` otherwise — folding `Infinity` in like `note`'s duration and
- * `set_tempo`'s tempo). On success it schedules silence for `duration` beats at the current tempo
- * and emits one `sound` event carrying a {@link RestSoundPayload}, "so replay tools can show the
+ * `set_tempo`'s tempo). On success it schedules silence for `duration` beats — carried verbatim in
+ * the payload, as `note`/`play` durations are — and emits one `sound` event
+ * carrying a {@link RestSoundPayload}, "so replay tools can show the
  * silent interval" (`spec/interaction-events.md`), AFTER the silence has been scheduled and
  * unconditionally even in a muted environment. `rest` changes no sound state — silence is modeled
  * purely as the event. Returns an {@link ExecSignal} to halt on, or `undefined` for
@@ -2075,8 +2076,8 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validation is left-to-right and halts on the first offending element, so the earliest error wins.
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
- * duration }` {@link MelodyStep} (durations in beats, interpreted at the current tempo by replay
- * tools, never converted here — `spec/interaction-events.md:284-285`) — and emits exactly one
+ * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
+ * `spec/interaction-events.md:267-268`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a
@@ -2486,8 +2487,9 @@ function fireEvent(event: string, environment: Environment): ExecSignal {
  * is registered"). Finally, because a batch `execute()` run has already started, a `"start"` handler
  * is already being delivered, so it fires immediately after registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"); every
- * other event — including `"stop"` — is registered but not delivered in a headless batch run (see
- * {@link STANDARD_EVENT_WORDS}), so its handler does not fire here.
+ * other event — including `"stop"` — is registered and fires only if a host schedules it through
+ * `ExecuteOptions.hostInput` (see
+ * {@link STANDARD_EVENT_WORDS}), so with none supplied its handler does not fire here.
  *
  * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
  * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
@@ -3211,8 +3213,8 @@ function isOnKeyStatement(statement: StatementNode): boolean {
  * registration forms emit `primitive` events after the handler is registered").
  *
  * Registration never fires the block: a key press is host input, and in a headless batch `execute()`
- * run there is no keyboard, so an `on_key` handler is registered but never delivered — exactly like a
- * `when "stop"` handler in a headless run. Synthesizing a key press is a host concern outside this
+ * run with no host input supplied, an `on_key` handler is registered but never fires — exactly like
+ * a `when "stop"` handler in the same situation. Synthesizing a key press is a host concern outside this
  * slice; the `on-key-registered-not-delivered` fixture locks that narrowing so it is falsifiable
  * rather than silently omitted.
  *
@@ -3286,9 +3288,9 @@ function isOnClickStatement(statement: StatementNode): boolean {
  * `on_click` takes **no argument** — it is the only Interaction & Events block-head that takes just a
  * block (`spec/interaction-events.md` §Profile grammar: "`on_click` takes none") — so there is no
  * argument to evaluate or type-check, and the spec lists its errors as **none**. Registration never
- * fires the block: a click is host input, and in a headless batch `execute()` run there is no pointer
- * device, so an `on_click` handler is registered but never delivered — exactly like a `when "stop"`
- * (I3) or an `on_key` (I5) handler in a headless run. Synthesizing a click is a host concern outside
+ * fires the block: a click is host input, and with no host input supplied
+ * an `on_click` handler is registered but never fires — exactly like a `when "stop"`
+ * (I3) or an `on_key` (I5) handler in the same situation. Synthesizing a click is a host concern outside
  * this slice; the `on-click-registered-not-delivered` fixture locks that narrowing so it is
  * falsifiable rather than silently omitted.
  *

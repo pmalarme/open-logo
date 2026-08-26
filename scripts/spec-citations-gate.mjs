@@ -143,11 +143,30 @@ const COMMENT_ONLY_EXTENSIONS = [".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"];
  *
  * The vocabulary is deliberately narrow, favouring precision over recall, because a false positive is
  * fatal in a gate with no tolerance. A bare `TODO` is excluded: it appears in generated config and in
- * suggestion templates, where it is a placeholder rather than a claim. The slice phrases are anchored
- * to a forward-looking verb for the same reason — bare "later slice" also matches prose *about* how
- * slices work ("later slices cite them as settled fact"), which claims nothing about pending work.
- * The cost is recall: "a later slice adds…" is missed. Mode 4 coverage is partial, and the gate says
- * so on every run.
+ * suggestion templates, where it is a placeholder rather than a claim. Anchoring a slice phrase to a
+ * forward-looking verb serves the same end — bare "later slice" also matches prose *about* how
+ * slices work ("later slices cite them as settled fact"), which claims nothing about pending work,
+ * and the cost is recall: "a later slice adds…" is missed. **Not every entry below is anchored**, so
+ * the list still fires on a counterfactual — prose that claims nothing pending. Issue #961 re-worded
+ * the two **untracked** sites that hit the bare `"future slice"` entry that way — the `grid :spacing`
+ * overload in `execute-internal.ts` and the registry canary in
+ * `checker-profile-word-position.test.mjs`, both conditionals about work nobody has planned. Adding
+ * a manifest exception, not a reword, is what those two would otherwise have needed. Quoting such a
+ * phrase here is itself an occurrence, tracked by the `#961` named just above — which is the
+ * mechanism working, not an exemption.
+ *
+ * **A phrase split across a line wrap is invisible.** {@link collectStatusClaims} matches per line
+ * while resolving the tracking issue over the flattened run, so "does not exist\n * yet" is
+ * unreachable although the identical unwrapped sentence fails. Measured before issue #961's sweep
+ * with the eight phrases below: **2** untracked wrap-only claims, both fixed by hand there, so at
+ * this commit the untracked count is **0**. (A tree-wide *total* is instrument-dependent — sweeps of
+ * different shapes also see this vocabulary's own quotation in `AGENTS.md` and a `#208`/`#209` claim
+ * in `turtle-clear.test.mjs`, both tracked.) Making the matcher wrap-safe is mechanically straightforward — flatten
+ * every prose run with the same array-then-join technique used below, which is linear — but it
+ * changes what the gate reports
+ * (a claim's line must be mapped back from a run offset) and needs its own tests against the 100%
+ * coverage gate, so it is not attempted here; it is routed to `@orchestrator` for saga #987.
+ * Mode 4 coverage is partial, and the gate says so on every run.
  */
 export const STATUS_CLAIM_PHRASES = Object.freeze([
   "not yet implemented",

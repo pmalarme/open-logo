@@ -1,5 +1,5 @@
 {
-  "description": "issue #684 (slice I5): registering `on_key` twice for the same key registers BOTH handlers, in registration order, with no error — the spec defines no diagnostic for a duplicate key registration. Each registration emits its own `instruction`+`primitive` pair (seq 0-1 then 2-3). Keeping the two handlers insertion-ordered in their own list is what lets #686/I7 later impose deterministic same-tick delivery order across handler kinds without reworking this slice.",
+  "description": "issue #684 (slice I5): registering `on_key` twice for the same key registers BOTH handlers, in registration order, with no error — the spec defines no diagnostic for a duplicate key registration. Each registration emits its own `instruction`+`primitive` pair (seq 0-1 then 2-3). Keeping the two handlers insertion-ordered in their own list is what lets the same-tick delivery order (#686/I7) hold across handler kinds.",
   "profiles": ["interaction-events"],
   "execute": true,
   "events": [

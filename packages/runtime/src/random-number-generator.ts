@@ -16,10 +16,9 @@
 /**
  * The generator's mutable state — a single unsigned 32-bit integer, advanced in place by every
  * draw ({@link nextRandomFloat}). A plain mutable box (mirroring `evaluate.ts`'s
- * `Environment.instructionCount`) rather than a value replaced on every draw: every recursive
- * `evaluate`/`executeStatements` call shares the very same {@link Environment}, so only a shared
- * mutable container lets a `random` draw or a `randomize` reseed made from deep inside a
- * procedure call or loop body be observed by every later draw in the same program run.
+ * `Environment.instructionCount`) rather than a value replaced on every draw, so a `random` draw
+ * or a `randomize` reseed made from deep inside a procedure call or loop body is observed by every
+ * later draw in the same program run.
  */
 export interface RandomNumberGeneratorState {
   state: number;

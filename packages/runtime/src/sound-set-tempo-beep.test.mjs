@@ -46,7 +46,7 @@ test("set_tempo reads as a number from a numeric word argument", () => {
 
 test("a set_tempo made inside a procedure is shared with the rest of the run", () => {
   // The tempo state is a shared mutable box, so a `set_tempo` deep in a call still schedules its
-  // event and updates the tempo `note`/`play`/`rest` will read once #690/#691 land. Both sound
+  // event and updates the run's one tempo state. Both sound
   // events are emitted, in order, with no diagnostics.
   const result = execute(
     "define go\n  set_tempo 60\nend\ngo\nset_tempo 200\n",

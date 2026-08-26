@@ -2,7 +2,8 @@
 
 The education layer: learner levels/curriculum, the deterministic meta-commands
 `explain`/`why`/`hint`/`debug`, the geometry standard library (discoverable `.logo` source) and its
-reasoning, and the AI tutor (Socratic, offline-degrading) behind a provider-neutral adapter.
+reasoning, and — once the Tutor (AI) profile lands (saga #573) — the AI tutor (Socratic,
+offline-degrading) behind a provider-neutral adapter.
 
 - **Source root:** `src/` — public entry `src/index.ts`; geometry stdlib as validated `.logo` source.
 - **Owners:** [`@geometry-teacher`](../../.github/agents/geometry-teacher.agent.md) +
@@ -17,7 +18,7 @@ reasoning, and the AI tutor (Socratic, offline-degrading) behind a provider-neut
 
 `src/lesson.ts` exports the read-only, data-only `Lesson` type — the **single source of
 truth** the studio lesson pane ([#127](https://github.com/pmalarme/open-logo/issues/127))
-consumes. It has no authoring API, no runtime, and no AI (those land in later slices); a
+consumes. It has no authoring API, no runtime, and no AI; a
 `Lesson` is just data:
 
 - `objective` — the single idea the lesson teaches, tied to a `LearnerLevel` (`"1"`–`"6"`,
@@ -41,7 +42,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   follows the compose-a-recognizable-object rule (`spec/educational-model.md`,
   `.github/skills/curriculum/author-a-lesson/SKILL.md`): a house — a square body and a triangle
   roof, each with a door and two windows — with every side of the square and roof typed out one
-  at a time, since `repeat` does not exist yet at this level.
+  at a time, since `repeat` is not introduced until Level 2.
 - `lessons/level-2.ts` — the Level 2 lesson ("One side, repeated") + graded exercises, covering
   `repeat` as an effects-only block and `repcount`, including the canonical square worked
   example (`spec/educational-model.md:66-87`). The graded exercises follow the same
@@ -124,6 +125,6 @@ derivation is also what held lesson content to the finished rule while the check
 before [#838](https://github.com/pmalarme/open-logo/issues/838), `check()` consulted neither the
 Turtle & Rendering nor the Educational table, so `define forward` and `define hint` were accepted.
 
-Later levels (Level 6 onward) add their own `lessons/level-N.ts` module and extend the registry
+Each authored level adds its own `lessons/level-N.ts` module and extends the registry
 additively — no shared file needs an ever-growing literal, and no level uses a concept from a later
 level (`spec/educational-model.md:37`'s discovery guardrail).

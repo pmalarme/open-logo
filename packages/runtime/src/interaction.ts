@@ -10,32 +10,27 @@
  * Interaction time is measured in **ticks** — "an implementation-defined logical frame used by
  * rendering, animation, and event dispatch" (`spec/interaction-events.md`, §Time, ticks, and
  * handlers). Here a tick is a purely logical counter on the {@link Environment}: it advances by a
- * fixed, deterministic amount per `wait` tick, never by wall-clock time. The trace stream is
- * "deterministic and headless" and "carries no timing or frames" (`spec/execution-model.md`'s
- * trace-and-event registry), so this clock MUST NOT leak into any event payload — the `primitive`
- * event `wait` emits carries only the primitive name ({@link PrimitivePayload}), never a tick
- * count or elapsed time. The clock exists so that a program's event *sequence* is reproducible and
- * so future timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
- * itself observable in the stream.
+ * fixed, deterministic amount per `wait` tick, never by wall-clock time. No **trace**-event payload
+ * carries a tick: the `primitive` event `wait` emits carries only the primitive name.
+ * (`HostInputEvent` below carries a `tick`, but it is host *input*, not a trace event.)
+ * The clock exists so that a program's event *sequence* is reproducible and
+ * so timed handlers (`every <n>`) have a shared notion of "n ticks elapsed"; it is not
+ * itself observable in the trace stream.
  *
  * ## Why `wait` is a per-tick loop, not a blocking sleep
  *
  * `spec/interaction-events.md`'s "Trace stream integration" is explicit: "Unlike `input`, `wait`
  * does not block the event system. While a `wait` pause elapses, the tick clock keeps advancing
  * and registered `every`, `on_key`, and `on_click` handlers still fire; only the top-level
- * instructions that follow the `wait` are deferred until the pause completes." Those handlers do
- * not exist yet (they arrive with #682–#686), and the acceptance criterion that they keep firing
- * during a `wait` pause was moved to #686 precisely because it is not provable in this slice — so
- * this file does **not** implement or stub handler dispatch.
+ * instructions that follow the `wait` are deferred until the pause completes."
  *
- * What it DOES do is shape the pause as an explicit per-tick advance ({@link advanceTickClock}
- * called once per tick inside {@link executeWaitCall}) rather than a single opaque
- * `tick += n`/blocking sleep. That per-tick step is the seam #682–#686 hang handler delivery off:
- * a later slice makes {@link advanceTickClock} (or a dispatch pass it calls) deliver any handlers
- * that came due on the tick it just advanced to, and every existing `wait` immediately gains the
- * "handlers keep firing while I pause" behavior with no change to this file's control flow. A
- * `wait` written as a blocking sleep would satisfy this slice's own tests and then have to be
- * thrown away.
+ * That is why the pause is an explicit per-tick advance ({@link advanceTickClock}
+ * called once per tick inside {@link runWait}) rather than a single opaque
+ * `tick += n`/blocking sleep: the per-tick step is the seam handler delivery hangs off.
+ * `execute-internal.ts` passes a per-tick callback that calls `dispatchDueHandlers` at each tick
+ * the clock advances to — and once at the current tick for `wait 0`, which advances to none — so a
+ * `wait` keeps firing due handlers while it pauses. A
+ * `wait` written as a blocking sleep could not do that.
  *
  * ## Why `input` has no event-loop checkpoint at all
  *
@@ -70,8 +65,8 @@ import type { Environment } from "./evaluate.js";
  * (`spec/interaction-events.md`, §Time, ticks, and handlers). A box — like the environment's
  * `instructionCount`/`addressing` — rather than a plain field reassigned on {@link Environment}, so a
  * tick advance made from anywhere in the program (including deep inside a procedure call or loop
- * body sharing the same environment) is observed by every later read in the same run. The clock is
- * headless logical state and MUST NOT appear in any event payload (see the file header).
+ * body) is observed by every later read in the same run. The clock is
+ * headless logical state and appears in no trace-event payload (see the file header).
  */
 export interface TickClock {
   tick: number;
@@ -312,13 +307,14 @@ export function takeInputResponse(
  * event name (the type check only rejects a non-word, `ol-type`), and a handler for a word this
  * runtime never delivers simply never runs.
  *
- * In a headless batch `execute()` run only `"start"` is actually *delivered*: the run has already
+ * In a headless batch `execute()` run with no host input, only `"start"` is *delivered*: the run has already
  * started, so a `when "start"` handler fires immediately on registration (spec: registering "does
  * not run its block immediately unless the triggering event is already being delivered"). `"stop"`
- * is "a requested stop notification" — a batch run receives no such request, so a `when "stop"`
- * handler is accepted and registered but never fires here (exactly as a vendor event an
- * implementation does not deliver would not). An interactive host (a later slice, once cancellation
- * plumbing exists) delivers `"stop"` when a stop is actually requested; this slice does not
+ * is "a requested stop notification" — the caller supplies no such request through
+ * `ExecuteOptions.hostInput`, so a `when "stop"`
+ * handler is accepted and registered but never fires there (exactly as a vendor event an
+ * implementation does not deliver would not). A host that schedules `"stop"` through
+ * `ExecuteOptions.hostInput` does fire it (#686/I7); this slice does not
  * synthesize one on natural completion, which the spec does not define as a stop request.
  */
 export const STANDARD_EVENT_WORDS = Object.freeze({
@@ -401,13 +397,13 @@ export interface EveryHandler {
  * supported key words, so any word is accepted and a handler for a key this host never delivers
  * simply never runs.
  *
- * A key press is **host input**: in a headless batch `execute()` run there is no keyboard, so an
- * `on_key` handler registers but is never delivered — exactly like a `when "stop"` handler in a
- * headless run (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
+ * A key press is **host input**: with no host input supplied, an
+ * `on_key` handler registers but never fires — exactly like a `when "stop"` handler in the
+ * same situation (locked by the `on-key-registered-not-delivered` fixture). Synthesizing a key press
  * is a host concern outside this slice, so this handler carries no delivery-state flag: it holds the
- * captured block and scope, ready for an interactive host slice to deliver it. It lives in its own
- * registration-ordered list so #686/I7 can impose the spec's same-tick delivery order
- * (`when`/`on_key`/`on_click` first, then due `every`) across handler kinds without reworking it.
+ * captured block and scope for an interactive host to deliver. It lives in its own
+ * registration-ordered list so the same-tick delivery order (#686/I7)
+ * (`when`/`on_key`/`on_click` first, then due `every`) holds across handler kinds without reworking it.
  */
 export interface OnKeyHandler {
   readonly key: string;
@@ -427,13 +423,13 @@ export interface OnKeyHandler {
  * event carries, and the {@link Environment} captured at registration time so the body later runs in
  * its **registration-time lexical scope** ("A handler block is a normal OpenLogo block").
  *
- * A click is **host input**: in a headless batch `execute()` run there is no pointer device, so an
- * `on_click` handler registers but is never delivered — exactly like a `when "stop"` handler (I3) or
- * an `on_key` handler (I5) in a headless run (locked by the `on-click-registered-not-delivered`
+ * A click is **host input**: with no host input supplied, an
+ * `on_click` handler registers but never fires — exactly like a `when "stop"` handler (I3) or
+ * an `on_key` handler (I5) in the same situation (locked by the `on-click-registered-not-delivered`
  * fixture). Synthesizing a click is a host concern outside this slice, so this handler carries no
- * delivery-state flag: it holds the captured block and scope, ready for an interactive host slice to
- * deliver it. It lives in its own registration-ordered list so #686/I7 can impose the spec's
- * same-tick delivery order (`when`, then `on_key`, then `on_click`, then due `every`) across handler
+ * delivery-state flag: it holds the captured block and scope for an interactive host to
+ * deliver. It lives in its own registration-ordered list so the same-tick delivery order (#686/I7)
+ * (`when`, then `on_key`, then `on_click`, then due `every`) holds across handler
  * kinds without reworking it.
  */
 export interface OnClickHandler {
@@ -445,7 +441,7 @@ export interface OnClickHandler {
 /**
  * One host-supplied input delivery scheduled for a specific tick (issue #686, slice I7). This is the
  * headless, deterministic stand-in for the live keyboard/pointer/named events an interactive host
- * (the future studio, `spec/interaction-events.md`'s "interactive host") would deliver — supplied up
+ * (the studio, `spec/interaction-events.md`'s "interactive host") delivers — supplied up
  * front through `ExecuteOptions.hostInput` (see `index.ts`), exactly analogous to the pre-aborted
  * {@link CancellationSignal} a caller already supplies through `ExecuteOptions.signal`. It carries
  * **no** coordinates, timing, or device detail — only the `tick` it is delivered on plus the minimum
@@ -476,8 +472,8 @@ export type HostInputEvent =
  * This is the structure the file header promised the rest of the track would hang off the tick
  * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
  * on registration (the run has already started). `every`/`on_key`/`on_click` (#683–#685) add their
- * own handler kinds alongside it (`every` in #683, `on_key` in #684), and an interactive host slice
- * later delivers `"stop"` and the timed/input events from it.
+ * own handler kinds alongside it (`every` in #683, `on_key` in #684), and an interactive host
+ * delivers `"stop"` and the timed/input events from it.
  *
  * `pendingEvents`/`pendingKeys`/`pendingClicks` (issue #686, slice I7) are the tick-scheduled
  * host-input queues {@link enqueueHostInput} fills from `ExecuteOptions.hostInput` and
@@ -601,8 +597,9 @@ export function registerEveryHandler(
  * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
  * handlers or `every`'s timed handlers) so the spec's same-tick delivery order — pending `when`,
  * then pending `on_key`, then `on_click`, then due `every` (#686/I7) — can filter each kind
- * independently while each kind preserves its own registration order. In a headless batch run no key
- * press is ever delivered, so this list is populated but never drained here.
+ * independently while each kind preserves its own registration order. Handlers stay registered here;
+ * it is {@link EventHandlerRegistry.pendingKeys} that a drain consumes, and with no host input
+ * supplied nothing is ever pending.
  */
 export function registerOnKeyHandler(
   registry: EventHandlerRegistry,
@@ -632,8 +629,9 @@ export function registerOnKeyHandler(
  * one-shot handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
  * same-tick delivery order — pending `when`, then pending `on_key`, then pending `on_click`, then due
  * `every` (#686/I7) — can filter each kind independently while each kind preserves its own
- * registration order. In a headless batch run no click is ever delivered, so this list is populated
- * but never drained here.
+ * registration order. Handlers stay registered here; it is
+ * {@link EventHandlerRegistry.pendingClicks} that a drain consumes, and with no host input supplied
+ * nothing is ever pending.
  */
 export function registerOnClickHandler(
   registry: EventHandlerRegistry,

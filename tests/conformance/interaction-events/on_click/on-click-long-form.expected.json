@@ -1,5 +1,5 @@
 {
-  "description": "issue #685 (slice I6): the multiline `on_click ... end on_click` form behaves identically to the bracket form (spec/interaction-events.md's event-block-tail grammar) — it registers a handler (seq 0-1) that, being host input in a headless run, never fires, so only the trailing `print \"mid\"` runs. A bare `end` also closes it; a mismatched label is covered by on-click-mismatched-end.",
+  "description": "issue #685 (slice I6): the multiline `on_click ... end on_click` form behaves identically to the bracket form (spec/interaction-events.md's event-block-tail grammar) — it registers a handler (seq 0-1) that, being host input, never fires when the run supplies none, so only the trailing `print \"mid\"` runs. A bare `end` also closes it; a mismatched label is covered by on-click-mismatched-end.",
   "profiles": ["interaction-events"],
   "execute": true,
   "events": [

@@ -13,7 +13,9 @@
 //      unconditionally, #855 realigned the profile documents, and #841 retired the checker gate, so
 //      **declaring** one — `define` or `struct`, not a binding — raises `ol-reserved-word` whether
 //      or not the profile is claimed. The Layer-2 checker was taught to treat them as visible
-//      command names by SP2–SP4 (`spritesStatementFormNames` in `collectVisibleNames`). This slice
+//      command names by SP2–SP4 (in `collectVisibleNames`, which since issue #966 reads them from
+//      `keywords.ts`'s profile-keyed `OL_PROFILE_KEYWORDS` rather than a Sprites-only accessor).
+//      This slice
 //      locks all of that with fixtures rather than re-adding.
 //   2. Reporters `new_turtle`/`who`/`turtles` are ordinary zero-arity primitives in the arity table
 //      (`spec/turtles-and-sprites.md`'s C3 rows: each Kind-R, arity 0). SP1 registered their arities

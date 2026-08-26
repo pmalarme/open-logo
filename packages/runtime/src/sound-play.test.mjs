@@ -5,7 +5,7 @@
 // the literal word `"rest"` (bad -> `ol-type`, reusing `note`'s expected:word/expected:pitch
 // identities), and each duration MUST be a positive finite number (non-positive/non-finite ->
 // `ol-range`). On success `play` resolves the melody into an ordered `{ pitch, duration }` array
-// (durations in beats, interpreted at the current tempo by replay tools, never converted here) and
+// (durations in beats, carried verbatim, never converted here) and
 // emits EXACTLY ONE `sound` event carrying that whole melody, after the instruction event and
 // unconditionally even when audio is muted, so deterministic replay never depends on the speaker.
 
