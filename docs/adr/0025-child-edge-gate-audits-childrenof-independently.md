@@ -147,22 +147,38 @@ it — the three-place change described under Consequences. The surviving gap is
 **no** declaration and **no** fixture — the same shape, and the same accepted cost, as
 [ADR-0021](0021-built-in-names-list-and-ci-gate.md)'s two-file rule for primitives.
 
-**Not enforced — a hostile `Proxy`.** Reflection reads objects **and arrays** through
+**Not enforced — a hostile `Proxy`, and reflection's own reach.** Reflection reads objects **and
+arrays** through
 `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, checking both prototypes exactly and
-excluding no key by name; it snapshots those descriptors **before** reading any property, including
-`kind`; it records the `typeof` of every value it meets; and it checks that the two canonical
-prototypes hold no node themselves. So a symbol-keyed field, a non-enumerable field, a class
-instance, a null-prototype object, an
+excluding no key by name; it snapshots the **whole reachable graph** before anything else reads it;
+it records the `typeof` of every value it meets; and it classifies every own property of the two
+canonical prototypes, reporting a node or an accessor that could return one. So a symbol-keyed
+field, a non-enumerable field, a class instance, a null-prototype object, an
 `Object.create(proto)` result, an array expando, a non-canonical index such as `"4294967295"`, an
 array subclass, a node parked under a `source_span` key, an own `Symbol.iterator` that lies about
 an array's contents, a **function** carrying a node, a **self-erasing accessor** that deletes its
-sibling when read, and a node installed on `Array.prototype` **itself** are all either read
-correctly or rejected. A `Proxy` whose `ownKeys` trap lies is not detectable from userland and would
-still hide a node. That is a limit of reflection itself rather
-than of this implementation, and it is recorded rather than papered over.
+sibling when read, a `walk` or an ancestor's `childrenOf` that **edits the tree mid-audit**, and a
+node installed on `Array.prototype` **itself** — behind a data property or a getter — are all
+either read correctly or rejected.
 
-That last sentence is the only claim here stated as a limit, and it is deliberate — but treat it as
-the current state of an argument the reviewers have won every round so far, not as a settled result.
+Two things remain, and both are stated rather than closed:
+
+- **A `Proxy` whose `ownKeys` trap lies** is not detectable from userland and would still hide a
+  node. That is a limit of reflection itself rather than of this implementation.
+- **A node reachable only through an inherited member that is not a field of any node type** — the
+  reviewer's example was `Function.prototype`, reached via `node.toString.someProperty`. This is out
+  of the model on purpose. The subject of #960 is a **declared node-valued field** that `childrenOf`
+  forgot; `node.toString` is not one, and no plausible `childrenOf` returns it. It is also
+  unreachable *by this gate* by construction, since every descended value must have exactly
+  `Object.prototype` or `Array.prototype` and no function is ever descended. Chasing it would mean
+  auditing `Function.prototype`, then `String.prototype`, then every intrinsic — enumeration with no
+  termination condition, which is the failure mode this ADR is about.
+
+Recording the boundary is the point. It is drawn where the threat model is, not where the last
+mutant happened to land.
+
+Treat both as the current state of an argument the reviewers have won every round so far, not as a
+settled result.
 **Every previous
 draft of this paragraph asserted the container check admitted nothing it could not enumerate, and a
 reviewer falsified each one in a single build** — first a class instance holding a node behind a
@@ -173,7 +189,9 @@ enumeration excluded by name, and then — after that key exclusion was deleted 
 **function**-valued field, which the `typeof value === "object"` test returns past as a childless
 leaf, plus a **self-erasing accessor** that deleted its node-bearing sibling the moment the audit
 read `kind`, plus a node installed on `Array.prototype` **itself**, where exact prototype identity
-still matched because the identity was not what changed. The count of those drafts is deliberately
+still matched because the identity was not what changed — and then, once that was audited for data
+properties, the same node behind a **getter** on `Object.prototype`, whose value is not in the
+descriptor at all. The count of those drafts is deliberately
 not written down: it was
 wrong within one review round every time it was, which is the same unenforced-assertion rule that
 kept derived counts out of ADR-0024. The pattern they share is worth more than the tally — **a
@@ -188,13 +206,17 @@ gate is built the second way in each instance:
   closes exactly one container while leaving the next unnamed one open. The `typeof` of **every**
   value is recorded instead and compared as a whole set, so a container class nobody anticipated
   fails rather than being skipped.
-- the fix for a self-erasing accessor is an **ordering** rule, not a new check: descriptors are
-  snapshotted before any property is read. Every read is a chance for the subject to edit the
-  evidence. The same rule applies one level up — reflection now runs **before** `walk`, because a
-  `walk` that removes a node as it goes was otherwise observed only after the removal.
-- the fix for a polluted prototype is to audit **the prototypes themselves**. Asserting that a value
-  has exactly `Array.prototype` says nothing about what `Array.prototype` contains, and the chain
-  above those two is pinned so the check is exhaustive rather than merely two-deep.
+- the fix for a self-erasing accessor is an **ordering** rule, not a new check: the whole reachable
+  graph is snapshotted before anything else reads it. Every read is a chance for the subject to edit
+  the evidence, and snapshotting one node before reading *it* proved insufficient — an ancestor's
+  `childrenOf`, or a child's `source_span` getter feeding the handle function, could erase a
+  **descendant's** field while the audit was still walking down to it. Reflection is now a complete
+  phase, and `childrenOf`, the span helpers and `walk` all run after it.
+- the fix for a polluted prototype is to audit **the prototypes themselves**, classifying every own
+  property rather than only reading data descriptors — a getter holds its value outside the
+  descriptor, so a data-only check reads straight past it. Asserting that a value has exactly
+  `Array.prototype` says nothing about what `Array.prototype` contains, and the chain above those
+  two is pinned so the check is exhaustive rather than merely two-deep.
 
 A declaration-derived check would close it outright, and is **deferred on cost, not availability**.
 TypeScript 7 does ship a usable API: `typescript/unstable/sync` exports `Project`, `Program`,

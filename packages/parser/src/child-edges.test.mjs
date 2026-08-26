@@ -176,17 +176,27 @@ const EXPECTED_VALUE_TYPES = [
 ];
 
 /**
- * True when `descriptor` is a **data** descriptor whose value is a node.
+ * How an own property of a canonical prototype is classified for the audit below.
  *
- * Reads the value off the descriptor rather than off the object, so an accessor is never invoked —
- * which matters here because `Object.prototype.__proto__` is one, and triggering it would be the
- * gate doing the very thing it forbids everywhere else.
+ * `data-node` is the direct attack: a node parked on `Array.prototype` itself. `accessor` is the
+ * indirect one the #960 reviewer used next — a getter on `Object.prototype` returning a node, which
+ * a data-only check reads straight past, because the value is not in the descriptor. Reporting the
+ * accessor rather than invoking it keeps the gate's own rule: a getter may return a fresh object per
+ * call, and this gate never reads one to decide anything.
+ *
+ * Array-subscript selection rather than nested ternaries, so no arm goes untaken on a green tree.
  */
-const descriptorHoldsWalkableNode = (descriptor) =>
-  Object.hasOwn(descriptor, "value") &&
-  typeof descriptor.value === "object" &&
-  descriptor.value !== null &&
-  isWalkableNode(descriptor.value);
+const canonicalPrototypeFieldKind = (descriptor) =>
+  ["accessor", "data-other", "data-node"][
+    Number(Object.hasOwn(descriptor, "value")) *
+      (1 +
+        Number(
+          Object.hasOwn(descriptor, "value") &&
+            typeof descriptor.value === "object" &&
+            descriptor.value !== null &&
+            isWalkableNode(descriptor.value),
+        ))
+  ];
 
 /** Orders two nodes by where they start in the source. */
 const bySourcePosition = (left, right) =>
@@ -438,9 +448,9 @@ function auditTheCorpus() {
   const pathOf = (edge) => edge[0];
   const kindOf = (node) => node.kind;
 
-  // A stable per-object handle, so a child list can be compared by *identity and multiplicity*
-  // rather than by membership. Two edges to the same object must appear twice; dropping one of them
-  // leaves the object reachable by the other and is invisible to any set comparison.
+  // Phase 2 work, deliberately *not* called during the phase 1 snapshot below: it reads
+  // `node.source_span.start`, and a span getter that erases a sibling would then fire before that
+  // sibling had been recorded. Same reason `childrenOf` and `bySourcePosition` are phase 2.
   const handles = new Map();
   const handleOf = (node) => {
     if (!handles.has(node)) {
@@ -450,48 +460,6 @@ function auditTheCorpus() {
     return `${node.kind}@${span.start[0]}:${span.start[1]}#${handles.get(node)}`;
   };
 
-  const auditNode = (node, reflectedNodes) => {
-    reflectedNodes.push(node);
-    const edges = reflectedEdgesOf(node, seen);
-    for (const edge of edges) {
-      populated.add(pathOf(edge));
-    }
-    const returned = childrenOf(node);
-    // The comparison this gate exists for: what the node itself holds, against what `childrenOf`
-    // reports, as order-independent multisets of object identities. Built for every node whether or
-    // not it matches, so the row-building code is never dead; the mismatch filter below is what
-    // turns rows into findings. Order is checked separately, against source position rather than
-    // against reflection's field order — see `outOfOrderRows`.
-    childListRows.push({
-      at: node.kind,
-      edges: edges.map(pathOf).join(" "),
-      reflected: edges
-        .map((edge) => handleOf(edge[1]))
-        .sort()
-        .join(" "),
-      returned: returned.map(handleOf).sort().join(" "),
-      // `childrenOf` promises its children "in source order" (`ast.ts`), and every traversal built
-      // on it inherits that promise — `walk` is pre-order, so the highlighter's semantic tokens and
-      // the studio's fold ranges both observe it. The identity multisets above are sorted and so
-      // deliberately blind to order, which let a reversed child list pass an earlier version of this
-      // gate. Both spellings are computed for every node, so neither is a projection that only a
-      // failing tree evaluates; the comparison is against the spans the parser recorded, which is
-      // the one ordering that cannot be circular.
-      order: returned.map(handleOf).join(" "),
-      sourceOrder: [...returned].sort(bySourcePosition).map(handleOf).join(" "),
-      // `Array.prototype.sort` is stable, so two children sharing a start position keep `returned`'s
-      // order in `sourceOrder` and the order comparison above can never fire for them. There are
-      // none today; recording the count means the day one appears, the weakening announces itself
-      // instead of going quiet — a green signal certifying less than it appears to.
-      tiedStarts: tiedStartCount([...returned].sort(bySourcePosition)),
-    });
-    for (const edge of [...edges].sort((left, right) =>
-      bySourcePosition(left[1], right[1]),
-    )) {
-      auditNode(edge[1], reflectedNodes);
-    }
-  };
-
   const auditFile = (file, root) => {
     const { ast, diagnostics } = parse(readFileSync(file, "utf8"), file);
     if (diagnostics.length > 0) {
@@ -499,13 +467,91 @@ function auditTheCorpus() {
     }
     fileCount += 1;
     filesPerRoot.set(root, filesPerRoot.get(root) + 1);
-    // Reflection runs **first**, before `walk` is invoked at all. Ordering is load-bearing: the
-    // #960 reviewer wrote a `walk` that removed a child from the tree as it went, and because
-    // reflection ran afterwards it observed the already-truncated tree and agreed with it. The
-    // subject cannot be allowed to edit the evidence before the auditor reads it — the same reason
-    // descriptors are snapshotted before any property read in `edgesUnder`.
+
+    // ---- Phase 1: snapshot the whole reachable graph, reading nothing else. ----
+    //
+    // Ordering is the load-bearing part of this gate, and it took three separate defeats to get
+    // right. Reflection must complete over **every** node before anything else touches the tree,
+    // because every read is a chance for the subject to edit the evidence:
+    //
+    //   - a `walk` that removed a node as it traversed was invisible while `walk` ran first, because
+    //     reflection then agreed with the truncated tree;
+    //   - a `kind` getter that deleted its node-bearing sibling was invisible while descriptors were
+    //     snapshotted after classification;
+    //   - and, subtler than both, an *ancestor's* `childrenOf` or a child's `source_span.start`
+    //     getter could erase a **descendant's** field while the audit was still walking down to it,
+    //     because the old design interleaved reflect-and-compare per node. Snapshotting one node
+    //     before reading it is not enough; the graph has to be snapshotted before the graph is read.
+    //
+    // So phase 1 calls only `Reflect.ownKeys` and `Object.getOwnPropertyDescriptor`, which invoke no
+    // user code at all. `childrenOf`, `handleOf`, `bySourcePosition` and `walk` all come after it.
+    const snapshot = [];
+    const edgesByNode = new Map();
+    const collect = (node) => {
+      const edges = reflectedEdgesOf(node, seen);
+      snapshot.push([node, edges]);
+      if (!edgesByNode.has(node)) {
+        edgesByNode.set(node, edges);
+      }
+      for (const edge of edges) {
+        collect(edge[1]);
+      }
+    };
+    collect(ast);
+
+    // ---- Phase 2: compare the snapshot against `childrenOf`. ----
+    for (const [node, edges] of snapshot) {
+      for (const edge of edges) {
+        populated.add(pathOf(edge));
+      }
+      const returned = childrenOf(node);
+      // The comparison this gate exists for: what the node itself holds, against what `childrenOf`
+      // reports, as order-independent multisets of object identities. Built for every node whether
+      // or not it matches, so the row-building code is never dead; the mismatch filter below is what
+      // turns rows into findings. Order is checked separately, against source position rather than
+      // against reflection's field order — see `outOfOrderChildren`.
+      childListRows.push({
+        at: node.kind,
+        edges: edges.map(pathOf).join(" "),
+        reflected: edges
+          .map((edge) => handleOf(edge[1]))
+          .sort()
+          .join(" "),
+        returned: returned.map(handleOf).sort().join(" "),
+        // `childrenOf` promises its children "in source order" (`ast.ts`), and every traversal built
+        // on it inherits that promise — `walk` is pre-order, so the highlighter's semantic tokens
+        // and the studio's fold ranges both observe it. The identity multisets above are sorted and
+        // so deliberately blind to order, which let a reversed child list pass an earlier version of
+        // this gate. Both spellings are computed for every node, so neither is a projection that
+        // only a failing tree evaluates; the comparison is against the spans the parser recorded,
+        // which is the one ordering that cannot be circular.
+        order: returned.map(handleOf).join(" "),
+        sourceOrder: [...returned]
+          .sort(bySourcePosition)
+          .map(handleOf)
+          .join(" "),
+        // `Array.prototype.sort` is stable, so two children sharing a start position keep
+        // `returned`'s order in `sourceOrder` and the order comparison above can never fire for
+        // them. There are none today; recording the count means the day one appears, the weakening
+        // announces itself instead of going quiet — a green signal certifying less than it appears.
+        tiedStarts: tiedStartCount([...returned].sort(bySourcePosition)),
+      });
+    }
+
+    // The pre-order `walk` is expected to produce, built from the phase 1 snapshot rather than from
+    // `childrenOf`, so the comparison below stays non-circular.
     const reflectedNodes = [];
-    auditNode(ast, reflectedNodes);
+    const buildPreorder = (node) => {
+      reflectedNodes.push(node);
+      for (const edge of [...edgesByNode.get(node)].sort((left, right) =>
+        bySourcePosition(left[1], right[1]),
+      )) {
+        buildPreorder(edge[1]);
+      }
+    };
+    buildPreorder(ast);
+
+    // ---- Phase 3: run the subject. ----
     const walked = new Set();
     const walkVisits = [];
     walk(ast, (node) => {
@@ -567,31 +613,39 @@ function auditTheCorpus() {
 
   // `shapeNameOf` proves every value descended into has *exactly* one of these two prototypes. That
   // is what rejects a class instance or an array subclass — and it says nothing about what the
-  // canonical prototypes themselves hold. The #960 reviewer installed a real `Call` node on
+  // canonical prototypes themselves hold. The #960 reviewer parked a real `Call` on
   // `Array.prototype` and declared an inherited field of that type: every array kept its expected
   // prototype, every own-key check passed, and the node was unreachable by both `childrenOf` and
-  // `walk` with the gate green. Exact identity matching cannot see it, because the identity is
-  // correct; what changed is the thing being pointed at.
+  // `walk` with the gate green. Exact identity matching cannot see it, because the identity is not
+  // what changed. A getter on `Object.prototype` returning a node defeated the first fix for the
+  // same reason one level in — a data-only check reads straight past it, since the value is not in
+  // the descriptor at all.
   //
-  // Rows are built for every own property of both prototypes and filtered afterwards, rather than
-  // filtered then projected, so nothing here is a path that only a broken tree evaluates. Descriptor
-  // values are read from the descriptor, so `Object.prototype.__proto__` — an accessor — is never
-  // invoked. These two prototypes are the entire inherited surface: the assertions alongside pin the
-  // chain above them, so there is no third prototype to check.
+  // So every own property of both prototypes is classified, and anything that is not an ordinary
+  // non-node data property is reported: a node, or an accessor that could return one. The accessor
+  // is reported rather than invoked, which is this gate's rule everywhere else.
+  //
+  // Rows are built for every property and filtered afterwards, rather than filtered then projected,
+  // so nothing here is a path only a broken tree evaluates. These two prototypes are the entire
+  // inherited surface *of the values this gate descends into*, which the assertions alongside pin
+  // from both ends: every descended value has exactly one of these prototypes, the chain above them
+  // terminates, and no function is ever descended.
   const canonicalPrototypeFields = [
     ["Object.prototype", Object.prototype],
     ["Array.prototype", Array.prototype],
   ].flatMap(([name, prototype]) =>
     Reflect.ownKeys(prototype).map((key) => ({
       at: `${name}.${String(key)}`,
-      holdsNode: descriptorHoldsWalkableNode(
+      kind: canonicalPrototypeFieldKind(
         Object.getOwnPropertyDescriptor(prototype, key),
       ),
     })),
   );
 
   return {
-    prototypeNodes: canonicalPrototypeFields.filter((row) => row.holdsNode),
+    prototypeAnomalies: canonicalPrototypeFields.filter(
+      (row) => row.kind !== "data-other",
+    ),
     mismatchedChildLists: childListRows.filter(
       (row) => row.reflected !== row.returned,
     ),
@@ -694,16 +748,24 @@ test("reflection reads every own key of the shapes it descends", () => {
   // be a recording arm no green tree executes and would close one container while leaving the next
   // unnamed one open.
   assert.deepEqual(audit.valueTypes, EXPECTED_VALUE_TYPES);
-  // And the two canonical prototypes hold no node themselves. Asserting that every value *has*
-  // `Object.prototype` or `Array.prototype` says nothing about what those objects contain — the
-  // #960 reviewer parked a real `Call` on `Array.prototype` and declared an inherited field of that
-  // type, leaving every array's prototype identity correct, every own-key check satisfied, and the
-  // node unreachable by `childrenOf` and `walk` with the gate green. Exact identity matching cannot
-  // see it, because the identity is not what changed.
-  assert.deepEqual(audit.prototypeNodes, []);
-  // Which is only exhaustive if these two are the whole inherited surface, so pin the chain above
-  // them rather than assuming it. Without this, re-pointing `Array.prototype`'s own prototype at a
-  // node-bearing object would reopen the gap one level higher.
+  // And the two canonical prototypes hold no node themselves, and no accessor that could return
+  // one. Asserting that every value *has* `Object.prototype` or `Array.prototype` says nothing
+  // about what those objects contain — the #960 reviewer parked a real `Call` on `Array.prototype`
+  // and declared an inherited field of that type, leaving every array's prototype identity correct,
+  // every own-key check satisfied, and the node unreachable by `childrenOf` and `walk` with the
+  // gate green; then defeated the data-only fix with a getter on `Object.prototype`, whose value is
+  // not in the descriptor at all.
+  //
+  // Compared as a whole set against the realm's own baseline, so a *new* accessor breaks it rather
+  // than being waved through by name. `__proto__` is the one accessor a pristine realm ships.
+  assert.deepEqual(audit.prototypeAnomalies, [
+    { at: "Object.prototype.__proto__", kind: "accessor" },
+  ]);
+  // Which is only exhaustive if these two are the whole inherited surface of what this gate
+  // descends into, so pin it from both ends rather than assuming it: `shapes` above proves every
+  // descended value has exactly one of these prototypes, `valueTypes` proves no function is ever
+  // descended, and this proves the chain above them terminates. Without the last one, re-pointing
+  // `Array.prototype`'s own prototype at a node-bearing object would reopen the gap one level up.
   assert.equal(Object.getPrototypeOf(Array.prototype), Object.prototype);
   assert.equal(Object.getPrototypeOf(Object.prototype), null);
 });
