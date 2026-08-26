@@ -2555,6 +2555,26 @@ function executeHandlerBody(
 }
 
 /**
+ * The main-line boundary for one **loop iteration** (maintainer ruling #984,
+ * `spec/interaction-events.md:189-204`), returning a halting {@link ExecSignal} or `undefined`.
+ *
+ * `executeStatements` already offers a boundary before each statement, so a non-empty body has one
+ * per unit of progress and needs nothing here — firing again per iteration would drain twice for the
+ * same unit and make a loop offer more boundaries than the equivalent comprehension. An **empty**
+ * body executes no statements at all, yet each of its iterations is charged against the budget and
+ * is main-line progress just the same, so the iteration itself is that body's only unit and its only
+ * boundary. Measured before this existed: `forever [ ]` gave a queued `every` occurrence three
+ * firings before `ol-limit` where `forever [ print 0 ]` gave eleven — the ruling's back-to-back
+ * guarantee held only for loops that happened to contain a statement.
+ */
+function runIterationBoundary(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal | undefined {
+  return body.length === 0 ? environment.mainLineBoundary.fn?.() : undefined;
+}
+
+/**
  * Sentinel `dispatchProfileStatement` returns when a {@link ProfileStatementNode} is not a Sprites
  * addressing form this slice runs (`tell`/`ask`; `each` lands in #676; the Interaction event heads
  * are their own profile), so {@link executeStatements} can fall through. Distinct from `undefined`
@@ -5008,6 +5028,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         const condition = evaluateCondition(
           statement.condition,
           environment,
@@ -5059,6 +5091,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         environment.repeatTurns.push(turn);
         const signal = executeStatements(statement.body.body, environment);
         environment.repeatTurns.pop();
@@ -5081,6 +5125,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const signal = executeStatements(statement.body.body, environment);
         if (signal.kind !== "normal") {
@@ -5122,6 +5178,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const bound = bindElement(statement.binder, element);
         if (!bound.ok) {
@@ -5214,6 +5282,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const signal = executeStatements(
           statement.body.body,

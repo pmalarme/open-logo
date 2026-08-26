@@ -5107,6 +5107,16 @@ function runComprehensionBody(
 
   for (let index = 0; index < statements.length - 1; index++) {
     const statement = statements[index] as StatementNode;
+    // Each leading statement of a comprehension body is a unit of main-line progress, exactly as a
+    // statement of a loop body is — but this loop evaluates them directly rather than through
+    // `executeStatements`, so they do not inherit its per-statement boundary (ruling #984). The
+    // caller already offered one boundary for the iteration itself, which covers the body's final
+    // expression; this covers the statements before it. Measured before it existed: equivalent
+    // two-statement bodies gave `repeat` and `for … in` six handler firings and `map` five.
+    const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+    if (boundaryDiagnostic) {
+      return { kind: "halt", diagnostic: boundaryDiagnostic };
+    }
     if (statement.kind === "Return") {
       return {
         kind: "escape",

@@ -533,6 +533,22 @@ test("the same halt propagates out of a reduce comprehension", () => {
   assert.equal(halted.diagnostics[0].code, "ol-limit");
 });
 
+test("an EMPTY loop body still offers a main-line boundary each iteration", () => {
+  // The boundary that covers every other container fires per STATEMENT, so a body with no statements
+  // had none — yet each of its iterations is charged against the budget and is main-line progress on
+  // exactly the same terms. Measured before this was fixed: `forever [ ]` gave a queued occurrence
+  // three firings before `ol-limit` where `forever [ print 0 ]` gave eleven, so ruling #984's
+  // back-to-back guarantee held only for loops that happened to contain something.
+  const handlerPrints = (source, options) =>
+    effectEvents(execute(source, doc, options)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude = 'every 3 [ print "a" wait 4 ]\nwait 3\n';
+  assert.equal(handlerPrints(`${prelude}repeat 4 [ ]`), 7);
+  // The empty and non-empty bodies now agree: neither is starved of boundaries.
+  assert.equal(handlerPrints(`${prelude}repeat 4 [ print 0 ]`), 7);
+});
+
 test("a queued occurrence still RUNS when the main line has statements left", () => {
   // The other side of the same boundary, and the defect a review caught: "discard when the run
   // closes" must not become "discard whenever the tick dispatch is over". This is the program above
