@@ -373,8 +373,13 @@ export function highlight(
    *
    * **Exactly three of those positions can move a word this function classifies** — before `is`,
    * before the form word, and between `member` and `of`. `parseIsPredicate` and `parseBetween`
-   * skip newlines at several further points, but each of those sits *after* the last contextual
-   * word, before an operand or a type literal, so none can shift an index used here.
+   * skip newlines at several further points, and none of them can shift an index used here: the
+   * remaining `parseIsPredicate` skips sit after the last contextual word, and `parseBetween`
+   * classifies nothing from here at all — the `between` case of the switch below is empty, because
+   * `between`, `strictly` and `and` are globally reserved and painted by the ordinary path.
+   * (An earlier revision said those skips all precede "an operand or a type literal"; two of
+   * `parseBetween`'s four precede the reserved words `between` and `and`, so the conclusion held
+   * for the wrong reason.)
    *
    * Cited by role rather than by line on purpose. Line numbers into this file are the wrong-passage
    * mode waiting to happen and nothing gates them: `npm run spec-citations` validates only
@@ -393,9 +398,12 @@ export function highlight(
    *
    * **This guards the newline axis only.** A `)` between the operand and `is` is a second,
    * independent way for these offsets to miss — `print (:x) is empty` still classifies `empty` as
-   * `primitive` here, cleanly parsed — and it is fixed by issue #959, which owns the `rparen`
-   * skip and merges after this. Do not read `indexSkippingNewlines` at every position as meaning
-   * the function is fully guarded; that inference is what this comment got wrong twice already.
+   * `primitive` here, cleanly parsed. It is specifically a **grouping** paren, whose node span
+   * excludes the closer so the `)` really does sit between the operand and `is`; a parenthesized
+   * **call** is unaffected (`print (first :l) is empty` classifies `empty` as `keyword`), as are
+   * selectors and `.field` access. Issue #959 owns that axis and merges after this. Do not read
+   * `indexSkippingNewlines` at every position as meaning the function is fully guarded; that
+   * inference is what this comment got wrong twice already.
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(

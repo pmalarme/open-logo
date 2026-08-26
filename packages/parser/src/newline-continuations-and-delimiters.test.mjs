@@ -443,6 +443,38 @@ test("a genuinely unmatched delimiter is still reported, exactly once", () => {
   }
 });
 
+test("a nested long block that eats the closer: the residue #879 still tracks", () => {
+  // Mechanism B is NOT fully closed, and this pins exactly how far it got rather than leaving the
+  // remainder to prose. Nested long-block recovery consumes the `]` before the outer block reaches
+  // end of input, so the source is balanced while the parser is not, and the outer `[` is reported
+  // unmatched from the ungated end-of-input branch.
+  //
+  // Measured at saga tip `22ecfb4a`, each shape below raised `ol-unmatched-bracket` TWICE -- once
+  // for the stray `]` at [2,1] and once for the outer `[` at [1,10]. Here it raises it ONCE: the
+  // stray `]` now correctly reports `ol-bad-token` through the gated path. Halved, not closed.
+  //
+  // Asserting the residue means a later fix cannot quietly change it in either direction: closing
+  // it fails this test and must update it, and regressing to two fails it too.
+  for (const source of [
+    "repeat 2 [ repeat :x\n]",
+    "repeat 2 [ if 1 == 1\n]",
+    "repeat 2 [ define f\n]",
+  ]) {
+    assert.deepEqual(
+      codesOf(source).filter((code) => code === "ol-unmatched-bracket"),
+      ["ol-unmatched-bracket"],
+      `${source}: one residual phantom, down from two at the saga tip (issue #879)`,
+    );
+    assert.deepEqual(
+      codesOf(source.replace("\n", " ")).filter((code) =>
+        code.startsWith("ol-unmatched-"),
+      ),
+      [],
+      `${source}: the one-line spelling has no phantom at all`,
+    );
+  }
+});
+
 test("#879 is a mechanism-B defect, not a newline defect", () => {
   // The measurement that separated the two mechanisms, kept as a test because it is the reason the
   // slice needed both halves. Every #879 shape is a SINGLE LINE: there is no continuation to fix,

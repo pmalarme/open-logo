@@ -530,8 +530,9 @@ test("contextual: empty/member/of/a stay keyword when a newline separates them f
   // with `continuesOnNextLineWith("is")` and skips before testing `isName("is")`), before the form
   // word, and between `member` and `of` (`parseIsPredicate`'s `skipNewlinesBeforeOperand` calls,
   // issue #933). The newline before `is` is the one a first pass at this fix missed. The remaining
-  // skip points in `parseIsPredicate` and `parseBetween` sit after the last contextual word, before
-  // an operand or a type literal, so they cannot shift an index used here.
+  // skips cannot shift an index used by `markIsPredicateKeywords`: those in `parseIsPredicate` sit
+  // after the last contextual word, and a between-predicate classifies nothing there at all --
+  // `between`, `strictly` and `and` are globally reserved and painted by the ordinary path.
   //
   // Cited by role rather than by line: nothing gates an intra-repo `file:line` citation — the
   // spec-citations gate covers only `spec/*.md` — and an earlier revision of this comment carried
@@ -551,8 +552,10 @@ test("contextual: empty/member/of/a stay keyword when a newline separates them f
   // Like #785, these programs parse completely clean, so no diagnostic could ever surface the
   // defect: a token-class assertion is the only instrument that can see it.
   //
-  // The `rparen` axis (`print (:x) is empty`) is a separate, independent way for these offsets to
-  // miss, and is issue #959's; it is deliberately not pinned here.
+  // The `rparen` axis is a separate, independent way for these offsets to miss, and is issue
+  // #959's; it is deliberately not pinned here. It is specifically a GROUPING paren, whose node
+  // span excludes the closer -- `print (:x) is empty` misses, while the parenthesized CALL
+  // `print (first :l) is empty` does not.
   for (const [source, text] of [
     // The newline before `is`.
     ["print :x\nis empty", "empty"],

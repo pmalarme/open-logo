@@ -415,25 +415,42 @@ test("the dict-key guard is scoped to the dictionary that owns the newline", () 
   // The invariant: `inDictEntryValue` belongs to the dictionary that owns the newline, so inside a
   // NESTED container a `mod:` is not an entry separator.
   //
-  // Each row asserts BOTH an absolute diagnostic count AND shape equality with its one-line
-  // spelling, because neither alone is sufficient and the mutation proves it. Shape equality alone
-  // does NOT discriminate: a leaked flag moves the newline spelling and its one-line twin together,
-  // so they still agree and the row passes. An absolute count alone would not catch a wrong tree
-  // that happens to produce the same diagnostics -- the defect this whole slice exists to fix. An
-  // earlier revision of this test asserted only codes; a later one replaced them with only shape
-  // equality and silently stopped discriminating at all. Both are needed.
+  // WHAT EACH ASSERTION ACTUALLY DETECTS, measured against the leak mutation
+  // (`inDictValue`: `inDictEntryValue = previous || active`) rather than asserted:
+  //
+  //   * the shape equality pins that the newline spelling reads as its one-line spelling. It does
+  //     NOT detect the leak in ANY row -- a leaked flag moves both spellings together, so they
+  //     still agree. 0 of 4.
+  //   * the count detects the leak in the `paren` row ONLY, where it goes 3 -> 2. 1 of 4.
+  //
+  // So the leak is caught by exactly one row, and the other three pin agreement rather than
+  // isolation. An earlier revision claimed "neither alone is sufficient and the mutation proves
+  // it", which overstated the redundancy fourfold; the mutation proves shape-alone insufficient
+  // and proves count-alone sufficient. Described accurately here rather than strengthened, because
+  // a test that reads as broader than it is caused this comment to be rewritten three times.
+  //
+  // If the `paren` row's expected count ever changes, the only leak-detecting assertion in this
+  // test goes with it. Re-run the mutation before touching it.
   const shapeOf = (source) =>
     JSON.stringify(OL.parse(source, doc).ast, (key, value) =>
       key === "source_span" ? undefined : value,
     );
 
-  for (const [label, source, expected] of [
-    ["list", "print { a: [1\nmod: 2] }", 2],
-    ["paren", "print { a: (1\nmod: 2) }", 3],
-    ["paren call", "print { a: (sum 1\nmod: 2) }", 2],
-    ["comprehension body", "print { a: map n in [1 2] [ :n\nmod: 2 ] }", 2],
+  for (const [label, source, expected, detectsLeak] of [
+    ["list", "print { a: [1\nmod: 2] }", 2, false],
+    ["paren", "print { a: (1\nmod: 2) }", 3, true],
+    ["paren call", "print { a: (sum 1\nmod: 2) }", 2, false],
+    [
+      "comprehension body",
+      "print { a: map n in [1 2] [ :n\nmod: 2 ] }",
+      2,
+      false,
+    ],
   ]) {
     const oneLine = source.replace("\n", " ");
+    const detail = detectsLeak
+      ? "a leaked guard changes this count"
+      : "pins agreement with the one-line spelling; does NOT detect a leak";
 
     assert.equal(
       shapeOf(source),
@@ -447,7 +464,7 @@ test("the dict-key guard is scoped to the dictionary that owns the newline", () 
       assert.deepEqual(
         codesOf(text),
         Array.from({ length: expected }, () => "ol-bad-token"),
-        `${label} (${spelling}): a leaked guard changes this count`,
+        `${label} (${spelling}): ${detail}`,
       );
     }
   }

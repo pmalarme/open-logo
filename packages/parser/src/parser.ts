@@ -425,20 +425,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
    * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
    *
-   * Four sites report without calling it, and are correct without it: the end-of-input branches of
-   * the list literal, the dict literal, the parenthesized call, and the block body. Each sits inside
-   * `if (token.kind === "eof")`, and having consumed to end of input without meeting the closer is
-   * itself proof that no later closer exists — strictly stronger than this balance walk. Gating them
-   * anyway would add a call whose `false` branch is unreachable, and the coverage gate rejects
-   * unreachable branches.
+   * Four sites report without calling it: the end-of-input branches of the list literal, the dict
+   * literal, the parenthesized call, and the block body. Each sits inside `if (token.kind === "eof")`.
    *
-   * All four are pinned exactly-once by `GENUINELY_UNMATCHED` in
+   * **That exemption is not fully sound, and the residue is known.** An earlier revision of this
+   * comment justified it by claiming that having consumed to end of input proves no later closer
+   * exists — that claim is false and is deleted rather than rewritten. Nested long-block recovery can
+   * *consume* the closer before the outer block reaches end of input, so the source may be balanced
+   * while the parser is not: `repeat 2 [ repeat :x` ⏎ `]` reports its outer `[` unmatched even though
+   * the `]` is right there. Issue #879 tracks the residue; this slice halves it, since the same
+   * program reports the phantom **twice** before this change and once after — the stray `]` now
+   * correctly raises `ol-bad-token` through the gated path.
+   *
+   * All four sites are pinned exactly-once by `GENUINELY_UNMATCHED` in
    * `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. Two of them were **not**,
-   * until review measured it: an earlier revision of this comment asserted the coverage without
-   * checking it, and the paren-call and block-body branches had no witness, because a plain
-   * `print ( 1 + 2` reaches the *gated* paren path rather than the end-of-input one. Reaching each
-   * branch takes a specific shape — `print (sum 1 2` for the call, `repeat 2 [ print 1` for the
-   * block — which is exactly why the claim could not be made by reading.
+   * until review measured it: an earlier revision asserted the coverage without checking it, and the
+   * paren-call and block-body branches had no witness, because a plain `print ( 1 + 2` reaches the
+   * *gated* paren path rather than the end-of-input one. Reaching each branch takes a specific shape
+   * — `print (sum 1 2` for the call, `repeat 2 [ print 1` for the block — which is exactly why the
+   * claim could not be made by reading.
    *
    * Cited by role rather than by line: an earlier revision named the four by `parser.ts:<line>`, and
    * those line numbers were invalidated by the length of this very comment, which sits above them in
