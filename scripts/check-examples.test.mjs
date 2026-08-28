@@ -25,6 +25,7 @@ import {
   loadHostInputManifest,
   loadManifest,
   parseArgs,
+  registersHostHandlers,
   runExamplesGate,
   validateHostInputEntry,
 } from "./examples-gate.mjs";
@@ -1329,9 +1330,30 @@ test("validateHostInputEntry delegates executeOptions to the conformance harness
   );
 });
 
+const ONE_CLICK_OPTIONS = {
+  hostInput: { events: [{ tick: 1, kind: "click" }] },
+};
+
+test("validateHostInputEntry rejects an entry whose schedule delivers nothing", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { randomSeed: 1 },
+      expect: { prints: [{ values: [1] }] },
+    }),
+    /must deliver at least one event/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { hostInput: { events: [] } },
+      expect: { prints: [{ values: [1] }] },
+    }),
+    /must deliver at least one event/,
+  );
+});
+
 test("validateHostInputEntry requires an expect object", () => {
   assert.match(
-    validateHostInputEntry("x.logo", { executeOptions: {} }),
+    validateHostInputEntry("x.logo", { executeOptions: ONE_CLICK_OPTIONS }),
     /must declare an "expect" object/,
   );
 });
@@ -1339,7 +1361,7 @@ test("validateHostInputEntry requires an expect object", () => {
 test("validateHostInputEntry rejects an unknown expect key", () => {
   assert.match(
     validateHostInputEntry("x.logo", {
-      executeOptions: {},
+      executeOptions: ONE_CLICK_OPTIONS,
       expect: { printed: [] },
     }),
     /"expect.printed" is not a known key/,
@@ -1349,18 +1371,65 @@ test("validateHostInputEntry rejects an unknown expect key", () => {
 test("validateHostInputEntry type-checks the expect fields", () => {
   assert.match(
     validateHostInputEntry("x.logo", {
-      executeOptions: {},
+      executeOptions: ONE_CLICK_OPTIONS,
       expect: { prints: {} },
     }),
     /"expect.prints" must be an array/,
   );
   assert.match(
     validateHostInputEntry("x.logo", {
-      executeOptions: {},
+      executeOptions: ONE_CLICK_OPTIONS,
       expect: { eventCounts: [] },
     }),
     /"expect.eventCounts" must be an object/,
   );
+});
+
+test("validateHostInputEntry rejects an eventCounts key that is not in the @openlogo/core registry — a misspelled kind would assert 0 forever", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { draw_segment: 1 } },
+    }),
+    /is not an event kind in the @openlogo\/core registry/,
+  );
+  assert.equal(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { "draw-segment": 1 } },
+    }),
+    null,
+  );
+});
+
+test("validateHostInputEntry rejects a non-integer or negative event count", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { print: 1.5 } },
+    }),
+    /must be a non-negative integer/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { print: -1 } },
+    }),
+    /must be a non-negative integer/,
+  );
+});
+
+test("validateHostInputEntry rejects an entry that schedules input but asserts nothing — including an EMPTY prints array or eventCounts object, which satisfy 'declared' while asserting zero things", () => {
+  for (const expect of [{}, { prints: [] }, { eventCounts: {} }]) {
+    assert.match(
+      validateHostInputEntry("x.logo", {
+        executeOptions: ONE_CLICK_OPTIONS,
+        expect,
+      }),
+      /must assert something/,
+      `expected ${JSON.stringify(expect)} to be rejected`,
+    );
+  }
 });
 
 test("validateHostInputEntry rejects an entry that schedules input but asserts nothing", () => {
@@ -1369,7 +1438,7 @@ test("validateHostInputEntry rejects an entry that schedules input but asserts n
       executeOptions: { hostInput: { events: [{ tick: 1, kind: "click" }] } },
       expect: {},
     }),
-    /asserts nothing/,
+    /must assert something/,
   );
 });
 
@@ -1425,8 +1494,10 @@ test("runExamplesGate fails a listed example whose declared output does not appe
     },
     hostInputManifest: {
       "clicks.logo": {
-        executeOptions: { hostInput: { events: [] } },
-        expect: { prints: [{ values: [1] }] },
+        // One click delivered, two prints expected — a real schedule whose declared output does
+        // not appear, rather than a schedule that delivers nothing (which validation now rejects).
+        executeOptions: { hostInput: { events: [{ tick: 1, kind: "click" }] } },
+        expect: { prints: [{ values: [1] }, { values: [2] }] },
       },
     },
   });
@@ -1446,19 +1517,78 @@ test("runExamplesGate fails a malformed host-input entry instead of silently ign
         "interaction-events",
       ],
     },
-    hostInputManifest: { "clicks.logo": { executeOptions: {}, expect: {} } },
+    hostInputManifest: {
+      "clicks.logo": { executeOptions: ONE_CLICK_OPTIONS, expect: {} },
+    },
   });
   assert.equal(result.ok, false);
   assert.equal(result.ran, 0);
-  assert.match(result.lines[0], /^FAIL clicks.logo: .*asserts nothing/);
+  assert.match(result.lines[0], /^FAIL clicks.logo: .*must assert something/);
 });
 
-test("runExamplesGate does not consult a host-input entry for an example it skipped", () => {
+test("runExamplesGate FAILS an example that registers host handlers but has no entry — so a deleted or misspelled entry cannot silently return it to an empty host", () => {
+  writeExample("clicks.logo", COUNTING_CLICKS);
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "clicks.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    hostInputManifest: { "clicks-typo.logo": CLICK_TWICE },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failed, 1);
+  assert.match(
+    result.lines[0],
+    /^FAIL clicks.logo: registers host handlers .* but has no entry/,
+  );
+});
+
+test("runExamplesGate leaves a handler-free example alone: no entry required", () => {
+  writeExample("plain.logo", "forward 10\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "plain.logo": ["core-language", "turtle-rendering"] },
+    hostInputManifest: {},
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.ranWithInput, 0);
+});
+
+test("registersHostHandlers keys on the block heads a host must drive, not on any interaction name", () => {
+  assert.equal(registersHostHandlers("on_click [ print 1 ]"), true);
+  assert.equal(registersHostHandlers('on_key "a" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), true);
+  assert.equal(registersHostHandlers("forward 10"), false);
+  // `wait` needs no host delivery to do its job, so it must not force a schedule.
+  assert.equal(registersHostHandlers("wait 10"), false);
+});
+
+test("runExamplesGate reports a malformed entry even for an example it will SKIP — entry checks are hoisted above the skip for the same anti-masking reason the under-declaration check is", () => {
   writeExample("later.logo", "challenge\n");
   const result = runExamplesGate({
     dir: TEMP_DIR,
     manifest: { "later.logo": ["core-language", "tutor-ai"] },
-    hostInputManifest: { "later.logo": { executeOptions: {}, expect: {} } },
+    hostInputManifest: {
+      "later.logo": { executeOptions: ONE_CLICK_OPTIONS, expect: {} },
+    },
+    implementedProfiles: ["core-language"],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, 0);
+  assert.match(result.lines[0], /^FAIL later.logo: .*must assert something/);
+});
+
+test("runExamplesGate still SKIPs an example needing an unimplemented profile when its entry is absent and it registers no handlers", () => {
+  writeExample("later.logo", "challenge\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "later.logo": ["core-language", "tutor-ai"] },
+    hostInputManifest: {},
     implementedProfiles: ["core-language"],
   });
   assert.equal(result.ok, true);

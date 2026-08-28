@@ -189,14 +189,19 @@ Issue #841 records the three stronger mechanisms that were tried and why each wa
 list) and this is the half that fails until both land. The list is under `spec/`, so it is
 maintainer-owned via `CODEOWNERS` like the rest of the contract.
 
-`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
+`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` (logic in
+`scripts/examples-gate.mjs`, with profile detection in `scripts/profile-detection.mjs`) parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
-rest with a visible notice. An example whose contract is **interactive** is executed with the
-declarative host-input schedule its entry in `scripts/examples-host-input.json` declares, and must
-produce the output that entry asserts (issue #955): running every program with an *empty* host left
-the gate structurally blind to every host-dependent feature the language has, which is how
-`10-game.logo` was certified green while `on_key`/`on_click` were inert in the only shipped host
-(#952). `scripts/check-markdown-examples.mjs` (issue #850, logic in
+rest with a visible notice. An example that registers host handlers (`on_key`/`on_click`/`when`/
+`every`) **must** carry a deterministic host-input schedule in `scripts/examples-host-input.json`,
+and must produce the output that entry asserts (issue #955): running every program with an *empty*
+host left the gate structurally blind to every host-dependent feature the language has, which is how
+`10-game.logo` was certified green while its stated contract — "each click prints the updated
+`:score`" — was unreachable. The requirement is read from the **source**, not from the manifest, so a
+deleted or misspelled entry fails the gate rather than quietly relaxing it. Note what this gate does
+and does not cover: it drives `@openlogo/runtime`'s `execute()`, so it asserts the **language-level**
+interaction contract; the **studio host seam** that #952 broke is a different surface, asserted by
+`packages/studio`'s own tests. `scripts/check-markdown-examples.mjs` (issue #850, logic in
 `scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
 `spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
 unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0

@@ -1,5 +1,5 @@
 {
-  "description": "`:nums[2]` reads the 1-based second element of a list place (issue #94's Core-scope postfix index selector, spec/execution-model.md:229-291).",
+  "description": "`:nums[2]` reads the 1-based second element of a list place (issue #94, spec/execution-model.md:232-291's \"Postfix reads\"). The postfix-read GRAMMAR is unconditional Core syntax (spec/conformance.md:120), but EXECUTING the list case is Data-profile behavior — spec/conformance.md:269, \"only Data-claiming implementations execute the list case\" — so this executed fixture declares both. It declared Core alone until issue #790 made an executed fixture's `profiles` array enforced rather than merely selective; the earlier \"Core-scope postfix index selector\" wording was the under-declaration written down.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

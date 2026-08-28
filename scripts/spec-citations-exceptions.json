@@ -461,16 +461,6 @@
       "fingerprint": "d1c4632a057a5bf2"
     }
   ],
-  "scripts/profile-detection.mjs": [
-    {
-      "subject": "spec/grammar.md:146",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 145 (\"control-end-label ::= \"end\" [ \"if\" | \"while\" | \"repeat\" | \"for…\") and below is line 147 (\"define-statement ::= \"define\" declared-callable-name { require…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "fc2d3ddeaf11f844"
-    }
-  ],
   "scripts/harness/index.mjs": [
     {
       "subject": "spec/error-model.md:253",

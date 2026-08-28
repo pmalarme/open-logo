@@ -26,34 +26,17 @@ import { test } from "node:test";
 import { PROFILE_DEPS } from "./harness/index.mjs";
 import {
   AST_SHAPE_RULE_IDS,
-  DATA_NODE_KINDS,
-  GEOMETRY_STDLIB_ALSO_DATA_NAMES,
-  GEOMETRY_STDLIB_CALLEE_NAMES,
-  HERITAGE_CALLEE_NAMES,
-  INTERACTION_EVENTS_CALLEE_NAMES,
-  RESERVED_WORD_PROFILES,
-  SOUND_CALLEE_NAMES,
-  SPRITES_CALLEE_NAMES,
-  TUTOR_AI_CALLEE_NAMES,
+  PROFILE_DETECTION_TABLES,
   detectUsedProfiles,
 } from "./profile-detection.mjs";
 
 /**
- * The tables whose entries are enumerable names, each paired with the id prefix its probes carry.
- * Walked by test (B) so the probe list below is checked against the live table contents rather than
- * against a second hand-copied list — which would be the very drift this whole file exists to stop.
+ * The tables whose entries are enumerable names, each paired with the id prefix its probes carry —
+ * taken straight from `scripts/profile-detection.mjs`'s own export, never re-listed here. A local
+ * copy could drift from the module it is supposed to police, which is the very failure mode these
+ * tests exist to catch.
  */
-const NAME_TABLES = [
-  ["SOUND_CALLEE_NAMES", SOUND_CALLEE_NAMES],
-  ["INTERACTION_EVENTS_CALLEE_NAMES", INTERACTION_EVENTS_CALLEE_NAMES],
-  ["SPRITES_CALLEE_NAMES", SPRITES_CALLEE_NAMES],
-  ["TUTOR_AI_CALLEE_NAMES", TUTOR_AI_CALLEE_NAMES],
-  ["HERITAGE_CALLEE_NAMES", HERITAGE_CALLEE_NAMES],
-  ["GEOMETRY_STDLIB_CALLEE_NAMES", GEOMETRY_STDLIB_CALLEE_NAMES],
-  ["GEOMETRY_STDLIB_ALSO_DATA_NAMES", GEOMETRY_STDLIB_ALSO_DATA_NAMES],
-  ["DATA_NODE_KINDS", DATA_NODE_KINDS],
-  ["RESERVED_WORD_PROFILES", new Set(RESERVED_WORD_PROFILES.keys())],
-];
+const NAME_TABLES = PROFILE_DETECTION_TABLES;
 
 /** A minimal source per Heritage short alias, since they differ in arity/position. */
 const HERITAGE_ALIAS_SOURCES = {
@@ -164,7 +147,7 @@ const PROBES = [
     source: `${name} 3 50`,
     profiles: ["geometry"],
   })),
-  // `area`/`perimeter` also add `data` (spec/conformance.md:261), which is the whole reason
+  // `area`/`perimeter` also add `data` (spec/conformance.md:265), which is the whole reason
   // GEOMETRY_STDLIB_ALSO_DATA_NAMES exists — so their probes assert both profiles, and deleting
   // either name from that second table fails test (A), not just test (B).
   ...["area", "perimeter"].map((name) => ({

@@ -51,9 +51,14 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { OL_EVENT_KINDS } from "@openlogo/core";
+import { parse, walk } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { closureOf, validateExecuteOptions } from "./harness/index.mjs";
-import { detectUsedProfiles } from "./profile-detection.mjs";
+import {
+  INTERACTION_EVENTS_CALLEE_NAMES,
+  detectUsedProfiles,
+} from "./profile-detection.mjs";
 
 export const EXAMPLES_DIR = join("spec", "examples");
 export const MANIFEST_PATH = join("scripts", "examples-profiles.json");
@@ -107,14 +112,18 @@ export function loadHostInputManifest(hostInputPath = HOST_INPUT_PATH) {
  *   - `description` — optional prose, mirroring a conformance fixture's `description`: why this
  *     schedule and why these assertions are the decisive ones. JSON has no comment syntax, so
  *     without it an entry's rationale would have nowhere to live.
- *   - `executeOptions` — required; forwarded verbatim to `execute()`. In practice `hostInput`
- *     (the tick-scheduled key/click/named-event deliveries) plus `randomSeed` when the program uses
- *     `random`, so the assertion below is reproducible.
+ *   - `executeOptions` — required, and it must carry a **non-empty** `hostInput.events`. An entry
+ *     without deliveries would be counted as "ran with a host input schedule" while scheduling
+ *     nothing, which is the original defect wearing this mechanism's clothes.
  *   - `expect.prints` — the ordered `print` event payloads the run must produce, compared exactly.
  *   - `expect.eventCounts` — exact totals for the named event kinds, for contracts a print cannot
- *     express (a key handler that only moves the turtle, say).
- * At least one of the two `expect` fields must be present: an entry that schedules input but
- * asserts nothing would reintroduce the blindness in a form that merely looks busier.
+ *     express (a key handler that only moves the turtle, say). Kinds are validated against
+ *     `@openlogo/core`'s registry and counts must be non-negative integers, so a misspelled kind
+ *     cannot quietly assert `0` — an assertion that holds for every kind that does not exist is not
+ *     an assertion.
+ * At least one of the two `expect` fields must be present, and `expect.prints` must not be an empty
+ * array when it is the only assertion: an entry that schedules input but asserts nothing would
+ * reintroduce the blindness in a form that merely looks busier.
  */
 export function validateHostInputEntry(file, entry) {
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
@@ -132,6 +141,10 @@ export function validateHostInputEntry(file, entry) {
   const optionsError = validateExecuteOptions(entry.executeOptions);
   if (optionsError !== null) {
     return `${file}: ${optionsError}`;
+  }
+  const events = entry.executeOptions.hostInput?.events;
+  if (events === undefined || events.length === 0) {
+    return `${file}: "executeOptions.hostInput.events" must deliver at least one event — an entry that schedules nothing would still be counted as running with a host input schedule (issue #955)`;
   }
   const expect = entry.expect;
   if (typeof expect !== "object" || expect === null || Array.isArray(expect)) {
@@ -154,10 +167,47 @@ export function validateHostInputEntry(file, entry) {
   ) {
     return `${file}: "expect.eventCounts" must be an object when present`;
   }
-  if (expect.prints === undefined && expect.eventCounts === undefined) {
-    return `${file}: "expect" must declare "prints" and/or "eventCounts" — an entry that delivers host input but asserts nothing leaves the example as unasserted as an empty host would (issue #955)`;
+  for (const [kind, count] of Object.entries(expect.eventCounts ?? {})) {
+    if (!OL_EVENT_KINDS.includes(kind)) {
+      return `${file}: "expect.eventCounts.${kind}" is not an event kind in the @openlogo/core registry — a misspelled kind would assert 0 forever`;
+    }
+    if (!Number.isInteger(count) || count < 0) {
+      return `${file}: "expect.eventCounts.${kind}" must be a non-negative integer`;
+    }
+  }
+  const asserts =
+    (expect.prints?.length ?? 0) + Object.keys(expect.eventCounts ?? {}).length;
+  if (asserts === 0) {
+    return `${file}: "expect" must assert something — declare a non-empty "prints" and/or "eventCounts"; an entry that delivers host input but asserts nothing leaves the example as unasserted as an empty host would (issue #955)`;
   }
   return null;
+}
+
+/**
+ * Does `source` register a handler that can only fire when a **host delivers input** — an `on_key`,
+ * `on_click`, `when`, or `every` block head (`spec/interaction-events.md`)?
+ *
+ * This is what makes the host-input requirement structural rather than a matter of remembering
+ * (issue #955, review round 1). Without it, deleting or misspelling an example's entry in
+ * `scripts/examples-host-input.json` would leave `npm run examples` green while the example silently
+ * went back to running with an empty host — the manifest would be the only thing asserting that the
+ * example is asserted, which is the recursion this whole issue is about. With it, the corpus itself
+ * decides: any example that registers a handler MUST carry a schedule, so a missing entry fails the
+ * gate rather than quietly relaxing it.
+ *
+ * Keyed on the `ProfileStatement` node the reader builds for a profile block head (issue #664), and
+ * on the shared {@link INTERACTION_EVENTS_CALLEE_NAMES} table rather than a second hand-written list,
+ * so it stays in lockstep with the profile detector and is covered by its reachability tests (#701).
+ */
+export function registersHostHandlers(source) {
+  const { ast } = parse(source);
+  let found = false;
+  walk(ast, (node) => {
+    found ||=
+      node.kind === "ProfileStatement" &&
+      INTERACTION_EVENTS_CALLEE_NAMES.has(node.keyword.name.toLowerCase());
+  });
+  return found;
 }
 
 /** True when every profile in `requiredProfiles` is already implemented. */
@@ -248,11 +298,11 @@ export function classifyExample(source, name, hostInputEntry = undefined) {
  * profile.
  *
  * An example named in `hostInputManifest` (default: read from `hostInputPath`) is executed with
- * that entry's host-input schedule and must satisfy its declared expectations (issue #955); every
- * other example runs with an empty host exactly as before. The summary line reports both counts, so
- * the fraction of the corpus running blind is visible rather than assumed. Entries are looked up by
- * filename, so a manifest describing a different corpus is simply inert here — that the real
- * manifest names only real examples is asserted directly, in `scripts/check-examples.test.mjs`.
+ * that entry's host-input schedule and must satisfy its declared expectations (issue #955); an
+ * example that registers host handlers and is NOT named there FAILS, so the requirement comes from
+ * the corpus rather than from the manifest and a deleted entry cannot quietly relax it. Every other
+ * example runs with an empty host exactly as before. The summary line reports both counts, so the
+ * fraction of the corpus running blind is visible rather than assumed.
  *
  * @returns `{ ok, ran, ranWithInput, skipped, failed, lines }` — `lines` is the printable report
  *   (one `PASS`/`FAIL`/`SKIP` line per example plus a trailing summary line); `ok` is `false` when
@@ -327,6 +377,33 @@ export function runExamplesGate({
       continue;
     }
 
+    const hostInputEntry = resolvedHostInput[file];
+    // These two checks run BEFORE the SKIP decision below, for the same reason the profile
+    // under-declaration check above does (issue #519's masking class): a malformed or missing entry
+    // attached to an example that happens to need a not-yet-implemented profile would otherwise
+    // load clean and go unreported until that profile lands.
+    if (hostInputEntry === undefined) {
+      // An example that registers host handlers and has NO entry would run with an empty host and
+      // report PASS while every handler in it stayed unreachable — exactly the state issue #955
+      // exists to end. Requiring the schedule from the SOURCE rather than from the manifest is what
+      // makes a deleted or misspelled entry fail rather than silently relax the gate.
+      if (registersHostHandlers(source)) {
+        failed += 1;
+        lines.push(
+          `FAIL ${file}: registers host handlers (on_key/on_click/when/every) but has no entry in ${hostInputPath} — ` +
+            `it would run with an empty host, so none of them could fire and the gate would assert nothing about them (issue #955)`,
+        );
+        continue;
+      }
+    } else {
+      const entryError = validateHostInputEntry(file, hostInputEntry);
+      if (entryError !== null) {
+        failed += 1;
+        lines.push(`FAIL ${entryError} (${hostInputPath})`);
+        continue;
+      }
+    }
+
     if (!isRunnable(requiredProfiles, implementedProfiles)) {
       const missing = requiredProfiles.filter(
         (profile) => !implementedProfiles.includes(profile),
@@ -336,16 +413,6 @@ export function runExamplesGate({
         `SKIP ${file} (requires ${missing.join(", ")} — not yet implemented)`,
       );
       continue;
-    }
-
-    const hostInputEntry = resolvedHostInput[file];
-    if (hostInputEntry !== undefined) {
-      const entryError = validateHostInputEntry(file, hostInputEntry);
-      if (entryError !== null) {
-        failed += 1;
-        lines.push(`FAIL ${entryError} (${hostInputPath})`);
-        continue;
-      }
     }
 
     ran += 1;

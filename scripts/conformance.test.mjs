@@ -3138,15 +3138,21 @@ test("profileGateErrors leaves check-mode fixtures alone — check() already gat
 
 test("runHarness fails an executed fixture that under-declares its profiles", () => {
   mkdirSync(join(TEMP_ROOT, "under-declared"), { recursive: true });
+  // The source MUST use an undeclared profile, and the fixture MUST otherwise pass, or this test
+  // is not load-bearing: with a source like `print 1` the exit code would come from the empty
+  // expected stream and deleting the profileGateErrors() call from runHarness would leave the test
+  // green. `expect: "mismatch"` makes the deliberately-empty expected stream the *passing* outcome,
+  // so the only thing that can fail this fixture is the profile gate itself.
   writeFileSync(
     join(TEMP_ROOT, "under-declared", "under-declared.logo"),
-    "print 1",
+    ":xs = [1 2]\nclear :xs",
   );
   writeFileSync(
     join(TEMP_ROOT, "under-declared", "under-declared.expected.json"),
     JSON.stringify({
       profiles: ["core-language"],
       execute: true,
+      expect: "mismatch",
       events: [],
       diagnostics: [],
     }),
@@ -3154,14 +3160,14 @@ test("runHarness fails an executed fixture that under-declares its profiles", ()
   assert.equal(runHarness({ root: TEMP_ROOT }), 1);
 });
 
-test("runHarness passes the same fixture once its declaration is corrected", () => {
-  mkdirSync(join(TEMP_ROOT, "declared"), { recursive: true });
+test("...and the identical fixture passes once `data` is declared — so the exit code above is the gate, not the comparison", () => {
+  mkdirSync(join(TEMP_ROOT, "declared-pair"), { recursive: true });
   writeFileSync(
-    join(TEMP_ROOT, "declared", "declared.logo"),
+    join(TEMP_ROOT, "declared-pair", "declared-pair.logo"),
     ":xs = [1 2]\nclear :xs",
   );
   writeFileSync(
-    join(TEMP_ROOT, "declared", "declared.expected.json"),
+    join(TEMP_ROOT, "declared-pair", "declared-pair.expected.json"),
     JSON.stringify({
       profiles: ["core-language", "data"],
       execute: true,
@@ -3170,8 +3176,6 @@ test("runHarness passes the same fixture once its declaration is corrected", () 
       diagnostics: [],
     }),
   );
-  // Declared correctly, so the profile gate is silent and the fixture reaches the comparison —
-  // where `expect: "mismatch"` makes the (deliberately empty) expected stream the passing outcome.
   assert.equal(runHarness({ root: TEMP_ROOT }), 0);
 });
 
