@@ -44,10 +44,11 @@
 // `.logo` file populates is invisible to reflection. That is what self-check 3 is for — and since
 // issue #986 the expected field set is derived a **second** time, from `ast.ts`'s type declarations
 // via the TypeScript 7 compiler API (`auditTheDeclarations`), so the declarations and the corpus
-// must agree in both directions. Adding a walkable field is therefore still a deliberate
-// **three**-place change — the type declaration, `childrenOf`, and `POPULATED_FIELD_PATHS` — after
-// which the gate still fails until a fixture exercises it, but now the *first* of those three is
-// read by the gate rather than trusted.
+// must agree in both directions. Adding a walkable field whose `kind`-and-route is not already
+// exercised is therefore still a deliberate **three**-place change — the type declaration,
+// `childrenOf`, and `POPULATED_FIELD_PATHS` — after which the gate still fails until a fixture
+// exercises it, but now the *first* of those three is read by the gate rather than trusted. A field
+// that *shares* a route with an exercised variant is residual 1 below, and fails nothing.
 //
 // **Two residuals survive that, and both were found by the #986 reviewers rather than predicted.**
 //
@@ -56,11 +57,15 @@
 //      `initial?: ExpressionNode` to `MapFilterComprehensionNode` passes 11/11, because
 //      `ReduceComprehensionNode.initial` already populates `Comprehension.initial`; adding
 //      `key?: ExpressionNode` to `FieldSegment` passes 11/11, because `SelectorSegment.key` already
-//      populates `Place.segments[].key`. The four merge points are `Comprehension` (two interfaces,
-//      one kind), `PlaceSegment` and `IsTest` (wrapper unions at one route), and `Binder`. Closing it
-//      means qualifying paths by each variant's discriminant on **both** sides, which changes the
-//      path rule `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a redesign of that
-//      gate rather than a follow-up to it. Tracked as issue #1004.
+//      populates `Place.segments[].key`. A route merges only where a **non-node union has two or
+//      more descended members** (`PlaceSegment`, `IsTest`) or where **two interfaces share a `kind`**
+//      (`Comprehension`) — three merge points. `Binder` is **not** one: its `DestructuringBinderNode`
+//      member terminates the path and its `SpannedName` member extends it, so the two cannot collide.
+//      Measured: a node-valued field on `SpannedName` fails loudly, naming `ForIn.binder.probe` and
+//      `Comprehension.binder.probe` among 17 paths. Closing the real merge points means qualifying
+//      paths by each variant's discriminant on **both** sides, which changes the path rule
+//      `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a redesign of that gate rather
+//      than a follow-up to it. Tracked as issue #1004.
 //   2. **A node-shaped interface outside `AnyNode`.** The walk starts at `AnyNode`, so the
 //      `OL_NODE_KINDS` agreement it enforces is exactly as wide as that union. An interface that does
 //      not extend `NodeBase` and appears in no union is invisible here — inert, because `childrenOf`
@@ -124,12 +129,14 @@ const KINDED_NON_NODE_SHAPES = ["field", "index"];
  * list populated with metadata and contributes no path at all, which is exactly the distinction this
  * list has to make.
  *
- * Both directions are checked, twice over. A path here that the corpus stops populating fails,
- * because a clean result could then come from an unexercised field; a path the corpus populates that
- * is missing here fails, because a new walkable field must be seen by a human before this gate
- * certifies it. Since #986 the same list is also compared against the set derived from the **type
- * declarations** — three sources that must agree, where the literal below is the one a reviewer
- * reads in a diff and the other two are re-derived on every run.
+ * Both directions are checked. A path here that the corpus stops populating fails, because a clean
+ * result could then come from an unexercised field; a path the corpus populates that is missing here
+ * fails, because a new walkable field must be seen by a human before this gate certifies it.
+ *
+ * This list is pinned **once**, against the corpus. Since #986 the corpus set is also compared
+ * against one derived from the **type declarations**, and a second assertion pinning this list
+ * against that derivation was written and then deleted during review: with both differences asserted
+ * empty it had no independent failure state, which is the definition of decorative.
  */
 const POPULATED_FIELD_PATHS = [
   "Add.target",
@@ -216,7 +223,7 @@ const REPOSITORY_ROOT = resolve(
  * **non-object** constructor — `any`, `unknown`, `never`, and the **error type** an unresolved
  * reference produces. It does **not** cover object-flagged ones: a mapped type, a function type and
  * an index-signature type are all `isObjectType()`, so they never reach `leaf` at all. Those are
- * caught instead by `opaqueObjectTypes` (see `undescendedPartsOf`), and it took a reviewer's
+ * caught instead by `opaqueObjectTypes` (see `objectTypeParts`), and it took a reviewer's
  * counterexample to establish that the leaf net alone did not cover them.
  *
  * A `sequence` is walked by type argument and never by property, which is load-bearing rather than a
@@ -920,8 +927,9 @@ function auditTheDeclarations() {
     // a type object in this walk; `MapFilterComprehensionNode` and `ReduceComprehensionNode` are
     // direct members of `AnyNode`. An earlier version of this comment claimed the ordering was what
     // found `ReduceComprehensionNode.initial`, and the #986 reviewer measured that false twice over:
-    // that path comes from the top-level `AnyNode` loop, and had the node arm won, the union arm
-    // would have terminated at two node members anyway. The ordering is defensive, not load-bearing.
+    // that path comes from the top-level `AnyNode` loop, and the union arm — which the ordering does
+    // select — descends to two members that are each `node`, so it terminates without reaching
+    // `initial` either way. The ordering is defensive, not load-bearing.
     //
     // `sequence` is `isArrayType`/`isTupleType`, **not** `ObjectFlags.Reference`. Reference covers
     // every generic instantiation, so an ordinary generic wrapper — `Box<BlockNode>` — was walked
@@ -942,25 +950,35 @@ function auditTheDeclarations() {
       ];
 
     /**
-     * What each object type carries **beyond** the properties {@link walkDeclaredType}'s `object` arm
-     * descends. A TypeScript object type is described by four things — properties, index infos, call
-     * signatures and construct signatures — so recording the other three per path states the whole
-     * remainder as an invariant, rather than as a list of shapes that have caught someone out.
+     * What each type classified `object` carries **beyond** the properties
+     * {@link walkDeclaredType}'s `object` arm descends. A TypeScript object type is described by four
+     * things — properties, index infos, call signatures and construct signatures — so recording the
+     * other three per path states the whole remainder as an invariant, rather than as a list of
+     * shapes that have caught someone out.
+     *
+     * The scope is the `object` **category**, not every `isObjectType()` type: a node and a sequence
+     * outrank that arm and are descended by their own rules, which is why nothing here has to
+     * special-case them.
      *
      * The #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
      * `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` — all three are object
      * types with **zero** properties, so `descend([])` visited nothing and the gate stayed 11/11
-     * green. That is the per-container blind spot ADR-0025 spent nine rounds on, reproduced inside
+     * green. That is the per-container blind spot ADR-0025 records at length, reproduced inside
      * the instrument built to close it.
      *
-     * Testing "has no properties" would have closed exactly those three and left the **mixed** case
-     * open — `{ a: string; [k: string]: unknown }` has a property *and* an index signature.
+     * Testing "has no properties" would have closed exactly those three and left a type that carries
+     * both open — `{ a: string; [k: string]: unknown }` has a property *and* an index signature.
      *
-     * A row is recorded for **every** object type and the offenders are filtered out at the end, for
+     * A row is recorded for **every** such type and the offenders are filtered out at the end, for
      * the same reason `childListRows` is built for every node: a `push` that only runs on a tree that
      * is already broken is a recording arm no green run executes, which the coverage gate catches and
      * this file rejects on its own terms. A first draft did exactly that and was caught by neither
      * reviewer — only by `npm run coverage` naming the six dead lines.
+     *
+     * A lib generic that is not an array — `Map`, `Set`, `Promise` — takes the `object` arm and is
+     * reported through its prototype methods, one opaque row per call signature
+     * (`…probeMap.forEach`, `.get`, `.has`, `.entries`, …). That is loud rather than silent, which is
+     * the point, but the offending field is the path two segments **up** from the rows.
      */
     const objectTypeParts = (type, path) => ({
       at: path,

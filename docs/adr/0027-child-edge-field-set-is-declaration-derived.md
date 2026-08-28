@@ -29,10 +29,10 @@ and one of them was **wrong**:
   true, and paid. TypeScript 7 publishes its compiler API only under `unstable/*` (`unstable/sync`,
   `unstable/async` and `unstable/ast`); this uses the synchronous one. The cost is one import in one
   test file. Timing is stated as a magnitude rather than a range, because a range in an immutable
-  document is a claim a later reader cannot reproduce: **hundreds of milliseconds warm** (576, 579
-  and 827 ms measured in-process immediately after a build) and **seconds cold** (3.1 s on a first
-  run in a fresh process; a reviewer measured 2.2 s immediately after a rebuild on their machine, and
-  I could not reproduce that figure on mine — recorded because the disagreement is the useful part).
+  document is a claim a later reader cannot reproduce: **sub-second to about two seconds warm**
+  (576/579/827 ms in-process immediately after a build on one machine; 629–1752 ms across six runs on
+  a reviewer's, a roughly 3× spread) and **seconds cold** (3.1 s on a first run in a fresh process).
+  The gate measures it on every run, which is the only figure that cannot go stale.
 - *"a declaration-derived list would still rest on the same `OL_NODE_KINDS`/`AnyNode` agreement this
   gate's oracle already states — it narrows the gap rather than removing the assumption underneath
   it"* — **this prediction is false, and the mechanism is the reason.** The walk starts *at*
@@ -86,8 +86,8 @@ into one. A corpus of parameterless procedures populates `params` and says nothi
   declare `kind: "Comprehension"` — never appears as a type object in the walk. The ordering is
   defensive, not load-bearing, and an earlier draft of this ADR claimed it was what found
   `ReduceComprehensionNode.initial`. A reviewer falsified that twice over: the path comes from the
-  top-level `AnyNode` loop, and had the node arm won, the union arm would have terminated at two node
-  members anyway.
+  top-level `AnyNode` loop, and the union arm — which the ordering does select — descends to two
+  members that are each `node`, so it terminates without reaching `initial` either way.
 - **A `sequence` is `isArrayType`/`isTupleType`, not `ObjectFlags.Reference`.** `Reference` covers
   every generic instantiation, so a first draft walked an ordinary generic wrapper `Box<BlockNode>`
   through its type arguments and derived `field[]` where reflection derives `field.value` — the gate
@@ -101,18 +101,25 @@ into one. A corpus of parameterless procedures populates `params` and says nothi
   `unknown`, `never`, and the compiler's error type. **It does not cover object-flagged ones**, and a
   draft of this ADR said it covered mapped types, which is false — `Record<string, BlockNode>` is
   `isObjectType()`, never reaches `leaf`, and left the flag set unchanged.
-- **What an object type carries beyond its properties is asserted empty.** The `object` arm reads
+- **What a type classified `object` carries beyond its properties is asserted empty.** That arm reads
   `getPropertiesOfType` and nothing else, and a TypeScript object type is described by four things:
   properties, index infos, call signatures and construct signatures. A row carrying the other three
-  counts is recorded for **every** object type, and the rows with a non-zero count are filtered out
-  and asserted empty (`opaqueObjectTypes`, measured **0**). Without it, the #986 reviewers hid a
-  `BlockNode` behind each of `() => BlockNode`, `Record<string, BlockNode>` and
-  `{ readonly [key: string]: BlockNode }` — all object types with **zero** properties, so
-  `descend([])` visited nothing and the gate stayed 11/11 green. That is the per-container blind spot
-  ADR-0025 spent nine rounds on, reproduced inside the instrument built to close it. Asserting "an
-  object type has properties" would have closed those three and left the **mixed** case open —
-  `{ a: string; [k: string]: unknown }` has a property *and* an index signature — so the assertion is
-  over the remainder, not over the symptom.
+  counts is recorded for **every** type taking that arm — nodes and sequences outrank it and are
+  descended by their own rules — and the rows with a non-zero count are filtered out and asserted
+  empty (`opaqueObjectTypes`, measured **0**). Without it, the #986 reviewers hid a `BlockNode` behind
+  each of `() => BlockNode`, `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` —
+  all object types with **zero** properties, so `descend([])` visited nothing and the gate stayed
+  11/11 green. That is the per-container blind spot ADR-0025 records at length, reproduced inside the
+  instrument built to close it.
+
+  **Both reviewers independently proposed the narrower fix** — "report object types with no
+  properties" and "reject non-array index signatures" — and the reason the invariant beats them is
+  not obvious, so it is recorded rather than left to be rediscovered: a type carrying **both** a
+  property and an index signature passes both proposals. `{ a: string; [k: string]: unknown }` is the
+  proof, and `readonly probeInArray?: readonly { [key: string]: BlockNode }[]` and
+  `readonly probeNested?: { wrap: () => BlockNode }` — a reviewer's own follow-up mutants, one
+  container inside a sequence and one behind a property — show the assertion has to be per-path and
+  recursive rather than a top-level shape test. All six fail together, each named by its path.
 
   **The first version of that fix was itself the defect this file forbids**, and neither reviewer
   caught it: it pushed a row only when a mechanism was present, so six lines could not execute on a
@@ -155,9 +162,14 @@ which is the definition of decorative.
   `readonly initial?: ExpressionNode` on `MapFilterComprehensionNode` passes **11 / 11**, because
   `ReduceComprehensionNode.initial` already populates `Comprehension.initial`; `readonly key?:
   ExpressionNode` on `FieldSegment` passes **11 / 11**, because `SelectorSegment.key` already
-  populates `Place.segments[].key`. The four merge points are `Comprehension`, `PlaceSegment`,
-  `IsTest` and `Binder`. Closing it means qualifying paths by variant discriminant on **both** sides,
-  which changes the path rule `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a
+  populates `Place.segments[].key`. A route merges only where a **non-node union has two or more
+  descended members** (`PlaceSegment`, `IsTest`) or where **two interfaces share a `kind`**
+  (`Comprehension`) — **three** merge points. A draft of this ADR said four and included `Binder`,
+  which a reviewer measured false: `Binder`'s `DestructuringBinderNode` member terminates the path
+  and its `SpannedName` member extends it, so they cannot collide — a node-valued field on
+  `SpannedName` fails loudly, naming `ForIn.binder.probe` and `Comprehension.binder.probe` among 17
+  paths. Closing the real merge points means qualifying paths by variant discriminant on **both**
+  sides, which changes the path rule `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a
   redesign of that gate, tracked as issue #1004. `childrenOf`'s doc comment in `ast.ts` and the
   header of `child-edges.test.mjs` state this residual rather than claiming closure.
 - A second residual: the walk starts at `AnyNode`, so everything it enforces is exactly as wide as
@@ -185,8 +197,13 @@ which is the definition of decorative.
   | M3 | `ast.clear` returns an extra node-valued `shadow` field through a cast | exit 0 | 4 of 11 fail; `populated \ declared` = `['Clear.shadow']` |
   | M4 | the walk's wrapper descent filtered to nothing (instrument mutant) | n/a | 2 of 11 fail; `populated \ declared` = the 9 wrapper-held paths, and the visit floor reports 767 against 1359 |
   | M5 | `StructDefNode` gains `readonly note?: SpannedName & { readonly hidden: BlockNode }` | exit 0 | **1 of 11 fails**, on leaf flags `[4, 32, 64, 1024, 8192, 268435456]` |
-  | M6 | `StructDefNode` gains `probeFn?: () => BlockNode`, `probeRec?: Record<string, BlockNode>`, `probeIndex?: { [key: string]: BlockNode }` and a mixed `probeMixed?: { a: string; [key: string]: unknown }` | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` naming all four paths with their index/call/construct counts |
+  | M6 | `StructDefNode` gains `probeFn?: () => BlockNode`, `probeRec?: Record<string, BlockNode>`, `probeIndex?: { [key: string]: BlockNode }` and `probeMixed?: { a: string; [key: string]: unknown }` | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` naming all four paths with their index/call/construct counts |
   | M7 | `StructDefNode` gains `readonly hidden?: Box<BlockNode>` for a generic `Box<T>` | exit 0 | derives `StructDef.hidden.value`; under the pre-fix rule it derived `StructDef.hidden[]` |
+  | M8 | `StructDefNode` gains `metadata?: RecursiveMetadata` for a self-referential `interface RecursiveMetadata { next?: RecursiveMetadata; label: string }` | exit 0 | **1 of 11 fails**, `cyclicEdges` = 1 against 0, both path assertions green |
+
+  The first three M6 fields each hide a `BlockNode`; the fourth holds `unknown` and hides nothing —
+  it is there to show that *having a property* does not exclude an index signature, which is the case
+  a "report object types with no properties" check would pass.
 
   M1 is the discrimination measurement: the **pre-#986 gate**, taken verbatim from saga tip
   `22ecfb4a` and run against the same mutated `ast.ts`, passes **9 of 9**. The defect is completely
@@ -194,11 +211,22 @@ which is the definition of decorative.
   `BlockNode` the walk never reaches with both path assertions green, and M6's four object-flagged
   containers do the same one category over.
 
-  **Assertions with no isolating mutant, named rather than covered by the blanket claim:**
-  `unresolvedTypes`, `categories`, `cyclicEdges`, `kinds`, `projectCount` and `configFileName`. Each
-  states a property of the walk that today's declarations cannot violate, so no mutation of `ast.ts`
-  fires them; they are notifications for a future change, not verified detectors. `typeVisitCount`'s
-  floor fires under M4, and `leafTypeFlags` under M5.
+  **Assertions with no firing mutant, named rather than covered by a blanket claim:**
+  `unresolvedTypes`, `categories`, `projectCount` and `configFileName`. Each states a property of the
+  walk that today's declarations cannot violate, so no mutation of `ast.ts` fires them; they are
+  notifications for a future change, not verified detectors. `typeVisitCount`'s floor fires under M4,
+  `leafTypeFlags` under M5, `opaqueObjectTypes` under M6 and `cyclicEdges` under M8.
+
+  `kinds` **fires but does not isolate**, and a draft of this ADR wrongly listed it as unfired — which
+  mattered, because this ADR stakes its headline on that assertion being the enforcement ADR-0024
+  named nowhere, and a reader reaching a "nothing can fire it" sentence would conclude the
+  enforcement is vacuous. Appending `"Ghost"` to `OL_NODE_KINDS` compiles clean (`tsc -b` exit 0) and
+  fails **2 of 11**: the declaration-side `kinds` comparison and the corpus-side kind census, which
+  is why it does not isolate. Only one direction of the agreement needs a test at all:
+  `NodeKind = (typeof OL_NODE_KINDS)[number]` and `NodeBase.kind: NodeKind`, so an interface
+  **cannot** declare a kind the array lacks — that direction is compiler-enforced. The direction
+  ADR-0024 left to a test is a kind listed in `OL_NODE_KINDS` that no `AnyNode` member declares, and
+  that is what the Ghost mutant fires.
 
   M3 is **not isolating**, and that is a property of the defect rather than a weakness of the
   assertion: a tree carrying a node-valued field the types do not declare cannot have that field

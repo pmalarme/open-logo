@@ -6,7 +6,7 @@
 - Related: refines [ADR-0024](0024-ast-traversal-kind-dispatch-is-compiler-enforced.md)
   (kind dispatch is compiler-enforced),
   refined by [ADR-0027](0027-child-edge-field-set-is-declaration-derived.md) (the expected field set
-  is derived from the type declarations, closing the unpopulated-field residual recorded below)
+  is derived from the type declarations, narrowing the unpopulated-field residual recorded below)
 
 ## Context
 
