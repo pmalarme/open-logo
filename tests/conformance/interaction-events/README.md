@@ -152,6 +152,11 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   top-level statement, where the run is still open and the occurrence therefore MUST run — the pair
   brackets the exact boundary between "run it once the handler is free" and "discard once the main
   line finishes", which an implementation can otherwise satisfy one of while violating the other.
+  `every-queued-occurrence-runs-in-an-empty-each-body` covers the same hazard for a per-turtle
+  body -- an `each` iteration narrows the addressed set and runs a body, so it is main-line progress
+  even when that body is empty, measured at four handler firings against five for both
+  `each [ print 0 ]` and an equivalent `repeat 2 [ ]` before it was fixed. It needs two turtles: over
+  a single turtle a per-iteration boundary and a per-statement one are indistinguishable. And
   `every-queued-occurrence-runs-in-an-empty-loop-body` covers the container that executes no
   statements at all: the boundary fires per statement, so an empty body had none, even though each of
   its iterations is charged against the budget on the same terms as one that runs something --
@@ -379,7 +384,7 @@ to close, sitting inside the conformance corpus itself. Issue **#984** was then 
    settling the third: once the main line has finished and any already-started handler body has
    completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
-Twelve fixtures land with it — three under `when/` and nine under `every/`, described in those
+Thirteen fixtures land with it — three under `when/` and ten under `every/`, described in those
 sections above. Two properties of this corpus are worth recording, because they are why the rules
 could ship undecided at all. First, **the ruling's first three rules changed nothing the corpus could
 see**: 910 fixtures passed before that runtime change and 910 passed after, so not one of them
@@ -391,7 +396,7 @@ Second, the two `when` fixtures that pin persistence **must** use a vendor-prefi
 
 One coverage note, recorded because it is easy to misread the list above as complete: the rule that a handler body does NOT open a main-line boundary -- so a drained occurrence cannot re-enter its own handler -- is pinned by none of the eleven. It is caught by the pre-existing `every-sibling-not-reordered-by-nested-wait`, plus a stack-specific unit test. That is not a hole, but the guarantee lives outside the group that was added for it.
 
-Every one of the twelve was mutation-verified against runtimes reverted to each rejected reading —
+Every one of the thirteen was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first
 implementation queued correctly and drained only at the next event-loop checkpoint, which silently
 discarded the occurrence whenever the program's `wait`s ran out first, and its three `every` fixtures

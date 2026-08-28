@@ -533,6 +533,54 @@ test("the same halt propagates out of a reduce comprehension", () => {
   assert.equal(halted.diagnostics[0].code, "ol-limit");
 });
 
+test("the `each` iteration charge and its boundary halt both propagate", () => {
+  // Two new halt paths came with the eighth container, and each needs its own witness.
+  // (1) The iteration is now charged against the budget, so a run with more turtles than budget
+  //     stops mid-`each` — it is no longer possible to iterate turtles for free.
+  const charged = execute(
+    `${"new_turtle\n".repeat(8)}tell turtles\neach [ ]`,
+    doc,
+    { instructionBudget: 10 },
+  );
+  assert.equal(charged.diagnostics.length, 1);
+  assert.equal(charged.diagnostics[0].code, "ol-limit");
+  const affordable = execute(
+    `${"new_turtle\n".repeat(8)}tell turtles\neach [ ]`,
+    doc,
+    { instructionBudget: 11 },
+  );
+  assert.deepEqual(affordable.diagnostics, []);
+  // (2) The boundary drain inside an empty `each` body is a real handler dispatch, so the budget
+  //     gate can refuse it and that halt must propagate out of the loop rather than be swallowed.
+  const source =
+    'new_turtle\nnew_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\neach [ ]';
+  const refused = execute(source, doc, { instructionBudget: 19 });
+  assert.equal(refused.diagnostics.length, 1);
+  assert.equal(refused.diagnostics[0].code, "ol-limit");
+  const clean = execute(source, doc, { instructionBudget: 22 });
+  assert.deepEqual(clean.diagnostics, []);
+});
+
+test("an EMPTY `each` body still offers a main-line boundary each iteration", () => {
+  // The eighth container. An `each` iteration narrows the addressed set to one turtle and runs a
+  // body, so it is main-line progress exactly as a loop iteration is — but the boundary fires per
+  // STATEMENT, so an empty per-turtle body had none. Measured before the fix: two turtles with
+  // `each [ ]` gave four firings where `each [ print 0 ]` and `repeat 2 [ ]` both gave five.
+  const handlerPrints = (source) =>
+    effectEvents(execute(source, doc)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude =
+    'new_turtle\nnew_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\n';
+  assert.equal(handlerPrints(`${prelude}each [ ]`), 5);
+  // The empty and non-empty per-turtle bodies agree, and both agree with the equivalent loop.
+  assert.equal(handlerPrints(`${prelude}each [ print 0 ]`), 5);
+  assert.equal(
+    handlerPrints('every 3 [ print "a" wait 4 ]\nwait 3\nrepeat 2 [ ]'),
+    5,
+  );
+});
+
 test("an EMPTY loop body still offers a main-line boundary each iteration", () => {
   // The boundary that covers every other container fires per STATEMENT, so a body with no statements
   // had none — yet each of its iterations is charged against the budget and is main-line progress on

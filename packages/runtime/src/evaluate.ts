@@ -5109,10 +5109,19 @@ function runComprehensionBody(
     const statement = statements[index] as StatementNode;
     // Each leading statement of a comprehension body is a unit of main-line progress, exactly as a
     // statement of a loop body is — but this loop evaluates them directly rather than through
-    // `executeStatements`, so they do not inherit its per-statement boundary (ruling #984). The
-    // caller already offered one boundary for the iteration itself, which covers the body's final
-    // expression; this covers the statements before it. Measured before it existed: equivalent
-    // two-statement bodies gave `repeat` and `for … in` six handler firings and `map` five.
+    // `executeStatements`, so they inherit neither its budget charge nor its boundary (ruling #984).
+    // Charging here is what keeps the two paired: a boundary with no charge beside it is invisible
+    // to `main-line-boundary-pairing.test.mjs`, which is how a review found that removing this
+    // boundary entirely still passed that test. It also closes a real accounting gap — before this,
+    // the assignments in `map i in :xs [ :x = … :x ]` ran free of the instruction budget while the
+    // same statements in a `repeat` body were charged.
+    const limitDiagnostic = checkExecutionLimits(
+      environment,
+      statement.source_span,
+    );
+    if (limitDiagnostic) {
+      return { kind: "halt", diagnostic: limitDiagnostic };
+    }
     const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
     if (boundaryDiagnostic) {
       return { kind: "halt", diagnostic: boundaryDiagnostic };

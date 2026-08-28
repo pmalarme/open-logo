@@ -3222,6 +3222,23 @@ function executeEach(
         "each",
         statement.source_span,
       );
+      // One `each` iteration is one unit of main-line progress — it narrows the addressed set and
+      // runs a body — so it is charged like any other loop iteration and carries the same boundary
+      // (ruling #984). Without the charge the iteration is invisible to the budget; without the
+      // boundary an EMPTY `each` body strands a queued `every` occurrence exactly as `forever [ ]`
+      // did. Measured before this: two turtles with `each [ ]` gave four handler firings where
+      // `each [ print 0 ]` and an equivalent `repeat 2 [ ]` both gave five.
+      const limitDiagnostic = checkExecutionLimits(
+        environment,
+        statement.source_span,
+      );
+      if (limitDiagnostic) {
+        return halt(limitDiagnostic);
+      }
+      const iterationBoundary = runIterationBoundary(block.body, environment);
+      if (iterationBoundary) {
+        return iterationBoundary;
+      }
       const signal = executeStatements(block.body, environment);
       // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
       // so a diagnostic or early exit in one iteration is never masked by a later one.

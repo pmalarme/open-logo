@@ -1,0 +1,6 @@
+new_turtle
+new_turtle
+every 3 [ print "a" wait 4 ]
+wait 3
+tell turtles
+each [ ]
