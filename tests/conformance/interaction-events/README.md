@@ -162,7 +162,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   seven handler firings, against four for `each [ ]` before the boundary was added -- one occurrence
   lost per iteration, while the other two forms reported seven in both states. And
   `every-queued-occurrence-runs-in-an-empty-loop-body` covers the container that executes no
-  statements at all: the boundary fires per statement, so an empty body had none, even though each of
+  statements at all: a body's statements are what carry the boundary, so an empty body had none, even though each of
   its iterations is charged against the budget on the same terms as one that runs something --
   measured at three handler firings for `forever [ ]` against eleven for `forever [ print 0 ]` before
   it was added. And `every-queued-occurrence-runs-inside-a-comprehension` extends that same guarantee to the one

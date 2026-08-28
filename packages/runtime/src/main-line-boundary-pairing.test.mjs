@@ -29,10 +29,11 @@
 // "the boundary is correct".
 //
 // Two further limits are known and deliberately left, so they are stated rather than discovered.
-// A boundary marker inside a STRING LITERAL still counts as an invocation — excluding those needs a
-// parser, and unlike the comment case there is no plausible way to write one beside a charge site by
-// accident. And `SOURCES` below is a hard-coded list, so this replaces enumeration-of-containers
-// with enumeration-of-FILES: a charge site added to a third runtime file is invisible here by
+// A boundary marker inside a STRING LITERAL, or inside an INLINE `/* … */` comment that does not
+// start its line, still counts as an invocation — excluding either needs a parser, and unlike the
+// line-comment case there is no plausible way to write one beside a charge site by accident. And
+// `SOURCES` below is a hard-coded list, so this replaces enumeration-of-containers with
+// enumeration-of-FILES: a charge site added to a third runtime file is invisible here by
 // construction. Both were verified inapplicable to the current tree when they were recorded — every
 // derived site is a real call, and these two files are the only ones that charge the budget — but
 // neither is a property the test enforces.

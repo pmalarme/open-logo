@@ -534,7 +534,7 @@ test("the same halt propagates out of a reduce comprehension", () => {
 });
 
 test("the `each` iteration charge and its boundary halt both propagate", () => {
-  // Two new halt paths came with the eighth container, and each needs its own witness.
+  // Two new halt paths came with the charged `each` iteration, and each needs its own witness.
   //
   // (1) The iteration is charged, so iterating turtles is no longer free. This source registers NO
   //     handler, which is what makes it a witness rather than a probe: with nothing queued, the
@@ -573,9 +573,9 @@ test("the `each` iteration charge and its boundary halt both propagate", () => {
 });
 
 test("an EMPTY `each` body still offers a main-line boundary each iteration", () => {
-  // The eighth container. An `each` iteration narrows the addressed set to one turtle and runs a
-  // body, so it is main-line progress exactly as a loop iteration is — but the boundary fires per
-  // STATEMENT, so an empty per-turtle body had none.
+  // An `each` iteration narrows the addressed set to one turtle and runs a
+  // body, so it is main-line progress exactly as a loop iteration is — but the boundary it relied on
+  // fires per STATEMENT, so an empty per-turtle body had none.
   //
   // `new_turtle` is a REPORTER (`spec/turtles-and-sprites.md:21`), so its value must be bound for a
   // turtle to exist: two bindings plus the implicit default turtle give three addressed turtles and
@@ -594,7 +594,7 @@ test("an EMPTY `each` body still offers a main-line boundary each iteration", ()
 });
 
 test("an EMPTY loop body still offers a main-line boundary each iteration", () => {
-  // The boundary that covers every other container fires per STATEMENT, so a body with no statements
+  // A loop body's statements are what carry the boundary, so a body with no statements
   // had none — yet each of its iterations is charged against the budget and is main-line progress on
   // exactly the same terms. Measured before this was fixed: `forever [ ]` gave a queued occurrence
   // three firings before `ol-limit` where `forever [ print 0 ]` gave eleven, so ruling #984's
