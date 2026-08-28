@@ -23,23 +23,38 @@
 //     is-predicate ::= "is" ( "empty" | "member" "of" additive | "a" word-literal
 //                           | [ "strictly" ] "between" additive "and" additive )
 //
-// {@link FORMS} is that alternation, and {@link CONTEXTUAL_WORDS} is the subset of its words that
-// `spec/grammar.md:380` makes contextual — `empty`, `member`, `of`, `a`. (`between` and `strictly`
-// are keywords everywhere, so they are not this file's subject.)
+// {@link FORMS} is that alternation as **token sequences**, and {@link CONTEXTUAL_WORDS} is the
+// subset of its words that `spec/grammar.md:380` makes contextual — `empty`, `member`, `of`, `a`.
+// (`between` and `strictly` are keywords everywhere, so they are not this file's subject.)
 //
-// The operand is an `additive`, which bottoms out at `primary`, whose parenthesised alternative is
-// what makes the operand's own span end *before* the tokens that follow it. {@link OPERAND_SHAPES}
-// is that alternative applied at increasing depth and with the whitespace the grammar permits
-// inside it. Neither list is written from the failures anyone already knew.
+// Three axes come off that production, and each is a product rather than a list:
 //
-// ## What it deliberately does NOT cover, and who owns that
+// - **operand shape.** The operand is an `additive`, bottoming out at `primary`, whose
+//   parenthesised alternative makes the operand's own span end *before* the tokens that follow it.
+//   {@link OPERAND_SHAPES} is `depth x interior-whitespace`, not a flat list of remembered shapes:
+//   the two vary independently in the grammar, so combining them reaches sources — a deep nest
+//   *containing* a newline — that no alternation of the two can express.
+// - **gap position.** The grammar permits whitespace at every adjacency of the production, so
+//   {@link GAP_DEVIATIONS} is applied at each slot in turn rather than only between the operand and
+//   its `is`.
+// - **operand form**, so a shape is never tied to one `primary` alternative.
 //
-// The grammar also permits **newlines between adjacent symbols** of the production — after `is`,
-// between `member` and `of`, and before `is`. Those positions are a second axis, owned by the
-// `indexSkippingNewlines` work on issue #944/#995, and they are **not** generated here: at the time
-// of writing they fail, and recording 270 expected failures would institutionalise the defect
-// rather than gate it. Adding that axis is one entry in {@link GAP_SHAPES} once #944 lands, and
-// this file is written so that is the whole change.
+// Neither the shapes nor the slots are written from the failures anyone already knew: both are
+// enumerated from the grammar's own structure, and the set of cases that currently fail is
+// **measured** from them (see below) rather than listed by hand.
+//
+// ## The one axis whose failures are pinned rather than fixed
+//
+// Of the seven adjacencies in the alternation, a newline at four of them is still painted wrong.
+// That is the `indexSkippingNewlines` work of issues #944/#995, not this slice's. It is generated
+// here anyway, and pinned as {@link DEFERRED_NEWLINE_GAPS} — **five coordinates**, whose expansion
+// over the shape and operand axes is measured, not written down.
+//
+// Pinning the coordinates rather than excluding the axis matters in both directions: the pin is
+// compared as a set, so when #944 lands and a coordinate starts passing, this test fails and forces
+// the corpus to widen — and a *new* adjacency that regresses fails it too. Excluding the axis
+// entirely (an earlier draft of this file) left the newline handling that this slice *did* fix with
+// no test at all, and credited it in prose to a deferred issue.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -57,48 +72,133 @@ const ALL_PROFILES = OL.OL_CHECK_PROFILES;
 const CONTEXTUAL_WORDS = ["empty", "member", "of", "a"];
 
 /**
- * The `is-predicate` alternation of `spec/grammar.md:185-188`, minus `between`, whose words are
- * keywords everywhere and so are not contextual. `words` is the contextual words each alternative
- * contributes, in source order.
+ * The `is-predicate` alternation of `spec/grammar.md:185-188` as token sequences, minus `between`,
+ * whose words are keywords everywhere and so are not contextual.
+ *
+ * Token sequences rather than rendered tails: a fixed tail string has no adjacency a gap can
+ * occupy, so `member of` could only ever be generated with exactly one space in it. `words` is the
+ * contextual words the alternative contributes, in source order.
  */
 const FORMS = [
-  { name: "empty", tail: "is empty", words: ["empty"] },
-  { name: "member-of", tail: "is member of :nums", words: ["member", "of"] },
-  { name: "a", tail: 'is a "point"', words: ["a"] },
+  { name: "empty", tokens: ["is", "empty"], words: ["empty"] },
+  {
+    name: "member-of",
+    tokens: ["is", "member", "of", ":nums"],
+    words: ["member", "of"],
+  },
+  { name: "a", tokens: ["is", "a", '"point"'], words: ["a"] },
 ];
 
+/** Nesting depths of `primary`'s parenthesised alternative. 4 anchors the scan from above. */
+const PAREN_DEPTHS = [1, 2, 3, 4];
+
 /**
- * The operand, from `primary`'s parenthesised alternative at increasing depth and with the
- * whitespace the grammar permits inside the parentheses.
+ * The whitespace the grammar permits inside those parentheses. Kept separate from depth so the two
+ * form a product: depth and interior whitespace are independent in the grammar, and it is their
+ * *combination* — a nested operand that also spans lines — that no single remembered shape covers.
+ */
+const PAREN_INTERIORS = [
+  ["tight", (inner) => inner],
+  ["multiline", (inner) => `\n${inner}\n`],
+  ["indented", (inner) => `\n    ${inner}\n  `],
+  ["wide-indent", (inner) => `${" ".repeat(24)}${inner}\n`],
+];
+
+/** `[name, declaredDepth, interior, wrap]`, the bare operand plus depth x interior. */
+function buildOperandShapes() {
+  const shapes = [["bare", 0, "none", (operand) => operand]];
+  for (const depth of PAREN_DEPTHS) {
+    for (const [interior, wrapInterior] of PAREN_INTERIORS) {
+      shapes.push([
+        `paren-${depth}-${interior}`,
+        depth,
+        interior,
+        (operand) => {
+          let text = wrapInterior(operand);
+          for (let level = 0; level < depth; level += 1) {
+            text = `(${text})`;
+          }
+          return text;
+        },
+      ]);
+    }
+  }
+  return shapes;
+}
+
+const OPERAND_SHAPES = buildOperandShapes();
+
+/**
+ * Whitespace **deviations** from the single space that separates every adjacent symbol by default.
  *
- * `paren-deep-indent` is not decoration: an operand starting past column 24 and ending on the next
- * line at a small column is the only shape that makes *both* of a span's dimensions decrease, which
- * is what separates a containment-ordered rank from a width-ordered one.
+ * Deviations, not values: a "space" entry applied at slot *i* renders identically to the default,
+ * so slot after slot would emit the same source and the corpus would count combinations it does
+ * not actually distinguish. The default is generated once per form, as its own baseline variant.
  */
-const OPERAND_SHAPES = [
-  ["bare", (operand) => operand],
-  ["paren", (operand) => `(${operand})`],
-  ["paren-nested", (operand) => `((${operand}))`],
-  ["paren-deep", (operand) => `(((${operand})))`],
-  ["paren-multiline", (operand) => `(\n${operand}\n)`],
-  ["paren-indented", (operand) => `  (\n    ${operand}\n  )`],
-  ["paren-deep-indent", (operand) => `(${" ".repeat(24)}${operand}\n)`],
-];
-
-/**
- * The whitespace between the operand and its `is`. Newline gaps *after* `is` are the #944 axis and
- * are absent by the file header's reasoning; this list is the extension point.
- */
-const GAP_SHAPES = [
-  ["space", " "],
+const GAP_DEVIATIONS = [
   ["spaces", "   "],
+  ["newline", "\n"],
 ];
 
 /** Operands that reach different `primary` alternatives, so the shape is not tied to one of them. */
 const OPERANDS = [":x", "2", ":p.q", ":nums[1]"];
 
 /**
- * Every generated case: `{ source, form, word, shape, gap }`.
+ * The adjacencies where a newline is still painted wrong, owned by issues #944/#995.
+ *
+ * `after` is the symbol the gap follows — `"operand"` for the gap before `is`. Five coordinates;
+ * how many generated cases each covers is measured in the test, not asserted here.
+ */
+const DEFERRED_NEWLINE_GAPS = [
+  { form: "empty", after: "is", word: "empty" },
+  { form: "member-of", after: "is", word: "member" },
+  { form: "member-of", after: "is", word: "of" },
+  { form: "member-of", after: "member", word: "of" },
+  { form: "a", after: "is", word: "a" },
+];
+
+/**
+ * The structural signature of an emitted operand, read **from the text that was generated** rather
+ * than from the generator's own input.
+ *
+ * A label is a claim about the source, and a label taken from the generator's parameters is a claim
+ * that describes the generator instead of what it produced — so a wrapper that emitted the wrong
+ * nesting would still be labelled with the depth it was asked for.
+ */
+function signatureOf(emitted) {
+  let depth = 0;
+  let deepest = 0;
+  for (const character of emitted) {
+    if (character === "(") {
+      depth += 1;
+      deepest = Math.max(deepest, depth);
+    } else if (character === ")") {
+      depth -= 1;
+    }
+  }
+  return { depth: deepest, newlines: (emitted.match(/\n/g) ?? []).length };
+}
+
+/** `slot < 0` is the baseline (every adjacency a single space); otherwise the deviation's slot. */
+function render(wrap, operand, form, slot, spacing) {
+  let text = `print ${wrap(operand)}`;
+  for (let index = 0; index < form.tokens.length; index += 1) {
+    text += index === slot ? spacing : " ";
+    text += form.tokens[index];
+  }
+  return text;
+}
+
+function slotLabel(form, slot) {
+  if (slot < 0) {
+    return "-";
+  }
+  return slot === 0 ? "operand" : form.tokens[slot - 1];
+}
+
+/**
+ * Every generated case: `{ source, shape, depth, interior, signature, operand, form, after, gap,
+ * word }`.
  *
  * Nothing is dropped. An earlier draft skipped combinations that do not parse, which was a branch
  * no input reached — and a corpus that silently narrows is the defect this file exists to prevent.
@@ -107,13 +207,37 @@ const OPERANDS = [":x", "2", ":p.q", ":nums[1]"];
  */
 function generateCases() {
   const cases = [];
-  for (const [shape, wrap] of OPERAND_SHAPES) {
-    for (const [gap, spacing] of GAP_SHAPES) {
+  for (const [shape, depth, interior, wrap] of OPERAND_SHAPES) {
+    for (const operand of OPERANDS) {
+      const signature = signatureOf(wrap(operand));
       for (const form of FORMS) {
-        for (const operand of OPERANDS) {
-          const source = `print ${wrap(operand)}${spacing}${form.tail}`;
+        const variants = [{ slot: -1, gap: "default", spacing: " " }];
+        for (let slot = 0; slot < form.tokens.length; slot += 1) {
+          for (const [gap, spacing] of GAP_DEVIATIONS) {
+            variants.push({ slot, gap, spacing });
+          }
+        }
+        for (const variant of variants) {
+          const source = render(
+            wrap,
+            operand,
+            form,
+            variant.slot,
+            variant.spacing,
+          );
           for (const word of form.words) {
-            cases.push({ source, form: form.name, word, shape, gap });
+            cases.push({
+              source,
+              shape,
+              depth,
+              interior,
+              signature,
+              operand,
+              form: form.name,
+              after: slotLabel(form, variant.slot),
+              gap: variant.gap,
+              word,
+            });
           }
         }
       }
@@ -124,11 +248,33 @@ function generateCases() {
 
 const CASES = generateCases();
 
+/** Fully qualified: every axis appears, so one label names exactly one generated assertion. */
+function labelOf(generated) {
+  return `${generated.shape}/${generated.operand}/${generated.form}/after ${generated.after}/${generated.gap}/${generated.word}`;
+}
+
+function isDeferred(generated) {
+  return DEFERRED_NEWLINE_GAPS.some(
+    (pinned) =>
+      generated.gap === "newline" &&
+      generated.form === pinned.form &&
+      generated.after === pinned.after &&
+      generated.word === pinned.word,
+  );
+}
+
+function paintedClassesOf(generated) {
+  return OL.highlight(generated.source, doc, { profiles: ALL_PROFILES })
+    .filter((token) => token.text.toLowerCase() === generated.word)
+    .map((token) => token.class)
+    .join(", ");
+}
+
 /** The generated sources that do not parse — a highlighting claim needs a valid program first. */
 function parseFailures() {
   return CASES.map(
     (generated) =>
-      `${generated.shape}: ${OL.parse(generated.source, doc).diagnostics.length}`,
+      `${labelOf(generated)}: ${OL.parse(generated.source, doc).diagnostics.length}`,
   ).filter((described) => !described.endsWith(": 0"));
 }
 
@@ -142,14 +288,9 @@ function parseFailures() {
  * the corpus is green — the shape this file exists to keep out.
  */
 function paintedClassesByCase() {
-  return CASES.map((generated) => {
-    const classes = OL.highlight(generated.source, doc, {
-      profiles: ALL_PROFILES,
-    })
-      .filter((token) => token.text.toLowerCase() === generated.word)
-      .map((token) => token.class);
-    return `${generated.shape}/${generated.form}/${generated.word} -> ${classes.join(", ")}`;
-  });
+  return CASES.map(
+    (generated) => `${labelOf(generated)} -> ${paintedClassesOf(generated)}`,
+  );
 }
 
 test("the generated corpus is a cross product, not a list that quietly emptied", () => {
@@ -157,15 +298,25 @@ test("the generated corpus is a cross product, not a list that quietly emptied",
   // the same "passes because it checks nothing" shape the gate this corpus supports exists to close.
   const expected =
     OPERAND_SHAPES.length *
-    GAP_SHAPES.length *
     OPERANDS.length *
-    FORMS.reduce((total, form) => total + form.words.length, 0);
+    FORMS.reduce(
+      (total, form) =>
+        total +
+        (1 + form.tokens.length * GAP_DEVIATIONS.length) * form.words.length,
+      0,
+    );
+  assert.equal(CASES.length, expected, "the axes must multiply out");
+  assert.equal(CASES.length, 2040);
+
+  // Every case is a distinct assertion: a deviation that rendered the same source as another slot
+  // would inflate the count above while distinguishing nothing.
+  assert.equal(new Set(CASES.map(labelOf)).size, CASES.length);
   assert.equal(
+    new Set(
+      CASES.map((generated) => `${generated.source}\u0000${generated.word}`),
+    ).size,
     CASES.length,
-    expected,
-    "every generated combination must parse",
   );
-  assert.equal(CASES.length, 224);
 
   // And it really is a cross product: every axis value reaches the corpus.
   for (const [shape] of OPERAND_SHAPES) {
@@ -174,7 +325,7 @@ test("the generated corpus is a cross product, not a list that quietly emptied",
       `no case for operand shape ${shape}`,
     );
   }
-  for (const [gap] of GAP_SHAPES) {
+  for (const [gap] of GAP_DEVIATIONS) {
     assert.ok(
       CASES.some((generated) => generated.gap === gap),
       `no case for gap ${gap}`,
@@ -186,6 +337,18 @@ test("the generated corpus is a cross product, not a list that quietly emptied",
       `no case for contextual word ${word}`,
     );
   }
+  // Every adjacency of every form carries a deviation, which is what token sequences buy.
+  for (const form of FORMS) {
+    for (const token of ["operand", ...form.tokens.slice(0, -1)]) {
+      assert.ok(
+        CASES.some(
+          (generated) =>
+            generated.form === form.name && generated.after === token,
+        ),
+        `no gap after ${token} in ${form.name}`,
+      );
+    }
+  }
 });
 
 test("every generated shape is a valid program, so each is a highlighting claim", () => {
@@ -194,16 +357,66 @@ test("every generated shape is a valid program, so each is a highlighting claim"
   assert.deepEqual(parseFailures(), []);
 });
 
+test("each shape's declared structure matches the source it actually emits", () => {
+  // The label is a claim about the emitted text. Measured back off that text, so a wrapper that
+  // emitted a different nesting than its name says fails here rather than mislabelling every case
+  // it produces.
+  const disagreements = CASES.filter(
+    (generated) => generated.signature.depth !== generated.depth,
+  ).map(labelOf);
+  assert.deepEqual(disagreements, []);
+
+  // The depth x interior product really does reach nested-and-multiline, which neither axis alone
+  // can express and which is the combination the scan gets wrong.
+  assert.ok(
+    CASES.some(
+      (generated) =>
+        generated.signature.depth >= 3 && generated.signature.newlines > 0,
+    ),
+  );
+});
+
 test("every contextual word is `keyword` in every generated operand shape", () => {
   // The assertion is AGREEMENT across shapes, not a per-shape expectation: a shape nobody thought
   // of joins the comparison automatically and fails it if the highlighter treats it differently.
   // Compared as one whole set, so a disagreement IS the diff — there is no failure branch that only
-  // executes when something is already wrong.
+  // executes when something is already wrong. The deferred coordinates are pinned to what they
+  // currently paint, so they too fail this comparison the moment they change in either direction.
   const expected = CASES.map(
     (generated) =>
-      `${generated.shape}/${generated.form}/${generated.word} -> keyword`,
+      `${labelOf(generated)} -> ${isDeferred(generated) ? "primitive" : "keyword"}`,
   );
   assert.deepEqual(paintedClassesByCase(), expected);
+});
+
+test("the deferred newline coordinates are exactly the ones still failing", () => {
+  // The pin is a SET comparison in both directions. When #944/#995 land, a fixed coordinate stops
+  // appearing here and this fails — the corpus cannot keep claiming a defect that is gone. A newly
+  // broken adjacency fails it too.
+  const failing = CASES.filter(
+    (generated) =>
+      generated.gap === "newline" && paintedClassesOf(generated) !== "keyword",
+  );
+  const measured = [
+    ...new Set(
+      failing.map(
+        (generated) =>
+          `${generated.form}/after ${generated.after}/${generated.word}`,
+      ),
+    ),
+  ].sort();
+  const declared = DEFERRED_NEWLINE_GAPS.map(
+    (pinned) => `${pinned.form}/after ${pinned.after}/${pinned.word}`,
+  ).sort();
+  assert.deepEqual(measured, declared);
+
+  // Each coordinate fails across the WHOLE shape x operand product, not in one corner of it: a
+  // coordinate that started passing for some shapes would otherwise stay pinned and unnoticed.
+  assert.equal(
+    failing.length,
+    DEFERRED_NEWLINE_GAPS.length * OPERAND_SHAPES.length * OPERANDS.length,
+  );
+  assert.equal(failing.length, 340);
 });
 
 test("the same words are ordinary names outside the predicate, in every shape", () => {
@@ -244,15 +457,16 @@ test("the corpus reproduces the operand shapes that were once wrong", () => {
   //
   // Each was a live defect at some point in issue #959's review: a parenthesised operand's span
   // ends before its own `)`, so a scan that stepped a fixed one token past it marked nothing.
+  const produced = new Set(CASES.map((generated) => generated.shape));
   for (const shape of [
-    "paren",
-    "paren-nested",
-    "paren-multiline",
-    "paren-indented",
-    "paren-deep-indent",
+    "paren-1-tight",
+    "paren-2-tight",
+    "paren-1-multiline",
+    "paren-1-indented",
+    "paren-1-wide-indent",
   ]) {
     assert.ok(
-      CASES.some((generated) => generated.shape === shape),
+      produced.has(shape),
       `the generator no longer produces ${shape}, which was once a live defect`,
     );
   }

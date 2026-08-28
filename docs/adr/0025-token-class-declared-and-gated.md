@@ -125,6 +125,33 @@ plainly here because "in both directions" over-describes two of them:
 8. **The fingerprint is removed, not kept alongside.** A checksum beside a real comparison invites
    the same "green means correct" misreading this decision exists to close.
 
+9. **The contextual words' *positional* marking is proven by a generated corpus, not by probes.**
+   The nine probes above ask "is this word painted right *here*"; they cannot ask "in every shape
+   the grammar permits". `packages/parser/src/contextual-shape-corpus.test.mjs` crosses the four
+   words with the `is-predicate` production's own structure — operand nesting depth × interior
+   whitespace, operand form, and a whitespace deviation at **every adjacency** — and asserts the
+   whole set **agrees**, so a shape nobody enumerated joins the comparison automatically. It exists
+   because two consecutive fixes to `markIsPredicateKeywords` each passed their author's own tests:
+   both corpora were enumerations from the author's head, and so was the acceptance matrix written
+   to catch the first miss. Measured at 0.1.0: **2040 assertions over 17 operand shapes**; removing
+   the parenthesis/newline skip from `markIsPredicateKeywords` fails **1956** of them (against a
+   baseline of 340 pinned below), so it is load-bearing rather than decorative.
+
+## What this decision knowingly leaves failing
+
+- **A newline at four of the seven adjacencies** of the `is-predicate` production is still painted
+  `primitive` — after `is` in all three forms, and between `member` and `of`. That is the
+  `indexSkippingNewlines` work of issues **#944/#995**, not this slice's, and the two fixes are
+  complementary halves of one defect in the same function.
+
+  The corpus generates the axis anyway and pins it as **five coordinates** whose expansion over the
+  shape and operand axes is measured (340 assertions at 0.1.0), rather than excluding the axis or
+  recording the individual failures. The pin is a **set comparison in both directions**: when #944
+  lands and a coordinate starts passing, the test fails and forces the corpus to widen, and a newly
+  broken adjacency fails it too. Excluding the axis — an earlier draft — left the newline handling
+  this slice *did* fix (the gap *before* `is`, 0 failures) with no test at all, and credited it in
+  prose to a deferred issue.
+
 ## What this does **not** check
 
 Stated because the mechanism it replaces failed three times by claiming more than it verified.
@@ -155,14 +182,16 @@ Stated because the mechanism it replaces failed three times by claiming more tha
   a *contextual* word the implementation started painting and this file does not declare would not
   be detected.
 - **A profile rule keyed on at least one profile *present* and at least two *absent*.** The sweep
-  reaches exactly three presence-patterns over the non-keyword-contributing profiles: all absent
-  (the Core-only baseline), all present, and all-present-except-exactly-one (leave-one-out). That
-  covers every dependency on a **single** profile, and — because those patterns realise all four
-  valuations of any *pair* — every two-profile conjunction as well. Measured over `repeat`: **72 of
-  72** two-profile conjunctions are caught, **0** escape. What escapes needs a third profile to be
-  simultaneously absent: measured, **504 of 504** mutants of the form "A present, B and C absent"
-  return no findings. Enumerating the full product is not an option — twelve profiles is 4096 sets
-  and the gate re-paints nine probes per set per name.
+  reaches exactly **11** distinct presence-patterns over the nine profiles it varies: all absent
+  (the Core-only baseline), all present, and all-present-except-exactly-one (nine leave-one-out).
+  That covers every dependency on a **single** profile, and — because those patterns realise all
+  four valuations of any *pair* — every two-profile conjunction as well: measured by recording the
+  profile sets the sweep actually passes to the highlighter, **144 of 144** distinct two-literal
+  conjunctions are caught (36 for each of the four polarity combinations), **0** escape. What
+  escapes needs a **second simultaneous absence**, which no leave-one-out pattern has: measured,
+  **252 of 252** distinct rules of the form "A present, B and C absent" return no findings.
+  Enumerating the full product is not an option — twelve profiles is 4096 sets and the gate
+  re-paints nine probes per set per name.
 - **The gate's own position vocabulary.** `CONTEXTUAL_POSITION_NODE_KINDS` and
   `CONTEXTUAL_POSITIONS` are literals in `scripts/`; deleting a position from *both* of them and
   from both manifest axes leaves this gate quiet. What catches it is the unit suite, which pins
