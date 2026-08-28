@@ -31,9 +31,10 @@
 //
 // - **operand shape.** The operand is an `additive`, bottoming out at `primary`, whose
 //   parenthesised alternative makes the operand's own span end *before* the tokens that follow it.
-//   {@link OPERAND_SHAPES} is `depth x interior-whitespace`, not a flat list of remembered shapes:
-//   the two vary independently in the grammar, so combining them reaches sources — a deep nest
-//   *containing* a newline — that no alternation of the two can express.
+//   {@link OPERAND_SHAPES} is `depth x interior-whitespace x placement`, not a flat list of
+//   remembered shapes: the three vary independently in the grammar, so combining them reaches
+//   sources no alternation of them can express — a deep nest *containing* a newline, and a closing
+//   tail where a paren sits *between* two whitespace runs.
 // - **gap position.** The grammar permits whitespace at every adjacency of the production, so
 //   {@link GAP_DEVIATIONS} is applied at each slot in turn rather than only between the operand and
 //   its `is`.
@@ -46,15 +47,17 @@
 // ## The one axis whose failures are pinned rather than fixed
 //
 // Of the seven adjacencies in the alternation, a newline at four of them is still painted wrong.
-// That is the `indexSkippingNewlines` work of issues #944/#995, not this slice's. It is generated
-// here anyway, and pinned as {@link DEFERRED_NEWLINE_GAPS} — **five coordinates**, whose expansion
-// over the shape and operand axes is measured, not written down.
+// That is issue **#995**'s defect ("Multi-line `is` predicates paint `empty`/`member`/`of`/`a` as
+// `primitive` in programs that parse completely clean"), not this slice's; the fix is being carried
+// by the session working on #944. It is generated here anyway, and pinned as
+// {@link DEFERRED_NEWLINE_GAPS} — **five coordinates**, whose expansion over the shape and operand
+// axes is measured, not written down.
 //
 // Pinning the coordinates rather than excluding the axis matters in both directions: the pin is
-// compared as a set, so when #944 lands and a coordinate starts passing, this test fails and forces
-// the corpus to widen — and a *new* adjacency that regresses fails it too. Excluding the axis
-// entirely (an earlier draft of this file) left the newline handling that this slice *did* fix with
-// no test at all, and credited it in prose to a deferred issue.
+// compared as a set, so when #995 is fixed and a coordinate starts passing, this test fails and
+// forces the corpus to widen — and a *new* adjacency that regresses fails it too. Excluding the
+// axis entirely (an earlier draft of this file) left the newline handling that this slice *did* fix
+// with no test at all, and credited it in prose to a deferred issue.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -98,29 +101,62 @@ const PAREN_DEPTHS = [1, 2, 3, 4];
  * *combination* — a nested operand that also spans lines — that no single remembered shape covers.
  */
 const PAREN_INTERIORS = [
-  ["tight", (inner) => inner],
   ["multiline", (inner) => `\n${inner}\n`],
   ["indented", (inner) => `\n    ${inner}\n  `],
   ["wide-indent", (inner) => `${" ".repeat(24)}${inner}\n`],
 ];
 
-/** `[name, declaredDepth, interior, wrap]`, the bare operand plus depth x interior. */
+/**
+ * **Which nesting levels** the interior whitespace lands on — the third dimension of the operand,
+ * and the one whose absence let a broken scanner through.
+ *
+ * Applying the whitespace only innermost makes every closing tail `newline* rparen*`, so a scanner
+ * that skipped newlines, *then* parens, *then* newlines would satisfy the whole corpus while
+ * failing `print ((:x)\n) is empty` — a program that parses clean and is painted correctly today.
+ * The grammar puts no such ordering on the tail, so the corpus must not either: `outermost` and
+ * `every` produce the interleaved `) newline )` the real single loop handles and a phased one
+ * cannot (issue #959 review round 8).
+ */
+const PAREN_PLACEMENTS = ["innermost", "outermost", "every"];
+
+/**
+ * `[name, declaredDepth, interior, wrap]` — the bare operand, the whitespace-free nests, and the
+ * `depth x interior x placement` product.
+ *
+ * At depth 1 the three placements name the same single level, so only one is generated: an
+ * alternative that renders identically is not a distinguishing case, and the uniqueness assertion
+ * below would rightly reject it.
+ */
 function buildOperandShapes() {
   const shapes = [["bare", 0, "none", (operand) => operand]];
   for (const depth of PAREN_DEPTHS) {
+    shapes.push([
+      `paren-${depth}-tight`,
+      depth,
+      "tight",
+      (operand) => `${"(".repeat(depth)}${operand}${")".repeat(depth)}`,
+    ]);
+    const placements =
+      depth === 1 ? PAREN_PLACEMENTS.slice(0, 1) : PAREN_PLACEMENTS;
     for (const [interior, wrapInterior] of PAREN_INTERIORS) {
-      shapes.push([
-        `paren-${depth}-${interior}`,
-        depth,
-        interior,
-        (operand) => {
-          let text = wrapInterior(operand);
-          for (let level = 0; level < depth; level += 1) {
-            text = `(${text})`;
-          }
-          return text;
-        },
-      ]);
+      for (const placement of placements) {
+        shapes.push([
+          `paren-${depth}-${interior}-${placement}`,
+          depth,
+          interior,
+          (operand) => {
+            let text = operand;
+            for (let level = 1; level <= depth; level += 1) {
+              const here =
+                placement === "every" ||
+                (placement === "innermost" && level === 1) ||
+                (placement === "outermost" && level === depth);
+              text = `(${here ? wrapInterior(text) : text})`;
+            }
+            return text;
+          },
+        ]);
+      }
     }
   }
   return shapes;
@@ -144,7 +180,7 @@ const GAP_DEVIATIONS = [
 const OPERANDS = [":x", "2", ":p.q", ":nums[1]"];
 
 /**
- * The adjacencies where a newline is still painted wrong, owned by issues #944/#995.
+ * The adjacencies where a newline is still painted wrong, owned by issue #995.
  *
  * `after` is the symbol the gap follows — `"operand"` for the gap before `is`. Five coordinates;
  * how many generated cases each covers is measured in the test, not asserted here.
@@ -164,6 +200,10 @@ const DEFERRED_NEWLINE_GAPS = [
  * A label is a claim about the source, and a label taken from the generator's parameters is a claim
  * that describes the generator instead of what it produced — so a wrapper that emitted the wrong
  * nesting would still be labelled with the depth it was asked for.
+ *
+ * `tail` is the trailing run of closing parens and whitespace, matched off the end of the emitted
+ * text rather than sliced at the operand — an instrument that shares nothing with the generator's
+ * structure. It is what distinguishes `\n))` from `)\n)`, and the corpus asserts both exist.
  */
 function signatureOf(emitted) {
   let depth = 0;
@@ -176,7 +216,13 @@ function signatureOf(emitted) {
       depth -= 1;
     }
   }
-  return { depth: deepest, newlines: (emitted.match(/\n/g) ?? []).length };
+  const tail = emitted.match(/[)\s]*$/)[0].replace(/[^)\n]/g, "");
+  return {
+    depth: deepest,
+    newlines: (emitted.match(/\n/g) ?? []).length,
+    tail,
+    interleaved: /\)\n+\)/.test(tail),
+  };
 }
 
 /** `slot < 0` is the baseline (every adjacency a single space); otherwise the deviation's slot. */
@@ -306,7 +352,7 @@ test("the generated corpus is a cross product, not a list that quietly emptied",
       0,
     );
   assert.equal(CASES.length, expected, "the axes must multiply out");
-  assert.equal(CASES.length, 2040);
+  assert.equal(CASES.length, 4200);
 
   // Every case is a distinct assertion: a deviation that rendered the same source as another slot
   // would inflate the count above while distinguishing nothing.
@@ -366,6 +412,16 @@ test("each shape's declared structure matches the source it actually emits", () 
   ).map(labelOf);
   assert.deepEqual(disagreements, []);
 
+  // `newlines` is compared, not merely computed: a shape naming a whitespace interior must actually
+  // emit one, and a `tight`/`bare` shape must emit none. An unread field is a measurement nobody
+  // takes — which is how the tail below went unnoticed for a round.
+  const whitespaceDisagreements = CASES.filter(
+    (generated) =>
+      generated.signature.newlines > 0 !==
+      !["none", "tight"].includes(generated.interior),
+  ).map(labelOf);
+  assert.deepEqual(whitespaceDisagreements, []);
+
   // The depth x interior product really does reach nested-and-multiline, which neither axis alone
   // can express and which is the combination the scan gets wrong.
   assert.ok(
@@ -374,6 +430,18 @@ test("each shape's declared structure matches the source it actually emits", () 
         generated.signature.depth >= 3 && generated.signature.newlines > 0,
     ),
   );
+
+  // And the placement axis really does reach an INTERLEAVED closing tail — `) newline )`, not just
+  // `newline ))`. Without it every tail is `newline* rparen*`, and a scanner that skipped newlines,
+  // then parens, then newlines would satisfy this whole corpus while failing
+  // `print ((:x)\n) is empty` — which parses clean and is painted correctly today.
+  const tails = new Set(CASES.map((generated) => generated.signature.tail));
+  assert.ok(
+    [...tails].some((tail) => /\)\n+\)/.test(tail)),
+    `no interleaved closing tail among ${[...tails].map((tail) => JSON.stringify(tail)).join(" ")}`,
+  );
+  // Both orderings must be present, or the corpus has merely swapped one blind spot for the other.
+  assert.ok([...tails].some((tail) => /^\n+\)\)/.test(tail)));
 });
 
 test("every contextual word is `keyword` in every generated operand shape", () => {
@@ -390,7 +458,7 @@ test("every contextual word is `keyword` in every generated operand shape", () =
 });
 
 test("the deferred newline coordinates are exactly the ones still failing", () => {
-  // The pin is a SET comparison in both directions. When #944/#995 land, a fixed coordinate stops
+  // The pin is a SET comparison in both directions. When #995 is fixed, a fixed coordinate stops
   // appearing here and this fails — the corpus cannot keep claiming a defect that is gone. A newly
   // broken adjacency fails it too.
   const failing = CASES.filter(
@@ -416,7 +484,7 @@ test("the deferred newline coordinates are exactly the ones still failing", () =
     failing.length,
     DEFERRED_NEWLINE_GAPS.length * OPERAND_SHAPES.length * OPERANDS.length,
   );
-  assert.equal(failing.length, 340);
+  assert.equal(failing.length, 700);
 });
 
 test("the same words are ordinary names outside the predicate, in every shape", () => {
@@ -456,14 +524,16 @@ test("the corpus reproduces the operand shapes that were once wrong", () => {
   // this test says so rather than the corpus silently narrowing.
   //
   // Each was a live defect at some point in issue #959's review: a parenthesised operand's span
-  // ends before its own `)`, so a scan that stepped a fixed one token past it marked nothing.
+  // ends before its own `)`, so a scan that stepped a fixed one token past it marked nothing. The
+  // last is the round-8 addition: an interleaved tail no innermost-only placement can emit.
   const produced = new Set(CASES.map((generated) => generated.shape));
   for (const shape of [
     "paren-1-tight",
     "paren-2-tight",
-    "paren-1-multiline",
-    "paren-1-indented",
-    "paren-1-wide-indent",
+    "paren-1-multiline-innermost",
+    "paren-1-indented-innermost",
+    "paren-1-wide-indent-innermost",
+    "paren-2-multiline-outermost",
   ]) {
     assert.ok(
       produced.has(shape),

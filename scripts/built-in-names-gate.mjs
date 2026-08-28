@@ -1731,11 +1731,10 @@ export function tokenClassFindings(manifest, api) {
  * *wrong* profile; three sets hid a word wrong only in a partial combination; and holding the
  * non-contributing profiles permanently active hid a highlighter that mispainted whenever Sound was
  * absent (issue #959 review rounds 2-4). **The limit, measured rather than assumed:** the sweep
- * reaches 11 distinct presence-patterns over the nine profiles it varies — all absent, all present,
- * and all-but-one. Those realise **all four** valuations of every pair, so all **144** distinct
- * two-literal conjunctions are caught, 0 escape. A rule needing one profile present and **two**
- * absent needs a pattern with two absences, which none of the 11 has: all **252** escape.
- * ADR-0025 records it.
+ * varies eleven profiles into 17 distinct sets, which realise all four valuations of every pair —
+ * so all **220** distinct two-literal conjunctions are caught, 0 escape. A rule needing one profile
+ * present and **two** absent mostly escapes: 99 of 495 are caught, **396 escape**. ADR-0025
+ * records it.
  */
 export function profileGatingFindings(api, entry) {
   const contributing = Object.keys(api.OL_PROFILE_KEYWORDS ?? {});
