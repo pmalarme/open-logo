@@ -1568,7 +1568,12 @@ test("registersHostHandlers keys on 'needs delivery', not on 'is an interaction 
   assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
   assert.equal(registersHostHandlers('when "acme.shake" [ print 1 ]'), true);
   assert.equal(registersHostHandlers('when "start" [ print 1 ]'), false);
-  assert.equal(registersHostHandlers('when "START" [ print 1 ]'), false);
+  // Word values preserve case and the runtime matches the delivered word exactly, so `"START"` is
+  // NOT the internally-delivered `"start"`: measured, it prints 0 under an empty host and 1 only
+  // when a host delivers `START`. Round 4 case-folded here and this assertion pinned the wrong
+  // answer — the third time in this slice a test asserted the behaviour it should have caught.
+  assert.equal(registersHostHandlers('when "START" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "Start" [ print 1 ]'), true);
   assert.equal(registersHostHandlers("every 10 [ print 1 ]"), false);
   assert.equal(registersHostHandlers("forward 10"), false);
   // `wait` and `input` are in the interaction table but lower to `Call`, not `ProfileStatement`,

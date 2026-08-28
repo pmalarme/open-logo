@@ -196,21 +196,24 @@ export function validateHostInputEntry(file, entry) {
  * decides: any example that registers such a handler MUST carry a schedule, so a missing entry fails
  * the gate rather than quietly relaxing it.
  *
- * **The boundary is "needs delivery", not "is an interaction form"** — measured, because two review
- * rounds got it wrong in opposite directions. Each row below is a direct `execute()` run:
+ * **The boundary is "needs delivery", not "is an interaction form"** — measured, because three
+ * review rounds got it wrong in three different ways. Each row is a direct `execute()` run of the
+ * source followed by `wait 100`:
  *
- * | source (plus a clock-advancing `wait`) | prints under an EMPTY host | needs a schedule |
+ * | source (followed by `wait 100`) | prints under an EMPTY host | needs a schedule |
  * | --- | --- | --- |
  * | `on_click [ print 1 ]` | 0 | **yes** |
  * | `on_key "a" [ print 1 ]` | 0 | **yes** |
  * | `when "stop" [ print 1 ]` | 0 (1 when the host delivers `stop`) | **yes** |
+ * | `when "START" [ print 1 ]` | 0 (1 when the host delivers `START`) | **yes** |
  * | `when "start" [ print 1 ]` | 1 | no |
  * | `every 10 [ print 1 ]` | 10 | no |
  *
  * - `every` fires from the runtime's own **tick clock** (round 2: requiring a schedule for it would
- *   force a meaningless entry onto a correct timer-only example). Note the `wait`: with no
- *   clock-advancing statement the same program prints 0, so quoting `every 10 [ print 1 ]` alone as
- *   "prints 10" is wrong.
+ *   force a meaningless entry onto a correct timer-only example). The count is a property of the
+ *   `wait`, not of `every` alone: `every 10` prints 2 under `wait 20` and 10 under `wait 100`, and 0
+ *   with no clock-advancing statement at all — so "`every 10 [ print 1 ]` prints 10" is only true of
+ *   this exact pairing.
  * - `when "start"` is delivered internally — `packages/runtime/src/interaction.ts`: in a headless
  *   run "only `"start"` is *delivered*: the run has already started, so a `when "start"` handler
  *   fires immediately on registration".
@@ -259,10 +262,16 @@ export function registersHostHandlers(source) {
       return;
     }
     const event = node.args[0];
+    // Compared EXACTLY, not case-folded: a word literal preserves the case the learner wrote
+    // (`spec/execution-model.md:20`) and the runtime matches the delivered event word exactly, so
+    // `when "START"` is NOT the internally-delivered `"start"`. Measured: `when "start"` prints once
+    // under an empty host, while `when "START"` and `when "Start"` print nothing and print once only
+    // when a host delivers that exact word — so they need a schedule. Lower-casing here (review
+    // round 4) wrongly excluded them, and the test pinned that wrong answer.
     const isStart =
       event !== undefined &&
       event.kind === "WordLit" &&
-      event.value.toLowerCase() === "start";
+      event.value === "start";
     found ||= !isStart;
   });
   return found;

@@ -33,7 +33,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
    asserted; never add an entry to silence a real defect — record it as `known-broken` with its
    tracking issue and route it to its owner. An example that registers a handler **needing host
-   delivery** (`on_key`, `on_click`, or a `when` for any event other than `"start"`) **must** declare
+   delivery** (`on_key`, `on_click`, or a `when` for any event other than an exact-case `"start"`) **must** declare
    a deterministic host-input schedule in
    `scripts/examples-host-input.json` and produce the output it asserts (issue #955) — without one,
    a program runs with an empty host, so those handlers are unreachable and the gate certifies that

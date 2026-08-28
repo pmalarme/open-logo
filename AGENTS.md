@@ -200,9 +200,11 @@ running every program with an *empty* host left the gate structurally blind to e
 feature the language has, which is how `10-game.logo` was certified green while its stated contract —
 "each click prints the updated `:score`" — was unreachable. The requirement is read from the
 **source**, not from the manifest, so a deleted or misspelled entry fails the gate rather than
-quietly relaxing it. `every` and `when "start"` are excluded, measured rather than assumed: with a
-clock-advancing `wait` and an empty host, `every 10 [ print 1 ]` prints 10 and `when "start"` prints
-1, while `on_click` and `when "stop"` print 0. Note what this gate does
+quietly relaxing it. `every` and an exact-case `when "start"` are excluded, measured rather than
+assumed: under an empty host with `wait 100`, `every 10 [ print 1 ]` prints 10 and `when "start"`
+prints 1, while `on_click`, `when "stop"` and `when "START"` print 0. (The 10 belongs to the `wait`,
+not to `every`: the same program prints 2 under `wait 20` and 0 with no wait at all.) Note what this
+gate does
 and does not cover: it drives `@openlogo/runtime`'s `execute()`, so it asserts the **language-level**
 interaction contract; the **studio host seam** that #952 broke is a different surface, asserted by
 `packages/studio`'s own tests. `scripts/check-markdown-examples.mjs` (issue #850, logic in
