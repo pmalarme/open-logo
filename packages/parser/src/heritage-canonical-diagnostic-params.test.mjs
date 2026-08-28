@@ -160,7 +160,7 @@ const SURFACE_SUBJECT_PARAMS = {
     name:
       "the word the language does not know. Its Core twin is VALID and raises nothing " +
       "(`set x to 1` is fine while a Core-only `make` is not), so there is no same-condition " +
-      "pair. `spec/error-model.md:96` defines `name` as the unknown word itself.",
+      "pair. `spec/error-model.md:97` defines `name` as the unknown word itself.",
     suggestion:
       "points at a name that IS visible, which with Heritage active legitimately includes an " +
       "alias — `bff` is closest to `bf`. Ties deliberately resolve to the full canonical name " +
@@ -169,26 +169,26 @@ const SURFACE_SUBJECT_PARAMS = {
   },
   "ol-reserved-word": {
     name:
-      "names the registration the learner wrote (`spec/error-model.md:124`). The subject is that " +
+      "names the registration the learner wrote (`spec/error-model.md:125`). The subject is that " +
       "very name at that very span.",
   },
   "ol-not-a-place": {
     text:
-      "`spec/tooling.md:218-219` MANDATES the surface value: `count :nums = 3` → " +
+      "`spec/tooling.md:219-220` MANDATES the surface value: `count :nums = 3` → " +
       '`params={ text: "count :nums" }`. It is a machine-readable quotation of the span, not an ' +
       "identifier — canonicalizing it would make the param disagree with its own source_span, " +
       "and a target such as `1 + 2` or `(first :x)` has no canonical form at all.",
   },
   "ol-style-name-case": {
     name:
-      "a CASING lint over user identifiers and keywords alike (`spec/tooling.md:240`): its whole " +
+      "a CASING lint over user identifiers and keywords alike (`spec/tooling.md:241`): its whole " +
       "subject is the literal source slice, so a surface value is the point. A canonical value " +
       'would report `name: "return"` for a learner who wrote `OUTPUT` — advice to lowercase a ' +
       "word that is already lowercase and that they never typed.",
   },
   "ol-bad-token": {
     text:
-      '`spec/error-model.md:109` — `text` "names the offending token in every case". A ' +
+      '`spec/error-model.md:110` — `text` "names the offending token in every case". A ' +
       "parse-stage quotation of the token the parser could not place.",
   },
 };
