@@ -125,52 +125,22 @@ plainly here because "in both directions" over-describes two of them:
 8. **The fingerprint is removed, not kept alongside.** A checksum beside a real comparison invites
    the same "green means correct" misreading this decision exists to close.
 
-9. **The contextual words' *positional* marking is proven by a generated corpus, not by probes.**
-   The nine probes above ask "is this word painted right *here*"; they cannot ask "in every shape
-   the grammar permits". `packages/parser/src/contextual-shape-corpus.test.mjs` crosses the four
-   words with the `is-predicate` production's own structure — the operand's **closing pattern** and
-   opening whitespace, operand form, and a whitespace deviation at **every adjacency** — and
-   asserts the whole set **agrees**, so a shape nobody enumerated joins the comparison
-   automatically. It exists because two consecutive fixes to `markIsPredicateKeywords` each passed
-   their author's own tests: both corpora were enumerations from the author's head, and so was the
-   acceptance matrix written to catch the first miss.
+9. **The contextual words are probed, and their *positional* marking is not yet enumerated.** The
+   nine probes above ask "is this word painted right *here*"; they cannot ask "in every shape the
+   grammar permits". The paren/newline scan in `markIsPredicateKeywords` is covered by the
+   parenthesised and multiline probes in `packages/parser/src/highlight.test.mjs`, which are
+   regression cases rather than a derived corpus.
 
-   The **closing-pattern** axis is the round-9 correction and shows why a named shape list can
-   never be enough. Each earlier revision replaced one sampled axis with another: `depth x
-   interior-style` fixed every newline run at exactly one, and adding `placement`
-   (innermost/outermost/every) still covered only 3 of the `2^depth - 1` level subsets. Both
-   admitted a phased scanner that satisfied the entire corpus while painting a clean-parsing
-   program `primitive` — measured directly, twice: under each mutant every shape the previous
-   revision contained still painted `keyword`, and only the shapes it lacked failed.
-
-   So the shape is now **one** axis, enumerated rather than named: a vector of how many newlines
-   precede each `)`, innermost first. It subsumes tight (all zeros), every placement, and every run
-   length, and `signatureOf` reads the tail back off the emitted text and compares it against the
-   vector — a comparison a `depth`-only signature cannot make, since `\n))`, `)\n)` and `)\n))`
-   share a depth and separate three different broken scanners. Exhaustive over runs `{0,1,2}` at
-   depths 1-3, plus depth 4 over `{0,1}` to anchor the scan from above; runs of 3 or more and
-   depths beyond 4 are outside the bound and stated as such.
-
-   Measured at 0.1.0: **13,320 assertions over 111 operand shapes**, 9,324 distinct sources, 56
-   distinct closing tails, all parsing. Load-bearing: removing the paren/newline skip fails
-   **11,016** of them, and four separate broken scanners — three-phase, phased-pairs,
-   single-newline, and a scan capped at three iterations — each fail two of the seven tests.
-
-## What this decision knowingly leaves failing
-
-- **A newline at four of the seven adjacencies** of the `is-predicate` production is still painted
-  `primitive` — after `is` in all three forms, and between `member` and `of`. That is issue
-  **#995**'s defect, not this slice's, and the two fixes are complementary halves of one defect in
-  the same function. (#944 is a separate dict-literal spec issue; its session is carrying the #995
-  fix, which is why earlier revisions of this file misattributed the axis to it.)
-
-  The corpus generates the axis anyway and pins it as **five coordinates** whose expansion over the
-  shape and operand axes is measured (2,220 assertions at 0.1.0), rather than excluding the axis or
-  recording the individual failures. The pin is a **set comparison in both directions**: when #995
-  is fixed and a coordinate starts passing, the test fails and forces the corpus to widen, and a
-  newly broken adjacency fails it too. Excluding the axis — an earlier draft — left the newline
-  handling this slice *did* fix (the gap *before* `is`, 0 failures) with no test at all, and
-  credited it in prose to a deferred issue.
+   A **generated** corpus for that axis was built during this slice's review and is deferred to its
+   own change. It repeatedly proved the harder lesson — three successive revisions each replaced one
+   sampled axis with another (`depth x interior-style` fixed every newline run at one; adding
+   `placement` still reached only 3 of the `2^depth - 1` level subsets), and each admitted a phased
+   scanner that satisfied the whole corpus while painting a clean-parsing program `primitive`. The
+   measurement that exposed it every time: *under the mutant, every shape the previous revision
+   contained still painted `keyword`, and only the shapes it lacked failed*. Landing it needs a
+   **structural** argument — a single unbounded `while` over `rparen | newline` cannot count, so run
+   length is not a dimension the implementation can depend on — rather than a wider bounded
+   enumeration, which only moves the boundary a mutant hides behind. That work is its own slice.
 
 ## What this does **not** check
 
