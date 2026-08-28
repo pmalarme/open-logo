@@ -1543,7 +1543,7 @@ test("runExamplesGate FAILS an example that registers host handlers but has no e
   assert.equal(result.failed, 1);
   assert.match(
     result.lines[0],
-    /^FAIL clicks.logo: registers host handlers .* but has no entry/,
+    /^FAIL clicks.logo: registers a host-driven handler .* but has no entry/,
   );
 });
 
@@ -1558,14 +1558,34 @@ test("runExamplesGate leaves a handler-free example alone: no entry required", (
   assert.equal(result.ranWithInput, 0);
 });
 
-test("registersHostHandlers keys on the block heads a host must drive, not on any interaction name", () => {
+test("registersHostHandlers keys only on the heads that CANNOT fire without a host — not on every interaction form", () => {
   assert.equal(registersHostHandlers("on_click [ print 1 ]"), true);
   assert.equal(registersHostHandlers('on_key "a" [ print 1 ]'), true);
-  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
-  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), true);
+  // `every` runs off the runtime's own tick clock and `when "start"` is delivered internally
+  // (packages/runtime/src/interaction.ts), so requiring a schedule for either would force a
+  // meaningless entry onto a correct example — review round 2.
+  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), false);
+  assert.equal(registersHostHandlers('when "start" [ print 1 ]'), false);
+  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), false);
   assert.equal(registersHostHandlers("forward 10"), false);
   // `wait` needs no host delivery to do its job, so it must not force a schedule.
   assert.equal(registersHostHandlers("wait 10"), false);
+});
+
+test("an example whose only interaction is `every` or `when` needs no schedule — it runs to completion with an empty host", () => {
+  writeExample(
+    "timer.logo",
+    'every 5 [ forward 1 ]\nwhen "start" [ print 1 ]\nwait 20\n',
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "timer.logo": ["core-language", "turtle-rendering", "interaction-events"],
+    },
+    hostInputManifest: {},
+  });
+  assert.equal(result.ok, true, result.lines.join("\n"));
+  assert.equal(result.ranWithInput, 0);
 });
 
 test("runExamplesGate reports a malformed entry even for an example it will SKIP — entry checks are hoisted above the skip for the same anti-masking reason the under-declaration check is", () => {

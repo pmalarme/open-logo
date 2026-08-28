@@ -192,13 +192,15 @@ maintainer-owned via `CODEOWNERS` like the rest of the contract.
 `npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` (logic in
 `scripts/examples-gate.mjs`, with profile detection in `scripts/profile-detection.mjs`) parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
-rest with a visible notice. An example that registers host handlers (`on_key`/`on_click`/`when`/
-`every`) **must** carry a deterministic host-input schedule in `scripts/examples-host-input.json`,
-and must produce the output that entry asserts (issue #955): running every program with an *empty*
-host left the gate structurally blind to every host-dependent feature the language has, which is how
-`10-game.logo` was certified green while its stated contract — "each click prints the updated
-`:score`" — was unreachable. The requirement is read from the **source**, not from the manifest, so a
-deleted or misspelled entry fails the gate rather than quietly relaxing it. Note what this gate does
+rest with a visible notice. An example that registers a **host-driven** handler (`on_key` or
+`on_click`) **must** carry a deterministic host-input schedule in
+`scripts/examples-host-input.json`, and must produce the output that entry asserts (issue #955):
+running every program with an *empty* host left the gate structurally blind to every host-dependent
+feature the language has, which is how `10-game.logo` was certified green while its stated contract —
+"each click prints the updated `:score`" — was unreachable. The requirement is read from the
+**source**, not from the manifest, so a deleted or misspelled entry fails the gate rather than
+quietly relaxing it. `every` and `when` are excluded: `every` fires from the runtime's own tick clock
+and `when "start"` is delivered internally, so neither needs a host. Note what this gate does
 and does not cover: it drives `@openlogo/runtime`'s `execute()`, so it asserts the **language-level**
 interaction contract; the **studio host seam** that #952 broke is a different surface, asserted by
 `packages/studio`'s own tests. `scripts/check-markdown-examples.mjs` (issue #850, logic in

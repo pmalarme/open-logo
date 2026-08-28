@@ -21,7 +21,7 @@
  * matching when the AST changes underneath it — which already happened once, in issue #151, when
  * Heritage `make` began parsing as `Assign{form:"make"}` instead of a `Call`. A rule that matches
  * nothing is indistinguishable from a profile that is not used, and nothing turns red. Every table
- * here is therefore **exported**, and `scripts/profile-detection.test.mjs` walks the live tables to
+ * here is therefore **exported**, and `scripts/profile-detection.test.mjs` walks the registered tables to
  * assert that each entry still attributes its profile and that no entry lacks a probe — so a rule
  * that stops matching, or a table entry added without one, is a test failure rather than a no-op.
  */
@@ -208,7 +208,15 @@ export const RESERVED_WORD_PROFILES = new Map([
  * Every enumerable detection table, paired with the id prefix its probes carry. Exported so
  * `scripts/profile-detection.test.mjs` walks the **live** tables rather than a second hand-copied
  * list of its own — a copy would drift from these, which is precisely the failure mode issue #701
- * is about, one level up. Adding a table here is what makes its entries require probes.
+ * is about, one level up.
+ *
+ * Be precise about what this does and does not guarantee (review round 2). It is a **registry**, not
+ * the dispatch mechanism: {@link detectUsedProfiles} consults the individual tables directly, so
+ * registering a table here is what makes its entries require probes — and a NEW table added to the
+ * detector but not listed here would carry no probes and nothing would notice. So the honest claim
+ * is that the probes are *registry-driven*, and that adding a table means registering it, exactly as
+ * adding a shape rule means adding its id to {@link AST_SHAPE_RULE_IDS}. What is eliminated is the
+ * *silent drift* between two copies of the same list; what remains is one list to extend.
  */
 export const PROFILE_DETECTION_TABLES = Object.freeze([
   ["SOUND_CALLEE_NAMES", SOUND_CALLEE_NAMES],
@@ -233,12 +241,13 @@ export const PROFILE_DETECTION_TABLES = Object.freeze([
  *
  * **This list is hand-maintained, and that is a real residual** (review round 1): a NEW shape rule
  * added to {@link detectUsedProfiles} without a matching id here would carry no probe and nothing
- * would notice. The tables above are exhaustive by construction; these are not, so the honest claim
- * is "every *registered* rule is probed", not "every rule is". A shape rule has no enumerable
- * membership to derive from — the only mechanical alternative would be parsing this module's own
- * source, which trades a rule you can forget for a fixture that breaks on any refactor. Adding a
- * shape rule therefore means adding its id here, in the same way adding a primitive is deliberately
- * a two-file change (ADR-0021).
+ * would notice. Neither this nor {@link PROFILE_DETECTION_TABLES} makes the probe set exhaustive by
+ * construction — both are registries that a new rule must be added to. What the tests do guarantee
+ * is that every **registered** rule still matches, and that the registry and the probe list cannot
+ * drift apart in either direction. A shape rule has no enumerable membership to derive from — the
+ * only mechanical alternative would be parsing this module's own source, which trades a rule you can
+ * forget for a fixture that breaks on any refactor. Adding a shape rule therefore means adding its
+ * id here, in the same way adding a primitive is deliberately a two-file change (ADR-0021).
  */
 export const AST_SHAPE_RULE_IDS = Object.freeze([
   "Assign.form=make",
@@ -390,7 +399,9 @@ export function detectUsedProfiles(source) {
   //
   // Matched on the diagnostic `code` plus an exact, case-insensitive `params.text` value — never on
   // `message` prose, which is not part of a diagnostic's stable identity
-  // (`spec/localization.md:219`). The Heritage `to`/`output`/`op` words are NOT here anymore: since
+  // (`spec/localization.md:223`, "localized prose is separate from diagnostic identity"; the
+  // normative statement is `spec/error-model.md:256`, "Diagnostic identity is `code` plus `params`;
+  // prose is presentation"). The Heritage `to`/`output`/`op` words are NOT here anymore: since
   // issue #667 they parse into real AST nodes and are detected in the walk below (see
   // `RESERVED_WORD_PROFILES`'s doc comment and #701).
   for (const diagnostic of diagnostics) {
@@ -512,8 +523,10 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "ValueOfKey") {
-      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:277`,`:305`):
-      // classified as Heritage, but it "also needs Data" because it operates on dicts — a
+      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:277`, which
+      // states it directly — "operates on dicts, so it also needs Data" — and `:296`, the DAG's
+      // `Heritage (also depends on Data and Turtle & Rendering)` annotation): classified as
+      // Heritage, but it "also needs Data" because it operates on dicts — a
       // program using it must declare BOTH, or the missing one goes undetected (issue #519
       // masking class: declaring only `data` would silently under-declare `heritage`, and vice
       // versa).

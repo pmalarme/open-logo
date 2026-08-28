@@ -32,15 +32,16 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed, with a
    rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
    asserted; never add an entry to silence a real defect — record it as `known-broken` with its
-   tracking issue and route it to its owner. An example that registers host handlers
-   (`on_key`/`on_click`/`when`/`every`) **must** declare a deterministic host-input schedule in
+   tracking issue and route it to its owner. An example that registers a **host-driven** handler
+   (`on_key` or `on_click`) **must** declare a deterministic host-input schedule in
    `scripts/examples-host-input.json` and produce the output it asserts (issue #955) — without one,
-   a program runs with an empty host, so every handler in it is unreachable and the gate certifies
-   that it parses and executes while asserting nothing about its interaction. The requirement is
-   derived from the source, so a deleted entry fails rather than silently relaxing the gate. This
-   gate drives the **runtime**, so it covers the language-level contract; the studio host seam is
-   covered by `packages/studio`'s own tests. The summary line reports how many examples ran with a
-   schedule versus with an empty host, so the blind fraction stays visible.
+   a program runs with an empty host, so those handlers are unreachable and the gate certifies that
+   it parses and executes while asserting nothing about its interaction. The requirement is derived
+   from the source, so a deleted entry fails rather than silently relaxing the gate. `every` and
+   `when` are excluded — both fire without host input. This gate drives the **runtime**, so it covers
+   the language-level contract; the studio host seam is covered by `packages/studio`'s own tests. The
+   summary line reports how many examples ran with a schedule versus with an empty host, so the blind
+   fraction stays visible.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
 8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`
