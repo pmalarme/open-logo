@@ -1526,7 +1526,7 @@ test("runExamplesGate fails a malformed host-input entry instead of silently ign
   assert.match(result.lines[0], /^FAIL clicks.logo: .*must assert something/);
 });
 
-test("runExamplesGate FAILS an example that registers host handlers but has no entry — so a deleted or misspelled entry cannot silently return it to an empty host", () => {
+test("runExamplesGate FAILS an example that registers a handler needing host delivery but has no entry — so a deleted or misspelled entry cannot silently return it to an empty host", () => {
   writeExample("clicks.logo", COUNTING_CLICKS);
   const result = runExamplesGate({
     dir: TEMP_DIR,
@@ -1543,7 +1543,7 @@ test("runExamplesGate FAILS an example that registers host handlers but has no e
   assert.equal(result.failed, 1);
   assert.match(
     result.lines[0],
-    /^FAIL clicks.logo: registers a host-driven handler .* but has no entry/,
+    /^FAIL clicks.logo: registers a handler that needs host delivery .* but has no entry/,
   );
 });
 
@@ -1558,21 +1558,29 @@ test("runExamplesGate leaves a handler-free example alone: no entry required", (
   assert.equal(result.ranWithInput, 0);
 });
 
-test("registersHostHandlers keys only on the heads that CANNOT fire without a host — not on every interaction form", () => {
+test("registersHostHandlers keys on 'needs delivery', not on 'is an interaction form'", () => {
   assert.equal(registersHostHandlers("on_click [ print 1 ]"), true);
   assert.equal(registersHostHandlers('on_key "a" [ print 1 ]'), true);
-  // `every` runs off the runtime's own tick clock and `when "start"` is delivered internally
-  // (packages/runtime/src/interaction.ts), so requiring a schedule for either would force a
-  // meaningless entry onto a correct example — review round 2.
-  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), false);
+  // Measured with a clock-advancing `wait` and an EMPTY host: `when "stop"` prints 0 (and 1 once a
+  // host delivers `stop`), so it needs a schedule; `when "start"` prints 1 because the runtime
+  // delivers it internally, and `every` prints 10 off its own tick clock. Round 2 wrongly required
+  // schedules for all four heads; round 3 wrongly excluded all of `when`, reopening the hole.
+  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "acme.shake" [ print 1 ]'), true);
   assert.equal(registersHostHandlers('when "start" [ print 1 ]'), false);
-  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), false);
+  assert.equal(registersHostHandlers('when "START" [ print 1 ]'), false);
+  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), false);
   assert.equal(registersHostHandlers("forward 10"), false);
-  // `wait` needs no host delivery to do its job, so it must not force a schedule.
+  // `wait` and `input` are in the interaction table but lower to `Call`, not `ProfileStatement`,
+  // and neither needs a delivered event to do its job.
   assert.equal(registersHostHandlers("wait 10"), false);
+  assert.equal(registersHostHandlers('print input "name"'), false);
+  // A dynamic event word cannot be classified statically, so it is treated as needing a schedule —
+  // the conservative direction for a gate that exists to stop handlers going unasserted.
+  assert.equal(registersHostHandlers("when :chosen [ print 1 ]"), true);
 });
 
-test("an example whose only interaction is `every` or `when` needs no schedule — it runs to completion with an empty host", () => {
+test("an example whose only interaction fires without a host needs no schedule", () => {
   writeExample(
     "timer.logo",
     'every 5 [ forward 1 ]\nwhen "start" [ print 1 ]\nwait 20\n',
@@ -1586,6 +1594,38 @@ test("an example whose only interaction is `every` or `when` needs no schedule �
   });
   assert.equal(result.ok, true, result.lines.join("\n"));
   assert.equal(result.ranWithInput, 0);
+});
+
+test('a `when "stop"` example needs a schedule, and passes once it has one — the false negative round 3 found', () => {
+  const manifest = {
+    "stopper.logo": ["core-language", "turtle-rendering", "interaction-events"],
+  };
+  writeExample("stopper.logo", 'when "stop" [ print 1 ]\nwait 10\n');
+  const withoutEntry = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest,
+    hostInputManifest: {},
+  });
+  assert.equal(withoutEntry.ok, false);
+  assert.match(
+    withoutEntry.lines[0],
+    /^FAIL stopper.logo: registers a handler that needs host delivery/,
+  );
+
+  const withEntry = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest,
+    hostInputManifest: {
+      "stopper.logo": {
+        executeOptions: {
+          hostInput: { events: [{ tick: 1, kind: "event", event: "stop" }] },
+        },
+        expect: { prints: [{ values: [1] }] },
+      },
+    },
+  });
+  assert.equal(withEntry.ok, true, withEntry.lines.join("\n"));
+  assert.equal(withEntry.ranWithInput, 1);
 });
 
 test("runExamplesGate reports a malformed entry even for an example it will SKIP — entry checks are hoisted above the skip for the same anti-masking reason the under-declaration check is", () => {

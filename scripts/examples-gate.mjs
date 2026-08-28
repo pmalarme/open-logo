@@ -33,13 +33,16 @@
  * structurally blind to every host-dependent feature the language has. `spec/examples/10-game.logo`
  * states its own contract in prose — "expected output: each click prints the updated `:score`" —
  * and with no host delivering a click that output is unreachable, so the gate certified the file
- * green while asserting nothing about its interaction (it is the gate that hid #952, where
- * `on_key`/`on_click` were inert in the only shipped host). An example may therefore declare a
- * deterministic **host-input schedule** plus the output it expects, in
+ * green while asserting nothing about its interaction. Be exact about the scope of that failure:
+ * this gate drives `@openlogo/runtime`'s `execute()`, so it could never have caught #952 (a
+ * *studio* host-forwarding defect, asserted by `packages/studio`'s own tests). What it failed to
+ * assert is the **language-level** contract that would have made the file's own stated output
+ * testable at all. An example that registers a handler needing host delivery MUST therefore declare
+ * a deterministic **host-input schedule** plus the output it expects, in
  * `scripts/examples-host-input.json` ({@link HOST_INPUT_PATH}) — the same declarative
  * `{ tick, kind }` shape a conformance fixture's `executeOptions.hostInput` uses, validated by the
  * harness's own {@link validateExecuteOptions}. {@link classifyExample} then runs the example with
- * that schedule and asserts the declared prints and event counts. Examples with no entry keep
+ * that schedule and asserts the declared prints and event counts. Examples with no such handler keep
  * running exactly as before, and the summary line reports how many ran **with** input versus with
  * an empty host, so the blind fraction is visible rather than assumed.
  *
@@ -181,42 +184,86 @@ export function validateHostInputEntry(file, entry) {
 }
 
 /**
- * Does `source` register a handler that **cannot fire without a host delivering input** — an
- * `on_key` or `on_click` block head (`spec/interaction-events.md`)?
+ * Does `source` register a handler that **cannot fire unless a host delivers something** — an
+ * `on_key`/`on_click` block head, or a `when` for any event other than `"start"`
+ * (`spec/interaction-events.md`)?
  *
  * This is what makes the host-input requirement structural rather than a matter of remembering
  * (issue #955, review round 1). Without it, deleting or misspelling an example's entry in
  * `scripts/examples-host-input.json` would leave `npm run examples` green while the example silently
  * went back to running with an empty host — the manifest would be the only thing asserting that the
  * example is asserted, which is the recursion this whole issue is about. With it, the corpus itself
- * decides: any example that registers a key or click handler MUST carry a schedule, so a missing
- * entry fails the gate rather than quietly relaxing it.
+ * decides: any example that registers such a handler MUST carry a schedule, so a missing entry fails
+ * the gate rather than quietly relaxing it.
  *
- * **`every` and `when` are deliberately NOT included** (review round 2). An earlier revision required
- * a schedule for all four Interaction & Events block heads, which was wrong in fact, and wrong in a
- * way that would have forced meaningless schedules onto correct examples:
+ * **The boundary is "needs delivery", not "is an interaction form"** — measured, because two review
+ * rounds got it wrong in opposite directions. Each row below is a direct `execute()` run:
  *
- * - `every <n> <block>` fires from the runtime's own **tick clock**, not from host input. Measured
- *   on `spec/examples/10-game.logo` with an empty host: its `every 30` body runs 10 times (10 `stamp`
- *   events) with nothing delivered at all.
- * - `when "start"` also fires with no host input: `packages/runtime/src/interaction.ts` states that
- *   in a headless `execute()` run "only `"start"` is *delivered*: the run has already started, so a
- *   `when "start"` handler fires immediately on registration". And `when "stop"` is "a requested stop
- *   notification" — a program that registers one and is never asked to stop is behaving correctly,
- *   so demanding a schedule for it would assert a fiction.
+ * | source (plus a clock-advancing `wait`) | prints under an EMPTY host | needs a schedule |
+ * | --- | --- | --- |
+ * | `on_click [ print 1 ]` | 0 | **yes** |
+ * | `on_key "a" [ print 1 ]` | 0 | **yes** |
+ * | `when "stop" [ print 1 ]` | 0 (1 when the host delivers `stop`) | **yes** |
+ * | `when "start" [ print 1 ]` | 1 | no |
+ * | `every 10 [ print 1 ]` | 10 | no |
  *
- * `on_key` and `on_click` are the two heads that are unambiguously host-driven and statically
- * decidable, so they are the two the requirement covers. Keyed on the `ProfileStatement` node the
- * reader builds for a profile block head (issue #664).
+ * - `every` fires from the runtime's own **tick clock** (round 2: requiring a schedule for it would
+ *   force a meaningless entry onto a correct timer-only example). Note the `wait`: with no
+ *   clock-advancing statement the same program prints 0, so quoting `every 10 [ print 1 ]` alone as
+ *   "prints 10" is wrong.
+ * - `when "start"` is delivered internally — `packages/runtime/src/interaction.ts`: in a headless
+ *   run "only `"start"` is *delivered*: the run has already started, so a `when "start"` handler
+ *   fires immediately on registration".
+ * - Every **other** `when` event, `"stop"` included, needs the host (round 3: excluding all of `when`
+ *   reopened exactly the hole this predicate exists to close — an example advertising a `when "stop"`
+ *   behaviour could pass with that behaviour unreachable).
+ *
+ * A `when` whose event word is **not a literal** (`when :chosen [ … ]`) cannot be classified
+ * statically, so it is treated as needing a schedule. That is the conservative direction for a gate
+ * whose purpose is to stop handlers going unasserted, and it is a stated residual rather than a
+ * silent one: no example in the corpus uses a dynamic event word today.
+ *
+ * **The set is congruent with what a schedule can actually deliver**, which is the structural reason
+ * behind the behavioural table. `HostInputEvent`
+ * (`packages/runtime/src/interaction.ts:459-462`) has exactly three variants — `{kind:"key"}`,
+ * `{kind:"click"}`, and `{kind:"event", event}` — and those are precisely `on_key`, `on_click`, and
+ * `when`. So every head this predicate requires a schedule for is one a schedule can drive: measured,
+ * `when "stop"` and even a vendor `when "acme.shake"` both fire when the entry delivers
+ * `{tick, kind:"event", event}`. If that union ever gains or loses a variant, this set must be
+ * revisited — state it here rather than leaving the congruence to be rediscovered.
+ *
+ * **`input` is excluded for a different reason, and it is worth naming** (review round 3): it *is*
+ * host-dependent, but it is safe because the runtime **fails closed** rather than because it needs no
+ * host. With an empty host an `input` read blocks until the execution budget trips, so
+ * `execute()` reports `ol-limit` and {@link classifyExample} fails the example loudly — it cannot run
+ * blind and pass. That safety comes from the budget, not from this gate: if `input` were ever changed
+ * to yield an empty word instead of blocking, an `input`-using example would run blind and pass, and
+ * this predicate would need to cover it. No example uses `input` today.
+ *
+ * Keyed on the `ProfileStatement` node the reader builds for a profile block head (issue #664).
  */
 export function registersHostHandlers(source) {
-  const HOST_DRIVEN_HEADS = new Set(["on_key", "on_click"]);
+  const ALWAYS_HOST_DRIVEN = new Set(["on_key", "on_click"]);
   const { ast } = parse(source);
   let found = false;
   walk(ast, (node) => {
-    found ||=
-      node.kind === "ProfileStatement" &&
-      HOST_DRIVEN_HEADS.has(node.keyword.name.toLowerCase());
+    if (node.kind !== "ProfileStatement") {
+      return;
+    }
+    const head = node.keyword.name.toLowerCase();
+    if (ALWAYS_HOST_DRIVEN.has(head)) {
+      found = true;
+      return;
+    }
+    if (head !== "when") {
+      return;
+    }
+    const event = node.args[0];
+    const isStart =
+      event !== undefined &&
+      event.kind === "WordLit" &&
+      event.value.toLowerCase() === "start";
+    found ||= !isStart;
   });
   return found;
 }
@@ -310,9 +357,9 @@ export function classifyExample(source, name, hostInputEntry = undefined) {
  *
  * An example named in `hostInputManifest` (default: read from `hostInputPath`) is executed with
  * that entry's host-input schedule and must satisfy its declared expectations (issue #955); an
- * example that registers a host-driven handler (`on_key`/`on_click`) and is NOT named there FAILS, so
+ * example that registers a handler that needs host delivery and is NOT named there FAILS, so
  * the requirement comes from the corpus rather than from the manifest and a deleted entry cannot
- * quietly relax it. `every` and `when` are excluded because they fire without host input — see
+ * quietly relax it. `every` and `when "start"` are excluded because they fire without host input — see
  * {@link registersHostHandlers}. Every other
  * example runs with an empty host exactly as before. The summary line reports both counts, so the
  * fraction of the corpus running blind is visible rather than assumed.
@@ -396,14 +443,14 @@ export function runExamplesGate({
     // attached to an example that happens to need a not-yet-implemented profile would otherwise
     // load clean and go unreported until that profile lands.
     if (hostInputEntry === undefined) {
-      // An example that registers a host-driven handler and has NO entry would run with an empty
+      // An example that registers such a handler and has NO entry would run with an empty
       // host and report PASS while every such handler in it stayed unreachable — exactly the state issue #955
       // exists to end. Requiring the schedule from the SOURCE rather than from the manifest is what
       // makes a deleted or misspelled entry fail rather than silently relax the gate.
       if (registersHostHandlers(source)) {
         failed += 1;
         lines.push(
-          `FAIL ${file}: registers a host-driven handler (on_key/on_click) but has no entry in ${hostInputPath} — ` +
+          `FAIL ${file}: registers a handler that needs host delivery (on_key/on_click, or a "when" for any event but "start") but has no entry in ${hostInputPath} — ` +
             `it would run with an empty host, so none of them could fire and the gate would assert nothing about them (issue #955)`,
         );
         continue;
