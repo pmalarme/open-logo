@@ -1,0 +1,25 @@
+{
+  "_comment": "Owned by @testing (issue #955), NOT spec/ (spec/ is maintainer-owned per AGENTS.md, so this gate must never add tags or headers to the .logo files themselves). Maps a spec/examples/*.logo filename to the deterministic host-input schedule scripts/examples-gate.mjs executes it with, plus the output that run MUST produce. Without an entry an example runs with an EMPTY host, which is how `npm run examples` certified 10-game.logo green while every on_key/on_click handler in it was unreachable — the gate that hid #952. `executeOptions` is forwarded verbatim to @openlogo/runtime's execute() and is validated by the conformance harness's own validateExecuteOptions, so it uses the same declarative { tick, kind } hostInput shape a conformance fixture does; randomSeed pins any `random` the program calls so the assertion is reproducible. `expect.prints` compares the ordered `print` event payloads exactly; `expect.eventCounts` asserts exact totals for event kinds a print cannot express. An entry MUST assert at least one of the two — scheduling input while asserting nothing would leave the example exactly as blind, only busier-looking. Every example NOT listed here keeps running with an empty host and is unchanged; the gate's summary line reports both counts so the blind fraction stays visible.",
+  "10-game.logo": {
+    "description": "spec/examples/10-game.logo:41 states its own contract in prose — 'expected output: each click prints the updated :score.' — and with an empty host that output is unreachable, so the gate used to certify the file green while asserting nothing about its interaction. The schedule delivers one press of each key the program binds plus two clicks. `prints` is the file's stated contract verbatim. The two event counts assert the key handlers, which print nothing: the program's own body turns exactly once (its `every 30` block never turns), so `turn: 3` means `on_key \"left\"` and `on_key \"right\"` both fired; and it never draws with the pen down anywhere else (the `every 30` block pens up before moving), so `draw-segment: 1` means `on_key \"up\"` fired. With the schedule removed the same run yields turn 1 and draw-segment 0, so every one of these assertions can fail.",
+    "executeOptions": {
+      "randomSeed": 20260828,
+      "hostInput": {
+        "events": [
+          { "tick": 1, "kind": "key", "key": "left" },
+          { "tick": 2, "kind": "key", "key": "right" },
+          { "tick": 3, "kind": "key", "key": "up" },
+          { "tick": 4, "kind": "click" },
+          { "tick": 5, "kind": "click" }
+        ]
+      }
+    },
+    "expect": {
+      "prints": [{ "values": [1] }, { "values": [2] }],
+      "eventCounts": {
+        "turn": 3,
+        "draw-segment": 1
+      }
+    }
+  }
+}

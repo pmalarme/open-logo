@@ -124,6 +124,31 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
     `packages/runtime/src/`.
 - Keep results **deterministic**: assert semantic events and final state, never timing or frames.
 
+### `profiles` gates an executed fixture, it does not merely select it
+
+`profiles` is the fixture's **active conformance profile set**. It decides whether the fixture runs
+under a given `--profile` pass — and, for an `"execute": true` fixture, it is also **enforced**
+(issue #790). The harness statically detects which optional profiles the source actually uses
+(`scripts/profile-detection.mjs`, the same detector the examples gate applies to
+`spec/examples/*.logo`) and fails the fixture as off-contract when the declared set — expanded to its
+dependency closure, so `"geometry"` already covers `"data"` — does not cover them.
+
+It used to only select: `profiles` never reached `execute()`, so a fixture whose source used Sprites
+forms passed with `"sprites"` deleted from its array, and the declaration was documentation rather
+than enforcement. Correcting that surfaced 8 fixtures under `core-language/execution/` that executed
+`:nums[i]` while claiming Core alone — Data by `spec/conformance.md:269`, "only Data-claiming
+implementations execute the list case".
+
+The gate applies to **executed** fixtures only, and the two exclusions are deliberate:
+
+- **`check` fixtures are already gated for real** — `produce()` passes `profiles` into `check()`,
+  which resolves primitives through the active set. Those fixtures deliberately name an *inactive*
+  profile's forms (`heritage/check/heritage-forms-rejected-in-core` and its siblings exist precisely
+  to prove the rejection), so a static under-declaration gate would fail correct fixtures.
+- **Parse-only fixtures have no profile semantics to gate** — `spec/conformance.md:120` states that
+  the postfix-read grammar a list index uses "is unconditional Core syntax", so a Core-only fixture
+  that merely *parses* `:nums[2]` is right as written.
+
 The harness validates every `kind` and `code` against the `@openlogo/core` registries, and every
 `profiles` tag against its own `PROFILE_DEPS` table (transcribed from `spec/conformance.md`'s DAG),
 so a fixture can never assert an off-contract shape.

@@ -191,7 +191,12 @@ maintainer-owned via `CODEOWNERS` like the rest of the contract.
 
 `npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
-rest with a visible notice. `scripts/check-markdown-examples.mjs` (issue #850, logic in
+rest with a visible notice. An example whose contract is **interactive** is executed with the
+declarative host-input schedule its entry in `scripts/examples-host-input.json` declares, and must
+produce the output that entry asserts (issue #955): running every program with an *empty* host left
+the gate structurally blind to every host-dependent feature the language has, which is how
+`10-game.logo` was certified green while `on_key`/`on_click` were inert in the only shipped host
+(#952). `scripts/check-markdown-examples.mjs` (issue #850, logic in
 `scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
 `spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
 unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0

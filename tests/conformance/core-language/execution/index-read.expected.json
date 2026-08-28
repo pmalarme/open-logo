@@ -1,6 +1,6 @@
 {
   "description": "`:nums[2]` reads the 1-based second element of a list place (issue #94's Core-scope postfix index selector, spec/execution-model.md:229-291).",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

@@ -32,7 +32,12 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed, with a
    rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
    asserted; never add an entry to silence a real defect — record it as `known-broken` with its
-   tracking issue and route it to its owner.
+   tracking issue and route it to its owner. An example whose contract is **interactive** is
+   additionally driven by a declarative host-input schedule in `scripts/examples-host-input.json`
+   and must produce the output it declares (issue #955) — without one, a program runs with an empty
+   host, so every `on_key`/`on_click` handler in it is unreachable and the gate certifies that it
+   parses and executes while asserting nothing about its interaction. The summary line reports how
+   many examples ran with a schedule versus with an empty host, so the blind fraction stays visible.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
 8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`

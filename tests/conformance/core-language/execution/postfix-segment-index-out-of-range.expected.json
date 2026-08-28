@@ -1,6 +1,6 @@
 {
   "description": "`[1 2][5]` (issue #407/F7): the postfix expression's base evaluates cleanly (the list literal `[1 2]`), but its `[5]` index segment is out of range — `ol-range` — exercising `readPostfixExpression`'s segment-resolution failure path in `evaluate.ts`, distinct from a base-evaluation failure.",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

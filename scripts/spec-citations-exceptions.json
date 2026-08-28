@@ -461,7 +461,7 @@
       "fingerprint": "d1c4632a057a5bf2"
     }
   ],
-  "scripts/examples-gate.mjs": [
+  "scripts/profile-detection.mjs": [
     {
       "subject": "spec/grammar.md:146",
       "observed": "blank-region",
