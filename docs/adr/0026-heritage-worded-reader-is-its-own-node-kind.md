@@ -85,19 +85,20 @@ large.
 **The obvious counter, and why it fails.** `PostfixExpressionNode` *does* expose two
 full-expression slots — `base: ExpressionNode`, and `SelectorSegment.key: ExpressionNode` — so
 "no node has this shape" would be false, and the reader could be shaped into a tagged
-`PostfixExpression`. It should not be, for two measured reasons. First, **it is not the reader's
-twin.** Rule 2 below asks what the twin's node can hold, not whether some node somewhere has a
-fitting shape. `PostfixExpression` serves `postfix-expression` — `primary { selector | "."
-identifier }`, a *general* selector read whose base is an arbitrary expression, which is why
-`{tom: 8}.tom` and `(point 0 0).x` land there. The reader's Core twin is the variable-rooted
-`:d.k`, which lowers onto `PlaceNode`. Hosting the reader on the general selector node would
-record it as an alternate spelling of a production it is not an alternate spelling of. (The two
-do overlap: on a dict, `{a: 1}.a` and `value of { a: 1 } for key "a"` read the same value. The
-objection is to the *production* they are spellings of, not to calling them different
-operations.) Second, `SelectorSegment`'s own contract forbids it: its span exists, in its words,
-"so tooling can point at exactly the `[ … ]`". The reader's source has no brackets, so a
-synthesized segment would carry a span describing punctuation that is not in the document — a
-defect handed to every consumer that trusts spans.
+`PostfixExpression`. It should not be, for two measured reasons — the first establishing which
+node is the twin, the second, decisive on its own, disqualifying the alternative. First, **it is
+not the reader's twin.** Rule 2 below asks what the twin's node can hold, not whether some node
+somewhere has a fitting shape, and the twin is fixed by which operation the form re-spells:
+`evaluateValueOfKey` passes `operation: "field"` and reports what `:x.tom` reports, so the twin is
+the variable-rooted dotted read `:d.k`, which lowers onto `PlaceNode`. `PostfixExpression` serves
+`postfix-expression` — `primary { selector | "." identifier }`, a *general* selector read whose
+base is an arbitrary expression, which is why `{tom: 8}.tom` and `(point 0 0).x` land there.
+(The two do overlap: on a dict, `{a: 1}.a` and `value of { a: 1 } for key "a"` read the same
+value. The objection is to the *production* they are spellings of, not to calling the operations
+unrelated.) Second, and sufficient by itself, `SelectorSegment`'s own contract forbids it: its
+span exists, in its words, "so tooling can point at exactly the `[ … ]`". The reader's source has
+no brackets, so a synthesized segment would carry a span describing punctuation that is not in the
+document — a defect handed to every consumer that trusts spans.
 
 The reader is also not a re-spelling of either Core selector in what it accepts. The dictionary
 table in `spec/data-structures.md` types its operands `dictExpr, keyExpr`, making it dict-only,
@@ -176,14 +177,13 @@ rule 2 is phrased against the twin's node, and no claim in this ADR quantifies o
 `OL_NODE_KINDS`.
 
 That makes this a hazard of the format rather than a lapse in one document. ADR-0006's "not new
-kinds" and — as issue #986 reports of ADR-0025 — its "would still rest on the same
-`OL_NODE_KINDS`/`AnyNode` agreement" are the same shape: a confident forward-looking claim written
-into a document that can never be corrected in place. Both were found the same way, by someone
-later building the thing the ADR had predicted about. That is precisely why the repository's rule
-is *add a new ADR, never edit one*, and it is the same reasoning that put role citations rather
-than line citations in this one. A related trap sits one layer down, and cost time in this slice:
-a claim that **wraps across lines** is invisible to a single-line search, so a grep that finds
-nothing is not evidence that a document does not make the claim.
+kinds" is one instance; ADR-0025 records another against itself, in its own errata: "An earlier
+draft of this ADR asserted that the shim 'exposes no compiler API'. That was false … The reviewer
+falsified it by building the rejected instrument." Both are the same shape — a confident
+forward-looking claim written into a document that can never be corrected in place — and both were
+caught the same way, by someone later building the thing the claim was about. That is precisely
+why the repository's rule is *add a new ADR, never edit one*, and it is the same reasoning that
+put role citations rather than line citations in this one.
 
 ## Consequences
 
