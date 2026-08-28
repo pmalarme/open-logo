@@ -345,17 +345,24 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:221-225` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-`deliverKey` reports whether **that press actually ran a handler** — compared as a strict increase in
-`on_key` invocation markers across that one delivery. It is `false` for a key no handler names, for a
-handler the run never reached, for a press scheduled **before** the handler registered, and for a
-press past the program's final usable tick.
+`deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** —
+compared as a strict increase in invocation markers across that one delivery. Each is `false` for a
+handler the run never reached, for a delivery scheduled **before** the handler registered, and for
+one past the program's final usable tick; `deliverKey` is additionally `false` for a key no handler
+names.
 
-`deliverClick` reports the narrower **`chain accepts input && on_click registered`**, because a click
-names no key word to count against. It therefore stays `true` after the program's clicks have stopped
-firing — measured on `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
-handlers ran `[true, true, false, false, false]`. Nothing reads that return today
-(`canvas-interaction.ts` discards it), and a click has no browser default to suppress, so the
-narrowness costs nothing — but it is *not* the same contract as `deliverKey`'s.
+Until #985 `deliverClick` reported something narrower and different in kind — `chain accepts input &&
+on_click registered` — which is a question about the *run*, not about this activation. On the
+README's own example, `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
+handlers ran `[true, true, false, false, false]`; they now agree, both measuring
+`[true, true, false, false, false]` over output `["C", "C"]`. A click names no key word, but it needs
+none: `on_click` takes no argument (`spec/interaction-events.md:59`) and every registered handler
+answers every click (`:88`), so the question is "did **any** of them run" and summing the
+registration positions the runtime already stamped answers it — strictly less machinery than the key
+path, which must additionally pair parsed key words to positions. Nothing reads the click's return
+today (`canvas-interaction.ts` discards it, and a click has no browser default to suppress), so the
+fix buys a contract rather than a behaviour: two booleans on one interface no longer mean two
+different things.
 
 Every formulation that answers from *history* rather than from the delivery re-created silent
 interception somewhere, and four did — which is why the narrow one is worth the cost. The replay's
@@ -371,7 +378,12 @@ Counting invocation markers per delivery is sound on all of those, and on **alia
 registration emits an `instruction` *and* a `primitive` at the same position, so
 `invocations = instructions − registrations` per position. `repeat 2 [ on_key "up" [ … ] ]` registers
 twice at one position and one press fires **both** — the count says 2 and the program prints twice,
-an independent witness agreeing with the arithmetic.
+an independent witness agreeing with the arithmetic. Because that block-head marker is emitted for
+**every** registration form, the same arithmetic carries to `on_click` unchanged, which is what let
+#985 bring the click onto one shared counter rather than a second mechanism: re-measured there,
+`repeat 2 [ on_click [ print "c" ] ]` counts 2 then 4 across two clicks and prints 2 then 4, and
+`on_click [ print :nope ]` — which raises on its first instruction — still counts 1, the axis the
+stream-length formulation fails on.
 
 **Under a host that settles across event-loop turns it is always `false`, so such a host suppresses
 nothing at all.** That is a real capability gap ([#975](https://github.com/pmalarme/open-logo/issues/975)),
