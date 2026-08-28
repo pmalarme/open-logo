@@ -39,11 +39,15 @@
 //      correct implementation — the "green signal certifying less than it appears to" that #924 and
 //      #932 both measured.
 //
-// **What this gate does not close.** It is an audit of the trees the corpus actually produces, not a
-// proof about the type declarations. A node-valued field that no `.logo` file populates is invisible
-// to reflection — which is exactly why self-check 3 exists, and why `POPULATED_FIELD_PATHS` makes
-// adding a walkable field a deliberate **three**-place change: the type declaration, `childrenOf`,
-// and the declared path list here — after which the gate still fails until a fixture exercises it.
+// **What this gate does not close.** The reflective half is an audit of the trees the corpus
+// actually produces, not a proof about the type declarations, and a node-valued field that no
+// `.logo` file populates is invisible to reflection. That is what self-check 3 is for — and since
+// issue #986 the expected field set is derived a **second** time, from `ast.ts`'s type declarations
+// via the TypeScript 7 compiler API (`auditTheDeclarations`), so the declarations and the corpus
+// must agree in both directions. Adding a walkable field is therefore still a deliberate
+// **three**-place change — the type declaration, `childrenOf`, and `POPULATED_FIELD_PATHS` — after
+// which the gate still fails until a fixture exercises it, but now the *first* of those three is
+// read by the gate rather than trusted.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -54,6 +58,16 @@ import { runInNewContext } from "node:vm";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+// The TypeScript 7 compiler API, used by `auditTheDeclarations` below to read `ast.ts`'s type
+// declarations. ADR-0025 deferred this on the belief that the shim "exposes no compiler API"; that
+// claim was false and came from looking for the pre-7 `lib/typescript.js` layout instead of reading
+// the package's export map. `unstable/*` is the only spelling TypeScript 7 publishes for it.
+import {
+  API,
+  ObjectFlags,
+  SymbolFlags,
+  TypeFlags,
+} from "typescript/unstable/sync";
 import { OL_NODE_KINDS, parse, walk } from "@openlogo/parser";
 // The subject under audit. It is intra-package (`index.ts` exports `ast`, `OL_NODE_KINDS` and
 // `walk`, not this), so it is imported from the package's own build output rather than promoted to
@@ -92,9 +106,12 @@ const KINDED_NON_NODE_SHAPES = ["field", "index"];
  * list populated with metadata and contributes no path at all, which is exactly the distinction this
  * list has to make.
  *
- * Both directions are checked. A path here that the corpus stops populating fails, because a clean
- * result could then come from an unexercised field; a path the corpus populates that is missing here
- * fails, because a new walkable field must be seen by a human before this gate certifies it.
+ * Both directions are checked, twice over. A path here that the corpus stops populating fails,
+ * because a clean result could then come from an unexercised field; a path the corpus populates that
+ * is missing here fails, because a new walkable field must be seen by a human before this gate
+ * certifies it. Since #986 the same list is also compared against the set derived from the **type
+ * declarations** — three sources that must agree, where the literal below is the one a reviewer
+ * reads in a diff and the other two are re-derived on every run.
  */
 const POPULATED_FIELD_PATHS = [
   "Add.target",
@@ -153,6 +170,66 @@ const POPULATED_FIELD_PATHS = [
   "While.body",
   "While.condition",
 ];
+
+/**
+ * The repository root, resolved from this file rather than from `process.cwd()` so a package-scoped
+ * run (`cd packages/parser && node --test src/…`) finds the corpus and the `tsconfig.json` below.
+ */
+const REPOSITORY_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+);
+
+/**
+ * How {@link auditTheDeclarations} classifies one declared type, **indexed by priority** so the
+ * classification is a subscript rather than a chain of conditionals: a ternary arm that only runs
+ * when something is already wrong is dead on a green tree, which is the defect this file rejects
+ * everywhere else.
+ *
+ * A `union` is expanded into its constituents, a `node` ends a path, a `reference` (a
+ * `ReadonlyArray<T>` or a tuple) is walked through its type *arguments*, an `object` is a wrapper
+ * walked through its properties, and everything else is a `leaf`.
+ *
+ * **Intersections are deliberately absent.** They cannot occur in today's declarations, and giving
+ * them an arm would be a recording path no green run executes. Instead they fall to `leaf`, where
+ * `TypeFlags.Intersection` breaks {@link EXPECTED_LEAF_TYPE_FLAGS} — an unanticipated type
+ * constructor fails a whole-set comparison rather than being silently skipped. The same catch covers
+ * `any`, `unknown`, `never`, and the **error type** an unresolved reference produces.
+ *
+ * A reference is walked by type argument and never by property, which is load-bearing rather than a
+ * shortcut: `getPropertiesOfType` on `readonly [number, number]` returns 34 members — `map`,
+ * `flatMap`, `at`, `Symbol.iterator` — so descending an array by its properties would walk the whole
+ * `Array` prototype surface instead of its elements.
+ */
+const TYPE_CATEGORIES = ["leaf", "object", "reference", "node", "union"];
+
+/**
+ * The categories {@link auditTheDeclarations} is expected to meet, as a whole set: an unexercised
+ * one means the walk stopped reaching a shape it used to reach.
+ */
+const EXPECTED_TYPE_CATEGORIES = [...TYPE_CATEGORIES].sort();
+
+/**
+ * Every `TypeFlags` value a declared **leaf** may carry, as a whole set — the declaration-side twin
+ * of {@link EXPECTED_VALUE_TYPES}, and the check that makes "everything else is a leaf" safe rather
+ * than a blind spot. `undefined` is an absent optional field; `string`/`number` are `VarRef.name`
+ * and `PostfixExpression.parenGroupCount`; the string literals are discriminants such as
+ * `Assign.form`; the boolean literals are `IsTest`'s `strict`, which TypeScript models as `true |
+ * false`.
+ *
+ * Written as enum members rather than the numbers they equal, so the list is derived from the
+ * compiler's own vocabulary; the values were measured, not predicted, and are 4, 32, 64, 1024 and
+ * 8192.
+ */
+const EXPECTED_LEAF_TYPE_FLAGS = [
+  TypeFlags.Undefined,
+  TypeFlags.String,
+  TypeFlags.Number,
+  TypeFlags.StringLiteral,
+  TypeFlags.BooleanLiteral,
+].sort((left, right) => left - right);
 
 /**
  * The `kind` a value declares as its own **data** property — read from the descriptor, never from
@@ -487,14 +564,8 @@ function reflectedEdgesOf(node, seen) {
 
 /** Parse every `.logo` file in the repository and audit `walk` against reflection. */
 function auditTheCorpus() {
-  const repositoryRoot = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-  );
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
-    join(repositoryRoot, root),
+    join(REPOSITORY_ROOT, root),
   );
   const seen = {
     foreignShapes: new Set(),
@@ -761,7 +832,181 @@ function auditTheCorpus() {
   };
 }
 
+/**
+ * Every node-valued field path the **type declarations** declare, derived from `ast.ts` by the
+ * TypeScript 7 compiler API (issue #986).
+ *
+ * This is the second source `POPULATED_FIELD_PATHS` is compared against, and it is the one that can
+ * see what reflection cannot. Reflection reads the trees the corpus produces, so a declared field no
+ * fixture populates contributes nothing and is indistinguishable from a field that does not exist —
+ * exactly the "green signal certifying less than it appears to" shape. A declaration walk has the
+ * mirror-image blind spot (it knows nothing about what runs), so the two together pin the set from
+ * both ends: `declared \ populated` is an unexercised field, `populated \ declared` is a tree that
+ * disagrees with its own types.
+ *
+ * **It applies the same path rule as {@link edgesUnder}, and the same node oracle.** A path is the
+ * dotted route from the owning kind through wrappers and arrays to the first type that is a node, so
+ * `ProcedureDef.params[].defaultValue` is distinct from `ProcedureDef.params`. That granularity is
+ * the whole point: attributing a wrapper-held node to the holder's field collapses these 55 paths to
+ * 51 (measured) and hides whether the wrapper's own node-valued part is ever exercised.
+ *
+ * **What it does not remove.** Both sides ask {@link WALKABLE_NODE_KINDS} what a node is, so the
+ * `OL_NODE_KINDS`/`AnyNode` agreement ADR-0024 leaves test-enforced is still the assumption
+ * underneath — but this walk reaches `AnyNode` itself, so `kinds` below *is* that enforcement, made
+ * from the declarations rather than assumed.
+ *
+ * **Termination is measured, not argued.** Wrapper types form a DAG today, so the walk terminates;
+ * rather than assert that, every descent filters out types already on the current chain and counts
+ * what it removed, and `cyclicEdges` is asserted to be 0. A counted filter costs nothing on a green
+ * tree, where an `if (cycle) throw` arm would be a recording path no green run executes.
+ */
+function auditTheDeclarations() {
+  const configFile = join(
+    REPOSITORY_ROOT,
+    "packages",
+    "parser",
+    "tsconfig.json",
+  );
+  const api = new API({ cwd: REPOSITORY_ROOT });
+  try {
+    const projects = api
+      .updateSnapshot({ openProjects: [configFile] })
+      .getProjects();
+    const checker = projects[0].checker;
+
+    /**
+     * The kind a *type* declares, read from its `kind` property's string-literal type — the
+     * declaration-side twin of {@link ownDataKindOf}, filtered rather than branched so no arm is
+     * reachable only on a broken tree. A type with no `kind`, or a `kind` that is not a single
+     * literal, yields `undefined` and is therefore not a node.
+     */
+    const declaredKindOf = (type) =>
+      checker
+        .getPropertiesOfType(type)
+        .filter((property) => property.name === "kind")
+        .map((property) => checker.getTypeOfSymbol(property))
+        .filter((kindType) => kindType.isStringLiteralType())
+        .map((kindType) => kindType.value)[0];
+
+    // Priority by subscript, exactly as `canonicalPrototypeFieldKind` does it: every term is
+    // evaluated and the largest wins, so there is no untaken arm. `union` outranks `node` because
+    // `ComprehensionNode` is a union whose members both declare `kind: "Comprehension"` — taking the
+    // node arm there would record the union's path once and never look at `ReduceComprehensionNode`'s
+    // own `initial` field. `node` outranks `reference` and `object` because a node ends a path.
+    // `type.objectFlags` is `undefined` for a non-object type and `undefined & n` is 0, so the
+    // reference term needs no guard.
+    const categoryOf = (type) =>
+      TYPE_CATEGORIES[
+        Math.max(
+          Number(type.isUnionType()) * 4,
+          Number(WALKABLE_NODE_KINDS.has(declaredKindOf(type))) * 3,
+          Number(type.isObjectType()) *
+            Number((type.objectFlags & ObjectFlags.Reference) !== 0) *
+            2,
+          Number(type.isObjectType()),
+          0,
+        )
+      ];
+
+    const seen = { categories: new Set(), leafTypeFlags: new Set() };
+    const typeVisits = [];
+    const paths = new Set();
+    const kinds = new Set();
+    let cyclicEdges = 0;
+
+    const walkDeclaredType = (type, path, chain) => {
+      const category = categoryOf(type);
+      seen.categories.add(category);
+      // Recorded for every type, before any dispatch, so an unresolved reference is reported by
+      // name rather than only as an anomalous flag in `leafTypeFlags`. `isErrorType()` is the
+      // compiler's own answer to "this reference did not resolve", which is the failure that would
+      // otherwise make this whole derivation quietly smaller than the declarations it reads.
+      typeVisits.push({ at: path, unresolved: type.isErrorType() });
+      const nextChain = new Set(chain).add(type.id);
+      const descend = (edges) => {
+        const fresh = edges.filter((edge) => !nextChain.has(edge[0].id));
+        cyclicEdges += edges.length - fresh.length;
+        for (const edge of fresh) {
+          walkDeclaredType(edge[0], edge[1], nextChain);
+        }
+      };
+      ({
+        union: () => descend(type.getTypes().map((member) => [member, path])),
+        node: () => paths.add(path),
+        reference: () =>
+          descend(
+            checker
+              .getTypeArguments(type)
+              .map((argument) => [argument, `${path}[]`]),
+          ),
+        object: () =>
+          descend(
+            checker
+              .getPropertiesOfType(type)
+              .map((property) => [
+                checker.getTypeOfSymbol(property),
+                `${path}.${property.name}`,
+              ]),
+          ),
+        leaf: () => seen.leafTypeFlags.add(type.flags),
+      })[category]();
+    };
+
+    // `AnyNode` is the declarations' own answer to "what is a node", so the walk starts there rather
+    // than from a list of interface names kept here — a list would be the hand-maintained oracle
+    // this instrument exists to replace.
+    const anyNode = checker.getDeclaredTypeOfSymbol(
+      checker.resolveName("AnyNode", SymbolFlags.Type, {
+        document: join(REPOSITORY_ROOT, "packages", "parser", "src", "ast.ts"),
+        position: 0,
+      }),
+    );
+    for (const member of anyNode.getTypes()) {
+      const kind = declaredKindOf(member);
+      kinds.add(kind);
+      for (const property of checker.getPropertiesOfType(member)) {
+        walkDeclaredType(
+          checker.getTypeOfSymbol(property),
+          `${kind}.${property.name}`,
+          new Set(),
+        );
+      }
+    }
+
+    return {
+      paths: [...paths].sort(),
+      kinds: [...kinds].sort(),
+      categories: [...seen.categories].sort(),
+      leafTypeFlags: [...seen.leafTypeFlags].sort(
+        (left, right) => left - right,
+      ),
+      unresolvedTypes: typeVisits.filter((visit) => visit.unresolved),
+      typeVisitCount: typeVisits.length,
+      cyclicEdges,
+      projectCount: projects.length,
+      configFileName: projects[0].configFileName.replaceAll("\\", "/"),
+      expectedConfigFileName: configFile.replaceAll("\\", "/"),
+    };
+  } finally {
+    // The API runs a `tsgo` child process; without this the test run finishes and never exits.
+    api.close();
+  }
+}
+
 const audit = auditTheCorpus();
+const declarations = auditTheDeclarations();
+
+// The two derivations, differenced both ways so a failure names the direction as well as the path.
+// Computed unconditionally rather than inside the assertions: a projection only a failing tree
+// evaluates is dead on a green one.
+const populatedFieldPaths = new Set(audit.populated);
+const declaredFieldPaths = new Set(declarations.paths);
+const declaredButUnpopulated = declarations.paths.filter(
+  (path) => !populatedFieldPaths.has(path),
+);
+const populatedButUndeclared = audit.populated.filter(
+  (path) => !declaredFieldPaths.has(path),
+);
 
 test("every node's child list is exactly the edges the node itself holds", () => {
   // The comparison this gate exists for, and the one that has to be by identity and multiplicity
@@ -920,6 +1165,60 @@ test("the corpus populates exactly the declared node-valued field paths", () => 
   // Self-check 3 — corpus adequacy, in both directions. Without it, a green run over a corpus that
   // never exercises a field is indistinguishable from a green run over a correct implementation.
   assert.deepEqual(audit.populated, [...POPULATED_FIELD_PATHS].sort());
+});
+
+test("the type declarations and the corpus agree on every field path", () => {
+  // Issue #986. `POPULATED_FIELD_PATHS` is a list a human maintains, and the test above compares it
+  // against one derivation. That leaves the declarations — the source a new field is actually added
+  // to — consulted by nobody, which is the #964 shape: the list could be complete about the corpus
+  // and silent about `ast.ts`.
+  //
+  // Differenced both ways, because the two directions are different defects. A declared path the
+  // corpus never populates is an unexercised field, and every other assertion in this file stays
+  // green about it — reflection cannot report a field no tree carries. A populated path the
+  // declarations do not have is a tree disagreeing with its own types.
+  assert.deepEqual(declaredButUnpopulated, []);
+  assert.deepEqual(populatedButUndeclared, []);
+  // And the declaration side pins the literal too, so all three sources agree rather than two
+  // agreeing while the third drifts.
+  assert.deepEqual(declarations.paths, [...POPULATED_FIELD_PATHS].sort());
+});
+
+test("the declaration walk resolved every type it read", () => {
+  // A derivation that silently resolved nothing satisfies `declaredButUnpopulated` trivially — the
+  // empty set is a subset of everything — so the walk states what it met rather than only what it
+  // concluded.
+  //
+  // An unresolved reference yields the compiler's error type, which is the one way this walk can
+  // come back smaller than the declarations without anything looking wrong.
+  assert.deepEqual(declarations.unresolvedTypes, []);
+  // Every leaf's flags as a whole set. This is what makes "everything else is a leaf" safe: an
+  // intersection, an `any`, a `never`, a mapped type or the error type all land here and break the
+  // equality, instead of being silently classified as childless.
+  assert.deepEqual(declarations.leafTypeFlags, EXPECTED_LEAF_TYPE_FLAGS);
+  // And every category was actually exercised, so none of the five arms is carrying no traffic.
+  assert.deepEqual(declarations.categories, EXPECTED_TYPE_CATEGORIES);
+  // Wrapper types form a DAG, measured rather than argued — see `auditTheDeclarations`.
+  assert.equal(declarations.cyclicEdges, 0);
+  // The walk started from `AnyNode`, so the kinds it reached are the union's own membership. ADR-0024
+  // records that `OL_NODE_KINDS` agreeing with `AnyNode` is test-enforced rather than
+  // compiler-enforced, and names no test; this is that test. The oracle `WALKABLE_NODE_KINDS` — which
+  // both halves of this gate rest on — is exactly `OL_NODE_KINDS`, so a kind in one list and not the
+  // other would make one of the two halves blind, in the direction that reports nothing.
+  assert.deepEqual(declarations.kinds, [...OL_NODE_KINDS].sort());
+  // Exactly one project was opened, and it is the one this gate names. A snapshot that silently
+  // resolved a different `tsconfig.json` would read different declarations.
+  assert.equal(declarations.projectCount, 1);
+  assert.equal(
+    declarations.configFileName,
+    declarations.expectedConfigFileName,
+  );
+  // A floor, not a census: it only fails on a walk that has collapsed, so ordinary growth in `ast.ts`
+  // never touches it and no derived count is asserted.
+  assert.ok(
+    declarations.typeVisitCount > 1000,
+    `visited ${declarations.typeVisitCount} declared types`,
+  );
 });
 
 test("the audit actually traversed the corpus, reaching every node kind", () => {
