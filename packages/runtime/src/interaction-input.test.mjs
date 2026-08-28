@@ -265,7 +265,7 @@ test("a read with no scripted answer cancels the run (ol-limit) rather than inve
   //
   // It reaches that ending through the SHARED cancellation diagnostic, identical in code, params
   // AND prose to an externally cancelled run: diagnostic identity is code + params and prose is
-  // presentation (`spec/error-model.md:235-238`), so a lookalike builder with its own wording would
+  // presentation (`spec/error-model.md:254-259`), so a lookalike builder with its own wording would
   // make the message stop being a function of the identity. The span is what localises it to the
   // waiting read.
   const result = execute('print input "q"', doc);

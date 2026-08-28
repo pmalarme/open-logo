@@ -452,7 +452,7 @@ test("a comprehension body inside a `when` handler is still a comprehension boun
 // `output`/`op` are Heritage *alternate spellings* of `return` (spec/conformance.md#heritage —
 // "alternate spellings only, no new semantics"), lowered onto the same `Return` node. Diagnostic
 // identity is `code` plus structured `params`, and the same condition MUST keep the same code AND
-// the same params (spec/error-model.md:235-238), so all three spellings raise byte-identical
+// the same params (spec/error-model.md:254-259), so all three spellings raise byte-identical
 // diagnostics — `params.keyword` is always the canonical `"return"`. Only the prose `message` may
 // echo the learner's own word; that is the localization boundary and it is permitted.
 
