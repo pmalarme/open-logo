@@ -31,7 +31,7 @@
 //
 // - **operand shape.** The operand is an `additive`, bottoming out at `primary`, whose
 //   parenthesised alternative makes the operand's own span end *before* the tokens that follow it.
-//   {@link OPERAND_SHAPES} is `depth x interior-whitespace x placement`, not a flat list of
+//   {@link OPERAND_SHAPES} is `closing-pattern x opening`, not a flat list of
 //   remembered shapes: the three vary independently in the grammar, so combining them reaches
 //   sources no alternation of them can express — a deep nest *containing* a newline, and a closing
 //   tail where a paren sits *between* two whitespace runs.
@@ -92,71 +92,90 @@ const FORMS = [
   { name: "a", tokens: ["is", "a", '"point"'], words: ["a"] },
 ];
 
-/** Nesting depths of `primary`'s parenthesised alternative. 4 anchors the scan from above. */
-const PAREN_DEPTHS = [1, 2, 3, 4];
+/**
+ * The **closing pattern** of a parenthesised operand: how many newlines precede each `)`, listed
+ * innermost first. `[0,1]` is `((:x)\n)`; `[1,0,0]` is `(((:x\n)))`.
+ *
+ * One axis, enumerated exhaustively, rather than three sampled ones. Earlier revisions of this file
+ * had a `depth x interior-style x placement` product, and each was found in turn to be a *sample*
+ * of the space rather than the space: interiors fixed every newline run at exactly one, and the
+ * three placements (innermost/outermost/every) covered only 3 of the `2^depth - 1` non-empty level
+ * subsets — so `(((:x)\n))`, which parses clean and paints correctly, was unreachable. Both gaps
+ * admitted a phased scanner that satisfied the whole corpus while failing a valid program (issue
+ * #959 review rounds 8-9).
+ *
+ * A vector says exactly what the tail is, so the corpus reaches every interleaving of closing
+ * parens and newline runs within its bounds — and {@link signatureOf} reads that tail back off the
+ * emitted text and compares it, which no `depth`-only signature could do.
+ */
+const CLOSING_RUNS = [0, 1, 2];
+
+/** Depths enumerated over the full {@link CLOSING_RUNS} product. */
+const EXHAUSTIVE_DEPTHS = [1, 2, 3];
 
 /**
- * The whitespace the grammar permits inside those parentheses. Kept separate from depth so the two
- * form a product: depth and interior whitespace are independent in the grammar, and it is their
- * *combination* — a nested operand that also spans lines — that no single remembered shape covers.
+ * One depth beyond the exhaustive range, over the shorter run alphabet, so the scan is anchored
+ * from above: a loop capped at three iterations passes an exhaustive-to-3 corpus.
  */
-const PAREN_INTERIORS = [
-  ["multiline", (inner) => `\n${inner}\n`],
-  ["indented", (inner) => `\n    ${inner}\n  `],
-  ["wide-indent", (inner) => `${" ".repeat(24)}${inner}\n`],
+const ANCHOR_DEPTH = 4;
+const ANCHOR_RUNS = [0, 1];
+
+/**
+ * Leading whitespace inside the innermost paren. Kept as its own axis because it moves where the
+ * operand *starts* while the closing pattern moves where it *ends*, and the two are independent in
+ * the grammar.
+ */
+const OPERAND_OPENINGS = [
+  ["tight", ""],
+  ["wide-indent", " ".repeat(24)],
 ];
 
-/**
- * **Which nesting levels** the interior whitespace lands on — the third dimension of the operand,
- * and the one whose absence let a broken scanner through.
- *
- * Applying the whitespace only innermost makes every closing tail `newline* rparen*`, so a scanner
- * that skipped newlines, *then* parens, *then* newlines would satisfy the whole corpus while
- * failing `print ((:x)\n) is empty` — a program that parses clean and is painted correctly today.
- * The grammar puts no such ordering on the tail, so the corpus must not either: `outermost` and
- * `every` produce the interleaved `) newline )` the real single loop handles and a phased one
- * cannot (issue #959 review round 8).
- */
-const PAREN_PLACEMENTS = ["innermost", "outermost", "every"];
+/** Every vector of length `depth` over `alphabet`, in order. */
+function closingVectors(depth, alphabet) {
+  let vectors = [[]];
+  for (let position = 0; position < depth; position += 1) {
+    const extended = [];
+    for (const prefix of vectors) {
+      for (const run of alphabet) {
+        extended.push([...prefix, run]);
+      }
+    }
+    vectors = extended;
+  }
+  return vectors;
+}
 
 /**
- * `[name, declaredDepth, interior, wrap]` — the bare operand, the whitespace-free nests, and the
- * `depth x interior x placement` product.
- *
- * At depth 1 the three placements name the same single level, so only one is generated: an
- * alternative that renders identically is not a distinguishing case, and the uniqueness assertion
- * below would rightly reject it.
+ * `[name, depth, vector, opening, wrap]` — the bare operand plus
+ * `closing-pattern x opening`. The all-zero vector is the whitespace-free nest, so `tight` needs no
+ * separate entry.
  */
 function buildOperandShapes() {
-  const shapes = [["bare", 0, "none", (operand) => operand]];
-  for (const depth of PAREN_DEPTHS) {
-    shapes.push([
-      `paren-${depth}-tight`,
-      depth,
-      "tight",
-      (operand) => `${"(".repeat(depth)}${operand}${")".repeat(depth)}`,
-    ]);
-    const placements =
-      depth === 1 ? PAREN_PLACEMENTS.slice(0, 1) : PAREN_PLACEMENTS;
-    for (const [interior, wrapInterior] of PAREN_INTERIORS) {
-      for (const placement of placements) {
-        shapes.push([
-          `paren-${depth}-${interior}-${placement}`,
-          depth,
-          interior,
-          (operand) => {
-            let text = operand;
-            for (let level = 1; level <= depth; level += 1) {
-              const here =
-                placement === "every" ||
-                (placement === "innermost" && level === 1) ||
-                (placement === "outermost" && level === depth);
-              text = `(${here ? wrapInterior(text) : text})`;
-            }
-            return text;
-          },
-        ]);
-      }
+  const shapes = [["bare", 0, [], "none", (operand) => operand]];
+  const patterns = [];
+  for (const depth of EXHAUSTIVE_DEPTHS) {
+    for (const vector of closingVectors(depth, CLOSING_RUNS)) {
+      patterns.push([depth, vector]);
+    }
+  }
+  for (const vector of closingVectors(ANCHOR_DEPTH, ANCHOR_RUNS)) {
+    patterns.push([ANCHOR_DEPTH, vector]);
+  }
+  for (const [depth, vector] of patterns) {
+    for (const [opening, lead] of OPERAND_OPENINGS) {
+      shapes.push([
+        `paren-${depth}-${vector.join("")}-${opening}`,
+        depth,
+        vector,
+        opening,
+        (operand) => {
+          let text = `${lead}${operand}`;
+          for (let level = 0; level < depth; level += 1) {
+            text = `(${text}${"\n".repeat(vector[level])})`;
+          }
+          return text;
+        },
+      ]);
     }
   }
   return shapes;
@@ -201,9 +220,11 @@ const DEFERRED_NEWLINE_GAPS = [
  * that describes the generator instead of what it produced — so a wrapper that emitted the wrong
  * nesting would still be labelled with the depth it was asked for.
  *
- * `tail` is the trailing run of closing parens and whitespace, matched off the end of the emitted
- * text rather than sliced at the operand — an instrument that shares nothing with the generator's
- * structure. It is what distinguishes `\n))` from `)\n)`, and the corpus asserts both exist.
+ * `tail` is the trailing run of closing parens and whitespace, matched off the **end** of the
+ * emitted text — an instrument sharing nothing with the generator's structure. Comparing it against
+ * the declared closing vector is what a `depth`-only signature could not do: depth alone cannot
+ * distinguish `\n))` from `)\n)` from `)\n))`, and each of those distinguishes a different broken
+ * scanner.
  */
 function signatureOf(emitted) {
   let depth = 0;
@@ -217,12 +238,12 @@ function signatureOf(emitted) {
     }
   }
   const tail = emitted.match(/[)\s]*$/)[0].replace(/[^)\n]/g, "");
-  return {
-    depth: deepest,
-    newlines: (emitted.match(/\n/g) ?? []).length,
-    tail,
-    interleaved: /\)\n+\)/.test(tail),
-  };
+  return { depth: deepest, tail };
+}
+
+/** The tail a closing vector claims: `[0,1]` claims `")\n)"`. */
+function tailOfVector(vector) {
+  return vector.map((run) => `${"\n".repeat(run)})`).join("");
 }
 
 /** `slot < 0` is the baseline (every adjacency a single space); otherwise the deviation's slot. */
@@ -243,8 +264,8 @@ function slotLabel(form, slot) {
 }
 
 /**
- * Every generated case: `{ source, shape, depth, interior, signature, operand, form, after, gap,
- * word }`.
+ * Every generated case: `{ source, shape, depth, vector, opening, signature, operand, form, after,
+ * gap, word }`.
  *
  * Nothing is dropped. An earlier draft skipped combinations that do not parse, which was a branch
  * no input reached — and a corpus that silently narrows is the defect this file exists to prevent.
@@ -253,7 +274,7 @@ function slotLabel(form, slot) {
  */
 function generateCases() {
   const cases = [];
-  for (const [shape, depth, interior, wrap] of OPERAND_SHAPES) {
+  for (const [shape, depth, vector, opening, wrap] of OPERAND_SHAPES) {
     for (const operand of OPERANDS) {
       const signature = signatureOf(wrap(operand));
       for (const form of FORMS) {
@@ -276,7 +297,8 @@ function generateCases() {
               source,
               shape,
               depth,
-              interior,
+              vector,
+              opening,
               signature,
               operand,
               form: form.name,
@@ -352,7 +374,7 @@ test("the generated corpus is a cross product, not a list that quietly emptied",
       0,
     );
   assert.equal(CASES.length, expected, "the axes must multiply out");
-  assert.equal(CASES.length, 4200);
+  assert.equal(CASES.length, 13320);
 
   // Every case is a distinct assertion: a deviation that rendered the same source as another slot
   // would inflate the count above while distinguishing nothing.
@@ -412,36 +434,34 @@ test("each shape's declared structure matches the source it actually emits", () 
   ).map(labelOf);
   assert.deepEqual(disagreements, []);
 
-  // `newlines` is compared, not merely computed: a shape naming a whitespace interior must actually
-  // emit one, and a `tight`/`bare` shape must emit none. An unread field is a measurement nobody
-  // takes — which is how the tail below went unnoticed for a round.
-  const whitespaceDisagreements = CASES.filter(
-    (generated) =>
-      generated.signature.newlines > 0 !==
-      !["none", "tight"].includes(generated.interior),
+  // And the TAIL matches the vector, not merely the paren count. This is the comparison a
+  // `depth`-only signature could not make: `\n))`, `)\n)` and `)\n))` share a depth and separate
+  // three different broken scanners.
+  const tailDisagreements = CASES.filter(
+    (generated) => generated.signature.tail !== tailOfVector(generated.vector),
   ).map(labelOf);
-  assert.deepEqual(whitespaceDisagreements, []);
+  assert.deepEqual(tailDisagreements, []);
 
-  // The depth x interior product really does reach nested-and-multiline, which neither axis alone
-  // can express and which is the combination the scan gets wrong.
-  assert.ok(
-    CASES.some(
-      (generated) =>
-        generated.signature.depth >= 3 && generated.signature.newlines > 0,
-    ),
-  );
-
-  // And the placement axis really does reach an INTERLEAVED closing tail — `) newline )`, not just
-  // `newline ))`. Without it every tail is `newline* rparen*`, and a scanner that skipped newlines,
-  // then parens, then newlines would satisfy this whole corpus while failing
-  // `print ((:x)\n) is empty` — which parses clean and is painted correctly today.
+  // The closing-pattern axis is enumerated, so these three properties are consequences of it
+  // rather than hand-added cases — but each was a live escape, so each is asserted reachable.
   const tails = new Set(CASES.map((generated) => generated.signature.tail));
   assert.ok(
     [...tails].some((tail) => /\)\n+\)/.test(tail)),
-    `no interleaved closing tail among ${[...tails].map((tail) => JSON.stringify(tail)).join(" ")}`,
+    "no interleaved `) newline )` tail — a phased scanner would pass",
   );
-  // Both orderings must be present, or the corpus has merely swapped one blind spot for the other.
-  assert.ok([...tails].some((tail) => /^\n+\)\)/.test(tail)));
+  assert.ok(
+    [...tails].some((tail) => /\n\n/.test(tail)),
+    "no newline RUN longer than one — a one-newline-per-position scanner would pass",
+  );
+  assert.ok(
+    tails.has(")\n))"),
+    "no middle-only closing pattern — the placement axis has collapsed to a sample again",
+  );
+  // Deeper than the exhaustive range, so a scan capped at three iterations is still caught.
+  assert.ok(
+    CASES.some((generated) => generated.depth === ANCHOR_DEPTH),
+    "the anchor depth is unreachable",
+  );
 });
 
 test("every contextual word is `keyword` in every generated operand shape", () => {
@@ -484,7 +504,7 @@ test("the deferred newline coordinates are exactly the ones still failing", () =
     failing.length,
     DEFERRED_NEWLINE_GAPS.length * OPERAND_SHAPES.length * OPERANDS.length,
   );
-  assert.equal(failing.length, 700);
+  assert.equal(failing.length, 2220);
 });
 
 test("the same words are ordinary names outside the predicate, in every shape", () => {
@@ -525,15 +545,17 @@ test("the corpus reproduces the operand shapes that were once wrong", () => {
   //
   // Each was a live defect at some point in issue #959's review: a parenthesised operand's span
   // ends before its own `)`, so a scan that stepped a fixed one token past it marked nothing. The
-  // last is the round-8 addition: an interleaved tail no innermost-only placement can emit.
+  // last three are the round-8 and round-9 escapes — an interleaved tail, a middle-only closing
+  // pattern, and a newline run longer than one — none of which the sampled axes could emit.
   const produced = new Set(CASES.map((generated) => generated.shape));
   for (const shape of [
-    "paren-1-tight",
-    "paren-2-tight",
-    "paren-1-multiline-innermost",
-    "paren-1-indented-innermost",
-    "paren-1-wide-indent-innermost",
-    "paren-2-multiline-outermost",
+    "paren-1-0-tight",
+    "paren-2-00-tight",
+    "paren-1-1-tight",
+    "paren-1-0-wide-indent",
+    "paren-2-01-tight",
+    "paren-3-010-tight",
+    "paren-1-2-tight",
   ]) {
     assert.ok(
       produced.has(shape),
