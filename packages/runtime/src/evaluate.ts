@@ -1295,7 +1295,7 @@ function evaluateDictLit(
 }
 
 /**
- * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
+ * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:217`) — the Heritage dict
  * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
  * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
  * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
@@ -1313,8 +1313,10 @@ function evaluateDictLit(
  * issue #670). `operation: "field"` is the one choice that is both coherent for every operand type
  * and reachable from Core. The prose therefore reads "field needs a dict…" for a `for key` spelling
  * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
- * prints, which is precisely the Heritage guarantee (`spec/error-model.md:235-238`: identity is
- * `code` plus `params`; prose is presentation).
+ * prints. That identical prose is a *consequence* of reusing the Core builder rather than the
+ * requirement itself: what the spec fixes is the machine-readable half — identity is `code` plus
+ * `params` and prose is presentation (`spec/error-model.md:254-259`) — so reusing the one builder
+ * is what makes the Heritage guarantee hold where it is actually asserted.
  *
  * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
  * reader rejects it, while Core's `.key` selector accepts records and reports `ol-unknown-field`.
@@ -4762,11 +4764,12 @@ function evaluateInput(
   if (answer === undefined) {
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
     // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
-    // cancellation diagnostic, not a lookalike of its own. Diagnostic identity is code + params and
-    // prose is presentation (`spec/error-model.md:235-238`), so a second builder emitting
-    // `ol-limit`/`{ limit: "cancelled" }` with different wording would make the message stop being a
-    // function of the identity and be unreachable in any localized build. The span still points at
-    // the waiting `input`, which is what tells a learner *where* the run stopped.
+    // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
+    // presentation (`spec/error-model.md:254-259`), so what a second builder would risk is a drift
+    // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
+    // "cancelled" }` identical to an externally cancelled run in any build, localized or not. The
+    // span still points at the waiting `input`, which is what tells a learner *where* the run
+    // stopped.
     return fail(runtimeDiag.cancelled(node.source_span));
   }
   emitInputPrimitive(environment.events, node.source_span);

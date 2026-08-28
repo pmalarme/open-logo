@@ -111,16 +111,6 @@
       "fingerprint": "7a25a38ab06dc1f2"
     }
   ],
-  "packages/parser/src/checker-control-flow.ts": [
-    {
-      "subject": "spec/execution-model.md:426",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 425 (\"result is discarded like any other unused value.\") and below is line 427 (\"`map <var> in <listExpr> [ <expr> ]` returns a fresh list cont…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "b5f8bbb5dfdaf20f"
-    }
-  ],
   "packages/parser/src/checker-type-field.ts": [
     {
       "subject": "spec/tooling.md:193",
@@ -837,36 +827,6 @@
       "issue": "#948",
       "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
       "fingerprint": "954e36148a0e4e5e"
-    }
-  ],
-  "tests/conformance/sprites/reserved-procedures-without-sprites/reserved-procedures-without-sprites.expected.json": [
-    {
-      "subject": "spec/error-model.md:253",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in error-model.md: the nearest text above is line 252 (\"```\") and below is line 254 (\"## Localization boundary\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "d053687c0665a114"
-    }
-  ],
-  "tests/conformance/sprites/reserved-reporters-without-sprites/reserved-reporters-without-sprites.expected.json": [
-    {
-      "subject": "spec/error-model.md:253",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in error-model.md: the nearest text above is line 252 (\"```\") and below is line 254 (\"## Localization boundary\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "c4a80af478a7be30"
-    }
-  ],
-  "tests/conformance/sprites/reserved-struct-without-sprites/reserved-struct-without-sprites.expected.json": [
-    {
-      "subject": "spec/error-model.md:253",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in error-model.md: the nearest text above is line 252 (\"```\") and below is line 254 (\"## Localization boundary\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "801295f0c33626e5"
     }
   ],
   "tests/conformance/sprites/tell-dedup-repeated-turtle/tell-dedup-repeated-turtle.expected.json": [

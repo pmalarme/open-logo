@@ -5,25 +5,28 @@
  *
  * - `ol-return-outside-proc` — `return` (Core; `output`/`op` are the Heritage spellings this node's
  *   `keyword` also carries) used where no enclosing `define … end` procedure body exists
- *   (`spec/error-model.md:114`, `spec/tooling.md:189` — *point at the control word*).
- * - `ol-stop-outside-proc` — `stop` used outside any procedure body (`spec/error-model.md:117`).
+ *   (`spec/error-model.md:116`, `spec/tooling.md:190` — *point at the control word*).
+ * - `ol-stop-outside-proc` — `stop` used outside any procedure body (`spec/error-model.md:119`).
  * - `ol-return-in-comprehension` — a `return`/`stop` anywhere inside a `map`/`filter`/`reduce`
- *   body. The spec (`spec/execution-model.md:406-407`, `spec/error-model.md:115`) says a
- *   comprehension body "cannot contain `return`/`output`/`op`" and reports by its last expression;
- *   this code is *preferred over the outside-proc codes* whenever the offending escape is inside a
- *   comprehension body, even one nested in a procedure — a comprehension is a value context, not a
- *   control context. The spec's prose enumerates `return`/`output`/`op`; per the issue #114 design
- *   a `stop` inside a comprehension (which the outside-proc code cannot describe once the
- *   comprehension is itself inside a procedure) is routed here too, carried by the `keyword` param.
+ *   body. The spec (`spec/execution-model.md:437-438`, `spec/error-model.md:117`) says a
+ *   comprehension body "cannot contain `return`/`output`/`op`/`stop`" and must end in a
+ *   value-producing expression; this code is *preferred over the outside-proc codes* whenever the
+ *   offending escape is inside a comprehension body, even one nested in a procedure — a
+ *   comprehension is a value context, not a control context. `stop` belongs to this code by the
+ *   spec's own enumeration, not by local design: `spec/execution-model.md:229-230` and
+ *   `spec/tooling.md:191` both list it beside `return`/`output`/`op`. It is carried by the same
+ *   `keyword` param, which is what lets the diagnostic describe a `stop` the outside-proc code
+ *   cannot once the comprehension is itself inside a procedure.
  * - `ol-no-value` — a `map`/`filter`/`reduce` body that statically cannot end in a value-producing
- *   expression (`spec/error-model.md:113`, `spec/execution-model.md:406`). Reproduces the spec's
- *   worked example `map num in :nums [ print :num ]` → `ol-no-value { form: "map" }`
- *   (`spec/tooling.md:220-228`). A `return`/`stop` final statement is *not* double-reported here —
+ *   expression (`spec/error-model.md:115`, `spec/execution-model.md:228-229`). Reproduces the
+ *   spec's worked example `map num in :nums [ print :num ]` → `ol-no-value { form: "map" }`
+ *   (`spec/tooling.md:222-229`). A `return`/`stop` final statement is *not* double-reported here —
  *   it is already the more specific `ol-return-in-comprehension`.
  * - `ol-duplicate-binder` — a binder name repeated where names must be distinct: a `reduce`
- *   accumulator equal to its item binder (`spec/execution-model.md:426,910`), or a repeated name in
- *   a destructuring pattern — `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …`
- *   comprehension (issue #440) — (`spec/error-model.md:116`, `spec/tooling.md:191`).
+ *   accumulator equal to its item binder (`spec/execution-model.md:435`, worked example at
+ *   `spec/execution-model.md:919`), or a repeated name in a destructuring pattern —
+ *   `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …` comprehension (issue #440) —
+ *   (`spec/error-model.md:118`, `spec/tooling.md:192`).
  *
  * The rule walks the Core AST once, threading two pieces of lexical context — whether we are inside
  * a procedure body, and the form of the nearest enclosing comprehension body — so an escape is
@@ -131,7 +134,7 @@ export function producesValue(
 }
 
 /**
- * The span of just the control word of a `return`/`stop` — `spec/tooling.md:189` mandates pointing
+ * The span of just the control word of a `return`/`stop` — `spec/tooling.md:190` mandates pointing
  * at the control word, but a {@link ReturnNode}'s own span covers `return <value>`. A `stop` node's
  * span is already the bare keyword; a `return`'s keyword span is synthesized from its start plus the
  * keyword's own length (spans are half-open `[start, end)`, columns 1-based).

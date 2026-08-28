@@ -128,8 +128,10 @@ const doc = "heritage-canonical-diagnostic-params.logo";
 
 /**
  * The id `who` reports at top level — the single default main turtle every world starts with,
- * before any `tell` re-points the addressed set (`spec/turtles-and-sprites.md:44`). Restated here
- * rather than imported because the runtime's `MAIN_TURTLE_ID` is internal to `turtle-world.ts` and
+ * before any `tell` re-points the addressed set (`spec/turtles-and-sprites.md:44`). The spec fixes
+ * that there IS one default turtle at top level; it does not fix its numeric id, so the `0` here is
+ * this runtime's own choice, not a normative value. Restated rather than imported because the
+ * runtime's `MAIN_TURTLE_ID` is internal to `turtle-world.ts` and
  * `@openlogo/turtle`, which exports it, sits on the far side of a package boundary this test must
  * not cross. Should the runtime ever renumber the main turtle, the turtle twin below fails loudly
  * on the mismatch rather than degrading silently.
@@ -208,7 +210,7 @@ function isSurfaceSubject(code, field) {
  *
  * The extra `print (…)` line is what reaches the three list-reporter aliases (`bf`/`bl`/`se`): the
  * current runtime does not evaluate a bare expression statement — an implementation state, not a
- * spec rule (`spec/execution-model.md:412-413` — "Used alone as a statement, its result is
+ * spec rule (`spec/execution-model.md:424-425` — "Used alone as a statement, its result is
  * *discarded* like any other unused value", i.e. evaluated and then dropped) — so the reporter is
  * placed where its value is required. The shape is deliberately robust if that changes: an
  * evaluated `(bf)` on line 1 raises the identical `ol-not-enough-inputs` with the identical
@@ -394,7 +396,7 @@ const EXTRA_TWINS = [
     // the two programs supply the SAME evaluated value. An inline key would not be a twin on either
     // of two mechanisms: for a LIST key the inline Core form does not even parse
     // (`:ages[[ 1 2 ]]` → `ol-bad-token` plus unmatched brackets), and for a BOOLEAN key it parses
-    // but means something else — `spec/grammar.md:256`, "a bare identifier inside a selector is a
+    // but means something else — `spec/grammar.md:260`, "a bare identifier inside a selector is a
     // literal word key", so `:ages[true]` is the word `"true"` while `for key true` evaluates a
     // boolean. Binding the key sidesteps both.
     heritage:

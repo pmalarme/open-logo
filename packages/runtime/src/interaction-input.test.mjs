@@ -1,5 +1,5 @@
 // Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:126-137`,
-// `spec/conformance.md:167-169`). `input` is the Interaction & Events profile's Kind-R reporter:
+// `spec/conformance.md:171-173`). `input` is the Interaction & Events profile's Kind-R reporter:
 // it displays a prompt, waits for the learner to enter one value, and reports a **number** when the
 // submitted text parses as an OpenLogo number literal or a **word** preserving the entered text
 // otherwise.
@@ -168,8 +168,10 @@ test("a completed read emits exactly one catch-all `primitive` event naming inpu
 });
 
 test("the input primitive event leaks neither the prompt nor the submitted text", () => {
-  // The stream is headless (`spec/execution-model.md`'s trace registry). The payload's only key is
-  // `name`; a regression that smuggled the prompt or the learner's answer in would add a second.
+  // `primitive` is the spec's generic catch-all and its payload is left unspecified
+  // (`spec/execution-model.md:715-717`), so `{ name }`-only is this implementation's own privacy
+  // invariant, pinned here rather than inherited: a regression that smuggled the prompt or the
+  // learner's answer into the headless stream would add a second key.
   const result = runWithAnswers('print input "what is your secret?"', [
     "hunter2",
   ]);
@@ -263,11 +265,15 @@ test("a read with no scripted answer cancels the run (ol-limit) rather than inve
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
   //
-  // It reaches that ending through the SHARED cancellation diagnostic, identical in code, params
-  // AND prose to an externally cancelled run: diagnostic identity is code + params and prose is
-  // presentation (`spec/error-model.md:254-259`), so a lookalike builder with its own wording would
-  // make the message stop being a function of the identity. The span is what localises it to the
-  // waiting read.
+  // It reaches that ending through the SHARED cancellation diagnostic. What the spec fixes is the
+  // machine-readable half: identity is `code` plus `params` and prose is presentation
+  // (`spec/error-model.md:254-259`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
+  // as for an externally cancelled run. The prose equality asserted below is deliberately STRONGER
+  // than the spec requires — `spec/error-model.md:261-264` lets a localized build reword this
+  // message — and is asserted as the cheapest observable proof that both endings come from the one
+  // builder rather than from a lookalike that could drift in `params` too. A localization pack that
+  // rewords cancellation still passes, because it rewords both sides. The span is what localises
+  // the diagnostic to the waiting read.
   const result = execute('print input "q"', doc);
   const cancelled = execute("forward 1", doc, { signal: { aborted: true } });
   assert.equal(result.diagnostics.length, 1);

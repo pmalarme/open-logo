@@ -18,7 +18,7 @@
 // second worded form CANNOT land without either extending the twin corpus below or failing this
 // test. A comment would not have caught instances two and three.
 //
-// Those registries cover every spelling `spec/conformance.md:146-157`'s Heritage inventory writes
+// Those registries cover every spelling `spec/conformance.md:150-157`'s Heritage inventory writes
 // in code formatting, and saying so is itself a guarded claim (issue #755): until that issue,
 // `heritageSurfaceSpellings()` was the two SINGLE-WORD tables only and its doc comment nevertheless
 // called itself "the enumerable definition of a Heritage surface spelling" — so a reader trusting
@@ -372,7 +372,8 @@ test("the registries enumerate every code-formatted Heritage spelling the spec l
   // covered a form nothing named. Restating the inventory here would reproduce the same failure one
   // level up, so the inventory is read from `spec/conformance.md`'s Heritage bullet list itself.
   //
-  // The bullets are the normative inventory (`spec/conformance.md:146-153`, "It includes:"). Every
+  // The bullets are the normative inventory (`spec/conformance.md:150-157` — the "It includes:"
+  // sentence and the six bullets it introduces). Every
   // code span in them is either a Heritage surface spelling, the phrase of a worded form, or a CORE
   // canonical the list names as the thing a Heritage spelling stands for (`return`, for
   // `output`/`op`) — and the registries know all three, so the check closes in both directions with
