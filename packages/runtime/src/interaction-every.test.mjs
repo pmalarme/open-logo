@@ -545,6 +545,17 @@ test("the `each` iteration charge and its boundary halt both propagate", () => {
   const charged = execute(unhandled, doc, { instructionBudget: 10 });
   assert.equal(charged.diagnostics.length, 1);
   assert.equal(charged.diagnostics[0].code, "ol-limit");
+  // The ORDER of the charge and the narrowing is observable, and only here. `pointAddressedSet`
+  // publishes an addressing `primitive` event, so charging after it would announce the narrowing for
+  // an iteration the budget then refuses. Both orders raise the same `ol-limit`, so the diagnostic
+  // assertions above hold either way — measured, narrowing-first emits 17 events with 7 `primitive`
+  // against 16 and 6 here, the extra one being that phantom `each`. Without this assertion the
+  // ordering is only a comment, and this file exists because a rule left as a convention gets
+  // re-broken.
+  assert.equal(
+    charged.events.filter((event) => event.kind === "primitive").length,
+    6,
+  );
   const affordable = execute(unhandled, doc, { instructionBudget: 11 });
   assert.deepEqual(affordable.diagnostics, []);
   // (2) The boundary drain inside an empty `each` body is a real handler dispatch, so the budget

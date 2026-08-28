@@ -159,8 +159,8 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   addressed turtle, because over a single turtle a per-iteration boundary and a per-statement one are
   indistinguishable. Two bindings plus the implicit default turtle give three iterations, at which
   `each [ ]`, `each [ print 0 ]` and an equivalent `repeat 3 [ ]` under the same prelude all agree at
-  seven handler firings, against four for the empty body alone before the boundary was added -- one
-  occurrence lost per iteration, while both non-empty forms already reported seven. And
+  seven handler firings, against four for `each [ ]` before the boundary was added -- one occurrence
+  lost per iteration, while the other two forms reported seven in both states. And
   `every-queued-occurrence-runs-in-an-empty-loop-body` covers the container that executes no
   statements at all: the boundary fires per statement, so an empty body had none, even though each of
   its iterations is charged against the budget on the same terms as one that runs something --

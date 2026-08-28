@@ -119,8 +119,12 @@ function helperBodyLines(lines) {
  */
 function invokesBoundary(line) {
   if (/^\s*(export\s+)?function\s/.test(line)) return false;
-  if (/^\s*(\/\/|\/\*|\*)/.test(line)) return false;
-  return BOUNDARY_MARKERS.some((marker) => line.includes(marker));
+  if (/^\s*(\/\*|\*)/.test(line)) return false;
+  // Drop a line comment wherever it starts, not just at the start of the line: a marker after `//`
+  // is a MENTION, never a call, and a TRAILING `// runIterationBoundary(` pairs a site just as
+  // falsely as a full-line one. Excluding only full-line comments was the narrower instrument.
+  const code = line.split("//")[0];
+  return BOUNDARY_MARKERS.some((marker) => code.includes(marker));
 }
 
 function hasBoundaryNear(lines, lineNumber, excluded) {
@@ -200,6 +204,7 @@ test("the detector rejects a charge site paired only by a COMMENT", () => {
   // Reviewer finding, round 8. A marker inside a comment is a MENTION, never a call — and the
   // realistic case is specific: an author adding a container that deliberately skips the boundary
   // writes the reason beside the charge, in exactly the words the detector was scanning for.
+  // All three comment forms are exercised, because each is a separate guard.
   const pairedOnlyByProse = [
     "for (const id of ids) {",
     "  const limitDiagnostic = checkExecutionLimits(environment, span);",
@@ -208,9 +213,27 @@ test("the detector rejects a charge site paired only by a COMMENT", () => {
     "  }",
     "  // We deliberately do not call runIterationBoundary( here, because this container",
     "  // never runs a body of its own.",
+    "  /* runIterationBoundary( is also not called from the block form. */",
+    "  /**",
+    "   * ...nor from a JSDoc line naming mainLineBoundary.fn.",
+    "   */",
     "}",
   ];
   assert.equal(unpairedChargeSites(pairedOnlyByProse).length, 1);
+});
+
+test("the detector rejects a charge site paired only by a TRAILING comment", () => {
+  // Round 9: excluding only full-line comments was itself the narrower instrument. A marker after
+  // `//` is a mention wherever on the line it sits.
+  const pairedOnlyByTrailingProse = [
+    "for (const id of ids) {",
+    "  const limitDiagnostic = checkExecutionLimits(environment, span); // runIterationBoundary( is",
+    "  if (limitDiagnostic) {",
+    "    return halt(limitDiagnostic);",
+    "  }",
+    "}",
+  ];
+  assert.equal(unpairedChargeSites(pairedOnlyByTrailingProse).length, 1);
 });
 
 test("the detector ignores the definition of checkExecutionLimits itself", () => {
