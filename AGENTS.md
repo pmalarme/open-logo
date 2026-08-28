@@ -193,7 +193,7 @@ maintainer-owned via `CODEOWNERS` like the rest of the contract.
 `scripts/examples-gate.mjs`, with profile detection in `scripts/profile-detection.mjs`) parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
 rest with a visible notice. An example that registers a handler **needing host delivery** — `on_key`,
-`on_click`, or a `when` for any event other than `"start"` — **must** carry a deterministic
+`on_click`, or a `when` for any event other than an exact-case `"start"` — **must** carry a deterministic
 host-input schedule in `scripts/examples-host-input.json`, and must produce the output that entry
 asserts (issue #955):
 running every program with an *empty* host left the gate structurally blind to every host-dependent

@@ -185,7 +185,7 @@ export function validateHostInputEntry(file, entry) {
 
 /**
  * Does `source` register a handler that **cannot fire unless a host delivers something** — an
- * `on_key`/`on_click` block head, or a `when` for any event other than `"start"`
+ * `on_key`/`on_click` block head, or a `when` for any event other than an exact-case `"start"`
  * (`spec/interaction-events.md`)?
  *
  * This is what makes the host-input requirement structural rather than a matter of remembering
@@ -197,7 +197,11 @@ export function validateHostInputEntry(file, entry) {
  * the gate rather than quietly relaxing it.
  *
  * **The boundary is "needs delivery", not "is an interaction form"** — measured, because three
- * review rounds got it wrong in three different ways. Each row is a direct `execute()` run of the
+ * review rounds got it wrong in three different ways. The two wrong versions were too permissive
+ * and then too strict on the same axis, which is the signature of classifying on the wrong
+ * dimension: the rule was sorting by block *head* when the property is *delivery*. The tell was
+ * available throughout — `when "start"` and `when "stop"` behave differently, and a single head with
+ * two behaviours falsifies any head-shaped rule. Each row is a direct `execute()` run of the
  * source followed by `wait 100`:
  *
  * | source (followed by `wait 100`) | prints under an EMPTY host | needs a schedule |
@@ -368,7 +372,8 @@ export function classifyExample(source, name, hostInputEntry = undefined) {
  * that entry's host-input schedule and must satisfy its declared expectations (issue #955); an
  * example that registers a handler that needs host delivery and is NOT named there FAILS, so
  * the requirement comes from the corpus rather than from the manifest and a deleted entry cannot
- * quietly relax it. `every` and `when "start"` are excluded because they fire without host input — see
+ * quietly relax it. `every` and an exact-case `when "start"` are excluded because they fire without
+ * host delivery — see
  * {@link registersHostHandlers}. Every other
  * example runs with an empty host exactly as before. The summary line reports both counts, so the
  * fraction of the corpus running blind is visible rather than assumed.
@@ -459,7 +464,7 @@ export function runExamplesGate({
       if (registersHostHandlers(source)) {
         failed += 1;
         lines.push(
-          `FAIL ${file}: registers a handler that needs host delivery (on_key/on_click, or a "when" for any event but "start") but has no entry in ${hostInputPath} — ` +
+          `FAIL ${file}: registers a handler that needs host delivery (on_key/on_click, or a "when" for any event but an exact-case "start" — word values preserve case) but has no entry in ${hostInputPath} — ` +
             `it would run with an empty host, so none of them could fire and the gate would assert nothing about them (issue #955)`,
         );
         continue;

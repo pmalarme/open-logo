@@ -1561,10 +1561,13 @@ test("runExamplesGate leaves a handler-free example alone: no entry required", (
 test("registersHostHandlers keys on 'needs delivery', not on 'is an interaction form'", () => {
   assert.equal(registersHostHandlers("on_click [ print 1 ]"), true);
   assert.equal(registersHostHandlers('on_key "a" [ print 1 ]'), true);
-  // Measured with a clock-advancing `wait` and an EMPTY host: `when "stop"` prints 0 (and 1 once a
-  // host delivers `stop`), so it needs a schedule; `when "start"` prints 1 because the runtime
-  // delivers it internally, and `every` prints 10 off its own tick clock. Round 2 wrongly required
-  // schedules for all four heads; round 3 wrongly excluded all of `when`, reopening the hole.
+  // Measured under an EMPTY host, each source followed by `wait 100`: `when "stop"` prints 0 (and 1
+  // once a host delivers `stop`), so it needs a schedule; `when "start"` prints 1 because the
+  // runtime delivers it internally; `every 10` prints 10 off its own tick clock — and that 10
+  // belongs to the `wait`, not to `every` (2 under `wait 20`, 0 with no wait at all). Round 2
+  // wrongly required schedules for all four heads; round 3 wrongly excluded all of `when`,
+  // reopening the hole. The boundary is delivery, not head shape: `when` has two behaviours, so it
+  // was never classifiable as a head.
   assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
   assert.equal(registersHostHandlers('when "acme.shake" [ print 1 ]'), true);
   assert.equal(registersHostHandlers('when "start" [ print 1 ]'), false);
