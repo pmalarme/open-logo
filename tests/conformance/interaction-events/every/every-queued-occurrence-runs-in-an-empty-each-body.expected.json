@@ -1,5 +1,5 @@
 {
-  "description": "MAINTAINER RULING #984 at the EIGHTH main-line container found in this slice, and the second that executes no statements. An `each` iteration narrows the addressed set to one turtle and runs a body, so it is a unit of main-line progress exactly as a loop iteration is -- but the boundary that serves every other container fires per STATEMENT, so an empty `each` body had none. Measured before this was pinned: two turtles with `each [ ]` gave a queued `every` occurrence FOUR handler firings where both `each [ print 0 ]` and an equivalent `repeat 2 [ ]` gave FIVE, so the ruling's guarantee depended on whether the learner's per-turtle body happened to contain something. The iteration is now charged against the execution budget and carries the same empty-body boundary, and all three forms agree at five. The empty body is the whole point of the fixture and must not be `improved` into a non-empty one. Requires two turtles so the iteration count is observable: `each` over a single turtle cannot distinguish a per-iteration boundary from a per-statement one.",
+  "description": "MAINTAINER RULING #984 at the EIGHTH main-line container found in this slice, and the second that executes no statements. An `each` iteration narrows the addressed set to one turtle and runs a body, so it is a unit of main-line progress exactly as a loop iteration is -- but the boundary that serves every other container fires per STATEMENT, so an empty `each` body had none, and a queued `every` occurrence was stranded. The iteration is now charged against the execution budget and carries the same empty-body boundary; the charge comes BEFORE the narrowing, so an iteration the budget refuses publishes no addressing event. `new_turtle` is a REPORTER (spec/turtles-and-sprites.md:21), so its value MUST be bound for a turtle to exist: a bare `new_turtle` statement creates nothing at all. Two bindings plus the implicit default turtle give three addressed turtles, hence three iterations -- `each` over a single turtle cannot distinguish a per-iteration boundary from a per-statement one. The empty body is the whole point of the fixture and must not be improved into a non-empty one.",
   "profiles": [
     "core-language",
     "interaction-events",
@@ -14,26 +14,66 @@
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
         "start": [1, 1],
-        "end": [1, 11]
+        "end": [1, 17]
       },
       "payload": {
-        "statement_kind": "Call"
+        "statement_kind": "Assign"
       }
     },
     {
       "seq": 1,
-      "kind": "instruction",
+      "kind": "spawn-turtle",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [2, 1],
-        "end": [2, 11]
+        "start": [1, 7],
+        "end": [1, 17]
       },
+      "turtle_id": 1,
       "payload": {
-        "statement_kind": "Call"
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
       }
     },
     {
       "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [2, 7],
+        "end": [2, 17]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -45,7 +85,7 @@
       }
     },
     {
-      "seq": 3,
+      "seq": 5,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -57,36 +97,12 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 6,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
         "start": [4, 1],
         "end": [4, 7]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 5,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 1],
-        "end": [3, 6]
-      },
-      "payload": {
-        "statement_kind": "ProfileStatement"
-      }
-    },
-    {
-      "seq": 6,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 11],
-        "end": [3, 20]
       },
       "payload": {
         "statement_kind": "Call"
@@ -94,42 +110,6 @@
     },
     {
       "seq": 7,
-      "kind": "print",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 11],
-        "end": [3, 20]
-      },
-      "payload": {
-        "values": ["a"]
-      }
-    },
-    {
-      "seq": 8,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 21],
-        "end": [3, 27]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 9,
-      "kind": "primitive",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 21],
-        "end": [3, 27]
-      },
-      "payload": {
-        "name": "wait"
-      }
-    },
-    {
-      "seq": 10,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -141,7 +121,7 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 8,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -153,7 +133,7 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 9,
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -165,7 +145,7 @@
       }
     },
     {
-      "seq": 13,
+      "seq": 10,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -177,7 +157,7 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 11,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -189,7 +169,67 @@
       }
     },
     {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
       "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 17,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -201,7 +241,7 @@
       }
     },
     {
-      "seq": 16,
+      "seq": 18,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -213,7 +253,7 @@
       }
     },
     {
-      "seq": 17,
+      "seq": 19,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -225,7 +265,7 @@
       }
     },
     {
-      "seq": 18,
+      "seq": 20,
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -237,7 +277,7 @@
       }
     },
     {
-      "seq": 19,
+      "seq": 21,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -249,7 +289,7 @@
       }
     },
     {
-      "seq": 20,
+      "seq": 22,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -261,7 +301,7 @@
       }
     },
     {
-      "seq": 21,
+      "seq": 23,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -273,7 +313,7 @@
       }
     },
     {
-      "seq": 22,
+      "seq": 24,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -283,13 +323,13 @@
       "payload": {
         "name": "tell",
         "addressing": {
-          "addressed_turtle_ids": [0],
+          "addressed_turtle_ids": [0, 1, 2],
           "current_turtle_id": 0
         }
       }
     },
     {
-      "seq": 23,
+      "seq": 25,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -298,30 +338,6 @@
       },
       "payload": {
         "statement_kind": "ProfileStatement"
-      }
-    },
-    {
-      "seq": 24,
-      "kind": "instruction",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 11],
-        "end": [3, 20]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 25,
-      "kind": "print",
-      "source_span": {
-        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
-        "start": [3, 11],
-        "end": [3, 20]
-      },
-      "payload": {
-        "values": ["a"]
       }
     },
     {
@@ -329,6 +345,30 @@
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
         "start": [3, 21],
         "end": [3, 27]
       },
@@ -337,7 +377,7 @@
       }
     },
     {
-      "seq": 27,
+      "seq": 29,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -349,7 +389,7 @@
       }
     },
     {
-      "seq": 28,
+      "seq": 30,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -361,7 +401,7 @@
       }
     },
     {
-      "seq": 29,
+      "seq": 31,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -377,7 +417,7 @@
       }
     },
     {
-      "seq": 30,
+      "seq": 32,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -389,7 +429,7 @@
       }
     },
     {
-      "seq": 31,
+      "seq": 33,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -401,7 +441,7 @@
       }
     },
     {
-      "seq": 32,
+      "seq": 34,
       "kind": "print",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -413,7 +453,7 @@
       }
     },
     {
-      "seq": 33,
+      "seq": 35,
       "kind": "instruction",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -425,7 +465,7 @@
       }
     },
     {
-      "seq": 34,
+      "seq": 36,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -437,7 +477,7 @@
       }
     },
     {
-      "seq": 35,
+      "seq": 37,
       "kind": "primitive",
       "source_span": {
         "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
@@ -447,7 +487,159 @@
       "payload": {
         "name": "each",
         "addressing": {
-          "addressed_turtle_ids": [0],
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 43,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [6, 1],
+        "end": [6, 9]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 44,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 1],
+        "end": [3, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 45,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 46,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 11],
+        "end": [3, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 47,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 48,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [3, 21],
+        "end": [3, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 49,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-runs-in-an-empty-each-body",
+        "start": [6, 1],
+        "end": [6, 9]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [0, 1, 2],
           "current_turtle_id": 0
         }
       }

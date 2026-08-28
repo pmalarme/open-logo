@@ -535,50 +535,51 @@ test("the same halt propagates out of a reduce comprehension", () => {
 
 test("the `each` iteration charge and its boundary halt both propagate", () => {
   // Two new halt paths came with the eighth container, and each needs its own witness.
-  // (1) The iteration is now charged against the budget, so a run with more turtles than budget
-  //     stops mid-`each` — it is no longer possible to iterate turtles for free.
-  const charged = execute(
-    `${"new_turtle\n".repeat(8)}tell turtles\neach [ ]`,
-    doc,
-    { instructionBudget: 10 },
-  );
+  //
+  // (1) The iteration is charged, so iterating turtles is no longer free. This source registers NO
+  //     handler, which is what makes it a witness rather than a probe: with nothing queued, the
+  //     iteration boundary has nothing to drain and cannot itself halt, so a halt inside `each`
+  //     can only be the charge. The discrimination is by construction, not by inspection.
+  const unhandled =
+    ":t0 = new_turtle\n:t1 = new_turtle\n:t2 = new_turtle\n:t3 = new_turtle\ntell turtles\neach [ ]";
+  const charged = execute(unhandled, doc, { instructionBudget: 10 });
   assert.equal(charged.diagnostics.length, 1);
   assert.equal(charged.diagnostics[0].code, "ol-limit");
-  const affordable = execute(
-    `${"new_turtle\n".repeat(8)}tell turtles\neach [ ]`,
-    doc,
-    { instructionBudget: 11 },
-  );
+  const affordable = execute(unhandled, doc, { instructionBudget: 11 });
   assert.deepEqual(affordable.diagnostics, []);
   // (2) The boundary drain inside an empty `each` body is a real handler dispatch, so the budget
-  //     gate can refuse it and that halt must propagate out of the loop rather than be swallowed.
-  const source =
-    'new_turtle\nnew_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\neach [ ]';
-  const refused = execute(source, doc, { instructionBudget: 19 });
+  //     gate can refuse it mid-drain, and that halt must propagate out of the loop rather than be
+  //     swallowed. Each drained occurrence costs four instructions, so a budget between two
+  //     completed drains stops inside one: at 28 the handler has printed six times, at 30 the run
+  //     completes with seven.
+  const handled =
+    ':t0 = new_turtle\n:t1 = new_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\neach [ ]';
+  const refused = execute(handled, doc, { instructionBudget: 28 });
   assert.equal(refused.diagnostics.length, 1);
   assert.equal(refused.diagnostics[0].code, "ol-limit");
-  const clean = execute(source, doc, { instructionBudget: 22 });
+  const clean = execute(handled, doc, { instructionBudget: 30 });
   assert.deepEqual(clean.diagnostics, []);
 });
 
 test("an EMPTY `each` body still offers a main-line boundary each iteration", () => {
   // The eighth container. An `each` iteration narrows the addressed set to one turtle and runs a
   // body, so it is main-line progress exactly as a loop iteration is — but the boundary fires per
-  // STATEMENT, so an empty per-turtle body had none. Measured before the fix: two turtles with
-  // `each [ ]` gave four firings where `each [ print 0 ]` and `repeat 2 [ ]` both gave five.
+  // STATEMENT, so an empty per-turtle body had none.
+  //
+  // `new_turtle` is a REPORTER (`spec/turtles-and-sprites.md:21`), so its value must be bound for a
+  // turtle to exist: two bindings plus the implicit default turtle give three addressed turtles and
+  // therefore three iterations. The comparand shares the whole prelude — `tell turtles` included —
+  // and matches that iteration count, so the three forms differ only in the body under test.
   const handlerPrints = (source) =>
     effectEvents(execute(source, doc)).filter(
       (event) => event.kind === "print" && event.payload.values[0] === "a",
     ).length;
   const prelude =
-    'new_turtle\nnew_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\n';
-  assert.equal(handlerPrints(`${prelude}each [ ]`), 5);
+    ':t0 = new_turtle\n:t1 = new_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\n';
+  assert.equal(handlerPrints(`${prelude}each [ ]`), 7);
   // The empty and non-empty per-turtle bodies agree, and both agree with the equivalent loop.
-  assert.equal(handlerPrints(`${prelude}each [ print 0 ]`), 5);
-  assert.equal(
-    handlerPrints('every 3 [ print "a" wait 4 ]\nwait 3\nrepeat 2 [ ]'),
-    5,
-  );
+  assert.equal(handlerPrints(`${prelude}each [ print 0 ]`), 7);
+  assert.equal(handlerPrints(`${prelude}repeat 3 [ ]`), 7);
 });
 
 test("an EMPTY loop body still offers a main-line boundary each iteration", () => {

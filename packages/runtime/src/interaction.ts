@@ -386,11 +386,6 @@ export interface WhenHandler {
  *   accumulating. The next point at which the handler is free drains it — the end of the tick's
  *   dispatch batch, or the main line's next statement boundary ({@link claimQueuedEveryHandlers}) —
  *   so the drain never waits for a fresh event-loop checkpoint the program may never supply.
- *
- * Draining at the next checkpoint — rather than looping on the spot when a body returns — is what
- * keeps a saturated handler bounded by the program's own `wait`s: the queued invocation runs on the
- * shared execution thread at a real event-loop checkpoint, so it cannot advance the clock past the
- * pause that is driving it.
  */
 export interface EveryHandler {
   readonly interval: number;

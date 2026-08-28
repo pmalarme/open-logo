@@ -145,7 +145,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   still finds its intervals on the original grid (ticks 4, 8, 12, 16), where a fixed-**delay** clock
   that disarms the handler while an invocation runs slips off those boundaries and fires one time
   fewer. That fixture delays the handler with a FOREIGN `on_key` body, so it cannot separate fixed rate from a scheduler that merely re-measures the period from each completion -- its `every` body is instantaneous, so completion and start share a tick. `every-fixed-rate-survives-a-slow-body` closes that gap with a body that itself takes two ticks: nine firings under fixed rate against five under a completion-re-measured clock. Both are needed; neither catches the mutation the other does.
-  Three more pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
+  The fixtures that follow pin the **run-lifetime** rule the same ruling settled: a handler does not extend the run.
   `every-queued-occurrence-discarded-when-run-closes` shows a self-overrunning handler terminating
   cleanly with its last queued occurrence discarded;
   `every-queued-occurrence-runs-while-main-line-continues` is that same program with one more
@@ -154,9 +154,13 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   line finishes", which an implementation can otherwise satisfy one of while violating the other.
   `every-queued-occurrence-runs-in-an-empty-each-body` covers the same hazard for a per-turtle
   body -- an `each` iteration narrows the addressed set and runs a body, so it is main-line progress
-  even when that body is empty, measured at four handler firings against five for both
-  `each [ print 0 ]` and an equivalent `repeat 2 [ ]` before it was fixed. It needs two turtles: over
-  a single turtle a per-iteration boundary and a per-statement one are indistinguishable. And
+  even when that body is empty. `new_turtle` is a REPORTER, so its value must be BOUND for a turtle
+  to exist -- a bare `new_turtle` statement creates nothing -- and the fixture needs more than one
+  addressed turtle, because over a single turtle a per-iteration boundary and a per-statement one are
+  indistinguishable. Two bindings plus the implicit default turtle give three iterations, at which
+  `each [ ]`, `each [ print 0 ]` and an equivalent `repeat 3 [ ]` under the same prelude all agree at
+  seven handler firings, against four for the empty body alone before the boundary was added -- one
+  occurrence lost per iteration, while both non-empty forms already reported seven. And
   `every-queued-occurrence-runs-in-an-empty-loop-body` covers the container that executes no
   statements at all: the boundary fires per statement, so an empty body had none, even though each of
   its iterations is charged against the budget on the same terms as one that runs something --
@@ -394,7 +398,7 @@ Second, the two `when` fixtures that pin persistence **must** use a vendor-prefi
 (`spec/interaction-events.md:155-156`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
 
-One coverage note, recorded because it is easy to misread the list above as complete: the rule that a handler body does NOT open a main-line boundary -- so a drained occurrence cannot re-enter its own handler -- is pinned by none of the eleven. It is caught by the pre-existing `every-sibling-not-reordered-by-nested-wait`, plus a stack-specific unit test. That is not a hole, but the guarantee lives outside the group that was added for it.
+One coverage note, recorded because it is easy to misread the list above as complete: the rule that a handler body does NOT open a main-line boundary -- so a drained occurrence cannot re-enter its own handler -- is pinned by none of the fixtures listed above. It is caught by the pre-existing `every-sibling-not-reordered-by-nested-wait`, plus a stack-specific unit test. That is not a hole, but the guarantee lives outside the group that was added for it.
 
 Every one of the thirteen was mutation-verified against runtimes reverted to each rejected reading —
 including the drain, not merely the queueing. That distinction was not academic: this issue's first

@@ -3208,6 +3208,7 @@ function executeEach(
   // way `executeAsk`/`executeWhenStatement` do.
   const block = statement.body as BlockNode;
   try {
+    const span = statement.source_span;
     for (const id of iterationIds) {
       // Narrow the addressed set to this one turtle so the block runs scoped to it: `who` reports it
       // and its per-turtle commands run once, stamped with its id. `explicit` is forced true so the
@@ -3215,26 +3216,23 @@ function executeEach(
       // turtle addressed (a single-turtle `each` still attributes its events). Each narrowing emits
       // its own addressing `primitive` event, so a consumer sees which single turtle the iteration's
       // events belong to (issue #766).
-      pointAddressedSet(
-        addressing,
-        [id],
-        environment,
-        "each",
-        statement.source_span,
-      );
+      //
       // One `each` iteration is one unit of main-line progress — it narrows the addressed set and
       // runs a body — so it is charged like any other loop iteration and carries the same boundary
       // (ruling #984). Without the charge the iteration is invisible to the budget; without the
       // boundary an EMPTY `each` body strands a queued `every` occurrence exactly as `forever [ ]`
-      // did. Measured before this: two turtles with `each [ ]` gave four handler firings where
-      // `each [ print 0 ]` and an equivalent `repeat 2 [ ]` both gave five.
-      const limitDiagnostic = checkExecutionLimits(
-        environment,
-        statement.source_span,
-      );
+      // did.
+      //
+      // Order matters twice over. The charge comes BEFORE the narrowing, because `pointAddressedSet`
+      // emits an addressing `primitive` event and charging afterwards would publish the narrowing for
+      // an iteration the budget then refuses — an observable effect for work that never happened. The
+      // boundary stays AFTER it, so a drained handler observes the same addressed set the iteration's
+      // own statements would have.
+      const limitDiagnostic = checkExecutionLimits(environment, span);
       if (limitDiagnostic) {
         return halt(limitDiagnostic);
       }
+      pointAddressedSet(addressing, [id], environment, "each", span);
       const iterationBoundary = runIterationBoundary(block.body, environment);
       if (iterationBoundary) {
         return iterationBoundary;

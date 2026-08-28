@@ -27,6 +27,15 @@
 // proven by the conformance fixtures under `tests/conformance/interaction-events/every/` and by
 // `interaction-every.test.mjs`. Read a green run here as "nothing was added unpaired", never as
 // "the boundary is correct".
+//
+// Two further limits are known and deliberately left, so they are stated rather than discovered.
+// A boundary marker inside a STRING LITERAL still counts as an invocation — excluding those needs a
+// parser, and unlike the comment case there is no plausible way to write one beside a charge site by
+// accident. And `SOURCES` below is a hard-coded list, so this replaces enumeration-of-containers
+// with enumeration-of-FILES: a charge site added to a third runtime file is invisible here by
+// construction. Both were verified inapplicable to the current tree when they were recorded — every
+// derived site is a real call, and these two files are the only ones that charge the budget — but
+// neither is a property the test enforces.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -55,8 +64,9 @@ const WINDOW = 14;
 
 // NOTE: strip `\r`. This worktree checks out CRLF, so splitting on "\n" leaves a trailing carriage
 // return on every line — and a scan comparing a line to "}" then never matches, silently excluding
-// the whole file. That exact bug made an earlier version of this test report all eight charge sites
-// unpaired. Line-ending assumptions have produced three separate false results in this slice alone.
+// the whole file. That exact bug made an earlier version of this test report every charge site it
+// then enumerated as unpaired (eight at the time; the derived set is ten today).
+// Line-ending assumptions have produced three separate false results in this slice alone.
 const read = (name) =>
   readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), "utf8")
     .split("\n")
@@ -101,9 +111,15 @@ function helperBodyLines(lines) {
  * Does `line` INVOKE a boundary? A helper's own `function …(` definition line matches the same
  * marker text, so it must be excluded — otherwise an unpaired charge site written next to
  * `runIterationBoundary`'s definition is "paired" with the definition itself.
+ *
+ * Comments are excluded for the same reason, and the realistic case is specific: an author adding a
+ * container that deliberately skips the boundary will very plausibly write "we do not call
+ * `runIterationBoundary(` here because…" beside the charge, and that prose would otherwise pair the
+ * site. A marker inside a comment is a mention, never a call.
  */
 function invokesBoundary(line) {
   if (/^\s*(export\s+)?function\s/.test(line)) return false;
+  if (/^\s*(\/\/|\/\*|\*)/.test(line)) return false;
   return BOUNDARY_MARKERS.some((marker) => line.includes(marker));
 }
 
@@ -180,6 +196,23 @@ test("the detector rejects a charge site paired only by a helper's own body", ()
   assert.equal(unpairedChargeSites(besideTheHelper).length, 1);
 });
 
+test("the detector rejects a charge site paired only by a COMMENT", () => {
+  // Reviewer finding, round 8. A marker inside a comment is a MENTION, never a call — and the
+  // realistic case is specific: an author adding a container that deliberately skips the boundary
+  // writes the reason beside the charge, in exactly the words the detector was scanning for.
+  const pairedOnlyByProse = [
+    "for (const id of ids) {",
+    "  const limitDiagnostic = checkExecutionLimits(environment, span);",
+    "  if (limitDiagnostic) {",
+    "    return halt(limitDiagnostic);",
+    "  }",
+    "  // We deliberately do not call runIterationBoundary( here, because this container",
+    "  // never runs a body of its own.",
+    "}",
+  ];
+  assert.equal(unpairedChargeSites(pairedOnlyByProse).length, 1);
+});
+
 test("the detector ignores the definition of checkExecutionLimits itself", () => {
   assert.deepEqual(
     unpairedChargeSites([
@@ -208,10 +241,13 @@ test("every execution-budget charge site is paired with a main-line boundary", (
     `unpaired execution-budget charge site(s):\n  ${unpaired.join("\n  ")}`,
   );
   // Guard the guard: if the charge sites stop being found at all, the assertion above passes
-  // vacuously and this test silently stops protecting anything.
-  assert.ok(
-    total >= 7,
-    `expected at least 7 charge sites across ${SOURCES.join(", ")}, found ${total}`,
+  // vacuously and this test silently stops protecting anything. The bound is the CURRENT derived
+  // total, not a loose floor — a loose floor would not notice three sites disappearing. Raise it
+  // when a charge site is legitimately added; never lower it to make a deletion pass.
+  assert.equal(
+    total,
+    10,
+    `expected the 10 derived charge sites across ${SOURCES.join(", ")}, found ${total}`,
   );
 });
 
