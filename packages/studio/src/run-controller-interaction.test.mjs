@@ -1338,3 +1338,143 @@ test("#952: a delivery is refused for a program whose on_key was never reached",
   assert.equal(controller.deliverKey("left"), false);
   assert.equal(recorder.requests.length, afterRun);
 });
+
+/**
+ * A click-registering program with an observable per-click witness: every invocation prints, so the
+ * program's own output is an independent answer to "did this click run a handler" that owes nothing
+ * to the invocation counting `deliverClick` uses.
+ */
+function clickProgram(leadWaitTicks, tailWaitTicks) {
+  return [
+    ...(leadWaitTicks > 0 ? [`wait ${leadWaitTicks}`] : []),
+    ":score = 0",
+    "on_click [",
+    "  :score = :score + 1",
+    "  print :score",
+    "]",
+    `wait ${tailWaitTicks}`,
+  ].join("\n");
+}
+
+/**
+ * Deliver `clicks` activations to `source`, reporting for each one what `deliverClick` claimed and
+ * what the program's own output did — the two series a caller can then compare.
+ */
+function playClicks(source, clicks) {
+  const store = OL.createStudioState({ source });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+  controller.run();
+  const claimed = [];
+  const printed = [];
+  for (let index = 0; index < clicks; index += 1) {
+    const before = store.getState().output.length;
+    claimed.push(controller.deliverClick());
+    printed.push(store.getState().output.length > before);
+  }
+  return { claimed, printed, state: store.getState() };
+}
+
+test("#985: a click whose handler was not yet registered reports false instead of claiming it ran", () => {
+  // `wait 1` first, so the tick-1 delivery lands before the registration exists. Until #985 this
+  // returned `true` for a click that ran nothing at all.
+  const { claimed, printed, state } = playClicks(clickProgram(1, 2), 2);
+
+  assert.equal(
+    claimed[0],
+    false,
+    "the first click ran no handler, so deliverClick must not claim it did",
+  );
+  assert.equal(printed[0], false, "and the program printed nothing for it");
+  assert.equal(
+    claimed[1],
+    true,
+    "the second click lands at a tick the handler exists at, and does run it",
+  );
+  assert.deepEqual(state.output, ["1"], "exactly one click scored");
+});
+
+test("#985: deliverClick agrees with the program's own output on every delivery, across every click shape", () => {
+  // Agreement rather than a hand-written expected matrix: a program shape nobody anticipated fails
+  // the comparison instead of quietly matching a table that was only ever as complete as its author.
+  const shapes = [
+    ["registered before any wait", clickProgram(0, 5), 4],
+    ["registered after a 1-tick lead", clickProgram(1, 2), 4],
+    ["registered after a 3-tick lead", clickProgram(3, 6), 5],
+    ["clicked past the program's final tick", clickProgram(0, 2), 4],
+    [
+      "two handlers at two positions",
+      ['on_click [ print "a" ]', 'on_click [ print "b" ]', "wait 5"].join("\n"),
+      3,
+    ],
+    [
+      "one position registered twice",
+      ["repeat 2 [", '  on_click [ print "c" ]', "]", "wait 5"].join("\n"),
+      3,
+    ],
+  ];
+
+  for (const [label, source, clicks] of shapes) {
+    const { claimed, printed } = playClicks(source, clicks);
+    assert.deepEqual(
+      claimed,
+      printed,
+      `${label}: deliverClick must report exactly the deliveries that ran a handler`,
+    );
+  }
+});
+
+test("#985: a click past the program's last usable tick reports false — the mirror direction is preserved too", () => {
+  // The fix must not merely stop over-claiming; reporting `false` for a click that DID run would be
+  // the same defect pointing the other way. `wait 2` gives the program ticks 1 and 2 only.
+  const { claimed, state } = playClicks(clickProgram(0, 2), 4);
+
+  assert.deepEqual(
+    claimed,
+    [true, true, false, false],
+    "the first two clicks reach a tick the program visits; the rest reach ticks it never gets to",
+  );
+  assert.deepEqual(state.output, ["1", "2"]);
+});
+
+test("#985: a handler that raises still reports true — the block-head marker precedes the failure", () => {
+  // This is the axis that broke the event-stream-length formulation: a raising handler SHORTENS the
+  // stream, so a length proxy reports "nothing responded" for a handler that ran. Counting the
+  // block-head marker `spec/interaction-events.md:102-103` mandates is monotonic on the error path.
+  const store = OL.createStudioState({
+    source: ["on_click [", "  print :nope", "]", "wait 5"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverClick(),
+    true,
+    "the handler ran, even though it failed part-way through",
+  );
+  assert.deepEqual(store.getState().output, [], "so it printed nothing");
+  assert.deepEqual(
+    store.getState().diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-undefined-var"],
+    "and the failure it raised is what the learner sees",
+  );
+});
+
+test("#985: one click fires every registration at a position, and the count agrees with the prints", () => {
+  // `spec/interaction-events.md` forbids collapsing duplicate registrations, so `repeat 2` really is
+  // two handlers. The print witness is independent of the arithmetic and must agree with it.
+  const { claimed, state } = playClicks(
+    ["repeat 2 [", '  on_click [ print "c" ]', "]", "wait 5"].join("\n"),
+    3,
+  );
+
+  assert.deepEqual(claimed, [true, true, true]);
+  assert.equal(
+    state.output.length,
+    6,
+    "three clicks × two registrations at one position",
+  );
+});

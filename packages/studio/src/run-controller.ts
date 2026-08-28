@@ -389,6 +389,27 @@
  * `currentEvents` — so a delivery in that window is refused and dropped rather than buffered. It
  * fails safe (nothing is scheduled, nothing is suppressed) and the window is one settlement wide,
  * but the pacing-independence claim above is genuinely "after the run's first settlement".
+ *
+ * ## #985 — a click answers the same question a key press does
+ * #952 built the per-delivery invocation count for `on_key` only, and left `deliverClick` returning
+ * `true` as soon as its gate passed. Those are different questions — "did this activation run a
+ * handler" versus "could an activation reach one at all" — and the gap between them is measurable:
+ * on `wait 1 / on_click [ … ] / wait 2` the first click returned `true` having run nothing and
+ * printed nothing. The count generalizes without any new mechanism, because
+ * `spec/interaction-events.md:102-103`'s block-head marker is emitted for **every** registration
+ * form, so `invocations = instructions − registrations` holds per source position for `on_click`
+ * exactly as it does for `on_key` — re-measured on the same four axes, including the raising handler
+ * that broke the event-stream-length formulation. `on_click` needs no declaration side at all
+ * ({@link onClickInvocations}), so this is strictly less machinery than the key path, not more.
+ *
+ * That `wait 1` lead is **#985's F3**, and it is not fixed here: a delivery is still scheduled at
+ * `tick n` for the *n*-th delivery, from a counter unrelated to the program's tick clock, so a
+ * delivery can still land before the handler exists. Measured on
+ * `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost is exactly the lead's tick count —
+ * lead 1 loses 1, lead 5 loses 5. What changes here is only that a click no longer *claims* to have
+ * run a handler when it did not; the loss itself is the tick-clock defect, which needs a runtime
+ * seam the studio does not have (`ExecuteResult` is `{events, diagnostics}` and no `ExecuteOptions`
+ * field carries a tick), and is tracked on **#985** alongside **#976**.
  */
 
 import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
@@ -615,11 +636,18 @@ export interface RunController {
    * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
    * keyboard-reachable activation control is exactly as complete a click as a mouse is.
    *
-   * Scheduled and gated exactly like {@link deliverKey}. Reports the narrower
-   * `chain accepts input && on_click registered` — **not** {@link acceptsClick}, which deliberately
+   * Scheduled, gated, and **answered** exactly like {@link deliverKey}: `true` means *this
+   * activation* ran an `on_click` handler. That one definition lives on {@link deliverKey} and is
+   * deliberately not restated here — two sentences describing one boolean is how the earlier pair
+   * diverged. Every caveat there applies unchanged, including that a host settling across
+   * event-loop turns cannot confirm in time and so reports `false` (**#975**).
+   *
+   * Until #985 this reported something narrower and different in kind — that the chain accepted
+   * input and an `on_click` was registered — which is a question about the *run*, not about this
+   * activation. Measured on `wait 1 / on_click [ … ] / wait 2`, that answered `true` for a click
+   * whose handler never ran. Note what it still is **not**: {@link acceptsClick}, which deliberately
    * ignores the transient blockers so the activation control cannot flicker in and out of the tab
-   * order mid-run. The two diverge exactly while a question is outstanding or an answer chain is
-   * mid-pump.
+   * order mid-run.
    */
   deliverClick(): boolean;
   /**
@@ -703,13 +731,19 @@ function hasRegisteredHandler(
 }
 
 /**
- * How many times this run **invoked** an `on_key` handler declared at each of `declared`'s positions
- * (#952, review round 6), keyed by key word.
+ * How many times this run **invoked** the `<name>` handler registered at each source position
+ * (#952, review round 6; generalized from `on_key` to any registration form by #985).
  *
  * `spec/interaction-events.md:102-103` — "The start of a handler block emits an `instruction` event
  * for the block-head that caused the handler to run." Registration emits an `instruction` **and** a
  * `primitive` at the same start position, an invocation emits only the `instruction`, so at a given
  * position `invocations = instructions − registrations`.
+ *
+ * Keyed by position and restricted to positions that actually **registered** a `<name>` handler,
+ * because "how many times did the handler here run" is meaningless where no handler was registered.
+ * That restriction is also the safe direction: were the runtime's registration position ever to
+ * disagree with a caller's own idea of it, the answer is `0` — "nothing ran" — which suppresses
+ * nothing, rather than an uncorrelated instruction count that would suppress a key silently.
  *
  * This is the counting half of the **fifth** formulation for one question; the four before it each
  * answered from *history* and each re-created silent interception on a different axis:
@@ -717,47 +751,108 @@ function hasRegisteredHandler(
  * that ran reported "nothing responded"), a settle-later **query** failed on *timing* (the answer
  * arrives after the `keydown` has already scrolled), declaration/registration **pairing** proved
  * only *eventual* registration, and "ever responded" **membership** outlived the ticks that could
- * fire. Counting is sound on those axes:
+ * fire. Counting is sound on those axes, measured for `on_key` at #952 and re-measured for
+ * `on_click` at #985:
  * - **monotonicity** — a handler raising on its *first* instruction still reports 1, because the
- *   block-head marker is emitted before the handler can fail;
+ *   block-head marker is emitted before the handler can fail (measured: `on_click [ print :nope ]`
+ *   counts 1 invocation while printing nothing and raising `ol-undefined-var`);
  * - **aliasing** — `repeat 2 [ on_key "up" [ … ] ]` registers twice at one position, and one press
  *   fires **both** (`interaction-events.md` forbids collapsing duplicate registrations), so the
  *   arithmetic gives 2 and the program prints twice: an independent witness agreeing with the count.
- *   Nesting keeps each position's arithmetic separate.
+ *   Nesting keeps each position's arithmetic separate. Measured identically for `on_click`:
+ *   `repeat 2 [ on_click [ print "c" ] ]` counts 2 then 4 across two clicks, and prints 2 then 4.
  *
  * It is a **count, not a boolean**, and callers must read it as a strict increase across one
- * delivery — never as "non-zero", which would report every press after the first.
+ * delivery — never as "non-zero", which would report every delivery after the first.
+ */
+function handlerInvocationsByPosition(
+  events: readonly TraceEvent[],
+  name: string,
+): ReadonlyMap<string, number> {
+  // One entry per position, counting both markers together: a registration always emits its
+  // `instruction` at the same position as its `primitive`, so a separate instruction lookup would
+  // carry a "no instruction here" fallback that no program can reach.
+  const countsAt = new Map<
+    string,
+    { instructions: number; registrations: number }
+  >();
+  for (const event of events) {
+    const isInstruction = event.kind === "instruction";
+    const isRegistration =
+      event.kind === "primitive" &&
+      (event.payload as PrimitivePayload).name === name;
+    if (!isInstruction && !isRegistration) {
+      continue;
+    }
+    const [line, column] = event.source_span.start;
+    const position = `${line}:${column}`;
+    const counts = countsAt.get(position) ?? {
+      instructions: 0,
+      registrations: 0,
+    };
+    if (isInstruction) {
+      counts.instructions += 1;
+    } else {
+      counts.registrations += 1;
+    }
+    countsAt.set(position, counts);
+  }
+  const invocationsAt = new Map<string, number>();
+  for (const [position, counts] of countsAt) {
+    if (counts.registrations > 0) {
+      invocationsAt.set(position, counts.instructions - counts.registrations);
+    }
+  }
+  return invocationsAt;
+}
+
+/**
+ * How many times this run invoked an `on_key` handler declared at each of `declared`'s positions
+ * (#952, review round 6), keyed by key word — {@link handlerInvocationsByPosition} folded onto the
+ * key words `key-words.ts` parsed out of the same source, which is what turns a per-position count
+ * into the per-key one `deliverKey` compares.
  */
 function onKeyInvocationsByKeyWord(
   declared: readonly DeclaredKeyHandler[],
   events: readonly TraceEvent[],
 ): ReadonlyMap<string, number> {
-  const instructionsAt = new Map<string, number>();
-  const registrationsAt = new Map<string, number>();
-  for (const event of events) {
-    const [line, column] = event.source_span.start;
-    const position = `${line}:${column}`;
-    if (event.kind === "instruction") {
-      instructionsAt.set(position, (instructionsAt.get(position) ?? 0) + 1);
-    } else if (
-      event.kind === "primitive" &&
-      (event.payload as PrimitivePayload).name === "on_key"
-    ) {
-      registrationsAt.set(position, (registrationsAt.get(position) ?? 0) + 1);
-    }
-  }
+  const invocationsAt = handlerInvocationsByPosition(events, "on_key");
   const byKeyWord = new Map<string, number>();
   for (const entry of declared) {
     const position = `${entry.line}:${entry.column}`;
-    const invocations =
-      (instructionsAt.get(position) ?? 0) -
-      (registrationsAt.get(position) ?? 0);
     byKeyWord.set(
       entry.keyWord,
-      (byKeyWord.get(entry.keyWord) ?? 0) + invocations,
+      (byKeyWord.get(entry.keyWord) ?? 0) + (invocationsAt.get(position) ?? 0),
     );
   }
   return byKeyWord;
+}
+
+/**
+ * How many times this run invoked an `on_click` handler, across every position that registered one
+ * (#985) — the click counterpart of {@link onKeyInvocationsByKeyWord}, and the measure `deliverClick`
+ * compares across a single delivery.
+ *
+ * It needs **no** declaration side, and that asymmetry is the whole reason it is a plain total rather
+ * than a map: `on_click` takes no argument (`spec/interaction-events.md:59`), so there is no key word
+ * to pair a registration with and nothing for `key-words.ts` to parse. Every registered `on_click`
+ * handler answers every click (`:88` — "pending `on_click` events in registration order"), so the
+ * question a click asks is "did **any** of them run", and summing the registration positions the
+ * runtime itself stamped answers it directly from the trace stream.
+ *
+ * Summing is what makes two handlers agree with their own witness rather than with a hand-written
+ * expectation: `on_click [ print "a" ] / on_click [ print "b" ]` counts 2 then 4 across two clicks
+ * while printing 2 then 4 lines (measured), so a position nobody thought of still moves the total.
+ */
+function onClickInvocations(events: readonly TraceEvent[]): number {
+  let invocations = 0;
+  for (const positionInvocations of handlerInvocationsByPosition(
+    events,
+    "on_click",
+  ).values()) {
+    invocations += positionInvocations;
+  }
+  return invocations;
 }
 
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
@@ -1467,9 +1562,24 @@ export function createRunController(
     if (!acceptsHostInputFor("on_click")) {
       return false;
     }
+    // #985 — measured across THIS delivery, exactly as `deliverKey` measures a press. Before this,
+    // `deliverClick` returned `true` the moment the gate above passed, which answers a different
+    // question: measured on `wait 1 / on_click [ print :score ] / wait 2`, the first click returned
+    // `true` while the handler had not run and nothing was printed. Every reason the key side
+    // rejected a gate-shaped answer applies unchanged to a click, so the two now report the same
+    // thing rather than two booleans that merely look alike.
+    const before = onClickInvocations(currentEvents);
     scheduleHostInput({ kind: "click" });
+    // Drain only as far as this click, for the reason `deliverKey` documents: a settlement can
+    // deliver more input re-entrantly, and an unbounded drain would credit a later click's
+    // invocation to this one.
+    const scheduledLength = hostInputEvents.length;
+    drainDeliveredInput(scheduledLength);
+    const ranAHandler = onClickInvocations(currentEvents) > before;
+    // Flush what the bounded drain deliberately left behind, now that the attribution is settled —
+    // stranding it would be the other half of the same bug.
     drainDeliveredInput();
-    return true;
+    return ranAHandler;
   }
 
   function acceptsClick(): boolean {
