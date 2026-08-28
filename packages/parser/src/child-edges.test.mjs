@@ -956,9 +956,17 @@ function auditTheDeclarations() {
      * other three per path states the whole remainder as an invariant, rather than as a list of
      * shapes that have caught someone out.
      *
-     * The scope is the `object` **category**, not every `isObjectType()` type: a node and a sequence
-     * outrank that arm and are descended by their own rules, which is why nothing here has to
-     * special-case them.
+     * The scope is the `object` **category** plus every `AnyNode` member at the root: a node is
+     * descended by property in the root loop, so it owes the same statement, and the row is pushed
+     * there too. A `sequence` is descended by type *argument* and carries no user-declared remainder
+     * of its own. So the remainder is stated for every type the walk descends by property — which is
+     * the claim, and it is narrower than "every object type".
+     *
+     * An earlier version stopped at the `object` category and added "which is why nothing here has to
+     * special-case them". The first half was true and the conclusion was false: a node's own
+     * remainder was descended by no rule at all, and the #986 reviewer put
+     * `readonly [key: string]: … | BlockNode` on `StructDefNode` — which compiles — and passed the
+     * whole gate 11/11.
      *
      * The #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
      * `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` — all three are object
@@ -975,10 +983,12 @@ function auditTheDeclarations() {
      * this file rejects on its own terms. A first draft did exactly that and was caught by neither
      * reviewer — only by `npm run coverage` naming the six dead lines.
      *
-     * A lib generic that is not an array — `Map`, `Set`, `Promise` — takes the `object` arm and is
-     * reported through its prototype methods, one opaque row per call signature
-     * (`…probeMap.forEach`, `.get`, `.has`, `.entries`, …). That is loud rather than silent, which is
-     * the point, but the offending field is the path two segments **up** from the rows.
+     * A non-array lib generic — `Map`, `Set`, `Promise` — takes the `object` arm and is reported
+     * through its prototype methods, **one row per method property** (a method with overloads is one
+     * row carrying `callSignatures: 2`). A `Map` field yields ten: `.clear`, `.delete`, `.forEach`,
+     * `.get`, `.has`, `.set`, `.entries`, `.keys`, `.values` and `Symbol.iterator`. The offending
+     * field is the row path with its **last segment removed** — `StructDef.probeMap.clear` means
+     * `StructDef.probeMap`.
      */
     const objectTypeParts = (type, path) => ({
       at: path,
@@ -1050,6 +1060,13 @@ function auditTheDeclarations() {
     for (const member of anyNode.getTypes()) {
       const kind = declaredKindOf(member);
       kinds.add(kind);
+      // The root loop descends each node type by property, exactly as the `object` arm does, so it
+      // owes the same remainder statement. Without this line the invariant held for every *wrapper*
+      // and for no *node* — and the #986 reviewer put `readonly [key: string]: … | BlockNode` on
+      // `StructDefNode`, which compiles, and passed the whole gate 11/11. That is the container blind
+      // spot a third time: closed for the arm that was shown to leak, left open on the arm the walk
+      // is actually about.
+      objectTypeRows.push(objectTypeParts(member, kind));
       for (const property of checker.getPropertiesOfType(member)) {
         walkDeclaredType(
           checker.getTypeOfSymbol(property),

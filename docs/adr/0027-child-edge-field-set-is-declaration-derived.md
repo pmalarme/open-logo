@@ -101,25 +101,31 @@ into one. A corpus of parameterless procedures populates `params` and says nothi
   `unknown`, `never`, and the compiler's error type. **It does not cover object-flagged ones**, and a
   draft of this ADR said it covered mapped types, which is false — `Record<string, BlockNode>` is
   `isObjectType()`, never reaches `leaf`, and left the flag set unchanged.
-- **What a type classified `object` carries beyond its properties is asserted empty.** That arm reads
-  `getPropertiesOfType` and nothing else, and a TypeScript object type is described by four things:
-  properties, index infos, call signatures and construct signatures. A row carrying the other three
-  counts is recorded for **every** type taking that arm — nodes and sequences outrank it and are
-  descended by their own rules — and the rows with a non-zero count are filtered out and asserted
-  empty (`opaqueObjectTypes`, measured **0**). Without it, the #986 reviewers hid a `BlockNode` behind
-  each of `() => BlockNode`, `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` —
+- **What a type descended by property carries beyond those properties is asserted empty.** The
+  `object` arm reads `getPropertiesOfType` and nothing else, and a TypeScript object type is
+  described by four things: properties, index infos, call signatures and construct signatures. A row
+  carrying the other three counts is recorded for **every type taking that arm and for every
+  `AnyNode` member at the root** — a node is descended by property too, so it owes the same
+  statement; a sequence is descended by type *argument* and carries no user-declared remainder — and
+  the rows with a non-zero count are filtered out and asserted empty (`opaqueObjectTypes`, measured
+  **0**). Without it, the #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
+  `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` —
   all object types with **zero** properties, so `descend([])` visited nothing and the gate stayed
   11/11 green. That is the per-container blind spot ADR-0025 records at length, reproduced inside the
   instrument built to close it.
 
-  **Both reviewers independently proposed the narrower fix** — "report object types with no
-  properties" and "reject non-array index signatures" — and the reason the invariant beats them is
-  not obvious, so it is recorded rather than left to be rediscovered: a type carrying **both** a
-  property and an index signature passes both proposals. `{ a: string; [k: string]: unknown }` is the
-  proof, and `readonly probeInArray?: readonly { [key: string]: BlockNode }[]` and
-  `readonly probeNested?: { wrap: () => BlockNode }` — a reviewer's own follow-up mutants, one
-  container inside a sequence and one behind a property — show the assertion has to be per-path and
-  recursive rather than a top-level shape test. All six fail together, each named by its path.
+  **Both reviewers independently proposed a narrower fix** — "report object types with no
+  properties" and "reject non-array index signatures" — and neither covers the whole remainder. The
+  first is defeated by a type carrying **both** a property and an index signature
+  (`{ a: string; [k: string]: unknown }`); the second does catch that one, but neither addresses
+  **call or construct signatures**, which is how `() => BlockNode` hides. A reviewer's follow-up
+  mutants — a container inside a sequence (`readonly { [key: string]: BlockNode }[]`) and one behind
+  a property (`{ wrap: () => BlockNode }`) — showed the assertion also has to be **per-path and
+  recursive** rather than a top-level shape test. And a third round showed it has to be applied at
+  the **root** as well: stated only for the `object` arm, it held for every wrapper and no node, and
+  an index signature on `StructDefNode` itself passed the gate 11/11. Each narrower rule closed the
+  shape it was shown and left the next one open, which is the per-container pattern ADR-0025 records
+  — here reproduced three times inside the instrument built to end it.
 
   **The first version of that fix was itself the defect this file forbids**, and neither reviewer
   caught it: it pushed a row only when a mechanism was present, so six lines could not execute on a
@@ -151,10 +157,11 @@ which is the definition of decorative.
 
 ## Consequences
 
-- Adding a node-valued field to an existing kind stays a three-place change — the type, `childrenOf`,
-  and the declared path list — plus a fixture. What changes is that the **first** of those three is
-  now read by the gate rather than trusted, so a field declared and never exercised fails by name
-  instead of being invisible.
+- Adding a node-valued field to an existing kind, **whose `kind`-and-route is not already exercised**,
+  stays a three-place change — the type, `childrenOf`, and the declared path list — plus a fixture.
+  What changes is that the **first** of those three is now read by the gate rather than trusted, so
+  such a field declared and never exercised fails by name instead of being invisible. A field that
+  *shares* a route with an exercised variant is the residual below and fails nothing.
 - **The residual ADR-0025 recorded is narrowed, not eliminated, and the surviving part is measured.**
   A declared node-valued field that no fixture populates now fails — *unless it shares a path with an
   exercised variant*. Paths are keyed by node `kind` plus dotted route, so two declaring shapes
@@ -200,14 +207,19 @@ which is the definition of decorative.
   | M6 | `StructDefNode` gains `probeFn?: () => BlockNode`, `probeRec?: Record<string, BlockNode>`, `probeIndex?: { [key: string]: BlockNode }` and `probeMixed?: { a: string; [key: string]: unknown }` | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` naming all four paths with their index/call/construct counts |
   | M7 | `StructDefNode` gains `readonly hidden?: Box<BlockNode>` for a generic `Box<T>` | exit 0 | derives `StructDef.hidden.value`; under the pre-fix rule it derived `StructDef.hidden[]` |
   | M8 | `StructDefNode` gains `metadata?: RecursiveMetadata` for a self-referential `interface RecursiveMetadata { next?: RecursiveMetadata; label: string }` | exit 0 | **1 of 11 fails**, `cyclicEdges` = 1 against 0, both path assertions green |
+  | M9 | `"Ghost"` appended to `OL_NODE_KINDS` | exit 0 | **2 of 11 fail**: the declaration-side `kinds` comparison and the corpus-side kind census |
+  | M10 | `StructDefNode` gains `readonly [key: string]: … \| BlockNode \| undefined` — an index signature on the **node interface itself** | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef', indexSignatures: 1, callSignatures: 0, constructSignatures: 0 }]` |
 
   The first three M6 fields each hide a `BlockNode`; the fourth holds `unknown` and hides nothing —
-  it is there to show that *having a property* does not exclude an index signature, which is the case
-  a "report object types with no properties" check would pass.
+  it is there to show that *having a property* does not eliminate opacity, which is the case a
+  "report object types with no properties" check would pass. It does **not** defeat the other
+  proposal, "reject non-array index signatures", which catches it; what defeats that one is M6's
+  `probeFn`, a call signature.
 
   M1 is the discrimination measurement: the **pre-#986 gate**, taken verbatim from saga tip
   `22ecfb4a` and run against the same mutated `ast.ts`, passes **9 of 9**. The defect is completely
-  invisible to it. M5 and M6 are the two that justify the whole-set checks — the intersection hides a
+  invisible to it. M10 carries the same measurement one round in: the gate at the immediately
+  preceding commit passes **11 of 11** against it. M5 and M6 are the two that justify the whole-set checks — the intersection hides a
   `BlockNode` the walk never reaches with both path assertions green, and M6's four object-flagged
   containers do the same one category over.
 
@@ -223,16 +235,37 @@ which is the definition of decorative.
   enforcement is vacuous. Appending `"Ghost"` to `OL_NODE_KINDS` compiles clean (`tsc -b` exit 0) and
   fails **2 of 11**: the declaration-side `kinds` comparison and the corpus-side kind census, which
   is why it does not isolate. Only one direction of the agreement needs a test at all:
-  `NodeKind = (typeof OL_NODE_KINDS)[number]` and `NodeBase.kind: NodeKind`, so an interface
-  **cannot** declare a kind the array lacks — that direction is compiler-enforced. The direction
-  ADR-0024 left to a test is a kind listed in `OL_NODE_KINDS` that no `AnyNode` member declares, and
-  that is what the Ghost mutant fires.
+  `NodeKind = (typeof OL_NODE_KINDS)[number]` and `NodeBase.kind: NodeKind`, so an interface that
+  extends `NodeBase` **cannot** declare a kind the array lacks — that direction is compiler-enforced
+  for the shape every node uses today. (A union member that did not extend `NodeBase` could declare
+  any `kind`; what stops that one is `childrenOf`'s `never` guard from ADR-0024, not `NodeKind`.) The
+  direction ADR-0024 left to a test is a kind listed in `OL_NODE_KINDS` that no `AnyNode` member
+  declares, and that is what the Ghost mutant fires.
 
   M3 is **not isolating**, and that is a property of the defect rather than a weakness of the
   assertion: a tree carrying a node-valued field the types do not declare cannot have that field
   returned by `childrenOf`, which is typed — so the child-list and `walk` comparisons necessarily
   fire too. M4 shows the same assertion firing without any corpus-facing assertion firing, which is
   what establishes it is not decorative.
+
+- **The defect is unverified assertion, and it is symmetric in direction while asymmetric in cost.**
+  This ADR's review produced four false claims about the gate's own reach, in both directions at
+  once: `Binder` named as a merge point and the leaf-flag net credited with catching mapped types
+  were **over**-claims; `cyclicEdges` and `kinds` listed as having no firing mutant were
+  **under**-claims. Each was written by an author who believed it, and each was settled in one build
+  by someone who ran it instead. The saga's working assumption had been that the failure mode is
+  optimism; it is not, it is a claim nothing re-derived, and understating is the same defect wearing
+  modest clothes.
+  The *cost* is not symmetric, though, which is why the two are worth distinguishing rather than
+  merging. An over-claim leaves a reader trusting a check that does not exist. The `kinds`
+  under-claim was worse than a missing caveat: this ADR stakes its headline on that assertion being
+  the `OL_NODE_KINDS`/`AnyNode` enforcement ADR-0024 named nowhere, so a reader reaching "no mutation
+  of `ast.ts` fires them" would have concluded the enforcement is **vacuous** and stopped relying on
+  a check that works. An under-claim can retire a real guarantee.
+  Both corrections were also written in **repair mode** — the `Binder` error appeared in the very
+  paragraph that replaced the closure claim, which is to say a new false statement entered the
+  document in the act of removing an old one. That is the argument for measuring a replacement
+  sentence exactly as hard as the sentence it replaces.
 
 - The declaration walk is **not** a second hand-rolled parser. ADR-0025 rejected one on merit after a
   `#925`-era attempt mis-read `ComprehensionNode` — a union rather than an interface. This walk reads
