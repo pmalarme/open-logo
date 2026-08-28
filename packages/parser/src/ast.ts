@@ -944,9 +944,12 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * use this function, and fails naming the dotted path of any field omitted here
  * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). The
  * residual that left — a node-valued field that **no** fixture populates, which is invisible to
- * reflection too — is closed by the same file's declaration-derived field set, which reads these
+ * reflection too — is narrowed by the same file's declaration-derived field set, which reads these
  * declarations through the TypeScript compiler API and fails when one of them is never exercised
- * ([ADR-0026](../../../docs/adr/0026-child-edge-field-set-is-declaration-derived.md)). See also
+ * ([ADR-0027](../../../docs/adr/0027-child-edge-field-set-is-declaration-derived.md)). What survives
+ * is a field sharing a path with an exercised variant: paths are keyed by `kind` plus dotted route,
+ * so an unexercised `initial` on `MapFilterComprehensionNode` hides behind
+ * `ReduceComprehensionNode.initial` (measured, issue #1004). See also
  * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
