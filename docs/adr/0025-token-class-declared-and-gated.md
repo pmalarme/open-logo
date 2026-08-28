@@ -126,10 +126,14 @@ plainly here because "in both directions" over-describes two of them:
    the same "green means correct" misreading this decision exists to close.
 
 9. **The contextual words are probed, and their *positional* marking is not yet enumerated.** The
-   nine probes above ask "is this word painted right *here*"; they cannot ask "in every shape the
-   grammar permits". The paren/newline scan in `markIsPredicateKeywords` is covered by the
-   parenthesised and multiline probes in `packages/parser/src/highlight.test.mjs`, which are
-   regression cases rather than a derived corpus.
+   nine grammatical positions above apply to the flat `names`, which the contextual four are
+   deliberately absent from. Their evidence is their own declared probes — **5 declared-position
+   probes** (`empty`, `member` and `a` one each, `of` two: the is-predicate and the value-of
+   reader) plus **8 elsewhere probes**, two per word. Those ask "is this word painted right
+   *here*, and left alone *there*"; they cannot ask "in every shape the grammar permits". The
+   paren/newline scan in `markIsPredicateKeywords` is covered by the parenthesised and multiline
+   probes in `packages/parser/src/highlight.test.mjs`, which are regression cases rather than a
+   derived corpus.
 
    A **generated** corpus for that axis was built during this slice's review and is deferred to its
    own change. It repeatedly proved the harder lesson — three successive revisions each replaced one
