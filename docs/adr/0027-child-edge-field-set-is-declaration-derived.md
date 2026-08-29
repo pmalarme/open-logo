@@ -54,6 +54,37 @@ of the thing.
 **The expected field set is derived a second time, from `ast.ts`'s type declarations, and the two
 derivations are compared in both directions.**
 
+**Every self-check the walk makes about its own reach is an identity comparison, not a shape test.**
+That is the load-bearing design choice, and it was arrived at the hard way: this instrument's review
+defeated five successive rules for detecting a hidden node, each strictly more general than the last.
+
+| rule | defeated by |
+| --- | --- |
+| report object types with no properties | a property **plus** an index signature |
+| reject non-array index signatures | a call signature |
+| the remainder invariant, scoped to one arm | the root loop, which bypasses that arm |
+| audit each node type once, at the root | a **structural look-alike** |
+| treat a type as a node only when its `kind` is one node-kind literal | a **node supertype** (`NodeBase`), node-shaped without being any one node |
+
+A shape test enumerates what its author thought of, so it has a complement that must be extended
+every time someone thinks of something new — which is ADR-0025's per-container blind spot, and it
+recurred five times here inside the instrument built to end it. An identity comparison asks a
+different question: *is this the thing that was audited?* It has no complement to extend. So the
+checks that survived attack are the ones phrased that way — and each compares against **a set the
+system already maintains for its own reasons**, never a list curated in this file: the compiler's
+flag vocabulary (leaf `TypeFlags`, and an `object`-category `kind` that must be one string literal),
+a pristine realm's own-key set, the four-part definition of a TypeScript object type, and node
+identity against the `AnyNode` members the root inspected. That is why they have no complement to
+extend — the complement is somebody else's problem, and somebody else keeps it correct. A shape test
+fails not because it tests shape but because **its reference set is authored here**, so it can only
+ever be as complete as its author's imagination on the day. Node identity is the sharpest case:
+TypeScript is structural, so "already audited" was never a property of a *shape*, and no amount of
+shape enumeration could have reached it.
+
+`POPULATED_FIELD_PATHS` looks like a counterexample and is not: it is a curated list, but it is not a
+**detector**. It is pinned from both sides by derivations, so it cannot be silently incomplete — only
+loudly wrong, in one round. Curation is safe when it is pinned and dangerous when it is consulted.
+
 `auditTheDeclarations` in `packages/parser/src/child-edges.test.mjs` opens
 `packages/parser/tsconfig.json` through `typescript/unstable/sync`, resolves the `AnyNode` type
 alias, and walks each union member's properties by the **same path rule** `edgesUnder` applies to
@@ -131,8 +162,8 @@ into one. A corpus of parameterless procedures populates `params` and says nothi
   test. And a third round showed it has to be applied at the **root** as well: stated only for the
   `object` arm, it held for every wrapper and no node, and an index signature on `StructDefNode`
   itself passed the gate 11/11. Each narrower rule closed the shape it was shown and left the next
-  one open, which is the per-container pattern ADR-0025 records — here reproduced three times inside
-  the instrument built to end it.
+  one open — the recursion the Decision section opens with, and the reason the checks that survived
+  are phrased as identity comparisons rather than shape tests.
 
   **The first version of that fix was itself the defect this file forbids**, and neither reviewer
   caught it: it pushed a row only when a mechanism was present, so six lines could not execute on a
@@ -192,8 +223,14 @@ which is the definition of decorative.
   the union's members, and a reviewer's structural `{ kind: "Block"; …; extra?: BlockNode }` on
   `ForeverNode.body` fails it by name (M13). A draft of this ADR called such a type "inert"; that was
   false, and the mutant is why. What remains is an exported node-shaped interface appearing in **no**
-  field position and no union — unreachable rather than unchecked, and `childrenOf`'s `never` guard
-  from ADR-0024 fails the moment anything adds it to the union.
+  field position and no union — unreachable rather than unchecked. Adding it to the union does **not**
+  necessarily fail `tsc`: `childrenOf`'s `never` guard rejects an unhandled discriminant *value*, so
+  it fires for a new `kind` and not for a second interface declaring an existing one — measured,
+  `tsc -b` exit 0. What catches that one is the root loop auditing the new member and deriving its
+  fields (measured: `declaredButUnpopulated = ['Block.zzhidden']`, 1 of 11), subject to residual 1 if
+  the field shares an already-exercised route. A draft of this ADR said the `never` guard "fails the
+  moment anything puts it in the union", which asserted compiler cover for precisely the case whose
+  compiler-invisibility is why `foreignNodeTypes` exists.
 - The stale sentence in `packages/runtime/src/execute-declaration-slots.test.mjs` — which still
   describes the unpopulated-field residual as open — was outside this change's declared write-set and
   is on `@orchestrator`'s ledger for the epic #901 sweep rather than filed separately. Note that it
@@ -220,9 +257,12 @@ which is the definition of decorative.
   | M8 | `StructDefNode` gains `metadata?: RecursiveMetadata` for a self-referential `interface RecursiveMetadata { next?: RecursiveMetadata; label: string }` | exit 0 | **1 of 11 fails**, `cyclicEdges` = 1 against 0, both path assertions green |
   | M9 | `"Ghost"` appended to `OL_NODE_KINDS` | exit 0 | **2 of 11 fail**: the declaration-side `kinds` comparison and the corpus-side kind census |
   | M10 | `StructDefNode` gains `readonly [key: string]: … \| BlockNode \| undefined` — an index signature on the **node interface itself** | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef', indexSignatures: 1, callSignatures: 0, constructSignatures: 0 }]` |
-  | M11 | `StructDefNode` gains `zzArr?: ZzArrayLike` for `interface ZzArrayLike extends ReadonlyArray<string> { zzhidden: BlockNode }` | exit 0 | **2 of 11 fail**: `declared \ populated` = `['StructDef.zzArr.zzhidden']` and `opaqueObjectTypes` = `{ at: 'StructDef.zzArr', indexSignatures: 1 }`. It takes the **`object`** arm — `isArrayType` is false for an interface that merely extends `ReadonlyArray` — which is the measurement behind "a sequence carries no user-declared remainder of its own" |
+  | M11 | `StructDefNode` gains `zzArr?: ZzArrayLike` for `interface ZzArrayLike extends ReadonlyArray<string> { zzhidden: BlockNode }` | exit 0 | **2 of 11 fail**: `declared \ populated` = `['StructDef.zzArr.zzhidden']`, and `opaqueObjectTypes` **includes** `{ at: 'StructDef.zzArr', indexSignatures: 1 }` alongside a row for each inherited `ReadonlyArray` method. It takes the **`object`** arm — `isArrayType` is false for an interface that merely extends `ReadonlyArray` — which is the measurement behind "a sequence carries no user-declared remainder of its own" |
   | M12 | `StructDefNode` gains `zzCallable?: { (): BlockNode; readonly a: string }` — callable **and** carrying a property | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef.zzCallable', indexSignatures: 0, callSignatures: 1, constructSignatures: 0 }]`; defeats both narrower proposals |
   | M13 | `ForeverNode.body` retyped from `BlockNode` to a **structural** `{ kind: "Block"; source_span; body; extra?: BlockNode }` | exit 0 | **1 of 11 fails**, `foreignNodeTypes` = `[{ at: 'Forever.body', kind: 'Block', id: 241 }]`; the gate one commit earlier passes **11 of 11**, with `Block.extra` derived by nobody |
+  | M14 | `StructDefNode` gains `readonly zzBase?: NodeBase` — node-*shaped* without being any one node | exit 0 | **1 of 11 fails**, `kindPropertyFlags` = `[1024, 134217728]` against `[1024]`; the gate one commit earlier passes **11 of 11** |
+  | M15 | a second interface declaring an **existing** kind added to `AnyNode` (`ZzBlockLookAlike` with `zzhidden?: BlockNode`) | exit 0 | **1 of 11 fails**, `declared \ populated` = `['Block.zzhidden']`. `tsc` does **not** object: the `never` guard rejects unhandled discriminant *values*, and `"Block"` already has a case |
+  | — | **negative result:** `type ZzBlockAlias = BlockNode` used in field position | exit 0 | produces **no** `foreignNodeTypes` row — an alias is the same type object, so the identity check does not punish an ordinary refactor. Recorded because a check built on type identity is one a maintainer will suspect of false positives first |
 
   The first three M6 fields each hide a `BlockNode`; the fourth holds `unknown` and hides nothing —
   it is there to show that *having a property* does not eliminate opacity, which is the case a

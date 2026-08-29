@@ -72,8 +72,13 @@
 //      against the union's own members by identity, and the #986 reviewer's structural
 //      `{ kind: "Block"; …; extra?: BlockNode }` on `ForeverNode.body` fails it by name. What is not
 //      caught is an exported node-shaped interface that appears in **no** field position and in no
-//      union: nothing reaches it, so nothing reports it. It is unreachable rather than unchecked,
-//      and `childrenOf`'s `never` guard fails the moment anything puts it in the union.
+//      union: nothing reaches it, so nothing reports it. It is unreachable rather than unchecked.
+//      Adding it to the union does **not** necessarily fail `tsc`: `childrenOf`'s `never` guard
+//      rejects an unhandled discriminant *value*, so it fires for a new `kind` and not for a second
+//      interface declaring an existing one — measured, `tsc -b` exit 0. What catches that one is the
+//      root loop auditing the new member and deriving its fields (measured:
+//      `declaredButUnpopulated = ['Block.zzhidden']`, 1 of 11), subject to residual 1 if the field
+//      shares an already-exercised route.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -254,13 +259,30 @@ const EXPECTED_TYPE_CATEGORIES = [...TYPE_CATEGORIES].sort();
  * compiler's own vocabulary; the values were measured, not predicted, and are 4, 32, 64, 1024 and
  * 8192.
  */
+/**
+ * Numeric ascending order, shared by every flag list below. One named comparator rather than three
+ * inline copies, because `Array.prototype.sort` does not call a comparator on a **single-element**
+ * array: `kindPropertyFlags` holds exactly one entry on a green tree, so its own comparator would
+ * never be invoked and the coverage gate would report it as an uncalled function — which is how this
+ * was found.
+ */
+const byNumericValue = (left, right) => left - right;
+
 const EXPECTED_LEAF_TYPE_FLAGS = [
   TypeFlags.Undefined,
   TypeFlags.String,
   TypeFlags.Number,
   TypeFlags.StringLiteral,
   TypeFlags.BooleanLiteral,
-].sort((left, right) => left - right);
+].sort(byNumericValue);
+
+/**
+ * The only `TypeFlags` an `object`-category type's `kind` property may carry: a **single** string
+ * literal. A union there means the type is node-shaped without being any one node — `NodeBase`, or a
+ * field typed by it — which the walk would descend as an ordinary wrapper and derive no path from,
+ * while the declaration says a node can live there.
+ */
+const EXPECTED_KIND_PROPERTY_FLAGS = [TypeFlags.StringLiteral];
 
 /**
  * The `kind` a value declares as its own **data** property — read from the descriptor, never from
@@ -1007,7 +1029,34 @@ function auditTheDeclarations() {
       ).length,
     });
 
-    const seen = { categories: new Set(), leafTypeFlags: new Set() };
+    /**
+     * The flags of an `object`-category type's own `kind` property, as a list of 0 or 1 entries.
+     *
+     * A node is a type whose `kind` is **one** string literal in {@link WALKABLE_NODE_KINDS}. A type
+     * whose `kind` is a *union* of node kinds — `NodeBase` itself, or anything typed by it — is
+     * node-shaped without being any single node, so `declaredKindOf` returns `undefined` for it and
+     * it falls to the `object` arm, where its properties are `kind` and `source_span` and neither
+     * leads to a node. The #986 reviewer typed a field `readonly zzBase?: NodeBase`, which compiles
+     * and can hold any node, and the gate stayed 11/11 green: the declaration says a node lives there
+     * and the walk derived no path.
+     *
+     * Rather than test for that shape, the flags of every `object`-category `kind` are compared as a
+     * whole set against {@link EXPECTED_KIND_PROPERTY_FLAGS}. On a green tree the only kinded
+     * object-category types are the two `PlaceSegment` discriminants, both single string literals, so
+     * a union-kinded type breaks the equality. Unions and nodes are classified before this arm and
+     * are unaffected.
+     */
+    const kindPropertyFlagsOf = (type) =>
+      checker
+        .getPropertiesOfType(type)
+        .filter((property) => property.name === "kind")
+        .map((property) => checker.getTypeOfSymbol(property).flags);
+
+    const seen = {
+      categories: new Set(),
+      leafTypeFlags: new Set(),
+      kindPropertyFlags: new Set(),
+    };
     const typeVisits = [];
     const objectTypeRows = [];
     const nodeTypeRows = [];
@@ -1057,6 +1106,9 @@ function auditTheDeclarations() {
           ),
         object: () => {
           objectTypeRows.push(objectTypeParts(type, path));
+          for (const flags of kindPropertyFlagsOf(type)) {
+            seen.kindPropertyFlags.add(flags);
+          }
           descend(
             checker
               .getPropertiesOfType(type)
@@ -1105,9 +1157,8 @@ function auditTheDeclarations() {
       paths: [...paths].sort(),
       kinds: [...kinds].sort(),
       categories: [...seen.categories].sort(),
-      leafTypeFlags: [...seen.leafTypeFlags].sort(
-        (left, right) => left - right,
-      ),
+      leafTypeFlags: [...seen.leafTypeFlags].sort(byNumericValue),
+      kindPropertyFlags: [...seen.kindPropertyFlags].sort(byNumericValue),
       unresolvedTypes: typeVisits.filter((visit) => visit.unresolved),
       foreignNodeTypes: nodeTypeRows.filter(
         (row) => !rootMemberIds.has(row.id),
@@ -1332,8 +1383,7 @@ test("the declaration walk resolved every type it read", () => {
   // and that is only sound if there is no *second* type declaring the same `kind`. TypeScript is
   // structural, so there can be: the #986 reviewer retyped `Forever.body` as an inline
   // `{ kind: "Block"; …; extra?: BlockNode }`, which compiles, and its `extra` was derived by nobody
-  // with the gate 11/11 green. This is the fourth shape of the same blind spot, and the last one
-  // found; it is closed by identity rather than by recognising the shape.
+  // with the gate 11/11 green. It is closed by identity rather than by recognising the shape.
   assert.deepEqual(declarations.foreignNodeTypes, []);
   // And nothing a type descended by property carries beyond those properties went undescended: a
   // node behind an index signature, a call signature or a construct signature is invisible to
@@ -1352,6 +1402,15 @@ test("the declaration walk resolved every type it read", () => {
   // are the assertion above's job — an earlier version of this comment claimed this one covered
   // mapped types, which a reviewer measured false.
   assert.deepEqual(declarations.leafTypeFlags, EXPECTED_LEAF_TYPE_FLAGS);
+  // And no `object`-category type is node-*shaped* without being a node: a `kind` that is a union of
+  // node kinds — `NodeBase`, or any field typed by it — descends as an ordinary wrapper and yields no
+  // path, while the declaration says a node can live there. The #986 reviewer typed a field
+  // `readonly zzBase?: NodeBase`, which compiles, and the gate stayed 11/11 green. Compared as a whole
+  // set against the compiler's own flag vocabulary rather than by recognising `NodeBase`.
+  assert.deepEqual(
+    declarations.kindPropertyFlags,
+    EXPECTED_KIND_PROPERTY_FLAGS,
+  );
   // And every category was actually exercised, so none of the five arms is carrying no traffic.
   assert.deepEqual(declarations.categories, EXPECTED_TYPE_CATEGORIES);
   // Wrapper types form a DAG, measured rather than argued — see `auditTheDeclarations`. A non-zero
