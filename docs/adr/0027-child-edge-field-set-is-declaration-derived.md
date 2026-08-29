@@ -29,10 +29,12 @@ and one of them was **wrong**:
   true, and paid. TypeScript 7 publishes its compiler API only under `unstable/*` (`unstable/sync`,
   `unstable/async` and `unstable/ast`); this uses the synchronous one. The cost is one import in one
   test file. Timing is stated as a magnitude rather than a range, because a range in an immutable
-  document is a claim a later reader cannot reproduce: **sub-second to about two seconds warm**
-  (576/579/827 ms in-process immediately after a build on one machine; 629–1752 ms across six runs on
-  a reviewer's, a roughly 3× spread) and **seconds cold** (3.1 s on a first run in a fresh process).
-  The gate measures it on every run, which is the only figure that cannot go stale.
+  document is a claim a later reader cannot reproduce, and the scope is **`auditTheDeclarations`
+  alone** — not `node --test` on the file, which additionally parses the 900+ file corpus and has
+  been measured at 26.7 s on a cold filesystem. The walk itself is **sub-second to about two seconds
+  warm** (576/579/827 ms in-process immediately after a build on one machine; 629–1752 ms across six
+  runs on another, a roughly 3× spread) and **seconds cold** (3.1 s on a first run in a fresh
+  process).
 - *"a declaration-derived list would still rest on the same `OL_NODE_KINDS`/`AnyNode` agreement this
   gate's oracle already states — it narrows the gap rather than removing the assumption underneath
   it"* — **this prediction is false, and the mechanism is the reason.** The walk starts *at*
@@ -115,17 +117,22 @@ into one. A corpus of parameterless procedures populates `params` and says nothi
   instrument built to close it.
 
   **Both reviewers independently proposed a narrower fix** — "report object types with no
-  properties" and "reject non-array index signatures" — and neither covers the whole remainder. The
-  first is defeated by a type carrying **both** a property and an index signature
-  (`{ a: string; [k: string]: unknown }`); the second does catch that one, but neither addresses
-  **call or construct signatures**, which is how `() => BlockNode` hides. A reviewer's follow-up
-  mutants — a container inside a sequence (`readonly { [key: string]: BlockNode }[]`) and one behind
-  a property (`{ wrap: () => BlockNode }`) — showed the assertion also has to be **per-path and
-  recursive** rather than a top-level shape test. And a third round showed it has to be applied at
-  the **root** as well: stated only for the `object` arm, it held for every wrapper and no node, and
-  an index signature on `StructDefNode` itself passed the gate 11/11. Each narrower rule closed the
-  shape it was shown and left the next one open, which is the per-container pattern ADR-0025 records
-  — here reproduced three times inside the instrument built to end it.
+  properties" and "reject non-array index signatures" — and each has a demonstrable escape. The first
+  is defeated by a type carrying **both** a property and an index signature
+  (`{ a: string; [k: string]: unknown }`); the second catches that one but not a bare function type.
+  Neither *addresses* call or construct signatures — the first only catches `() => BlockNode`
+  incidentally, because a bare function type happens to have zero properties, and a callable that
+  **also** carries a property defeats both: `readonly zzCallable?: { (): BlockNode; readonly a: string }`
+  compiles clean and is reported by the remainder invariant alone, as
+  `{ at: 'StructDef.zzCallable', indexSignatures: 0, callSignatures: 1, constructSignatures: 0 }`.
+  A reviewer's follow-up mutants — a container inside a sequence
+  (`readonly { [key: string]: BlockNode }[]`) and one behind a property (`{ wrap: () => BlockNode }`)
+  — showed the assertion also has to be **per-path and recursive** rather than a top-level shape
+  test. And a third round showed it has to be applied at the **root** as well: stated only for the
+  `object` arm, it held for every wrapper and no node, and an index signature on `StructDefNode`
+  itself passed the gate 11/11. Each narrower rule closed the shape it was shown and left the next
+  one open, which is the per-container pattern ADR-0025 records — here reproduced three times inside
+  the instrument built to end it.
 
   **The first version of that fix was itself the defect this file forbids**, and neither reviewer
   caught it: it pushed a row only when a mechanism was present, so six lines could not execute on a
@@ -179,10 +186,14 @@ which is the definition of decorative.
   sides, which changes the path rule `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a
   redesign of that gate, tracked as issue #1004. `childrenOf`'s doc comment in `ast.ts` and the
   header of `child-edges.test.mjs` state this residual rather than claiming closure.
-- A second residual: the walk starts at `AnyNode`, so everything it enforces is exactly as wide as
-  that union. A node-shaped interface that does not extend `NodeBase` and appears in no union is
-  invisible to it — inert, because `childrenOf` and `walk` are typed and the reflective half's
-  `foreignShapes` would fire if one ever reached a tree, but not something this gate checks.
+- A second residual, narrowed by the same round that found it: the walk starts at `AnyNode`, so what
+  it enforces is as wide as that union. A **second type declaring an existing `kind`** is now caught
+  by identity — `foreignNodeTypes` compares every node-category type met in field position against
+  the union's members, and a reviewer's structural `{ kind: "Block"; …; extra?: BlockNode }` on
+  `ForeverNode.body` fails it by name (M13). A draft of this ADR called such a type "inert"; that was
+  false, and the mutant is why. What remains is an exported node-shaped interface appearing in **no**
+  field position and no union — unreachable rather than unchecked, and `childrenOf`'s `never` guard
+  from ADR-0024 fails the moment anything adds it to the union.
 - The stale sentence in `packages/runtime/src/execute-declaration-slots.test.mjs` — which still
   describes the unpopulated-field residual as open — was outside this change's declared write-set and
   is on `@orchestrator`'s ledger for the epic #901 sweep rather than filed separately. Note that it
@@ -209,6 +220,9 @@ which is the definition of decorative.
   | M8 | `StructDefNode` gains `metadata?: RecursiveMetadata` for a self-referential `interface RecursiveMetadata { next?: RecursiveMetadata; label: string }` | exit 0 | **1 of 11 fails**, `cyclicEdges` = 1 against 0, both path assertions green |
   | M9 | `"Ghost"` appended to `OL_NODE_KINDS` | exit 0 | **2 of 11 fail**: the declaration-side `kinds` comparison and the corpus-side kind census |
   | M10 | `StructDefNode` gains `readonly [key: string]: … \| BlockNode \| undefined` — an index signature on the **node interface itself** | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef', indexSignatures: 1, callSignatures: 0, constructSignatures: 0 }]` |
+  | M11 | `StructDefNode` gains `zzArr?: ZzArrayLike` for `interface ZzArrayLike extends ReadonlyArray<string> { zzhidden: BlockNode }` | exit 0 | **2 of 11 fail**: `declared \ populated` = `['StructDef.zzArr.zzhidden']` and `opaqueObjectTypes` = `{ at: 'StructDef.zzArr', indexSignatures: 1 }`. It takes the **`object`** arm — `isArrayType` is false for an interface that merely extends `ReadonlyArray` — which is the measurement behind "a sequence carries no user-declared remainder of its own" |
+  | M12 | `StructDefNode` gains `zzCallable?: { (): BlockNode; readonly a: string }` — callable **and** carrying a property | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef.zzCallable', indexSignatures: 0, callSignatures: 1, constructSignatures: 0 }]`; defeats both narrower proposals |
+  | M13 | `ForeverNode.body` retyped from `BlockNode` to a **structural** `{ kind: "Block"; source_span; body; extra?: BlockNode }` | exit 0 | **1 of 11 fails**, `foreignNodeTypes` = `[{ at: 'Forever.body', kind: 'Block', id: 241 }]`; the gate one commit earlier passes **11 of 11**, with `Block.extra` derived by nobody |
 
   The first three M6 fields each hide a `BlockNode`; the fourth holds `unknown` and hides nothing —
   it is there to show that *having a property* does not eliminate opacity, which is the case a
@@ -218,10 +232,12 @@ which is the definition of decorative.
 
   M1 is the discrimination measurement: the **pre-#986 gate**, taken verbatim from saga tip
   `22ecfb4a` and run against the same mutated `ast.ts`, passes **9 of 9**. The defect is completely
-  invisible to it. M10 carries the same measurement one round in: the gate at the immediately
-  preceding commit passes **11 of 11** against it. M5 and M6 are the two that justify the whole-set checks — the intersection hides a
-  `BlockNode` the walk never reaches with both path assertions green, and M6's four object-flagged
-  containers do the same one category over.
+  invisible to it. M10 and M13 carry the same measurement one round in each: the gate at the
+  immediately preceding commit passes **11 of 11** against each of them. M5 and M6 are the two that
+  justify the whole-set checks — the intersection hides a `BlockNode` the walk never reaches with
+  both path assertions green, and M6's object-flagged containers do the same one category over. Of
+  M6's four fields the first three hide a node; the fourth holds `unknown` and is there for the
+  property-plus-index case.
 
   **Assertions with no firing mutant, named rather than covered by a blanket claim:**
   `unresolvedTypes`, `categories`, `projectCount` and `configFileName`. Each states a property of the
@@ -249,23 +265,27 @@ which is the definition of decorative.
   what establishes it is not decorative.
 
 - **The defect is unverified assertion, and it is symmetric in direction while asymmetric in cost.**
-  This ADR's review produced four false claims about the gate's own reach, in both directions at
-  once: `Binder` named as a merge point and the leaf-flag net credited with catching mapped types
-  were **over**-claims; `cyclicEdges` and `kinds` listed as having no firing mutant were
-  **under**-claims. Each was written by an author who believed it, and each was settled in one build
-  by someone who ran it instead. The saga's working assumption had been that the failure mode is
-  optimism; it is not, it is a claim nothing re-derived, and understating is the same defect wearing
-  modest clothes.
+  This ADR's review produced **five** false claims about the gate's own reach, in both directions at
+  once: `Binder` named as a merge point, the leaf-flag net credited with catching mapped types, and
+  "which is why nothing here has to special-case them" were **over**-claims; `cyclicEdges` and
+  `kinds` listed as having no firing mutant were **under**-claims. Each was written by an author who
+  believed it, and each was settled in one build by someone who ran it instead. The saga's working
+  assumption had been that the failure mode is optimism; it is not, it is a claim nothing
+  re-derived, and understating is the same defect wearing modest clothes.
   The *cost* is not symmetric, though, which is why the two are worth distinguishing rather than
   merging. An over-claim leaves a reader trusting a check that does not exist. The `kinds`
   under-claim was worse than a missing caveat: this ADR stakes its headline on that assertion being
   the `OL_NODE_KINDS`/`AnyNode` enforcement ADR-0024 named nowhere, so a reader reaching "no mutation
   of `ast.ts` fires them" would have concluded the enforcement is **vacuous** and stopped relying on
   a check that works. An under-claim can retire a real guarantee.
-  Both corrections were also written in **repair mode** — the `Binder` error appeared in the very
-  paragraph that replaced the closure claim, which is to say a new false statement entered the
-  document in the act of removing an old one. That is the argument for measuring a replacement
-  sentence exactly as hard as the sentence it replaces.
+  Three of the five were written in **repair mode**, and the sharpest is the `special-case` clause:
+  the edit it accompanied was *correct* — a reviewer had rightly narrowed the scope claim from "every
+  object type" to "the `object` category" — and the justification bolted onto that correct narrowing
+  was false, and hid a real code defect from every subsequent reader for a round. Reviewing the
+  change would have passed it; only reviewing the sentence catches it. **A justification is a claim,
+  and it needs evidence even when the edit it accompanies is right.** The `Binder` error is the same
+  shape one step milder: a new false statement entering the document in the act of removing an old
+  one.
 
 - The declaration walk is **not** a second hand-rolled parser. ADR-0025 rejected one on merit after a
   `#925`-era attempt mis-read `ComprehensionNode` — a union rather than an interface. This walk reads

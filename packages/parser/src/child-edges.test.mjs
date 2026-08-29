@@ -66,11 +66,14 @@
 //      paths by each variant's discriminant on **both** sides, which changes the path rule
 //      `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a redesign of that gate rather
 //      than a follow-up to it. Tracked as issue #1004.
-//   2. **A node-shaped interface outside `AnyNode`.** The walk starts at `AnyNode`, so the
-//      `OL_NODE_KINDS` agreement it enforces is exactly as wide as that union. An interface that does
-//      not extend `NodeBase` and appears in no union is invisible here — inert, because `childrenOf`
-//      and `walk` are typed and `foreignShapes` would fire if one ever reached a tree, but not
-//      something this file checks.
+//   2. **A node-shaped type that is not an `AnyNode` member.** The walk starts at `AnyNode`, so
+//      everything it enforces is exactly as wide as that union. A *second* type declaring an existing
+//      `kind` is caught — `foreignNodeTypes` compares every node-category type met in field position
+//      against the union's own members by identity, and the #986 reviewer's structural
+//      `{ kind: "Block"; …; extra?: BlockNode }` on `ForeverNode.body` fails it by name. What is not
+//      caught is an exported node-shaped interface that appears in **no** field position and in no
+//      union: nothing reaches it, so nothing reports it. It is unreachable rather than unchecked,
+//      and `childrenOf`'s `never` guard fails the moment anything puts it in the union.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -959,8 +962,11 @@ function auditTheDeclarations() {
      * The scope is the `object` **category** plus every `AnyNode` member at the root: a node is
      * descended by property in the root loop, so it owes the same statement, and the row is pushed
      * there too. A `sequence` is descended by type *argument* and carries no user-declared remainder
-     * of its own. So the remainder is stated for every type the walk descends by property — which is
-     * the claim, and it is narrower than "every object type".
+     * of its own — measured: an interface that merely *extends* `ReadonlyArray` takes the `object`
+     * arm, because `isArrayType` is false for it, so the sequence arm only ever holds genuine
+     * array/tuple references whose remainder is lib-declared. So the remainder is stated for every
+     * type the walk descends by property — which is the claim, and it is narrower than "every object
+     * type".
      *
      * An earlier version stopped at the `object` category and added "which is why nothing here has to
      * special-case them". The first half was true and the conclusion was false: a node's own
@@ -1004,6 +1010,7 @@ function auditTheDeclarations() {
     const seen = { categories: new Set(), leafTypeFlags: new Set() };
     const typeVisits = [];
     const objectTypeRows = [];
+    const nodeTypeRows = [];
     const paths = new Set();
     const kinds = new Set();
     let cyclicEdges = 0;
@@ -1026,7 +1033,22 @@ function auditTheDeclarations() {
       };
       ({
         union: () => descend(type.getTypes().map((member) => [member, path])),
-        node: () => paths.add(path),
+        node: () => {
+          // A node ends the path, so its own declaration is never inspected here — it is inspected
+          // once, at the root, as an `AnyNode` member. That is only sound if every node-category type
+          // met in field position **is** one of those members, so the type's identity is recorded and
+          // compared against the root set. The #986 reviewer retyped `Forever.body` as a *structural*
+          // `{ kind: "Block"; …; extra?: BlockNode }` — which compiles, because TypeScript is
+          // structural — and `Block.extra` was derived by nobody while the gate stayed 11/11 green.
+          // Recorded for every node edge rather than only for strangers: a `push` that fires only on
+          // a broken tree is a recording arm no green run executes.
+          nodeTypeRows.push({
+            at: path,
+            kind: declaredKindOf(type),
+            id: type.id,
+          });
+          paths.add(path);
+        },
         sequence: () =>
           descend(
             checker
@@ -1057,6 +1079,9 @@ function auditTheDeclarations() {
         position: 0,
       }),
     );
+    const rootMemberIds = new Set(
+      anyNode.getTypes().map((member) => member.id),
+    );
     for (const member of anyNode.getTypes()) {
       const kind = declaredKindOf(member);
       kinds.add(kind);
@@ -1084,6 +1109,9 @@ function auditTheDeclarations() {
         (left, right) => left - right,
       ),
       unresolvedTypes: typeVisits.filter((visit) => visit.unresolved),
+      foreignNodeTypes: nodeTypeRows.filter(
+        (row) => !rootMemberIds.has(row.id),
+      ),
       opaqueObjectTypes: objectTypeRows.filter(
         (row) =>
           row.indexSignatures + row.callSignatures + row.constructSignatures >
@@ -1299,12 +1327,24 @@ test("the declaration walk resolved every type it read", () => {
   // An unresolved reference yields the compiler's error type, which is the one way this walk can
   // come back smaller than the declarations without anything looking wrong.
   assert.deepEqual(declarations.unresolvedTypes, []);
-  // And nothing an object type carries went undescended. The `object` arm reads
-  // `getPropertiesOfType` and nothing else, so a node behind an index signature, a call signature or
-  // a construct signature is invisible to it — the #986 reviewers hid one behind each of
-  // `() => BlockNode`, `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }`, all
-  // three of which have zero properties, and the gate stayed 11/11 green. Measured 0 rows today, so
-  // this costs nothing on a green tree and is not a recording arm.
+  // Every node-category type met in field position is one of the `AnyNode` members the root loop
+  // audits. A node ends the path, so its own declaration is inspected exactly once — at the root —
+  // and that is only sound if there is no *second* type declaring the same `kind`. TypeScript is
+  // structural, so there can be: the #986 reviewer retyped `Forever.body` as an inline
+  // `{ kind: "Block"; …; extra?: BlockNode }`, which compiles, and its `extra` was derived by nobody
+  // with the gate 11/11 green. This is the fourth shape of the same blind spot, and the last one
+  // found; it is closed by identity rather than by recognising the shape.
+  assert.deepEqual(declarations.foreignNodeTypes, []);
+  // And nothing a type descended by property carries beyond those properties went undescended: a
+  // node behind an index signature, a call signature or a construct signature is invisible to
+  // `getPropertiesOfType`. Rows are recorded for every type taking the `object` arm **and** for every
+  // `AnyNode` member at the root, so the statement covers both categories the walk descends that
+  // way; a sequence is descended by type argument and carries no user-declared remainder of its own.
+  // The #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
+  // `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` — all with zero
+  // properties — and then behind an index signature on a node interface itself; the first three
+  // stayed 11/11 green before this assertion, the fourth before the root row was added. Measured 0
+  // rows today, so it costs nothing on a green tree and is not a recording arm.
   assert.deepEqual(declarations.opaqueObjectTypes, []);
   // Every leaf's flags as a whole set. This is what makes "everything else is a leaf" safe for the
   // **non-object** constructors: an intersection, an `any`, an `unknown`, a `never` or the error
