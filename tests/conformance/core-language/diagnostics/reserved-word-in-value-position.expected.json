@@ -1,5 +1,5 @@
 {
-  "description": "Every globally reserved word that heads no `expression` alternative (spec/grammar.md:190-200) is reported as ol-bad-token at the offending token (spec/error-model.md:110). Issue #853: `value`, `key`, and the Data mutation heads `add`/`remove`/`insert`/`clear` all parsed AND checked completely CLEAN in every profile set — a silent no-op. Lines 13-14 are the issue's verbatim reproduction; the mutation heads are pinned in list-element value position so the contract is about acceptance, not one reader's error recovery. Parse-only negative fixture.",
+  "description": "Every globally reserved word that heads no `primary` alternative reachable under Core (spec/grammar.md:193-204; `value` heads the Heritage-gated `value-of-reader` alternative at :203, inactive here) is reported as ol-bad-token at the offending token (spec/error-model.md:110). Issue #853: `value`, `key`, and the Data mutation heads `add`/`remove`/`insert`/`clear` all parsed AND checked completely CLEAN in every profile set — a silent no-op. Lines 13-14 are the issue's verbatim reproduction; the mutation heads are pinned in list-element value position so the contract is about acceptance, not one reader's error recovery. Parse-only negative fixture.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

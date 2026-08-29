@@ -1,5 +1,5 @@
 // Unit tests for the Data-profile list-mutator statement grammar (issue #187):
-// `spec/grammar.md:113-117`'s `add-statement`, `remove-statement`, `remove-key-statement`,
+// `spec/grammar.md:115-119`'s `add-statement`, `remove-statement`, `remove-key-statement`,
 // `insert-statement`, and `clear-statement`. This slice is parse/AST only — no runtime evaluation
 // (that is a separate Data-profile slice). Each mutator parses into its own statement node, never a
 // `Call`, and a malformed mutator (a missing `to`/`from`/`in`/`at` separator, or a missing operand)

@@ -2,7 +2,7 @@
 // dotted `.identifier` postfix covered in place-selectors.test.mjs (issue #49). These exercise the
 // parser's public `parse` surface and the semantic `check` surface against the built
 // `@openlogo/parser` package, covering:
-//   * every key-term form (spec/grammar.md:111): number, word literal, `:name` read, a bare
+//   * every key-term form (spec/grammar.md:113): number, word literal, `:name` read, a bare
 //     identifier as a *literal word key* (reserved words included), and a parenthesized expression;
 //   * selectors interleaved with dotted fields in source order (`:a.b[1].c`);
 //   * selector assignment targets, both `:place = value` and `set bare to value`;

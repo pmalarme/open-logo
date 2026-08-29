@@ -142,7 +142,7 @@ export interface DictLitNode extends NodeBase {
  * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
  * `spec/grammar.md:217`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
  * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
- * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
+ * (`spec/data-structures.md:213-231`). Both `dictionary` and `key` are full expressions, not the
  * narrower {@link SelectorSegment} key-term grammar.
  */
 export interface ValueOfKeyNode extends NodeBase {
@@ -184,7 +184,7 @@ export interface ParenCallNode extends NodeBase {
 
 /**
  * One postfix segment of a place written as `.identifier`: a literal field or key that is never
- * evaluated (`spec/grammar.md:109,256`). Its sibling {@link SelectorSegment} covers the bracketed
+ * evaluated (`spec/grammar.md:109,260`). Its sibling {@link SelectorSegment} covers the bracketed
  * `[ key-term ]` form.
  */
 export interface FieldSegment {
