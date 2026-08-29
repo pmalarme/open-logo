@@ -9,7 +9,7 @@
  * call used as an assignment target — the runtime's own copy of the semantic checker's rule of
  * the same name from issue #113, at `stage: "runtime"` since `execute()` never runs `check()`),
  * `ol-range` (a list index outside `1..length`), and a reuse of `ol-type` for a non-list base or
- * non-number key on a postfix index selector (`spec/error-model.md:99` calls out "list indexing
+ * non-number key on a postfix index selector (`spec/error-model.md:100` calls out "list indexing
  * with a non-number key" as `ol-type`, not `ol-range`). Issue #95 adds `ol-not-boolean` for a
  * `not`/`and`/`or` operand that is not `true`/`false` — there is no truthiness. Issue #104 adds
  * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
@@ -43,9 +43,9 @@
  * `checker-type-field.ts`), at `stage: "runtime"` for the same reason as the others above.
  * Issue #101 adds the Core list reporters' diagnostics: `ol-type` for a wrong-typed
  * `first`/`last`/`butfirst`/`butlast`/`count`/`fput`/`lput` argument, and `ol-range` for
- * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:100`).
+ * `first`/`last`/`butfirst`/`butlast` given an empty word or list (`spec/error-model.md:101`).
  * Issue #208 adds `ol-bad-color` for a `set_color`/`set_background` (or `setcolor`/`setbg`)
- * argument that is not one of the three accepted color forms (`spec/error-model.md:122`).
+ * argument that is not one of the three accepted color forms (`spec/error-model.md:124`).
  * Issue #209 adds a reuse of `ol-range` for a `set_width`/`setwidth` argument that is a number but
  * not positive and finite (`spec/commands.md`'s `set_width` entry) — the ordinary non-number case
  * reuses `requireNumber`'s existing `ol-type`, so no new type-error builder is needed here.
@@ -131,7 +131,7 @@ export interface OrderingTypeErrorParams {
 /**
  * Params for an `ol-type` raised while resolving a postfix place — a non-list/non-dict value
  * indexed with `[ … ]`/`.field`, a non-number list-index key, a non-word/non-number dict key, or
- * a non-word argument to `thing` (`spec/error-model.md:99` — list indexing with a non-number key
+ * a non-word argument to `thing` (`spec/error-model.md:100` — list indexing with a non-number key
  * is `ol-type`, not `ol-range`; issue #322 extends the same postfix-resolution guard to dicts,
  * `spec/data-structures.md:183-203`).
  */
@@ -172,7 +172,7 @@ export interface IndexRangeParams {
 }
 
 /**
- * Params for `ol-unknown-key` (`spec/error-model.md:126`): a required dictionary key is absent on
+ * Params for `ol-unknown-key` (`spec/error-model.md:129`): a required dictionary key is absent on
  * read, or an intermediate dictionary key is absent in a nested access chain
  * (`spec/data-structures.md:191,203`). Writing a missing *final* key upserts instead of raising
  * this. `key` is the offending key exactly as the learner wrote it (a word or number).
@@ -317,7 +317,7 @@ export interface ForStepZeroParams {
 
 /**
  * Params for an `ol-range` raised by a destructuring binder/element length mismatch
- * (`spec/execution-model.md:460-461` — "a short or long pattern mismatch raises `ol-range`"):
+ * (`spec/execution-model.md:469-470` — "a short or long pattern mismatch raises `ol-range`"):
  * `length` is the pattern's own arity, `value` the element's actual length (`0` for a non-list
  * element, which can never match a non-empty pattern).
  */
@@ -329,7 +329,7 @@ export interface PatternLengthMismatchParams {
 
 /**
  * Params for an `ol-type` raised by a comprehension (`map`/`filter`/`reduce`) iterable that is
- * not a list (`spec/execution-model.md:418-422` — every comprehension form ranges over a list).
+ * not a list (`spec/execution-model.md:427-431` — every comprehension form is typed `<listExpr>`).
  * Same shape as {@link ForInNotListParams} plus the comprehension's own `form`, since `ol-type`'s
  * `operation` names the offending construct.
  */
@@ -399,7 +399,7 @@ function canonicalReturnKeyword(surface: SurfaceReturnKeyword): "return" {
  * The canonical Core control word for any escape — {@link canonicalReturnKeyword} widened to admit
  * `stop`, which is already canonical and has no Heritage spelling. Only the comprehension-scoped
  * code needs this: `stop` at the top level is the separate `ol-stop-outside-proc`
- * (`spec/error-model.md:118`), which carries no `keyword` at all.
+ * (`spec/error-model.md:119`), which carries no `keyword` at all.
  */
 function canonicalEscapeKeyword(
   surface: SurfaceEscapeKeyword,
@@ -425,7 +425,7 @@ export interface NoValueParams {
  *
  * `keyword` is typed as the literal `"return"` rather than {@link CanonicalEscapeKeyword}, because
  * that is the only word this code can ever carry: a `stop` outside a procedure is the separate
- * `ol-stop-outside-proc` (`spec/error-model.md:118`). The parser's counterpart states the same
+ * `ol-stop-outside-proc` (`spec/error-model.md:119`). The parser's counterpart states the same
  * constraint in prose (`checker-control-flow.ts`: "here always `return`"); stating it in the type
  * leaves the guard no slack.
  */
@@ -435,7 +435,7 @@ export interface ReturnOutsideProcParams {
 
 /**
  * Params for `ol-return-in-comprehension`: a `return`/`output`/`op`/`stop` reached inside a
- * comprehension body (`spec/execution-model.md:226-227`) — a comprehension reports its last
+ * comprehension body (`spec/execution-model.md:229-230`) — a comprehension reports its last
  * expression, never an explicit `return`/`stop`. Same `{keyword, form}` shape as the parser's
  * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity, with the
  * same canonical `keyword` rule as {@link ReturnOutsideProcParams} — widened to
@@ -485,7 +485,7 @@ export interface ListReporterTypeErrorParams {
 
 /**
  * Params for an `ol-range` raised by `first`/`last`/`butfirst`/`butlast` on an empty word or list
- * (`spec/error-model.md:100` — "an empty `first` or `last`"; `spec/commands.md` extends the same
+ * (`spec/error-model.md:101` — "an empty `first` or `last`"; `spec/commands.md` extends the same
  * rule to `butfirst`/`butlast`). `value` is the empty word/list itself, matching how
  * {@link NegativeCountParams} carries the offending `value` rather than just its type name.
  */
@@ -510,7 +510,7 @@ export interface EmptyListParams {
 /**
  * Params for an `ol-bad-color` raised by `set_color`/`set_background` (and their `setcolor`/
  * `setbg` aliases, issue #208) when the argument is not one of the three accepted color forms
- * (`spec/error-model.md:122`, `spec/commands.md`'s "Colors" section). `value` is the offending
+ * (`spec/error-model.md:124`, `spec/commands.md`'s "Colors" section). `value` is the offending
  * argument itself (matching {@link EmptyInputRangeParams}'s convention of carrying the offending
  * value rather than just its type name); `operation` names the invoked alias for identity, same
  * convention as {@link ListReporterTypeErrorParams}.
@@ -811,7 +811,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-unknown-key`: a required dictionary key is absent on read, or an intermediate dictionary
-   * key is absent in a nested access chain (`spec/error-model.md:126`,
+   * key is absent in a nested access chain (`spec/error-model.md:129`,
    * `spec/data-structures.md:191,203`). Never raised for a missing *final* write key (that
    * upserts instead).
    */
@@ -826,7 +826,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-unknown-field`: a `:record.field` read or write named a field the record's struct type
-   * does not declare (`spec/data-structures.md:266,309`, `spec/error-model.md:124`). Records have
+   * does not declare (`spec/data-structures.md:266,309`, `spec/error-model.md:128`). Records have
    * a fixed field set and never grow new fields, so an unknown field is an error on both read and
    * write. Same `{ type, field }` params (plus `write: true` for a write) and message templates as
    * the parser's `resolveRecordField` (`checker-type-field.ts`, issue #112) so the static and
@@ -1086,7 +1086,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `map`/`filter`/`reduce` iterable is not a list
-   * (`spec/execution-model.md:418-422` — every comprehension form ranges over a list, same
+   * (`spec/execution-model.md:427-431` — every comprehension form is typed `<listExpr>`, same
    * restriction as `ForIn`). `params.operation` names the specific comprehension form.
    */
   comprehensionNotList(
@@ -1117,7 +1117,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a destructuring binder's pattern and an iterated element disagree on length
-   * (`spec/execution-model.md:460-461`). `params.value` is the element's actual length (`0` for a
+   * (`spec/execution-model.md:469-470`). `params.value` is the element's actual length (`0` for a
    * non-list element).
    */
   patternLengthMismatch(
@@ -1155,7 +1155,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-too-many-inputs`: a fixed-arity call was given more inputs than it accepts
-   * (`spec/error-model.md:98`). Same `{callable, expected, actual}` shape as
+   * (`spec/error-model.md:99`). Same `{callable, expected, actual}` shape as
    * {@link runtimeDiag.notEnoughInputs} and the static checker's `checker-arity.ts` (issue #111)
    * so both stages agree on identity — `expected` is the callee's ceiling (its total parameter
    * count for a user procedure), not the floor {@link notEnoughInputs} reports.
@@ -1240,7 +1240,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-user-error`: `throw <value>` halted execution with a learner-facing message
-   * (`spec/error-model.md:120`). `message` is the thrown word itself, or — when the thrown value
+   * (`spec/error-model.md:122`). `message` is the thrown word itself, or — when the thrown value
    * is not a word — its canonical printed form, exactly as `print` would show it.
    */
   userError(source_span: SourceSpan, message: string): Diagnostic {
@@ -1294,7 +1294,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: a configurable safety limit was reached — here, the procedure-call recursion
-   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised either at the call
+   * depth (`spec/execution-model.md:634-638`, `spec/error-model.md:121`). Raised either at the call
    * site that would have pushed one frame past `limit`, or — issue #726 — when nesting deep enough
    * to overflow the host's own call stack is caught at the `execute()` boundary (a smaller host
    * stack, or expression/parse nesting the depth counter does not itself bound), instead of letting
@@ -1315,7 +1315,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: the other configurable safety limit besides recursion depth — the instruction
-   * execution budget (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised the
+   * execution budget (`spec/execution-model.md:634-638`, `spec/error-model.md:121`). Raised the
    * moment the running count of executed statements/loop passes would exceed `value`, so a
    * runaway `forever`/`while true [ ]` degrades to a friendly diagnostic instead of hanging the
    * host (issue #102: "`forever` is therefore safe only because it is cancellable and
@@ -1348,7 +1348,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-no-value`: a `map`/`filter`/`reduce` body's last statement does not produce a value
-   * (`spec/execution-model.md:225`, worked example `map num in :nums [ print :num ]`). Same
+   * (`spec/execution-model.md:228-229`, worked example at `spec/tooling.md:222-229`). Same
    * `{form}` params shape as the parser's `checker-control-flow.ts` semantic rule (issue #114) so
    * both stages agree on identity — this copy exists because `execute()` runs `parse()` only, not
    * `check()`.
@@ -1365,7 +1365,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-return-in-comprehension`: `return`/`output`/`op`/`stop` reached inside a comprehension
-   * body (`spec/execution-model.md:226-227`) — a comprehension reports its last expression, never
+   * body (`spec/execution-model.md:229-230`) — a comprehension reports its last expression, never
    * an explicit `return`/`stop`. Same `{keyword, form}` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
    * copy exists because `execute()` runs `parse()` only, not `check()`. Takes priority over
@@ -1475,7 +1475,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-bad-color` (issue #208) — `set_color`/`set_background`'s argument is not one of the three
-   * accepted color forms (`spec/error-model.md:122`): an unknown color word, an `[r g b]` list of
+   * accepted color forms (`spec/error-model.md:124`): an unknown color word, an `[r g b]` list of
    * the wrong length or with an out-of-range component, or a malformed hex word. See
    * {@link BadColorParams}.
    */
@@ -1571,7 +1571,7 @@ export const runtimeDiag = {
   /**
    * `ol-range` (issue #691) — `play`'s melody list has an odd number of elements. The list is
    * pitch/duration pairs, so "The list length MUST be even" (`spec/interaction-events.md`'s `play`
-   * entry lists `ol-range`). `spec/error-model.md:100` requires `operation` plus `index` **or**
+   * entry lists `ol-range`). `spec/error-model.md:101` requires `operation` plus `index` **or**
    * `value` for `ol-range` (`length` is only optional), so `value` carries the offending odd count
    * and `length` repeats it for a descriptive name. Kept distinct from a non-list argument's
    * `ol-type` (`expected: "list"`) and from a step's non-positive `duration`

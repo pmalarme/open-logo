@@ -773,9 +773,9 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
 /**
  * The **Heritage** profile's WORDED forms — the multi-word spellings, which are neither callable
  * *names* like {@link HERITAGE_ALIAS_CANONICAL}'s aliases nor single-word statement heads like
- * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md:153` lists exactly one today, the
+ * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md:157` lists exactly one today, the
  * worded dictionary reporter `value of … for key` (slice H5, issue #670), whose production is
- * `spec/grammar.md:213`'s `value-of-reader`.
+ * `spec/grammar.md:217`'s `value-of-reader`.
  *
  * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
  * can hold this table against the spec's own inventory without normalising anything. `node` is the

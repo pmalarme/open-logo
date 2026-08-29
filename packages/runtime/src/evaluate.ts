@@ -157,7 +157,7 @@ export type StructRegistry = ReadonlyMap<string, StructDefNode>;
 
 /**
  * Minimal structural shape of the standard `AbortSignal` this package's cancellation gate needs
- * (issue #102, `spec/execution-model.md:551-557`) — just the boolean `aborted` flag it polls.
+ * (issue #102, `spec/execution-model.md:634-638`) — just the boolean `aborted` flag it polls.
  * Defined locally instead of referencing the global `AbortSignal` type because this package's
  * `tsconfig` targets `lib: ["es2023"]` with no DOM types (it runs in both Node and the browser).
  *
@@ -198,10 +198,10 @@ export interface CancellationSignal {
  * adds `callDepth`, a mutable stack `runProcedure` pushes onto before running a callee's body and
  * pops after (mirroring `repeatTurns`'s push/pop-around-a-pass shape): its length is the current
  * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
- * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
+ * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:634-638`) instead of
  * overflowing the host's own call stack.
  *
- * Issue #102 adds the other two execution-safety gates `spec/execution-model.md:551-557`
+ * Issue #102 adds the other two execution-safety gates `spec/execution-model.md:634-638`
  * requires alongside recursion depth: a configurable instruction-execution budget
  * (`instructionBudget`, checked against the running `instructionCount` box) and external
  * cancellation (`signal`, an `AbortSignal`). `recursionDepthLimit` promotes the previously
@@ -598,7 +598,7 @@ export function createEnvironment(): Environment {
 
 /**
  * The single execution-safety gate every looping/recursive execution path must pass before
- * running another pass or statement (`spec/execution-model.md:551-557`): external cancellation
+ * running another pass or statement (`spec/execution-model.md:634-638`): external cancellation
  * first, then the instruction-count budget. Returns the `ol-limit` diagnostic to halt with, or
  * `undefined` when it is safe to proceed — the caller is responsible for turning that into
  * whatever "stop now" outcome its own control-flow shape uses (`execute-internal.ts`'s `halt()`
@@ -2211,7 +2211,7 @@ function resolveHeritageAliasName(
  * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
  * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
  * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
- * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
+ * the registration the learner wrote at that very span (`spec/error-model.md:125`, issue #737).
  */
 function withResolvedCallee(
   node: ArithmeticCallNode,
@@ -2538,7 +2538,7 @@ function evaluateBinaryMath(
 
 // --- Logic: `not` (level 2), `and`/`or` (levels 6/7), no truthiness -------------------------
 //
-// spec/execution-model.md:133,137-144. There is no truthiness (spec/error-model.md:121): every
+// spec/execution-model.md:133,137-144. There is no truthiness (spec/error-model.md:123): every
 // operand of `not`/`and`/`or` must itself be a boolean, or the operation raises `ol-not-boolean`
 // rather than coercing a number/word/list.
 
@@ -4711,7 +4711,7 @@ function evaluateTurtles(
  * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
  * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
  * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
- * `spec/conformance.md:167-169`).
+ * `spec/conformance.md:171-173`).
  *
  * Four steps, in this order:
  *

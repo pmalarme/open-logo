@@ -262,7 +262,7 @@ export function loadFixture(fixture) {
   }
 
   // Validate each diagnostic has required fields per spec/error-model.md:28-38
-  // Note: "message" is optional per error-model.md:253 (diagnostic identity = code+params, not prose)
+  // Note: "message" is optional per error-model.md:254-259 (diagnostic identity = code+params, not prose)
   for (let i = 0; i < spec.diagnostics.length; i++) {
     const diag = spec.diagnostics[i];
     if (!diag.code) {
@@ -972,7 +972,7 @@ export function diffStream(label, keyField, expected, actual) {
 
 /** Compare produced output against expected; `matched` is true when both streams agree. */
 export function compare(expected, actual) {
-  // Per spec/error-model.md:253, diagnostic identity = code+params, not prose.
+  // Per spec/error-model.md:254-259, diagnostic identity = code+params, not prose.
   // Exclude "message" from comparison (prose may change under localization/rewording).
   const projectDiagnostic = (d) => ({
     code: d.code,
