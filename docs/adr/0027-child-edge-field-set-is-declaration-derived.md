@@ -54,7 +54,9 @@ of the thing.
 **The expected field set is derived a second time, from `ast.ts`'s type declarations, and the two
 derivations are compared in both directions.**
 
-**Every self-check the walk makes about its own reach is an identity comparison, not a shape test.**
+**No self-check the walk makes about its own reach may name a shape, a property or an arm.** Each asks
+a question of a set the system already maintains for its own reasons, and where the answer needs a
+second factor, that factor is derived from the walk rather than listed.
 That is the load-bearing design choice, and it was arrived at the hard way: this instrument's review
 defeated a succession of rules for detecting a hidden node, each strictly more general than the last
 and each still defeated. The table is the record; the prose deliberately carries no count, because a
@@ -68,22 +70,37 @@ sixth row would leave a numeral behind.
 | audit each node type once, at the root | a **structural look-alike** |
 | treat a type as a node only when its `kind` is one node-kind literal | a **node supertype** (`NodeBase`), node-shaped without being any one node |
 | require an `object`-category `kind` to carry `TypeFlags.StringLiteral` | a supertype carrying **no `kind` at all** — `{}`, or `{ source_span: SourceSpan }` — and, in the other direction, an ordinary childless wrapper `{ kind: "left" \| "right"; label: string }` rejected for a union `kind` naming no node |
+| ask the compiler whether every `AnyNode` member fits, on the `object` and `leaf` **arms** | a **union of two partial supertypes**, which is neither arm, and which `tsc` certifies admits all 37 members |
 
 The last row is the sharpest evidence for this section, because it is this section's own rule broken
 in the act of stating it. That check was written in the round that introduced this text, and while
 its *reference set* was the compiler's `TypeFlags` vocabulary, its **selector** — "the property named
 `kind`" — was authored here, and a selector has a complement exactly as an allowed-value list does.
 It was wrong in both directions at once: it admitted `{ source_span: SourceSpan }`, which `tsc` will
-certify holds any node, and it rejected a legitimate wrapper. Both measured.
+certify holds any node, and it rejected a legitimate wrapper. Both measured. That combination is
+itself the diagnostic: a rule that only over-admits looks like it wants widening and a rule that only
+over-rejects looks like it wants narrowing, but **a rule wrong in both directions cannot be fixed by
+tuning — the dimension is wrong**, which is what forced the move from inspecting a property to asking
+the compiler a question.
 
-**What replaced it has no selector.** `holdsEveryNode` asks the compiler whether **every** `AnyNode`
-member is assignable to the type, on the two arms that derive no path (`object` and `leaf`). That is
-one rule for `NodeBase`, `{}`, `{ source_span }`, `object`, `unknown` and `any`, and it reaches
-through sequences and optionality — `readonly NodeBase[]` fires too. It must be `every` and not
-`some`: `some` is **red on a green tree with 19 rows**, because structural typing makes incidental
-supertypes ordinary (`VarRefNode` is assignable to `SpannedName`). Memoised by type id, because
-assignability is the one expensive question the walk asks: the file runs 1.65–2.04 s warm with the
-cache and 11.5 s without it.
+**What replaced it has no selector, and its eligibility is derived from the walk.** `holdsEveryNode`
+asks the compiler whether **every** `AnyNode` member is assignable to the type; the second factor is
+whether the walk contributed a path from that position. Both are needed — a field legitimately typed
+`AnyNode` would hold every node *and* derive paths — and neither is a list authored here. An
+intermediate version paired the assignability question with an **arm list** (`object` and `leaf`),
+which is the same defect displaced one level: a union of two partial supertypes is neither arm, and
+`tsc` certifies it admits all 37 members. One rule now covers `NodeBase`, `{}`, `{ source_span }`,
+`object`, `unknown`, `any` and that union, and it reaches through sequences and optionality —
+`readonly NodeBase[]` fires identically.
+
+**What it does not cover, and what that cost.** Round 7 is *not* strictly more general than round 6:
+the `TypeFlags` rule did catch `{ kind: "Block" | "Program"; source_span }`, because a union `kind`
+carried the union flag, and this rule does not, because that type admits two members rather than all
+37. The trade is broader-on-kindless for narrower-on-partial, and the partial-supertype residual
+below is correspondingly larger than its one example. It must be `every` and not `some`: `some` is
+**red on a green tree with 19 rows**, because structural typing makes incidental supertypes ordinary
+(`VarRefNode` is assignable to `SpannedName`). Memoised by type id, because assignability is the one
+expensive question the walk asks: the file runs 1.65–2.04 s warm with the cache and 11.5 s without.
 
 A shape test enumerates what its author thought of, so it has a complement that must be extended
 every time someone thinks of something new — which is ADR-0025's per-container blind spot, and it
@@ -240,11 +257,13 @@ which is the definition of decorative.
   header of `child-edges.test.mjs` state this residual rather than claiming closure.
 - A third residual, stated because the reviewer who found the second one asked that it not be claimed
   closed: a **partial** supertype — `{ source_span: SourceSpan; body: readonly StatementNode[] }`,
-  which admits three `AnyNode` members rather than all 37 — escapes `holdsEveryNode`, whose rule is
-  deliberately `every` rather than `some`. `some` cannot be used: it is red on a green tree with 19
-  rows, because structural typing makes incidental supertypes ordinary. So the gap between "admits
-  every node" and "admits some node" is open by construction, and closing it needs a discriminator
-  neither of us has.
+  which admits `Program` and `Block` rather than every member — escapes `holdsEveryNode`, whose rule
+  is deliberately `every` rather than `some`. `some` cannot be used: it is red on a green tree with 19
+  rows, because structural typing makes incidental supertypes ordinary. The family is wider than that
+  one example — `{ kind: "Block" | "Program"; source_span }` is another member, and the round-6 rule
+  this one replaced *did* catch it — so the gap between "admits every node" and "admits some node" is
+  open by construction, and closing it needs a discriminator neither the author nor either reviewer
+  has.
 
 - A second residual, narrowed by the same round that found it: the walk starts at `AnyNode`, so what
   it enforces is as wide as that union. A **second type declaring an existing `kind`** is now caught
@@ -292,9 +311,10 @@ position without naming the type here. Adding it to the union does **not**
   | M12 | `StructDefNode` gains `zzCallable?: { (): BlockNode; readonly a: string }` — callable **and** carrying a property | exit 0 | **1 of 11 fails**, `opaqueObjectTypes` = `[{ at: 'StructDef.zzCallable', indexSignatures: 0, callSignatures: 1, constructSignatures: 0 }]`; defeats both narrower proposals |
   | M13 | `ForeverNode.body` retyped from `BlockNode` to a **structural** `{ kind: "Block"; source_span; body; extra?: BlockNode }` | exit 0 | **1 of 11 fails**, `foreignNodeTypes` = `[{ at: 'Forever.body', kind: 'Block', id: 241 }]`; the gate one commit earlier passes **11 of 11**, with `Block.extra` derived by nobody |
   | M14 | `StructDefNode` gains `readonly zzBase?: NodeBase` — node-*shaped* without being any one node | exit 0 | **1 of 11 fails**, `nodeShapedWrappers` naming `StructDef.zzBase`. `readonly zzBases?: readonly NodeBase[]` fires identically, so the rule reaches through a sequence |
-  | M16 | `StructDefNode` gains `readonly zzSpanned?: { readonly source_span: SourceSpan }` and `readonly zzTop?: {}` — supertypes with **no `kind` at all**, each with a `tsc`-checked assignability proof in the same file | exit 0 | **1 of 11 fails** each, naming the field. The gate one commit earlier passes **11 of 11** on both |
-  | — | **negative result:** `zzMetadata?: { kind: "left" \| "right"; label: string }` — an ordinary childless wrapper | exit 0 | **11 of 11 pass**. An intermediate version of M14's fix rejected this, which is what identified that check as having an authored selector |
   | M15 | a second interface declaring an **existing** kind added to `AnyNode` (`ZzBlockLookAlike` with `zzhidden?: BlockNode`) | exit 0 | **1 of 11 fails**, `declared \ populated` = `['Block.zzhidden']`. `tsc` does **not** object: the `never` guard rejects unhandled discriminant *values*, and `"Block"` already has a case |
+  | M16 | `StructDefNode` gains `readonly zzSpanned?: { readonly source_span: SourceSpan }` and `readonly zzTop?: {}` — supertypes with **no `kind` at all**, each with a `tsc`-checked assignability proof in the same file | exit 0 | **1 of 11 fails** each, naming the field. The gate one commit earlier passes **11 of 11** on both |
+  | M17 | `StructDefNode` gains `readonly zzU?: ZzPartA \| ZzPartB` — a **union** of two partial supertypes, with `function zzProofUnionIsTotal(node: AnyNode): ZzPartA \| ZzPartB { return node; }` compiling as the certificate that it admits all 37 members | exit 0 | **1 of 11 fails**, naming `StructDef.zzU`. The gate one commit earlier passes **11 of 11**: the union is neither `object` nor `leaf`, so the arm list discarded it, while `every` is false for each constituent taken alone |
+  | — | **negative result:** `zzMetadata?: { kind: "left" \| "right"; label: string }` — an ordinary childless wrapper | exit 0 | **11 of 11 pass**. An intermediate version of M14's fix rejected this, which is what identified that check as having an authored selector |
   | — | **negative result:** `type ZzBlockAlias = BlockNode` used in field position | exit 0 | produces **no** `foreignNodeTypes` row — an alias is the same type object, so the identity check does not punish an ordinary refactor. Recorded because a check built on type identity is one a maintainer will suspect of false positives first |
 
   The first three M6 fields each hide a `BlockNode`; the fourth holds `unknown` and hides nothing —

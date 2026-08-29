@@ -50,7 +50,7 @@
 // exercises it, but now the *first* of those three is read by the gate rather than trusted. A field
 // that *shares* a route with an exercised variant is residual 1 below, and fails nothing.
 //
-// **Two residuals survive that, and both were found by the #986 reviewers rather than predicted.**
+// **Three residuals survive that; all three were found by the #986 reviewers rather than predicted.**
 //
 //   1. **Variants that share a path are indistinguishable.** A path is keyed by node `kind` plus the
 //      dotted route, so two declaring shapes that meet at one route merge. Measured: adding
@@ -1109,21 +1109,28 @@ function auditTheDeclarations() {
         category,
         unresolved: type.isErrorType(),
         holdsEveryNode: Number(holdsEveryNode(type)),
-        // 1 for the two arms that derive no path, 0 otherwise. Arithmetic rather than &&/||:
-        // on a green tree no type holds every node, so a short-circuit would leave the category
-        // test unevaluated — which the coverage gate reports as an untaken branch.
-        derivesNoPath:
-          Number(category === "object") + Number(category === "leaf"),
+        // Filled in below, once the subtree beneath this type is known. A position is eligible when
+        // the walk derived **no path** from it — a property of the walk itself, not a list of
+        // categories. An earlier version selected `object` and `leaf` by name, and the #986 reviewer
+        // slipped a union of two partial supertypes past it: the union is neither category, so it was
+        // ineligible, while each constituent admits only half the node kinds, so `every` was false
+        // for both. Between them they accept every node, and the gate stayed 11/11 green.
+        derivesNoPath: 0,
       });
+      const visit = typeVisits[typeVisits.length - 1];
       const nextChain = new Set(chain).add(type.id);
       const descend = (edges) => {
         const fresh = edges.filter((edge) => !nextChain.has(edge[0].id));
         cyclicEdges += edges.length - fresh.length;
+        // Summed rather than `some`-ed: `some` short-circuits, which would leave later siblings
+        // unwalked the moment one of them derived a path.
+        let derived = 0;
         for (const edge of fresh) {
-          walkDeclaredType(edge[0], edge[1], nextChain);
+          derived += walkDeclaredType(edge[0], edge[1], nextChain);
         }
+        return derived;
       };
-      ({
+      const derived = {
         union: () => descend(type.getTypes().map((member) => [member, path])),
         node: () => {
           // A node ends the path, so its own declaration is never inspected here — it is inspected
@@ -1140,6 +1147,7 @@ function auditTheDeclarations() {
             id: type.id,
           });
           paths.add(path);
+          return 1;
         },
         sequence: () =>
           descend(
@@ -1149,7 +1157,7 @@ function auditTheDeclarations() {
           ),
         object: () => {
           objectTypeRows.push(objectTypeParts(type, path));
-          descend(
+          return descend(
             checker
               .getPropertiesOfType(type)
               .map((property) => [
@@ -1158,8 +1166,13 @@ function auditTheDeclarations() {
               ]),
           );
         },
-        leaf: () => seen.leafTypeFlags.add(type.flags),
-      })[category]();
+        leaf: () => seen.leafTypeFlags.add(type.flags) && 0,
+      }[category]();
+      // `derivesNoPath` is 1 exactly when this position contributed nothing to `paths`, whatever
+      // category it took. That is what makes the eligibility structural: a union of supertypes is
+      // eligible because it derived nothing, not because anyone listed unions.
+      visit.derivesNoPath = Number(derived === 0);
+      return derived;
     };
 
     // `AnyNode` is the declarations' own answer to "what is a node", so the walk starts there rather
@@ -1186,12 +1199,15 @@ function auditTheDeclarations() {
       // `StructDefNode`, which compiles, and passed the whole gate 11/11. That is the container blind
       // spot a third time: closed for the arm that was shown to leak, left open on the arm the walk
       // is actually about.
+      // `holdsEveryNode` is deliberately *not* recorded here, and the reason is **incidental rather
+      // than structural**, which is why it is written down. A root member that admitted every node
+      // would have to be kindless or union-kinded. Kindless breaks the `kinds` assertion
+      // (`declaredKindOf` returns `undefined`). Union-kinded does **not**: `declaredKindOf` returns
+      // the *first* literal, and the #986 reviewer measured `NodeBase` yielding `"Add"`, which is a
+      // real kind — so `kinds` would stay green. What actually stops it today is that adding a
+      // union-kinded member to `AnyNode` fails `npm run build` with five `TS2339` errors in
+      // `@openlogo/studio`'s narrowing, which is a downstream accident that could evaporate.
       objectTypeRows.push(objectTypeParts(member, kind));
-      // `holdsEveryNode` is deliberately *not* recorded here. A root member that admitted every node
-      // — kindless, or union-kinded — would make `declaredKindOf` return `undefined` and break the
-      // `kinds` assertion instead, so the case is covered, by a different check. Written down because
-      // the last time an arm was left out of a statement on the reasoning that something else covered
-      // it, the reasoning was right and the omission still hid a defect for a round.
       for (const property of checker.getPropertiesOfType(member)) {
         walkDeclaredType(
           checker.getTypeOfSymbol(property),
@@ -1452,17 +1468,18 @@ test("the declaration walk resolved every type it read", () => {
   // are the assertion above's job — an earlier version of this comment claimed this one covered
   // mapped types, which a reviewer measured false.
   assert.deepEqual(declarations.leafTypeFlags, EXPECTED_LEAF_TYPE_FLAGS);
-  // And no `object`-category type is node-*shaped* without being a node. A type whose `kind` can be
-  // a node kind — `NodeBase`, or any field typed by it — descends as an ordinary wrapper and yields
-  // no path, while the declaration says a node can live there: the #986 reviewer typed a field
-  // `readonly zzBase?: NodeBase`, which compiles, and the gate stayed 11/11 green.
+  // And no position that derives no path silently admits every node. `holdsEveryNode` asks the
+  // compiler whether **every** `AnyNode` member is assignable to the type — no selector, no property
+  // name, no shape — and the second factor is whether the walk actually contributed a path from
+  // there. A field legitimately typed `AnyNode` would hold every node *and* derive paths, so both
+  // factors are needed; none exists today, which is why the unfiltered list is also empty.
   //
-  // The test is whether the type's `kind` literals **intersect `OL_NODE_KINDS`** — a set the parser
-  // maintains for its own reasons — not whether its `kind` has a shape this file approves of. A
-  // first attempt compared the `kind` property's `TypeFlags` against a curated
-  // `[TypeFlags.StringLiteral]`, which was itself the authored-reference-set defect: it rejected an
-  // ordinary childless wrapper such as `{ kind: "left" | "right"; label: string }`, whose union
-  // `kind` names no node kind and is entirely legitimate.
+  // Three versions preceded this one and each was defeated: a `kind`-literal intersection with
+  // `OL_NODE_KINDS` (missed a supertype carrying no `kind`), a `TypeFlags` constraint on a property
+  // named `kind` (missed the same, and rejected a legitimate wrapper), and an arm list naming
+  // `object` and `leaf` (missed a **union** of two partial supertypes, which is neither arm and which
+  // `tsc` certifies admits all 37 members). The eligibility is now derived from the walk's own
+  // output, which is what stops the next level of this recurring.
   assert.deepEqual(declarations.nodeShapedWrappers, []);
   // And every category was actually exercised, so none of the five arms is carrying no traffic.
   assert.deepEqual(declarations.categories, EXPECTED_TYPE_CATEGORIES);
