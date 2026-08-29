@@ -31,7 +31,7 @@ test("a bare `value` not followed by `of` is rejected as a misplaced reserved wo
 
   // `value` is globally reserved (`spec/grammar.md:358`) and heads no `expression` alternative but
   // the `of`-gated reader above, so outside that form it is not permitted at this grammar position
-  // (`spec/error-model.md:109`). Before issue #853 it fell through to a bare zero-argument call
+  // (`spec/error-model.md:110`). Before issue #853 it fell through to a bare zero-argument call
   // that parsed and checked clean in every profile set — a silent no-op.
   assert.deepEqual(
     diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.params.text]),

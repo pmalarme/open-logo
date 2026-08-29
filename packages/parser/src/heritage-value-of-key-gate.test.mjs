@@ -2,14 +2,14 @@
 // (issue #670) of the Heritage epic. The four-keyword reader `value-of-reader`
 // (spec/grammar.md:217) is a Heritage spelling of the Core dict read `:d[:k]`/`:d.key`
 // (spec/conformance.md:273), and because it operates on a dict it also needs the Data profile
-// (spec/conformance.md:301). Parsing of the form itself (into a `ValueOfKey` node) landed with
+// (spec/conformance.md:305). Parsing of the form itself (into a `ValueOfKey` node) landed with
 // issue #322 and is covered by `value-of-key.test.mjs`; this file targets the *profile gate* added
 // by H5 in `checker-heritage-form.ts`:
 //
 //   - with Heritage INACTIVE (Core only), the reader is rejected with `ol-unknown-command` at the
 //     `value` head word, carrying NO did-you-mean (its Core equivalent is the `[]`/`.` selector
 //     *syntax*, not a single word — the `ol-unknown-command` no-candidate branch,
-//     spec/error-model.md:96);
+//     spec/error-model.md:97);
 //   - with Heritage (and Data) ACTIVE, the reader is accepted silently.
 //
 // The gate must see the reader wherever it appears — top level, nested in blocks, inside `repeat`,
@@ -28,7 +28,7 @@ import * as OL from "@openlogo/parser";
 const doc = "heritage-value-of-key.logo";
 const span = (start, end) => ({ document: doc, start, end });
 
-// Heritage depends on Data (spec/conformance.md:301), so the "active" set claims both. Data also
+// Heritage depends on Data (spec/conformance.md:305), so the "active" set claims both. Data also
 // makes dict literals (`{ … }`) legal so the fixtures can build a dict to read from.
 const HERITAGE_ACTIVE = ["core-language", "data", "heritage"];
 const CORE_AND_DATA = ["core-language", "data"];

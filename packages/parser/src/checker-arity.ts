@@ -77,7 +77,7 @@
  * - **A built-in** is declared by OpenLogo itself, and its declared spelling is the canonical
  *   lowercase name in `signatures.ts`. So `(REVERSE 1 2)` reports `reverse`, and a Heritage alias
  *   reports its canonical twin (`(bf 1 2)` → `butfirst`) — Heritage is "alternate spellings only,
- *   no new semantics" (`spec/conformance.md:146`), the behaviour issues #670/#733/#741/#787 pinned.
+ *   no new semantics" (`spec/conformance.md:150`), the behaviour issues #670/#733/#741/#787 pinned.
  *   Before #874 only Core and Heritage did this while Data/Geometry/Sound/Interaction echoed the
  *   surface spelling, so one condition had two identities depending on which profile owned it.
  * - **A user procedure or struct constructor** is declared by the learner, and *its* declared
@@ -305,7 +305,7 @@ export function arityRule(
     ? collectStructConstructorArities(program)
     : undefined;
   // A Heritage short alias (`pr`/`fd`/…) is arity-checked exactly like the Core-spelled command it
-  // spells — Heritage adds no semantics (`spec/conformance.md:146`). The reader already recorded
+  // spells — Heritage adds no semantics (`spec/conformance.md:150`). The reader already recorded
   // that canonical on the node, so resolve through it, but only when the Heritage profile is
   // active: with it inactive the alias is an unknown callee owned by `ol-unknown-command` (issue
   // #117), never double-reported here — mirroring `collectVisibleNames`'s own heritage gate.

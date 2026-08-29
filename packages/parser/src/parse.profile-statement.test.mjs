@@ -282,7 +282,7 @@ test("an undeclared bodyless profile head (`tell 5`) is reported, not silently a
 // --- residual delta: a block-form head with no block is a parse error, still no false-accept ---
 // An undeclared block-form head with neither `[` nor a newline body (`ask 5`) is rejected by the
 // reader with `ol-missing-end` rather than the base's `ol-bad-token`+`ol-unknown-command`. Both
-// reject the program (no false-accept); `error-model.md:109` reserves `ol-bad-token` for when no
+// reject the program (no false-accept); `error-model.md:110` reserves `ol-bad-token` for when no
 // more-specific code applies, so `ol-missing-end` is at least as specific. This delta is documented
 // in the PR body with the base-vs-new table and the pedagogy note; it is asserted here so a future
 // change to it is deliberate.

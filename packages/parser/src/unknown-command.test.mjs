@@ -28,7 +28,7 @@ test("flags an unknown callee and suggests the nearest visible Core primitive", 
   assert.deepEqual(finding.params, { name: "prnt", suggestion: "print" });
 });
 
-test("message template matches spec/error-model.md:96 exactly, with a suggestion", () => {
+test("message template matches spec/error-model.md:97 exactly, with a suggestion", () => {
   const [finding] = checkSource("(prnt 5)", ["core-language"]);
   assert.equal(
     finding.message,
@@ -124,7 +124,7 @@ test("issue #136 / spec/tooling.md:198-205 worked example: with turtle-rendering
   );
 });
 
-test("did-you-mean tie-break (spec/error-model.md:145-146): a Core word beats an optional-profile word at the same edit distance", () => {
+test("did-you-mean tie-break (spec/error-model.md:210-211): a Core word beats an optional-profile word at the same edit distance", () => {
   // "clea" is Levenshtein distance 1 from BOTH the reserved word "clear" (Core) and the Turtle &
   // Rendering primitive "clean" (optional profile) — a genuine tie now that turtle names are
   // registered (issue #136). The spec requires Core to win the tie, never lexicographic order

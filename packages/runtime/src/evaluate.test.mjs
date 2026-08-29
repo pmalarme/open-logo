@@ -512,7 +512,7 @@ test("`value of <dict> for key <key>` is byte-identical to the Core runtime-key 
   // `[key]` remains the twin for the conditions that do not turn on the operand's own type: a
   // successful read and a missing key. The third such condition — a key that is neither word nor
   // number, which `.key` cannot express at all — needs the SAME evaluated key on both sides, and an
-  // inline one is not a twin (`spec/grammar.md:256`: a bare identifier inside a selector is a
+  // inline one is not a twin (`spec/grammar.md:260`: a bare identifier inside a selector is a
   // literal word key, so `:d[true]` is the word "true" while `for key true` is a boolean). It is
   // therefore twinned with the key bound to a variable, in
   // heritage-canonical-diagnostic-params.test.mjs's EXTRA_TWINS, and its params are pinned by the

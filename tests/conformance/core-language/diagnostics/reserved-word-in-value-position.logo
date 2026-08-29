@@ -1,7 +1,7 @@
 # A globally reserved structural word (spec/grammar.md:355-362) heads no alternative of the
 # `expression` production (spec/grammar.md:190-200), so the reader reports each as ol-bad-token at
 # the offending token — "a valid OpenLogo token ... not permitted at the current grammar position"
-# (spec/error-model.md:109). Before issue #853 all six below parsed AND checked completely CLEAN
+# (spec/error-model.md:110). Before issue #853 all six below parsed AND checked completely CLEAN
 # under every profile set: nothing said so.
 #
 # The first two lines are the issue's verbatim reproduction. The rest use a list element — a full

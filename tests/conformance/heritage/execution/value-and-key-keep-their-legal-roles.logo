@@ -4,7 +4,7 @@
 # keys, the `identifier` alternative of `key-term` (spec/grammar.md:111): "Dictionary keys and
 # selector bare keys are data, not declarations, so reserved words are legal keys"
 # (spec/grammar.md:369). The reader operates on a dict, so Heritage also needs Data
-# (spec/conformance.md:301).
+# (spec/conformance.md:305).
 :settings = {
   key: "alpha"
   value: 42

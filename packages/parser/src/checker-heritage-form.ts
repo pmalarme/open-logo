@@ -30,7 +30,7 @@
  * {@link ValueOfKeyNode} whose evaluation is byte-identical to the Core dict read `:d[:k]`/`:d.key`
  * (`spec/data-structures.md:183-195`). It has no single Core *word* equivalent (the Core spelling is
  * the `[]`/`.` selector *syntax*, not a keyword), so — like `ol-unknown-command`'s no-candidate
- * branch (`spec/error-model.md:96`) — its rejection carries no `suggestion`, only the "check the
+ * branch (`spec/error-model.md:97`) — its rejection carries no `suggestion`, only the "check the
  * spelling, or define it with 'define'" message, at the `value` head word. Because it operates on a
  * dict, Heritage depends on Data (`spec/conformance.md#heritage`), so an accepting fixture claims
  * both `data` and `heritage`.
@@ -88,7 +88,7 @@ function headSpan(nodeSpan: SourceSpan, head: string): SourceSpan {
 }
 
 /**
- * The learner-facing `ol-unknown-command` message template (`spec/error-model.md:96`). When a Core
+ * The learner-facing `ol-unknown-command` message template (`spec/error-model.md:97`). When a Core
  * spelling to point at exists, the did-you-mean names it; the `value of … for key` reader has no
  * single-word Core equivalent, so — like `ol-unknown-command`'s no-candidate branch — it falls back
  * to the "check the spelling, or define it with 'define'" message.

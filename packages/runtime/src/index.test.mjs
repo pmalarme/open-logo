@@ -420,7 +420,7 @@ test("execute raises ol-not-boolean for a non-boolean `if` condition", () => {
 });
 
 test("execute discards a trailing bare value inside an `if` body per the block-result rule", () => {
-  // `spec/execution-model.md:214-227`: `if`/`while` bodies run for effect only, so `1 + 1`'s
+  // `spec/execution-model.md:217-230`: `if`/`while` bodies run for effect only, so `1 + 1`'s
   // value is silently discarded — no value-producing event, no diagnostic.
   const result = execute("if true [ 1 + 1 ]\nprint 2", "main.logo");
   assert.equal(result.diagnostics.length, 0);

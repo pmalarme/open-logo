@@ -28,7 +28,7 @@ import { heritageAliasNames } from "./signatures.js";
 /**
  * The ten Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) as a lookup set, so the
  * did-you-mean tie-break can rank a full canonical name ahead of the short alias that spells it —
- * the "full canonical names over short aliases" step of `spec/error-model.md:145-146`.
+ * the "full canonical names over short aliases" step of `spec/error-model.md:210-211`.
  */
 const HERITAGE_ALIAS_NAMES: ReadonlySet<string> = new Set(heritageAliasNames());
 
@@ -94,7 +94,7 @@ function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
 
 /**
  * The best did-you-mean candidate for `name` among `candidates`, or `undefined` when none is
- * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
+ * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:210-211`:
  * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
  * optional-profile one ({@link isOptionalProfileName}); within the same profile tier a full
  * canonical name outranks a short Heritage alias ({@link isDemotableHeritageAlias}); and only then
@@ -129,7 +129,7 @@ function bestSuggestion(
 
 /**
  * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
- * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:145-146`:
+ * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:210-211`:
  *
  * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}). A name the
  *    program itself declares (a user `define fd … end` or a struct constructor, tracked in
@@ -186,7 +186,7 @@ function isDemotableOptionalProfileName(
   return isOptionalProfileName(name) && !declared.has(name.toLowerCase());
 }
 
-/** The learner-facing message template from `spec/error-model.md:96`. */
+/** The learner-facing message template from `spec/error-model.md:97`. */
 function messageFor(name: string, suggestion: string | undefined): string {
   return suggestion === undefined
     ? `i don't know how to ${name}. check the spelling, or define it with 'define'.`

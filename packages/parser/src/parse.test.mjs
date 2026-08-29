@@ -53,7 +53,7 @@ test('reports ol-unclosed-string for make "size without throwing', () => {
   // The lexer reports the unterminated string, which consumed the rest of the line where the
   // `make` special form expected its `word-literal` target. That single diagnostic already
   // explains the fault, so `make` must NOT stack a redundant `ol-bad-token` on top of it —
-  // `spec/error-model.md:109` reserves `ol-bad-token` for when no more-specific diagnostic
+  // `spec/error-model.md:110` reserves `ol-bad-token` for when no more-specific diagnostic
   // applies (cf. `print "abc`, which likewise yields only `ol-unclosed-string`).
   assert.equal(result.diagnostics.length, 1);
   const [unclosed] = result.diagnostics;
@@ -82,7 +82,7 @@ test('reports a parse error for make "name" with no value expression', () => {
 test("reports ol-bad-token for a make target that is not a word literal", () => {
   // `make 5` supplies a real (non-word) token where the `word-literal` target is required. Unlike
   // the unclosed-string case, no earlier diagnostic covers that slot, so `make` DOES report the
-  // wrong token (`spec/error-model.md:109`) — the `lexDiagnosticInGap` suppression must not
+  // wrong token (`spec/error-model.md:110`) — the `lexDiagnosticInGap` suppression must not
   // swallow a genuine wrong-token target.
   const { diagnostics } = OL.parse("make 5", doc);
 
@@ -126,7 +126,7 @@ test("suppresses the redundant ol-bad-token for a multiline unclosed make target
   // that `make` sees can land on a *later, shorter* line than where the string opened. The
   // suppression window is compared lexicographically (line then column), so `make """size` + a
   // short next line still yields ONLY `ol-unclosed-string` — never a redundant cascade
-  // (`spec/error-model.md:109`).
+  // (`spec/error-model.md:110`).
   const { diagnostics } = OL.parse('make """size\nx', doc);
 
   assert.equal(diagnostics.length, 1);
