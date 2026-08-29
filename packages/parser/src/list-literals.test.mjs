@@ -143,7 +143,7 @@ test("a bracketed control BLOCK body is a Block, not a ListLit, even though it r
 
 test("a parenthesized simple expression parses as the inner primary, not a wrapper node", () => {
   const node = printArg("print (1)");
-  // Per grammar.md:209, parenthesized-expression has no dedicated AST node — grouping is
+  // Per grammar.md:213, parenthesized-expression has no dedicated AST node — grouping is
   // resolved during parsing and the inner expression's own span (not including the parens)
   // is what the primary production yields.
   assert.equal(node.kind, "NumberLit");

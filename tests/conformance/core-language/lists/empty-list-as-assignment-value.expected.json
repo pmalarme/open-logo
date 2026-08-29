@@ -1,5 +1,5 @@
 {
-  "description": "An empty list literal `[]` parses cleanly as an assignment value, per grammar.md:189-193,204,266.",
+  "description": "An empty list literal `[]` parses cleanly as an assignment value, per grammar.md:189-193,197,208,266.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

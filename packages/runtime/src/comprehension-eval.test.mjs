@@ -84,7 +84,7 @@ test("map over an empty list produces an empty list, no diagnostic", () => {
   assert.deepEqual(printedValues(result), [[]]);
 });
 
-test("a destructuring item binder destructures each element positionally (spec/execution-model.md:457-459)", () => {
+test("a destructuring item binder destructures each element positionally (spec/execution-model.md:466-470)", () => {
   const result = execute(
     ":corners = [[1 2] [3 4]]\n:xs = map [:x :y] in :corners [ :x ]\nprint :xs",
     doc,

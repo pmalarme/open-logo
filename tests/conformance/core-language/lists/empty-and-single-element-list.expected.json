@@ -1,5 +1,5 @@
 {
-  "description": "An empty list literal `[]` and a single-element list literal `[1]` both parse cleanly as the list-literal primary, per grammar.md:189-193,204.",
+  "description": "An empty list literal `[]` and a single-element list literal `[1]` both parse cleanly as the list-literal primary, per grammar.md:189-193,197,208.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

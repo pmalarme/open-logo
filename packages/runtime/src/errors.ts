@@ -133,7 +133,7 @@ export interface OrderingTypeErrorParams {
  * indexed with `[ … ]`/`.field`, a non-number list-index key, a non-word/non-number dict key, or
  * a non-word argument to `thing` (`spec/error-model.md:100` — list indexing with a non-number key
  * is `ol-type`, not `ol-range`; issue #322 extends the same postfix-resolution guard to dicts,
- * `spec/data-structures.md:183-203`).
+ * `spec/data-structures.md:213-231`).
  */
 export interface PlaceTypeErrorParams {
   readonly expected:
@@ -174,7 +174,7 @@ export interface IndexRangeParams {
 /**
  * Params for `ol-unknown-key` (`spec/error-model.md:129`): a required dictionary key is absent on
  * read, or an intermediate dictionary key is absent in a nested access chain
- * (`spec/data-structures.md:191,203`). Writing a missing *final* key upserts instead of raising
+ * (`spec/data-structures.md:231,243`). Writing a missing *final* key upserts instead of raising
  * this. `key` is the offending key exactly as the learner wrote it (a word or number).
  */
 export interface UnknownKeyParams {
@@ -813,7 +813,7 @@ export const runtimeDiag = {
   /**
    * `ol-unknown-key`: a required dictionary key is absent on read, or an intermediate dictionary
    * key is absent in a nested access chain (`spec/error-model.md:129`,
-   * `spec/data-structures.md:191,203`). Never raised for a missing *final* write key (that
+   * `spec/data-structures.md:231,243`). Never raised for a missing *final* write key (that
    * upserts instead).
    */
   unknownKey(source_span: SourceSpan, params: UnknownKeyParams): Diagnostic {
@@ -827,7 +827,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-unknown-field`: a `:record.field` read or write named a field the record's struct type
-   * does not declare (`spec/data-structures.md:266,309`, `spec/error-model.md:128`). Records have
+   * does not declare (`spec/data-structures.md:306,349`, `spec/error-model.md:128`). Records have
    * a fixed field set and never grow new fields, so an unknown field is an error on both read and
    * write. Same `{ type, field }` params (plus `write: true` for a write) and message templates as
    * the parser's `resolveRecordField` (`checker-type-field.ts`, issue #112) so the static and

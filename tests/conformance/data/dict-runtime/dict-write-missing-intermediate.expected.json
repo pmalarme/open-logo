@@ -1,5 +1,5 @@
 {
-  "description": "A write through a missing intermediate segment does not auto-vivify — it raises `ol-unknown-key` (issue #322, `spec/data-structures.md:203`). `:people.tom.age = 8` fails because `:people` has no `tom` key yet.",
+  "description": "A write through a missing intermediate segment does not auto-vivify — it raises `ol-unknown-key` (issue #322, `spec/data-structures.md:243`). `:people.tom.age = 8` fails because `:people` has no `tom` key yet.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
