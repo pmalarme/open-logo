@@ -36,7 +36,7 @@
  * construct — Core `return` and the Heritage spellings `output`/`op`, which the reader lowers onto
  * the same {@link ReturnNode}. Heritage is "alternate spellings only, no new semantics"
  * (`spec/conformance.md#heritage`) and the same condition MUST keep the same code AND the same
- * structured params (`spec/error-model.md:235-238`), so `params.keyword` is always the canonical
+ * structured params (`spec/error-model.md:254-259`), so `params.keyword` is always the canonical
  * Core word — `output 5` and `return 5` at top level are byte-identical diagnostics apart from
  * prose. Echoing the surface spelling in the *message* is the localization boundary and is
  * permitted. The canonicalization is by construction, not by convention: see
@@ -260,7 +260,7 @@ type CanonicalEscapeKeyword = "return" | "stop";
  * Heritage spelling — is `"stop"`.
  *
  * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
- * params (`spec/error-model.md:235-238`). Heritage is "alternate spellings only, no new semantics"
+ * params (`spec/error-model.md:254-259`). Heritage is "alternate spellings only, no new semantics"
  * (`spec/conformance.md#heritage`), so `output 5` and `return 5` at top level are ONE condition and
  * must carry one machine-readable identity — the surface spelling belongs in the prose, never in
  * the params. This mirrors H5 (#670)'s `operation` and H4 (#733)'s `callable`, both of which are

@@ -385,7 +385,7 @@ type CanonicalEscapeKeyword = "return" | "stop";
  * else.
  *
  * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
- * params (`spec/error-model.md:235-238`). Heritage is "alternate spellings only, no new semantics"
+ * params (`spec/error-model.md:254-259`). Heritage is "alternate spellings only, no new semantics"
  * (`spec/conformance.md#heritage`), so an executed `output 5` and an executed `return 5` at top
  * level are ONE condition and must carry one machine-readable identity — the surface spelling
  * belongs in the prose, never in the params. Shares the parser's registry precisely so the two
@@ -1258,7 +1258,7 @@ export const runtimeDiag = {
    * Heritage registry. That is what keeps "both stages agree on identity" true: the parser
    * canonicalized this param in issue #737, so until issue #741 canonicalized this copy too the
    * same `output 5` carried `keyword: "return"` when checked and `keyword: "output"` when executed —
-   * one condition with two machine-readable identities, which `spec/error-model.md:235-238`
+   * one condition with two machine-readable identities, which `spec/error-model.md:254-259`
    * forbids. The prose message still echoes the learner's own word; that is the localization
    * boundary and is permitted.
    */
