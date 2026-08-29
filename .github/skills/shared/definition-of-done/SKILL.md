@@ -38,8 +38,9 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    `scripts/examples-host-input.json` and produce the output it asserts (issue #955) — without one,
    a program runs with an empty host, so those handlers are unreachable and the gate certifies that
    it parses and executes while asserting nothing about its interaction. The requirement is derived
-   from the source, so a deleted entry fails rather than silently relaxing the gate. `every` and
-   `when "start"` are excluded — both fire without host delivery. This gate drives the **runtime**,
+   from the source, so a deleted entry fails rather than silently relaxing the gate. `every` and an
+   exact-case `when "start"` are excluded — both fire without host delivery. This gate drives the
+   **runtime**,
    so it covers the language-level contract; the studio host seam is covered by `packages/studio`'s
    own tests. The summary line reports how many examples ran with a schedule versus with an empty
    host, so the blind fraction stays visible.
