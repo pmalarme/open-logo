@@ -184,7 +184,7 @@ export interface ParenCallNode extends NodeBase {
 
 /**
  * One postfix segment of a place written as `.identifier`: a literal field or key that is never
- * evaluated (`spec/grammar.md:109,260`). Its sibling {@link SelectorSegment} covers the bracketed
+ * evaluated (`spec/grammar.md:111,260`). Its sibling {@link SelectorSegment} covers the bracketed
  * `[ key-term ]` form.
  */
 export interface FieldSegment {
@@ -195,7 +195,7 @@ export interface FieldSegment {
 
 /**
  * One postfix segment of a place written as a bracketed selector `[ key-term ]`
- * (`spec/grammar.md:110-111`). Unlike a {@link FieldSegment}, the key is a first-class
+ * (`spec/grammar.md:112-113`). Unlike a {@link FieldSegment}, the key is a first-class
  * expression: a `number`/`word` literal, a `:name` read ({@link VarRefNode}), a bare identifier
  * (a literal word key, carried as a {@link WordLitNode}), or a parenthesized expression. It
  * carries its own span so tooling can point at exactly the `[ … ]`.
@@ -519,10 +519,10 @@ export interface ClearNode extends NodeBase {
 
 /**
  * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
- * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:155-156`'s
- * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
+ * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:157-158`'s
+ * `struct-declaration`/`field-list`; `spec/data-structures.md:294`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
- * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
+ * bare field names that perform no evaluation (`spec/data-structures.md:304`), so a `StructDef` has
  * no expression children (its own `childrenOf` case returns none). Grammar/AST only — the
  * constructor-call and field mutation semantics land in a later Data-profile slice.
  */

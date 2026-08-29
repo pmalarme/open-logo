@@ -1,5 +1,5 @@
 {
-  "description": "`struct point [ x y ]` parses cleanly into a StructDef declaration (grammar.md's `struct-declaration ::= \"struct\" type-name field-list`; data-structures.md:252-266) — parse/AST only, no runtime evaluation.",
+  "description": "`struct point [ x y ]` parses cleanly into a StructDef declaration (grammar.md's `struct-declaration ::= \"struct\" type-name field-list`; data-structures.md:294) — parse/AST only, no runtime evaluation.",
   "profiles": ["core-language", "data"],
   "expect": "match",
   "events": [],
