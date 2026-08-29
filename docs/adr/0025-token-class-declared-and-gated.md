@@ -75,7 +75,8 @@ plainly here because "in both directions" over-describes two of them:
    position to carry the declared class. Both halves matter: unioning the classes let a position
    that painted nothing hide behind the others. The eight non-head positions are where the grammar
    admits a keyword as an ordinary name (`spec/grammar.md:386`), so the manifest's
-   `positionIndependence` claim is executed rather than assumed. Measured at 0.1.0: **148 names, 97
+   `positionIndependence` claim is executed rather than assumed. Measured at **spec version
+   0.1.0**: **148 names, 97
    `primitive`, 47 `keyword`, 4 `operator`, and 148 of 148 position-invariant.**
 
 3. **The profile rule is checked against the profile the entry names.** Every subset of the
@@ -136,7 +137,8 @@ plainly here because "in both directions" over-describes two of them:
    regression cases rather than a derived corpus.
 
    **A related defect ships unfixed, and it is not this slice's.** This slice added the scan for the
-   gap *before* `is`; the adjacencies after it are untouched. Measured at 0.1.0, all in programs
+   gap *before* `is`; the adjacencies after it are untouched. Measured against the shipped
+   **`@openlogo/parser` 0.2.0**, all in programs
    that parse with **zero diagnostics**: a newline before `is` paints the contextual word `keyword`,
    while a newline *after* `is` (in the `empty`, `member` and `a` forms) and one between `member`
    and `of` still paint it `primitive`, where `spec/tooling.md:30` gives `keyword`. That is issue
