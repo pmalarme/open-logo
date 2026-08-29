@@ -57,6 +57,15 @@ derivations are compared in both directions.**
 **No self-check the walk makes about its own reach may name a shape, a property or an arm.** Each asks
 a question of a set the system already maintains for its own reasons, and where the answer needs a
 second factor, that factor is derived from the walk rather than listed.
+
+**That is necessary and not sufficient, and the review proved it.** The second factor was derived —
+"how many paths did this subtree produce?" — and was still wrong, because **a derived quantity can
+answer the wrong question**. What the rule needs is *did a node terminate at **this** route*, not
+*did anything below this position get named*. The two differ exactly when a supertype carries an
+unrelated node-valued field, and both reviewers found that difference independently: one through a
+wrapper whose descendant masked it, the other through `ProcedureParam` widened until `tsc` certified
+it admits every node, silent at 11 of 11. So the principle has a second half — **check that the
+derived quantity is a measurement of the position you are asking about.**
 That is the load-bearing design choice, and it was arrived at the hard way: this instrument's review
 defeated a succession of rules for detecting a hidden node, each **more general** than the last — but
 not each strictly so, and the exception is recorded below because it is the honest part. The table is
@@ -337,6 +346,7 @@ position without naming the type here. Adding it to the union does **not**
   | M16 | `StructDefNode` gains `readonly zzSpanned?: { readonly source_span: SourceSpan }` and `readonly zzTop?: {}` — supertypes with **no `kind` at all**, each with a `tsc`-checked assignability proof in the same file | exit 0 | **1 of 11 fails** each, naming the field. The gate one commit earlier passes **11 of 11** on both |
   | M17 | `StructDefNode` gains `readonly zzU?: ZzPartA \| ZzPartB` — a **union** of two partial supertypes, with `function zzProofUnionIsTotal(node: AnyNode): ZzPartA \| ZzPartB { return node; }` compiling as the certificate that it admits all 37 members | exit 0 | **1 of 11 fails**, naming `StructDef.zzU`. The gate one commit earlier passes **11 of 11**: the union is neither `object` nor `leaf`, so the arm list discarded it, while `every` is false for each constituent taken alone |
   | M18 | `ForeverNode` gains `readonly zzPathMask?: ZzPathMask` for `interface ZzPathMask { source_span; hidden?: BlockNode }` — the factory populates it, `childrenOf` returns the masked node and the path is declared, with `zzProofMaskIsTotal` compiling | exit 0 | **1 of 11 fails**, naming `Forever.zzPathMask`. The gate one commit earlier passes **11 of 11**: the descendant path at `…zzPathMask.hidden` was counted towards the position itself |
+  | M19 | `ProcedureParam` widened to `{ name?: SpannedName \| string; defaultValue?: ExpressionNode; source_span?: SourceSpan }`, with `zzProofParamIsTotal` compiling as the certificate and 8 mechanical fixes at 5 consumer call sites | exit 0 | **1 of 11 fails**, naming `ProcedureDef.params[]`. The same-round gate passes **11 of 11**: `defaultValue` derives a path *below* the position, which the subtree count credited to the position |
   | — | **negative result:** `zzMetadata?: { kind: "left" \| "right"; label: string }` — an ordinary childless wrapper | exit 0 | **11 of 11 pass**. An intermediate version of M14's fix rejected this, which is what identified that check as having an authored selector |
   | — | **negative result:** `type ZzBlockAlias = BlockNode` used in field position | exit 0 | produces **no** `foreignNodeTypes` row — an alias is the same type object, so the identity check does not punish an ordinary refactor. Recorded because a check built on type identity is one a maintainer will suspect of false positives first |
 

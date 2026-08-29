@@ -1113,7 +1113,7 @@ function auditTheDeclarations() {
       // name rather than only as an anomalous flag in `leafTypeFlags`. `isErrorType()` is the
       // compiler's own answer to "this reference did not resolve", which is the failure that would
       // otherwise make this whole derivation quietly smaller than the declarations it reads.
-      typeVisits.push({
+      const visit = {
         at: path,
         category,
         unresolved: type.isErrorType(),
@@ -1125,8 +1125,10 @@ function auditTheDeclarations() {
         // ineligible, while each constituent admits only half the node kinds, so `every` was false
         // for both. Between them they accept every node, and the gate stayed 11/11 green.
         derivesNoPath: 0,
-      });
-      const visit = typeVisits[typeVisits.length - 1];
+      };
+      // Constructed then pushed, rather than pushed and re-read by index: the index form is correct
+      // today and silently wrong the moment another push lands between the two lines.
+      typeVisits.push(visit);
       const nextChain = new Set(chain).add(type.id);
       const descend = (edges) => {
         const fresh = edges.filter((edge) => !nextChain.has(edge[0].id));
@@ -1185,7 +1187,14 @@ function auditTheDeclarations() {
             ) * 0
           );
         },
-        leaf: () => seen.leafTypeFlags.add(type.flags) && 0,
+        leaf: () => {
+          seen.leafTypeFlags.add(type.flags);
+          // Returned explicitly rather than as `add(...) && 0`, which was correct only because
+          // `Set.prototype.add` happens to return the set. A recorder whose `add` returned
+          // `undefined` would make this arm return `undefined`, `derived === 0` false, and every leaf
+          // position silently ineligible — reopening `{}`, `unknown` and `any` with the gate green.
+          return 0;
+        },
       }[category]();
       // `derivesNoPath` is 1 exactly when **no node terminates at this route**, whatever category the
       // position took. That is what makes the eligibility structural: a union of supertypes is
@@ -1219,14 +1228,16 @@ function auditTheDeclarations() {
       // `StructDefNode`, which compiles, and passed the whole gate 11/11. That is the container blind
       // spot a third time: closed for the arm that was shown to leak, left open on the arm the walk
       // is actually about.
-      // `holdsEveryNode` is deliberately *not* recorded here, and the reason is **incidental rather
-      // than structural**, which is why it is written down. A root member that admitted every node
-      // would have to be kindless or union-kinded. Kindless breaks the `kinds` assertion
-      // (`declaredKindOf` returns `undefined`). Union-kinded does **not**: `declaredKindOf` returns
-      // the *first* literal, and the #986 reviewer measured `NodeBase` yielding `"Add"`, which is a
-      // real kind — so `kinds` would stay green. What actually stops it today is that adding a
-      // union-kinded member to `AnyNode` fails `npm run build` with five `TS2339` errors in
-      // `@openlogo/studio`'s narrowing, which is a downstream accident that could evaporate.
+      // `holdsEveryNode` is deliberately *not* recorded here, and the reason is **structural, not
+      // incidental** — an earlier version of this comment said the opposite and cited five errors in
+      // `@openlogo/studio`, a number taken from a reviewer and never re-derived. Re-measured: adding
+      // a union-kinded member to `AnyNode` fails `npm run build` with **241** errors across 14 files
+      // (TS2339 ×217, TS2345 ×20, TS7006 ×3, TS2322 ×1), and the largest block — **69** — is
+      // `ast.ts` itself, in `childrenOf`'s own switch, because narrowing on `case "Block"` cannot
+      // exclude a member whose `kind` is the whole union. What stops it is the parser's exhaustive
+      // traversal in the same file that declares `AnyNode`; `@openlogo/studio` contributes 7. Still
+      // not this gate — so the omission is deliberate — but it is a first-party invariant rather
+      // than a downstream accident.
       objectTypeRows.push(objectTypeParts(member, kind));
       for (const property of checker.getPropertiesOfType(member)) {
         walkDeclaredType(
