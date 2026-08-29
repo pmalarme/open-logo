@@ -75,9 +75,11 @@ plainly here because "in both directions" over-describes two of them:
    position to carry the declared class. Both halves matter: unioning the classes let a position
    that painted nothing hide behind the others. The eight non-head positions are where the grammar
    admits a keyword as an ordinary name (`spec/grammar.md:386`), so the manifest's
-   `positionIndependence` claim is executed rather than assumed. Measured at **spec version
-   0.1.0**: **148 names, 97
-   `primitive`, 47 `keyword`, 4 `operator`, and 148 of 148 position-invariant.**
+   `positionIndependence` claim is executed rather than assumed. Two measurements with two
+   referents: the inventory is manifest-declared — at **spec version 0.1.0**, **148 names, 97
+   `primitive`, 47 `keyword`, 4 `operator`** — while **148 of 148 position-invariant** is a painting
+   result, and so belongs to the shipped **`@openlogo/parser` 0.2.0**. A parser-only change moves
+   the second and leaves the first untouched.
 
 3. **The profile rule is checked against the profile the entry names.** Every subset of the
    keyword-contributing profiles, each swept twice — once over Core Language alone, once with every
