@@ -4,7 +4,7 @@
  * variable read or non-callable node is never in scope here; that is `ol-undefined-var`'s job,
  * #113) and flags a callee name that is not in {@link collectVisibleNames}'s visible set, with a
  * Levenshtein did-you-mean suggestion per `spec/error-model.md:196-216` /
- * `spec/tooling.md:178-180`.
+ * `spec/tooling.md:181`.
  */
 
 import type { Diagnostic } from "@openlogo/core";

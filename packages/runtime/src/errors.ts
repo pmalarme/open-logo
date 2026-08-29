@@ -409,8 +409,9 @@ function canonicalEscapeKeyword(
 
 /**
  * Params for `ol-no-value`: a comprehension body's last statement does not produce a value
- * (`spec/execution-model.md:228-229` — the rule that names `ol-no-value`). Same `{form}` shape as the parser's
- * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity.
+ * (`spec/execution-model.md:228-229` — the rule that names `ol-no-value`). Same `{form}`
+ * shape as the parser's `checker-control-flow.ts` semantic rule (issue #114) so both stages
+ * agree on identity.
  */
 export interface NoValueParams {
   readonly form: ComprehensionForm;

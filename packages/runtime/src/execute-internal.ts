@@ -4580,7 +4580,7 @@ function callProcedureAsValue(
  * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
  * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
  * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
- * distinguishes them. Per the block-result rule (`spec/execution-model.md:214-227`), a bracketed
+ * distinguishes them. Per the block-result rule (`spec/execution-model.md:217-230`), a bracketed
  * `if`/`while` body runs for effect only: a trailing bare-value expression's value is silently
  * discarded (no value-producing event, no diagnostic) — which already falls out of this function,
  * since a statement kind this issue does not evaluate (a bare arithmetic expression, a call to

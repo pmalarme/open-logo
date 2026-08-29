@@ -1,5 +1,5 @@
 // Unit tests for the Heritage `value of <dictionary> for key <key>` reader (issue #322,
-// `spec/grammar.md:213`'s `value-of-reader`). `coverage.test.mjs`'s `MEGA` walk exercises the
+// `spec/grammar.md:217`'s `value-of-reader`). `coverage.test.mjs`'s `MEGA` walk exercises the
 // happy-path shape once for AST-visitor coverage; this file targets the per-branch syntax-error
 // recovery `parseValueOfKey` performs when the dictionary expression, the `for` keyword, the `key`
 // keyword, or the key expression is missing — each reports a diagnostic and bails out with

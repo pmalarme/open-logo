@@ -332,7 +332,7 @@ export type HostInputReader = (prompt: string) => string | undefined;
  * `spec/execution-model.md:634-638` requires: an instruction budget, a recursion-depth limit, and
  * external cancellation — see {@link ExecuteOptions}. Every `forever` loop is bounded by the
  * (possibly default) instruction budget even with no `options` at all, since "`forever` is
- * therefore safe only because it is cancellable and budgeted" (`spec/execution-model.md:628-629`)
+ * therefore safe only because it is cancellable and budgeted" (`spec/execution-model.md:634-638`)
  * is not conditional on the caller opting in.
  */
 export function execute(

@@ -25,7 +25,7 @@
  * same code path as its Core equivalent — there is no divergent Heritage evaluation anywhere.
  *
  * Slice H5 (issue #670) adds the `value of <dict> for key <key>` reader
- * (`spec/grammar.md:213`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
+ * (`spec/grammar.md:217`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
  * is a four-keyword *reader* form, not an alias-able name — the reader lowers it to a
  * {@link ValueOfKeyNode} whose evaluation is byte-identical to the Core dict read `:d[:k]`/`:d.key`
  * (`spec/data-structures.md:183-195`). It has no single Core *word* equivalent (the Core spelling is

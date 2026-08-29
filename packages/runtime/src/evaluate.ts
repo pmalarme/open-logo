@@ -648,7 +648,7 @@ export function checkExecutionLimits(
  *
  * The maintainer-delegated ruling on #828 is that handler firings **are** instructions and count
  * against the ordinary budget, rather than that construct getting a mechanism of its own. The
- * precedent is already in the spec: `spec/execution-model.md:625-629` — "Implementations must
+ * precedent is already in the spec: `spec/execution-model.md:634-638` — "Implementations must
  * support cancellation. They should enforce configurable instruction budgets … **`forever` is
  * therefore safe only because it is cancellable and budgeted.**" A repeating handler registering a
  * repeating handler is the same shape — unbounded by construction, made safe by being budgeted — so
@@ -4895,14 +4895,14 @@ function evaluateRandom(
   );
 }
 
-// --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md:411-440, issue #105) ------
 //
 // Comprehensions are value-producing *expressions* usable anywhere an expression is
-// (`spec/execution-model.md:380-384`), so — unlike a procedure body, which can contain arbitrary
+// (`spec/execution-model.md:422-424`), so — unlike a procedure body, which can contain arbitrary
 // control flow and genuinely needs `execute-internal.ts`'s full `executeStatements` dispatcher —
 // every spec worked example and acceptance criterion for a comprehension body is a single
 // bracketed expression-block whose *last* statement supplies the result
-// (`spec/execution-model.md:200-227`, the block-result rule). This module therefore evaluates a
+// (`spec/execution-model.md:217-230`, the block-result rule). This module therefore evaluates a
 // comprehension body itself, entirely self-contained, rather than adding a second
 // `Environment`-threaded callback (mirroring `callProcedure`) purely to reach
 // `execute-internal.ts`'s general statement dispatcher for a case with no current spec pressure —
@@ -5073,7 +5073,7 @@ type ComprehensionBodyOutcome =
  * Run one comprehension body against the per-element/accumulator {@link Environment} its caller
  * already pushed a fresh frame onto ({@link pushLoopFrame}). Leading statements run for effect
  * only (their value, if any, is discarded); the final statement supplies the body's result, per
- * the block-result rule (`spec/execution-model.md:200-227`). The caller ({@link
+ * the block-result rule (`spec/execution-model.md:217-230`). The caller ({@link
  * evaluateComprehension}) only ever calls this once {@link isSupportedComprehensionBody} has
  * confirmed every statement is one of the shapes handled below, so there is no "unimplemented
  * shape" fallback here to keep in sync separately.

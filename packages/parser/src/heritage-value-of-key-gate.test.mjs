@@ -1,6 +1,6 @@
 // Unit tests for the Heritage `value of <dict> for key <key>` reader profile gate — slice H5
 // (issue #670) of the Heritage epic. The four-keyword reader `value-of-reader`
-// (spec/grammar.md:213) is a Heritage spelling of the Core dict read `:d[:k]`/`:d.key`
+// (spec/grammar.md:217) is a Heritage spelling of the Core dict read `:d[:k]`/`:d.key`
 // (spec/conformance.md:273), and because it operates on a dict it also needs the Data profile
 // (spec/conformance.md:301). Parsing of the form itself (into a `ValueOfKey` node) landed with
 // issue #322 and is covered by `value-of-key.test.mjs`; this file targets the *profile gate* added

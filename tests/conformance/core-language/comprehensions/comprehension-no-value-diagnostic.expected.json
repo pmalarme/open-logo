@@ -1,5 +1,5 @@
 {
-  "description": "A comprehension body whose final statement does not produce a value (`print :n`, a command call) raises ol-no-value at runtime (spec/execution-model.md:225), mirroring #114's checker shape at stage=runtime since execute() never runs check(). Issue #105.",
+  "description": "A comprehension body whose final statement does not produce a value (`print :n`, a command call) raises ol-no-value at runtime (spec/execution-model.md:228-229), mirroring #114's checker shape at stage=runtime since execute() never runs check(). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

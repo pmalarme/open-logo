@@ -1,5 +1,5 @@
 {
-  "description": "A `return` inside a comprehension body raises ol-return-in-comprehension at runtime (spec/execution-model.md:226-227), not ol-return-outside-proc, mirroring #114's checker shape at stage=runtime since execute() never runs check(). Issue #105.",
+  "description": "A `return` inside a comprehension body raises ol-return-in-comprehension at runtime (spec/execution-model.md:229-230), not ol-return-outside-proc, mirroring #114's checker shape at stage=runtime since execute() never runs check(). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
