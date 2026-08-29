@@ -5,7 +5,7 @@
 # under every profile set: nothing said so.
 #
 # The first two lines are the issue's verbatim reproduction. The rest use a list element — a full
-# `expression` by spec/grammar.md:204 — because the Data mutation heads (spec/grammar.md:113-117)
+# `expression` by spec/grammar.md:208 — because the Data mutation heads (spec/grammar.md:115-119)
 # are ALSO statement openers, so at the start of a statement the reader's error recovery re-enters
 # their statement form and adds a second, incidental diagnostic. Pinning them in a non-statement
 # value position keeps this stack-neutral contract about ACCEPTANCE, not about one reader's

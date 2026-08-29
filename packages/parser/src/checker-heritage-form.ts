@@ -28,7 +28,7 @@
  * (`spec/grammar.md:217`'s `value-of-reader`) to this same family. Unlike the four form *heads*, it
  * is a four-keyword *reader* form, not an alias-able name — the reader lowers it to a
  * {@link ValueOfKeyNode} whose evaluation is byte-identical to the Core dict read `:d[:k]`/`:d.key`
- * (`spec/data-structures.md:183-195`). It has no single Core *word* equivalent (the Core spelling is
+ * (`spec/data-structures.md:213-231`). It has no single Core *word* equivalent (the Core spelling is
  * the `[]`/`.` selector *syntax*, not a keyword), so — like `ol-unknown-command`'s no-candidate
  * branch (`spec/error-model.md:97`) — its rejection carries no `suggestion`, only the "check the
  * spelling, or define it with 'define'" message, at the `value` head word. Because it operates on a

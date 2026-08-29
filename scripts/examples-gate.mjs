@@ -89,7 +89,7 @@ export const IMPLEMENTED_PROFILES = [
  * `add`/`remove`/`clear`/`insert` collection-mutation forms.
  *
  * `ValueOfKey` (the Heritage `value of … for key` dictionary reader) is deliberately NOT in this
- * set: `spec/conformance.md:273`/`:301` classify that spelling as **Heritage**, which *also*
+ * set: `spec/conformance.md:277`/`:305` classify that spelling as **Heritage**, which *also*
  * depends on **Data** because the reader operates on dicts — so a source using it needs BOTH
  * profiles, not just Data. It gets its own check below so it can add both.
  *
@@ -500,7 +500,7 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "ValueOfKey") {
-      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:273`,`:301`):
+      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:277`,`:305`):
       // classified as Heritage, but it "also needs Data" because it operates on dicts — an
       // example using it must declare BOTH, or the missing one goes undetected (issue #519
       // masking class: declaring only `data` would silently under-declare `heritage`, and vice

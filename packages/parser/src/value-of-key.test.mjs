@@ -29,7 +29,7 @@ test("parses `value of <dict> for key <key>` into a ValueOfKey node", () => {
 test("a bare `value` not followed by `of` is rejected as a misplaced reserved word, not read as a call", () => {
   const { diagnostics } = OL.parse("print value", doc);
 
-  // `value` is globally reserved (`spec/grammar.md:358`) and heads no `expression` alternative but
+  // `value` is globally reserved (`spec/grammar.md:371`) and heads no `expression` alternative but
   // the `of`-gated reader above, so outside that form it is not permitted at this grammar position
   // (`spec/error-model.md:110`). Before issue #853 it fell through to a bare zero-argument call
   // that parsed and checked clean in every profile set — a silent no-op.

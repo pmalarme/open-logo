@@ -162,7 +162,7 @@ test("detectUsedProfiles finds data for add/remove/insert/clear collection mutat
 });
 
 test("detectUsedProfiles finds BOTH heritage and data for the 'value of ... for key' dict reader", () => {
-  // spec/conformance.md:273/:301: `value of ... for key` is classified as Heritage, but that
+  // spec/conformance.md:277/:305: `value of ... for key` is classified as Heritage, but that
   // spelling "also needs Data" because it operates on dicts — an example using it must declare
   // BOTH profiles, or the missing one goes undetected (the same G8 masking class this whole gate
   // exists to close; a first draft classified this construct as "data" only and missed heritage).
@@ -656,7 +656,7 @@ test("runExamplesGate: catches masking via a Data derived-reporter primitive too
 });
 
 test("runExamplesGate: catches masking of the Heritage half of 'value of ... for key' too (integration-owner review follow-up)", () => {
-  // spec/conformance.md:273/:301: `value of ... for key` is Heritage AND (because it operates on
+  // spec/conformance.md:277/:305: `value of ... for key` is Heritage AND (because it operates on
   // dicts) Data. A manifest that declares "data" + an unrelated unimplemented profile ("sound")
   // but omits "heritage" must still FAIL loudly naming heritage, not SKIP — the exact G8 masking
   // class this gate exists to close, this time on the Heritage side of the dependency.

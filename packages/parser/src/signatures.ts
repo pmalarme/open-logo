@@ -663,7 +663,7 @@ export function spritesPrimitiveArity(name: string): number | undefined {
 /**
  * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
  * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
- * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:151` and
+ * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:155-156` and
  * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212,
  * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
  * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
@@ -925,7 +925,7 @@ export function heritageWordedFormHeads(): readonly string[] {
  * A spelling here is a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
  * rather than its phrase: a leak is a string sitting in a param, and the guards match whole words
  * against rendered param values. The three tables together cover every spelling
- * `spec/conformance.md:146-157`'s Heritage inventory writes in code formatting (issue #755) — an
+ * `spec/conformance.md:150-157`'s Heritage inventory writes in code formatting (issue #755) — an
  * agreement the parser guard asserts against the spec file itself, rather than by restating it
  * here. Before #755 these were the single-word tables only, and this comment nevertheless claimed a
  * completeness the worded reader disproved.

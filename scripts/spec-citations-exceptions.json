@@ -143,14 +143,6 @@
   ],
   "packages/parser/src/signatures.ts": [
     {
-      "subject": "spec/conformance.md:151",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in conformance.md: the nearest text above is line 150 (\"The **Heritage** profile is **alternate spellings only**. It d…\") and below is line 152 (\"- `make` as the heritage assignment spelling;\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "356515795cdbe048"
-    },
-    {
       "subject": "spec/grammar.md:104",
       "observed": "blank-region",
       "kind": "stale-citation",
