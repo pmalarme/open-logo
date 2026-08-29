@@ -58,9 +58,9 @@ derivations are compared in both directions.**
 a question of a set the system already maintains for its own reasons, and where the answer needs a
 second factor, that factor is derived from the walk rather than listed.
 That is the load-bearing design choice, and it was arrived at the hard way: this instrument's review
-defeated a succession of rules for detecting a hidden node, each strictly more general than the last
-and each still defeated. The table is the record; the prose deliberately carries no count, because a
-sixth row would leave a numeral behind.
+defeated a succession of rules for detecting a hidden node, each **more general** than the last — but
+not each strictly so, and the exception is recorded below because it is the honest part. The table is
+the record; the prose deliberately carries no count, because another row would leave a numeral behind.
 
 | rule | defeated by |
 | --- | --- |
@@ -71,11 +71,13 @@ sixth row would leave a numeral behind.
 | treat a type as a node only when its `kind` is one node-kind literal | a **node supertype** (`NodeBase`), node-shaped without being any one node |
 | require an `object`-category `kind` to carry `TypeFlags.StringLiteral` | a supertype carrying **no `kind` at all** — `{}`, or `{ source_span: SourceSpan }` — and, in the other direction, an ordinary childless wrapper `{ kind: "left" \| "right"; label: string }` rejected for a union `kind` naming no node |
 | ask the compiler whether every `AnyNode` member fits, on the `object` and `leaf` **arms** | a **union of two partial supertypes**, which is neither arm, and which `tsc` certifies admits all 37 members |
+| …and count the paths derived **anywhere beneath** the position | a wrapper admitting every node that also carries an unrelated node-valued field: the descendant's path masks the node the declaration permits **at the position itself** |
 
-The last row is the sharpest evidence for this section, because it is this section's own rule broken
-in the act of stating it. That check was written in the round that introduced this text, and while
-its *reference set* was the compiler's `TypeFlags` vocabulary, its **selector** — "the property named
-`kind`" — was authored here, and a selector has a complement exactly as an allowed-value list does.
+The `TypeFlags` row is the sharpest evidence for this section, because it is this section's own rule
+broken in the act of stating it. That check was written in the round that introduced this text, and
+while its *reference set* was the compiler's `TypeFlags` vocabulary, its **selector** — "the property
+named `kind`" — was authored here, and a selector has a complement exactly as an allowed-value list
+does.
 It was wrong in both directions at once: it admitted `{ source_span: SourceSpan }`, which `tsc` will
 certify holds any node, and it rejected a legitimate wrapper. Both measured. That combination is
 itself the diagnostic: a rule that only over-admits looks like it wants widening and a rule that only
@@ -86,12 +88,17 @@ the compiler a question.
 **What replaced it has no selector, and its eligibility is derived from the walk.** `holdsEveryNode`
 asks the compiler whether **every** `AnyNode` member is assignable to the type; the second factor is
 whether the walk contributed a path from that position. Both are needed — a field legitimately typed
-`AnyNode` would hold every node *and* derive paths — and neither is a list authored here. An
-intermediate version paired the assignability question with an **arm list** (`object` and `leaf`),
-which is the same defect displaced one level: a union of two partial supertypes is neither arm, and
-`tsc` certifies it admits all 37 members. One rule now covers `NodeBase`, `{}`, `{ source_span }`,
-`object`, `unknown`, `any` and that union, and it reaches through sequences and optionality —
-`readonly NodeBase[]` fires identically.
+`AnyNode` would hold every node *and* derive paths — and neither is a list authored here. Two
+intermediate versions got the second factor wrong in the same way, one level apart: first an **arm
+list** (`object` and `leaf`), which a union of partial supertypes is neither of; then a **count of
+paths derived anywhere beneath the position**, which an unrelated node-valued descendant inflates —
+so a wrapper admitting every node while carrying a `hidden?: BlockNode` was masked by its own child.
+The rule that survives asks whether a node terminates at **this exact route**: `object` and
+`sequence` descend but contribute nothing to their own route, because `path.field` and `path[]` are
+different routes; union members share the parent's route and do contribute. One rule now covers
+`NodeBase`, `{}`, `{ source_span }`, `object`, `unknown`, `any`, the union of partial supertypes and
+the masking wrapper, and it reaches through sequences and optionality — `readonly NodeBase[]` fires
+identically.
 
 **What it does not cover, and what that cost.** Round 7 is *not* strictly more general than round 6:
 the `TypeFlags` rule did catch `{ kind: "Block" | "Program"; source_span }`, because a union `kind`
@@ -255,15 +262,30 @@ which is the definition of decorative.
   sides, which changes the path rule `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a
   redesign of that gate, tracked as issue #1004. `childrenOf`'s doc comment in `ast.ts` and the
   header of `child-edges.test.mjs` state this residual rather than claiming closure.
-- A third residual, stated because the reviewer who found the second one asked that it not be claimed
-  closed: a **partial** supertype — `{ source_span: SourceSpan; body: readonly StatementNode[] }`,
-  which admits `Program` and `Block` rather than every member — escapes `holdsEveryNode`, whose rule
-  is deliberately `every` rather than `some`. `some` cannot be used: it is red on a green tree with 19
-  rows, because structural typing makes incidental supertypes ordinary. The family is wider than that
-  one example — `{ kind: "Block" | "Program"; source_span }` is another member, and the round-6 rule
-  this one replaced *did* catch it — so the gap between "admits every node" and "admits some node" is
-  open by construction, and closing it needs a discriminator neither the author nor either reviewer
-  has.
+- **Residual 3 — the partial-supertype family.** A type that admits *some but not all* `AnyNode`
+  members, derives no path, and so is neither reported nor required to be exercised.
+  `holdsEveryNode` is deliberately `every` rather than `some`, and `some` cannot be substituted: it
+  is **red on a green tree with 19 rows**, because structural typing makes incidental supertypes
+  ordinary — `VarRefNode` is assignable to `SpannedName`, so `ForIn.binder`, `Place.base`,
+  `ProcedureDef.name` and 16 more would report. Two shapes were witnessed during review, both
+  compiling with `tsc -b` exit 0 and both passing the gate 11 of 11:
+
+  | shape | admits | note |
+  | --- | --- | --- |
+  | `{ source_span: SourceSpan; body: readonly StatementNode[] }` | `Program`, `Block` | escapes every rule this slice shipped |
+  | `{ kind: "Block" \| "Program"; source_span: SourceSpan }` | `Program`, `Block` | the round-6 `TypeFlags` rule **did** catch this one; the rule that replaced it does not |
+
+  The second is why this residual is wider than a single example, and why round 7 was not strictly
+  more general than round 6.
+
+  **For whoever takes it up.** A mutant here should carry its own certificate, the technique this
+  review used throughout: `export function zzProof(node: BlockNode): T { return node; }` compiles
+  exactly when `T` admits `BlockNode`, so a mutant whose premise is wrong fails the build instead of
+  producing a green run that proves nothing. What is missing is a discriminator between *a supertype
+  that admits a proper non-empty subset of the union* and *an ordinary wrapper that incidentally
+  admits one member* — the 19 rows above are all the second kind. Neither author nor reviewer found
+  one, and it is a design question rather than an omission: closing it is tracked with the
+  route-merge residual under issue #1004.
 
 - A second residual, narrowed by the same round that found it: the walk starts at `AnyNode`, so what
   it enforces is as wide as that union. A **second type declaring an existing `kind`** is now caught
@@ -314,6 +336,7 @@ position without naming the type here. Adding it to the union does **not**
   | M15 | a second interface declaring an **existing** kind added to `AnyNode` (`ZzBlockLookAlike` with `zzhidden?: BlockNode`) | exit 0 | **1 of 11 fails**, `declared \ populated` = `['Block.zzhidden']`. `tsc` does **not** object: the `never` guard rejects unhandled discriminant *values*, and `"Block"` already has a case |
   | M16 | `StructDefNode` gains `readonly zzSpanned?: { readonly source_span: SourceSpan }` and `readonly zzTop?: {}` — supertypes with **no `kind` at all**, each with a `tsc`-checked assignability proof in the same file | exit 0 | **1 of 11 fails** each, naming the field. The gate one commit earlier passes **11 of 11** on both |
   | M17 | `StructDefNode` gains `readonly zzU?: ZzPartA \| ZzPartB` — a **union** of two partial supertypes, with `function zzProofUnionIsTotal(node: AnyNode): ZzPartA \| ZzPartB { return node; }` compiling as the certificate that it admits all 37 members | exit 0 | **1 of 11 fails**, naming `StructDef.zzU`. The gate one commit earlier passes **11 of 11**: the union is neither `object` nor `leaf`, so the arm list discarded it, while `every` is false for each constituent taken alone |
+  | M18 | `ForeverNode` gains `readonly zzPathMask?: ZzPathMask` for `interface ZzPathMask { source_span; hidden?: BlockNode }` — the factory populates it, `childrenOf` returns the masked node and the path is declared, with `zzProofMaskIsTotal` compiling | exit 0 | **1 of 11 fails**, naming `Forever.zzPathMask`. The gate one commit earlier passes **11 of 11**: the descendant path at `…zzPathMask.hidden` was counted towards the position itself |
   | — | **negative result:** `zzMetadata?: { kind: "left" \| "right"; label: string }` — an ordinary childless wrapper | exit 0 | **11 of 11 pass**. An intermediate version of M14's fix rejected this, which is what identified that check as having an authored selector |
   | — | **negative result:** `type ZzBlockAlias = BlockNode` used in field position | exit 0 | produces **no** `foreignNodeTypes` row — an alias is the same type object, so the identity check does not punish an ordinary refactor. Recorded because a check built on type identity is one a maintainer will suspect of false positives first |
 

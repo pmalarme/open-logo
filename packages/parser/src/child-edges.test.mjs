@@ -81,6 +81,15 @@
 //      root loop auditing the new member and deriving its fields (measured:
 //      `declaredButUnpopulated = ['Block.zzhidden']`, 1 of 11), subject to residual 1 if the field
 //      shares an already-exercised route.
+//   3. **A supertype admitting some but not all node kinds.** `holdsEveryNode` asks whether *every*
+//      `AnyNode` member fits, and cannot ask whether *some* does: `some` is red on a green tree with
+//      19 rows, because structural typing makes incidental supertypes ordinary — `VarRefNode` is
+//      assignable to `SpannedName`. Two shapes were witnessed, both compiling and both passing 11/11:
+//      `{ source_span; body: readonly StatementNode[] }` and
+//      `{ kind: "Block" | "Program"; source_span }`, each admitting `Program` and `Block`. The second
+//      is the reason this is a family rather than an example — the round-6 rule that preceded
+//      `holdsEveryNode` did catch it, and this one does not. Tracked with residual 1 under issue
+//      #1004; ADR-0027 records both shapes and the `tsc`-certificate technique for probing them.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -1130,6 +1139,14 @@ function auditTheDeclarations() {
         }
         return derived;
       };
+      // Each arm returns **1 when a node terminates at this exact route**, not the number of paths
+      // derived anywhere beneath it. That distinction is the whole of the eligibility question: a
+      // wrapper that admits every node *and* carries an unrelated node-valued field derives a path at
+      // `…zzPathMask.hidden`, and an earlier version counted that towards `…zzPathMask` and fell
+      // silent about the node the declaration permits directly there. So `object` and `sequence`
+      // descend — every descendant is still walked and still collected — but contribute **0** to
+      // their own route, because `path.field` and `path[]` are different routes; `union` members
+      // share the parent's route and so do contribute.
       const derived = {
         union: () => descend(type.getTypes().map((member) => [member, path])),
         node: () => {
@@ -1154,23 +1171,26 @@ function auditTheDeclarations() {
             checker
               .getTypeArguments(type)
               .map((argument) => [argument, `${path}[]`]),
-          ),
+          ) * 0,
         object: () => {
           objectTypeRows.push(objectTypeParts(type, path));
-          return descend(
-            checker
-              .getPropertiesOfType(type)
-              .map((property) => [
-                checker.getTypeOfSymbol(property),
-                `${path}.${property.name}`,
-              ]),
+          return (
+            descend(
+              checker
+                .getPropertiesOfType(type)
+                .map((property) => [
+                  checker.getTypeOfSymbol(property),
+                  `${path}.${property.name}`,
+                ]),
+            ) * 0
           );
         },
         leaf: () => seen.leafTypeFlags.add(type.flags) && 0,
       }[category]();
-      // `derivesNoPath` is 1 exactly when this position contributed nothing to `paths`, whatever
-      // category it took. That is what makes the eligibility structural: a union of supertypes is
-      // eligible because it derived nothing, not because anyone listed unions.
+      // `derivesNoPath` is 1 exactly when **no node terminates at this route**, whatever category the
+      // position took. That is what makes the eligibility structural: a union of supertypes is
+      // eligible because nothing ends here, not because anyone listed unions; and a field honestly
+      // typed `AnyNode` is *not* eligible, because its union members do end here.
       visit.derivesNoPath = Number(derived === 0);
       return derived;
     };
