@@ -72,7 +72,9 @@
 //      against the union's own members by identity, and the #986 reviewer's structural
 //      `{ kind: "Block"; …; extra?: BlockNode }` on `ForeverNode.body` fails it by name. What is not
 //      caught is an exported node-shaped interface that appears in **no** field position and in no
-//      union: nothing reaches it, so nothing reports it. It is unreachable rather than unchecked.
+//      union: nothing reaches it, so nothing reports it. That is narrower than "unreachable" — it is
+//      outside the **current declaration graph and corpus**, and external code could still assign a
+//      structurally compatible value into an `AnyNode` position without ever naming it here.
 //      Adding it to the union does **not** necessarily fail `tsc`: `childrenOf`'s `never` guard
 //      rejects an unhandled discriminant *value*, so it fires for a new `kind` and not for a second
 //      interface declaring an existing one — measured, `tsc -b` exit 0. What catches that one is the
@@ -262,9 +264,8 @@ const EXPECTED_TYPE_CATEGORIES = [...TYPE_CATEGORIES].sort();
 /**
  * Numeric ascending order, shared by every flag list below. One named comparator rather than three
  * inline copies, because `Array.prototype.sort` does not call a comparator on a **single-element**
- * array: `kindPropertyFlags` holds exactly one entry on a green tree, so its own comparator would
- * never be invoked and the coverage gate would report it as an uncalled function — which is how this
- * was found.
+ * array: a single-entry list would leave its own comparator uninvoked, which the coverage gate reports as
+ * an uncalled function — which is how this was found.
  */
 const byNumericValue = (left, right) => left - right;
 
@@ -275,14 +276,6 @@ const EXPECTED_LEAF_TYPE_FLAGS = [
   TypeFlags.StringLiteral,
   TypeFlags.BooleanLiteral,
 ].sort(byNumericValue);
-
-/**
- * The only `TypeFlags` an `object`-category type's `kind` property may carry: a **single** string
- * literal. A union there means the type is node-shaped without being any one node — `NodeBase`, or a
- * field typed by it — which the walk would descend as an ordinary wrapper and derive no path from,
- * while the declaration says a node can live there.
- */
-const EXPECTED_KIND_PROPERTY_FLAGS = [TypeFlags.StringLiteral];
 
 /**
  * The `kind` a value declares as its own **data** property — read from the descriptor, never from
@@ -926,20 +919,79 @@ function auditTheDeclarations() {
       .updateSnapshot({ openProjects: [configFile] })
       .getProjects();
     const checker = projects[0].checker;
+    let anyNodeMembers = [];
 
     /**
-     * The kind a *type* declares, read from its `kind` property's string-literal type — the
-     * declaration-side twin of {@link ownDataKindOf}, filtered rather than branched so no arm is
-     * reachable only on a broken tree. A type with no `kind`, or a `kind` that is not a single
-     * literal, yields `undefined` and is therefore not a node.
+     * Every string-literal value a type's `kind` property can take — one for a node, several for a
+     * union such as `NodeKind`, none for a type with no `kind`. `getPropertiesOfType` includes
+     * **inherited** properties, so a `kind` declared on `NodeBase` is read here too.
+     *
+     * The union expansion is a `filter().map()` rather than a conditional so that no arm is reachable
+     * only on a broken tree, and it is applied to **every** visited type rather than only to the ones
+     * this gate reports on — which is what keeps the expansion itself exercised, since the only
+     * union-kinded types on a green tree are the `ExpressionNode`/`StatementNode` unions.
      */
-    const declaredKindOf = (type) =>
+    const kindLiteralsOf = (type) =>
       checker
         .getPropertiesOfType(type)
         .filter((property) => property.name === "kind")
         .map((property) => checker.getTypeOfSymbol(property))
-        .filter((kindType) => kindType.isStringLiteralType())
-        .map((kindType) => kindType.value)[0];
+        .flatMap((kindType) =>
+          [kindType].concat(
+            [kindType]
+              .filter((candidate) => candidate.isUnionType())
+              .flatMap((candidate) => candidate.getTypes()),
+          ),
+        )
+        .filter((constituent) => constituent.isStringLiteralType())
+        .map((constituent) => constituent.value);
+
+    /** Those of {@link kindLiteralsOf} that name a walkable node kind. */
+    const nodeKindLiteralsOf = (type) =>
+      kindLiteralsOf(type).filter((value) => WALKABLE_NODE_KINDS.has(value));
+
+    /**
+     * Whether **every** `AnyNode` member is assignable to `type` — that is, whether the declaration
+     * says any node at all may live in a field of this type, as the compiler itself computes it.
+     *
+     * This is the check the previous four attempts were groping towards, and it has **no selector**:
+     * it does not look at a `kind` property, or at properties at all. `NodeBase`, `{}`,
+     * `{ source_span: SourceSpan }`, `object`, `unknown` and `any` all satisfy it in one rule. The
+     * round before this one constrained the `TypeFlags` of a `kind` property, which *is* an
+     * authored-selector test: it missed a supertype carrying no `kind` (measured, gate 11/11 green on
+     * `readonly zzSpanned?: { readonly source_span: SourceSpan }`) and rejected an ordinary wrapper
+     * whose union `kind` names no node.
+     *
+     * **`every`, not `some`** — measured, and the difference is not stylistic: `some` is red on a
+     * green tree with 19 rows, because structural typing makes incidental supertypes ordinary
+     * (`VarRefNode` is assignable to `SpannedName`, so `ForIn.binder` and 18 others would report).
+     * Only "*any* node fits here" identifies a type that silently admits the whole union.
+     *
+     * Memoised by type id because assignability is the one expensive question this walk asks: the
+     * file measures 2.19 s warm unprobed, 11.5 s with this un-memoised, and 2.5 s with the cache.
+     */
+    const nodeHolderCache = new Map();
+    const holdsEveryNode = (type) => {
+      const cached = nodeHolderCache.get(type.id);
+      return (
+        cached ??
+        nodeHolderCache
+          .set(
+            type.id,
+            anyNodeMembers.every((member) =>
+              checker.isTypeAssignableTo(member, type),
+            ),
+          )
+          .get(type.id)
+      );
+    };
+
+    /**
+     * The kind a *type* declares, when it declares exactly one — the declaration-side twin of
+     * {@link ownDataKindOf}. A type whose `kind` is a union is **not** a node: it is node-*shaped*,
+     * which `nodeShapedWrappers` reports rather than silently descending.
+     */
+    const declaredKindOf = (type) => kindLiteralsOf(type)[0];
 
     // Priority by subscript, exactly as `canonicalPrototypeFieldKind` does it: every term is
     // evaluated and the largest wins, so there is no untaken arm. `node` outranks `sequence` and
@@ -964,7 +1016,12 @@ function auditTheDeclarations() {
       TYPE_CATEGORIES[
         Math.max(
           Number(type.isUnionType()) * 4,
-          Number(WALKABLE_NODE_KINDS.has(declaredKindOf(type))) * 3,
+          // A node declares **exactly one** kind, and it is a node kind. A type whose `kind` is a
+          // union of node kinds is node-shaped without being any one node; it falls through to
+          // `object` and is reported by `nodeShapedWrappers` rather than descended in silence.
+          Number(kindLiteralsOf(type).length === 1) *
+            Number(nodeKindLiteralsOf(type).length === 1) *
+            3,
           Math.max(
             Number(checker.isArrayType(type)),
             Number(checker.isTupleType(type)),
@@ -1029,33 +1086,9 @@ function auditTheDeclarations() {
       ).length,
     });
 
-    /**
-     * The flags of an `object`-category type's own `kind` property, as a list of 0 or 1 entries.
-     *
-     * A node is a type whose `kind` is **one** string literal in {@link WALKABLE_NODE_KINDS}. A type
-     * whose `kind` is a *union* of node kinds — `NodeBase` itself, or anything typed by it — is
-     * node-shaped without being any single node, so `declaredKindOf` returns `undefined` for it and
-     * it falls to the `object` arm, where its properties are `kind` and `source_span` and neither
-     * leads to a node. The #986 reviewer typed a field `readonly zzBase?: NodeBase`, which compiles
-     * and can hold any node, and the gate stayed 11/11 green: the declaration says a node lives there
-     * and the walk derived no path.
-     *
-     * Rather than test for that shape, the flags of every `object`-category `kind` are compared as a
-     * whole set against {@link EXPECTED_KIND_PROPERTY_FLAGS}. On a green tree the only kinded
-     * object-category types are the two `PlaceSegment` discriminants, both single string literals, so
-     * a union-kinded type breaks the equality. Unions and nodes are classified before this arm and
-     * are unaffected.
-     */
-    const kindPropertyFlagsOf = (type) =>
-      checker
-        .getPropertiesOfType(type)
-        .filter((property) => property.name === "kind")
-        .map((property) => checker.getTypeOfSymbol(property).flags);
-
     const seen = {
       categories: new Set(),
       leafTypeFlags: new Set(),
-      kindPropertyFlags: new Set(),
     };
     const typeVisits = [];
     const objectTypeRows = [];
@@ -1071,7 +1104,17 @@ function auditTheDeclarations() {
       // name rather than only as an anomalous flag in `leafTypeFlags`. `isErrorType()` is the
       // compiler's own answer to "this reference did not resolve", which is the failure that would
       // otherwise make this whole derivation quietly smaller than the declarations it reads.
-      typeVisits.push({ at: path, unresolved: type.isErrorType() });
+      typeVisits.push({
+        at: path,
+        category,
+        unresolved: type.isErrorType(),
+        holdsEveryNode: Number(holdsEveryNode(type)),
+        // 1 for the two arms that derive no path, 0 otherwise. Arithmetic rather than &&/||:
+        // on a green tree no type holds every node, so a short-circuit would leave the category
+        // test unevaluated — which the coverage gate reports as an untaken branch.
+        derivesNoPath:
+          Number(category === "object") + Number(category === "leaf"),
+      });
       const nextChain = new Set(chain).add(type.id);
       const descend = (edges) => {
         const fresh = edges.filter((edge) => !nextChain.has(edge[0].id));
@@ -1106,9 +1149,6 @@ function auditTheDeclarations() {
           ),
         object: () => {
           objectTypeRows.push(objectTypeParts(type, path));
-          for (const flags of kindPropertyFlagsOf(type)) {
-            seen.kindPropertyFlags.add(flags);
-          }
           descend(
             checker
               .getPropertiesOfType(type)
@@ -1134,6 +1174,9 @@ function auditTheDeclarations() {
     const rootMemberIds = new Set(
       anyNode.getTypes().map((member) => member.id),
     );
+    // Referenced by `holdsEveryNode`, which is defined above but first *called* from the loop below,
+    // after this initialiser has run.
+    anyNodeMembers = anyNode.getTypes();
     for (const member of anyNode.getTypes()) {
       const kind = declaredKindOf(member);
       kinds.add(kind);
@@ -1144,6 +1187,11 @@ function auditTheDeclarations() {
       // spot a third time: closed for the arm that was shown to leak, left open on the arm the walk
       // is actually about.
       objectTypeRows.push(objectTypeParts(member, kind));
+      // `holdsEveryNode` is deliberately *not* recorded here. A root member that admitted every node
+      // — kindless, or union-kinded — would make `declaredKindOf` return `undefined` and break the
+      // `kinds` assertion instead, so the case is covered, by a different check. Written down because
+      // the last time an arm was left out of a statement on the reasoning that something else covered
+      // it, the reasoning was right and the omission still hid a defect for a round.
       for (const property of checker.getPropertiesOfType(member)) {
         walkDeclaredType(
           checker.getTypeOfSymbol(property),
@@ -1158,7 +1206,9 @@ function auditTheDeclarations() {
       kinds: [...kinds].sort(),
       categories: [...seen.categories].sort(),
       leafTypeFlags: [...seen.leafTypeFlags].sort(byNumericValue),
-      kindPropertyFlags: [...seen.kindPropertyFlags].sort(byNumericValue),
+      nodeShapedWrappers: typeVisits.filter(
+        (visit) => visit.holdsEveryNode * visit.derivesNoPath > 0,
+      ),
       unresolvedTypes: typeVisits.filter((visit) => visit.unresolved),
       foreignNodeTypes: nodeTypeRows.filter(
         (row) => !rootMemberIds.has(row.id),
@@ -1402,15 +1452,18 @@ test("the declaration walk resolved every type it read", () => {
   // are the assertion above's job — an earlier version of this comment claimed this one covered
   // mapped types, which a reviewer measured false.
   assert.deepEqual(declarations.leafTypeFlags, EXPECTED_LEAF_TYPE_FLAGS);
-  // And no `object`-category type is node-*shaped* without being a node: a `kind` that is a union of
-  // node kinds — `NodeBase`, or any field typed by it — descends as an ordinary wrapper and yields no
-  // path, while the declaration says a node can live there. The #986 reviewer typed a field
-  // `readonly zzBase?: NodeBase`, which compiles, and the gate stayed 11/11 green. Compared as a whole
-  // set against the compiler's own flag vocabulary rather than by recognising `NodeBase`.
-  assert.deepEqual(
-    declarations.kindPropertyFlags,
-    EXPECTED_KIND_PROPERTY_FLAGS,
-  );
+  // And no `object`-category type is node-*shaped* without being a node. A type whose `kind` can be
+  // a node kind — `NodeBase`, or any field typed by it — descends as an ordinary wrapper and yields
+  // no path, while the declaration says a node can live there: the #986 reviewer typed a field
+  // `readonly zzBase?: NodeBase`, which compiles, and the gate stayed 11/11 green.
+  //
+  // The test is whether the type's `kind` literals **intersect `OL_NODE_KINDS`** — a set the parser
+  // maintains for its own reasons — not whether its `kind` has a shape this file approves of. A
+  // first attempt compared the `kind` property's `TypeFlags` against a curated
+  // `[TypeFlags.StringLiteral]`, which was itself the authored-reference-set defect: it rejected an
+  // ordinary childless wrapper such as `{ kind: "left" | "right"; label: string }`, whose union
+  // `kind` names no node kind and is entirely legitimate.
+  assert.deepEqual(declarations.nodeShapedWrappers, []);
   // And every category was actually exercised, so none of the five arms is carrying no traffic.
   assert.deepEqual(declarations.categories, EXPECTED_TYPE_CATEGORIES);
   // Wrapper types form a DAG, measured rather than argued — see `auditTheDeclarations`. A non-zero
