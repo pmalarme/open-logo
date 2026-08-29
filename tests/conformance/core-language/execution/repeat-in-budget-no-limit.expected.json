@@ -1,5 +1,5 @@
 {
-  "description": "`repeat 20 [ print 1 ]` completes normally under the default 1,000,000-instruction budget (issue #102, spec/execution-model.md:551-557): a small, ordinary, in-budget program never raises ol-limit. Kept intentionally small so this exact-diff fixture stays hand-reviewable; the impractical-at-scale budget-exceeded/depth-exceeded/cancellation scenarios are proven by direct unit tests in packages/runtime/src/execution-budget.test.mjs instead.",
+  "description": "`repeat 20 [ print 1 ]` completes normally under the default 1,000,000-instruction budget (issue #102, spec/execution-model.md:634-638): a small, ordinary, in-budget program never raises ol-limit. Kept intentionally small so this exact-diff fixture stays hand-reviewable; the impractical-at-scale budget-exceeded/depth-exceeded/cancellation scenarios are proven by direct unit tests in packages/runtime/src/execution-budget.test.mjs instead.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

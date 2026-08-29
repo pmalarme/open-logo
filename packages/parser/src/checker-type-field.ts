@@ -67,7 +67,7 @@ const DATA_TYPE_WORDS: readonly string[] = ["dict", "record"];
  * built-ins only when `"core-language"` is active and the Data built-ins only when `"data"` is,
  * never a hardcoded "every optional profile active" set. When `"data"` is active, every declared
  * `struct` type name in `program` also joins the set, so `is a <struct-type>` resolves for a type
- * the program itself declared (`spec/error-model.md:124`: a known built-in type *or declared
+ * the program itself declared (`spec/error-model.md:127`: a known built-in type *or declared
  * struct*) — matching the runtime's own `is_a?` type-word recognition (issue #329).
  */
 function knownTypeWords(

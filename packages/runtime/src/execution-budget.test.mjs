@@ -1,5 +1,5 @@
 // Direct unit tests for issue #102's three execution-safety gates
-// (`spec/execution-model.md:551-557`, `spec/error-model.md` `ol-limit`): a configurable
+// (`spec/execution-model.md:634-638`, `spec/error-model.md` `ol-limit`): a configurable
 // instruction budget, a configurable recursion-depth limit, and external cancellation via a
 // `CancellationSignal`. These exercise `ExecuteOptions` directly with small explicit overrides
 // rather than relying on the production defaults (500 depth / 1,000,000 instructions) or on

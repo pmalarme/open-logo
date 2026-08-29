@@ -3,7 +3,7 @@
  * **As first delivered (issue #113)** this file covered a
  * `define`/`local` registration whose name
  * collides with a keyword, a Core primitive, or an existing procedure, raising
- * `ol-reserved-word` with `params: { name, namespace }` (`spec/error-model.md:123`). Issue #405
+ * `ol-reserved-word` with `params: { name, namespace }` (`spec/error-model.md:125`). Issue #405
  * extends this to the Data profile: a Data primitive (`dict`, `keys`, …) collides the same way a
  * Core primitive does when `"data"` is active, and `struct` type-name registrations — which
  * declare a same-named constructor reporter, `spec/data-structures.md:252-266` — are now checked

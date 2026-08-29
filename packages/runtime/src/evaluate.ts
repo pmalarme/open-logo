@@ -5212,14 +5212,14 @@ function comprehensionDuplicateBinder(
 }
 
 /**
- * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
- * examples `:695-741`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:411-440`, worked
+ * traces `:883-919`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
  * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
- * empty, `spec/execution-model.md:402`).
+ * empty, `spec/execution-model.md:433`).
  */
 function evaluateComprehension(
   node: ComprehensionNode,

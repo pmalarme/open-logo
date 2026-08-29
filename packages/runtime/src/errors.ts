@@ -17,7 +17,7 @@
  * diagnostics: `ol-type` for a `for ... in` iterable that is not a list
  * (`spec/execution-model.md:397-398` — Core `for ... in` is list-only), `ol-range` for a
  * `for ... from ... to ... by 0` step (`spec/execution-model.md:396-397`), a destructuring
- * pattern/element length mismatch (`spec/execution-model.md:460-461`), and `ol-duplicate-binder`
+ * pattern/element length mismatch (`spec/execution-model.md:469-470`), and `ol-duplicate-binder`
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
  * `stage: "runtime"` since `execute()` never runs `check()`.
@@ -29,7 +29,7 @@
  * the runtime's own copies of the checker's `ol-return-outside-proc`/`ol-stop-outside-proc`
  * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above; and
  * `ol-limit` for a procedure call nested past a configured recursion-depth threshold
- * (`spec/execution-model.md:551-557`), so unbounded recursion raises a friendly diagnostic instead
+ * (`spec/execution-model.md:634-638`), so unbounded recursion raises a friendly diagnostic instead
  * of a raw host stack overflow. Issue #105 adds comprehension diagnostics: `ol-type` for a
  * `map`/`filter`/`reduce` iterable that is not a list; `ol-no-value` for a comprehension body
  * whose last statement produces no value; `ol-return-in-comprehension` for a `return`/`stop`
@@ -409,7 +409,7 @@ function canonicalEscapeKeyword(
 
 /**
  * Params for `ol-no-value`: a comprehension body's last statement does not produce a value
- * (`spec/execution-model.md:225` — the block-result rule). Same `{form}` shape as the parser's
+ * (`spec/execution-model.md:228-229` — the rule that names `ol-no-value`). Same `{form}` shape as the parser's
  * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity.
  */
 export interface NoValueParams {
@@ -1333,7 +1333,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: execution was cancelled from outside the program (`spec/execution-model.md:
-   * 551-557` — "implementations must support cancellation"), e.g. a learner pressing Stop while
+   * 634-638` — "implementations must support cancellation"), e.g. a learner pressing Stop while
    * a program is still running. `params.limit` is `"cancelled"`; there is no numeric threshold,
    * so unlike `recursionLimit`/`instructionLimit` there is no `value` param.
    */

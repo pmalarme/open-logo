@@ -3,7 +3,7 @@
  * `check()`'s dispatch (`check.ts`). It walks every call site (`Call`/`ParenCall` — a bare
  * variable read or non-callable node is never in scope here; that is `ol-undefined-var`'s job,
  * #113) and flags a callee name that is not in {@link collectVisibleNames}'s visible set, with a
- * Levenshtein did-you-mean suggestion per `spec/error-model.md:129-151` /
+ * Levenshtein did-you-mean suggestion per `spec/error-model.md:196-216` /
  * `spec/tooling.md:178-180`.
  */
 

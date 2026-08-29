@@ -4331,7 +4331,7 @@ type ProcedureOutcome =
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
  * raises `ol-limit` at the callee span instead of recursing further, so an unbounded recursive
  * procedure degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack
- * size exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check
+ * size exceeded` (`spec/execution-model.md:634-638`). A depth marker is pushed once the check
  * passes and popped in a `finally` covering the rest of this function, so it is removed on every
  * exit path — a clean return, a `stop`, or a diagnostic partway through argument/default
  * evaluation or the body itself. `recursionDepthLimit` defaults to
@@ -4616,7 +4616,7 @@ function callProcedureAsValue(
  * destructuring binder (`evaluate.ts`'s {@link bindElement}) binds each of its names positionally
  * from the element, which must
  * itself be a list of exactly that many items (`ol-range` otherwise —
- * `spec/execution-model.md:460-461`). A duplicate name within one destructuring pattern
+ * `spec/execution-model.md:469-470`). A duplicate name within one destructuring pattern
  * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
  * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
  *
@@ -5187,7 +5187,7 @@ function executeStatements(
 /**
  * Default instruction-execution budget and procedure-call recursion-depth limit applied by
  * {@link createExecutionEnvironment} when a real `execute()` call's {@link ExecuteOptions} does
- * not override them (issue #102, `spec/execution-model.md:551-557`). `DEFAULT_RECURSION_DEPTH_LIMIT`
+ * not override them (issue #102, `spec/execution-model.md:634-638`). `DEFAULT_RECURSION_DEPTH_LIMIT`
  * is the exact value this file previously hardcoded as `MAX_PROCEDURE_CALL_DEPTH` — only its name
  * and configurability changed, not the default behavior, so existing recursion-limit tests need
  * no update. `DEFAULT_INSTRUCTION_BUDGET` is generous enough that any ordinary, terminating
@@ -5303,7 +5303,7 @@ export function resolveEffectiveRecursionDepthLimit(
  * `index.ts`'s `randomSeed` bullet).
  *
  * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
- * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
+ * 634-638` requires — `instructionBudget`/`recursionDepthLimit` fall back to
  * {@link DEFAULT_INSTRUCTION_BUDGET}/{@link DEFAULT_RECURSION_DEPTH_LIMIT} when omitted OR when
  * supplied but not a usable finite positive limit (see {@link resolvePositiveFiniteLimit} — a
  * caller cannot disable the safety gate by passing `Infinity`/`NaN`/a non-positive number);

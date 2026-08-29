@@ -1232,7 +1232,7 @@ test("loadFixture rejects malformed fixture schema", () => {
           params: {},
           stage: "parse",
           severity: "error",
-          // message is optional per spec/error-model.md:254-259
+          // message is optional in a FIXTURE: the harness compares identity, not prose
         },
       ],
     }),

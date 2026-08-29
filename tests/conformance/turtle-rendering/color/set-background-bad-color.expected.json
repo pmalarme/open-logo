@@ -1,5 +1,5 @@
 {
-  "description": "issue #208: `set_background \"reddish\"` is not one of the three accepted color forms, so it raises `ol-bad-color` (spec/error-model.md:122) instead of emitting a `background-change` event.",
+  "description": "issue #208: `set_background \"reddish\"` is not one of the three accepted color forms, so it raises `ol-bad-color` (spec/error-model.md:124) instead of emitting a `background-change` event.",
   "profiles": ["turtle-rendering"],
   "execute": true,
   "events": [

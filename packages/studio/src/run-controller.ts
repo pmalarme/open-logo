@@ -2,7 +2,7 @@
  * The Run/Stop/Reset/Step controller (#126) — wires the shared studio state model (#123) to
  * `@openlogo/runtime`'s {@link execute} and the execution-safety gates issue #102 added
  * (`ExecuteOptions.instructionBudget`/`recursionDepthLimit`/`signal`,
- * `spec/execution-model.md:623-629`). This module composes the runtime only: it never
+ * `spec/execution-model.md:634-638`). This module composes the runtime only: it never
  * re-implements evaluation, and every printed value it surfaces is already in the runtime's own
  * canonical form (`printedForm`), never re-formatted here.
  *

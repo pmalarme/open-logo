@@ -27,7 +27,7 @@ test("a procedure is callable before its textual definition (whole-program hoist
   assert.deepEqual(printed, ["hi"]);
 });
 
-test("unbounded recursion raises a friendly ol-limit diagnostic instead of a host stack overflow (spec/execution-model.md:551-557)", () => {
+test("unbounded recursion raises a friendly ol-limit diagnostic instead of a host stack overflow (spec/execution-model.md:634-638)", () => {
   const result = execute(
     "define loop_forever\n  loop_forever\nend\nloop_forever",
     doc,

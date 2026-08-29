@@ -1,7 +1,7 @@
 // Unit tests for OpenLogo comment handling (issue #64), validated against the merged parser
 // on main. Comments are whitespace per spec/grammar.md:32,68-70: `#` and `//` start line
 // comments; `/* */` is a non-nesting block comment; an unterminated block comment raises
-// `ol-unclosed-comment` (spec/error-model.md:107). These tests cover cases not already
+// `ol-unclosed-comment` (spec/error-model.md:108). These tests cover cases not already
 // exercised by parse.test.mjs's "treats line and block comments as whitespace" test: a
 // comment-only program, comment markers as literal text inside strings, blank/comment
 // interleaving preserving following spans, and the unclosed-block-comment diagnostic.

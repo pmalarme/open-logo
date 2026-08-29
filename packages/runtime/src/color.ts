@@ -4,7 +4,7 @@
  * section: a color argument is exactly one of a named color word from the normative 11-color
  * palette, an `[r g b]` list of three numbers each `0` through `255`, or a `"#rrggbb"` hex word.
  * Anything else — an unknown word, a wrong-length or out-of-range-component list, or a malformed
- * hex word — is `ol-bad-color` (`spec/error-model.md:122`); the caller raises that diagnostic
+ * hex word — is `ol-bad-color` (`spec/error-model.md:124`); the caller raises that diagnostic
  * whenever {@link normalizeColor} returns `undefined`.
  *
  * Deliberately runtime-local rather than importing `@openlogo/turtle`'s own color handling: the
