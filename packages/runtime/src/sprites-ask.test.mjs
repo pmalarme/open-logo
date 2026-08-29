@@ -139,10 +139,15 @@ test("who inside the ask block reports the addressed turtle; after the block it 
   assert.deepEqual(prints, [true, true]);
 });
 
-test("ask restores its scope even when the block throws (the diagnostic still surfaces)", () => {
-  // The block errors mid-way with `throw`; the whole program halts (throw propagates), but the
-  // restore runs in a `finally` so the addressing object never leaks the block's set. The `ol-user-
-  // error` from the throw is what surfaces.
+test("a `throw` inside an ask block surfaces its ol-user-error", () => {
+  // The block throws, and `ol-user-error` surfaces in `result.diagnostics`. That single diagnostic
+  // is the whole of what the assertion below establishes (issue #753) — not that the program halts,
+  // which nothing here could show, since no statement follows the `ask`.
+  //
+  // Nor the addressed-set restore: that comes from the `try`/`finally` in `executeAsk`, whose
+  // `restoreAddressedSet` emits the restored set on every exit path. sprites-addressing-
+  // events.test.mjs proves it from output on the analogous halting path — "a runtime error inside
+  // ask still publishes the restored set before the run halts" — from a different program.
   const result = execute(
     ':a = new_turtle\ntell :a\nask [ ] [ throw "boom" ]',
     "main.logo",
