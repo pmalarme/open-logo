@@ -309,20 +309,32 @@
  * would make two identical play sessions produce different event streams, destroying the replay
  * determinism `input` already depends on (#881).
  *
- * So the studio assigns the ticks itself: **the *n*-th input delivered to a run is scheduled at
- * tick *n***, from a counter that starts at 1 when `run()` starts a chain. Nothing about *when* the
- * learner pressed the key is recorded, only *how many* inputs preceded it. The schedule is therefore
- * a pure function of the input sequence, and "same seed + same input schedule ⇒ byte-identical event
- * stream" holds exactly as it does for the answer FIFO. The runtime imposes the normative same-tick
- * order (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
+ * So the studio assigns the ticks itself. Until #985 that was **the *n*-th input at tick *n***, from
+ * a counter starting at 1 — which is exactly what F3 was: a delivery could land at a tick that had
+ * already passed before its handler registered, and the presses lost equalled the lead `wait`'s tick
+ * count. Since #985 the tick comes from the run's own timeline
+ * (`ExecuteOptions.tickTimeline` + `tickAtEventIndex`), read at the event the animation has drawn —
+ * "the tick the learner is looking at". Nothing about *when* the learner pressed the key is
+ * recorded, only where the program had got to, so the schedule stays a pure function of the input
+ * sequence and the program, and "same seed + same input schedule ⇒ byte-identical event stream"
+ * holds exactly as it does for the answer FIFO. The runtime imposes the normative same-tick order
+ * (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
  * reasons about ordering either.
  *
- * That mapping also gives the program the last word on its own lifetime, for free: `10-game.logo`
- * ends with `wait 300`, so its tick clock visits ticks 1…300 and the 300th delivery is the last one
- * that can fire. A press past that is still scheduled and still replayed; it simply reaches a tick
- * the program never gets to, and `deliverKey` reports `false` for it because nothing ran. The
- * boolean's one definition lives on {@link RunController.deliverKey}, where it is produced — it is
- * deliberately not restated here, because two sentences describing one boolean is exactly how the
+ * Two consequences of scheduling against the real clock, both deliberate and both recorded in
+ * `packages/studio/README.md`:
+ * - a program is responsive for as many inputs as the learner gives it. The old counter capped the
+ *   presses at the program's tick count; `spec/interaction-events.md:381-384` names *cancellation*
+ *   as what "stops future handler delivery", and nothing names tick exhaustion.
+ * - under this synchronous replay host a handler registered **by** a handler cannot be reached,
+ *   because a completed replay has one tick to deliver into and the runtime claims pending keys
+ *   against the handlers existing when that tick's dispatch begins. It fails visibly (the inner
+ *   handler does not fire; nothing is swallowed), a paced host does not exhibit it, and the
+ *   language-level contract is unaffected — the conformance corpus schedules such a case at an
+ *   explicit tick and it stays clean. See **#977**.
+ *
+ * The boolean's one definition lives on {@link RunController.deliverKey}, where it is produced — it
+ * is deliberately not restated here, because two sentences describing one boolean is exactly how the
  * two of them diverged and had to be reconciled twice.
  *
  * ### What a delivery costs
@@ -412,7 +424,12 @@
  * field carries a tick), and is tracked on **#985** alongside **#976**.
  */
 
-import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
+import { tickAtEventIndex } from "@openlogo/runtime";
+import type {
+  CancellationSignal,
+  HostInputEvent,
+  TickBoundary,
+} from "@openlogo/runtime";
 import type {
   Diagnostic,
   PrimitivePayload,
@@ -606,7 +623,7 @@ export interface RunController {
    * reports whether *this press actually ran a handler*, compared as a strict increase in `on_key`
    * invocation markers across this one delivery (see `onKeyInvocationsByKeyWord`). It is `false`
    * for a key no handler names, for a handler the run never reached, for a press scheduled before
-   * the handler registered, and for a press past the program's final usable tick.
+   * the handler registered, and for a program whose clock reaches no dispatch checkpoint at all.
    *
    * Every formulation that answers from *history* rather than from this delivery re-creates silent
    * interception somewhere, and four did: stream length inverted on the error path, a settle-later
@@ -980,31 +997,15 @@ export function createRunController(
   // "#952"). `chainAcceptsHostInput` is the delivery window: `run()` opens it, Stop and Reset close
   // it, and a lazy `step()` preparation never opens it at all.
   let hostInputEvents: readonly HostInputEvent[] = [];
-  let nextHostInputTick = 1;
+  // #985 — the current chain's tick timeline, from the last settlement. It is what makes a delivery
+  // land at the tick the PROGRAM is at rather than at a count of how many deliveries preceded it.
+  let chainTickTimeline: readonly TickBoundary[] = [];
   let chainAcceptsHostInput = false;
   // #952 (review round 2/3) — the `on_key` declarations this chain's program contains, computed once
   // per chain from the captured source, each with the source position the runtime stamps its
   // registration with. `null` means at least one `on_key` names a non-literal key, so the set is
   // unknowable before the run. See `key-words.ts`'s `collectDeclaredKeyHandlers`.
   let declaredKeyHandlers: readonly DeclaredKeyHandler[] | null = null;
-  // #952 (review round 1/3) — has this chain ever put an `input` question to the learner? Once it
-  // has, the chain stops accepting delivered input for good, under **every** host.
-  //
-  // Round 3 measured why a narrower rule does not hold. Reopening after the read finishes looks
-  // right — `spec/interaction-events.md:108-111` blocks handlers only "until the read finishes" —
-  // but the studio has no tick for that boundary, so the next delivery is scheduled at tick 1 and
-  // the replay reaches an *earlier* point than the learner has already observed: measured, a key
-  // scheduled at tick 1 introduced a question the learner had never seen, erased output they had
-  // already read, and left a prompt open over a `"done"` status. `resolveRecordedAnswer`'s prompt
-  // pairing stops an answer reaching the wrong question; it cannot stop history being rewritten.
-  //
-  // So the two input sources never coexist in one chain. That is stricter than the spec requires,
-  // and it is a real limitation for a program that asks a question and then expects key presses —
-  // tracked as **#976**, and documented in `packages/studio/README.md` rather than absorbed
-  // silently. Closing it depends on **#975** (a runtime delivery boundary, or live host input,
-  // instead of a static pre-run schedule). `run()`/`reset()` start a fresh chain and reopen the
-  // window.
-  let chainHasAskedQuestion = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
   // under a host that settles across event-loop turns — is still SCHEDULED and simply replayed when
@@ -1272,6 +1273,9 @@ export function createRunController(
   ): TurtleAnimationController {
     answers = settlement.retainedAnswers;
     currentEvents = settlement.events;
+    // #985 — this attempt's tick timeline becomes the chain's, so the NEXT delivery is scheduled
+    // against the clock of the run the learner is currently watching.
+    chainTickTimeline = settlement.tickTimeline ?? [];
     preparedSource = sourceText;
     // `host` is captured into `pendingRead` so a question can only ever exist when a host was
     // supplied — true by construction rather than by a runtime check.
@@ -1279,12 +1283,6 @@ export function createRunController(
       settlement.pendingPrompt !== null && host !== undefined
         ? { prompt: settlement.pendingPrompt, host }
         : null;
-    if (pendingRead !== null) {
-      // #952 — this chain has now asked something, so it stops accepting delivered input for good.
-      // Latched (never cleared by an answer) because the hazards are about the chain's answer FIFO
-      // existing at all, not about a question being outstanding right now — see the field's docs.
-      chainHasAskedQuestion = true;
-    }
 
     // #769 — a probe (an attempt that ended on an unanswered read) withholds its diagnostics until
     // the learner actually dismisses the question; see this module's doc comment for why the only
@@ -1434,13 +1432,27 @@ export function createRunController(
   }
 
   /**
-   * Schedule one host input at the chain's next tick (#952). Tick *n* for the *n*-th delivery — the
-   * counter is the whole of the wall-clock-to-tick mapping, which is why two identical play
-   * sessions produce byte-identical event streams. See this module's doc comment ("#952").
+   * Schedule one host input at the tick the program itself has reached (#985). Tick *n* for the
+   * *n*-th delivery — a synthetic counter unrelated to the program's clock — is what #985's F3 was:
+   * measured on `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost equalled the lead's
+   * tick count exactly, because each early delivery was scheduled at a tick that had already passed
+   * before the handler existed.
+   *
+   * The tick now comes from the run's own {@link TickBoundary} timeline, read at the event the
+   * animation has actually drawn — so it is "the tick the learner is looking at", not "how many keys
+   * they have pressed". That keeps the schedule a pure function of the input sequence *and the
+   * program*, never of the wall clock, so two identical play sessions still produce byte-identical
+   * event streams.
+   *
+   * A delivery is never scheduled *before* one already in the schedule: the runtime requires
+   * non-decreasing ticks (`enqueueHostInput`'s forward cursor would otherwise strand an entry behind
+   * a later-tick one), and a learner cannot press a key at an earlier moment than their previous
+   * press. Both facts point the same way, so the tick is clamped up to the last one scheduled.
    */
   function scheduleHostInput(occurrence: HostInputOccurrence): void {
-    const tick = nextHostInputTick;
-    nextHostInputTick += 1;
+    const drawnTick = tickAtEventIndex(chainTickTimeline, drawnEventCount);
+    const lastScheduled = hostInputEvents.at(-1)?.tick ?? 0;
+    const tick = Math.max(drawnTick, lastScheduled);
     hostInputEvents = [...hostInputEvents, { ...occurrence, tick }];
   }
 
@@ -1487,23 +1499,26 @@ export function createRunController(
   }
 
   /**
-   * Is this chain accepting delivered input at all (#952)? It must be live — `run()` opens the
-   * window, Stop and Reset close it, and a lazy `step()` preparation never opens it — no question may
-   * be outstanding (`spec/interaction-events.md:108-111` forbids running a handler block until a read
-   * finishes), and the answer chain must not be mid-pump.
+   * Is this chain accepting delivered input at all (#952, narrowed by #976)? It must be live —
+   * `run()` opens the window, Stop and Reset close it, and a lazy `step()` preparation never opens
+   * it — no question may be outstanding (`spec/interaction-events.md:108-111` forbids running a
+   * handler block until a read finishes), and the answer chain must not be mid-pump.
    *
    * The `pumping` check is what keeps a prompt host that answers **synchronously from inside
    * `present()`** from being handed one more read per answer, which review measured as the quadratic
-   * hang the "#881" section above describes. The `chainHasAskedQuestion` check applies to **every**
-   * host — see that field for the measurement that forces it.
+   * hang the "#881" section above describes.
+   *
+   * **#976 removed the fourth check.** Until this slice a chain that had *ever* asked a question
+   * refused delivery for the rest of its life, which is stricter than `:108-111` — the spec blocks
+   * handlers only "until the read finishes". That gate existed because a delivery was scheduled at a
+   * synthetic tick that could land *before* the read, rewriting history the learner had already
+   * observed. #985's tick timeline removes the cause: a delivery is now scheduled at the tick the
+   * learner is actually looking at, which is never earlier than the read they have already answered.
+   * `pendingRead === null` is what enforces `:108-111` itself, and it is transient exactly as the
+   * spec's "until" is.
    */
   function acceptsHostInput(): boolean {
-    return (
-      chainAcceptsHostInput &&
-      pendingRead === null &&
-      !pumping &&
-      !chainHasAskedQuestion
-    );
+    return chainAcceptsHostInput && pendingRead === null && !pumping;
   }
 
   /**
@@ -1526,9 +1541,8 @@ export function createRunController(
     // #952 (review round 7) — the answer is "did **this press** run a handler", compared strictly
     // across this one delivery. Membership of an "ever responded" set was tried and is unsound in
     // the same direction as every earlier mechanism: invocation counts `[0,1,2,2]` produced returns
-    // `[true,true,true]`, so a press past the program's final usable tick ran nothing and was still
-    // suppressed. Every formulation that answers from history rather than from this delivery
-    // re-creates silent interception somewhere.
+    // `[true,true,true]`, so a press that ran nothing was still suppressed. Every formulation that
+    // answers from history rather than from this delivery re-creates silent interception somewhere.
     const before =
       declared === null
         ? 0
@@ -1586,13 +1600,15 @@ export function createRunController(
     // A capability question ("can a click reach a handler in this run"), not a right-now one: the
     // transient blockers in `acceptsHostInput` — a question outstanding, an answer chain mid-pump —
     // come and go within a single `run()` call, and hiding the control for those moments would make
-    // a tab stop flicker in and out under the learner. `chainHasAskedQuestion` is **not** transient:
-    // it closes delivery for the rest of the chain, so a control left visible past it would be a
-    // permanently inert tab stop (measured in review).
+    // a tab stop flicker in and out under the learner.
+    //
+    // #976 removed the `chainHasAskedQuestion` term here too. It was included precisely because it
+    // was NOT transient — it closed delivery for the rest of the chain, so a control left visible
+    // past it would be a permanently inert tab stop (measured in review). Now that a chain which has
+    // asked a question keeps accepting input, there is no permanent closure to reflect, and the
+    // control correctly stays available to a program that asks a question and then expects clicks.
     return (
-      chainAcceptsHostInput &&
-      !chainHasAskedQuestion &&
-      hasRegisteredHandler(currentEvents, "on_click")
+      chainAcceptsHostInput && hasRegisteredHandler(currentEvents, "on_click")
     );
   }
 
@@ -1617,9 +1633,8 @@ export function createRunController(
     // depends only on this run's own input sequence. This is also the one place the delivery window
     // opens.
     hostInputEvents = [];
-    nextHostInputTick = 1;
+    chainTickTimeline = [];
     chainAcceptsHostInput = true;
-    chainHasAskedQuestion = false;
     declaredKeyHandlers = collectDeclaredKeyHandlers(chainSource);
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
@@ -1719,9 +1734,8 @@ export function createRunController(
     // #952 — a Reset closes the delivery window and discards the schedule, so the next `run()`
     // starts a genuinely fresh chain in this dimension too, exactly as it does for the answer FIFO.
     hostInputEvents = [];
-    nextHostInputTick = 1;
+    chainTickTimeline = [];
     chainAcceptsHostInput = false;
-    chainHasAskedQuestion = false;
     declaredKeyHandlers = null;
     drawnEventCount = 0;
     signal.aborted = false;

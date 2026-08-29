@@ -78,6 +78,54 @@ export function createTickClock(): TickClock {
 }
 
 /**
+ * One entry of the **tick timeline** (issue #985): at the moment the clock advanced to `tick`,
+ * `eventCount` trace events had been emitted. A host reads the pair to answer "which tick was the
+ * program at when it emitted event *i*" — the tick of the last boundary whose `eventCount` is at
+ * most *i*, and tick `0` before the first boundary.
+ *
+ * ## Why this is out of band, and must stay so
+ * `spec/interaction-events.md:69-73` makes the tick "an implementation-defined logical frame used by
+ * rendering, animation, and event dispatch", and this file's header records the consequence: **no
+ * trace-event payload carries a tick**, which is what keeps the stream headless and a run's events
+ * reproducible from source + seed + input schedule alone. This timeline is therefore a **separate,
+ * caller-supplied sink** exactly like {@link ExecuteOptions.observedEvents} — never a new payload
+ * field. Do not "simplify" it later by widening `PrimitivePayload` to carry a tick: that would smuggle
+ * host-facing timing into the normative stream and break the determinism `input` replay depends on.
+ *
+ * ## Why boundaries rather than one entry per event
+ * The clock advances in exactly one place ({@link runWait}'s per-tick loop), while trace events are
+ * emitted from ~40 sites. Recording the boundary where the *clock* moves is one hook that yields the
+ * same information as a per-event array, at a fraction of the size — a run that never waits records
+ * nothing at all.
+ */
+export interface TickBoundary {
+  readonly tick: number;
+  readonly eventCount: number;
+}
+
+/**
+ * The tick at which `events[eventIndex]` was emitted, per `timeline` (issue #985). Events emitted
+ * before the first tick advance belong to tick `0`, which is the program's own starting tick — so a
+ * run that never waits reports `0` for every event, correctly rather than by fallback.
+ *
+ * Lives here, beside the producer, so a host never re-derives the lookup and cannot disagree with the
+ * runtime about what a boundary means.
+ */
+export function tickAtEventIndex(
+  timeline: readonly TickBoundary[],
+  eventIndex: number,
+): number {
+  let tick = 0;
+  for (const boundary of timeline) {
+    if (boundary.eventCount > eventIndex) {
+      break;
+    }
+    tick = boundary.tick;
+  }
+  return tick;
+}
+
+/**
  * Advance `clock` by exactly one tick. Pair this with {@link yieldToEventLoop}: `wait` advances the
  * clock one tick at a time and yields to the event loop after each advance, so the two together are
  * the seam the rest of the Interaction & Events track (issues #682–#686) hangs handler dispatch
@@ -208,6 +256,7 @@ export function runWait(
   count: number,
   source_span: SourceSpan,
   dispatch: TickDispatch,
+  tickTimeline?: TickBoundary[],
 ): boolean {
   if (count === 0) {
     // `wait 0` yields to the event loop at the current tick without advancing it (a spec-mandated
@@ -226,6 +275,11 @@ export function runWait(
   }
   for (let elapsed = 0; elapsed < count; elapsed += 1) {
     advanceTickClock(tickClock);
+    // #985 — the one place the clock moves is the one place the timeline is recorded. Written
+    // BEFORE dispatch, so a handler firing on this tick is attributed to the tick it ran on rather
+    // than to the previous one; the events that handler emits land past this boundary's
+    // `eventCount` and therefore read back as this tick.
+    tickTimeline?.push({ tick: tickClock.tick, eventCount: events.length });
     if (yieldToEventLoop(tickClock, dispatch)) {
       return true;
     }

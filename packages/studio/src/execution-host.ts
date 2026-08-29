@@ -53,6 +53,7 @@ import type {
   ExecuteOptions,
   HostInput,
   HostInputEvent,
+  TickBoundary,
 } from "@openlogo/runtime";
 import type {
   Diagnostic,
@@ -207,6 +208,18 @@ export interface ExecutionSettlement {
   readonly pendingPrompt: string | null;
   /** The answers the chain keeps — see {@link RecordedAnswerResolution.retained}. */
   readonly retainedAnswers: readonly RecordedAnswer[];
+  /**
+   * This run's **tick timeline** (#985) — one {@link TickBoundary} per elapsed tick, from
+   * `@openlogo/runtime`'s `ExecuteOptions.tickTimeline`. Paired with `tickAtEventIndex` it answers
+   * "which tick was the program at when it emitted event *i*", which is how the controller
+   * schedules a delivery against the program's own clock instead of a counter of its own.
+   *
+   * Optional so a host that predates the seam still type-checks; absent, the controller degrades to
+   * the pre-#985 behaviour rather than guessing a tick. It crosses a Worker boundary as plain data
+   * (numbers only), so it survives structured clone unchanged — unlike the values in a `print`
+   * event, which is why this can be carried while `output` cannot.
+   */
+  readonly tickTimeline?: readonly TickBoundary[];
 }
 
 /** How a host reports a settled view of the run it was given. */
@@ -300,6 +313,7 @@ export function toExecuteOptions(
   request: ExecutionRequest,
   signal: CancellationSignal,
   read: ((prompt: string) => string | undefined) | undefined,
+  tickTimeline?: TickBoundary[],
 ): ExecuteOptions {
   const hostInputEvents = request.hostInputEvents ?? [];
   const hostInput: HostInput = {
@@ -310,6 +324,10 @@ export function toExecuteOptions(
     signal,
     tutorTemplates: eduTutorTemplate,
     randomSeed: request.randomSeed,
+    // #985 — the tick-timeline sink, when the caller wants one. Every host composes it here for the
+    // same reason each already composes `tutorTemplates` here: one place decides, so the two hosts
+    // cannot drift on what a run is given.
+    ...(tickTimeline === undefined ? {} : { tickTimeline }),
     ...(read === undefined && hostInputEvents.length === 0
       ? {}
       : { hostInput }),
@@ -372,10 +390,11 @@ export function createInProcessExecutionHost(
           }
         : undefined;
 
+      const tickTimeline: TickBoundary[] = [];
       const result = execute(
         request.source,
         request.document,
-        toExecuteOptions(request, options.signal, read),
+        toExecuteOptions(request, options.signal, read, tickTimeline),
       );
 
       settle({
@@ -385,6 +404,7 @@ export function createInProcessExecutionHost(
         diagnostics: result.diagnostics,
         pendingPrompt,
         retainedAnswers,
+        tickTimeline,
       });
     },
     cancel() {

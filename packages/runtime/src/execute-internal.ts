@@ -2350,6 +2350,7 @@ function executeWaitCall(
       }
       return false;
     },
+    environment.tickTimeline,
   );
   if (interrupted && dispatchSignal) {
     return dispatchSignal;
@@ -5637,6 +5638,10 @@ function createExecutionEnvironment(
       options?.randomSeed,
     ),
     tickClock: createTickClock(),
+    // #985 — the host's tick-timeline sink when one was supplied. `undefined` for every ordinary
+    // run, so nothing is recorded and no allocation happens. See `interaction.ts`'s
+    // `TickBoundary` for why this is a separate sink rather than a trace payload field.
+    tickTimeline: options?.tickTimeline,
     // #975 — the host's registration-log and delivery-report sinks when supplied. `undefined` for
     // every ordinary run, so nothing is recorded and no record is allocated. See `interaction.ts`'s
     // `HandlerRegistration`/`HandlerDelivery` for the questions they answer.

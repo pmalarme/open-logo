@@ -295,7 +295,7 @@ test("#952: spec/examples/10-game.logo is playable — its clicks print the runn
   );
 });
 
-test("#952: the delivered schedule is tick-based and carries no wall clock — the n-th input takes tick n", () => {
+test("#985: the delivered schedule is tick-based and carries no wall clock — each input takes the tick the PROGRAM is at", () => {
   const store = OL.createStudioState({ source: TEN_GAME_SOURCE });
   const recorder = createRecordingHost();
   const controller = OL.createRunController(store, {
@@ -308,22 +308,32 @@ test("#952: the delivered schedule is tick-based and carries no wall clock — t
   controller.deliverClick();
   controller.deliverKey("up");
 
+  const schedules = recorder.requests.map((request) => request.hostInputEvents);
   assert.deepEqual(
-    recorder.requests.map((request) => request.hostInputEvents),
-    [
-      [],
-      [{ tick: 1, kind: "key", key: "left" }],
-      [
-        { tick: 1, kind: "key", key: "left" },
-        { tick: 2, kind: "click" },
-      ],
-      [
-        { tick: 1, kind: "key", key: "left" },
-        { tick: 2, kind: "click" },
-        { tick: 3, kind: "key", key: "up" },
-      ],
-    ],
-    "each delivery must extend the schedule by exactly one entry at the next tick",
+    schedules.map((schedule) => schedule.length),
+    [0, 1, 2, 3],
+    "each delivery extends the schedule by exactly one entry",
+  );
+  assert.deepEqual(
+    schedules.at(-1).map((entry) => entry.kind),
+    ["key", "click", "key"],
+    "in the order they were delivered",
+  );
+
+  // #985 — the tick is the program's, not a counter's. `10-game.logo` ends on a long `wait`, so a
+  // delivery made after it has played out lands at the tick it actually reached: the SAME tick for
+  // each, rather than 1, 2, 3. What must hold is that the ticks are non-decreasing (the runtime's
+  // host-input cursor strands an entry scheduled behind an earlier one) and are a real tick of this
+  // program rather than an ordinal.
+  const ticks = schedules.at(-1).map((entry) => entry.tick);
+  assert.deepEqual(
+    ticks,
+    [...ticks].sort((left, right) => left - right),
+    "ticks must be non-decreasing",
+  );
+  assert.ok(
+    ticks[0] > 3,
+    `the tick must come from the program's clock, not from a 1,2,3… counter (got ${JSON.stringify(ticks)})`,
   );
 });
 
@@ -497,9 +507,12 @@ test("#952: reset() discards the schedule, so the next run starts a genuinely fr
     ["1"],
     "the score restarts because the new chain carries none of the old chain's input",
   );
-  assert.deepEqual(recorder.requests.at(-1).hostInputEvents, [
-    { tick: 1, kind: "click" },
-  ]);
+  assert.equal(
+    recorder.requests.at(-1).hostInputEvents.length,
+    1,
+    "the new chain's schedule holds exactly the one click made since reset()",
+  );
+  assert.equal(recorder.requests.at(-1).hostInputEvents[0].kind, "click");
 });
 
 test("#952: a delivery is refused while an input question is outstanding (spec/interaction-events.md:108-111)", () => {
@@ -570,7 +583,17 @@ test("#952: a delivered run is the SAME run — it files no extra run-log entry 
   ]);
 });
 
-test("#952: the program's own tick budget bounds delivery — input past its last tick reaches nothing", () => {
+test("#985: a program stays responsive for as many presses as the learner makes — the old bound was the counter's, not the program's", () => {
+  // Until #985 the n-th press was scheduled at tick n, so `wait 2` accepted exactly TWO presses and
+  // went silent: the number of presses a learner could make equalled the program's tick count, which
+  // is an artifact of the counter rather than anything the program or the spec says.
+  //
+  // `spec/interaction-events.md:381-384` names what stops delivery — "Cancellation stops future
+  // handler delivery and sound scheduling" — and `:152-156` makes `"stop"` a *requested*
+  // notification. Neither names tick exhaustion, so there is no normative exhaustion stop
+  // condition to preserve. Scheduling against the real clock, each press lands at the tick the
+  // program is actually at, and the run stays interactive until Stop or Reset closes it — exactly
+  // what `chainAcceptsHostInput` has always encoded.
   const store = OL.createStudioState({
     source: ['on_key "left" [', '  print "turned"', "]", "wait 2"].join("\n"),
   });
@@ -579,15 +602,22 @@ test("#952: the program's own tick budget bounds delivery — input past its las
   });
 
   controller.run();
-  controller.deliverKey("left");
-  controller.deliverKey("left");
-  controller.deliverKey("left");
+  const claimed = [
+    controller.deliverKey("left"),
+    controller.deliverKey("left"),
+    controller.deliverKey("left"),
+  ];
 
+  assert.deepEqual(claimed, [true, true, true], "every press runs the handler");
   assert.deepEqual(
     store.getState().output,
-    ["turned", "turned"],
-    "`wait 2` visits ticks 1 and 2, so the third delivery has no tick left to fire on",
+    ["turned", "turned", "turned"],
+    "and the program's own output agrees with what each press claimed",
   );
+
+  // Stop is what ends responsiveness, and it still does.
+  controller.stop();
+  assert.equal(controller.deliverKey("left"), false);
 });
 
 test("#952 (review finding 2): the recorded schedule does NOT depend on how fast the host settles", () => {
@@ -624,15 +654,16 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
   );
   deferred.settleAll();
 
+  assert.equal(
+    deferred.requests.at(-1).hostInputEvents.length,
+    3,
+    "every press must reach the schedule — a press arriving while an execution is unsettled is " +
+      "buffered, never dropped (spec/interaction-events.md:91-93 requires the most recent key " +
+      "state to be preserved)",
+  );
   assert.deepEqual(
-    deferred.requests.at(-1).hostInputEvents,
-    [
-      { tick: 1, kind: "key", key: "left" },
-      { tick: 2, kind: "key", key: "left" },
-      { tick: 3, kind: "key", key: "left" },
-    ],
-    "every press must reach the schedule, at the ticks their call order fixed — a press " +
-      "arriving while an execution is unsettled is buffered, never dropped",
+    deferred.requests.at(-1).hostInputEvents.map((entry) => entry.key),
+    ["left", "left", "left"],
   );
   assert.deepEqual(store.getState().output, ["turned", "turned", "turned"]);
 
@@ -672,13 +703,19 @@ test("#952 (review finding 2): a deferred host and a synchronous host record the
   );
 });
 
-test("#952 (review round 3): a chain that has asked the learner a question stops accepting delivered input, under every host", () => {
-  // Round 3 measured why reopening after the read finishes does not hold: the studio has no tick for
-  // the read boundary, so the next delivery is scheduled at tick 1 and the replay reaches an
-  // *earlier* point than the learner has already observed — a question they never saw, output they
-  // had already read erased, a prompt open over a "done" status. `resolveRecordedAnswer` stops an
-  // answer reaching the wrong question; it cannot stop history being rewritten. So the two input
-  // sources never coexist in one chain.
+test("#976: a chain that has asked a question keeps accepting delivered input once the read finishes", () => {
+  // #952 refused delivery for the rest of any chain that had asked a question. That was stricter
+  // than `spec/interaction-events.md:108-111`, which blocks handlers only "until the read finishes
+  // or the program is cancelled" — an "until", not a "forever". The refusal existed because a
+  // delivery was scheduled at a synthetic tick that could land BEFORE the read, so the replay
+  // reached an earlier point than the learner had observed: a question they never saw, output they
+  // had already read erased, a prompt left open over a "done" status.
+  //
+  // #985's tick timeline removes that cause. A delivery is scheduled at the tick the learner is
+  // actually looking at, which is never earlier than a read they have already answered, so the
+  // permanent gate is DELETED rather than narrowed and `pendingRead === null` alone enforces
+  // `:108-111`. What must be asserted is therefore both halves: the key is delivered, AND the
+  // history the learner observed is not rewritten — the failure mode here produces no diagnostic.
   const source = [
     'on_key "left" [',
     '  print "turned"',
@@ -700,22 +737,32 @@ test("#952 (review round 3): a chain that has asked the learner a question stops
   assert.equal(
     controller.deliverKey("left"),
     false,
-    "spec/interaction-events.md:108-111 — no handler block while the read is outstanding",
+    "spec/interaction-events.md:108-111 — no handler block WHILE the read is outstanding",
   );
 
   host.respond("Ada");
   assert.deepEqual(store.getState().output, ["Ada"], "the answer was consumed");
+
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "and the window stays shut, so no replay can rewrite what the learner has already seen",
+    true,
+    "the read has finished, so :108-111 permits handlers again",
   );
   assert.deepEqual(
     store.getState().output,
-    ["Ada"],
-    "output the learner has read is never erased by a later delivery",
+    ["Ada", "turned"],
+    "the handler ran, and the output the learner had already read is EXTENDED, never rewritten",
   );
-  assert.deepEqual(host.prompts, ["who?"], "and no question is re-asked");
+  assert.deepEqual(
+    host.prompts,
+    ["who?"],
+    "and no question is re-asked — the replay reaches no earlier point than the learner observed",
+  );
+  assert.deepEqual(
+    store.getState().diagnostics,
+    [],
+    "history rewriting produces no diagnostic, so the assertions above are the only witness",
+  );
 
   // A chain that never asks anything is unaffected, even with a prompt host installed.
   const plainStore = OL.createStudioState({ source: ON_KEY_SOURCE });
@@ -727,7 +774,27 @@ test("#952 (review round 3): a chain that has asked the learner a question stops
   assert.equal(plainController.deliverKey("left"), true);
   assert.deepEqual(plainStore.getState().output, ["turned"]);
 
-  // The other host shape: one that suspends the read in place. Same rule, same reason.
+  // Reset still ends the chain: it is Stop/Reset that close delivery, not having asked a question.
+  const resetStore = OL.createStudioState({ source });
+  const resetHost = createPromptHost();
+  const resetController = OL.createRunController(resetStore, {
+    inputPrompt: resetHost,
+    randomSeedSource: pinnedSeed(7),
+  });
+  resetController.run();
+  resetHost.respond("Ada");
+  resetController.reset();
+  assert.equal(
+    resetController.deliverKey("left"),
+    false,
+    "Reset leaves no chain to deliver to",
+  );
+
+  // The other host shape: one that suspends the read IN PLACE rather than replaying (the Worker
+  // shape). #952's gate applied to every host, so this one refused delivery too; #976 removes the
+  // gate itself, so the rule is the same here — refuse WHILE the read is outstanding, accept once it
+  // resolves. Asserted separately because "under every host" was the original claim, and a fix that
+  // only reopened the replay host would leave the Worker deployment silently stricter.
   const inPlaceStore = OL.createStudioState({ source });
   const inPlaceHost = createPromptHost();
   const executionHost = createResolveInPlaceHost();
@@ -739,8 +806,18 @@ test("#952 (review round 3): a chain that has asked the learner a question stops
 
   inPlaceController.run();
   assert.deepEqual(inPlaceHost.prompts, ["who?"]);
+  assert.equal(
+    inPlaceController.deliverKey("left"),
+    false,
+    "a read is outstanding, so :108-111 forbids the handler block",
+  );
+
   inPlaceHost.respond("Ada");
-  assert.equal(inPlaceController.deliverKey("left"), false);
+  assert.equal(
+    inPlaceController.acceptsClick(),
+    false,
+    "this minimal host settles with no events, so it registered no on_click to accept",
+  );
 
   inPlaceController.reset();
   assert.equal(
@@ -902,7 +979,7 @@ test('#952 (QA finding 1): a `when "stop"` program whose clock never ticks recei
   assert.equal(store.getState().runStatus, "stopped");
 });
 
-test("#952 (review round 7): the boolean answers whether THIS press ran a handler — false once the program's ticks are exhausted", () => {
+test("#985: the boolean answers whether THIS press ran a handler — false for a key nothing names, and when the clock never ticks", () => {
   const store = OL.createStudioState({
     source: ['on_key "left" [', '  print "turned"', "]", "wait 1"].join("\n"),
   });
@@ -928,21 +1005,41 @@ test("#952 (review round 7): the boolean answers whether THIS press ran a handle
     "no handler names this key, so it must keep its ordinary browser behavior",
   );
 
-  // The case an "ever responded" set got wrong: invocation counts [0,1,2,2] returned
-  // [true,true,true], so this press ran nothing and was still suppressed. Comparing strictly
-  // across the delivery is what makes it false.
+  // #985 — a repeat press is now scheduled at the tick the program is at rather than at tick n, so
+  // it fires like the first. The old expectation here (`false`, because `wait 1` "never reaches
+  // tick 2") was pinning the synthetic counter's exhaustion artifact; `:381-384` names cancellation
+  // as what stops delivery, and nothing names tick exhaustion.
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "`wait 1` never reaches tick 2, so this press ran nothing and must not be suppressed",
+    true,
+    "a further press lands at a tick the program does reach, so it runs the handler",
   );
-  assert.deepEqual(store.getState().output, ["turned"]);
+  assert.deepEqual(store.getState().output, ["turned", "turned"]);
 
   assert.equal(
     recorder.requests.length,
     afterRun + 3,
     "each accepted delivery still costs one execution — the documented N+1 replay cost",
   );
+
+  // A program whose clock never advances still runs no handler, and the boolean says so — the
+  // direction that must NOT regress, since it is what keeps a key the program cannot use from being
+  // silently swallowed. Note `wait 0` is NOT such a program: it yields at tick 0 without advancing
+  // (spec/interaction-events.md's `wait <n>`), and that yield drains tick-0 input, so a delivery
+  // there does fire. Only a program with no `wait` at all never reaches a dispatch checkpoint.
+  const noTickStore = OL.createStudioState({
+    source: ['on_key "left" [', '  print "turned"', "]"].join("\n"),
+  });
+  const noTickController = OL.createRunController(noTickStore, {
+    randomSeedSource: pinnedSeed(7),
+  });
+  noTickController.run();
+  assert.equal(
+    noTickController.deliverKey("left"),
+    false,
+    "the clock never reaches a checkpoint, so this press ran nothing and must not be suppressed",
+  );
+  assert.deepEqual(noTickStore.getState().output, []);
 });
 
 test("#952 (review finding 2): a handler that RAISES still counts as this press having run one", () => {
@@ -1055,9 +1152,12 @@ test('#952 (review round 4): the `when "stop"` read is withdrawn under a host th
   assert.equal(store.getState().runStatus, "stopped");
 });
 
-test("#952 (review round 4): the activation control disappears once an input question closes delivery for good", () => {
-  // `acceptsClick()` had ignored `chainHasAskedQuestion`, so the button stayed in the tab order
-  // while `deliverClick()` returned `false` for the rest of the chain — a permanently inert stop.
+test("#976: the activation control stays available after a question is answered, because delivery does too", () => {
+  // #952's `acceptsClick()` excluded a chain that had asked a question, because delivery closed for
+  // that chain permanently and a visible control would have been an inert tab stop. #976 removes the
+  // permanent closure, so the control must stay — a program that asks a question and then expects
+  // clicks is exactly the case the issue is about, and hiding its control would be the same defect
+  // pointing the other way.
   const store = OL.createStudioState({
     source: [
       "on_click [",
@@ -1075,18 +1175,29 @@ test("#952 (review round 4): the activation control disappears once an input que
 
   controller.run();
   assert.deepEqual(host.prompts, ["who?"]);
+  assert.equal(
+    controller.acceptsClick(),
+    true,
+    "the control stays put while the question is open — the blocker is transient, and a tab stop " +
+      "must not flicker in and out under the learner",
+  );
 
   host.respond("Ada");
   assert.equal(
     controller.deliverClick(),
-    false,
-    "delivery is closed for the rest of this chain",
+    true,
+    "the read has finished, so a click reaches the handler again",
   );
+  assert.deepEqual(store.getState().output, ["clicked"]);
   assert.equal(
     controller.acceptsClick(),
-    false,
-    "…so the accessible activation must not stay in the tab order advertising it",
+    true,
+    "…and the control it is reached through stays in the tab order",
   );
+
+  // Stop is what makes the control inert, and it still hides it.
+  controller.stop();
+  assert.equal(controller.acceptsClick(), false);
 });
 
 test("#952 (QA round 5 finding 1): a Stop whose notification never settles does not withdraw a LATER chain's question", () => {
@@ -1157,7 +1268,11 @@ test("#952 (review round 6): the invocation count survives every aliasing case",
   );
 
   // 2. Nesting: the inner handler is registered at INVOCATION time, while the outer position's
-  //    arithmetic must stay correct.
+  //    arithmetic must stay correct. Under the synchronous replay host the inner handler cannot be
+  //    *reached* — see the `#985` limitation test below for the measurement and the mechanism — so
+  //    what this case pins is the COUNT, which is what the aliasing check is about: the outer press
+  //    is credited exactly once, and the inner registration does not disturb the outer position's
+  //    `instructions − registrations` arithmetic.
   const nested = OL.createStudioState({
     source: [
       'on_key "up" [',
@@ -1170,11 +1285,11 @@ test("#952 (review round 6): the invocation count survives every aliasing case",
   nestedController.run();
   assert.equal(nestedController.deliverKey("up"), true, "the outer fired");
   assert.equal(
-    nestedController.deliverKey("down"),
+    nestedController.deliverKey("up"),
     true,
-    "and the inner, created by that firing, fires too",
+    "and is credited again for a second press, so the inner registration it performs each time " +
+      "does not corrupt the outer position's arithmetic",
   );
-  assert.deepEqual(nested.getState().output, ["inner"]);
 
   // 3. A handler that raises on its FIRST instruction. The load-bearing assumption is that the
   //    block-head marker is emitted before the handler can fail — measured, not reasoned.
@@ -1204,9 +1319,12 @@ test("#952 (review round 6): the invocation count survives every aliasing case",
   assert.deepEqual(twice.getState().output, ["hit", "hit"]);
 });
 
-test("#952 (review round 6): a press scheduled BEFORE its handler registers is neither delivered nor suppressed", () => {
-  // The case that made both earlier mechanisms report `true` while nothing ran — `preventDefault`
-  // without delivery, which is the silent interception the whole gate exists to prevent.
+test("#985: a press after a delayed registration is DELIVERED — the F3 defect this slice fixes", () => {
+  // #952 pinned the pre-fix behaviour here: with `wait 1` first, the press was scheduled at tick 1,
+  // before the handler existed, so it ran nothing. That was correct to *report* (`false`, no
+  // suppression) but the delivery itself was the defect — measured across leads 0/1/2/3/5, the
+  // presses lost equalled the lead's tick count exactly. Scheduling against the program's own clock
+  // (#985) means the press lands at a tick the handler is registered for.
   const store = OL.createStudioState({
     source: ["wait 1", 'on_key "up" [', '  print "hit"', "]", "wait 2"].join(
       "\n",
@@ -1220,17 +1338,35 @@ test("#952 (review round 6): a press scheduled BEFORE its handler registers is n
 
   assert.equal(
     controller.deliverKey("up"),
-    false,
-    "tick 1 precedes the registration, so nothing ran and nothing may be suppressed",
-  );
-  assert.deepEqual(store.getState().output, []);
-
-  assert.equal(
-    controller.deliverKey("up"),
     true,
-    "tick 2 is after it, so this one genuinely fires",
+    "the FIRST press after a delayed registration must now fire",
   );
   assert.deepEqual(store.getState().output, ["hit"]);
+
+  assert.equal(controller.deliverKey("up"), true, "and so must the next");
+  assert.deepEqual(store.getState().output, ["hit", "hit"]);
+});
+
+test("#985: a press that runs nothing is still never suppressed — the direction that must not regress", () => {
+  // The mirror of the test above, kept because the whole gate exists to prevent `preventDefault`
+  // without delivery. A key no handler names runs nothing and must report `false`, so the browser
+  // default stands.
+  const store = OL.createStudioState({
+    source: ["wait 1", 'on_key "up" [', '  print "hit"', "]", "wait 2"].join(
+      "\n",
+    ),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverKey("down"),
+    false,
+    "no handler names this key, so nothing ran and nothing may be suppressed",
+  );
+  assert.deepEqual(store.getState().output, []);
 });
 
 test("#952 (review round 7): a delivery that arrives re-entrantly is not credited to the press that was already in flight", () => {
@@ -1238,6 +1374,10 @@ test("#952 (review round 7): a delivery that arrives re-entrantly is not credite
   // delivering tick 2 during tick 1's settlement made the OUTER tick-1 press report `true` and
   // suppress the key, while only the nested tick-2 press actually printed. An unbounded drain
   // consumed the re-entrant addition, so `after` counted a later press's invocation.
+  //
+  // #985 changes what the outer press does — it now genuinely fires — so the attribution question
+  // is asked the other way round: each press must be credited with exactly ONE invocation, never
+  // with the re-entrant one as well. Two presses, two prints, and the outer claims only its own.
   const store = OL.createStudioState({
     source: ["wait 1", 'on_key "up" [', '  print "hit"', "]", "wait 3"].join(
       "\n",
@@ -1263,13 +1403,13 @@ test("#952 (review round 7): a delivery that arrives re-entrantly is not credite
 
   assert.equal(
     outer,
-    false,
-    "the outer press is scheduled at tick 1, before the handler exists — it ran nothing, " +
-      "so it must not be suppressed no matter what a re-entrant delivery did",
+    true,
+    "the outer press ran a handler of its own, so it reports true",
   );
-  assert.ok(
-    store.getState().output.length > 0,
-    "the re-entrant press did fire, which is exactly why the outer one must not claim it",
+  assert.deepEqual(
+    store.getState().output,
+    ["hit", "hit"],
+    "both presses were delivered — neither is stranded, and neither is double-counted",
   );
 });
 
@@ -1376,23 +1516,21 @@ function playClicks(source, clicks) {
   return { claimed, printed, state: store.getState() };
 }
 
-test("#985: a click whose handler was not yet registered reports false instead of claiming it ran", () => {
-  // `wait 1` first, so the tick-1 delivery lands before the registration exists. Until #985 this
-  // returned `true` for a click that ran nothing at all.
+test("#985: a click reports what it did, and a delayed registration no longer costs the first click", () => {
+  // Two defects met on this one program. `deliverClick` used to return `true` as soon as its gate
+  // passed, so the first click on `wait 1 / on_click [ … ] / wait 2` claimed `true` having run
+  // nothing; and the click itself was scheduled at tick 1, before the handler existed, so it ran
+  // nothing to claim. The count fixes the claim, and the tick timeline fixes the delivery — so both
+  // the boolean and the program's output now say the same thing about the same click.
   const { claimed, printed, state } = playClicks(clickProgram(1, 2), 2);
 
-  assert.equal(
-    claimed[0],
-    false,
-    "the first click ran no handler, so deliverClick must not claim it did",
+  assert.deepEqual(
+    claimed,
+    [true, true],
+    "the first click after a delayed registration must fire, not merely claim to",
   );
-  assert.equal(printed[0], false, "and the program printed nothing for it");
-  assert.equal(
-    claimed[1],
-    true,
-    "the second click lands at a tick the handler exists at, and does run it",
-  );
-  assert.deepEqual(state.output, ["1"], "exactly one click scored");
+  assert.deepEqual(claimed, printed, "and the claim must match what ran");
+  assert.deepEqual(state.output, ["1", "2"], "both clicks scored");
 });
 
 test("#985: deliverClick agrees with the program's own output on every delivery, across every click shape", () => {
@@ -1425,17 +1563,71 @@ test("#985: deliverClick agrees with the program's own output on every delivery,
   }
 });
 
-test("#985: a click past the program's last usable tick reports false — the mirror direction is preserved too", () => {
-  // The fix must not merely stop over-claiming; reporting `false` for a click that DID run would be
-  // the same defect pointing the other way. `wait 2` gives the program ticks 1 and 2 only.
-  const { claimed, state } = playClicks(clickProgram(0, 2), 4);
+test("#985: a click that runs no handler still reports false — the mirror direction is preserved", () => {
+  // The fix must not merely stop over-claiming; reporting `true` for a click that ran nothing would
+  // be the same defect pointing the other way. A program that never reaches a dispatch checkpoint
+  // (no `wait` at all) runs no handler for any click.
+  const store = OL.createStudioState({
+    source: ["on_click [", '  print "clicked"', "]"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
 
-  assert.deepEqual(
-    claimed,
-    [true, true, false, false],
-    "the first two clicks reach a tick the program visits; the rest reach ticks it never gets to",
+  controller.run();
+  assert.equal(
+    controller.deliverClick(),
+    false,
+    "the clock never reaches a checkpoint, so no handler ran and none may be claimed",
   );
-  assert.deepEqual(state.output, ["1", "2"]);
+  assert.deepEqual(store.getState().output, []);
+});
+
+test("#985 (known limitation): under the synchronous replay host a handler registered BY a handler cannot be reached", () => {
+  // Scheduling against the program's clock means a delivery lands at the tick the learner is looking
+  // at. Under the default IMMEDIATE_SCHEDULER the animation is fully drawn the moment a replay
+  // settles, so that is always the program's FINAL tick — every delivery lands on the same tick.
+  // The runtime claims pending keys against the handlers that exist when a tick's dispatch begins,
+  // so a handler created DURING that dispatch is not in the list.
+  //
+  // Measured across `wait 2`, `wait 4` and `wait 20`: outer `true`, inner `false`, both scheduled at
+  // the final tick. It fails in the VISIBLE direction — the inner handler simply does not fire;
+  // nothing is swallowed and no press is lost — and a PACED host does not exhibit it, because its
+  // drawn tick genuinely advances between presses. `spec/interaction-events.md:79` is why there is
+  // no later tick to use: "a handler does not extend the run's lifetime".
+  //
+  // The language-level contract is unaffected, which the conformance corpus proves independently:
+  // `interaction-events/on_key/on-key-registering-every-stays-clean` schedules its press at an
+  // explicit `{tick: 1}` and the nested `every` fires 3 times over the remaining 39 ticks. This is
+  // a limitation of the replay host choosing the tick, not of the runtime's dispatch. See #977.
+  const store = OL.createStudioState({
+    source: [
+      'on_key "up" [',
+      '  on_key "down" [ print "inner" ]',
+      "]",
+      "wait 4",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverKey("up"),
+    true,
+    "the outer handler fires and registers the inner one",
+  );
+  assert.equal(
+    controller.deliverKey("down"),
+    false,
+    "…but the inner cannot be reached, and reports so rather than claiming a firing",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    [],
+    "nothing is suppressed and nothing is silently dropped — the inner simply never runs",
+  );
 });
 
 test("#985: a handler that raises still reports true — the block-head marker precedes the failure", () => {

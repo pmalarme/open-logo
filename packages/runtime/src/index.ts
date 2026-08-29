@@ -43,6 +43,7 @@
  */
 
 import type { Diagnostic, TraceEvent } from "@openlogo/core";
+import type { TickBoundary } from "./interaction.js";
 import { runProgram } from "./execute-internal.js";
 import type { CancellationSignal } from "./evaluate.js";
 import type { HostInputEvent } from "./interaction.js";
@@ -94,6 +95,8 @@ export {
   yieldToEventLoop,
 } from "./interaction.js";
 export type { TickClock } from "./interaction.js";
+export type { TickBoundary } from "./interaction.js";
+export { tickAtEventIndex } from "./interaction.js";
 export type { HostInputEvent } from "./interaction.js";
 export type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
 export type {
@@ -249,6 +252,25 @@ export interface ExecuteResult {
  *   Pass a **fresh empty array** per run: the events are appended, never cleared, so reusing one
  *   across runs concatenates them. Reading it while a run is in progress is only meaningful from
  *   inside a `read` call, since `execute()` never yields anywhere else.
+ * - `tickTimeline` (issue #985) — a caller-supplied array this run appends one {@link TickBoundary}
+ *   to per **elapsed tick**, recording the trace-event count at the moment the clock advanced. It is
+ *   the seam an interactive host needs to schedule input against the program's *logical* clock
+ *   rather than a synthetic counter of its own: pair it with {@link tickAtEventIndex} to ask "which
+ *   tick was the program at when it emitted event *i*".
+ *
+ *   It exists because the tick is deliberately **absent from the trace stream** — no event payload
+ *   carries one (`spec/interaction-events.md:69-73` makes a tick implementation-defined, and
+ *   `interaction.ts`'s header records that keeping it out of payloads is what leaves the stream
+ *   headless). Without this sink a host can count how many `wait` primitives a run emitted but never
+ *   how many *ticks* they cost, so `@openlogo/studio` scheduled every delivery at a counter of its
+ *   own and lost the first key press after any delayed registration.
+ *
+ *   Like `observedEvents` this is **out of band, and must stay so**: do not later satisfy the same
+ *   need by widening a payload to carry a tick, which would smuggle host-facing timing into the
+ *   normative stream. Determinism is unaffected either way — the timeline is a pure function of the
+ *   same inputs the event stream is, and supplying it changes no event, diagnostic, or ordering.
+ *   Defaults to omitted, in which case nothing is recorded at all. Pass a **fresh empty array** per
+ *   run, for the same reason `observedEvents` requires one.
  * - `handlerRegistrations` (issue #975) — a caller-supplied array this run appends one
  *   {@link HandlerRegistration} to per handler registration, in registration order. It answers the
  *   first of the two questions an interactive host could not previously ask the runtime: **which key
@@ -293,6 +315,7 @@ export interface ExecuteOptions {
   readonly observedEvents?: TraceEvent[];
   readonly handlerRegistrations?: HandlerRegistration[];
   readonly handlerDeliveries?: HandlerDelivery[];
+  readonly tickTimeline?: TickBoundary[];
 }
 
 /**
