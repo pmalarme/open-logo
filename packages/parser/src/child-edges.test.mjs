@@ -39,11 +39,57 @@
 //      correct implementation — the "green signal certifying less than it appears to" that #924 and
 //      #932 both measured.
 //
-// **What this gate does not close.** It is an audit of the trees the corpus actually produces, not a
-// proof about the type declarations. A node-valued field that no `.logo` file populates is invisible
-// to reflection — which is exactly why self-check 3 exists, and why `POPULATED_FIELD_PATHS` makes
-// adding a walkable field a deliberate **three**-place change: the type declaration, `childrenOf`,
-// and the declared path list here — after which the gate still fails until a fixture exercises it.
+// **What this gate does not close.** The reflective half is an audit of the trees the corpus
+// actually produces, not a proof about the type declarations, and a node-valued field that no
+// `.logo` file populates is invisible to reflection. That is what self-check 3 is for — and since
+// issue #986 the expected field set is derived a **second** time, from `ast.ts`'s type declarations
+// via the TypeScript 7 compiler API (`auditTheDeclarations`), so the declarations and the corpus
+// must agree in both directions. Adding a walkable field whose `kind`-and-route is not already
+// exercised is therefore still a deliberate **three**-place change — the type declaration,
+// `childrenOf`, and `POPULATED_FIELD_PATHS` — after which the gate still fails until a fixture
+// exercises it, but now the *first* of those three is read by the gate rather than trusted. A field
+// that *shares* a route with an exercised variant is residual 1 below, and fails nothing.
+//
+// **Three residuals survive that; all three were found by the #986 reviewers rather than predicted.**
+//
+//   1. **Variants that share a path are indistinguishable.** A path is keyed by node `kind` plus the
+//      dotted route, so two declaring shapes that meet at one route merge. Measured: adding
+//      `initial?: ExpressionNode` to `MapFilterComprehensionNode` passes 11/11, because
+//      `ReduceComprehensionNode.initial` already populates `Comprehension.initial`; adding
+//      `key?: ExpressionNode` to `FieldSegment` passes 11/11, because `SelectorSegment.key` already
+//      populates `Place.segments[].key`. A route merges only where a **non-node union has two or
+//      more descended members** (`PlaceSegment`, `IsTest`) or where **two interfaces share a `kind`**
+//      (`Comprehension`) — three merge points. `Binder` is **not** one: its `DestructuringBinderNode`
+//      member terminates the path and its `SpannedName` member extends it, so the two cannot collide.
+//      Measured: a node-valued field on `SpannedName` fails loudly, naming `ForIn.binder.probe` and
+//      `Comprehension.binder.probe` among 17 paths. Closing the real merge points means qualifying
+//      paths by each variant's discriminant on **both** sides, which changes the path rule
+//      `edgesUnder`, `POPULATED_FIELD_PATHS` and ADR-0025 all share — a redesign of that gate rather
+//      than a follow-up to it. Tracked as issue #1004.
+//   2. **A node-shaped type that is not an `AnyNode` member.** The walk starts at `AnyNode`, so
+//      everything it enforces is exactly as wide as that union. A *second* type declaring an existing
+//      `kind` is caught — `foreignNodeTypes` compares every node-category type met in field position
+//      against the union's own members by identity, and the #986 reviewer's structural
+//      `{ kind: "Block"; …; extra?: BlockNode }` on `ForeverNode.body` fails it by name. What is not
+//      caught is an exported node-shaped interface that appears in **no** field position and in no
+//      union: nothing reaches it, so nothing reports it. That is narrower than "unreachable" — it is
+//      outside the **current declaration graph and corpus**, and external code could still assign a
+//      structurally compatible value into an `AnyNode` position without ever naming it here.
+//      Adding it to the union does **not** necessarily fail `tsc`: `childrenOf`'s `never` guard
+//      rejects an unhandled discriminant *value*, so it fires for a new `kind` and not for a second
+//      interface declaring an existing one — measured, `tsc -b` exit 0. What catches that one is the
+//      root loop auditing the new member and deriving its fields (measured:
+//      `declaredButUnpopulated = ['Block.zzhidden']`, 1 of 11), subject to residual 1 if the field
+//      shares an already-exercised route.
+//   3. **A supertype admitting some but not all node kinds.** `holdsEveryNode` asks whether *every*
+//      `AnyNode` member fits, and cannot ask whether *some* does: `some` is red on a green tree with
+//      19 rows, because structural typing makes incidental supertypes ordinary — `VarRefNode` is
+//      assignable to `SpannedName`. Two shapes were witnessed, both compiling and both passing 11/11:
+//      `{ source_span; body: readonly StatementNode[] }` and
+//      `{ kind: "Block" | "Program"; source_span }`, each admitting `Program` and `Block`. The second
+//      is the reason this is a family rather than an example — the round-6 rule that preceded
+//      `holdsEveryNode` did catch it, and this one does not. Tracked with residual 1 under issue
+//      #1004; ADR-0027 records both shapes and the `tsc`-certificate technique for probing them.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.
@@ -54,6 +100,16 @@ import { runInNewContext } from "node:vm";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+// The TypeScript 7 compiler API, used by `auditTheDeclarations` below to read `ast.ts`'s type
+// declarations. ADR-0025 deferred this on the belief that the shim "exposes no compiler API"; that
+// claim was false and came from looking for the pre-7 `lib/typescript.js` layout instead of reading
+// the package's export map. `unstable/*` is the only spelling TypeScript 7 publishes for it.
+import {
+  API,
+  SignatureKind,
+  SymbolFlags,
+  TypeFlags,
+} from "typescript/unstable/sync";
 import { OL_NODE_KINDS, parse, walk } from "@openlogo/parser";
 // The subject under audit. It is intra-package (`index.ts` exports `ast`, `OL_NODE_KINDS` and
 // `walk`, not this), so it is imported from the package's own build output rather than promoted to
@@ -95,6 +151,11 @@ const KINDED_NON_NODE_SHAPES = ["field", "index"];
  * Both directions are checked. A path here that the corpus stops populating fails, because a clean
  * result could then come from an unexercised field; a path the corpus populates that is missing here
  * fails, because a new walkable field must be seen by a human before this gate certifies it.
+ *
+ * This list is pinned **once**, against the corpus. Since #986 the corpus set is also compared
+ * against one derived from the **type declarations**, and a second assertion pinning this list
+ * against that derivation was written and then deleted during review: with both differences asserted
+ * empty it had no independent failure state, which is the definition of decorative.
  */
 const POPULATED_FIELD_PATHS = [
   "Add.target",
@@ -153,6 +214,77 @@ const POPULATED_FIELD_PATHS = [
   "While.body",
   "While.condition",
 ];
+
+/**
+ * The repository root, resolved from this file rather than from `process.cwd()` so a package-scoped
+ * run (`cd packages/parser && node --test src/…`) finds the corpus and the `tsconfig.json` below.
+ */
+const REPOSITORY_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+);
+
+/**
+ * How {@link auditTheDeclarations} classifies one declared type, **indexed by priority** so the
+ * classification is a subscript rather than a chain of conditionals: a ternary arm that only runs
+ * when something is already wrong is dead on a green tree, which is the defect this file rejects
+ * everywhere else.
+ *
+ * A `union` is expanded into its constituents, a `node` ends a path, a `sequence` (an array or a
+ * tuple) is walked through its type *arguments*, an `object` is walked through its properties, and
+ * everything else is a `leaf`.
+ *
+ * **Intersections are deliberately absent.** They cannot occur in today's declarations, and giving
+ * them an arm would be a recording path no green run executes. Instead they fall to `leaf`, where
+ * `TypeFlags.Intersection` breaks {@link EXPECTED_LEAF_TYPE_FLAGS}. That catch covers every
+ * **non-object** constructor — `any`, `unknown`, `never`, and the **error type** an unresolved
+ * reference produces. It does **not** cover object-flagged ones: a mapped type, a function type and
+ * an index-signature type are all `isObjectType()`, so they never reach `leaf` at all. Those are
+ * caught instead by `opaqueObjectTypes` (see `objectTypeParts`), and it took a reviewer's
+ * counterexample to establish that the leaf net alone did not cover them.
+ *
+ * A `sequence` is walked by type argument and never by property, which is load-bearing rather than a
+ * shortcut: `getPropertiesOfType` on `readonly [number, number]` returns 34 members — `map`,
+ * `flatMap`, `at`, `Symbol.iterator` — so descending an array by its properties would walk the whole
+ * `Array` prototype surface instead of its elements.
+ */
+const TYPE_CATEGORIES = ["leaf", "object", "sequence", "node", "union"];
+
+/**
+ * The categories {@link auditTheDeclarations} is expected to meet, as a whole set: an unexercised
+ * one means the walk stopped reaching a shape it used to reach.
+ */
+const EXPECTED_TYPE_CATEGORIES = [...TYPE_CATEGORIES].sort();
+
+/**
+ * Every `TypeFlags` value a declared **leaf** may carry, as a whole set — the declaration-side twin
+ * of {@link EXPECTED_VALUE_TYPES}, and the check that makes "everything else is a leaf" safe rather
+ * than a blind spot. `undefined` is an absent optional field; `string`/`number` are `VarRef.name`
+ * and `PostfixExpression.parenGroupCount`; the string literals are discriminants such as
+ * `Assign.form`; the boolean literals are `IsTest`'s `strict`, which TypeScript models as `true |
+ * false`.
+ *
+ * Written as enum members rather than the numbers they equal, so the list is derived from the
+ * compiler's own vocabulary; the values were measured, not predicted, and are 4, 32, 64, 1024 and
+ * 8192.
+ */
+/**
+ * Numeric ascending order, shared by every flag list below. One named comparator rather than three
+ * inline copies, because `Array.prototype.sort` does not call a comparator on a **single-element**
+ * array: a single-entry list would leave its own comparator uninvoked, which the coverage gate reports as
+ * an uncalled function — which is how this was found.
+ */
+const byNumericValue = (left, right) => left - right;
+
+const EXPECTED_LEAF_TYPE_FLAGS = [
+  TypeFlags.Undefined,
+  TypeFlags.String,
+  TypeFlags.Number,
+  TypeFlags.StringLiteral,
+  TypeFlags.BooleanLiteral,
+].sort(byNumericValue);
 
 /**
  * The `kind` a value declares as its own **data** property — read from the descriptor, never from
@@ -487,14 +619,8 @@ function reflectedEdgesOf(node, seen) {
 
 /** Parse every `.logo` file in the repository and audit `walk` against reflection. */
 function auditTheCorpus() {
-  const repositoryRoot = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-  );
   const roots = ["tests/conformance", "spec/examples", "stdlib"].map((root) =>
-    join(repositoryRoot, root),
+    join(REPOSITORY_ROOT, root),
   );
   const seen = {
     foreignShapes: new Set(),
@@ -761,7 +887,412 @@ function auditTheCorpus() {
   };
 }
 
+/**
+ * Every node-valued field path the **type declarations** declare, derived from `ast.ts` by the
+ * TypeScript 7 compiler API (issue #986).
+ *
+ * This is the second source `POPULATED_FIELD_PATHS` is compared against, and it is the one that can
+ * see what reflection cannot. Reflection reads the trees the corpus produces, so a declared field no
+ * fixture populates contributes nothing and is indistinguishable from a field that does not exist —
+ * exactly the "green signal certifying less than it appears to" shape. A declaration walk has the
+ * mirror-image blind spot (it knows nothing about what runs), so the two together pin the set from
+ * both ends: `declared \ populated` is an unexercised field, `populated \ declared` is a tree that
+ * disagrees with its own types.
+ *
+ * **It applies the same path rule as {@link edgesUnder}, and the same node oracle.** A path is the
+ * dotted route from the owning kind through wrappers and arrays to the first type that is a node, so
+ * `ProcedureDef.params[].defaultValue` is distinct from `ProcedureDef.params`. That granularity is
+ * the whole point: attributing a wrapper-held node to the holder's field collapses these 55 paths to
+ * 51 (measured) and hides whether the wrapper's own node-valued part is ever exercised.
+ *
+ * **What it does not remove.** Both sides ask {@link WALKABLE_NODE_KINDS} what a node is, so the
+ * `OL_NODE_KINDS`/`AnyNode` agreement ADR-0024 leaves test-enforced is still the assumption
+ * underneath — but this walk reaches `AnyNode` itself, so `kinds` below *is* that enforcement, made
+ * from the declarations rather than assumed.
+ *
+ * **Termination is measured, not argued.** Wrapper types form a DAG today, so the walk terminates;
+ * rather than assert that, every descent filters out types already on the current chain and counts
+ * what it removed, and `cyclicEdges` is asserted to be 0. A counted filter costs nothing on a green
+ * tree, where an `if (cycle) throw` arm would be a recording path no green run executes.
+ */
+function auditTheDeclarations() {
+  const configFile = join(
+    REPOSITORY_ROOT,
+    "packages",
+    "parser",
+    "tsconfig.json",
+  );
+  const api = new API({ cwd: REPOSITORY_ROOT });
+  try {
+    const projects = api
+      .updateSnapshot({ openProjects: [configFile] })
+      .getProjects();
+    const checker = projects[0].checker;
+    let anyNodeMembers = [];
+
+    /**
+     * Every string-literal value a type's `kind` property can take — one for a node, several for a
+     * union such as `NodeKind`, none for a type with no `kind`. `getPropertiesOfType` includes
+     * **inherited** properties, so a `kind` declared on `NodeBase` is read here too.
+     *
+     * The union expansion is a `filter().map()` rather than a conditional so that no arm is reachable
+     * only on a broken tree, and it is applied to **every** visited type rather than only to the ones
+     * this gate reports on — which is what keeps the expansion itself exercised, since the only
+     * union-kinded types on a green tree are the `ExpressionNode`/`StatementNode` unions.
+     */
+    const kindLiteralsOf = (type) =>
+      checker
+        .getPropertiesOfType(type)
+        .filter((property) => property.name === "kind")
+        .map((property) => checker.getTypeOfSymbol(property))
+        .flatMap((kindType) =>
+          [kindType].concat(
+            [kindType]
+              .filter((candidate) => candidate.isUnionType())
+              .flatMap((candidate) => candidate.getTypes()),
+          ),
+        )
+        .filter((constituent) => constituent.isStringLiteralType())
+        .map((constituent) => constituent.value);
+
+    /** Those of {@link kindLiteralsOf} that name a walkable node kind. */
+    const nodeKindLiteralsOf = (type) =>
+      kindLiteralsOf(type).filter((value) => WALKABLE_NODE_KINDS.has(value));
+
+    /**
+     * Whether **every** `AnyNode` member is assignable to `type` — that is, whether the declaration
+     * says any node at all may live in a field of this type, as the compiler itself computes it.
+     *
+     * This is the check the previous four attempts were groping towards, and it has **no selector**:
+     * it does not look at a `kind` property, or at properties at all. `NodeBase`, `{}`,
+     * `{ source_span: SourceSpan }`, `object`, `unknown` and `any` all satisfy it in one rule. The
+     * round before this one constrained the `TypeFlags` of a `kind` property, which *is* an
+     * authored-selector test: it missed a supertype carrying no `kind` (measured, gate 11/11 green on
+     * `readonly zzSpanned?: { readonly source_span: SourceSpan }`) and rejected an ordinary wrapper
+     * whose union `kind` names no node.
+     *
+     * **`every`, not `some`** — measured, and the difference is not stylistic: `some` is red on a
+     * green tree with 19 rows, because structural typing makes incidental supertypes ordinary
+     * (`VarRefNode` is assignable to `SpannedName`, so `ForIn.binder` and 18 others would report).
+     * Only "*any* node fits here" identifies a type that silently admits the whole union.
+     *
+     * Memoised by type id because assignability is the one expensive question this walk asks: the
+     * file measures 2.19 s warm unprobed, 11.5 s with this un-memoised, and 2.5 s with the cache.
+     */
+    const nodeHolderCache = new Map();
+    const holdsEveryNode = (type) => {
+      const cached = nodeHolderCache.get(type.id);
+      return (
+        cached ??
+        nodeHolderCache
+          .set(
+            type.id,
+            anyNodeMembers.every((member) =>
+              checker.isTypeAssignableTo(member, type),
+            ),
+          )
+          .get(type.id)
+      );
+    };
+
+    /**
+     * The kind a *type* declares, when it declares exactly one — the declaration-side twin of
+     * {@link ownDataKindOf}. A type whose `kind` is a union is **not** a node: it is node-*shaped*,
+     * which `nodeShapedWrappers` reports rather than silently descending.
+     */
+    const declaredKindOf = (type) => kindLiteralsOf(type)[0];
+
+    // Priority by subscript, exactly as `canonicalPrototypeFieldKind` does it: every term is
+    // evaluated and the largest wins, so there is no untaken arm. `node` outranks `sequence` and
+    // `object` because a node ends a path.
+    //
+    // `union` outranks `node` so that a union is expanded rather than terminated. **That contest is
+    // currently never held** — measured: the number of types classified `union` whose
+    // `declaredKindOf` is also a node kind is 0, because TypeScript flattens nested unions, so
+    // `ComprehensionNode` (whose two members both declare `kind: "Comprehension"`) never appears as
+    // a type object in this walk; `MapFilterComprehensionNode` and `ReduceComprehensionNode` are
+    // direct members of `AnyNode`. An earlier version of this comment claimed the ordering was what
+    // found `ReduceComprehensionNode.initial`, and the #986 reviewer measured that false twice over:
+    // that path comes from the top-level `AnyNode` loop, and the union arm — which the ordering does
+    // select — descends to two members that are each `node`, so it terminates without reaching
+    // `initial` either way. The ordering is defensive, not load-bearing.
+    //
+    // `sequence` is `isArrayType`/`isTupleType`, **not** `ObjectFlags.Reference`. Reference covers
+    // every generic instantiation, so an ordinary generic wrapper — `Box<BlockNode>` — was walked
+    // through its type arguments and derived `field[]` where reflection derives `field.value`. That
+    // rejected a valid shape, which is worse than missing an invalid one.
+    const categoryOf = (type) =>
+      TYPE_CATEGORIES[
+        Math.max(
+          Number(type.isUnionType()) * 4,
+          // A node declares **exactly one** kind, and it is a node kind. A type whose `kind` is a
+          // union of node kinds is node-shaped without being any one node; it falls through to
+          // `object` and is reported by `nodeShapedWrappers` rather than descended in silence.
+          Number(kindLiteralsOf(type).length === 1) *
+            Number(nodeKindLiteralsOf(type).length === 1) *
+            3,
+          Math.max(
+            Number(checker.isArrayType(type)),
+            Number(checker.isTupleType(type)),
+          ) * 2,
+          Number(type.isObjectType()),
+          0,
+        )
+      ];
+
+    /**
+     * What each type classified `object` carries **beyond** the properties
+     * {@link walkDeclaredType}'s `object` arm descends. A TypeScript object type is described by four
+     * things — properties, index infos, call signatures and construct signatures — so recording the
+     * other three per path states the whole remainder as an invariant, rather than as a list of
+     * shapes that have caught someone out.
+     *
+     * The scope is the `object` **category** plus every `AnyNode` member at the root: a node is
+     * descended by property in the root loop, so it owes the same statement, and the row is pushed
+     * there too. A `sequence` is descended by type *argument* and carries no user-declared remainder
+     * of its own — measured: an interface that merely *extends* `ReadonlyArray` takes the `object`
+     * arm, because `isArrayType` is false for it, so the sequence arm only ever holds genuine
+     * array/tuple references whose remainder is lib-declared. So the remainder is stated for every
+     * type the walk descends by property — which is the claim, and it is narrower than "every object
+     * type".
+     *
+     * An earlier version stopped at the `object` category and added "which is why nothing here has to
+     * special-case them". The first half was true and the conclusion was false: a node's own
+     * remainder was descended by no rule at all, and the #986 reviewer put
+     * `readonly [key: string]: … | BlockNode` on `StructDefNode` — which compiles — and passed the
+     * whole gate 11/11.
+     *
+     * The #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
+     * `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` — all three are object
+     * types with **zero** properties, so `descend([])` visited nothing and the gate stayed 11/11
+     * green. That is the per-container blind spot ADR-0025 records at length, reproduced inside
+     * the instrument built to close it.
+     *
+     * Testing "has no properties" would have closed exactly those three and left a type that carries
+     * both open — `{ a: string; [k: string]: unknown }` has a property *and* an index signature.
+     *
+     * A row is recorded for **every** such type and the offenders are filtered out at the end, for
+     * the same reason `childListRows` is built for every node: a `push` that only runs on a tree that
+     * is already broken is a recording arm no green run executes, which the coverage gate catches and
+     * this file rejects on its own terms. A first draft did exactly that and was caught by neither
+     * reviewer — only by `npm run coverage` naming the six dead lines.
+     *
+     * A non-array lib generic — `Map`, `Set`, `Promise` — takes the `object` arm and is reported
+     * through its prototype methods, **one row per method property** (a method with overloads is one
+     * row carrying `callSignatures: 2`). A `Map` field yields ten: `.clear`, `.delete`, `.forEach`,
+     * `.get`, `.has`, `.set`, `.entries`, `.keys`, `.values` and `Symbol.iterator`. The offending
+     * field is the row path with its **last segment removed** — `StructDef.probeMap.clear` means
+     * `StructDef.probeMap`.
+     */
+    const objectTypeParts = (type, path) => ({
+      at: path,
+      indexSignatures: checker.getIndexInfosOfType(type).length,
+      callSignatures: checker.getSignaturesOfType(type, SignatureKind.Call)
+        .length,
+      constructSignatures: checker.getSignaturesOfType(
+        type,
+        SignatureKind.Construct,
+      ).length,
+    });
+
+    const seen = {
+      categories: new Set(),
+      leafTypeFlags: new Set(),
+    };
+    const typeVisits = [];
+    const objectTypeRows = [];
+    const nodeTypeRows = [];
+    const paths = new Set();
+    const kinds = new Set();
+    let cyclicEdges = 0;
+
+    const walkDeclaredType = (type, path, chain) => {
+      const category = categoryOf(type);
+      seen.categories.add(category);
+      // Recorded for every type, before any dispatch, so an unresolved reference is reported by
+      // name rather than only as an anomalous flag in `leafTypeFlags`. `isErrorType()` is the
+      // compiler's own answer to "this reference did not resolve", which is the failure that would
+      // otherwise make this whole derivation quietly smaller than the declarations it reads.
+      const visit = {
+        at: path,
+        category,
+        unresolved: type.isErrorType(),
+        holdsEveryNode: Number(holdsEveryNode(type)),
+        // Filled in below, once the subtree beneath this type is known. A position is eligible when
+        // the walk derived **no path** from it — a property of the walk itself, not a list of
+        // categories. An earlier version selected `object` and `leaf` by name, and the #986 reviewer
+        // slipped a union of two partial supertypes past it: the union is neither category, so it was
+        // ineligible, while each constituent admits only half the node kinds, so `every` was false
+        // for both. Between them they accept every node, and the gate stayed 11/11 green.
+        derivesNoPath: 0,
+      };
+      // Constructed then pushed, rather than pushed and re-read by index: the index form is correct
+      // today and silently wrong the moment another push lands between the two lines.
+      typeVisits.push(visit);
+      const nextChain = new Set(chain).add(type.id);
+      const descend = (edges) => {
+        const fresh = edges.filter((edge) => !nextChain.has(edge[0].id));
+        cyclicEdges += edges.length - fresh.length;
+        // Summed rather than `some`-ed: `some` short-circuits, which would leave later siblings
+        // unwalked the moment one of them derived a path.
+        let derived = 0;
+        for (const edge of fresh) {
+          derived += walkDeclaredType(edge[0], edge[1], nextChain);
+        }
+        return derived;
+      };
+      // Each arm returns **1 when a node terminates at this exact route**, not the number of paths
+      // derived anywhere beneath it. That distinction is the whole of the eligibility question: a
+      // wrapper that admits every node *and* carries an unrelated node-valued field derives a path at
+      // `…zzPathMask.hidden`, and an earlier version counted that towards `…zzPathMask` and fell
+      // silent about the node the declaration permits directly there. So `object` and `sequence`
+      // descend — every descendant is still walked and still collected — but contribute **0** to
+      // their own route, because `path.field` and `path[]` are different routes; `union` members
+      // share the parent's route and so do contribute.
+      const derived = {
+        union: () => descend(type.getTypes().map((member) => [member, path])),
+        node: () => {
+          // A node ends the path, so its own declaration is never inspected here — it is inspected
+          // once, at the root, as an `AnyNode` member. That is only sound if every node-category type
+          // met in field position **is** one of those members, so the type's identity is recorded and
+          // compared against the root set. The #986 reviewer retyped `Forever.body` as a *structural*
+          // `{ kind: "Block"; …; extra?: BlockNode }` — which compiles, because TypeScript is
+          // structural — and `Block.extra` was derived by nobody while the gate stayed 11/11 green.
+          // Recorded for every node edge rather than only for strangers: a `push` that fires only on
+          // a broken tree is a recording arm no green run executes.
+          nodeTypeRows.push({
+            at: path,
+            kind: declaredKindOf(type),
+            id: type.id,
+          });
+          paths.add(path);
+          return 1;
+        },
+        sequence: () =>
+          descend(
+            checker
+              .getTypeArguments(type)
+              .map((argument) => [argument, `${path}[]`]),
+          ) * 0,
+        object: () => {
+          objectTypeRows.push(objectTypeParts(type, path));
+          return (
+            descend(
+              checker
+                .getPropertiesOfType(type)
+                .map((property) => [
+                  checker.getTypeOfSymbol(property),
+                  `${path}.${property.name}`,
+                ]),
+            ) * 0
+          );
+        },
+        leaf: () => {
+          seen.leafTypeFlags.add(type.flags);
+          // Returned explicitly rather than as `add(...) && 0`, which was correct only because
+          // `Set.prototype.add` happens to return the set. A recorder whose `add` returned
+          // `undefined` would make this arm return `undefined`, `derived === 0` false, and every leaf
+          // position silently ineligible — reopening `{}`, `unknown` and `any` with the gate green.
+          return 0;
+        },
+      }[category]();
+      // `derivesNoPath` is 1 exactly when **no node terminates at this route**, whatever category the
+      // position took. That is what makes the eligibility structural: a union of supertypes is
+      // eligible because nothing ends here, not because anyone listed unions; and a field honestly
+      // typed `AnyNode` is *not* eligible, because its union members do end here.
+      visit.derivesNoPath = Number(derived === 0);
+      return derived;
+    };
+
+    // `AnyNode` is the declarations' own answer to "what is a node", so the walk starts there rather
+    // than from a list of interface names kept here — a list would be the hand-maintained oracle
+    // this instrument exists to replace.
+    const anyNode = checker.getDeclaredTypeOfSymbol(
+      checker.resolveName("AnyNode", SymbolFlags.Type, {
+        document: join(REPOSITORY_ROOT, "packages", "parser", "src", "ast.ts"),
+        position: 0,
+      }),
+    );
+    const rootMemberIds = new Set(
+      anyNode.getTypes().map((member) => member.id),
+    );
+    // Referenced by `holdsEveryNode`, which is defined above but first *called* from the loop below,
+    // after this initialiser has run.
+    anyNodeMembers = anyNode.getTypes();
+    for (const member of anyNode.getTypes()) {
+      const kind = declaredKindOf(member);
+      kinds.add(kind);
+      // The root loop descends each node type by property, exactly as the `object` arm does, so it
+      // owes the same remainder statement. Without this line the invariant held for every *wrapper*
+      // and for no *node* — and the #986 reviewer put `readonly [key: string]: … | BlockNode` on
+      // `StructDefNode`, which compiles, and passed the whole gate 11/11. That is the container blind
+      // spot a third time: closed for the arm that was shown to leak, left open on the arm the walk
+      // is actually about.
+      // `holdsEveryNode` is deliberately *not* recorded here, and the reason is **structural, not
+      // incidental** — an earlier version of this comment said the opposite and cited five errors in
+      // `@openlogo/studio`, a number taken from a reviewer and never re-derived. Re-measured: adding
+      // a union-kinded member to `AnyNode` fails `npm run build` with **241** errors across 14 files
+      // (TS2339 ×217, TS2345 ×20, TS7006 ×3, TS2322 ×1), and the largest block — **69** — is
+      // `ast.ts` itself, in `childrenOf`'s own switch, because narrowing on `case "Block"` cannot
+      // exclude a member whose `kind` is the whole union. What stops it is the parser's exhaustive
+      // traversal in the same file that declares `AnyNode`; `@openlogo/studio` contributes 7. Still
+      // not this gate — so the omission is deliberate — but it is a first-party invariant rather
+      // than a downstream accident.
+      objectTypeRows.push(objectTypeParts(member, kind));
+      for (const property of checker.getPropertiesOfType(member)) {
+        walkDeclaredType(
+          checker.getTypeOfSymbol(property),
+          `${kind}.${property.name}`,
+          new Set(),
+        );
+      }
+    }
+
+    return {
+      paths: [...paths].sort(),
+      kinds: [...kinds].sort(),
+      categories: [...seen.categories].sort(),
+      leafTypeFlags: [...seen.leafTypeFlags].sort(byNumericValue),
+      nodeShapedWrappers: typeVisits.filter(
+        (visit) => visit.holdsEveryNode * visit.derivesNoPath > 0,
+      ),
+      unresolvedTypes: typeVisits.filter((visit) => visit.unresolved),
+      foreignNodeTypes: nodeTypeRows.filter(
+        (row) => !rootMemberIds.has(row.id),
+      ),
+      opaqueObjectTypes: objectTypeRows.filter(
+        (row) =>
+          row.indexSignatures + row.callSignatures + row.constructSignatures >
+          0,
+      ),
+      typeVisitCount: typeVisits.length,
+      cyclicEdges,
+      projectCount: projects.length,
+      configFileName: projects[0].configFileName.replaceAll("\\", "/"),
+      expectedConfigFileName: configFile.replaceAll("\\", "/"),
+    };
+  } finally {
+    // The API runs a `tsgo` child process; without this the test run finishes and never exits. If
+    // `close()` itself throws it would mask an in-flight error — no measured path does, and a
+    // try/catch here would be a recording arm no green run executes.
+    api.close();
+  }
+}
+
 const audit = auditTheCorpus();
+const declarations = auditTheDeclarations();
+
+// The two derivations, differenced both ways so a failure names the direction as well as the path.
+// Computed unconditionally rather than inside the assertions: a projection only a failing tree
+// evaluates is dead on a green one.
+const populatedFieldPaths = new Set(audit.populated);
+const declaredFieldPaths = new Set(declarations.paths);
+const declaredButUnpopulated = declarations.paths.filter(
+  (path) => !populatedFieldPaths.has(path),
+);
+const populatedButUndeclared = audit.populated.filter(
+  (path) => !declaredFieldPaths.has(path),
+);
 
 test("every node's child list is exactly the edges the node itself holds", () => {
   // The comparison this gate exists for, and the one that has to be by identity and multiplicity
@@ -920,6 +1451,94 @@ test("the corpus populates exactly the declared node-valued field paths", () => 
   // Self-check 3 — corpus adequacy, in both directions. Without it, a green run over a corpus that
   // never exercises a field is indistinguishable from a green run over a correct implementation.
   assert.deepEqual(audit.populated, [...POPULATED_FIELD_PATHS].sort());
+});
+
+test("the type declarations and the corpus agree on every field path", () => {
+  // Issue #986. `POPULATED_FIELD_PATHS` is a list a human maintains, and the test above compares it
+  // against one derivation. That leaves the declarations — the source a new field is actually added
+  // to — consulted by nobody, which is the #964 shape: the list could be complete about the corpus
+  // and silent about `ast.ts`.
+  //
+  // Differenced both ways, because the two directions are different defects. A declared path the
+  // corpus never populates is an unexercised field, and every other assertion in this file stays
+  // green about it — reflection cannot report a field no tree carries. A populated path the
+  // declarations do not have is a tree disagreeing with its own types.
+  assert.deepEqual(declaredButUnpopulated, []);
+  assert.deepEqual(populatedButUndeclared, []);
+});
+
+test("the declaration walk resolved every type it read", () => {
+  // A derivation that silently resolved nothing satisfies `declaredButUnpopulated` trivially — the
+  // empty set is a subset of everything — so the walk states what it met rather than only what it
+  // concluded.
+  //
+  // An unresolved reference yields the compiler's error type, which is the one way this walk can
+  // come back smaller than the declarations without anything looking wrong.
+  assert.deepEqual(declarations.unresolvedTypes, []);
+  // Every node-category type met in field position is one of the `AnyNode` members the root loop
+  // audits. A node ends the path, so its own declaration is inspected exactly once — at the root —
+  // and that is only sound if there is no *second* type declaring the same `kind`. TypeScript is
+  // structural, so there can be: the #986 reviewer retyped `Forever.body` as an inline
+  // `{ kind: "Block"; …; extra?: BlockNode }`, which compiles, and its `extra` was derived by nobody
+  // with the gate 11/11 green. It is closed by identity rather than by recognising the shape.
+  assert.deepEqual(declarations.foreignNodeTypes, []);
+  // And nothing a type descended by property carries beyond those properties went undescended: a
+  // node behind an index signature, a call signature or a construct signature is invisible to
+  // `getPropertiesOfType`. Rows are recorded for every type taking the `object` arm **and** for every
+  // `AnyNode` member at the root, so the statement covers both categories the walk descends that
+  // way; a sequence is descended by type argument and carries no user-declared remainder of its own.
+  // The #986 reviewers hid a `BlockNode` behind each of `() => BlockNode`,
+  // `Record<string, BlockNode>` and `{ readonly [key: string]: BlockNode }` — all with zero
+  // properties — and then behind an index signature on a node interface itself; the first three
+  // stayed 11/11 green before this assertion, the fourth before the root row was added. Measured 0
+  // rows today, so it costs nothing on a green tree and is not a recording arm.
+  assert.deepEqual(declarations.opaqueObjectTypes, []);
+  // Every leaf's flags as a whole set. This is what makes "everything else is a leaf" safe for the
+  // **non-object** constructors: an intersection, an `any`, an `unknown`, a `never` or the error
+  // type all land here and break the equality. Object-flagged constructors never reach `leaf` and
+  // are the assertion above's job — an earlier version of this comment claimed this one covered
+  // mapped types, which a reviewer measured false.
+  assert.deepEqual(declarations.leafTypeFlags, EXPECTED_LEAF_TYPE_FLAGS);
+  // And no position that derives no path silently admits every node. `holdsEveryNode` asks the
+  // compiler whether **every** `AnyNode` member is assignable to the type — no selector, no property
+  // name, no shape — and the second factor is whether the walk actually contributed a path from
+  // there. A field legitimately typed `AnyNode` would hold every node *and* derive paths, so both
+  // factors are needed; none exists today, which is why the unfiltered list is also empty.
+  //
+  // Three versions preceded this one and each was defeated: a `kind`-literal intersection with
+  // `OL_NODE_KINDS` (missed a supertype carrying no `kind`), a `TypeFlags` constraint on a property
+  // named `kind` (missed the same, and rejected a legitimate wrapper), and an arm list naming
+  // `object` and `leaf` (missed a **union** of two partial supertypes, which is neither arm and which
+  // `tsc` certifies admits all 37 members). The eligibility is now derived from the walk's own
+  // output, which is what stops the next level of this recurring.
+  assert.deepEqual(declarations.nodeShapedWrappers, []);
+  // And every category was actually exercised, so none of the five arms is carrying no traffic.
+  assert.deepEqual(declarations.categories, EXPECTED_TYPE_CATEGORIES);
+  // Wrapper types form a DAG, measured rather than argued — see `auditTheDeclarations`. A non-zero
+  // count is a notification, not a bug: it means a wrapper type became recursive, the walk stopped
+  // early to stay terminating, and the DAG assumption above has to be re-stated before this is
+  // relaxed.
+  assert.equal(declarations.cyclicEdges, 0);
+  // The walk started from `AnyNode`, so the kinds it reached are the union's own membership. ADR-0024
+  // records that `OL_NODE_KINDS` agreeing with `AnyNode` is test-enforced rather than
+  // compiler-enforced, and names no test; this is that test. The oracle `WALKABLE_NODE_KINDS` — which
+  // both halves of this gate rest on — is exactly `OL_NODE_KINDS`, so a kind in one list and not the
+  // other would make one of the two halves blind, in the direction that reports nothing. The
+  // enforcement is exactly as wide as `AnyNode`; residual 2 in the header states what that leaves.
+  assert.deepEqual(declarations.kinds, [...OL_NODE_KINDS].sort());
+  // Exactly one project was opened, and it is the one this gate names. A snapshot that silently
+  // resolved a different `tsconfig.json` would read different declarations.
+  assert.equal(declarations.projectCount, 1);
+  assert.equal(
+    declarations.configFileName,
+    declarations.expectedConfigFileName,
+  );
+  // A floor, not a census: it only fails on a walk that has collapsed, so ordinary growth in `ast.ts`
+  // never touches it and no derived count is asserted.
+  assert.ok(
+    declarations.typeVisitCount > 1000,
+    `visited ${declarations.typeVisitCount} declared types`,
+  );
 });
 
 test("the audit actually traversed the corpus, reaching every node kind", () => {

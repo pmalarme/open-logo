@@ -9,7 +9,9 @@
  * Every kind in {@link OL_NODE_KINDS} now has a typed interface, a factory helper on
  * {@link ast}, and a {@link walk} traversal case. Membership of {@link AnyNode} without a case is a
  * compile error ({@link childrenOf}'s switch is exhaustive); a kind listed in
- * {@link OL_NODE_KINDS} but in no union is inert and is caught by test, not by the compiler. Names
+ * {@link OL_NODE_KINDS} but in no union is inert, and is caught by `child-edges.test.mjs` — which
+ * reads the `AnyNode` union out of these declarations and compares its kinds against
+ * {@link OL_NODE_KINDS} — rather than by the compiler. Names
  * that the checker points diagnostics at (callees, procedure names, parameters, binders, and place
  * bases/fields) carry their own {@link SpannedName}. Core parses dotted places (`:a.b.c`);
  * index/key selectors (`:a[i]`) and the Data/Heritage profiles extend these shapes in their own
@@ -940,9 +942,14 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * absent from the child list. That half is checked at test time instead, by
  * `child-edges.test.mjs`: it derives each node's edges by reflection, from a source that does not
  * use this function, and fails naming the dotted path of any field omitted here
- * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). What
- * survives is narrower — a node-valued field that **no** fixture populates, which is invisible to
- * reflection too. See also
+ * ([ADR-0025](../../../docs/adr/0025-child-edge-gate-audits-childrenof-independently.md)). The
+ * residual that left — a node-valued field that **no** fixture populates, which is invisible to
+ * reflection too — is narrowed by the same file's declaration-derived field set, which reads these
+ * declarations through the TypeScript compiler API and fails when one of them is never exercised
+ * ([ADR-0027](../../../docs/adr/0027-child-edge-field-set-is-declaration-derived.md)). What survives
+ * is a field sharing a path with an exercised variant: paths are keyed by `kind` plus dotted route,
+ * so an unexercised `initial` on `MapFilterComprehensionNode` hides behind
+ * `ReduceComprehensionNode.initial` (measured, issue #1004). See also
  * [ADR-0024](../../../docs/adr/0024-ast-traversal-kind-dispatch-is-compiler-enforced.md).
  */
 export function childrenOf(node: AnyNode): readonly AnyNode[] {
