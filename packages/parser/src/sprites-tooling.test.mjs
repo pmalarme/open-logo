@@ -35,8 +35,8 @@
 //
 // Highlighting is **profile-aware** since issue #740: `highlight()`/`semanticTokens()` take an
 // active-profile set. `spec/tooling.md:30` puts in the `keyword` class, "while their profile is
-// active", "the profile block-heads together with the Sprites mode-switch command `tell`, which
-// takes no block" — so precisely: `ask` and `each` are the block-heads and `tell` is the
+// active", "a profile's block-heads and its mode-switch commands" — so precisely: `ask` and `each`
+// are the block-heads and `tell` is the
 // mode-switch command, and all three move. `:31` puts "a profile word whose profile is inactive"
 // in `primitive`. So the six names split, and the split is the point of this file's highlighting
 // half: `tell`/`ask`/`each` are `keyword` with `sprites` claimed and
@@ -164,9 +164,9 @@ test("highlight: each Sprites name takes its profile-dependent class in isolatio
 });
 
 test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
-  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
-  // **including the positions where the grammar admits one as an ordinary name (`local end`,
-  // `for end from 1 to 3`, `export end`, `:p.end`)**". All four of the spec's own examples are
+  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever it appears,
+  // including the positions where the grammar admits one as an ordinary name (`local end`,
+  // `for end from 1 to 3`, `export end`, `:p.end`)". All four of the spec's own examples are
   // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
   // without this row a change that suppressed the profile check in exactly these forms would pass
   // the whole suite (that mutant survived all 3813 tests before this row existed).

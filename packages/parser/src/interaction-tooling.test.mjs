@@ -197,9 +197,9 @@ test("highlight: each Interaction name takes its profile-dependent class in isol
 });
 
 test("highlight: a profile word in an ORDINARY-NAME position still follows the profile", () => {
-  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever they appear,
-  // **including the positions where the grammar admits one as an ordinary name (`local end`,
-  // `for end from 1 to 3`, `export end`, `:p.end`)**". All four of the spec's own examples are
+  // `spec/tooling.md:30` is explicit that the keyword class applies "wherever it appears,
+  // including the positions where the grammar admits one as an ordinary name (`local end`,
+  // `for end from 1 to 3`, `export end`, `:p.end`)". All four of the spec's own examples are
   // covered below, plus `set … to`. Every other test in this file uses a CALL position — so
   // without this row a change that suppressed the profile check in exactly these forms would pass
   // the whole suite (that mutant survived all 3813 tests before this row existed).

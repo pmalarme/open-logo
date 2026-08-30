@@ -21,8 +21,9 @@
 //
 // The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
 // suites assert that the six profile block-heads plus the Sprites mode-switch command `tell`
-// (which takes no block — `spec/tooling.md:30` keeps that distinction) move, while this file
-// asserts that a representative corpus of non-profile sources does not.
+// (which takes no block — `spec/turtles-and-sprites.md` keeps that distinction, and
+// `spec/tooling.md:30` moves "a profile's block-heads and its mode-switch commands" alike) move,
+// while this file asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -591,6 +592,82 @@ test("contextual: empty/member/of/a stay keyword when a newline separates them f
   }
 });
 
+test("contextual: a PARENTHESISED or multiline operand still reaches the is-predicate's word", () => {
+  // Regression, issue #959 review rounds 4-5. `markIsPredicateKeywords` stepped a fixed one token
+  // past `node.operand.source_span.end` to find `is`, but the operand's span is the INNER
+  // expression's — a parenthesised operand leaves its `)` in between, and a multiline one leaves
+  // newlines too. The scan landed on whichever came first, marked nothing, and painted the
+  // predicate's own word `primitive` in a position `spec/tooling.md:30` gives `keyword`.
+  //
+  // Every is-predicate form is covered, in both the single-line and the multiline shape, because
+  // the defect was in the shared scan rather than in any one form.
+  const classOf = (source, word) =>
+    OL.highlight(source, doc, { profiles: ALL_PROFILES }).find(
+      (token) => token.text === word,
+    )?.class;
+
+  for (const [source, word] of [
+    ['(value of :d for key "x") is empty', "empty"],
+    ["((:x)) is empty", "empty"],
+    ["(2) is member of :nums", "member"],
+    ['(:p) is a "point"', "a"],
+    ['(\n  value of :d for key "x"\n) is empty', "empty"],
+    ["(:x\n) is empty", "empty"],
+    ["(2\n) is member of :nums", "member"],
+    ['(\n  :p\n) is a "point"', "a"],
+    ['  (\n    value of :d for key "x"\n  ) is empty', "empty"],
+    // Deep and INTERLEAVED closing tails. Every row above needs at most two skips, so a scan
+    // capped at three iterations passed the whole suite, conformance, examples and the gate while
+    // painting `(((:x)\n)\n) is empty` — a program that parses with zero diagnostics —
+    // `primitive` (issue #959, QA mutation M4). These tails are `))))` and `)\n)\n)`: parens and
+    // newlines alternating, four and five tokens deep, so any cap of four or below is now caught.
+    // A cap of five still survives this table; the generated tail below is what closes that.
+    ["((((:x)))) is empty", "empty"],
+    ["(((:x)\n)\n) is empty", "empty"],
+    ["((:x)\n) is member of :nums", "member"],
+    ['(\n(\n:p\n)\n) is a "point"', "a"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse cleanly for this to be a highlighting claim`,
+    );
+    assert.equal(classOf(source, word), "keyword", JSON.stringify(source));
+  }
+  // `is member of` marks two words, and the second is found by offset from the first — so the
+  // parenthesised form has to be checked for both.
+  assert.equal(classOf("(2) is member of :nums", "of"), "keyword");
+  assert.equal(classOf("(2\n) is member of :nums", "of"), "keyword");
+  // `of` is located from `member`, so the deep tail has to be checked for it too.
+  assert.equal(classOf("(((:x)\n)\n) is member of :nums", "of"), "keyword");
+
+  // A GENERATED tail, because the rows above cannot do this job. They are a finite table, so they
+  // force only "depth >= the deepest row" — a cap of 5 passed all of them while painting
+  // `((((:x)\n)\n)\n) is empty`, a zero-diagnostic program, `primitive` (issue #959, QA). Adding one
+  // more hand-written row would move that boundary to 6 and no further, which is the mistake this
+  // slice made three times in its withdrawn corpus.
+  //
+  // What this DOES establish: no constant cap below 80 survives. What it does NOT establish:
+  // unboundedness. That is a structural property of the `while` — it has no counter — and no finite
+  // number of examples can prove it, so the claim is deliberately not made.
+  const nestedDepth = 40;
+  let nested = ":x";
+  for (let level = 0; level < nestedDepth; level += 1) {
+    nested = `(${nested}\n)`;
+  }
+  const generated = `${nested} is empty`;
+  assert.equal(
+    OL.parse(generated, doc).diagnostics.length,
+    0,
+    "the generated deep tail must parse cleanly for this to be a highlighting claim",
+  );
+  assert.equal(classOf(generated, "empty"), "keyword", `depth ${nestedDepth}`);
+  // And the scan must not run past a real `is` onto something else: an unparenthesised operand is
+  // unchanged, and a word outside any predicate is still an ordinary name.
+  assert.equal(classOf("print :x is empty", "empty"), "keyword");
+  assert.equal(classOf("local empty", "empty"), "primitive");
+});
+
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
   // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
   // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
@@ -935,9 +1012,11 @@ test("tokens are returned in source order and cover the whole meaningful input",
 // options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
 // to `{}` and every column read the Core-only answer.
 //
-// The `keyword` row of `spec/tooling.md`'s token-class table is **change-detected only**
-// (`npm run built-in-names` fingerprints it; nothing checks the edited row is correct) and the
-// conformance harness asserts events and diagnostics but has no token-class channel. So for the
+// The `keyword` row of `spec/tooling.md`'s token-class table no longer enumerates the class: since
+// issue #959 each name's class is declared as `tokenClass` in `spec/built-in-names.json` and
+// `npm run built-in-names` re-paints every name through the shipped `highlight()` to compare. That
+// sweep covers each name in isolation; the conformance harness still has no token-class channel. So
+// for the
 // half stated above — that a profile set moves no NON-profile word — these four tests are the only
 // thing holding it; the profile words' own two directions are held by the per-profile suites, and
 // test 4 here keeps this block honest about them. Listed in the order they appear below:

@@ -109,12 +109,24 @@ export interface Token {
 
 /**
  * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
- * `operator`, never `keyword`. Checked before the {@link isKeyword} lookup so none of the four
+ * `operator`, never `keyword`. Consulted before the {@link isKeyword} lookup so none of the four
  * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
  * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
+ *
+ * **Exported as the set classification actually reads, not as a copy of it.** The four are built-in
+ * names, so `spec/built-in-names.json` lists them — but it lists them by *category*, and this is the
+ * only place the implementation says how they are *painted*. The built-in-names gate enumerates this
+ * export to catch a **fifth** word added here that the manifest does not list (issue #959 review).
+ * That comparison is only worth as much as the export being the very object {@link highlight}
+ * consults, so there is deliberately no second internal literal to drift from it.
  */
-const WORD_OPERATORS = new Set(["and", "or", "not", "mod"]);
+export const OL_WORD_OPERATORS: ReadonlySet<string> = new Set([
+  "and",
+  "or",
+  "not",
+  "mod",
+]);
 
 /** Lexical token kinds that carry highlightable content — never `newline`/`eof`. */
 type ContentTokenKind = Exclude<LexTokenKind, "newline" | "eof">;
@@ -396,28 +408,35 @@ export function highlight(
    * Each index is derived from the previous *resolved* one rather than by arithmetic on `isIndex`,
    * so an arbitrary number of newlines between any two words resolves.
    *
-   * **This guards the newline axis only.** A `)` between the operand and `is` is a second,
-   * independent way for these offsets to miss — `print (:x) is empty` still classifies `empty` as
-   * `primitive` here, cleanly parsed. It is specifically a **grouping** paren, whose node span
-   * excludes the closer so the `)` really does sit between the operand and `is`; a parenthesized
-   * **call** is unaffected (`print (first :l) is empty` classifies `empty` as `keyword`), as are
-   * selectors and `.field` access. Issue #959 owns that axis and merges after this. Do not read
-   * `indexSkippingNewlines` at every position as meaning the function is fully guarded; that
-   * inference is what this comment got wrong twice already.
+   * **Both gap axes are guarded, and that is a claim about two token kinds, not about the
+   * function.** A newline is one way for these offsets to miss; a `)` between the operand and `is`
+   * is a second, independent one — `print (:x) is empty` classified `empty` as `primitive`, cleanly
+   * parsed, until issue #959 folded closing parens into the same scan. It is specifically a
+   * **grouping** paren, whose node span excludes the closer so the `)` really does sit between the
+   * operand and `is`; a parenthesized **call** was never affected (`print (first :l) is empty`
+   * classifies `empty` as `keyword`), as are selectors and `.field` access.
+   *
+   * {@link indexSkippingNewlinesAndClosingParens} skips exactly `newline` and `rparen` and stops at
+   * the first token that is neither. Do not read "at every position" as meaning the function is
+   * guarded against a *third* kind nobody has found yet — that inference is what this comment got
+   * wrong twice already, and the corpus that would settle it is deferred (issue #959's PR body).
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(
       posKey(node.operand.source_span.end),
     ) as number;
-    const isIndex = indexSkippingNewlines(operandEndIndex + 1);
-    const formIndex = indexSkippingNewlines(isIndex + 1);
+    const isIndex = indexSkippingNewlinesAndClosingParens(operandEndIndex + 1);
+    const formIndex = indexSkippingNewlinesAndClosingParens(isIndex + 1);
     switch (node.test.form) {
       case "empty":
         markContextualWord(formIndex, "empty");
         break;
       case "member-of":
         markContextualWord(formIndex, "member");
-        markContextualWord(indexSkippingNewlines(formIndex + 1), "of");
+        markContextualWord(
+          indexSkippingNewlinesAndClosingParens(formIndex + 1),
+          "of",
+        );
         break;
       case "a":
         markContextualWord(formIndex, "a");
@@ -492,13 +511,37 @@ export function highlight(
    */
   function markValueOfKeyPreposition(node: ValueOfKeyNode): void {
     const valueIndex = byStart.get(posKey(node.source_span.start)) as number;
-    markContextualWord(indexSkippingNewlines(valueIndex + 1), "of");
+    markContextualWord(
+      indexSkippingNewlinesAndClosingParens(valueIndex + 1),
+      "of",
+    );
   }
 
-  /** The first index at or after `index` whose token is not a `newline`. */
-  function indexSkippingNewlines(index: number): number {
+  /**
+   * The first index at or after `index` whose token is neither a `newline` nor a closing paren.
+   *
+   * Two token kinds, one scan, because the two gaps have the same cause and appear together. A
+   * newline is separating whitespace wherever the grammar allows one (issue #995); a closing paren
+   * appears because `node.operand`'s span is the **inner** expression's, so a parenthesised operand
+   * leaves its own `)` between that span and the `is`:
+   *
+   *     (
+   *       value of :d for key "x"
+   *     ) is empty
+   *
+   * `(:x\n) is empty` leaves both at once, which is why skipping either alone was insufficient:
+   * each fix landed on the token the other would have skipped, marked nothing, and painted the
+   * predicate's own word `primitive` in a position `spec/tooling.md:30` gives the `keyword` class —
+   * in a program that parses with **zero diagnostics** (issue #959 rounds 4-5, issue #995).
+   *
+   * Only these two kinds can sit in any of these gaps, so the scan is bounded by the grammar rather
+   * than by a guess, and it stops at the first token that is neither. Closing parens are reachable
+   * only in the operand gap; at the other call sites the grammar admits no `)`, and
+   * {@link markContextualWord}'s guard makes an overshoot inert rather than wrong.
+   */
+  function indexSkippingNewlinesAndClosingParens(index: number): number {
     let next = index;
-    while (lex[next]?.kind === "newline") {
+    while (lex[next]?.kind === "newline" || lex[next]?.kind === "rparen") {
       next += 1;
     }
     return next;
@@ -744,7 +787,7 @@ export function highlight(
       };
     }
     const lower = token.text.toLowerCase();
-    if (WORD_OPERATORS.has(lower)) {
+    if (OL_WORD_OPERATORS.has(lower)) {
       return {
         class: "operator",
         text: token.text,
@@ -753,11 +796,14 @@ export function highlight(
     }
     // A profile block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, which takes
     // no block, and Interaction's `when`/`every`/`on_key`/`on_click` — joins the Core keywords, but
-    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "and, while their profile is active,
-    // the profile block-heads together with the Sprites mode-switch command `tell`"). With the
+    // only WHILE ITS PROFILE IS ACTIVE (`spec/tooling.md:30`, "Profile words — a profile's
+    // block-heads and its mode-switch commands — take this class while their profile is active").
+    // With the
     // profile inactive it falls through to `primitive`, which is where `:31` puts "a profile word
     // whose profile is inactive". Those two clauses are the whole rule, and they are why this
-    // classifier needs an active-profile set at all (issue #740).
+    // classifier needs an active-profile set at all (issue #740). Which words those are is declared
+    // per name as `tokenClass` in `spec/built-in-names.json`, and `npm run built-in-names` re-paints
+    // every one of them through this function to check both halves (issue #959).
     //
     // `isKeyword`'s two-argument form IS this rule — `keywords.ts` defines it as the Core list OR
     // an active profile's words — so the registry stays the single entry point rather than this

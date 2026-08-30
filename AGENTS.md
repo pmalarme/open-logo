@@ -180,11 +180,19 @@ gates the three hand-maintained prose lists that used to have nothing checking t
 keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both compared
 **derivedly** — the expected words are computed from the manifest, and the mirror must carry the same
 words in the same order as the block (the extracted words, not the bytes) — plus `spec/tooling.md`'s
-`keyword` **token-class** row, which is
-only **change-detected**. That row is a different set from the keyword list on purpose
-(`spec/grammar.md:378`) and is deliberately underivable, so the gate fingerprints it: a change to it
-cannot pass unseen, and whether the new row is *correct* is maintainer-reviewed under `CODEOWNERS`.
-Issue #841 records the three stronger mechanisms that were tried and why each was withdrawn.
+`keyword` **token-class** declaration. That class is a different set from the keyword list on purpose
+(`spec/grammar.md:378`), and until issue #959 the row enumerated it in 2,055 characters of English
+that the gate could only **change-detect** — inverting the row's meaning and recomputing the digest
+passed every check. What issue #855 had refuted was *deriving* the class from the lists that already
+existed; *declaring* it was never tried. So each name now carries a `tokenClass` beside its
+`category` — two independent axes, "may a program declare this name?" and "how is this word
+painted?" — and the gate re-paints every name through the shipped `highlight()` in nine grammatical
+positions, including the profile gating of `spec/tooling.md:31`. The reverse direction compares the
+name **sources** `highlight()` classifies from, which is narrower than comparing against arbitrary
+highlighter output; ADR-0025 names each mechanism and what it does not reach.
+The four words that are keywords **by position only** (`empty`, `member`, `of`, `a`) cannot be table
+rows, so they are a declared exception set, pinned against their `excluded` carve-outs and against
+both prose statements of them.
 **Adding a primitive is deliberately a two-file change** (the registry and the
 list) and this is the half that fails until both land. The list is under `spec/`, so it is
 maintainer-owned via `CODEOWNERS` like the rest of the contract.

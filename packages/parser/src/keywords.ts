@@ -25,7 +25,7 @@
  *   `checker-reserved-word.ts`.
  * - **Highlighting.** `mod` is on this list for the same reason `and`, `or`, and `not` are: all
  *   four are word-spelled operators of the expression grammar rather than callable primitives. Like
- *   `and`, `mod` is still painted `operator` — `highlight.ts`'s `WORD_OPERATORS` is consulted
+ *   `and`, `mod` is still painted `operator` — `highlight.ts`'s `OL_WORD_OPERATORS` is consulted
  *   before this registry — because the `keyword` **token class** and this list "are different sets
  *   on purpose" (`spec/grammar.md:378`). Reserved-list membership and token class are independent
  *   axes.
@@ -47,7 +47,8 @@
  *
  * **Adding or removing a keyword edits several places.** Deliberately listed rather than counted,
  * because the count is itself the kind of claim nothing recomputes — and it names which gate covers
- * each, because "gated" alone hides the difference between a comparison and a change detector:
+ * each, because "gated" alone hides *which* gate, and the last entry below is held by a different
+ * one:
  *
  * - `spec/grammar.md:368-375` — normative; `npm run built-in-names` compares its extracted words
  *   against `spec/built-in-names.json`.
@@ -58,8 +59,10 @@
  * - this array — reaches that comparison through `spec/built-in-names.json`, in both directions.
  * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
  * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
- *   (`spec/grammar.md:378`). **Change-detected only**: a content fingerprint notices an edit, and
- *   nothing verifies the edited row is still correct.
+ *   (`spec/grammar.md:378`). Since issue #959 the row no longer enumerates it: each name's class is
+ *   declared as `tokenClass` in `spec/built-in-names.json`, and the same gate re-paints every name
+ *   through `highlight()` and compares. The reverse direction reads the name **sources**
+ *   `highlight()` classifies from — this array among them — rather than arbitrary output.
  * - `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS` — asserted against this array by the
  *   pre-existing `npm run test`, not by `npm run built-in-names`.
  *
@@ -151,7 +154,7 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  *   `spec/grammar.md:386` makes accepting any of these words as a **binding** a MUST, so
  *   `local ask` and `for ask in :xs` stay legal whatever the profile set.
  * - **Does this word paint as a keyword?** Only while its profile is active, which
- *   `spec/tooling.md:30`'s `keyword` row states directly ("plus the profile block-heads … while
+ *   `spec/tooling.md:30`'s `keyword` row states directly ("Profile words … take this class while
  *   their profile is active"). {@link isKeyword}'s two-argument form answers this one and stays
  *   profile-gated, because here the gate is what the spec asks for.
  *

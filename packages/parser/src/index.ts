@@ -159,7 +159,12 @@ export type {
   HeritageWordedFormName,
 } from "./signatures.js";
 
-export { highlight, OL_BRACKET_ROLES, OL_TOKEN_CLASSES } from "./highlight.js";
+export {
+  highlight,
+  OL_BRACKET_ROLES,
+  OL_TOKEN_CLASSES,
+  OL_WORD_OPERATORS,
+} from "./highlight.js";
 export type {
   BracketRole,
   HighlightOptions,
