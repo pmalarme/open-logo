@@ -224,9 +224,22 @@ test("a `return` inside each stops iteration and propagates the reported value, 
   ]);
 });
 
-test("a runtime error inside each halts and restores the addressed set (finally runs on the error path)", () => {
-  // `forward "not a number"` raises `ol-type` on :a's run; the loop halts. Only :a's (failed) command
-  // was reached — no :b move — and the run stops with the diagnostic.
+test("a runtime error inside each surfaces its ol-type and emits no move", () => {
+  // `forward "x"` (a word, not a number) raises `ol-type` inside the block, and no move reaches the
+  // event stream. That is exactly what the two assertions below establish — and, deliberately, all
+  // this comment claims (issue #753).
+  //
+  // They do NOT show which iteration failed: every addressed turtle runs the same failing command,
+  // so a loop that kept going would raise the same code and still emit no move. Nor do they show
+  // the addressed-set restoration `spec/turtles-and-sprites.md:78` mandates, because no statement
+  // after the error runs either way. Contrast the `throw` test below, whose block moves before it
+  // throws and which is followed by a trailing statement: there the move list does discriminate.
+  //
+  // Both properties are proven from output on the analogous halting path, by the addressing events
+  // `restoreAddressedSet` emits from `executeEach`'s `try`/`finally`: sprites-addressing-
+  // events.test.mjs's "a throw unwinding each still publishes the restored set before the run
+  // halts" pins the whole sequence `["tell",[1,2],1] · ["each",[1],1] · ["each",[1,2],1]`, which
+  // excludes a second iteration and carries the restored set.
   const result = execute(
     ':a = new_turtle\n:b = new_turtle\ntell [ :a :b ]\neach [ forward "x" ]',
     "main.logo",
@@ -236,11 +249,17 @@ test("a runtime error inside each halts and restores the addressed set (finally 
   assert.deepEqual(moves(result.events), []);
 });
 
-test("a `throw` inside each halts and restores the addressed set (finally runs on the throw path)", () => {
+test("a `throw` inside each halts the run after the first turtle's move", () => {
   // A `throw` on :a's run halts the program (v0.1 has no try/catch, so it stops like any runtime
   // error, spec/commands.md:980) and surfaces `ol-user-error`. The loop stops on the first iteration
-  // — :a's `forward 10` ran but :b never does — and the finally still runs, so the addressed set is
-  // not left corrupted (proven by the absence of any :b move; the run cannot continue past the throw).
+  // — :a's `forward 10` ran but :b never does.
+  //
+  // The restoration `spec/turtles-and-sprites.md:78` mandates on this path is NOT what the moves
+  // below show: no statement after the throw runs, so the absent :b move and the absent
+  // `forward 30` are equally consistent with a restored and with a leaked set (issue #753). It is
+  // proven from output next door, by sprites-addressing-events.test.mjs's "a throw unwinding each
+  // still publishes the restored set before the run halts" — the same program, asserting the
+  // trailing `["each", [1, 2], 1]` event that the `try`/`finally` in `executeEach` emits.
   const result = execute(
     ':a = new_turtle\n:b = new_turtle\ntell [ :a :b ]\neach [ forward 10 throw "stop now" ]\nforward 30',
     "main.logo",
