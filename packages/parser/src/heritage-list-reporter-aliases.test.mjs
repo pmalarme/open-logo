@@ -246,7 +246,7 @@ test("the full-name Core reporters remain callable without Heritage (Core, not g
 // over-applies butlast. The alias and its Core twin must raise the SAME arity diagnostic —
 // identical `code`, `params` (including `callable`), `stage`, and `severity` — proving the alias
 // neither invents nor suppresses a semantic finding. Diagnostic identity is `code` plus structured
-// `params`, and those params are CANONICAL, never the surface spelling (`spec/error-model.md:235-238`,
+// `params`, and those params are CANONICAL, never the surface spelling (`spec/error-model.md:254-259`,
 // issue #733): wrong arity on `bf` and wrong arity on `butfirst` are the SAME condition, so
 // `params.callable` — a machine-readable identifier tools assert on — carries the canonical name
 // (`butfirst`), identical to the Core twin's. This mirrors H5 (#670), which canonicalizes its
@@ -277,7 +277,7 @@ test("a parenthesized reporter alias raises the SAME arity diagnostic as its Cor
     assert.deepEqual(aliasDiag, coreDiag);
     // …and every field of that shared identity is the CANONICAL name/shape, never the surface
     // spelling `bf`/`bl`: `code`, each structured `param` (the machine-readable identity tools
-    // assert on, per `spec/error-model.md:235-238`), `stage`, and `severity` all match, and the
+    // assert on, per `spec/error-model.md:254-259`), `stage`, and `severity` all match, and the
     // canonical name drives the prose too (canonical display is permitted).
     assert.equal(aliasDiag.code, coreDiag.code);
     assert.equal(aliasDiag.params.callable, canonical);

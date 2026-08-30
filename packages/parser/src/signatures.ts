@@ -731,7 +731,7 @@ export function heritageAliasNames(): readonly string[] {
  * an alternate of". Two consumers need that answer for different reasons, and they must never drift:
  * `checker-heritage-form.ts` points a Core-only learner's did-you-mean at the Core spelling, and
  * `checker-control-flow.ts` canonicalizes `params.keyword` so a Heritage escape's diagnostic
- * identity is byte-identical to its Core twin's (`spec/error-model.md:235-238`, issue #737).
+ * identity is byte-identical to its Core twin's (`spec/error-model.md:254-259`, issue #737).
  *
  * Declared `as const` so {@link canonicalOfHeritageFormHead} can report each head's canonical as a
  * literal type: that is what lets a caller thread a canonical spelling into a diagnostic param

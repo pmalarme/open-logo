@@ -263,19 +263,29 @@ test("a read with no scripted answer cancels the run (ol-limit) rather than inve
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
   //
-  // It reaches that ending through the SHARED cancellation diagnostic, identical in code, params
-  // AND prose to an externally cancelled run: diagnostic identity is code + params and prose is
-  // presentation (`spec/error-model.md:235-238`), so a lookalike builder with its own wording would
-  // make the message stop being a function of the identity. The span is what localises it to the
-  // waiting read.
+  // It reaches that ending through the SHARED cancellation diagnostic. What the spec fixes is the
+  // machine-readable half: identity is `code` plus `params` and prose is presentation
+  // (`spec/error-model.md:254-259`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
+  // as for an externally cancelled run — which is asserted directly against that run below, rather
+  // than inferred. The message equality is a STRONGER, NON-NORMATIVE regression guard:
+  // `spec/error-model.md:261-264` lets a localized build reword this message, and equal prose does
+  // not by itself prove a single builder — two builders could emit the same words. It is asserted
+  // because diverging wording is the cheapest early signal that a lookalike builder appeared. The
+  // span is what localises the diagnostic to the waiting read.
   const result = execute('print input "q"', doc);
   const cancelled = execute("forward 1", doc, { signal: { aborted: true } });
   assert.equal(result.diagnostics.length, 1);
   const [finding] = result.diagnostics;
+  const [externallyCancelled] = cancelled.diagnostics;
   assert.equal(finding.code, "ol-limit");
   assert.equal(finding.stage, "runtime");
   assert.deepEqual(finding.params, { limit: "cancelled" });
-  assert.equal(finding.message, cancelled.diagnostics[0].message);
+  // The identity equality the spec actually fixes, compared against the external path itself.
+  assert.equal(finding.code, externallyCancelled.code);
+  assert.deepEqual(finding.params, externallyCancelled.params);
+  assert.equal(finding.stage, externallyCancelled.stage);
+  // Stronger than the spec requires, and deliberately so — see the note above.
+  assert.equal(finding.message, externallyCancelled.message);
   // The span covers the `input` call itself, so the learner is pointed at the waiting instruction.
   assert.deepEqual(finding.source_span.start, [1, 7]);
 });

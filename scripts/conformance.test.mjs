@@ -454,7 +454,7 @@ test("compare returns not matched with diff report", () => {
 });
 
 test("compare ignores diagnostic message field (prose not identity)", () => {
-  // Per spec/error-model.md:253, diagnostic identity = code+params, not prose
+  // Per spec/error-model.md:254-259, diagnostic identity = code+params, not prose
   const expected = {
     events: [],
     diagnostics: [
@@ -1234,7 +1234,7 @@ test("loadFixture rejects malformed fixture schema", () => {
           params: {},
           stage: "parse",
           severity: "error",
-          // message is optional per spec/error-model.md:253
+          // message is optional in a FIXTURE: the harness compares identity, not prose
         },
       ],
     }),
