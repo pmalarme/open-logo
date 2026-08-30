@@ -101,7 +101,13 @@ writing an assertion that quietly asserts nothing:
 
 What *is* proven: `events` and `diagnostics` are diffed item-by-item; every `kind` and `code` is
 validated against the `@openlogo/core` registries; and every `profiles` tag is validated against the
-harness's own `PROFILE_DEPS` table, transcribed from `spec/conformance.md`'s DAG.
+harness's own `PROFILE_DEPS` table, transcribed from `spec/conformance.md`'s DAG. For an
+`"execute": true` fixture `profiles` is also **enforced** (issue #790): the harness statically detects
+the optional profiles the source uses and fails the fixture when the declared set — expanded to its
+dependency closure — does not cover them, so the array cannot quietly under-declare what the program
+needs. It gates executed fixtures only; `check` fixtures are already gated for real through
+`check(profiles)` (and deliberately name inactive profiles' forms), and parse-only fixtures have no
+profile semantics to gate (`spec/conformance.md:120`). See `tests/conformance/README.md`.
 
 So:
 
@@ -151,7 +157,8 @@ down as fact:
 - [ ] Event/field names match the `@openlogo/core` registry.
 - [ ] `execute: true` set once (and only once) the fixture's program is execution-valid.
 - [ ] Deterministic; no timing assertions.
-- [ ] Correct `profiles` tag so profile-scoped runs pick it up.
+- [ ] Correct `profiles` tag so profile-scoped runs pick it up — and, for an `execute: true` fixture,
+      one that covers every optional profile the source actually uses (the harness enforces this).
 - [ ] `ol-*` codes/spans asserted for every error case.
 - [ ] Every factual claim in each `description` was **measured, not inferred** — especially one that
       justifies why a fixture is absent — and each probe behind it was sanity-asserted.

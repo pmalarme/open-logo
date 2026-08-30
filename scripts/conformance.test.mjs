@@ -26,7 +26,9 @@ import {
   safeStringify,
   itemsMatch,
   parseArgs,
+  profileGateErrors,
   runHarness,
+  validateExecuteOptions,
 } from "./harness/index.mjs";
 
 // Each self-test gets its own fresh, uniquely-named OS temp directory (fs.mkdtempSync) — never a
@@ -3063,4 +3065,185 @@ test("a fixture's executeOptions.randomSeed actually reaches execute() (issue #8
   assert.equal(drawnFor(123), 78);
   assert.equal(drawnFor(123), 78);
   assert.notEqual(drawnFor(4242), 78);
+});
+
+// --- Declared-profile gate for executed fixtures (issue #790) -------------------------------------
+//
+// A fixture's `profiles` array used to SELECT the fixture without ever GATING it: for an
+// `"execute": true` fixture it never reached `execute()` at all, so a fixture whose source used
+// Sprites forms passed with "sprites" deleted from its array. Measured on the parent commit, the
+// real corpus had 8 such fixtures (all in core-language/execution/, all executing `:nums[i]` — Data
+// by spec/conformance.md:269 — while declaring Core only), and none of them failed anything.
+
+test("profileGateErrors fails an executed fixture whose source uses an undeclared profile", () => {
+  const errors = profileGateErrors(
+    { profiles: ["core-language"], execute: true, check: false },
+    "tell [ :a ]",
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /source uses profile sprites/);
+  assert.match(errors[0], /does not declare/);
+});
+
+test("profileGateErrors names every undeclared profile, not just the first", () => {
+  const errors = profileGateErrors(
+    { profiles: ["core-language"], execute: true, check: false },
+    'print value of :d for key "k"',
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /source uses profiles data, heritage/);
+});
+
+test("profileGateErrors passes an executed fixture that declares what it uses", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["sprites"], execute: true, check: false },
+      "tell [ :a ]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors expands the declared set to its dependency closure", () => {
+  // Sprites depends on Turtle & Rendering which depends on Core, and Geometry pulls in Data — so
+  // declaring "geometry" alone already covers a source that reads a list by index.
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["geometry"], execute: true, check: false },
+      ":xs = [1 2]\nprint :xs[1]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors leaves parse-only fixtures alone (postfix-read grammar is unconditional Core syntax, spec/conformance.md:120)", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["core-language"], execute: false, check: false },
+      ":xs = [1 2]\nprint :xs[1]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors leaves check-mode fixtures alone — check() already gates them on the ACTIVE profile set, and the corpus's negative fixtures name an inactive profile's forms on purpose", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["core-language"], execute: true, check: true },
+      "tell [ :a ]",
+    ),
+    [],
+  );
+});
+
+test("runHarness fails an executed fixture that under-declares its profiles", () => {
+  mkdirSync(join(TEMP_ROOT, "under-declared"), { recursive: true });
+  // The source MUST use an undeclared profile, and the fixture MUST otherwise pass, or this test
+  // is not load-bearing: with a source like `print 1` the exit code would come from the empty
+  // expected stream and deleting the profileGateErrors() call from runHarness would leave the test
+  // green. `expect: "mismatch"` makes the deliberately-empty expected stream the *passing* outcome,
+  // so the only thing that can fail this fixture is the profile gate itself.
+  writeFileSync(
+    join(TEMP_ROOT, "under-declared", "under-declared.logo"),
+    ":xs = [1 2]\nclear :xs",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "under-declared", "under-declared.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      expect: "mismatch",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  assert.equal(runHarness({ root: TEMP_ROOT }), 1);
+});
+
+test("...and the identical fixture passes once `data` is declared — so the exit code above is the gate, not the comparison", () => {
+  mkdirSync(join(TEMP_ROOT, "declared-pair"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "declared-pair", "declared-pair.logo"),
+    ":xs = [1 2]\nclear :xs",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "declared-pair", "declared-pair.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language", "data"],
+      execute: true,
+      expect: "mismatch",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  assert.equal(runHarness({ root: TEMP_ROOT }), 0);
+});
+
+test("runHarness reports the profile-gate violation only after the fixture's profile names are known-good, so closureOf never sees an unregistered one", () => {
+  mkdirSync(join(TEMP_ROOT, "bogus-profile"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bogus-profile", "bogus-profile.logo"),
+    "tell [ :a ]",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "bogus-profile", "bogus-profile.expected.json"),
+    JSON.stringify({
+      profiles: ["not-a-real-profile"],
+      execute: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  // Fails for the unknown profile rather than throwing out of closureOf.
+  assert.equal(runHarness({ root: TEMP_ROOT }), 1);
+});
+
+// --- validateExecuteOptions (shared by the conformance harness and the examples gate) -------------
+
+test("validateExecuteOptions accepts a well-formed options object", () => {
+  assert.equal(
+    validateExecuteOptions({
+      randomSeed: 7,
+      hostInput: { events: [{ tick: 1, kind: "click" }] },
+    }),
+    null,
+  );
+});
+
+test("validateExecuteOptions rejects a non-object", () => {
+  assert.match(validateExecuteOptions([]), /must be an object/);
+});
+
+test("validateExecuteOptions rejects an unknown key", () => {
+  assert.match(
+    validateExecuteOptions({ hostinput: {} }),
+    /is not a JSON-expressible ExecuteOptions key/,
+  );
+});
+
+test("validateExecuteOptions type-checks every known key", () => {
+  assert.match(
+    validateExecuteOptions({ instructionBudget: "10" }),
+    /instructionBudget" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ recursionDepthLimit: "10" }),
+    /recursionDepthLimit" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ signal: { aborted: "yes" } }),
+    /signal" must be an object with a boolean "aborted"/,
+  );
+  assert.match(
+    validateExecuteOptions({ learnerLevel: 3 }),
+    /learnerLevel" must be a string/,
+  );
+  assert.match(
+    validateExecuteOptions({ randomSeed: "7" }),
+    /randomSeed" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ hostInput: { events: "nope" } }),
+    /hostInput.events" must be an array/,
+  );
 });

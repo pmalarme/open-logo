@@ -197,9 +197,25 @@ both prose statements of them.
 list) and this is the half that fails until both land. The list is under `spec/`, so it is
 maintainer-owned via `CODEOWNERS` like the rest of the contract.
 
-`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` parses and
+`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` (logic in
+`scripts/examples-gate.mjs`, with profile detection in `scripts/profile-detection.mjs`) parses and
 executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
-rest with a visible notice. `scripts/check-markdown-examples.mjs` (issue #850, logic in
+rest with a visible notice. An example that registers a handler **needing host delivery** — `on_key`,
+`on_click`, or a `when` for any event other than an exact-case `"start"` — **must** carry a deterministic
+host-input schedule in `scripts/examples-host-input.json`, and must produce the output that entry
+asserts (issue #955):
+running every program with an *empty* host left the gate structurally blind to every host-dependent
+feature the language has, which is how `10-game.logo` was certified green while its stated contract —
+"each click prints the updated `:score`" — was unreachable. The requirement is read from the
+**source**, not from the manifest, so a deleted or misspelled entry fails the gate rather than
+quietly relaxing it. `every` and an exact-case `when "start"` are excluded, measured rather than
+assumed: under an empty host with `wait 100`, `every 10 [ print 1 ]` prints 10 and `when "start"`
+prints 1, while `on_click`, `when "stop"` and `when "START"` print 0. (The 10 belongs to the `wait`,
+not to `every`: the same program prints 2 under `wait 20` and 0 with no wait at all.) Note what this
+gate does
+and does not cover: it drives `@openlogo/runtime`'s `execute()`, so it asserts the **language-level**
+interaction contract; the **studio host seam** that #952 broke is a different surface, asserted by
+`packages/studio`'s own tests. `scripts/check-markdown-examples.mjs` (issue #850, logic in
 `scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
 `spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
 unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0

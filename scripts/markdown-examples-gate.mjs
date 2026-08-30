@@ -86,7 +86,8 @@ import {
   walk,
 } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
-import { IMPLEMENTED_PROFILES, detectUsedProfiles } from "./examples-gate.mjs";
+import { IMPLEMENTED_PROFILES } from "./examples-gate.mjs";
+import { detectUsedProfiles } from "./profile-detection.mjs";
 
 /** Directory roots scanned for markdown documents, relative to the repository root. */
 export const MARKDOWN_ROOTS = ["spec", "docs"];

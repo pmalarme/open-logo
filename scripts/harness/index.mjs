@@ -15,6 +15,7 @@ import {
 } from "@openlogo/core";
 import { check, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
+import { detectUsedProfiles } from "../profile-detection.mjs";
 
 export const ROOT = "tests/conformance";
 export const EXPECTED_SUFFIX = ".expected.json";
@@ -308,15 +309,10 @@ export function loadFixture(fixture) {
 
   // "executeOptions" (issue #195) is an opt-in object, valid only alongside "execute": true (and
   // NOT alongside "check": true), that is passed straight through to @openlogo/runtime's
-  // execute() third argument. The JSON-expressible keys are enumerated by
-  // KNOWN_EXECUTE_OPTION_KEYS below — instructionBudget, recursionDepthLimit, signal, learnerLevel,
-  // hostInput, and randomSeed (issue #865) — and each is type-checked after it. It
-  // exists so a fixture can deterministically trigger the execution-safety gates (ol-limit) with
-  // a small, hand-reviewable budget/depth instead of hanging on the large production defaults.
-  // `signal`, when present, must be a plain `{ aborted: boolean }` object — the only shape JSON
-  // can express and the only shape execute() actually needs (it just reads `signal.aborted`); a
-  // fixture cannot express a signal that flips mid-run, so a fixture can only assert the
-  // "already cancelled" case.
+  // execute() third argument. Its shape — the allow-listed JSON-expressible keys and their types —
+  // is validated by {@link validateExecuteOptions}, which the examples gate shares so there is only
+  // one definition of "an ExecuteOptions a JSON file may express". Only the fixture-specific
+  // precondition lives here.
   // Requiring "execute": true (and rejecting "check": true) stops a fixture from setting
   // executeOptions where it would be silently ignored: produce() short-circuits on "check": true
   // BEFORE it ever reaches the "execute": true branch (see produce() below), so a
@@ -328,104 +324,9 @@ export function loadFixture(fixture) {
         error: `"executeOptions" requires "execute": true and "check" to not be true (it configures @openlogo/runtime's execute(), which never runs when check:true short-circuits produce() first, or when execute isn't true at all)`,
       };
     }
-    if (
-      typeof spec.executeOptions !== "object" ||
-      spec.executeOptions === null ||
-      Array.isArray(spec.executeOptions)
-    ) {
-      return { error: `"executeOptions" must be an object when present` };
-    }
-    // Reject any unknown key on executeOptions outright (issue #686, slice I7). The field is passed
-    // to execute() verbatim, so a typo'd or unrecognized key (`hostinput`, `hostInputs`, a stray
-    // `budget`) would load clean, be silently ignored by execute(), and let a fixture that LOOKS
-    // like proof — an ordering fixture that supplies host input, say — pass while proving nothing:
-    // the exact durable-false-claim / typo-masking hole this harness already closes for
-    // execute/check. Allow-listing the JSON-expressible ExecuteOptions keys closes it for every
-    // future key at once, not just the ones enumerated below. `tutorTemplates` is deliberately NOT
-    // in the list: it is a function (issue #332), so no JSON fixture can supply it — a fixture
-    // naming it is a mistake and is correctly rejected here. (Audited: no existing fixture carries a
-    // stray key, so this is a safe tightening mid-saga rather than a breaking one.)
-    const KNOWN_EXECUTE_OPTION_KEYS = new Set([
-      "instructionBudget",
-      "recursionDepthLimit",
-      "signal",
-      "learnerLevel",
-      "hostInput",
-      "randomSeed",
-    ]);
-    for (const key of Object.keys(spec.executeOptions)) {
-      if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
-        return {
-          error: `"executeOptions.${key}" is not a JSON-expressible ExecuteOptions key (known keys: ${[...KNOWN_EXECUTE_OPTION_KEYS].join(", ")})`,
-        };
-      }
-    }
-    const {
-      instructionBudget,
-      recursionDepthLimit,
-      signal,
-      learnerLevel,
-      hostInput,
-      randomSeed,
-    } = spec.executeOptions;
-    if (
-      instructionBudget !== undefined &&
-      typeof instructionBudget !== "number"
-    ) {
-      return { error: `"executeOptions.instructionBudget" must be a number` };
-    }
-    if (
-      recursionDepthLimit !== undefined &&
-      typeof recursionDepthLimit !== "number"
-    ) {
-      return {
-        error: `"executeOptions.recursionDepthLimit" must be a number`,
-      };
-    }
-    if (
-      signal !== undefined &&
-      (typeof signal !== "object" ||
-        signal === null ||
-        typeof signal.aborted !== "boolean")
-    ) {
-      return {
-        error: `"executeOptions.signal" must be an object with a boolean "aborted"`,
-      };
-    }
-    // "learnerLevel" (issue #332) — the learner's active curriculum level, a plain string
-    // (`spec/educational-model.md`'s level table). execute() maps an unknown value to its default,
-    // so only its type is checked here (a non-string is a fixture mistake, rejected rather than
-    // silently forwarded).
-    if (learnerLevel !== undefined && typeof learnerLevel !== "string") {
-      return { error: `"executeOptions.learnerLevel" must be a string` };
-    }
-    // "hostInput" (issue #686, slice I7 — ExecuteOptions.hostInput) is a tick-scheduled list of key
-    // presses, clicks, and named events a host would have delivered, so on_key/on_click/when
-    // handlers can be proven to fire from a headless fixture. Each entry MUST be a plain object with
-    // a numeric `tick` and a discriminated `kind`: "key" (with a string `key`), "click", or "event"
-    // (with a string `event`). It is validated exactly as strictly as `signal` — a malformed entry
-    // is rejected here rather than silently ignored by execute(), so an ordering fixture cannot
-    // "pass" while delivering nothing. Like `signal`, JSON can only express a STATIC schedule fixed
-    // before the run (it cannot depend on what the program does), so a fixture proves ordering for a
-    // pre-planned tick→deliveries schedule; input that reacts to program state stays a unit-test
-    // concern.
-    if (hostInput !== undefined) {
-      const hostInputError = validateHostInput(hostInput);
-      if (hostInputError !== null) {
-        return { error: hostInputError };
-      }
-    }
-    // "randomSeed" (issue #865 — ExecuteOptions.randomSeed) pins the seed the run's shared
-    // `random`/`randomize` generator starts from, so a fixture can express "this program, WITH this
-    // randomness" instead of being unable to use `random` at all. Type-checked exactly like the two
-    // numeric limits above: a non-number is a fixture mistake, rejected here rather than forwarded
-    // and silently folded to a state by `>>> 0`. Note what a single fixture still cannot express —
-    // the property #865 creates is that two runs sharing a seed AGREE, and the fixture format is one
-    // source to one expected event stream, so cross-run determinism stays a unit-test concern
-    // (`packages/runtime/src/random-randomize.test.mjs`). What this does buy is a fixture whose
-    // program uses `random` at all having a stable, reproducible expected stream.
-    if (randomSeed !== undefined && typeof randomSeed !== "number") {
-      return { error: `"executeOptions.randomSeed" must be a number` };
+    const executeOptionsError = validateExecuteOptions(spec.executeOptions);
+    if (executeOptionsError !== null) {
+      return { error: executeOptionsError };
     }
   }
 
@@ -450,6 +351,173 @@ export function loadFixture(fixture) {
 
   const source = readFileSync(fixture.logoPath, "utf8");
   return { expected, source };
+}
+
+/**
+ * Validate an `ExecuteOptions` object supplied declaratively as JSON — a conformance fixture's
+ * `executeOptions` (issue #195) or an examples-gate host-input entry's (issue #955). Returns `null`
+ * when valid, or an error string naming the first offending key.
+ *
+ * Shared by both gates so there is exactly one definition of "an `ExecuteOptions` a JSON file may
+ * express": a second, gate-local copy would drift, and the whole point of validating here is that a
+ * typo'd key must not load clean, be silently ignored by `execute()`, and let a file that LOOKS
+ * like proof pass while proving nothing. The fixture-only precondition — `executeOptions` requires
+ * `"execute": true` and rejects `"check": true` — stays in {@link loadFixture}, since it is about
+ * the fixture format rather than about `ExecuteOptions`.
+ *
+ * Every unknown key is rejected outright (issue #686, slice I7). The field is passed to `execute()`
+ * verbatim, so a typo'd or unrecognized key (`hostinput`, `hostInputs`, a stray `budget`) would
+ * otherwise be silently ignored — the exact durable-false-claim / typo-masking hole this harness
+ * already closes for `execute`/`check`. Allow-listing the JSON-expressible `ExecuteOptions` keys
+ * closes it for every future key at once, not just the ones enumerated below. `tutorTemplates` is
+ * deliberately NOT in the list: it is a function (issue #332), so no JSON file can supply it — a
+ * file naming it is a mistake and is correctly rejected here.
+ */
+export function validateExecuteOptions(executeOptions) {
+  if (
+    typeof executeOptions !== "object" ||
+    executeOptions === null ||
+    Array.isArray(executeOptions)
+  ) {
+    return `"executeOptions" must be an object when present`;
+  }
+  const KNOWN_EXECUTE_OPTION_KEYS = new Set([
+    "instructionBudget",
+    "recursionDepthLimit",
+    "signal",
+    "learnerLevel",
+    "hostInput",
+    "randomSeed",
+  ]);
+  for (const key of Object.keys(executeOptions)) {
+    if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
+      return `"executeOptions.${key}" is not a JSON-expressible ExecuteOptions key (known keys: ${[...KNOWN_EXECUTE_OPTION_KEYS].join(", ")})`;
+    }
+  }
+  const {
+    instructionBudget,
+    recursionDepthLimit,
+    signal,
+    learnerLevel,
+    hostInput,
+    randomSeed,
+  } = executeOptions;
+  if (
+    instructionBudget !== undefined &&
+    typeof instructionBudget !== "number"
+  ) {
+    return `"executeOptions.instructionBudget" must be a number`;
+  }
+  if (
+    recursionDepthLimit !== undefined &&
+    typeof recursionDepthLimit !== "number"
+  ) {
+    return `"executeOptions.recursionDepthLimit" must be a number`;
+  }
+  // `signal`, when present, must be a plain `{ aborted: boolean }` object — the only shape JSON can
+  // express and the only shape execute() actually needs (it just reads `signal.aborted`); JSON
+  // cannot express a signal that flips mid-run, so only the "already cancelled" case is expressible.
+  if (
+    signal !== undefined &&
+    (typeof signal !== "object" ||
+      signal === null ||
+      typeof signal.aborted !== "boolean")
+  ) {
+    return `"executeOptions.signal" must be an object with a boolean "aborted"`;
+  }
+  // "learnerLevel" (issue #332) — the learner's active curriculum level, a plain string
+  // (`spec/educational-model.md`'s level table). execute() maps an unknown value to its default,
+  // so only its type is checked here (a non-string is a mistake, rejected rather than silently
+  // forwarded).
+  if (learnerLevel !== undefined && typeof learnerLevel !== "string") {
+    return `"executeOptions.learnerLevel" must be a string`;
+  }
+  // "hostInput" (issue #686, slice I7 — ExecuteOptions.hostInput) is a tick-scheduled list of key
+  // presses, clicks, and named events a host would have delivered, so on_key/on_click/when
+  // handlers can be proven to fire headlessly. Each entry MUST be a plain object with a numeric
+  // `tick` and a discriminated `kind`: "key" (with a string `key`), "click", or "event" (with a
+  // string `event`). Validated exactly as strictly as `signal` — a malformed entry is rejected here
+  // rather than silently ignored by execute(), so an ordering fixture cannot "pass" while
+  // delivering nothing. Like `signal`, JSON can only express a STATIC schedule fixed before the run
+  // (it cannot depend on what the program does), so a declarative file proves ordering for a
+  // pre-planned tick→deliveries schedule; input that reacts to program state stays a unit-test
+  // concern.
+  if (hostInput !== undefined) {
+    const hostInputError = validateHostInput(hostInput);
+    if (hostInputError !== null) {
+      return hostInputError;
+    }
+  }
+  // "randomSeed" (issue #865 — ExecuteOptions.randomSeed) pins the seed the run's shared
+  // `random`/`randomize` generator starts from, so a file can express "this program, WITH this
+  // randomness" instead of being unable to use `random` at all. Type-checked exactly like the two
+  // numeric limits above: a non-number is a mistake, rejected here rather than forwarded and
+  // silently folded to a state by `>>> 0`. Note what a single fixture still cannot express — the
+  // property #865 creates is that two runs sharing a seed AGREE, and the fixture format is one
+  // source to one expected event stream, so cross-run determinism stays a unit-test concern
+  // (`packages/runtime/src/random-randomize.test.mjs`). What this does buy is a program that uses
+  // `random` at all having a stable, reproducible expected stream.
+  if (randomSeed !== undefined && typeof randomSeed !== "number") {
+    return `"executeOptions.randomSeed" must be a number`;
+  }
+  return null;
+}
+
+/**
+ * Gate an **executed** fixture on its declared `profiles` (issue #790).
+ *
+ * A fixture's `profiles` array used to *select* the fixture — {@link runHarness} intersects it with
+ * the `--profile` closure to decide whether to run it — without ever *gating* it. For an
+ * `"execute": true` fixture the array never reached `execute()` at all (`@openlogo/runtime` is
+ * profile-blind by design, `spec/tooling.md:175-177` puts profile visibility in the Layer-2
+ * checker), so a fixture whose source used Sprites forms passed with `"sprites"` deleted from its
+ * array. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
+ * "this program requires exactly these profiles" a normative, independently-claimable property.
+ *
+ * This closes that hole statically, with `scripts/profile-detection.mjs`'s `detectUsedProfiles` —
+ * the same detector the examples gate already uses for `spec/examples/*.logo` (issue #519). The
+ * fixture's declared set is expanded to its full dependency closure ({@link closureOf}) first, so
+ * declaring `"geometry"` already covers the `"data"` it depends on.
+ *
+ * **It applies to `"execute": true` fixtures only, and that scope is the point rather than a
+ * convenience.** The other two modes are already correct without it, and gating them would be
+ * wrong:
+ *
+ * - **check-mode** fixtures already get *real* profile gating: {@link produce} passes `profiles`
+ *   into `check()`, which resolves primitives through the active set
+ *   (`activeProfilePrimitiveArityRange`). Those fixtures deliberately name a profile's forms while
+ *   that profile is INACTIVE — that is exactly what `heritage/check/heritage-forms-rejected-in-core`
+ *   and its 30 siblings exist to prove — so a static under-declaration gate would fail the corpus's
+ *   correct negative fixtures.
+ * - **parse-only** fixtures have no profile semantics to gate: `spec/conformance.md:120` states the
+ *   postfix-read grammar a list index uses "is unconditional Core syntax", so a Core-only fixture
+ *   that merely *parses* `:nums[2]` is right as written.
+ *
+ * Execution is the case the spec ties to the profile: `spec/conformance.md:269` — "only
+ * Data-claiming implementations execute the list case".
+ *
+ * Precondition: every entry of `expected.profiles` is a known profile. {@link runHarness} calls
+ * this only after {@link fixtureErrors} has reported none, so {@link closureOf} cannot throw here.
+ *
+ * @returns an array of error strings (empty when the fixture is in order), in the same shape
+ *   {@link fixtureErrors} returns so {@link runHarness} reports both the same way.
+ */
+export function profileGateErrors(expected, source) {
+  if (expected.execute !== true || expected.check === true) {
+    return [];
+  }
+  const declared = new Set(
+    expected.profiles.flatMap((profile) => [...closureOf(profile)]),
+  );
+  const undeclared = detectUsedProfiles(source).filter(
+    (profile) => !declared.has(profile),
+  );
+  if (undeclared.length === 0) {
+    return [];
+  }
+  return [
+    `source uses ${undeclared.length === 1 ? "profile" : "profiles"} ${undeclared.join(", ")}, which "profiles" (${expected.profiles.join(", ")}) does not declare — an executed fixture must declare every profile its source needs (issue #790)`,
+  ];
 }
 
 /** Static checks that a fixture references only registered profiles, event kinds, and codes. */
@@ -1054,6 +1122,11 @@ export function runHarness(options = {}) {
 
     // Check off-contract violations
     const errors = fixtureErrors(expected);
+    // The declared-profile gate (issue #790) runs only once the fixture's profile identifiers are
+    // known-good, so `closureOf` cannot throw on an unregistered one.
+    if (errors.length === 0) {
+      errors.push(...profileGateErrors(expected, source));
+    }
     if (errors.length > 0) {
       failed++;
       failures.push(
