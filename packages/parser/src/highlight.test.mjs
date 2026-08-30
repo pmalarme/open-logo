@@ -616,6 +616,15 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
     ["(2\n) is member of :nums", "member"],
     ['(\n  :p\n) is a "point"', "a"],
     ['  (\n    value of :d for key "x"\n  ) is empty', "empty"],
+    // Deep and INTERLEAVED closing tails, which pin the scan as **unbounded**. Every row above
+    // needs at most two skips, so a scan capped at three iterations passed the whole suite,
+    // conformance, examples and the gate while painting `(((:x)\n)\n) is empty` — a program that
+    // parses with zero diagnostics — `primitive` (issue #959, QA mutation M4). The tails here are
+    // `))))` and `)\n)\n)`: parens and newlines alternating, four and five tokens deep.
+    ["((((:x)))) is empty", "empty"],
+    ["(((:x)\n)\n) is empty", "empty"],
+    ["((:x)\n) is member of :nums", "member"],
+    ['(\n(\n:p\n)\n) is a "point"', "a"],
   ]) {
     assert.equal(
       OL.parse(source, doc).diagnostics.length,
@@ -628,6 +637,8 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
   // parenthesised form has to be checked for both.
   assert.equal(classOf("(2) is member of :nums", "of"), "keyword");
   assert.equal(classOf("(2\n) is member of :nums", "of"), "keyword");
+  // `of` is located from `member`, so the deep tail has to be checked for it too.
+  assert.equal(classOf("(((:x)\n)\n) is member of :nums", "of"), "keyword");
   // And the scan must not run past a real `is` onto something else: an unparenthesised operand is
   // unchanged, and a word outside any predicate is still an ordinary name.
   assert.equal(classOf("print :x is empty", "empty"), "keyword");

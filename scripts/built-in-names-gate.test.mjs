@@ -2791,7 +2791,29 @@ test("the paint axis fails closed when there is no highlighter to measure agains
   assert.deepEqual(tokenClassFindings(REAL_MANIFEST, api), [
     `${MANIFEST_PATH}: tokenClass cannot be compared — @openlogo/parser exposes no highlight() to measure against, so every declared class would pass unchecked`,
   ]);
-  assert.deepEqual(contextualTokenClassFindings(REAL_MANIFEST, api), []);
+  // This line used to assert `[]` — it PINNED the fail-open as correct, so the hole was not merely
+  // untested, it was codified (issue #959 review, rebase round).
+  assert.deepEqual(contextualTokenClassFindings(REAL_MANIFEST, api), [
+    `${MANIFEST_PATH}: the parser exports no \`highlight\` — the contextual probes cannot be run or parsed, and a silent skip here reads as "checked" (issue #959)`,
+  ]);
+});
+
+test("the contextual probes fail closed when there is no parser to parse them", () => {
+  // The probes' whole claim is that each is run AND parsed — it must build the AST node its
+  // position names, or the label is decorative. Without `parse()` that half cannot happen, so
+  // returning no findings would report "checked" for a proof that never ran.
+  const { parse, ...api } = realParserApi;
+  assert.equal(typeof parse, "function");
+  assert.deepEqual(contextualTokenClassFindings(REAL_MANIFEST, api), [
+    `${MANIFEST_PATH}: the parser exports no \`parse\` — the contextual probes cannot be run or parsed, and a silent skip here reads as "checked" (issue #959)`,
+  ]);
+
+  // Both absent at once names both, rather than reporting whichever is checked first.
+  const { highlight, ...neither } = api;
+  assert.equal(typeof highlight, "function");
+  assert.deepEqual(contextualTokenClassFindings(REAL_MANIFEST, neither), [
+    `${MANIFEST_PATH}: the parser exports no \`highlight\` and no \`parse\` — the contextual probes cannot be run or parsed, and a silent skip here reads as "checked" (issue #959)`,
+  ]);
 });
 
 test("INJECTED DRIFT: the contextual exception set emptied — the mutation issue #964 asks for", () => {

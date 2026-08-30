@@ -134,17 +134,9 @@ plainly here because "in both directions" over-describes two of them:
    probes** (`empty`, `member` and `a` one each, `of` two: the is-predicate and the value-of
    reader) plus **8 elsewhere probes**, two per word. Those ask "is this word painted right
    *here*, and left alone *there*"; they cannot ask "in every shape the grammar permits". The
-   paren/newline scan in `markIsPredicateKeywords` is covered — **for the gap before `is` only** —
-   by the parenthesised and multiline probes in `packages/parser/src/highlight.test.mjs`, which are
-   regression cases rather than a derived corpus.
-
-   **A related defect ships unfixed, and it is not this slice's.** This slice added the scan for the
-   gap *before* `is`; the adjacencies after it are untouched. Measured against the shipped
-   **`@openlogo/parser` 0.2.0**, all in programs
-   that parse with **zero diagnostics**: a newline before `is` paints the contextual word `keyword`,
-   while a newline *after* `is` (in the `empty`, `member` and `a` forms) and one between `member`
-   and `of` still paint it `primitive`, where `spec/tooling.md:30` gives `keyword`. That is issue
-   **#995**, tracked separately.
+   paren/newline scan in `markIsPredicateKeywords` is covered by the parenthesised, multiline and
+   deep-interleaved probes in `packages/parser/src/highlight.test.mjs`, which are regression cases
+   rather than a derived corpus.
 
    A **generated** corpus for that axis was built during this slice's review and is deferred to its
    own change. It repeatedly proved the harder lesson — three successive revisions each replaced one
@@ -156,6 +148,12 @@ plainly here because "in both directions" over-describes two of them:
    **structural** argument — a single unbounded `while` over `rparen | newline` cannot count, so run
    length is not a dimension the implementation can depend on — rather than a wider bounded
    enumeration, which only moves the boundary a mutant hides behind. That work is its own slice.
+
+   That argument is about the source *as written*, and for a round nothing in the tree **held the
+   `while` to being unbounded**: every committed shape needed at most two skips, so capping the scan
+   at three passed the unit suite, conformance, examples and the gate while painting
+   `(((:x)\n)\n) is empty` — zero diagnostics — `primitive` (QA mutation M4). The regression table
+   now carries four- and five-token interleaved tails, which is the pin the argument was leaning on.
 
 ## What this does **not** check
 

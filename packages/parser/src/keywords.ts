@@ -25,7 +25,7 @@
  *   `checker-reserved-word.ts`.
  * - **Highlighting.** `mod` is on this list for the same reason `and`, `or`, and `not` are: all
  *   four are word-spelled operators of the expression grammar rather than callable primitives. Like
- *   `and`, `mod` is still painted `operator` — `highlight.ts`'s `WORD_OPERATORS` is consulted
+ *   `and`, `mod` is still painted `operator` — `highlight.ts`'s `OL_WORD_OPERATORS` is consulted
  *   before this registry — because the `keyword` **token class** and this list "are different sets
  *   on purpose" (`spec/grammar.md:378`). Reserved-list membership and token class are independent
  *   axes.

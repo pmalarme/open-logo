@@ -1990,8 +1990,18 @@ export function contextualDeclaration(manifest) {
  *   not touch, so it is an independent lower bound rather than a second copy of the same edit.
  */
 export function contextualTokenClassFindings(manifest, api) {
-  if (typeof api.highlight !== "function" || typeof api.parse !== "function") {
-    return [];
+  // Fail CLOSED. Returning `[]` when a capability is absent let the gate report "0 findings" while
+  // skipping this proof entirely — a check that passes because it ran nothing, which is the exact
+  // shape (`rowFingerprint`, the carve-out that passed when emptied, issue #964) this whole
+  // mechanism exists to close. It was in the one function whose job is proving the probes are
+  // *parsed* (issue #959 review, rebase round).
+  const missing = ["highlight", "parse"].filter(
+    (capability) => typeof api[capability] !== "function",
+  );
+  if (missing.length > 0) {
+    return [
+      `${MANIFEST_PATH}: the parser exports no ${missing.map((name) => `\`${name}\``).join(" and no ")} — the contextual probes cannot be run or parsed, and a silent skip here reads as "checked" (issue #959)`,
+    ];
   }
   const declared = contextualDeclaration(manifest);
   const findings = [];
