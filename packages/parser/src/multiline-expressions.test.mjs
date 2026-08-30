@@ -447,7 +447,12 @@ test("the dict-key guard is scoped to the dictionary that owns the newline", () 
       false,
     ],
   ]) {
-    const oneLine = source.replace("\n", " ");
+    // `replaceAll`, not `replace`: every row above happens to carry exactly one newline, so
+    // `replace` would agree today and silently stop producing a one-line spelling the moment a
+    // two-newline row is added — the comparison would then hold a multi-line source on both sides
+    // and assert nothing. Flagged by CodeQL as incomplete escaping (PR #999); the defect it names
+    // here is a latent test weakening, not a security exposure.
+    const oneLine = source.replaceAll("\n", " ");
     const detail = detectsLeak
       ? "a leaked guard changes this count"
       : "pins agreement with the one-line spelling; does NOT detect a leak";

@@ -465,8 +465,12 @@ test("a nested long block that eats the closer: the residue #879 still tracks", 
       ["ol-unmatched-bracket"],
       `${source}: one residual phantom, down from two at the saga tip (issue #879)`,
     );
+    // `replaceAll`, not `replace`: each source above carries exactly one newline today, so
+    // `replace` agrees now and would stop producing a one-line spelling the moment a two-newline
+    // shape is added — the assertion would then be checking a still-multi-line source for phantoms
+    // and would pass for the wrong reason. Flagged by CodeQL (PR #999).
     assert.deepEqual(
-      codesOf(source.replace("\n", " ")).filter((code) =>
+      codesOf(source.replaceAll("\n", " ")).filter((code) =>
         code.startsWith("ol-unmatched-"),
       ),
       [],
