@@ -358,32 +358,69 @@ export function highlight(
    * `empty`/`member`/`of`/`a` are keywords in reader-recognized positions. `spec/tooling.md:97-99`
    * is the normative highlighter instruction and names two: "only inside an `is`-predicate or the
    * heritage `value of … for key` reader, and as ordinary names elsewhere". This function handles
-   * the first — `spec/grammar.md:234` states its adjacency rule — and
-   * {@link markValueOfKeyPreposition} below handles the second. `is` itself, `between`, and
-   * `strictly` are already globally reserved. The grammar requires each word directly adjacent in
-   * the token stream (no `skipNewlines` between them), so once `is` is found the rest are just the
-   * following raw token indexes.
+   * the first, and {@link markValueOfKeyPreposition} below handles the second. `is` itself,
+   * `between`, and `strictly` are already globally reserved.
    *
-   * `node.operand`'s span always ends at a real, non-`eof` token, and the parser only ever
-   * builds an `IsPredicateNode` when `is` is the literal next raw token after the operand
-   * (`isName` reads `current()` directly, with no `skipNewlines` between) — so `byEnd` always
-   * resolves and `isIndex` always lands on that `is` token.
+   * `node.operand`'s span always ends at a real, non-`eof` token, so `byEnd` always resolves.
+   *
+   * **Every index here walks past newlines, including the one that finds `is` itself** (issue
+   * #995). Two earlier versions of this comment asserted adjacency instead, and both were false:
+   * one claimed the words after `is` are "directly adjacent in the token stream (no `skipNewlines`
+   * between them)", the other that "`is` is the literal next raw token after the operand". Neither
+   * holds. `parseComparison` guards the operator with `continuesOnNextLineWith("is")` and skips
+   * before testing `isName("is")`, and `parseIsPredicate` then calls `skipNewlinesBeforeOperand`
+   * before the form word and again before `of` (issue #933).
+   *
+   * **Exactly three of those positions can move a word this function classifies** — before `is`,
+   * before the form word, and between `member` and `of`. `parseIsPredicate` and `parseBetween`
+   * skip newlines at several further points, and none of them can shift an index used here: the
+   * remaining `parseIsPredicate` skips sit after the last contextual word, and `parseBetween`
+   * classifies nothing from here at all — the `between` case of the switch below is empty, because
+   * `between`, `strictly` and `and` are globally reserved and painted by the ordinary path.
+   * (An earlier revision said those skips all precede "an operand or a type literal"; two of
+   * `parseBetween`'s four precede the reserved words `between` and `and`, so the conclusion held
+   * for the wrong reason.)
+   *
+   * Cited by role rather than by line on purpose. Line numbers into this file are the wrong-passage
+   * mode waiting to happen and nothing gates them: `npm run spec-citations` validates only
+   * `spec/*.md` references, and an earlier revision of this very comment cited six `parser.ts`
+   * lines that its own sibling edit had already shifted, with the gate reporting zero failures.
+   * A role survives an insertion; a line number does not.
+   *
+   * So `print :x` ⏎ `is empty` and `print :x is` ⏎ `empty` are both legal predicates, and a raw
+   * offset lands on a newline token in each. The word then falls through to its ordinary
+   * classification and is painted `primitive` — exactly as `of` was in #785, and, like #785, in a
+   * program that parses **completely clean**, so no diagnostic could ever surface it. A token-class
+   * assertion is the only instrument that can see it.
+   *
+   * Each index is derived from the previous *resolved* one rather than by arithmetic on `isIndex`,
+   * so an arbitrary number of newlines between any two words resolves.
+   *
+   * **This guards the newline axis only.** A `)` between the operand and `is` is a second,
+   * independent way for these offsets to miss — `print (:x) is empty` still classifies `empty` as
+   * `primitive` here, cleanly parsed. It is specifically a **grouping** paren, whose node span
+   * excludes the closer so the `)` really does sit between the operand and `is`; a parenthesized
+   * **call** is unaffected (`print (first :l) is empty` classifies `empty` as `keyword`), as are
+   * selectors and `.field` access. Issue #959 owns that axis and merges after this. Do not read
+   * `indexSkippingNewlines` at every position as meaning the function is fully guarded; that
+   * inference is what this comment got wrong twice already.
    */
   function markIsPredicateKeywords(node: IsPredicateNode): void {
     const operandEndIndex = byEnd.get(
       posKey(node.operand.source_span.end),
     ) as number;
-    const isIndex = operandEndIndex + 1;
+    const isIndex = indexSkippingNewlines(operandEndIndex + 1);
+    const formIndex = indexSkippingNewlines(isIndex + 1);
     switch (node.test.form) {
       case "empty":
-        markContextualWord(isIndex + 1, "empty");
+        markContextualWord(formIndex, "empty");
         break;
       case "member-of":
-        markContextualWord(isIndex + 1, "member");
-        markContextualWord(isIndex + 2, "of");
+        markContextualWord(formIndex, "member");
+        markContextualWord(indexSkippingNewlines(formIndex + 1), "of");
         break;
       case "a":
-        markContextualWord(isIndex + 1, "a");
+        markContextualWord(formIndex, "a");
         break;
       case "between":
         break;
@@ -434,19 +471,37 @@ export function highlight(
    * redefinable and remains an ordinary name outside these two positions (`:of`, `define of`,
    * `{ of: 2 }`) — see `keywords.ts`, which deliberately omits all four contextual words.
    *
-   * The node's span starts at its own `value` token, and the parser only builds a
-   * `ValueOfKeyNode` when `of` is the literal next raw token (`peek(1)`, no `skipNewlines`
-   * between) — so `byStart` always resolves and `of` is always the following index. That makes
-   * **both** halves of {@link markContextualWord}'s guard redundant defence-in-depth on this path
-   * rather than live branches: the token there is always a `name` token, and its text is always
-   * `of`. Deleting either half leaves the whole suite green (verified), so neither is pinned from
-   * here; they are the shared helper's signature, kept because with them a wrong index degrades to
+   * The node's span starts at its own `value` token, so `byStart` always resolves. `of` is found
+   * by walking past any `newline` tokens, because `byStart`/`byEnd` are built over the **raw** lex
+   * stream, which keeps them. An earlier version of this comment claimed the parser only builds a
+   * `ValueOfKeyNode` when `of` is the literal next raw token, "`peek(1)`, no `skipNewlines`
+   * between". That was true when it was written and my own #979 change falsified it without
+   * updating it: `parseNamePrimary`'s `value` interception now tests
+   * `isKeywordToken(peek(skippingNewlines(1)), "of")`, so the reader may be written
+   * `value` ⏎ `of …`. Without the walk the marked index would land on
+   * the newline, `of` would fall through to its ordinary classification and be painted `primitive`,
+   * re-opening #785 for the split spelling alone — a regression no parse diagnostic could show,
+   * since the program parses clean.
+   *
+   * Both halves of {@link markContextualWord}'s guard are redundant defence-in-depth on this path
+   * rather than live branches: the token there is always a `name` token whose text is always `of`.
+   * Deleting either half leaves the whole suite green (verified), so neither is pinned from here;
+   * they are the shared helper's signature, kept because with them a wrong index degrades to
    * marking nothing, while without them it would mark the *wrong* token `keyword`.
    * Marking by token index leaves every other `of` in the same document untouched.
    */
   function markValueOfKeyPreposition(node: ValueOfKeyNode): void {
     const valueIndex = byStart.get(posKey(node.source_span.start)) as number;
-    markContextualWord(valueIndex + 1, "of");
+    markContextualWord(indexSkippingNewlines(valueIndex + 1), "of");
+  }
+
+  /** The first index at or after `index` whose token is not a `newline`. */
+  function indexSkippingNewlines(index: number): number {
+    let next = index;
+    while (lex[next]?.kind === "newline") {
+      next += 1;
+    }
+    return next;
   }
 
   // Run the positional pattern/field-list scan first: a `[` directly after `for`/`struct

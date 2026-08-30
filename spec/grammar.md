@@ -245,7 +245,7 @@ The set of assignable places is closed and recursive. Only these forms are place
 set people.tom.age to 9
 ```
 
-A colon place starts with `:` and a name. A bare place is the same syntax without `:` and appears only after `set` before `to`. Both may have any number of postfixes. A postfix is either `[ key-term ]` or `.identifier`.
+A colon place starts with `:` and a name. A bare place is the same syntax without `:` and appears only after `set` before `to`. Both may have any number of postfixes. A postfix is either `[ key-term ]` or `.identifier`. **Adjacency is whitespace-agnostic: any whitespace — space, tab, newline, or indentation — separates two tokens and therefore breaks adjacency. Only genuine zero-width adjacency binds a selector.** This does not contradict newlines being insignificant within an expression: a space is insignificant too, and it still separates. So `:nums[1]` is a selector, while `:nums [1]` and `:nums` followed by `[1]` on the next line are alike a place and a separate list literal — which is also what keeps a multi-line control or comprehension body a body rather than a selector on the header's last operand.
 
 Selector brackets contain exactly one key-term, not a general unparenthesized expression:
 

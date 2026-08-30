@@ -1,0 +1,51 @@
+# The agreement half of the adjacency ruling, for the containers where both spellings are
+# malformed and so cannot be proven as a value. *A newline separates exactly like a space*, so the
+# newline and spaced spellings of each source below must produce the SAME diagnostics — the point
+# being that they are malformed in the same way, not that they are malformed at all.
+#
+# Its execution twin, `core-language/expressions/a-newline-separates-like-a-space`, runs the same
+# shapes in the container where both spellings are well-formed. Neither fixture could have detected
+# the ADJACENCY ruling specifically: the container that exhibited it differed only in its AST, and a
+# fixture sees events and diagnostics, never a tree.
+#
+# THIS fixture is load-bearing all the same, and the scoping matters — do not read "not an adjacency
+# witness" as "proves nothing" and prune it. It is the core-language witness for the OTHER mechanism
+# in this slice, the phantom unmatched-delimiter report. Measured whole-file at `0277d5ff`: 11
+# diagnostics, `ol-unmatched-paren` x4 + `ol-missing-end` x3 + `ol-bad-token` x4. Here: 19, with the
+# parenthesized rows raising the substituted `ol-bad-token` and no `ol-unmatched-paren` at all. Its
+# twin, by contrast, passes unchanged against that same pre-fix parser.
+#
+# The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
+# operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position
+# wins and no entry opens"*. `{ a: sentence 1 mod: 2 }` must be a malformed entry — not an entry
+# keyed `mod` leaving `sentence` one argument short — and its newline spelling must agree.
+:nums = [ 10 20 30 ]
+
+# Adjacency: a parenthesized group. Both spellings are malformed, identically.
+print ( :nums
+[1] )
+print ( :nums [1] )
+
+# The regression this direction had to avoid, and the half its execution twin cannot carry: a
+# newline after a comprehension or control header selects the long `... end` body form
+# (`spec/grammar.md:34`), so the `[` binds as a BODY, not as a selector on the header's last
+# operand. A narrowing can only make the `[` LESS likely to bind, so these are strictly more
+# protected than before — asserted here rather than assumed. Each raises `ol-missing-end`.
+print map n in :nums
+[ :n ]
+
+print filter n in :nums
+[ :n ]
+
+repeat 2
+[ print 1 ]
+
+# The dict entry lookahead must not fire while the value is owed an operand. `sentence` takes two
+# inputs and has one, so no entry opens and the entry is malformed — as the spec's own
+# `{ a: 1 + b: 2 }` example is.
+print { a: sentence 1 mod: 2 }
+print { a: sentence 1
+mod: 2 }
+print { a: sentence 1 and: 2 }
+print { a: sentence 1
+and: 2 }

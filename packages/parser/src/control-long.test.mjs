@@ -341,14 +341,27 @@ test("a destructuring binder with a bare (non-colon) name `for [x] in …` raise
   assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
 });
 
-test("an empty destructuring binder `for [] in …` raises exactly one `ol-unmatched-bracket` (no duplicate)", () => {
+test("an empty destructuring binder `for [] in …` reports the empty binder exactly once", () => {
+  // This pinned "exactly one `ol-unmatched-bracket`, no duplicate" until `spec/error-model.md:165-169`
+  // made the delimiter class agnostic: the `[` and `]` here are correctly matched two characters
+  // apart, so what is wrong is the EMPTY binder between them, and `ol-bad-token` alone is
+  // authoritative (issue #947). The "exactly once" half is what the original test was for and is
+  // preserved — recovery must still not report the same defect twice.
   const source = "for [] in :points\n  print 1\nend for\n";
   const { ast, diagnostics } = OL.parse(source, doc);
 
-  const unmatchedBracketDiags = diagnostics.filter(
-    (d) => d.code === "ol-unmatched-bracket",
+  assert.equal(
+    diagnostics.filter((d) => d.code === "ol-unmatched-bracket").length,
+    0,
   );
-  assert.equal(unmatchedBracketDiags.length, 1);
-  assert.deepEqual(unmatchedBracketDiags[0].source_span, span([1, 6], [1, 7]));
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.equal(diagnostics[0].params.text, "]");
+  assert.deepEqual(diagnostics[0].source_span, span([1, 6], [1, 7]));
+  // The rest of the cascade is unchanged by the delimiter fix — measured identical before and
+  // after, only the first diagnostic's code moved — so this pins that recovery did not degrade.
+  assert.deepEqual(
+    diagnostics.slice(1).map((d) => d.code),
+    ["ol-bad-token", "ol-mismatched-end", "ol-bad-token"],
+  );
   assert.ok(ast.body.every((node) => node.kind !== "ForIn"));
 });

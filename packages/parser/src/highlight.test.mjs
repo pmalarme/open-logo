@@ -306,6 +306,42 @@ test("dict-key: a glued dict-entry value that is a word-spelled operator classif
   ]);
 });
 
+test("dict-key: a worded operator followed by a key separator classifies dict-key, not operator", () => {
+  // Issue #944's ruling, acceptance criterion 3, and the reason it was called out at length: the
+  // `dict-key` class is derived from the parsed AST, so the paint follows the parser
+  // **automatically** — and that automatic follow is exactly why it needs pinning, because nothing
+  // would fail if it stopped following. The lookahead decides this split; these two assertions are
+  // what make that decision visible to the token classes.
+  //
+  // The separator's LEXEME is the discriminator: a `colon` token opens the next entry, so `mod` is
+  // a key; a `variable` token is a variable-read, so `mod` stays an operator. Both spellings parse
+  // clean, which is why a swap between them would otherwise be silent.
+  assert.deepEqual(classes("print { a: 1 mod: 2 }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["dict-key", "mod", undefined],
+    ["operator", ":", undefined],
+    ["number", "2", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a worded operator followed by a variable read stays operator, not dict-key", () => {
+  assert.deepEqual(classes("print { a: 1 mod :two }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["operator", "mod", undefined],
+    [":variable", ":two", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
 test("dict-key: multiple glued dict entries each split their own colon independently", () => {
   assert.deepEqual(classes("print { a:1 b:2 }"), [
     ["primitive", "print", undefined],
@@ -486,6 +522,73 @@ test("contextual: empty/member/a are keyword only immediately after is, and so i
     ).class,
     "keyword",
   );
+});
+
+test("contextual: empty/member/of/a stay keyword when a newline separates them from `is` (issue #995)", () => {
+  // A newline is legal at more points in an `is` predicate than a reader expects, and exactly THREE
+  // of them can move a word this test checks: before `is` (`parseComparison` guards the operator
+  // with `continuesOnNextLineWith("is")` and skips before testing `isName("is")`), before the form
+  // word, and between `member` and `of` (`parseIsPredicate`'s `skipNewlinesBeforeOperand` calls,
+  // issue #933). The newline before `is` is the one a first pass at this fix missed. The remaining
+  // skips cannot shift an index used by `markIsPredicateKeywords`: those in `parseIsPredicate` sit
+  // after the last contextual word, and a between-predicate classifies nothing there at all --
+  // `between`, `strictly` and `and` are globally reserved and painted by the ordinary path.
+  //
+  // Cited by role rather than by line: nothing gates an intra-repo `file:line` citation — the
+  // spec-citations gate covers only `spec/*.md` — and an earlier revision of this comment carried
+  // six `parser.ts` line numbers that a sibling edit in the same commit had already shifted.
+  //
+  // Every spelling below parses with ZERO diagnostics, which is asserted rather than assumed: if
+  // one of them ever became a parse error, the classification assertion beside it would still pass
+  // and pin nothing.
+  //
+  // What the stale offset LANDED on varied by row -- for `is` ⏎ `member of`, the old `of` offset
+  // was `isIndex + 2`, which lands on `member`, not on the newline -- so the mechanism is
+  // deliberately not generalised here. The invariant is the outcome: at `0277d5ff` every split
+  // spelling below classified its word `primitive`, and the one-line spellings pinned in the test
+  // above were correct throughout, which is exactly why varying the container without varying the
+  // newline could not have found this.
+  //
+  // Like #785, these programs parse completely clean, so no diagnostic could ever surface the
+  // defect: a token-class assertion is the only instrument that can see it.
+  //
+  // The `rparen` axis is a separate, independent way for these offsets to miss, and is issue
+  // #959's; it is deliberately not pinned here. It is specifically a GROUPING paren, whose node
+  // span excludes the closer -- `print (:x) is empty` misses, while the parenthesized CALL
+  // `print (first :l) is empty` does not.
+  for (const [source, text] of [
+    // The newline before `is`.
+    ["print :x\nis empty", "empty"],
+    ["print :x\nis member of [1 2 3]", "member"],
+    ["print :x\nis member of [1 2 3]", "of"],
+    ['print :x\nis a "number"', "a"],
+    ["print :x\n\nis empty", "empty"],
+    // The newline after `is`.
+    ["print :x is\nempty", "empty"],
+    ["print :x is\n\nempty", "empty"],
+    ["print :x is\nmember of [1 2 3]", "member"],
+    ["print :x is\nmember of [1 2 3]", "of"],
+    ['print :x is\na "number"', "a"],
+    ['print :x is\n\na "number"', "a"],
+    // The newline between `member` and `of`: `of` is found from `member`'s own resolved index
+    // rather than `isIndex + 2`, so an arbitrary gap resolves rather than only a single break.
+    ["print :x is member\nof [1 2 3]", "of"],
+    ["print :x is member\n\nof [1 2 3]", "of"],
+    // Both at once.
+    ["print :x\nis\nempty", "empty"],
+    ["print :x\nis member\nof [1 2 3]", "of"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse clean, or the pin proves nothing`,
+    );
+    assert.equal(
+      OL.highlight(source, doc).find((token) => token.text === text).class,
+      "keyword",
+      JSON.stringify(source),
+    );
+  }
 });
 
 test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
