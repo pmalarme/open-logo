@@ -50,7 +50,7 @@ import type {
   Token,
   TokenClass,
 } from "./highlight.js";
-import { highlight } from "./highlight.js";
+import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
  * The LSP-style semantic-token modifiers from `spec/tooling.md:278-280`, in the document's own
@@ -98,12 +98,18 @@ function posKey(position: Position): string {
  * Classify `source` into a flat, source-ordered `SemanticToken[]` — {@link highlight}'s token
  * stream with LSP-style modifiers layered on top. Never throws on malformed input, matching
  * {@link highlight}'s own never-throw contract.
+ *
+ * `document` is **required** for the same reason it is on {@link highlight}: it keeps an options
+ * object out of that slot statically, and {@link assertDocumentArgument} rejects one at runtime.
+ * The guard is called here rather than left to the delegated {@link highlight} call so the
+ * `TypeError` names the function the caller actually invoked.
  */
 export function semanticTokens(
   source: string,
-  document = "<input>",
+  document: string,
   options: HighlightOptions = {},
 ): SemanticToken[] {
+  assertDocumentArgument(document, "semanticTokens");
   const tokens = highlight(source, document, options);
   const program = parse(source, document).ast;
   const readonlyReads = collectComprehensionBinderReads(program);

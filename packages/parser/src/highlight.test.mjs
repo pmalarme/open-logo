@@ -29,6 +29,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
+// `ARM_FOR_KIND` is package-internal — not re-exported from `index.ts`, and the exports map blocks
+// a deep specifier import — so the sweep-completeness oracle reaches it through `../dist`, the
+// idiom this repo already uses for internals (`child-edges.test.mjs` → `../dist/ast.js`).
+import { ADVICE_BY_ARM, ARM_FOR_KIND } from "../dist/highlight.js";
 
 const doc = "highlight.logo";
 const span = (start, end) => ({ document: doc, start, end });
@@ -1319,5 +1323,309 @@ test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => 
       ["keyword"],
       `${head} must be keyword while its profile is active`,
     );
+  }
+});
+
+// --- The `document` argument may not swallow the options object (issue #951) -------------------
+
+// `highlight(source, document, options)` used to spell `document` with a default, so
+// `highlight(src, { profiles })` bound the options object to `document`: `options` fell back to
+// `{}`, `activeProfiles` to `DEFAULT_CHECK_PROFILES`, and the object was written into every
+// token's `source_span.document` — a field typed `string`. Neither half raised anything.
+//
+// TypeScript rejected that call already (`{ profiles }` is not assignable to `string`), but every
+// test that calls these functions, and every script here, is `.mjs`, where no types run. The trap
+// has already cost the project twice: issues #832 and #840, plus a withdrawn Epic Gate PASS —
+// the ledger is `.github/skills/shared/review-gate/SKILL.md:175-178`. #832 reported the seven
+// profile names as never `keyword`, and the measurement that "showed" it passed its options object
+// in the `document` slot — see the block comment above `ALL_PROFILES`. The signature was left
+// as-is afterwards; #951 closed it by making `document` required (the shape `execute(source,
+// document, options)` already has) and rejecting a non-string at runtime.
+//
+// This section carries ONE shared control, run first, which every case below depends on. A
+// regression suite that only asserts "the bad call throws" passes against a build where
+// `options.profiles` is ignored outright, so the control proves the three-argument form
+// DISCRIMINATES between the requested profiles and the default — using a profile set that differs
+// from `DEFAULT_CHECK_PROFILES`, since a set that happens to equal the default returns the right
+// answer by coincidence.
+
+/**
+ * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
+ * (`spec/tooling.md:30-31` — `:30` states the active half, `:31` the inactive one).
+ */
+const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
+
+/** A profile set that DIFFERS from `DEFAULT_CHECK_PROFILES`, so it can discriminate. */
+const DISCRIMINATING_PROFILES = [
+  "core-language",
+  "turtle-rendering",
+  "interaction-events",
+];
+
+/** The class `highlight()` gives `when` in `PROFILE_HEAD_SOURCE` under `profiles`. */
+function whenClass(profiles) {
+  return OL.highlight(PROFILE_HEAD_SOURCE, doc, { profiles }).find(
+    (token) => token.text.toLowerCase() === "when",
+  )?.class;
+}
+
+/**
+ * The message of the `TypeError` `call` throws. Built on `assert.throws` — which fails the test
+ * itself when nothing is thrown — rather than a try/catch helper with a defensive `assert.fail`
+ * tail, because that tail is unreachable on a green run and Node 22 counts these files toward the
+ * 100% coverage gate.
+ */
+function typeErrorMessageFrom(call) {
+  let message;
+  assert.throws(call, (error) => {
+    message = error.message;
+    return error instanceof TypeError;
+  });
+  return message;
+}
+
+test("control: the requested profile set differs from the default AND changes a class", () => {
+  // Without this, every assertion below is vacuous. Two separate claims: the set is not the
+  // default (so it cannot be satisfied by coincidence), and the option is not inert.
+  assert.notDeepEqual(DISCRIMINATING_PROFILES, [...OL.DEFAULT_CHECK_PROFILES]);
+  assert.equal(whenClass(OL.DEFAULT_CHECK_PROFILES), "primitive");
+  assert.equal(whenClass(DISCRIMINATING_PROFILES), "keyword");
+});
+
+test("highlight: an options object in the document slot throws instead of being mis-bound", () => {
+  // The witness. Before #951 this returned tokens in which `when` was `primitive` — the DEFAULT
+  // answer, not the requested one — with no error at all.
+  assert.throws(
+    () =>
+      OL.highlight(PROFILE_HEAD_SOURCE, { profiles: DISCRIMINATING_PROFILES }),
+    (error) => {
+      assert.ok(error instanceof TypeError);
+      // The message must name the correct call shape and the type received: the whole difficulty
+      // of this defect was diagnosing it, and a bare "expected string" leaves that to the caller.
+      assert.match(error.message, /highlight\(source, document, options\)/);
+      assert.match(error.message, /received object/);
+      assert.match(error.message, /THIRD argument/);
+      return true;
+    },
+  );
+});
+
+/**
+ * The three `adviceFor` arms and the exact advice each produces for a given callee.
+ *
+ * Used to build the **entire** expected message and compare it with `assert.equal`, not to match
+ * fragments. Message-assertion gaps recurred across several review rounds, each one level further
+ * out than the last: a phrase, then an example, then a prefix, then a suffix — and each time a
+ * mutation lived in the part the assertion did not reach. A prefix match cannot see text appended
+ * after it; `endsWith` cannot see text *prepended* before it ("Call parse(source) instead. Pass a
+ * string naming the source…" shipped green); neither sees the preamble's "must be a **string**"
+ * clause. Whole-message equality is the only assertion with no residue, and it makes any change to
+ * caller-facing advice a deliberate, test-visible act — which this message has earned, having been
+ * wrong twice.
+ */
+const ADVICE_TAIL = {
+  required: (callee) =>
+    `\`document\` is required: name the source, e.g. ${callee}(source, "<input>").`,
+  object: (callee) =>
+    `An options object belongs in the THIRD argument — ${callee}(source, "<input>", { profiles }). ` +
+    "Passed second it would bind to `document`, which is why this is rejected rather than " +
+    "silently discarding your options.",
+  generic: (callee) =>
+    `Pass a string naming the source, e.g. ${callee}(source, "<input>").`,
+};
+
+/** The whole message `assertDocumentArgument` must produce, preamble included. */
+function expectedGuardMessage(callee, kind, arm) {
+  return (
+    `${callee}(source, document, options): \`document\` must be a string naming the source, ` +
+    `but received ${kind}. ${ADVICE_TAIL[arm](callee)}`
+  );
+}
+
+/**
+ * Every non-string `document` a caller can pass, with the kind `describeArgument` must name it and
+ * the `adviceFor` arm it must take. Every `ArgumentKind` except `"string"` appears — `"string"` is
+ * the one the guard returns on — and the object rows deliberately include non-plain objects,
+ * because the arm is `typeof`-broad (see `highlight.ts`) and a narrowing would move them.
+ */
+const GUARD_CASES = [
+  [undefined, "undefined", "required"],
+  [{ profiles: ["core-language", "interaction-events"] }, "object", "object"],
+  // The empty bag is the object row the `adviceFor` JSDoc names as the decisive cost of the
+  // deferred shape test, so its ADVICE — not just its kind — is swept, making that reasoning
+  // executable rather than prose.
+  [{}, "object", "object"],
+  [new Date(0), "object", "object"],
+  [new Map(), "object", "object"],
+  [/x/, "object", "object"],
+  [new String("x"), "object", "object"],
+  [
+    Object.assign(Object.create(null), { profiles: ["core-language"] }),
+    "object",
+    "object",
+  ],
+  [null, "null", "generic"],
+  [["core-language"], "array", "generic"],
+  [42, "number", "generic"],
+  [true, "boolean", "generic"],
+  // `Math.max`, not an inline arrow: a function this file never invokes fails the coverage gate.
+  [Math.max, "function", "generic"],
+  [Symbol("s"), "symbol", "generic"],
+  [1n, "bigint", "generic"],
+];
+
+/**
+ * The one kind with no message, guarded so widening it is deliberate.
+ *
+ * `assertDocumentArgument` returns on a string, so `"string"` can never reach `adviceFor`. That
+ * exception is the last hand-written link between the compiler-total `ARM_FOR_KIND` and the swept
+ * rows, and therefore the one place a kind can be hidden: widening it by one entry and deleting
+ * that kind's row passed the whole suite, with the test count unchanged because the sweep is one
+ * `test()` over rows. Pinning the exception itself makes that a visible edit.
+ */
+const KINDS_WITHOUT_ADVICE = ["string"];
+
+test("highlight: the advice addresses the mistake made, not a mistake the caller did not make", () => {
+  // Three cases with disjoint remedies — "put a string in that slot" vs. "move your object to
+  // third position" vs. "that is not a name at all" — so one message would leave the caller to
+  // work out which applies, the exact cost #951 was about.
+  //
+  // The whole message is compared, so this sweep also pins the kind naming, the callee (a
+  // hard-coded `semanticTokens` here shipped green in round 3), the corrected call, and the
+  // absence of any claim that the options were discarded. `adviceFor` is exhaustive over
+  // `ArgumentKind` by a `Record` in production, so a NEW kind is a compile error there — but
+  // nothing forces a row here, so the sweep below is checked against that type's own membership.
+  for (const [value, kind, arm] of GUARD_CASES) {
+    const label = `${kind} → ${arm} arm`;
+    assert.equal(
+      typeErrorMessageFrom(() => OL.highlight("print 1", value)),
+      expectedGuardMessage("highlight", kind, arm),
+      label,
+    );
+  }
+  // The true one-argument arity, not just an explicit `undefined`: identical in JS, but it is the
+  // call shape a reader of #951 looks for, and the one a newcomer to the API actually writes.
+  assert.equal(
+    typeErrorMessageFrom(() => OL.highlight("print 1")),
+    expectedGuardMessage("highlight", "undefined", "required"),
+  );
+});
+
+test("highlight: a fixed set of non-string documents is rejected — tripwire, not an oracle", () => {
+  // Deliberately hard-coded, deliberately redundant with `GUARD_CASES`, and deliberately reading
+  // NEITHER `ARM_FOR_KIND` nor `KINDS_WITHOUT_ADVICE` nor `GUARD_CASES`. That independence is the
+  // entire point and it is why this must not be deleted as a duplicate a second time.
+  //
+  // The list this replaces was removed as "dead in both of its stated purposes" — which was true.
+  // Its unstated third purpose was to be a TRIPWIRE: a probe that widens the exception in both
+  // test files AND changes production to accept booleans was caught while that list existed, and
+  // survived once it was gone. Dead as an oracle, alive as a tripwire; the deletion took both, and
+  // nobody noticed because an enumeration of STATED purposes cannot see an unstated one.
+  //
+  // Everything above derives its expectation from the shipped tables, so widening a table and
+  // co-editing the rows moves the whole apparatus together. These literals do not move with it.
+  for (const value of [
+    true,
+    42,
+    null,
+    ["core-language"],
+    {},
+    Symbol("s"),
+    1n,
+    Math.max,
+    undefined,
+  ]) {
+    assert.throws(
+      () => OL.highlight("print 1", value),
+      TypeError,
+      `document = ${Object.prototype.toString.call(value)}`,
+    );
+  }
+  assert.throws(() => OL.highlight("print 1"), TypeError);
+  // The one value that must NOT throw — the other half of the same tripwire. Without it, a guard
+  // that rejected everything would pass the loop above.
+  assert.doesNotThrow(() => OL.highlight("print 1", "doc.logo"));
+});
+
+test("highlight: the guard sweep covers every ArgumentKind the caller can reach", () => {
+  // Each claim below is a level the review gate found unpinned in a previous round. Deliberately
+  // not prefixed with a count: an earlier version said "Three" over four, this one said "Four"
+  // over five, and both times a claim was appended without re-deriving the header. A numeral here
+  // is a second copy of a fact the list already states, so it is simply not written.
+  //
+  // KIND MEMBERSHIP. The oracle is the SHIPPED `ARM_FOR_KIND`, whose keys are total over
+  //    `ArgumentKind` by its `Record` type, so it cannot drift and has no spelling dependence.
+  //    Two earlier oracles did: a list restated inside the test, then a regex over the union in
+  //    the source, which matched `[a-z]+` only and so was blind to `"NaN"` or `"plain-object"`.
+  //    `../dist` rather than the package entry because `ARM_FOR_KIND` is internal — not
+  //    re-exported from `index.ts`, and the exports map blocks a deep specifier import — and it
+  //    is the idiom this repo already uses for internals (`child-edges.test.mjs` → `../dist/ast.js`).
+  //    Oracle and subject come from the same build, so a stale `dist` cannot desynchronise them.
+  // THE EXCEPTION. Stated as a PARTITION — swept ∪ excepted must equal the whole key set — so
+  //    there is no filter predicate left to widen. A `filter(k => !EXCLUDED.includes(k))` form was
+  //    tried first and failed: pinning the constant left its *consumer* free text, and appending
+  //    `&& kind !== "symbol"` to the filter hid a kind with the constant's assertion still green.
+  // THE ROUTING ITSELF. The keys being total says nothing about the VALUES: changing a kind's
+  //    arm and co-editing its row ships wrong advice green. The assertions below state the
+  //    `adviceFor` doc's own claim — "only an object is plausibly a misplaced options bag" — in a
+  //    form that does not mention the rows, so a co-edit cannot satisfy it. `generic` needs no
+  //    assertion: with `required` and `object` pinned and claim 4 holding, it is the complement.
+  // ARM LIVENESS. `ADVICE_BY_ARM` being total makes every arm HANDLED; nothing made every arm
+  //    REACHED. An arm written but routed to no kind survived the whole suite — it is caught only
+  //    by the coverage gate, and there announced first as the known merge-artifact flake.
+  //
+  // The mirror of this test lives in `semantic-tokens.test.mjs` and reads the same oracles.
+  assert.deepEqual(
+    KINDS_WITHOUT_ADVICE,
+    ["string"],
+    "widening this exception hides a kind's advice",
+  );
+  const swept = [...new Set(GUARD_CASES.map(([, kind]) => kind))].sort();
+  assert.deepEqual(
+    [...swept, ...KINDS_WITHOUT_ADVICE].sort(),
+    Object.keys(ARM_FOR_KIND).sort(),
+    "every ArgumentKind is either swept by GUARD_CASES or explicitly excepted",
+  );
+
+  const kindsRoutedTo = (arm) =>
+    Object.keys(ARM_FOR_KIND)
+      .filter((kind) => ARM_FOR_KIND[kind] === arm)
+      .sort();
+  assert.deepEqual(kindsRoutedTo("required"), ["undefined"]);
+  assert.deepEqual(kindsRoutedTo("object"), ["object"]);
+
+  assert.deepEqual(
+    [...new Set(Object.values(ARM_FOR_KIND))].sort(),
+    Object.keys(ADVICE_BY_ARM).sort(),
+    "every advice arm must be reached by at least one kind, and vice versa",
+  );
+
+  // THE PUBLIC SURFACE. `ARM_FOR_KIND` and `ADVICE_BY_ARM` are exported from their module so
+  //    the oracles above can read them, and are deliberately absent from `index.ts`. Nothing held
+  //    them there: adding one ordinary re-export line to the barrel made two internals permanent
+  //    API, `.d.ts` and all, with no signal from any of the ten gates.
+  for (const internal of [
+    "ARM_FOR_KIND",
+    "ADVICE_BY_ARM",
+    "adviceFor",
+    "describeArgument",
+    "assertDocumentArgument",
+  ]) {
+    assert.equal(
+      internal in OL,
+      false,
+      `${internal} must stay package-internal`,
+    );
+  }
+});
+
+test("highlight: a string document still labels every token's span and never throws", () => {
+  // The guard is about the host's ARGUMENTS. The never-throw contract is about the SOURCE, and
+  // is unchanged: malformed input still yields a best-effort stream under a valid document.
+  const tokens = OL.highlight("define [ 3 +", doc);
+  assert.ok(tokens.length > 0);
+  for (const token of tokens) {
+    assert.equal(token.source_span.document, doc);
+    assert.equal(typeof token.source_span.document, "string");
   }
 });

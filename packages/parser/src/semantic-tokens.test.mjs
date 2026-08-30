@@ -8,6 +8,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
+// Package-internal; see the note on the same import in `highlight.test.mjs`.
+import { ADVICE_BY_ARM, ARM_FOR_KIND } from "../dist/highlight.js";
 
 const doc = "semantic-tokens.logo";
 
@@ -268,4 +270,215 @@ test("corpus: one source exercises all 15 token classes and all 5 bracket delimi
   assert.deepEqual(find(tokens, "point").modifiers, ["declaration"]);
   assert.deepEqual(find(tokens, "forward").modifiers, ["defaultLibrary"]);
   assert.deepEqual(find(tokens, ":sum").modifiers, ["reference", "readonly"]);
+});
+
+// --- The `document` argument may not swallow the options object (issue #951) -------------------
+
+// `semanticTokens()` has `highlight()`'s exact signature and uses the same `HighlightOptions`
+// type, so it carried the identical defect: `semanticTokens(src, { profiles })` bound the options
+// object to `document`, silently read the DEFAULT profile set, and wrote a non-string into every
+// token's `source_span.document`. #951 fixed both together — fixing one and leaving the other
+// would leave half the trap standing behind a signature that looks fixed.
+//
+// That parity claim is PINNED here, not asserted: the enumeration below includes the `undefined`
+// row, and a true one-argument assertion follows it. Either alone catches a revert of
+// `semantic-tokens.ts`'s `document: string` to `document = "<input>"` — half of #951 silently
+// undone, every gate green. Before both existed, that revert passed the whole suite; measured,
+// twice, by mutation.
+//
+// The `callee` assertions below cover all three message branches, not just the object one. That is
+// the same shape as the gap above: an assertion covering one (function, branch) pair while the
+// parallel pair goes unpinned. A mutation hard-coding `highlight` into the omitted-argument branch
+// was undetected until the `undefined`-branch assertion was added, and it would have told a
+// `semanticTokens` caller to go call a different function. The mirror sweep in
+// `highlight.test.mjs` covers the same three arms from the other side.
+//
+// The control below is what makes the rest non-vacuous: it proves the three-argument form
+// discriminates, using a profile set that DIFFERS from `DEFAULT_CHECK_PROFILES` (one that happens
+// to equal the default gets the right answer by coincidence and proves nothing).
+
+/**
+ * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
+ * (`spec/tooling.md:30-31` — `:30` states the active half, `:31` the inactive one).
+ */
+const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
+
+/** A profile set that DIFFERS from `DEFAULT_CHECK_PROFILES`, so it can discriminate. */
+const DISCRIMINATING_PROFILES = [
+  "core-language",
+  "turtle-rendering",
+  "interaction-events",
+];
+
+test("control: semanticTokens' profile set differs from the default AND changes a class", () => {
+  const classOf = (profiles) =>
+    find(OL.semanticTokens(PROFILE_HEAD_SOURCE, doc, { profiles }), "when")
+      ?.class;
+  assert.notDeepEqual(DISCRIMINATING_PROFILES, [...OL.DEFAULT_CHECK_PROFILES]);
+  assert.equal(classOf(OL.DEFAULT_CHECK_PROFILES), "primitive");
+  assert.equal(classOf(DISCRIMINATING_PROFILES), "keyword");
+});
+
+test("semanticTokens: an options object in the document slot throws instead of being mis-bound", () => {
+  assert.throws(
+    () =>
+      OL.semanticTokens(PROFILE_HEAD_SOURCE, {
+        profiles: DISCRIMINATING_PROFILES,
+      }),
+    (error) => {
+      assert.ok(error instanceof TypeError);
+      // Named for the function the caller actually invoked, not for the `highlight()` it
+      // delegates to — otherwise the message sends them to the wrong call site. Unanchored, so it
+      // rules out the delegate being named anywhere in the message, not merely first.
+      assert.match(
+        error.message,
+        /semanticTokens\(source, document, options\)/,
+      );
+      assert.doesNotMatch(error.message, /highlight\(/);
+      assert.match(error.message, /received object/);
+      return true;
+    },
+  );
+});
+
+test("semanticTokens: EVERY message branch names semanticTokens, never the delegate", () => {
+  // The omitted-argument branch was unpinned for `callee` until this test existed: a mutation
+  // hard-coding `highlight` into it survived the whole suite. `semanticTokens(src)` is the most
+  // likely mistake against this API, and sending that caller to `highlight()` — a different
+  // function — is exactly the misdirection this guards.
+  //
+  // Whole-message equality, and every `ArgumentKind` the caller can reach. Both matter and both
+  // were learned the hard way: a suffix match let text be *prepended*, and a sweep that omitted
+  // `symbol` let a `callee`-specific arm for symbols ship green on this side alone — the mirror in
+  // `highlight.test.mjs` cannot see a `semanticTokens`-side bug in this region.
+  const tail = {
+    required:
+      '`document` is required: name the source, e.g. semanticTokens(source, "<input>").',
+    object:
+      'An options object belongs in the THIRD argument — semanticTokens(source, "<input>", { profiles }). ' +
+      "Passed second it would bind to `document`, which is why this is rejected rather than " +
+      "silently discarding your options.",
+    generic:
+      'Pass a string naming the source, e.g. semanticTokens(source, "<input>").',
+  };
+  const cases = [
+    [undefined, "undefined", "required"],
+    [{ profiles: DISCRIMINATING_PROFILES }, "object", "object"],
+    // The empty bag: the object row the `adviceFor` JSDoc names as the decisive cost of the
+    // deferred shape test, so its advice is swept rather than only its kind.
+    [{}, "object", "object"],
+    [new Date(0), "object", "object"],
+    [new Map(), "object", "object"],
+    [/x/, "object", "object"],
+    [new String("x"), "object", "object"],
+    // The null-prototype bag carries the object arm's central justification (a prototype-narrowed
+    // predicate would misroute the real mistake shape), so it is swept on both sides, not one.
+    [
+      Object.assign(Object.create(null), { profiles: DISCRIMINATING_PROFILES }),
+      "object",
+      "object",
+    ],
+    [null, "null", "generic"],
+    [["core-language"], "array", "generic"],
+    [42, "number", "generic"],
+    [true, "boolean", "generic"],
+    [Math.max, "function", "generic"],
+    [Symbol("s"), "symbol", "generic"],
+    [1n, "bigint", "generic"],
+  ];
+  const expected = (kind, arm) =>
+    "semanticTokens(source, document, options): `document` must be a string naming the source, " +
+    `but received ${kind}. ${tail[arm]}`;
+
+  for (const [value, kind, arm] of cases) {
+    let message;
+    assert.throws(
+      () => OL.semanticTokens("print 1", value),
+      (error) => {
+        message = error.message;
+        return error instanceof TypeError;
+      },
+    );
+    assert.equal(message, expected(kind, arm), `${kind} → ${arm} arm`);
+  }
+  // The true one-argument arity, not just an explicit `undefined`.
+  let omitted;
+  assert.throws(
+    () => OL.semanticTokens("print 1"),
+    (error) => {
+      omitted = error.message;
+      return error instanceof TypeError;
+    },
+  );
+  assert.equal(omitted, expected("undefined", "required"));
+
+  // Every kind is either swept above or explicitly excepted, plus three further claims the review
+  // gate found unpinned in earlier rounds: the EXCEPTION (stated as a partition, so there is no
+  // filter predicate left to widen — a `filter(k => !excepted.includes(k))` form let a kind be
+  // hidden by appending a conjunct), the ROUTING (keys being total says nothing about the values —
+  // changing a kind's arm and co-editing its row ships wrong advice green), and arm LIVENESS (an
+  // arm written but reached by no kind is otherwise caught only by the coverage gate). The oracles
+  // are the shipped `ARM_FOR_KIND`/`ADVICE_BY_ARM`, total by their `Record` types. The mirror of
+  // this check lives in `highlight.test.mjs` and reads the same oracles.
+  const withoutAdvice = ["string"];
+  assert.deepEqual(
+    withoutAdvice,
+    ["string"],
+    "widening this exception hides a kind's advice",
+  );
+  assert.deepEqual(
+    [...new Set(cases.map(([, kind]) => kind)), ...withoutAdvice].sort(),
+    Object.keys(ARM_FOR_KIND).sort(),
+  );
+  const kindsRoutedTo = (arm) =>
+    Object.keys(ARM_FOR_KIND)
+      .filter((kind) => ARM_FOR_KIND[kind] === arm)
+      .sort();
+  assert.deepEqual(kindsRoutedTo("required"), ["undefined"]);
+  assert.deepEqual(kindsRoutedTo("object"), ["object"]);
+  assert.deepEqual(
+    [...new Set(Object.values(ARM_FOR_KIND))].sort(),
+    Object.keys(ADVICE_BY_ARM).sort(),
+    "every advice arm must be reached by at least one kind, and vice versa",
+  );
+});
+
+test("semanticTokens: a fixed set of non-string documents is rejected — tripwire, not an oracle", () => {
+  // The mirror of `highlight.test.mjs`'s tripwire, and it must exist on BOTH sides: the probe it
+  // guards against changes the shared guard, but this file's own sweep is what caught it, and a
+  // `semanticTokens`-side gap is invisible from the other file.
+  //
+  // Deliberately hard-coded and deliberately redundant with `cases` above, reading NEITHER
+  // `ARM_FOR_KIND` nor the exception. The list this replaces was deleted as a duplicate — true of
+  // its stated purposes, false of its unstated one: it was the only thing outside the exception
+  // machinery, so widening that machinery could not move it. Do not delete it as dead again.
+  for (const value of [
+    true,
+    42,
+    null,
+    ["core-language"],
+    {},
+    Symbol("s"),
+    1n,
+    Math.max,
+    undefined,
+  ]) {
+    assert.throws(
+      () => OL.semanticTokens("print 1", value),
+      TypeError,
+      `document = ${Object.prototype.toString.call(value)}`,
+    );
+  }
+  assert.throws(() => OL.semanticTokens("print 1"), TypeError);
+  // The other half: a guard that rejected everything would pass the loop above.
+  assert.doesNotThrow(() => OL.semanticTokens("print 1", "doc.logo"));
+});
+
+test("semanticTokens: a string document still labels every span and never throws on bad source", () => {
+  const tokens = OL.semanticTokens("define [ 3 +", doc);
+  assert.ok(tokens.length > 0);
+  for (const token of tokens) {
+    assert.equal(token.source_span.document, doc);
+    assert.ok(Array.isArray(token.modifiers));
+  }
 });

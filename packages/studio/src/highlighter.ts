@@ -87,16 +87,20 @@ export interface ParserHighlighterOptions {
  * `spec/tooling.md`) under `options.profiles` — defaulting to {@link STUDIO_PROFILES} — and map
  * each resulting {@link Token} onto a CSS-classed {@link HighlightToken}. Never throws —
  * {@link highlight} itself has a never-throw contract over malformed/mid-edit input, so this stays
- * safe to call on every keystroke.
+ * safe to call on every keystroke. (`highlight()` does reject a non-string `document` with a
+ * `TypeError` since #951, but that guard is about the host's arguments, not the source: the
+ * literal below can never trip it.)
  *
  * `highlight()`'s `document` argument only labels each token's `source_span`, which
- * {@link HighlightToken} does not carry, so this passes the parser's own default rather than
- * inventing a studio-specific name no caller can observe.
+ * {@link HighlightToken} does not carry, so this passes the `"<input>"` placeholder that
+ * `parse()` still defaults to (`packages/parser/src/parser.ts`) rather than inventing a
+ * studio-specific name no caller can observe. It is spelled out because #951 made `highlight()`'s
+ * own `document` required — an options object in that slot used to bind to it silently.
  */
 export function createParserHighlighter(
   options: ParserHighlighterOptions = {},
 ): HighlightProvider {
   const profiles = options.profiles ?? STUDIO_PROFILES;
   return (source: string) =>
-    highlight(source, undefined, { profiles }).map(toHighlightToken);
+    highlight(source, "<input>", { profiles }).map(toHighlightToken);
 }
