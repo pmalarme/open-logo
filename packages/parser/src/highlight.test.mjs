@@ -616,11 +616,12 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
     ["(2\n) is member of :nums", "member"],
     ['(\n  :p\n) is a "point"', "a"],
     ['  (\n    value of :d for key "x"\n  ) is empty', "empty"],
-    // Deep and INTERLEAVED closing tails, which pin the scan as **unbounded**. Every row above
-    // needs at most two skips, so a scan capped at three iterations passed the whole suite,
-    // conformance, examples and the gate while painting `(((:x)\n)\n) is empty` — a program that
-    // parses with zero diagnostics — `primitive` (issue #959, QA mutation M4). The tails here are
-    // `))))` and `)\n)\n)`: parens and newlines alternating, four and five tokens deep.
+    // Deep and INTERLEAVED closing tails. Every row above needs at most two skips, so a scan
+    // capped at three iterations passed the whole suite, conformance, examples and the gate while
+    // painting `(((:x)\n)\n) is empty` — a program that parses with zero diagnostics —
+    // `primitive` (issue #959, QA mutation M4). These tails are `))))` and `)\n)\n)`: parens and
+    // newlines alternating, four and five tokens deep, so any cap of four or below is now caught.
+    // A cap of five still survives this table; the generated tail below is what closes that.
     ["((((:x)))) is empty", "empty"],
     ["(((:x)\n)\n) is empty", "empty"],
     ["((:x)\n) is member of :nums", "member"],
@@ -639,6 +640,28 @@ test("contextual: a PARENTHESISED or multiline operand still reaches the is-pred
   assert.equal(classOf("(2\n) is member of :nums", "of"), "keyword");
   // `of` is located from `member`, so the deep tail has to be checked for it too.
   assert.equal(classOf("(((:x)\n)\n) is member of :nums", "of"), "keyword");
+
+  // A GENERATED tail, because the rows above cannot do this job. They are a finite table, so they
+  // force only "depth >= the deepest row" — a cap of 5 passed all of them while painting
+  // `((((:x)\n)\n)\n) is empty`, a zero-diagnostic program, `primitive` (issue #959, QA). Adding one
+  // more hand-written row would move that boundary to 6 and no further, which is the mistake this
+  // slice made three times in its withdrawn corpus.
+  //
+  // What this DOES establish: no constant cap below 80 survives. What it does NOT establish:
+  // unboundedness. That is a structural property of the `while` — it has no counter — and no finite
+  // number of examples can prove it, so the claim is deliberately not made.
+  const nestedDepth = 40;
+  let nested = ":x";
+  for (let level = 0; level < nestedDepth; level += 1) {
+    nested = `(${nested}\n)`;
+  }
+  const generated = `${nested} is empty`;
+  assert.equal(
+    OL.parse(generated, doc).diagnostics.length,
+    0,
+    "the generated deep tail must parse cleanly for this to be a highlighting claim",
+  );
+  assert.equal(classOf(generated, "empty"), "keyword", `depth ${nestedDepth}`);
   // And the scan must not run past a real `is` onto something else: an unparenthesised operand is
   // unchanged, and a word outside any predicate is still an ordinary name.
   assert.equal(classOf("print :x is empty", "empty"), "keyword");

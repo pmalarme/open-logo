@@ -149,11 +149,18 @@ plainly here because "in both directions" over-describes two of them:
    length is not a dimension the implementation can depend on — rather than a wider bounded
    enumeration, which only moves the boundary a mutant hides behind. That work is its own slice.
 
-   That argument is about the source *as written*, and for a round nothing in the tree **held the
-   `while` to being unbounded**: every committed shape needed at most two skips, so capping the scan
-   at three passed the unit suite, conformance, examples and the gate while painting
-   `(((:x)\n)\n) is empty` — zero diagnostics — `primitive` (QA mutation M4). The regression table
-   now carries four- and five-token interleaved tails, which is the pin the argument was leaning on.
+   That argument is about the source *as written*, and for a round nothing in the tree held the
+   `while` to skipping more than **two** tokens: every committed shape needed at most two, so
+   capping the scan at three passed the unit suite, conformance, examples and the gate while
+   painting `(((:x)\n)\n) is empty` — zero diagnostics — `primitive` (QA mutation M4). The
+   regression table now carries four- and five-token interleaved tails plus a **generated** tail 80
+   tokens deep, so no constant cap below 80 survives.
+
+   **That is not the same as pinning the scan unbounded, and the distinction is this slice's own
+   lesson.** A finite table forces only "deeper than the deepest row" — the first fix raised the
+   floor from two to five and a cap of five still passed, exactly as the withdrawn corpus's bounded
+   axes each admitted a scanner that cleared them. Unboundedness is structural: the `while` carries
+   no counter. No number of examples establishes it, so the claim is not made here.
 
 ## What this does **not** check
 
