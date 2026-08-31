@@ -420,8 +420,11 @@ receives nothing — Stop's `"stop"` notification included — and still pays fo
 
 **What a delivery costs.** One execution per delivery, like an `input` answer. The canvas is
 resumed with a single seek to the already-drawn boundary rather than replayed one step at a time,
-so the resume grows linearly with how much has been drawn rather than quadratically
-([#977](https://github.com/pmalarme/open-logo/issues/977)).
+so the **scene** fold over that prefix costs one array copy rather than one per event — linear
+rather than quadratic in how much has been drawn
+([#977](https://github.com/pmalarme/open-logo/issues/977)). That is the claim `@openlogo/turtle`
+pins with a test; it does not extend to a Sprites-heavy stream, whose per-event turtle-map copy is a
+separate cost #977 did not address.
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes

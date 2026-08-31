@@ -518,38 +518,80 @@ test("reduceSceneRange never writes through the scene it was given (#977 shared-
 });
 
 /**
- * Counts how many array elements are *copied* while `run()` executes, by instrumenting the array
- * iterator that both `[...spread]` and `for…of` go through, and restoring it afterwards.
+ * ## The copy counter — and exactly what it does and does not cover
  *
- * This is what makes "linear, not quadratic" a **testable** claim rather than an aspiration. The
- * defect #977 fixed was one full array copy per appended event; the number of elements those
- * copies traverse is Θ(n²) for the old fold and Θ(n) for the new one, and counting them is exact,
- * deterministic, and free of any wall clock — so it cannot flake on a shared CI box the way a
- * timing ratio would, and it cannot silently pass the way the previous size-only test did (a
- * restored quadratic fold ran 78× slower and still passed, because `node --test` applies no
- * timeout by default).
+ * Counts array elements copied while `run()` executes, by wrapping every *bulk-copy* mechanism the
+ * fold could plausibly use: the array iterator (`[...spread]`, `for…of`), `slice`, `concat`, and
+ * `Array.from`. Deterministic and clock-free, so it asserts a *growth* property without the
+ * flakiness a timing ratio would bring to a shared CI runner.
+ *
+ * ### Why it is shaped this way — two instruments were rejected before it
+ * The first attempt asserted only the final *result* and claimed in its comment that a regression
+ * would surface "as a timeout". There is no timeout (`node --test` defaults to none), so restoring
+ * the exact Θ(n²) defect left the whole suite green, 78× slower.
+ *
+ * The second attempt instrumented **only** the iterator and was paired with a positive control —
+ * but the control was written with spread, the one mechanism it detects, so it proved only that the
+ * instrument detects the control. A quadratic fold spelled `fold.items.slice()` reported *the same
+ * number as the pristine build* and sailed through. **A control drawn from the same mechanism as
+ * the instrument is circular, and circularity is invisible from a green result.** Hence the
+ * per-mechanism controls below: coverage is demonstrated mechanism by mechanism, never in aggregate.
+ *
+ * ### Declared blind spot — do not read this as complete
+ * A hand-rolled copy (`for (i) out[i] = a[i]`, or `map`) touches no bulk-copy builtin and is
+ * invisible here. That cannot be closed by a whitelist, so it is stated rather than implied: this
+ * instrument catches a regression that *reintroduces bulk copying per event*, which is the shape
+ * #977 actually had, and it does not prove linearity in general.
  */
 function countCopiedElements(run) {
-  const originalIterator = Array.prototype[Symbol.iterator];
-  let yielded = 0;
+  const original = {
+    iterator: Array.prototype[Symbol.iterator],
+    slice: Array.prototype.slice,
+    concat: Array.prototype.concat,
+    from: Array.from,
+  };
+  let copied = 0;
   Array.prototype[Symbol.iterator] = function countingIterator() {
-    const inner = originalIterator.call(this);
+    const inner = original.iterator.call(this);
     return {
       next() {
         const result = inner.next();
         if (result.done !== true) {
-          yielded += 1;
+          copied += 1;
         }
         return result;
       },
+      // Iterator objects must themselves be iterable; without this a caller doing
+      // `[...arr[Symbol.iterator]()]` would throw only while instrumented.
+      [Symbol.iterator]() {
+        return this;
+      },
     };
+  };
+  Array.prototype.slice = function countingSlice(...args) {
+    const result = original.slice.apply(this, args);
+    copied += result.length;
+    return result;
+  };
+  Array.prototype.concat = function countingConcat(...args) {
+    const result = original.concat.apply(this, args);
+    copied += result.length;
+    return result;
+  };
+  Array.from = function countingFrom(...args) {
+    const result = original.from.apply(Array, args);
+    copied += result.length;
+    return result;
   };
   try {
     run();
   } finally {
-    Array.prototype[Symbol.iterator] = originalIterator;
+    Array.prototype[Symbol.iterator] = original.iterator;
+    Array.prototype.slice = original.slice;
+    Array.prototype.concat = original.concat;
+    Array.from = original.from;
   }
-  return yielded;
+  return copied;
 }
 
 function segmentEvents(count) {
@@ -567,37 +609,150 @@ function segmentEvents(count) {
   return events;
 }
 
+/** Every bulk-copy spelling a quadratic fold could realistically use. */
+const QUADRATIC_SPELLINGS = [
+  ["spread", (items, item) => [...items, item]],
+  [
+    "slice",
+    (items, item) => {
+      const copy = items.slice();
+      copy.push(item);
+      return copy;
+    },
+  ],
+  ["concat", (items, item) => items.concat([item])],
+  [
+    "Array.from",
+    (items, item) => {
+      const copy = Array.from(items);
+      copy.push(item);
+      return copy;
+    },
+  ],
+];
+
+for (const [spelling, append] of QUADRATIC_SPELLINGS) {
+  test(`the copy counter detects a quadratic fold spelled with ${spelling} (#977 coverage control)`, () => {
+    // One control PER MECHANISM. An aggregate control is what failed review: it proved the counter
+    // could fire, not that it covered the ways the property can be violated.
+    const count = 500;
+    const items = segmentEvents(count);
+    const copied = countCopiedElements(() => {
+      let accumulated = [];
+      for (const item of items) {
+        accumulated = append(accumulated, item);
+      }
+      return accumulated;
+    });
+    assert.ok(
+      copied > count * 20,
+      `${spelling}: a quadratic fold of ${count} items should copy ~${(count * (count - 1)) / 2} elements, got ${copied}`,
+    );
+  });
+}
+
+test("the counting iterator stays iterable while instrumented (#977)", () => {
+  // Covers the instrument's own `[Symbol.iterator]`, and pins that patching does not break a
+  // caller that iterates an iterator directly.
+  let observed = null;
+  const copied = countCopiedElements(() => {
+    observed = [...[1, 2, 3][Symbol.iterator]()];
+  });
+  assert.deepEqual(observed, [1, 2, 3]);
+  assert.ok(copied >= 3);
+});
+
+test("countCopiedElements restores every builtin it patches, even when run() throws", () => {
+  const before = {
+    iterator: Array.prototype[Symbol.iterator],
+    slice: Array.prototype.slice,
+    concat: Array.prototype.concat,
+    from: Array.from,
+  };
+  assert.throws(() => {
+    countCopiedElements(() => {
+      throw new Error("boom");
+    });
+  }, /boom/);
+  assert.equal(Array.prototype[Symbol.iterator], before.iterator);
+  assert.equal(Array.prototype.slice, before.slice);
+  assert.equal(Array.prototype.concat, before.concat);
+  assert.equal(Array.from, before.from);
+});
+
 test("reduceSceneEvents copies a LINEAR number of elements, not a quadratic one (#977)", () => {
   const count = 2_000;
-  const events = segmentEvents(count);
-  const copied = countCopiedElements(() => OL.reduceSceneEvents(events));
-
-  // The fold must visit each event once (n) plus a bounded amount of copying. The pre-#977 fold
-  // copied the accumulated array on every append, traversing count*(count-1)/2 = 1 999 000
-  // elements on top of that — three orders of magnitude above this ceiling, so the bound is
-  // generous enough never to flake yet nowhere near large enough to admit a regression.
+  const copied = countCopiedElements(() =>
+    OL.reduceSceneEvents(segmentEvents(count)),
+  );
+  // The pre-#977 fold copied the accumulated array on every append — count*(count-1)/2 = 1 999 000
+  // elements on top of the single pass — two orders of magnitude above this ceiling.
   assert.ok(
-    copied <= count * 4,
-    `expected <= ${count * 4} elements copied for ${count} events, got ${copied}`,
+    copied <= count * 8,
+    `expected <= ${count * 8} elements copied for ${count} events, got ${copied}`,
   );
 });
 
-test("the linearity counter actually detects a quadratic fold (control for #977)", () => {
-  // Pairs the assertion above with a positive control: the same counter, over a deliberately
-  // quadratic fold, must report the quadratic figure. Without this, a counter that silently
-  // measured nothing would make the test above pass for the wrong reason.
-  const count = 2_000;
-  const events = segmentEvents(count);
-  const quadratic = countCopiedElements(() => {
-    let items = [];
-    for (const _ of events) {
-      items = [...items, _];
-    }
-    return items;
+test("reduceSceneEvents copying grows LINEARLY with n, not quadratically (#977)", () => {
+  // Stronger than a ceiling at one size, which a third legitimate linear pass would trip: doubling
+  // the input must not more than roughly double the copying. A quadratic fold quadruples it.
+  const small = countCopiedElements(() =>
+    OL.reduceSceneEvents(segmentEvents(1_000)),
+  );
+  const large = countCopiedElements(() =>
+    OL.reduceSceneEvents(segmentEvents(2_000)),
+  );
+  const ratio = large / small;
+  assert.ok(
+    ratio <= 2.5,
+    `doubling n multiplied copying by ${ratio.toFixed(2)}x; linear is ~2x, quadratic ~4x`,
+  );
+});
+
+test("seekToEventIndex copies a LINEAR number of elements over the resume prefix (#977)", () => {
+  // This is what makes the studio's resume claim enforceable rather than merely written down:
+  // `packages/studio/README.md` and `run-controller.ts` both state that the scene fold over a
+  // resumed prefix is linear in how much has been drawn. Lives beside the counter rather than in
+  // `animation.test.mjs` so there is exactly one copy of the instrument to keep correct.
+  const events = segmentEvents(2_000);
+  const copied = countCopiedElements(() => {
+    const controller = new OL.TurtleAnimationController(events);
+    controller.seekToEventIndex(events.length);
   });
   assert.ok(
-    quadratic > count * 100,
-    `the control fold should traverse ~${(count * (count - 1)) / 2} elements, got ${quadratic}`,
+    copied <= events.length * 8,
+    `expected <= ${events.length * 8} elements copied for ${events.length} events, got ${copied}`,
+  );
+});
+
+test("a whole-array range is folded in place, without copying the stream (#977)", () => {
+  // Pins BOTH the in-place branch and the upper clamp as load-bearing. Measured: folding in place
+  // costs 1.00n (the `for…of` alone); slicing first costs 2.00n. The 1.5n ceiling sits between
+  // them, so removing the fast path — or the `Math.min` that lets an `end` past the array still
+  // reach it — fails here rather than passing as a wash.
+  const events = segmentEvents(1_000);
+  const exact = countCopiedElements(() =>
+    OL.reduceSceneRange(OL.INITIAL_TURTLE_SCENE, events, 0, events.length),
+  );
+  const past = countCopiedElements(() =>
+    OL.reduceSceneRange(OL.INITIAL_TURTLE_SCENE, events, 0, events.length + 5),
+  );
+  assert.equal(
+    past,
+    exact,
+    "an end past the array must fold in place, exactly as an exact end does",
+  );
+  assert.ok(
+    exact <= events.length * 1.5,
+    `a whole-array fold must not copy the stream: got ${exact} for ${events.length} events (in-place is ~1n, slicing ~2n)`,
+  );
+  // A genuine sub-range still slices, so the fast path is a real branch rather than the only one.
+  const partial = countCopiedElements(() =>
+    OL.reduceSceneRange(OL.INITIAL_TURTLE_SCENE, events, 1, events.length),
+  );
+  assert.ok(
+    partial > exact,
+    "a partial range takes the slicing branch, so both branches are exercised",
   );
 });
 

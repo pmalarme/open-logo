@@ -327,8 +327,11 @@
  *
  * ### What a delivery costs
  * One execution per delivery, as an `input` answer does. `finishAttempt` resumes the canvas with a
- * single `seekToEventIndex` to the already-drawn boundary rather than stepping to it, so the resume
- * grows linearly with how much has been drawn rather than quadratically (#977).
+ * single `seekToEventIndex` to the already-drawn boundary rather than stepping to it, so the
+ * **scene** fold over that prefix costs one array copy rather than one per event — linear rather
+ * than quadratic in how much has been drawn (#977). That is the claim `@openlogo/turtle` pins with
+ * a test; it does not extend to a Sprites-heavy stream, whose per-event turtle-map copy is a
+ * separate cost this change does not address.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same

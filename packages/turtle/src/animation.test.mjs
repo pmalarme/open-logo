@@ -745,10 +745,19 @@ function fastForwardByStepping(events, alreadyDrawn) {
  * A deliberately scene-diverse stream for the every-index oracle below. `repeat4ForwardRightEvents`
  * emits only `instruction`/`move`/`turn`/`draw-segment`, so every `overlay`, `background-change`,
  * `fill`, `stamp` and `clear` comparison in that loop is initial-against-initial and asserts
- * nothing — a mutation that deleted the overlay fold from `applyRange` entirely was NOT caught by
- * it. This fixture puts all of those kinds through the controller, including a **mid-stream
- * `clear`**, which is the one kind that discards the fold's buffer and therefore the case where the
- * copy-on-first-write `owned` flag has to be right at a non-zero offset.
+ * nothing.
+ *
+ * **What this fixture does and does not buy.** It exercises step boundaries over richer kinds. It
+ * does **not**, on its own, catch a reducer that `applyRange` drops entirely — a mutation deleting
+ * the overlay fold still passes the every-index loop, because that oracle drives `step()`, which
+ * reaches the reducers through the same `applyRange`. The independent-reducer test below is what
+ * catches that. Stated because the enrichment was added in response to exactly that mutation and it
+ * would be easy to assume it closed it.
+ *
+ * Note the mid-stream `clear`: it is the one kind that discards the fold's buffer, which is where
+ * copy-on-first-write has to be right at a non-zero offset — but it also **erases any
+ * double-applied prefix**, so this fixture must not be used to test cursor-relative folding. See
+ * `clearFreeSceneEvents`.
  */
 function richSceneEvents() {
   const events = [];
@@ -790,7 +799,58 @@ function richSceneEvents() {
     }),
   );
   events.push(event("instruction", { text: "axes" }));
-  events.push(event("overlay", { overlay: "axes", enabled: true }));
+  events.push(event("overlay", { overlay: "axes" }));
+  events.push(event("instruction", { text: "measure" }));
+  events.push(
+    event("overlay", { overlay: "measure", position: [0, 15], heading: 0 }),
+  );
+  return events;
+}
+
+/**
+ * The same diversity **without a `clear`**, for anything testing cursor-relative folding. A `clear`
+ * erases a double-applied prefix, and every other kind here is idempotent under re-application
+ * (background set to one colour, an overlay re-enabled, absolute `move` payloads) — so a fold that
+ * wrongly restarted from 0 would land on the identical scene and go unnoticed. Only the appending
+ * kinds expose it, by doubling.
+ */
+function clearFreeSceneEvents() {
+  const events = [];
+  events.push(event("instruction", { text: 'set_background "navy"' }));
+  events.push(event("background-change", { color: "navy" }));
+  events.push(event("instruction", { text: "grid 20" }));
+  events.push(event("overlay", { overlay: "grid", spacing: 20 }));
+  events.push(event("instruction", { text: "forward 10" }));
+  events.push(event("move", { from: [0, 0], to: [0, 10], heading: 0 }));
+  events.push(
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 10],
+      color: "black",
+      width: 1,
+    }),
+  );
+  events.push(event("instruction", { text: 'fill "gold"' }));
+  events.push(event("fill", { color: "gold" }));
+  events.push(event("instruction", { text: "stamp" }));
+  events.push(
+    event("stamp", {
+      position: [0, 10],
+      heading: 0,
+      shape: "turtle",
+      color: "black",
+    }),
+  );
+  events.push(event("instruction", { text: "forward 5" }));
+  events.push(event("move", { from: [0, 10], to: [0, 15], heading: 0 }));
+  events.push(
+    event("draw-segment", {
+      from: [0, 10],
+      to: [0, 15],
+      color: "red",
+      width: 3,
+    }),
+  );
   return events;
 }
 
@@ -833,10 +893,13 @@ test("seekToEventIndex lands exactly where stepping lands, at EVERY index (#977 
   }
 });
 
-test("applyRange folds overlay and scene together against INDEPENDENT oracles (#977)", () => {
-  // The seek-vs-step oracle above compares subject with subject: both paths go through
-  // `applyRange`, so neither can catch a reducer that `applyRange` drops entirely. These oracles
-  // are the sibling reducers themselves, which `applyRange` does not share code with.
+test("applyRange folds overlay and scene against reducers it does not route through (#977)", () => {
+  // A WIRING oracle, not a semantic one. `reduceOverlayEvents` reaches `reduceOverlayState`
+  // directly rather than through `applyRange`, so it catches a reducer `applyRange` drops
+  // altogether — the mutation the every-index loop above cannot see. It is NOT independent of the
+  // reducers themselves: `reduceSceneEvents` delegates to `reduceSceneRange`, the very function
+  // `applyRange` calls, so per-event scene semantics are pinned by the concrete-value tests in
+  // `scene.test.mjs`, not here.
   const events = richSceneEvents();
   const controller = new OL.TurtleAnimationController(events);
   controller.seekToEnd();
@@ -851,21 +914,49 @@ test("applyRange folds overlay and scene together against INDEPENDENT oracles (#
 });
 
 test("seekToEnd folds from the CURSOR, not from zero (#977)", () => {
-  // The old `while (cursor < len) step()` could not double-apply a prefix; the single range
-  // application can, if it folds from 0. Every turtle test survived that mutation before this one.
-  const events = richSceneEvents();
+  // Deliberately a CLEAR-FREE fixture. With a mid-stream `clear`, a fold that restarted from 0
+  // lands on the identical scene — the clear erases the doubled prefix — so this test passed
+  // against the rich fixture while the mutation it exists for went undetected.
+  //
+  // The prefix must also have ACTUALLY DRAWN something: stepping past two non-appending
+  // instructions leaves nothing to double, which is the second way this test silently degraded.
+  // The assertion below pins that precondition rather than assuming it.
+  const events = clearFreeSceneEvents();
   const controller = new OL.TurtleAnimationController(events);
   controller.step();
   controller.step();
-  controller.seekToEnd();
-  assert.deepEqual(
-    controller.getSnapshot().scene,
-    OL.reduceSceneEvents(events),
+  controller.step();
+  controller.step();
+  const drawnBefore = controller.getSnapshot().scene.items.length;
+  assert.ok(
+    drawnBefore > 0,
+    "the stepped prefix must have drawn something, or a re-fold from zero doubles nothing",
   );
+
+  controller.seekToEnd();
+  const expected = OL.reduceSceneEvents(events);
+  assert.equal(
+    controller.getSnapshot().scene.items.length,
+    expected.items.length,
+    `a fold restarted from zero would double the ${drawnBefore} item(s) already drawn`,
+  );
+  assert.deepEqual(controller.getSnapshot().scene, expected);
   assert.deepEqual(
     controller.getSnapshot().overlay,
     OL.reduceOverlayEvents(events),
   );
+});
+
+test("seekToEventIndex over an empty stream leaves the controller idle (#977)", () => {
+  // Deliberate and documented: a seek that consumes no step changes nothing, status included, and
+  // over an empty stream that is every seek. `step()`/`seekToEnd()` report "done" here; this
+  // control's equivalence is to the step loop it replaces, which would not have run either.
+  for (const index of [0, 5, -3]) {
+    const controller = new OL.TurtleAnimationController([]);
+    controller.seekToEventIndex(index);
+    assert.equal(controller.getSnapshot().status, "idle", `seek(${index})`);
+    assert.equal(controller.getSnapshot().cursor, 0);
+  }
 });
 
 test("a no-move seekToEventIndex while running leaves playback alive (#977)", () => {
@@ -1010,86 +1101,4 @@ test("seekToEventIndex cancels a step scheduled by a prior run(), like step() do
     "the scheduled step was cancelled, not left to fire",
   );
   assert.equal(controller.getSnapshot().status, "done");
-});
-
-/**
- * Counts array elements copied while `run()` executes, by instrumenting the array iterator that
- * both `[...spread]` and `for…of` go through. Deterministic and clock-free, so it can assert a
- * *growth* property without the flakiness of a timing ratio on a shared CI box.
- */
-function countCopiedElements(run) {
-  const originalIterator = Array.prototype[Symbol.iterator];
-  let yielded = 0;
-  Array.prototype[Symbol.iterator] = function countingIterator() {
-    const inner = originalIterator.call(this);
-    return {
-      next() {
-        const result = inner.next();
-        if (result.done !== true) {
-          yielded += 1;
-        }
-        return result;
-      },
-    };
-  };
-  try {
-    run();
-  } finally {
-    Array.prototype[Symbol.iterator] = originalIterator;
-  }
-  return yielded;
-}
-
-function forwardOnlyEvents(iterations) {
-  const events = [];
-  let y = 0;
-  for (let index = 0; index < iterations; index += 1) {
-    const from = [0, y];
-    y += 1;
-    const to = [0, y];
-    events.push(event("instruction", { text: "forward 1" }));
-    events.push(event("move", { from, to, heading: 0 }));
-    events.push(event("draw-segment", { from, to, color: "black", width: 1 }));
-  }
-  return events;
-}
-
-test("seekToEventIndex copies a LINEAR number of elements, not a quadratic one (#977)", () => {
-  // This is the test that makes the studio's resume claim enforceable rather than merely written
-  // down: `packages/studio/README.md` and `run-controller.ts` both state that a resume grows
-  // linearly with how much has been drawn, and a prose claim about growth that nothing measures is
-  // exactly how the characteristic those notes replaced went stale.
-  const iterations = 2_000;
-  const events = forwardOnlyEvents(iterations);
-  const copied = countCopiedElements(() => {
-    const controller = new OL.TurtleAnimationController(events);
-    controller.seekToEventIndex(events.length);
-  });
-
-  // One pass over the window plus a bounded amount of copying. The pre-#977 fold copied the
-  // accumulated scene on every one of the 2 000 `draw-segment` events, traversing ~2 000 000
-  // elements — two orders of magnitude above this ceiling.
-  assert.ok(
-    copied <= events.length * 4,
-    `expected <= ${events.length * 4} elements copied for ${events.length} events, got ${copied}`,
-  );
-});
-
-test("the seek linearity counter detects a quadratic fold (control for #977)", () => {
-  // Positive control: the same counter over a deliberately quadratic fold of the same size must
-  // report the quadratic figure, so the assertion above cannot pass by measuring nothing.
-  const events = forwardOnlyEvents(2_000);
-  const quadratic = countCopiedElements(() => {
-    let items = [];
-    for (const candidate of events) {
-      if (candidate.kind === "draw-segment") {
-        items = [...items, candidate];
-      }
-    }
-    return items;
-  });
-  assert.ok(
-    quadratic > events.length * 100,
-    `the control fold should traverse ~2 000 000 elements, got ${quadratic}`,
-  );
 });

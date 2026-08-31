@@ -232,14 +232,20 @@ export function reduceSceneRange(
   start: number,
   end: number,
 ): TurtleScene {
-  const from = Math.max(start, 0);
-  // Both bounds clamped into [0, events.length] BEFORE slicing, because `Array.prototype.slice`
+  // Both bounds clamped into `[0, events.length]` BEFORE use, because `Array.prototype.slice`
   // reads a negative index as an offset from the end: `slice(0, -1)` drops the last element rather
-  // than yielding nothing, so an unclamped negative `end` would fold almost the whole stream where
+  // than yielding nothing, so an unclamped negative bound would fold almost the whole stream where
   // this function promises an empty range.
+  const from = Math.min(Math.max(start, 0), events.length);
   const to = Math.min(Math.max(end, 0), events.length);
   const fold = startFold(scene);
-  for (const event of events.slice(from, to)) {
+  // A whole-array range — what `applyRange` and {@link reduceSceneEvents} both pass — is folded in
+  // place. Slicing it would copy the entire stream (300 001 events, on the resume #977 is about)
+  // purely to drive a `for…of`, which is the allocation this function exists to avoid. The upper
+  // clamp above is what lets an `end` past the array still reach this branch.
+  const window =
+    from === 0 && to === events.length ? events : events.slice(from, to);
+  for (const event of window) {
     applySceneEvent(fold, event);
   }
   return finishFold(fold, scene);

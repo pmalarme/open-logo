@@ -133,21 +133,28 @@ export interface AnimationSnapshot {
  * already-folded prefix), and can never diverge from what a direct
  * `reduceTurtleWorldEvents`/`reduceSceneEvents` call over the same events would produce.
  *
- * **What is linear and what is not** (#977 — stated precisely, because this paragraph previously
- * claimed a blanket O(n) the code did not deliver). A *range* fold is linear: {@link seekToEnd} and
- * {@link seekToEventIndex} consume any span in one pass. **Step-driven consumption is still Θ(n²)**
- * — {@link step}, and therefore {@link run} at *every* speed **including {@link IMMEDIATE_SCHEDULER}
- * instant playback** — because each step materialises one immutable snapshot of a growing scene, so
- * a drawing-heavy run pays one whole-array copy per step. Measured on one machine at n=40 000
- * (200 001 events): `seekToEnd()` 47 ms, `run()` 6 825 ms. That is a residual this change did not
- * introduce and deliberately did not widen its scope to fix — before #977 `run()` paid at least one
- * copy per step too — but it means `run()` under a synchronous scheduler and `seekToEnd()` are
- * **behaviorally identical and asymptotically different**, which is a distinction a host choosing
- * between them now needs. Cheapening it needs the controller to keep the fold open across
- * consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot} — which changes no
- * shared contract, and was left out purely on scope.
+ * **What is linear and what is not** (#977 — stated narrowly, because this paragraph previously
+ * claimed a blanket O(n) the code did not deliver, and a first correction over-claimed again).
+ * The **scene** fold is linear over any range: {@link seekToEnd} and {@link seekToEventIndex}
+ * consume a span with one copy of the item array rather than one per event, and that is the only
+ * complexity claim here pinned by a test (`scene.test.mjs` counts the copying).
  *
- * {@link AnimationSnapshot.state} is read out of that same world
+ * Two things are **not** covered by it, both measured rather than assumed:
+ * - **Step-driven consumption is O(n²)** — {@link step}, and therefore {@link run} at *every* speed
+ *   **including {@link IMMEDIATE_SCHEDULER} instant playback** — because each step materialises one
+ *   immutable snapshot of a growing scene. Tight only for a drawing-heavy stream: a run that emits
+ *   no scene-bearing events is linear, because the fold returns the scene by reference. Measured on
+ *   one machine at n=40 000 (200 001 events): `seekToEnd()` 47 ms, `run()` 6 825 ms; a pen-up stream
+ *   of the same length stays flat. This is a residual, not a regression — before #977 `run()` paid
+ *   at least one copy per step too — and cheapening it needs the controller to keep the fold open
+ *   across consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot}, which
+ *   changes no shared contract and was left out purely on scope.
+ * - **The world fold copies the turtle map per event** (`world-state.ts`), so a **Sprites** stream
+ *   that spawns *n* turtles is O(n²) inside a single seek regardless of the scene fold. Not
+ *   addressed here and not claimed to be.
+ *
+ * So `run()` under a synchronous scheduler and `seekToEnd()` reach the same final scene by
+ * different costs. {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
  * the per-turtle world can never disagree about the turtle a command last drove — and the addressed set
  * the state text also names comes from that one world too, so it cannot drift from the avatars
@@ -293,6 +300,11 @@ export class TurtleAnimationController {
    * the end is the same as seeking to it, and seeking to an index already behind the cursor does
    * nothing (this control only moves forward — {@link reset} is how a caller goes back).
    *
+   * **A seek that consumes no step changes nothing at all, status included.** Over an empty stream
+   * that is *every* seek, so an empty controller stays `"idle"` here where {@link step} and
+   * {@link seekToEnd} report `"done"` — deliberate, because this control's equivalence is to the
+   * step loop it replaces, which would not have run either.
+   *
    * ## Why this exists (issue #977)
    * A host resuming a picture it has already drawn — `@openlogo/studio`'s replay — used to step
    * one instruction at a time to get there, which folded the scene one event at a time and cost
@@ -334,9 +346,11 @@ export class TurtleAnimationController {
    * schedule a second, overlapping drive loop (which would leak an uncancellable pending step
    * once {@link pause} only has a handle to the newest one). With the default
    * {@link IMMEDIATE_SCHEDULER} this drains the whole remaining stream synchronously in one
-   * call — behaviorally identical to {@link seekToEnd}, though **not** asymptotically so: this
-   * path is step-driven and stays Θ(n²) where `seekToEnd` is linear (see this class's doc block)
-   * — matching the spec's "running
+   * call — reaching the same final retained scene as {@link seekToEnd}, though by a different cost:
+   * this path is step-driven and stays O(n²) for a drawing-heavy stream where `seekToEnd` is linear
+   * (see this class's doc block). The two are **not** interchangeable in every state either —
+   * `run()` is a no-op while already `"running"` or `"done"`, `seekToEnd()` is not — so "same final
+   * scene for a full synchronous drain" is the exact claim, matching the spec's "running
    * instantly … MUST produce the same final retained scene" requirement.
    */
   run(): void {
