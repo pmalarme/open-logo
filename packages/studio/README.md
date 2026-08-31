@@ -418,29 +418,21 @@ tick the program never gets to.
 clock reaches its tick, and only a `wait` pause advances that clock. A program that never waits
 receives nothing — Stop's `"stop"` notification included — and still pays for the replay.
 
-**What a delivery costs.** One execution per delivery, like an `input` answer — but for a program
-that has already drawn a lot that is **not** the dominant term. `finishAttempt` fast-forwards the new
-animation past the events already on screen one step at a time, and **that step loop is ~99% of the
-cost**: on `when "stop" [ … ] / repeat 30000 [ forward 1 right 1 ]` it accounted for **96.8%–98.8%**
-of a Stop's notification replay across two independent measurers, with the interpreter taking the
-remainder. **The ratio is the claim** — it holds on any hardware, and it is what points
-[#977](https://github.com/pmalarme/open-logo/issues/977) at the step loop.
-
-The absolute numbers are machine-dependent, so they are offered as one machine's rather than as a
-property of the tree: on `when "stop" / repeat 60000`, Stop measured **19.5 ms without** a `when`
-handler and **≈16–27 s with** one. A single key press on the same program measured 4.5 s with 57 ms
-of execution — and a press of a key the program does *not* name, which changes nothing, cost the
-same, because the replay happens either way. Across `repeat` 5,000→40,000 a Stop's replay measured
-**≈0.4×–1.6×** a whole second run.
-
-Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
-`run()` 4.9 ms and `stop()` 41.4 ms. The cost tracks **how much has been drawn**, and an interactive
-program spends its ticks waiting rather than drawing.
+**What a delivery costs.** One execution per delivery, like an `input` answer. The canvas is
+resumed with a single seek to the already-drawn boundary rather than replayed one step at a time,
+so the **scene** fold over that prefix costs one array copy rather than one per event
+([#977](https://github.com/pmalarme/open-logo/issues/977)). `run-controller.test.mjs` guards the
+wiring — that the resume seeks once and never steps over the prefix — and `@openlogo/turtle`'s copy
+counter guards the fold against the copy mechanisms the original defect used (that counter's doc
+block records what it does *not* cover). Neither is a proof of linearity in general, and none of
+this extends to a Sprites-heavy stream, whose world fold is quadratic in several independent ways
+(turtle-map copies on spawn and on state changes, plus an addressed-set scan per addressing
+snapshot) — separate costs #977 did not address.
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes
 rather than redrawing, because the replay is fast-forwarded past what the live animation had already
-drawn (see the cost note above). A delivered
+drawn. A delivered
 replay deliberately does **not** re-announce `runStatus` as `"running"`: it is the same run with more
 input, and `run-log.ts`/`tutor-output-pane.ts` accumulate on the `"running"` → terminal transition, so
 announcing it would file a run-log entry per keystroke.

@@ -326,24 +326,17 @@
  * two of them diverged and had to be reconciled twice.
  *
  * ### What a delivery costs
- * One execution per delivery, as an `input` answer does — but for a program that has already drawn a
- * lot, that is **not** the dominant term. `finishAttempt` fast-forwards the new animation past the
- * events already on screen one step at a time, and **that step loop is ~99% of the cost**: measured
- * on `when "stop" [ … ] / repeat 30000 [ forward 1 right 1 ]`, the fast-forward accounted for
- * 96.8%–98.8% of a Stop's notification replay while the interpreter accounted for the remainder.
- * The **ratio is the claim** — it holds on any hardware, and it is what points #977 at the step loop.
- *
- * The absolute numbers are machine-dependent and are offered as one machine's, not as a property of
- * the tree: on `when "stop" / repeat 60000`, Stop measured **19.5 ms without** a `when` handler and
- * **≈16–27 s with** one, across two independent measurers. A single key press on the same program
- * measured 4.5 s with 57 ms of execution, and a press of a key the program does *not* name — which
- * changes nothing — cost the same, because the replay happens either way. Across `repeat`
- * 5,000→40,000 a Stop's replay measured **≈0.4×–1.6×** a whole second run.
- *
- * Learner-scale interactive programs are unaffected: `when "stop" / on_key "up" / wait 300` measures
- * `run()` 4.9 ms and `stop()` 41.4 ms. The cost is a function of **how much has been drawn**, and an
- * interactive program spends its ticks waiting rather than drawing. Cheapening it needs a seek-to-
- * index on `@openlogo/turtle`'s animation controller rather than a step loop — **#977**.
+ * One execution per delivery, as an `input` answer does. `finishAttempt` resumes the canvas with a
+ * single `seekToEventIndex` to the already-drawn boundary rather than stepping to it, so the
+ * **scene** fold over that prefix costs one array copy rather than one per event (#977).
+ * `run-controller.test.mjs` guards this wiring — one seek, no stepping over the prefix — because
+ * restoring the old step loop here would otherwise leave every behavioural test in this package
+ * *and* every complexity test in `@openlogo/turtle` green while reintroducing the defect. The fold
+ * itself is guarded there, against the copy mechanisms the original defect used; neither guard is
+ * a proof of linearity in general, and neither extends to a Sprites-heavy stream, whose world fold
+ * is quadratic in several independent ways (turtle-map copies on spawn and on state changes, plus
+ * an addressed-set scan per addressing snapshot) — separate costs this change does not address.
+ * See `@openlogo/turtle`'s `TurtleAnimationController` doc block for the enumeration.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
@@ -351,8 +344,7 @@
  * learner sees is the canvas, output, and
  * turtle state updating to reflect the input they just gave, because the replay is fast-forwarded
  * past the events already drawn (`shownEventCount`, set from the live animation's own cursor) rather
- * than redrawing from a blank canvas. What that costs is measured under "What a delivery costs"
- * above — and it is the fast-forward, not the execution, that dominates.
+ * than redrawing from a blank canvas.
  *
  * A replay for delivered input deliberately does **not** re-announce `runStatus` as `"running"`: it
  * is the *same* run with more input, not a new one. `run-log.ts` and `tutor-output-pane.ts`
@@ -674,22 +666,6 @@ function findCurrentInstructionSourceSpan(
     }
   }
   return null;
-}
-
-/**
- * The exclusive end index of the animation step that starts at `cursor`: that event plus every
- * following event up to (but not including) the next `"instruction"` event — exactly
- * `TurtleAnimationController.step()`'s own boundary rule (`spec/rendering.md`'s worked
- * `repeat 4 [ forward 100 right 90 ]` example). Purely a measurement: it never folds or reduces
- * anything. #769's resume needs it because a step is instruction-aligned while the events a
- * previous attempt actually drew are not — see `prepare()`'s resume loop.
- */
-function stepEndIndex(events: readonly TraceEvent[], cursor: number): number {
-  let end = cursor + 1;
-  while (end < events.length && events[end]?.kind !== "instruction") {
-    end += 1;
-  }
-  return end;
 }
 
 /**
@@ -1284,18 +1260,10 @@ export function createRunController(
     // "past the event count" would consume that step's brand-new `move`/`draw-segment` too,
     // silently skipping the very movement the answer just produced. So a step is only fast-
     // forwarded when it ends at or before the already-drawn boundary; the first step that reaches
-    // past it is left for playback to animate. Clamping to the new stream's own length also makes
-    // this loop provably terminating — `stepEndIndex` always reports at least `cursor + 1`.
-    const alreadyDrawn = Math.min(shownEventCount, settlement.events.length);
-    let drawnCursor = 0;
-    while (drawnCursor < alreadyDrawn) {
-      const stepEnd = stepEndIndex(settlement.events, drawnCursor);
-      if (stepEnd > alreadyDrawn) {
-        break;
-      }
-      current.step();
-      drawnCursor = stepEnd;
-    }
+    // past it is left for playback to animate. That boundary rule now lives on the animation
+    // controller as `seekToEventIndex`, which applies it in one fold instead of one step at a
+    // time — #977; it clamps to the new stream's own length itself.
+    current.seekToEventIndex(shownEventCount);
     return current;
   }
 

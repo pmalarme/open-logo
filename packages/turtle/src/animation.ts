@@ -6,7 +6,7 @@
  * or reshapes events; it only decides *how much* of the already-produced stream has been
  * consumed and *how fast* to consume more of it. Running a deterministic program instantly,
  * slowly, or step-by-step MUST fold to the identical final retained scene — that invariant is
- * why this layer reuses {@link reduceTurtleWorldState}/{@link reduceTurtleScene} incrementally
+ * why this layer reuses {@link reduceTurtleWorldState}/{@link reduceSceneRange} incrementally
  * (folding only the newly consumed events each step) rather than re-reducing any prefix, and why
  * it never skips, coalesces, or reorders events regardless of speed.
  *
@@ -23,7 +23,7 @@ import {
 } from "./overlay.js";
 import {
   INITIAL_TURTLE_SCENE,
-  reduceTurtleScene,
+  reduceSceneRange,
   type TurtleScene,
 } from "./scene.js";
 import { INITIAL_TURTLE_STATE, type TurtleState } from "./state.js";
@@ -128,11 +128,45 @@ export interface AnimationSnapshot {
  * A deterministic pacing/cursor player over a fixed, already-produced `TraceEvent` array.
  *
  * This is **not** a second reduction: {@link TurtleWorldState} and {@link TurtleScene} are always
- * derived by folding the same `reduceTurtleWorldState`/`reduceTurtleScene` functions the sibling
- * reducers export, incrementally over just the newly consumed events on each step — so the
- * controller stays O(n) total across a full run (never re-reducing an already-folded prefix)
- * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
- * the same events would produce. {@link AnimationSnapshot.state} is read out of that same world
+ * derived by folding the same `reduceTurtleWorldState`/`reduceSceneRange` functions the sibling
+ * reducers export, incrementally over just the newly consumed events (never re-reducing an
+ * already-folded prefix), and can never diverge from what a direct
+ * `reduceTurtleWorldEvents`/`reduceSceneEvents` call over the same events would produce.
+ *
+ * **What is linear and what is not** (#977 — stated narrowly, because this paragraph previously
+ * claimed a blanket O(n) the code did not deliver, and two corrections over-claimed again).
+ * The **scene** fold is linear over any range: {@link seekToEnd} and {@link seekToEventIndex}
+ * consume a span with one copy of the item array rather than one per event. `scene.test.mjs`
+ * *guards* that against the copy mechanisms the original defect used — it counts copying through
+ * the array iterator, `slice` and `concat`, and its doc block enumerates the several ways a
+ * quadratic fold could still evade it. Read that as a regression guard, not as a proof of
+ * linearity.
+ *
+ * Two things are **not** covered by it, both measured rather than assumed:
+ * - **Step-driven consumption is O(n²)** — {@link step}, and therefore {@link run} at *every* speed
+ *   **including {@link IMMEDIATE_SCHEDULER} instant playback** — because each step materialises one
+ *   immutable snapshot of a growing scene. Tight only for a drawing-heavy stream: a run that emits
+ *   no scene-bearing events is linear, because the fold returns the scene by reference. Measured on
+ *   one machine at n=40 000 (200 001 events): `seekToEnd()` 47 ms, `run()` 6 825 ms; a pen-up stream
+ *   of the same length stays flat. This is a residual, not a regression — before #977 `run()` paid
+ *   at least one copy per step too — and cheapening it needs the controller to keep the fold open
+ *   across consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot}, which
+ *   changes no shared contract and was left out purely on scope.
+ * - **The world fold has costs the scene fold's linearity says nothing about**, all in
+ *   `world-state.ts` and none of them addressed here. It copies the turtle map on `spawn-turtle`
+ *   and on any event that changes a turtle's own state — `instruction`, `print`, `clear`,
+ *   control-flow, and the scene-only kinds `fill`/`stamp` all reuse it — so that part costs the sum
+ *   of the live map's size over those events, roughly `O(spawns² + state-bearing effects × live
+ *   turtles)`. Separately, a `primitive` event carrying an addressing snapshot scans and may copy
+ *   the **addressed set** (`foldAddressing`/`sameAddressedTurtles`), and that scan runs before its
+ *   early return, so an *unchanged* set costs the same as a changed one: `ask all […]` in a loop
+ *   over *n* turtles is quadratic with **zero** map copies. Which term dominates depends on the
+ *   program's shape, so no single ratio is quoted here — a **Sprites** stream is quadratic in
+ *   several independent ways, and any follow-up must measure the shape it intends to fix rather
+ *   than assume this list is exhaustive.
+ *
+ * So `run()` under a synchronous scheduler and `seekToEnd()` reach the same final scene by
+ * different costs. {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
  * the per-turtle world can never disagree about the turtle a command last drove — and the addressed set
  * the state text also names comes from that one world too, so it cannot drift from the avatars
@@ -240,16 +274,87 @@ export class TurtleAnimationController {
     if (this.cursor >= this.events.length) {
       return true;
     }
-    let end = this.cursor + 1;
+    const end = this.stepEndFrom(this.cursor);
+    this.applyRange(this.cursor, end);
+    this.cursor = end;
+    return this.cursor >= this.events.length;
+  }
+
+  /**
+   * The exclusive end index of the step that starts at `cursor`: that event plus every following
+   * event up to (but not including) the next `instruction` event, or the end of the stream. The
+   * **single definition of a step boundary**, shared by {@link consumeOneStep} and
+   * {@link seekToEventIndex} so seeking can never land somewhere stepping would not have. Always
+   * reports at least `cursor + 1`, which is what makes both of its callers' loops terminate.
+   */
+  private stepEndFrom(cursor: number): number {
+    let end = cursor + 1;
     while (
       end < this.events.length &&
       this.events[end]?.kind !== "instruction"
     ) {
-      end++;
+      end += 1;
     }
-    this.applyRange(this.cursor, end);
-    this.cursor = end;
-    return this.cursor >= this.events.length;
+    return end;
+  }
+
+  /**
+   * Fast-forwards to the last step boundary at or before `eventIndex`, folding everything from
+   * the cursor to there **in one pass**. Exactly equivalent to calling {@link step} until the
+   * next step would reach past `eventIndex` — same cursor, same world, same scene, same overlay,
+   * same resulting status — and that equivalence is asserted directly in `animation.test.mjs`
+   * rather than merely assumed.
+   *
+   * Stops on a step *boundary* rather than at `eventIndex` itself because a step is
+   * instruction-aligned while an arbitrary index is not: landing mid-step would show half an
+   * instruction's effects, which `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]`
+   * example is precisely about not doing. `eventIndex` is clamped to the stream, so seeking past
+   * the end is the same as seeking to it, and seeking to an index already behind the cursor does
+   * nothing (this control only moves forward — {@link reset} is how a caller goes back).
+   *
+   * **A seek that consumes no step changes nothing at all, status included.** Over an empty stream
+   * that is *every* seek, so an empty controller stays `"idle"` here where {@link step} and
+   * {@link seekToEnd} report `"done"` — deliberate, because this control's equivalence is to the
+   * step loop it replaces, which would not have run either.
+   *
+   * The `"done"` early return below is **defensive depth, not a live branch**: every site that sets
+   * `"done"` also leaves the cursor at the end of the stream, so the no-progress return would catch
+   * the same case. No input distinguishes the two, and no test can pin it — it is kept because
+   * every sibling control opens the same way, and removing it would make this the one that reads
+   * differently.
+   *
+   * ## Why this exists (issue #977)
+   * A host resuming a picture it has already drawn — `@openlogo/studio`'s replay — used to step
+   * one instruction at a time to get there, which folded the scene one event at a time and cost
+   * Θ(n²): on one machine, 25.5 s to resume a 60 000-iteration program at `09b6fc11`. Seeking is
+   * the same fold done once. A no-op once playback is `"done"`, like {@link step}.
+   */
+  seekToEventIndex(eventIndex: number): void {
+    if (this.status === "done") {
+      return;
+    }
+    const limit = Math.min(eventIndex, this.events.length);
+    let target = this.cursor;
+    while (target < limit) {
+      const next = this.stepEndFrom(target);
+      if (next > limit) {
+        break;
+      }
+      target = next;
+    }
+    if (target === this.cursor) {
+      // Nothing to fold — and therefore nothing to disturb. The target is computed BEFORE any
+      // mutation precisely so this path has no side effect at all: cancelling a scheduled step
+      // here would leave a `"running"` controller with nothing pending, and `run()` refuses to
+      // restart while the status is already `"running"`, so playback would wedge permanently. The
+      // step loop this replaces never called into the controller when it took zero steps, and this
+      // is what makes that equivalence true rather than merely claimed.
+      return;
+    }
+    this.cancelScheduledStep();
+    this.applyRange(this.cursor, target);
+    this.cursor = target;
+    this.status = this.cursor >= this.events.length ? "done" : "paused";
   }
 
   /**
@@ -259,7 +364,11 @@ export class TurtleAnimationController {
    * schedule a second, overlapping drive loop (which would leak an uncancellable pending step
    * once {@link pause} only has a handle to the newest one). With the default
    * {@link IMMEDIATE_SCHEDULER} this drains the whole remaining stream synchronously in one
-   * call — behaviorally identical to {@link seekToEnd} — matching the spec's "running
+   * call — reaching the same final retained scene as {@link seekToEnd}, though by a different cost:
+   * this path is step-driven and stays O(n²) for a drawing-heavy stream where `seekToEnd` is linear
+   * (see this class's doc block). The two are **not** interchangeable in every state either —
+   * `run()` is a no-op while already `"running"` or `"done"`, `seekToEnd()` is not — so "same final
+   * scene for a full synchronous drain" is the exact claim, matching the spec's "running
    * instantly … MUST produce the same final retained scene" requirement.
    */
   run(): void {
@@ -305,13 +414,14 @@ export class TurtleAnimationController {
   /**
    * Consumes every remaining step synchronously, ignoring pacing, until the stream is
    * exhausted. Produces the same final state/scene as stepping one-by-one or running at any
-   * speed, for a deterministic program.
+   * speed, for a deterministic program. Folds the remainder in one pass rather than one step at
+   * a time, for the reason {@link seekToEventIndex} records (#977); the last step boundary at or
+   * before the end of the stream is the end of the stream, so there is no boundary to compute.
    */
   seekToEnd(): void {
     this.cancelScheduledStep();
-    while (this.cursor < this.events.length) {
-      this.step();
-    }
+    this.applyRange(this.cursor, this.events.length);
+    this.cursor = this.events.length;
     this.status = "done";
   }
 
@@ -328,14 +438,22 @@ export class TurtleAnimationController {
     }
   }
 
-  /** Folds `events[start..end)` into the running world/scene/overlay, in order, one event at a
-   * time. */
+  /** Folds `events[start..end)` into the running world/scene/overlay, in order.
+   *
+   * World and overlay fold per event; the scene folds as one range ({@link reduceSceneRange}),
+   * because appending immutably costs a full array copy and doing that once per event is what
+   * made a long resume quadratic (#977). The three reducers each read only their own state, so
+   * folding one of them separately over the same events in the same order is the same
+   * computation — not an approximation of it. */
   private applyRange(start: number, end: number): void {
-    for (const event of this.events.slice(start, end)) {
+    // Sliced once and shared: world/overlay iterate the window and the scene folds the same window,
+    // so the hot path allocates one transient array rather than two.
+    const window = this.events.slice(start, end);
+    for (const event of window) {
       this.world = reduceTurtleWorldState(this.world, event);
-      this.scene = reduceTurtleScene(this.scene, event);
       this.overlay = reduceOverlayState(this.overlay, event);
     }
+    this.scene = reduceSceneRange(this.scene, window, 0, window.length);
   }
 
   /** Milliseconds to wait between steps at the current speed. */

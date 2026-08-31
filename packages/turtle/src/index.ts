@@ -53,6 +53,7 @@ export type { TurtleWorldState } from "./world-state.js";
 export {
   INITIAL_TURTLE_SCENE,
   reduceSceneEvents,
+  reduceSceneRange,
   reduceTurtleScene,
 } from "./scene.js";
 export type {
