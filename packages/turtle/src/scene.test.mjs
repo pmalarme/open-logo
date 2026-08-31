@@ -287,3 +287,210 @@ test("a full program's worth of events folds deterministically to the same final
     ],
   });
 });
+
+/**
+ * `reduceSceneRange` is the batching form of a `reduceTurtleScene` loop (#977), so the loop is the
+ * oracle: anything the range fold does differently is a defect, not an optimisation.
+ */
+function foldOneAtATime(events, initial = OL.INITIAL_TURTLE_SCENE) {
+  let scene = initial;
+  for (const event of events) {
+    scene = OL.reduceTurtleScene(scene, event);
+  }
+  return scene;
+}
+
+test("reduceSceneRange equals folding the same events one at a time (#977)", () => {
+  const events = [
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 10],
+      color: "black",
+      width: 1,
+    }),
+    event("turn", { from: 0, to: 90 }),
+    event("background-change", { color: "navy" }),
+    event("fill", { color: "gold" }),
+    event("draw-segment", {
+      from: [0, 10],
+      to: [10, 10],
+      color: "red",
+      width: 3,
+    }),
+    event("stamp", {
+      position: [10, 10],
+      heading: 90,
+      shape: "turtle",
+      color: "red",
+    }),
+    event("print", { text: "hello" }),
+  ];
+  assert.deepEqual(
+    OL.reduceSceneRange(OL.INITIAL_TURTLE_SCENE, events, 0, events.length),
+    foldOneAtATime(events),
+  );
+});
+
+test("reduceSceneRange matches the one-at-a-time fold across a `clear` in mid-range", () => {
+  const events = [
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 5],
+      color: "black",
+      width: 1,
+    }),
+    event("background-change", { color: "navy" }),
+    event("clear", { mode: "clean" }),
+    event("draw-segment", {
+      from: [0, 0],
+      to: [5, 0],
+      color: "blue",
+      width: 2,
+    }),
+  ];
+  const range = OL.reduceSceneRange(
+    OL.INITIAL_TURTLE_SCENE,
+    events,
+    0,
+    events.length,
+  );
+  assert.deepEqual(range, foldOneAtATime(events));
+  // `clear` drops the items drawn before it but keeps the background set before it.
+  assert.equal(range.items.length, 1);
+  assert.equal(range.background, "navy");
+});
+
+test("reduceSceneRange agrees with the one-at-a-time fold on EVERY sub-range", () => {
+  const events = [
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 1],
+      color: "black",
+      width: 1,
+    }),
+    event("instruction", { text: "right 90" }),
+    event("background-change", { color: "navy" }),
+    event("clear", { mode: "clear_screen" }),
+    event("fill", { color: "gold" }),
+    event("stamp", {
+      position: [1, 1],
+      heading: 0,
+      shape: "turtle",
+      color: "red",
+    }),
+  ];
+  for (let start = 0; start <= events.length; start += 1) {
+    for (let end = start; end <= events.length; end += 1) {
+      assert.deepEqual(
+        OL.reduceSceneRange(OL.INITIAL_TURTLE_SCENE, events, start, end),
+        foldOneAtATime(events.slice(start, end)),
+        `sub-range [${start}, ${end})`,
+      );
+    }
+  }
+});
+
+test("reduceSceneRange returns the SAME scene reference when the range bears no scene events", () => {
+  const scene = OL.reduceSceneEvents([
+    event("draw-segment", {
+      from: [0, 0],
+      to: [1, 1],
+      color: "black",
+      width: 1,
+    }),
+  ]);
+  const inert = [
+    event("instruction", { text: "right 90" }),
+    event("turn", { from: 0, to: 90 }),
+    event("print", { text: "hi" }),
+  ];
+  assert.equal(OL.reduceSceneRange(scene, inert, 0, inert.length), scene);
+});
+
+test("reduceSceneRange returns the SAME scene reference for an empty or inverted range", () => {
+  const scene = OL.reduceSceneEvents([
+    event("draw-segment", {
+      from: [0, 0],
+      to: [1, 1],
+      color: "black",
+      width: 1,
+    }),
+  ]);
+  const events = [event("fill", { color: "gold" })];
+  assert.equal(OL.reduceSceneRange(scene, events, 0, 0), scene);
+  assert.equal(OL.reduceSceneRange(scene, events, 1, 0), scene);
+});
+
+test("reduceSceneRange clamps both bounds to the event array", () => {
+  const events = [
+    event("fill", { color: "gold" }),
+    event("fill", { color: "teal" }),
+  ];
+  const clamped = OL.reduceSceneRange(
+    OL.INITIAL_TURTLE_SCENE,
+    events,
+    -5,
+    events.length + 5,
+  );
+  assert.deepEqual(clamped, foldOneAtATime(events));
+  assert.equal(clamped.items.length, 2);
+});
+
+test("reduceSceneRange never writes through the scene it was given (#977 shared-array hazard)", () => {
+  const base = OL.reduceSceneEvents([
+    event("draw-segment", {
+      from: [0, 0],
+      to: [1, 1],
+      color: "black",
+      width: 1,
+    }),
+  ]);
+  const baseItemsBefore = [...base.items];
+  const appended = OL.reduceSceneRange(
+    base,
+    [
+      event("fill", { color: "gold" }),
+      event("stamp", {
+        position: [0, 0],
+        heading: 0,
+        shape: "turtle",
+        color: "red",
+      }),
+    ],
+    0,
+    2,
+  );
+  assert.equal(
+    base.items.length,
+    1,
+    "the input scene still has its own item count",
+  );
+  assert.deepEqual([...base.items], baseItemsBefore);
+  assert.equal(appended.items.length, 3);
+  assert.notEqual(
+    appended.items,
+    base.items,
+    "the result owns a different array",
+  );
+});
+
+test("reduceSceneEvents over a long stream stays linear, not quadratic (#977)", () => {
+  // A behavioural guard, not a timing assertion: 20 000 segments folded one at a time used to be
+  // 20 000 full array copies. Correctness of the result is what is asserted; the size is what
+  // makes a regression to the quadratic fold show up as a timeout rather than a pass.
+  const events = [];
+  for (let index = 0; index < 20_000; index += 1) {
+    events.push(
+      event("draw-segment", {
+        from: [index, 0],
+        to: [index + 1, 0],
+        color: "black",
+        width: 1,
+      }),
+    );
+  }
+  const scene = OL.reduceSceneEvents(events);
+  assert.equal(scene.items.length, 20_000);
+  assert.deepEqual(scene.items[0].segment.from, [0, 0]);
+  assert.deepEqual(scene.items[19_999].segment.to, [20_000, 0]);
+});

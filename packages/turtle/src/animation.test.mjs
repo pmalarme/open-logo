@@ -703,3 +703,149 @@ test("reset() restores the controller's world to its seed", () => {
   assert.equal(scene.items.length, 0);
   assert.deepEqual([...world.turtles.keys()], [OL.MAIN_TURTLE_ID]);
 });
+
+/**
+ * The studio's own resume rule (`run-controller.ts`, #769) as it stood before #977: step while the
+ * step ending at `stepEnd` still ends at or before the already-drawn boundary. Kept here verbatim
+ * as the ORACLE the seek is checked against — `seekToEventIndex` is only correct if it lands
+ * exactly where this loop landed, so the loop has to survive somewhere to be compared with.
+ */
+function fastForwardByStepping(events, alreadyDrawn) {
+  const controller = new OL.TurtleAnimationController(events);
+  const limit = Math.min(alreadyDrawn, events.length);
+  let drawnCursor = 0;
+  while (drawnCursor < limit) {
+    let stepEnd = drawnCursor + 1;
+    while (stepEnd < events.length && events[stepEnd]?.kind !== "instruction") {
+      stepEnd += 1;
+    }
+    if (stepEnd > limit) {
+      break;
+    }
+    controller.step();
+    drawnCursor = stepEnd;
+  }
+  return controller;
+}
+
+test("seekToEventIndex lands exactly where stepping lands, at EVERY index (#977 AC3)", () => {
+  const events = repeat4ForwardRightEvents();
+  // Past the end too, so the clamp is compared against the oracle rather than merely not throwing.
+  for (let index = 0; index <= events.length + 3; index += 1) {
+    const stepped = fastForwardByStepping(events, index).getSnapshot();
+    const controller = new OL.TurtleAnimationController(events);
+    controller.seekToEventIndex(index);
+    const seeked = controller.getSnapshot();
+
+    assert.equal(seeked.cursor, stepped.cursor, `cursor at index ${index}`);
+    assert.equal(seeked.status, stepped.status, `status at index ${index}`);
+    assert.deepEqual(seeked.state, stepped.state, `state at index ${index}`);
+    assert.deepEqual(seeked.scene, stepped.scene, `scene at index ${index}`);
+    assert.deepEqual(
+      seeked.overlay,
+      stepped.overlay,
+      `overlay at index ${index}`,
+    );
+    assert.deepEqual(
+      [...seeked.world.turtles.entries()],
+      [...stepped.world.turtles.entries()],
+      `world at index ${index}`,
+    );
+  }
+});
+
+test("seekToEventIndex never lands mid-step: the cursor is always a step boundary", () => {
+  const events = repeat4ForwardRightEvents();
+  for (let index = 0; index <= events.length; index += 1) {
+    const controller = new OL.TurtleAnimationController(events);
+    controller.seekToEventIndex(index);
+    const { cursor } = controller.getSnapshot();
+    if (cursor > 0 && cursor < events.length) {
+      assert.equal(
+        events[cursor].kind,
+        "instruction",
+        `cursor ${cursor} (seek ${index}) must sit on an instruction`,
+      );
+    }
+    assert.ok(cursor <= index, "a seek never consumes past its own index");
+  }
+});
+
+test("seekToEventIndex to the full length matches seekToEnd", () => {
+  const events = repeat4ForwardRightEvents();
+  const seeked = new OL.TurtleAnimationController(events);
+  seeked.seekToEventIndex(events.length);
+  const ended = new OL.TurtleAnimationController(events);
+  ended.seekToEnd();
+  assert.equal(seeked.getSnapshot().status, "done");
+  assert.deepEqual(seeked.getSnapshot().scene, ended.getSnapshot().scene);
+  assert.equal(seeked.getSnapshot().cursor, ended.getSnapshot().cursor);
+});
+
+test("seekToEventIndex advances from wherever the cursor already is, not from zero", () => {
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  assert.equal(controller.getSnapshot().cursor, 3);
+  controller.seekToEventIndex(events.length);
+  const stepped = new OL.TurtleAnimationController(events);
+  stepped.seekToEnd();
+  assert.deepEqual(controller.getSnapshot().scene, stepped.getSnapshot().scene);
+  assert.equal(controller.getSnapshot().cursor, events.length);
+});
+
+test("seekToEventIndex behind the cursor changes nothing, status included", () => {
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.step();
+  const before = controller.getSnapshot();
+  controller.seekToEventIndex(1);
+  const after = controller.getSnapshot();
+  assert.equal(after.cursor, before.cursor);
+  assert.equal(after.status, before.status);
+  assert.equal(after.scene, before.scene, "the scene is not even re-derived");
+});
+
+test("seekToEventIndex(0) on a fresh controller leaves it idle, as the step loop would", () => {
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEventIndex(0);
+  assert.equal(controller.getSnapshot().status, "idle");
+  assert.equal(controller.getSnapshot().cursor, 0);
+});
+
+test("seekToEventIndex is a no-op once playback is done", () => {
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEnd();
+  const before = controller.getSnapshot();
+  controller.seekToEventIndex(events.length);
+  const after = controller.getSnapshot();
+  assert.equal(after.status, "done");
+  assert.equal(after.cursor, before.cursor);
+  assert.equal(after.scene, before.scene);
+});
+
+test("seekToEventIndex cancels a step scheduled by a prior run(), like step() does", () => {
+  const events = repeat4ForwardRightEvents();
+  let pending = null;
+  let cancelled = 0;
+  const controller = new OL.TurtleAnimationController(events, {
+    scheduler: (callback) => {
+      pending = callback;
+      return () => {
+        cancelled += 1;
+        pending = null;
+      };
+    },
+  });
+  controller.run();
+  assert.equal(typeof pending, "function", "run() scheduled a step");
+  controller.seekToEventIndex(events.length);
+  assert.equal(
+    cancelled,
+    1,
+    "the scheduled step was cancelled, not left to fire",
+  );
+  assert.equal(controller.getSnapshot().status, "done");
+});
