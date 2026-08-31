@@ -322,7 +322,7 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
 
 test("a prompt that is not a word raises ol-type", () => {
   // `spec/interaction-events.md:129`/`:131`: "**Args:** one prompt, which MUST be a `word`" /
-  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:350`)
+  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:375-379`)
   // classes as "an argument has the wrong type".
   //
   // The maintainer's ruling on issue #768 narrowed this from #681's scalar set: `number` and

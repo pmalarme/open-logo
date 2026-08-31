@@ -10,7 +10,7 @@
 // Node-version trap (see the PR body): on Node 24+ `--experimental-test-coverage` silently excludes
 // `*.test.mjs`, so a local coverage green can be a false positive CI (Node 22) then fails. These
 // tests deliberately exercise every branch of the `when` registry (`interaction.ts`) and dispatch
-// (`isWhenStatement`/`executeWhenStatement`/`invokeWhenHandler`/`fireEvent`) so the Node-22 CI gate
+// (`isWhenStatement`/`executeWhenStatement`/`invokeWhenHandler`) so the Node-22 CI gate
 // sees full coverage.
 
 import assert from "node:assert/strict";

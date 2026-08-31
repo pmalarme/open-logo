@@ -1,0 +1,1107 @@
+{
+  "description": "MAINTAINER RULING #984 + spec/interaction-events.md:79: while the run is held open EXPLICITLY, a handler that takes longer than its own interval `degrades to running back to back` (spec/interaction-events.md:189-196) and is bounded by the ordinary instruction budget, which raises `ol-limit` exactly as it does for any other non-terminating program. This is the counterpart of `every-queued-occurrence-discarded-when-run-closes`: there the main line ends and the queue is discarded, here the main line never ends because the learner wrote `forever`, so every queued occurrence is drained at the next checkpoint and the handler never catches up. Both fixtures are needed, and neither alone is sufficient: the discard rule on its own could be satisfied by never draining at all -- the exact defect this issue's first implementation shipped -- and this fixture is what forbids that. Note the discriminator is the EVENT SEQUENCE, not the diagnostic: `forever` exhausts the budget under every reading, so `ol-limit` appears either way. What differs is how many handler firings precede it -- 15 here, and a different count under every rejected reading -- measured: 11 when a missed occurrence is dropped, 8 under a strict fixed-delay clock, 14 when the tick-dispatch drain is disabled, and MORE, not fewer, under two of them (16 if the boundary also drains after the last statement, 18 if a drain loops until its queue is empty). The direction is not the point and it is not uniform; the fold differing is -- and a conformance fixture folds the whole stream, so those counts are what fail. A small `instructionBudget` keeps the trace readable while pinning the same property a default budget would.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 60
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 1],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Forever"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 43,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 44,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 45,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 46,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 47,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 48,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 49,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 50,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 51,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 52,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 53,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 54,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 55,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 56,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 57,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 58,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 59,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 60,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 61,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 62,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 63,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 64,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 65,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 66,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 67,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 68,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 69,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 70,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 71,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 72,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 73,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 74,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 75,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 76,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 77,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 78,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 79,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 80,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 81,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 82,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 83,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 84,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 85,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 86,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 87,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 88,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 89,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/every/every-overrunning-handler-runs-back-to-back-under-forever",
+        "start": [2, 11],
+        "end": [2, 17]
+      },
+      "params": {
+        "limit": "instruction-budget",
+        "value": 60
+      },
+      "message": "this program ran 60 instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

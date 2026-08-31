@@ -13,7 +13,7 @@
 // `*.test.mjs`, so a local coverage green can be a false positive CI (Node 22) then fails. These
 // tests deliberately exercise every branch of the `every` registry (`interaction.ts`'s
 // `registerEveryHandler`/`claimDueEveryHandlers`/`emitEveryPrimitive`) and dispatch
-// (`isEveryStatement`/`executeEveryStatement`/`invokeEveryHandler`/`dispatchEveryHandlers`) so the
+// (`isEveryStatement`/`executeEveryStatement`/`invokeEveryHandler`/`dispatchDueHandlers/claimQueuedEveryHandlers`) so the
 // Node-22 CI gate sees full coverage.
 
 import assert from "node:assert/strict";
@@ -428,26 +428,270 @@ test("a return escaping an every handler registered inside a proc is still ol-re
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });
 
-// --- "At most one pending invocation": a re-entrant wait cannot overlap the same handler --------
+// --- The queueing rule: a missed occurrence is coalesced to one and RUN, never dropped -----------
 
-test("a re-entrant wait inside an every handler does not deliver a second overlapping invocation", () => {
+test("a re-entrant wait inside an every handler does not deliver a second OVERLAPPING invocation", () => {
   // The handler for `every 2` runs a nested `wait 2`. While that inner wait advances the clock past
-  // another due tick for the SAME handler, the handler is already `running`, so it is skipped — at
-  // most one pending invocation, no unbounded buildup. The single outer due tick therefore produces
-  // exactly one `print` from this handler.
+  // another due tick for the SAME handler, the handler is already `running`, so the arriving
+  // occurrence is QUEUED rather than re-entered — no invocation ever overlaps itself, which is what
+  // "at most one pending invocation" buys (`spec/interaction-events.md:189-196`). The queued
+  // occurrence is not lost: it is drained once the body returns, so the run prints twice. What is
+  // pinned here is the absence of OVERLAP, not the absence of a second run — the second `print`
+  // provably follows the first rather than interleaving with it.
   const result = execute('every 2 [ print "x" wait 2 ]\nwait 2', doc);
   assert.deepEqual(result.diagnostics, []);
   const prints = effectEvents(result).filter((event) => event.kind === "print");
-  assert.equal(prints.length, 1);
+  assert.equal(prints.length, 2);
+});
+
+test("an occurrence missed while the handler was running is queued and RUNS once it is free", () => {
+  // Maintainer ruling #984: coalescing is REQUIRED, not optional, and the queued occurrence runs
+  // "once the handler is free" — not at whatever later checkpoint the program happens to supply.
+  // `every 3`'s body takes 4 ticks, so the interval arriving at tick 6 lands while the tick-3
+  // invocation is still running and must be queued. The body finishes at tick 7 and the queued
+  // occurrence is drained immediately after it, inside the SAME dispatch — note the outer `wait 3`
+  // has already spent its last tick, so a runtime that waits for a fresh checkpoint prints once and
+  // loses the occurrence, which is the rejected "drop it" reading wearing a different hat.
+  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc);
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 2);
+});
+
+test("a queued-but-unstarted occurrence is discarded when the run closes", () => {
+  // The run-lifetime half of ruling #984: "the run's lifetime is the main line's business — an
+  // `every` handler does not extend it". The drained invocation above overruns in its turn and
+  // queues another occurrence, but the main line's `wait 3` is spent, so the run closes and that
+  // occurrence is discarded. Exactly two prints and NO diagnostic. Draining in a loop until the
+  // queues empty instead manufactures ticks the main line never asked for, running back to back
+  // until the budget raises `ol-limit` — measured at 333,333 prints before this was corrected.
+  const result = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc);
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("a halt from the boundary drain propagates and stops the run", () => {
+  // The drain at a main-line statement boundary is a real handler dispatch, so it passes the same
+  // budget/cancellation gate as any other: `guardHandlerDispatch` refuses a firing the budget cannot
+  // afford and the halt propagates instead of the statement running. Measured against the same
+  // program WITHOUT the trailing `print` at the same budget of 9, which completes cleanly with no
+  // diagnostic — so the `ol-limit` here is caused specifically by the boundary drain being attempted,
+  // not by the budget being too small for the program's own statements.
+  const source = 'every 3 [ print "a" wait 4 ]\nwait 3\nprint "main"';
+  const halted = execute(source, doc, { instructionBudget: 9 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(
+    effectEvents(halted)
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values[0]),
+    ["a", "a"],
+  );
+  const withoutTail = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc, {
+    instructionBudget: 9,
+  });
+  assert.deepEqual(withoutTail.diagnostics, []);
+});
+
+test("the main-line boundary reaches every container, including a comprehension body", () => {
+  // Ruling #984's "run it once the handler is free" holds for as long as the main line has not
+  // finished — and a `repeat` body, a `for … in` body, and a `map` iteration are all main-line
+  // progress. The first two go through the statement executor and inherit its per-statement
+  // boundary; a comprehension body is an EXPRESSION and does not, so it runs the same hook at its
+  // own per-iteration point. Measured before that was added: the two loops gave a queued occurrence
+  // three chances each and the comprehension gave it none — 6, 6, 3. All three now agree.
+  const handlerPrints = (source) =>
+    effectEvents(execute(source, doc)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude = 'every 3 [ print "a" wait 4 ]\nwait 3\n';
+  assert.equal(handlerPrints(`${prelude}repeat 3 [ print "y" ]`), 6);
+  assert.equal(handlerPrints(`${prelude}for i in [1 2 3] [ print "y" ]`), 6);
+  assert.equal(handlerPrints(`${prelude}print map i in [1 2 3] [ :i ]`), 6);
+});
+
+test("a halt from the comprehension boundary propagates out of the comprehension", () => {
+  // The per-iteration boundary inside a comprehension is a real handler dispatch, so the budget gate
+  // can refuse a drained firing — and a comprehension is an EXPRESSION context, which has no way to
+  // carry an execution signal. The halt therefore has to surface as the evaluation's own diagnostic.
+  // Measured at a budget of 19: the handler fires five times and the run then stops with `ol-limit`,
+  // against six firings and no diagnostic at a budget of 24.
+  const source =
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint map i in [1 2 3] [ :i ]';
+  const halted = execute(source, doc, { instructionBudget: 19 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  const clean = execute(source, doc, { instructionBudget: 24 });
+  assert.deepEqual(clean.diagnostics, []);
+});
+
+test("the same halt propagates out of a reduce comprehension", () => {
+  // `reduce` has its own iteration loop, so its boundary is a separate code path from `map`/`filter`.
+  const source =
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint reduce sum i in [1 2 3] from 0 [ :sum + :i ]';
+  const halted = execute(source, doc, { instructionBudget: 19 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+});
+
+test("the `each` iteration charge and its boundary halt both propagate", () => {
+  // Two new halt paths came with the charged `each` iteration, and each needs its own witness.
+  //
+  // (1) The iteration is charged, so iterating turtles is no longer free. This source registers NO
+  //     handler, which is what makes it a witness rather than a probe: with nothing queued, the
+  //     iteration boundary has nothing to drain and cannot itself halt, so a halt inside `each`
+  //     can only be the charge. The discrimination is by construction, not by inspection.
+  const unhandled =
+    ":t0 = new_turtle\n:t1 = new_turtle\n:t2 = new_turtle\n:t3 = new_turtle\ntell turtles\neach [ ]";
+  const charged = execute(unhandled, doc, { instructionBudget: 10 });
+  assert.equal(charged.diagnostics.length, 1);
+  assert.equal(charged.diagnostics[0].code, "ol-limit");
+  // The ORDER of the charge and the narrowing is observable, and only here. `pointAddressedSet`
+  // publishes an addressing `primitive` event, so charging after it would announce the narrowing for
+  // an iteration the budget then refuses. Both orders raise the same `ol-limit`, so the diagnostic
+  // assertions above hold either way — measured, narrowing-first emits 17 events with 7 `primitive`
+  // against 16 and 6 here, the extra one being that phantom `each`. Without this assertion the
+  // ordering is only a comment, and this file exists because a rule left as a convention gets
+  // re-broken.
+  assert.equal(
+    charged.events.filter((event) => event.kind === "primitive").length,
+    6,
+  );
+  const affordable = execute(unhandled, doc, { instructionBudget: 11 });
+  assert.deepEqual(affordable.diagnostics, []);
+  // (2) The boundary drain inside an empty `each` body is a real handler dispatch, so the budget
+  //     gate can refuse it mid-drain, and that halt must propagate out of the loop rather than be
+  //     swallowed. Each drained occurrence costs four instructions, so a budget between two
+  //     completed drains stops inside one: at 28 the handler has printed six times, at 30 the run
+  //     completes with seven.
+  const handled =
+    ':t0 = new_turtle\n:t1 = new_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\neach [ ]';
+  const refused = execute(handled, doc, { instructionBudget: 28 });
+  assert.equal(refused.diagnostics.length, 1);
+  assert.equal(refused.diagnostics[0].code, "ol-limit");
+  const clean = execute(handled, doc, { instructionBudget: 30 });
+  assert.deepEqual(clean.diagnostics, []);
+});
+
+test("an EMPTY `each` body still offers a main-line boundary each iteration", () => {
+  // An `each` iteration narrows the addressed set to one turtle and runs a
+  // body, so it is main-line progress exactly as a loop iteration is — but the boundary it relied on
+  // fires per STATEMENT, so an empty per-turtle body had none.
+  //
+  // `new_turtle` is a REPORTER (`spec/turtles-and-sprites.md:21`), so its value must be bound for a
+  // turtle to exist: two bindings plus the implicit default turtle give three addressed turtles and
+  // therefore three iterations. The comparand shares the whole prelude — `tell turtles` included —
+  // and matches that iteration count, so the three forms differ only in the body under test.
+  const handlerPrints = (source) =>
+    effectEvents(execute(source, doc)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude =
+    ':t0 = new_turtle\n:t1 = new_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\n';
+  assert.equal(handlerPrints(`${prelude}each [ ]`), 7);
+  // The empty and non-empty per-turtle bodies agree, and both agree with the equivalent loop.
+  assert.equal(handlerPrints(`${prelude}each [ print 0 ]`), 7);
+  assert.equal(handlerPrints(`${prelude}repeat 3 [ ]`), 7);
+});
+
+test("an EMPTY loop body still offers a main-line boundary each iteration", () => {
+  // A loop body's statements are what carry the boundary, so a body with no statements
+  // had none — yet each of its iterations is charged against the budget and is main-line progress on
+  // exactly the same terms. Measured before this was fixed: `forever [ ]` gave a queued occurrence
+  // three firings before `ol-limit` where `forever [ print 0 ]` gave eleven, so ruling #984's
+  // back-to-back guarantee held only for loops that happened to contain something.
+  const handlerPrints = (source, options) =>
+    effectEvents(execute(source, doc, options)).filter(
+      (event) => event.kind === "print" && event.payload.values[0] === "a",
+    ).length;
+  const prelude = 'every 3 [ print "a" wait 4 ]\nwait 3\n';
+  assert.equal(handlerPrints(`${prelude}repeat 4 [ ]`), 7);
+  // The empty and non-empty bodies now agree: neither is starved of boundaries.
+  assert.equal(handlerPrints(`${prelude}repeat 4 [ print 0 ]`), 7);
+});
+
+test("a queued occurrence still RUNS when the main line has statements left", () => {
+  // The other side of the same boundary, and the defect a review caught: "discard when the run
+  // closes" must not become "discard whenever the tick dispatch is over". This is the program above
+  // plus one more top-level statement, so the run is still open and the handler is free — that
+  // occurrence must run. Measured a, a, a, main: the third fires at the statement boundary before
+  // `print "main"`, and the one ITS body queues is discarded when the main line ends, so the count
+  // does not run away. Draining only inside the tick dispatch prints a, a, main.
+  const result = execute(
+    'every 3 [ print "a" wait 4 ]\nwait 3\nprint "main"',
+    doc,
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    effectEvents(result)
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values[0]),
+    ["a", "a", "a", "main"],
+  );
+});
+
+test("under an explicit forever, an overrunning handler runs back to back until the budget stops it", () => {
+  // The counterpart: a learner who wants the timer to keep firing says so, and then
+  // `spec/interaction-events.md:189-196`'s "degrades to running back to back" applies, bounded by
+  // the ordinary instruction budget exactly as any non-terminating program is (`:79`). This is what
+  // keeps the discard rule honest — without it, "discarded when the run closes" could be satisfied
+  // by never draining at all.
+  const result = execute(
+    'every 2 [ print "a" wait 3 ]\nforever [ wait 1 ]',
+    doc,
+    {
+      instructionBudget: 60,
+    },
+  );
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.ok(
+    prints.length > 1,
+    "the handler fired repeatedly before the budget stopped it",
+  );
+});
+
+test("further intervals arriving while one is already queued coalesce: the queue never exceeds one", () => {
+  // The cap. A once-firing `on_key` holds the thread for 17 ticks while the `every 4` handler is
+  // claimed, so four of its intervals (ticks 8, 12, 16, 20) arrive and all coalesce into the single
+  // slot. The outer `wait 26` keeps the run OPEN past the blockage, which is what makes the cap
+  // observable at all: a backlog drains one occurrence per checkpoint, so if the main line stopped
+  // supplying checkpoints when the block ended, a capped and an uncapped queue would be
+  // indistinguishable. Measured 7 prints here against 10 for an uncapped counter.
+  const result = execute(
+    'every 4 [ print "a" ]\non_key "space" [ wait 17 ]\nwait 26',
+    doc,
+    { hostInput: { events: [{ tick: 4, kind: "key", key: "space" }] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 7);
+});
+
+test("the interval clock is FIXED RATE: a late invocation does not re-measure the period", () => {
+  // Maintainer ruling #984, `spec/interaction-events.md:183-187`. A one-time block separates the two
+  // readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is
+  // claimed, so the handler is delayed but its clock is not — intervals stand at ticks 4, 8 and 12,
+  // the original grid, and the run prints four times. Under fixed DELAY the period would restart
+  // from each invocation's completion, pushing the next interval past the end of the outer
+  // `wait 12`; that runtime prints three times.
+  const result = execute(
+    'every 4 [ print "a" ]\non_key "space" [ wait 6 ]\nwait 12',
+    doc,
+    { hostInput: { events: [{ tick: 4, kind: "key", key: "space" }] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const prints = effectEvents(result).filter((event) => event.kind === "print");
+  assert.equal(prints.length, 4);
 });
 
 test("a sibling handler is not re-fired out of order by another handler's re-entrant wait", () => {
   // Both handlers are due on tick 2. The first handler's body runs a nested `wait 2`, advancing the
-  // clock to tick 4 — the second handler's next interval boundary. Without an up-front batch claim
-  // the second handler would fire during that inner wait (for tick 4) AND again from the outer
-  // tick-2 batch, printing "b" twice, out of chronological order. Because the outer batch claims
-  // both handlers as `pending` up front, the inner wait sees the second handler already pending and
-  // skips it, so it fires exactly once, after "a", in registration order: ["a", "b"].
+  // clock to tick 4 — the second handler's next interval boundary. Because the outer batch marks
+  // both handlers `claimed` up front, the inner wait cannot claim the sibling a second time and
+  // fire it out of chronological order; it queues that occurrence instead. The batch therefore runs
+  // them once each in registration order, and the two queued tick-4 occurrences are then drained
+  // after it, again in registration order: a, b, a, b.
   const result = execute(
     'every 2 [ print "a" wait 2 ]\nevery 2 [ print "b" ]\nwait 2',
     doc,
@@ -457,7 +701,7 @@ test("a sibling handler is not re-fired out of order by another handler's re-ent
     effectEvents(result)
       .filter((event) => event.kind === "print")
       .map((event) => event.payload.values[0]),
-    ["a", "b"],
+    ["a", "b", "a", "b"],
   );
 });
 

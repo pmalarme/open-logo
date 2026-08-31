@@ -8,7 +8,7 @@ import * as OL from "@openlogo/studio";
  *
  * The two things this layer decides, and therefore the two things these tests pin: which DOM event
  * feeds which delivery (including `on_click`'s "equivalent accessible action",
- * `spec/interaction-events.md:214-215`), and when a key's browser default is suppressed.
+ * `spec/interaction-events.md:241-242`), and when a key's browser default is suppressed.
  */
 
 /** A DOM-free stand-in for a real element: records listeners so a test can fire them by name. */
@@ -108,7 +108,7 @@ test("#952: both a canvas click and the accessible activation control deliver a 
   assert.equal(
     controller.clicks,
     2,
-    'spec/interaction-events.md:214-215 — "or activated by an equivalent accessible action"',
+    'spec/interaction-events.md:241-242 — "or activated by an equivalent accessible action"',
   );
 });
 

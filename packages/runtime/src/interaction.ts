@@ -211,14 +211,15 @@ export function runWait(
 ): boolean {
   if (count === 0) {
     // `wait 0` yields to the event loop at the current tick without advancing it (a spec-mandated
-    // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can be due
-    // here: a handler's next-due tick is always at least its interval (>= 1) past its registration
-    // tick, so it is never due at a tick the clock has NOT just advanced to. But current-tick input
-    // — a `hostInput` key/click/named event scheduled at tick 0 (#684/#685/#686) — CAN be pending
-    // and its handler can halt (`return`/`stop`, a runtime error, or a cancelled/over-budget run),
-    // so the dispatch verdict MUST be honored exactly as it is on the per-tick advance below:
-    // abort before the primitive and report the interruption. (Ignoring it here swallowed a tick-0
-    // handler's halt — the "`wait 0` treated as a no-op" failure mode.)
+    // yield, not a no-op — `spec/interaction-events.md`, `wait <n>`). No `every` handler can newly
+    // come DUE here: a handler's next-due tick is always at least its interval (>= 1) past its
+    // registration tick, so an interval is never reached at a tick the clock has NOT just advanced
+    // to. Two other things can still run, and both can halt, so the dispatch verdict MUST be
+    // honored exactly as it is on the per-tick advance below: current-tick input — a `hostInput`
+    // key/click/named event scheduled at tick 0 (#684/#685/#686) — CAN be pending, and an `every`
+    // occurrence already sitting in its one-slot queue is drained at any checkpoint where its
+    // handler is free (ruling #984), including this one. (Ignoring the verdict here swallowed a
+    // tick-0 handler's halt — the "`wait 0` treated as a no-op" failure mode.)
     if (yieldToEventLoop(tickClock, dispatch)) {
       return true;
     }
@@ -329,17 +330,21 @@ export const STANDARD_EVENT_WORDS = Object.freeze({
  * normal OpenLogo block"), plus the head-keyword {@link SpannedName} whose span the handler-block's
  * opening `instruction` event carries (`spec/interaction-events.md`'s "Trace stream integration":
  * "The start of a handler block emits an `instruction` event for the block-head that caused the
- * handler to run"). `fired` records that a one-shot event (`"start"`) already delivered this handler,
- * so it is skipped if that event is ever delivered again — the deterministic "a delivered handler
- * must not fire again" guarantee — without disturbing the registration order same-tick delivery
- * (#686/I7) relies on.
+ * handler to run").
+ *
+ * A `when` registration carries **no delivery-state flag at all**, because it is **persistent**:
+ * `spec/interaction-events.md:158-163` — "A `when` registration is **persistent**, exactly like
+ * `every`, `on_key`, and `on_click`: its block runs **each time** the named event occurs, once per
+ * occurrence. An implementation MUST NOT retire a handler after its first invocation." Maintainer
+ * ruling #984 settled this; the earlier one-shot `fired` flag is gone. Both standard v0.1 event
+ * words (`"start"`/`"stop"`) occur once per run, so the rule is observable only for the
+ * vendor-prefixed events `:155-156` permits.
  */
 export interface WhenHandler {
   readonly event: string;
   readonly block: BlockNode;
   readonly keyword: SpannedName;
   readonly environment: Environment;
-  fired: boolean;
 }
 
 /**
@@ -354,22 +359,33 @@ export interface WhenHandler {
  * `interval` is the validated positive whole tick count. `nextDueTick` is the next tick at which
  * the handler should fire, anchored to **registration time**: it starts at `registrationTick +
  * interval` ("The first run occurs after `n` ticks have elapsed" — `n` ticks after the handler was
- * registered, NOT `n` ticks after global tick 0) and advances by `interval` each time the handler is
- * delivered ({@link claimDueEveryHandlers}), so a handler registered mid-run and a `wait 0` that revisits
- * an already-delivered tick both behave correctly. Unlike `when`'s one-shot `fired`, an `every`
- * handler has no terminal fired flag: it recurs for the whole run.
+ * registered, NOT `n` ticks after global tick 0) and advances by `interval` each time an interval
+ * arrives ({@link claimDueEveryHandlers}), so a handler registered mid-run and a `wait 0` that revisits
+ * an already-delivered tick both behave correctly. `every` carries no terminal delivery flag: it
+ * recurs for the whole run.
  *
- * `running` guards the spec's queueing rule — "If a prior invocation is still running when the next
- * interval arrives, the implementation queues at most one pending invocation for that `every`
- * handler to prevent unbounded buildup." Handler invocations "run on the same OpenLogo execution
+ * That `+= interval` — measured from the previous interval, never from the moment an invocation
+ * finished — is the spec's **fixed rate** rule (`spec/interaction-events.md:183-187`, maintainer
+ * ruling #984): "each successive interval arrives `n` ticks after the previous interval, on that
+ * original schedule. The period is never re-measured from the moment an invocation happens to
+ * finish, so a late invocation does not push the following interval back."
+ *
+ * The three flags implement the spec's queueing rule (`spec/interaction-events.md:189-196`): "If a
+ * prior invocation is still running when the next interval arrives, the implementation MUST queue
+ * that occurrence and run it once the handler is free. … The queue holds **at most one** pending
+ * invocation for that `every` handler". Handler invocations "run on the same OpenLogo execution
  * thread as ordinary instructions", so a handler only overlaps itself when a re-entrant `wait` inside
- * its body advances the clock past its own next interval. `running` marks the body as on the stack;
- * {@link claimDueEveryHandlers} still advances the `nextDueTick` of a `running` handler (so the interval
- * is consumed, not re-detected) but does NOT re-enter it — delivering **zero** overlapping
- * invocations, which satisfies the spec's "at most one pending invocation" upper bound while making
- * the unbounded buildup it forbids structurally impossible. (Delivering the coalesced one is a valid
- * alternative reading, but re-running a body whose own `wait` re-arms the interval risks a
- * non-terminating drain; the conservative zero-overlap reading is deterministic and safe.)
+ * its body advances the clock past its own next interval.
+ *
+ * - `running` marks the body as on the stack, so an interval arriving inside it cannot re-enter it.
+ * - `claimed` marks an owed invocation already collected into a dispatch batch but not yet run, so a
+ *   sibling handler's nested `wait` cannot claim it a second time and fire it twice out of
+ *   chronological order.
+ * - `queued` is the spec's at-most-one queue itself: an interval that arrives while the handler is
+ *   `running` or `claimed` sets it, and further intervals **coalesce** into the same slot rather than
+ *   accumulating. The next point at which the handler is free drains it — the end of the tick's
+ *   dispatch batch, or the main line's next statement boundary ({@link claimQueuedEveryHandlers}) —
+ *   so the drain never waits for a fresh event-loop checkpoint the program may never supply.
  */
 export interface EveryHandler {
   readonly interval: number;
@@ -378,7 +394,8 @@ export interface EveryHandler {
   readonly environment: Environment;
   nextDueTick: number;
   running: boolean;
-  pending: boolean;
+  claimed: boolean;
+  queued: boolean;
 }
 
 /**
@@ -466,8 +483,9 @@ export type HostInputEvent =
  * registered so far, in registration order. A single append-only list (rather than a map keyed by
  * event word) is deliberate — it preserves one total registration order across all events, which is
  * the stable order same-tick dispatch (#686/I7) needs and cannot reconstruct if handlers were
- * bucketed per event with no cross-event ordering. Dispatch filters by event word and delivery
- * state at delivery time ({@link pendingHandlersFor}).
+ * bucketed per event with no cross-event ordering. Dispatch filters by event word at delivery time
+ * ({@link claimPendingEventHandlers}); there is no per-handler delivery state to filter on, because
+ * a `when` registration is persistent (`spec/interaction-events.md:158-163`).
  *
  * This is the structure the file header promised the rest of the track would hang off the tick
  * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
@@ -512,7 +530,7 @@ export function createEventHandlerRegistry(): EventHandlerRegistry {
  * returning the created {@link WhenHandler}. `environment` is captured so the handler body later runs
  * in its registration-time lexical scope. Registration itself is side-effect-only on the registry;
  * the caller emits the `primitive` event `spec/interaction-events.md` requires "after the handler is
- * registered" and then decides whether the event is already live (so the handler fires now) or
+ * registered" and then decides whether the event is already live (so **this** handler fires now) or
  * deferred.
  */
 export function registerWhenHandler(
@@ -527,29 +545,9 @@ export function registerWhenHandler(
     block,
     keyword,
     environment,
-    fired: false,
   };
   registry.handlers.push(handler);
   return handler;
-}
-
-/**
- * Every not-yet-fired handler registered for `event`, in registration order — the handlers to
- * invoke when `event` fires. Skips a handler already delivered for this one-shot event, so a
- * `"start"` handler never fires twice. Returns a fresh snapshot array so a handler body that
- * registers further handlers for the same event mid-dispatch cannot mutate the sequence being
- * iterated (any such newly-registered `"start"` handler is instead delivered by its own registration
- * path, since the run has already started). Firing an event with no registered handler yields an
- * empty list — a well-defined no-op, never an error, matching `spec/interaction-events.md`, which
- * defines no diagnostic for an event that has no handler.
- */
-export function pendingHandlersFor(
-  registry: EventHandlerRegistry,
-  event: string,
-): readonly WhenHandler[] {
-  return registry.handlers.filter(
-    (handler) => !handler.fired && handler.event === event,
-  );
 }
 
 /**
@@ -559,10 +557,10 @@ export function pendingHandlersFor(
  * registration, so the handler's first firing is anchored `interval` ticks AFTER registration
  * (`nextDueTick = registrationTick + interval`) — "The first run occurs after `n` ticks have
  * elapsed" — rather than to global tick 0. `environment` is captured so the handler body later runs
- * in its registration-time lexical scope. A fresh handler is neither `running` nor `pending`.
+ * in its registration-time lexical scope. A fresh handler is `running`, `claimed`, and `queued`-free.
  * Registration is side-effect-only on the registry; the caller emits the `primitive` event
  * `spec/interaction-events.md` requires "after the handler is registered". `every` handlers live in
- * their own list (never bucketed with `when`'s one-shot handlers) so the spec's same-tick delivery
+ * their own list (never bucketed with `when`'s named-event handlers) so the spec's same-tick delivery
  * order — `when`/`on_key`/`on_click` first, then "due `every` events in registration order" (#686/I7)
  * — can filter each kind independently while each kind preserves its own registration order.
  */
@@ -581,7 +579,8 @@ export function registerEveryHandler(
     environment,
     nextDueTick: registrationTick + interval,
     running: false,
-    pending: false,
+    claimed: false,
+    queued: false,
   };
   registry.everyHandlers.push(handler);
   return handler;
@@ -594,7 +593,7 @@ export function registerEveryHandler(
  * validated key word (a `word` value, stored verbatim — case-significant, never folded); `environment` is captured so the handler body later runs in its
  * registration-time lexical scope. Registration is side-effect-only on the registry; the caller
  * emits the `primitive` event `spec/interaction-events.md` requires "after the handler is
- * registered". `on_key` handlers live in their own list (never bucketed with `when`'s one-shot
+ * registered". `on_key` handlers live in their own list (never bucketed with `when`'s named-event
  * handlers or `every`'s timed handlers) so the spec's same-tick delivery order — pending `when`,
  * then pending `on_key`, then `on_click`, then due `every` (#686/I7) — can filter each kind
  * independently while each kind preserves its own registration order. Handlers stay registered here;
@@ -626,7 +625,7 @@ export function registerOnKeyHandler(
  * later runs in its registration-time lexical scope. Registration is side-effect-only on the
  * registry; the caller emits the `primitive` event `spec/interaction-events.md` requires "after the
  * handler is registered". `on_click` handlers live in their own list (never bucketed with `when`'s
- * one-shot handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
+ * named-event handlers, `every`'s timed handlers, or `on_key`'s keyboard handlers) so the spec's
  * same-tick delivery order — pending `when`, then pending `on_key`, then pending `on_click`, then due
  * `every` (#686/I7) — can filter each kind independently while each kind preserves its own
  * registration order. Handlers stay registered here; it is
@@ -649,28 +648,34 @@ export function registerOnClickHandler(
 }
 
 /**
- * The batch of `every` handlers to invoke on `tick` — the tick the clock has just advanced to — in
- * registration order, claimed atomically **before any handler body runs**. A handler is due when
- * `tick >= handler.nextDueTick`; because `runWait` calls the dispatch once per tick (monotonically,
- * never skipping a tick), the boundary is reached at exactly `nextDueTick`. Each claimed handler has
- * its `nextDueTick` advanced by `interval` (so it fires exactly once per interval boundary — a later
- * `wait 0` revisiting the same tick does NOT redeliver it, and a handler registered mid-run first
- * fires `interval` ticks after registration rather than snapping to a global multiple) and is marked
- * `pending`. Tick `0` is never due — a fresh handler's `nextDueTick` is always `>= interval > 0`.
+ * The batch of `every` invocations to run at the {@link yieldToEventLoop} checkpoint for `tick` — the
+ * tick the clock has just advanced to — in registration order, claimed atomically **before any
+ * handler body runs**.
  *
- * A handler that is already `running` (a re-entrant `wait` inside its own body advanced the clock
- * past its next interval) or already `pending` (claimed by an outer batch not yet fully delivered,
- * because a sibling handler's re-entrant `wait` is delivering intervening ticks) has its interval
- * consumed — its `nextDueTick` still advances so the boundary is not re-detected — but is NOT added
- * to a second, overlapping batch. `running` prevents a handler re-entering itself; `pending`
- * prevents a sibling's nested `wait` from re-claiming a handler an outer batch already owns for this
- * boundary (which would otherwise fire it twice, out of chronological order). Together they deliver
- * **zero** overlapping invocations, satisfying the spec's "at most one pending invocation" upper
- * bound while making the unbounded buildup it forbids structurally impossible. The caller
- * ({@link dispatchEveryHandlers}) invokes each returned handler via {@link invokeEveryHandler},
- * which clears `pending` and sets `running`. Returns a fresh array so a handler body that registers
- * a further `every` mid-dispatch does not extend the batch being delivered on this tick; a tick with
- * no due handler yields an empty array — a well-defined no-op, never an error.
+ * Two things happen per handler, in order.
+ *
+ * **Arrival (fixed rate).** An interval has arrived when `tick >= handler.nextDueTick`; because
+ * `runWait` calls the dispatch once per tick (monotonically, never skipping a tick), the boundary is
+ * reached at exactly `nextDueTick`. `nextDueTick` then advances by `interval` — measured from the
+ * previous interval, never re-measured from an invocation's completion, which is the spec's fixed-rate
+ * clock (`spec/interaction-events.md:183-187`). The arriving occurrence is put in the handler's
+ * one-slot queue (`queued`); a second arrival while that slot is full **coalesces** into it, so the
+ * queue never exceeds the spec's "at most one pending invocation" (`:189-196`). Tick `0` is never an
+ * arrival — a fresh handler's `nextDueTick` is always `>= interval > 0`.
+ *
+ * **Claim.** A queued occurrence is claimed for delivery as soon as the handler is free: not
+ * `running` (its body is not on the stack) and not already `claimed` into an outer batch. Draining is
+ * therefore NOT conditional on an interval arriving on this very tick — an occupied handler's missed
+ * occurrence runs at the first checkpoint after it becomes free, which is what makes queueing
+ * observable rather than decorative. `running` prevents a handler re-entering itself; `claimed`
+ * prevents a sibling's nested `wait` from re-claiming an occurrence an outer batch already owns
+ * (which would otherwise fire it twice, out of chronological order).
+ *
+ * The caller ({@link dispatchDueHandlers}) invokes each returned handler via
+ * {@link invokeEveryHandler}, which clears `claimed` and sets `running`. Returns a fresh array so a
+ * handler body that registers a further `every` mid-dispatch does not extend the batch being
+ * delivered on this tick; a tick with nothing to run yields an empty array — a well-defined no-op,
+ * never an error.
  */
 export function claimDueEveryHandlers(
   registry: EventHandlerRegistry,
@@ -678,17 +683,58 @@ export function claimDueEveryHandlers(
 ): readonly EveryHandler[] {
   const due: EveryHandler[] = [];
   for (const handler of registry.everyHandlers) {
-    if (tick < handler.nextDueTick) {
-      continue;
+    if (tick >= handler.nextDueTick) {
+      handler.nextDueTick += handler.interval;
+      handler.queued = true;
     }
-    handler.nextDueTick += handler.interval;
-    if (handler.running || handler.pending) {
-      continue;
+    if (handler.queued && !handler.running && !handler.claimed) {
+      handler.queued = false;
+      handler.claimed = true;
+      due.push(handler);
     }
-    handler.pending = true;
-    due.push(handler);
   }
   return due;
+}
+
+/**
+ * The queued `every` occurrences that are runnable **right now**, in registration order — a handler
+ * whose one-slot queue is full and which is neither `running` nor already `claimed` into a batch.
+ * Unlike {@link claimDueEveryHandlers} this consults no tick: it is the drain half of the spec's
+ * queueing rule, "the implementation MUST queue that occurrence and **run it once the handler is
+ * free**" (`spec/interaction-events.md:189-196`, maintainer ruling #984).
+ *
+ * A handler becomes free the moment its body returns, so the drain must not wait for a fresh
+ * event-loop checkpoint. Requiring one is not a slower drain, it is a **lost** invocation: a program
+ * whose `wait`s are exhausted supplies no further checkpoint, so the queued occurrence would never
+ * run at all — observationally identical to the "drop the missed occurrence" reading the ruling
+ * rejects. There are therefore three callers, each draining **once**: {@link dispatchDueHandlers}
+ * after its tick batch, `executeStatements` before each statement of the main line (which reaches
+ * procedure and control-form bodies through the shared `mainLineBoundary` box, but never a handler
+ * body), and `evaluate.ts`'s comprehension loops at each iteration, since a comprehension body is an
+ * expression that never reaches `executeStatements`.
+ *
+ * Neither loops until the queue is empty, and that is ruling 4 (`spec/interaction-events.md:198-204`):
+ * a handler does not extend the run's lifetime. A drained invocation whose own body overruns
+ * re-queues, so looping would run that occurrence and the next, manufacturing ticks the main line
+ * never asked for until the budget raised `ol-limit`. Draining once per real boundary instead gives
+ * an overrunning handler exactly one invocation per statement the main line still has — it
+ * "degrade[s] to running back to back" (`:193-195`) for as long as the program stays open, and
+ * whatever is still queued but unstarted when the main line finishes is discarded. Under an explicit
+ * `forever` that back-to-back running is bounded by the ordinary instruction budget, since each
+ * firing is a charged instruction (`spec/interaction-events.md:79`).
+ */
+export function claimQueuedEveryHandlers(
+  registry: EventHandlerRegistry,
+): readonly EveryHandler[] {
+  const drained: EveryHandler[] = [];
+  for (const handler of registry.everyHandlers) {
+    if (handler.queued && !handler.running && !handler.claimed) {
+      handler.queued = false;
+      handler.claimed = true;
+      drained.push(handler);
+    }
+  }
+  return drained;
 }
 
 /**
@@ -812,19 +858,20 @@ export function enqueueHostInput(
 }
 
 /**
- * The not-yet-fired `when` handlers to invoke for the named events queued for this tick (issue #686,
- * slice I7), in the spec's same-tick order: **handler registration order is primary**
- * (`spec/interaction-events.md`, §Time, ticks, and handlers: "pending `when` events in registration
- * order") — the order the host happened to deliver events in MUST NOT reorder the handlers. Each
- * registered `when` handler is visited once in registration order and included if it is not yet
- * `fired` and its `event` is among the pending events. Because `when` is **one-shot** (its
- * {@link WhenHandler.fired} flag is set when it actually runs), a handler is included **at most once
- * per tick** even if its event is pending several times — collecting it more than once would make a
- * one-shot handler fire twice (the `fired` flag is only set at invocation, after this whole batch is
- * built, so it cannot self-dedupe here). Clears the `pendingEvents` queue (these occurrences are
- * being delivered now), returning the handler batch for {@link dispatchDueHandlers} to invoke. An
- * empty queue — the normal headless case, no host input — yields an empty batch, a well-defined
- * no-op.
+ * The `when` handlers to invoke for the named events queued for this tick (issue #686, slice I7;
+ * delivery multiplicity settled by maintainer ruling #984), in the spec's same-tick order:
+ * **handler registration order is primary** (`spec/interaction-events.md`, §Time, ticks, and
+ * handlers: "pending `when` events in registration order") — the order the host happened to deliver
+ * events in MUST NOT reorder the handlers.
+ *
+ * Each registered `when` handler is visited once in registration order; for each, it fires **once
+ * per pending occurrence of its event**, preserving multiplicity exactly as
+ * {@link claimPendingKeyHandlers} does for a key pressed twice. That is the persistence rule: a
+ * `when` block "runs **each time** the named event occurs, once per occurrence"
+ * (`spec/interaction-events.md:158-163`), so an event delivered twice in one tick fires its handler
+ * twice. Clears the `pendingEvents` queue (these occurrences are being delivered now), returning the
+ * flattened handler batch for {@link dispatchDueHandlers} to invoke. An empty queue — the normal
+ * headless case, no host input — yields an empty batch, a well-defined no-op.
  */
 export function claimPendingEventHandlers(
   registry: EventHandlerRegistry,
@@ -833,11 +880,12 @@ export function claimPendingEventHandlers(
     0,
     registry.pendingEvents.length,
   );
-  const pending = new Set(events);
   const due: WhenHandler[] = [];
   for (const handler of registry.handlers) {
-    if (!handler.fired && pending.has(handler.event)) {
-      due.push(handler);
+    for (const event of events) {
+      if (handler.event === event) {
+        due.push(handler);
+      }
     }
   }
   return due;
@@ -854,7 +902,8 @@ export function claimPendingEventHandlers(
  * are case-significant, never folded), preserving multiplicity (a key pressed twice fires its
  * handler twice). Clears the `pendingKeys` queue (these presses are being delivered now), returning
  * the flattened handler batch for {@link dispatchDueHandlers} to invoke. Unlike `when`, `on_key`
- * handlers have no one-shot `fired` flag — a key can be pressed any number of times. An empty queue
+ * handlers carry no delivery-state flag — a key can be pressed any number of times, exactly as a
+ * named event can occur any number of times ({@link claimPendingEventHandlers}). An empty queue
  * — the normal headless case — yields an empty batch.
  */
 export function claimPendingKeyHandlers(

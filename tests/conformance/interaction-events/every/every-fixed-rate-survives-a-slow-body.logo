@@ -1,0 +1,2 @@
+every 4 [ print "a" wait 2 ]
+wait 20

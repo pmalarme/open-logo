@@ -76,7 +76,7 @@ Handlers are registered during program execution. Registering a handler does not
 run its block immediately unless the triggering event is already being delivered
 by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
-block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers is therefore bounded exactly as `forever` is — the accumulating invocations exhaust the budget and raise `ol-limit` rather than growing without bound.
+block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary
@@ -155,6 +155,13 @@ interactive run and `"stop"` for a requested stop notification before
 termination. Implementations MAY add vendor events with a dotted vendor prefix,
 such as `"acme.shake"`.
 
+A `when` registration is **persistent**, exactly like `every`, `on_key`, and
+`on_click`: its block runs **each time** the named event occurs, once per
+occurrence. An implementation MUST NOT retire a handler after its first
+invocation. Both standard v0.1 event words occur once per run, so persistent and
+one-shot delivery are indistinguishable for `"start"` and `"stop"`; the rule is
+observable for vendor events, which may occur any number of times.
+
 ```logo
 when "start" [
   print "ready"
@@ -172,9 +179,29 @@ when "start" [
 `every` registers a block to run every `n` ticks. `n` MUST be a positive whole
 number: a non-whole count raises `ol-type`, and a zero or negative count raises
 `ol-range`.
-The first run occurs after `n` ticks have elapsed. If a prior invocation is
-still running when the next interval arrives, the implementation queues at most
-one pending invocation for that `every` handler to prevent unbounded buildup.
+
+The first run occurs after `n` ticks have elapsed. The interval clock then runs
+at a **fixed rate**: each successive interval arrives `n` ticks after the
+previous interval, on that original schedule. The period is never re-measured
+from the moment an invocation happens to finish, so a late invocation does not
+push the following interval back.
+
+If a prior invocation is still running when the next interval arrives, the
+implementation MUST queue that occurrence and run it once the handler is free.
+Queueing is required, not optional. The queue holds **at most one** pending
+invocation for that `every` handler: while an occurrence is already queued,
+further intervals that arrive coalesce into it rather than accumulating, which
+is what prevents unbounded buildup. A handler that takes longer than its own
+interval therefore degrades to running back to back and can never build up an
+unbounded backlog.
+
+A handler does not extend the run's lifetime; that is the main line's business.
+Once the main line has finished and any already-started handler body has
+completed, the run closes and any occurrence still queued but not yet started is
+discarded. A program that wants its handlers to keep running says so explicitly,
+with `forever` or a long `wait` — and then a handler that keeps overrunning its
+interval keeps running back to back, bounded like any other non-terminating
+program by the execution budget.
 
 ```logo
 every 30 [

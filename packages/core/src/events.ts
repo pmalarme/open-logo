@@ -541,9 +541,9 @@ type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
 
 /**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
- * `spec/interaction-events.md:259-272`): the tempo, in beats per minute, that `set_tempo` set.
+ * `spec/interaction-events.md:286-299`): the tempo, in beats per minute, that `set_tempo` set.
  * Durations elsewhere in the stream are carried in beats and interpreted at the current tempo
- * (`spec/interaction-events.md:267-268`). A positive number (`ol-range` otherwise);
+ * (`spec/interaction-events.md:294-295`). A positive number (`ol-range` otherwise);
  * the default before any `set_tempo`
  * is `120`.
  */
@@ -554,7 +554,7 @@ export interface SetTempoSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `note` (Sound profile,
- * `spec/interaction-events.md:274-291`): one pitched sound scheduled at the current tempo. `pitch`
+ * `spec/interaction-events.md:301-318`): one pitched sound scheduled at the current tempo. `pitch`
  * is a scientific-pitch-notation word with lowercase canonical spelling (e.g. `"c4"`, `"fs4"`,
  * `"bb3"`); `duration` is a positive number of beats.
  */
@@ -566,7 +566,7 @@ export interface NoteSoundPayload {
 
 /**
  * One scheduled step of a `play` melody: a pitch word accepted by `note` or the word `"rest"`, and
- * its positive beat `duration` (`spec/interaction-events.md:293-307` — the melody list is
+ * its positive beat `duration` (`spec/interaction-events.md:320-334` — the melody list is
  * pitch/duration pairs in sequence). The runtime resolves the flat, even-length melody list into
  * these ordered pairs before emitting the event.
  */
@@ -577,7 +577,7 @@ export interface MelodyStep {
 
 /**
  * Payload for a `sound` event emitted by `play` (Sound profile,
- * `spec/interaction-events.md:293-307`): the resolved melody, as an ordered list of pitch/duration
+ * `spec/interaction-events.md:320-334`): the resolved melody, as an ordered list of pitch/duration
  * {@link MelodyStep}s, scheduled in sequence at the current tempo.
  */
 export interface PlaySoundPayload {
@@ -587,7 +587,7 @@ export interface PlaySoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `beep` (Sound profile,
- * `spec/interaction-events.md:309-324`): one short, implementation-defined alert sound. It carries
+ * `spec/interaction-events.md:336-351`): one short, implementation-defined alert sound. It carries
  * no parameters — the spec pins none — so the discriminant `command` is the whole payload.
  */
 export interface BeepSoundPayload {
@@ -596,9 +596,9 @@ export interface BeepSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `rest` (Sound profile,
- * `spec/interaction-events.md:326-341`): scheduled silence of `duration` beats at the current
+ * `spec/interaction-events.md:353-368`): scheduled silence of `duration` beats at the current
  * tempo. `rest` emits a `sound` event "so replay tools can show the silent interval"
- * (`spec/interaction-events.md:335`). `duration` is a positive number.
+ * (`spec/interaction-events.md:362`). `duration` is a positive number.
  */
 export interface RestSoundPayload {
   readonly command: "rest";

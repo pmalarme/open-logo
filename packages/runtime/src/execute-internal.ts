@@ -104,6 +104,7 @@ import {
   claimPendingClickHandlers,
   claimPendingEventHandlers,
   claimPendingKeyHandlers,
+  claimQueuedEveryHandlers,
   createEventHandlerRegistry,
   createTickClock,
   emitEveryPrimitive,
@@ -112,7 +113,6 @@ import {
   emitWhenPrimitive,
   enqueueHostInput,
   isWaitCall,
-  pendingHandlersFor,
   registerEveryHandler,
   registerOnClickHandler,
   registerOnKeyHandler,
@@ -1713,7 +1713,7 @@ function executeTurtleHeadingCall(
 }
 
 /**
- * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:259-272`). Same
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:286-299`). Same
  * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
  * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
  * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
@@ -1729,7 +1729,7 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which must additionally be positive and finite
- * (`spec/interaction-events.md:262` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * (`spec/interaction-events.md:289` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
  * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
  * emits one `sound` event
@@ -1797,7 +1797,7 @@ function executeSoundSetTempoCall(
 }
 
 /**
- * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:309-324`). Same
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:336-351`). Same
  * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
  */
 function isSoundBeepCall(statement: StatementNode): boolean {
@@ -1810,7 +1810,7 @@ function isSoundBeepCall(statement: StatementNode): boolean {
 /**
  * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
  * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
- * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:317`)
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:344`)
  * — the runtime models that scheduling purely as the event emission, never as a real audio device,
  * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
  * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
@@ -1846,7 +1846,7 @@ function executeSoundBeepCall(
 }
 
 /**
- * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:274-291`). Same
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:301-318`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`note` takes a pitch word and a duration number).
  */
@@ -1970,7 +1970,7 @@ function executeSoundNoteCall(
 }
 
 /**
- * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:326-341`). Same
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:353-368`). Same
  * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
  * primitive.
  */
@@ -2052,7 +2052,7 @@ function executeSoundRestCall(
 }
 
 /**
- * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:293-307`). Same
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:320-334`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`play` takes one melody list).
  */
@@ -2067,7 +2067,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
  * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
  * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
- * MUST be even" (`spec/interaction-events.md:301-303`) — an odd length raises `ol-range`
+ * MUST be even" (`spec/interaction-events.md:328-330`) — an odd length raises `ol-range`
  * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
  * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
  * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
@@ -2077,7 +2077,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
  * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
- * `spec/interaction-events.md:267-268`) — and emits exactly one
+ * `spec/interaction-events.md:294-295`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a
@@ -2383,7 +2383,8 @@ function isWhenStatement(statement: StatementNode): boolean {
  * statement of a non-empty body) — otherwise `undefined` to proceed.
  *
  * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
- * paths uniformly: the immediate `when "start"` fire during registration ({@link fireEvent}) and the
+ * paths uniformly: the immediate `when "start"` fire during registration
+ * ({@link executeWhenStatement}) and the
  * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget or a cancelled
  * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
  * on every path — so a handler that would begin only to be immediately halted is not started at all,
@@ -2414,15 +2415,17 @@ function guardHandlerDispatch(
 }
 
 /**
- * Run one `when` handler's block for a fired event (`spec/interaction-events.md`'s "Trace stream
- * integration"): first emit the `instruction` event for the block-head that caused the handler to
- * run — carrying the `when` keyword's own span, so replay attributes the run to the registration
- * site — then execute the handler body, whose own effects emit the ordinary after-effect events.
- * Marks the handler `fired` so a one-shot event (`"start"`/`"stop"`) never delivers it twice.
- * Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside
- * the handler) propagates and stops the whole run, per `spec/interaction-events.md`'s
- * "Errors and cancellation". A `return`/`stop` that escapes the handler body is converted HERE into
- * its `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * Run one `when` handler's block for one occurrence of its event (`spec/interaction-events.md`'s
+ * "Trace stream integration"): first emit the `instruction` event for the block-head that caused the
+ * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
+ * registration site — then execute the handler body, whose own effects emit the ordinary
+ * after-effect events. Marks nothing: a `when` registration is **persistent** and runs "each time the
+ * named event occurs, once per occurrence" (`spec/interaction-events.md:158-163`, maintainer ruling
+ * #984), exactly like {@link invokeOnKeyHandler}/{@link invokeOnClickHandler}. Returns the body's
+ * {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside the handler)
+ * propagates and stops the whole run, per `spec/interaction-events.md`'s "Errors and cancellation". A
+ * `return`/`stop` that escapes the handler body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
  * body, exactly like the top level), rather than being returned raw: a `when "start"` handler fires
  * synchronously during registration, so a raw `return`/`stop` signal would otherwise be caught by an
  * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
@@ -2437,7 +2440,6 @@ function invokeWhenHandler(
   if (guard) {
     return guard;
   }
-  handler.fired = true;
   environment.events.push({
     seq: environment.events.length,
     kind: "instruction",
@@ -2446,7 +2448,7 @@ function invokeWhenHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -2456,26 +2458,6 @@ function invokeWhenHandler(
     return halt(runtimeDiag.stopOutsideProc(signal.source_span));
   }
   return signal;
-}
-
-/**
- * Deliver `event` to every not-yet-fired `when` handler registered for it, in registration order
- * (`spec/interaction-events.md`'s "Time, ticks, and handlers": pending `when` events fire in
- * registration order). Snapshots the pending set first ({@link pendingHandlersFor} returns a fresh
- * array) so a handler that registers another handler for the same event mid-dispatch does not
- * extend the sequence being delivered now — that newly-registered handler follows its own
- * registration path. Firing an event with no registered handler is a well-defined no-op. Stops at
- * the first handler that halts, returning its {@link ExecSignal}; returns {@link NORMAL_SIGNAL} when
- * every handler completed normally.
- */
-function fireEvent(event: string, environment: Environment): ExecSignal {
-  for (const handler of pendingHandlersFor(environment.eventHandlers, event)) {
-    const signal = invokeWhenHandler(handler, environment);
-    if (signal.kind !== "normal") {
-      return signal;
-    }
-  }
-  return NORMAL_SIGNAL;
 }
 
 /**
@@ -2490,6 +2472,14 @@ function fireEvent(event: string, environment: Environment): ExecSignal {
  * other event — including `"stop"` — is registered and fires only if a host schedules it through
  * `ExecuteOptions.hostInput` (see
  * {@link STANDARD_EVENT_WORDS}), so with none supplied its handler does not fire here.
+ *
+ * Only the handler **just registered** fires, never the whole `"start"` cohort: the run's single
+ * `"start"` occurrence is what each handler is catching as it registers, and handlers registered
+ * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:158-163`,
+ * ruling #984 — a handler is never retired, so nothing filters an already-delivered one out) from
+ * re-firing every earlier `"start"` handler on each new registration. Persistence is observable
+ * instead when an event occurs again, which for `"start"`/`"stop"` cannot happen in v0.1 and for a
+ * vendor event means a further host delivery through {@link dispatchDueHandlers}.
  *
  * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
  * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
@@ -2527,7 +2517,7 @@ function executeWhenStatement(
   // because the bodyless `tell` mode-switch shares that node kind; a cast (not a runtime guard)
   // records that invariant without adding an unreachable branch.
   const block = statement.body as BlockNode;
-  registerWhenHandler(
+  const handler = registerWhenHandler(
     environment.eventHandlers,
     event,
     block,
@@ -2536,12 +2526,52 @@ function executeWhenStatement(
   );
   emitWhenPrimitive(environment.events, statement.source_span);
   if (event === STANDARD_EVENT_WORDS.start) {
-    const signal = fireEvent(event, environment);
+    const signal = invokeWhenHandler(handler, environment);
     if (signal.kind !== "normal") {
       return signal;
     }
   }
   return undefined;
+}
+
+/**
+ * Run one handler block with the main-line statement boundary SUPPRESSED for its duration
+ * (ruling #984). A handler body is not the main line: opening a boundary inside it would let a
+ * drained `every` occurrence re-enter its own handler, and would keep the run alive on work the
+ * program never asked for. Restores the previous hook on every exit path, including a halt, so a
+ * handler that stops the run cannot leave the main line permanently boundary-less.
+ */
+function executeHandlerBody(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  const suppressed = environment.mainLineBoundary.fn;
+  environment.mainLineBoundary.fn = undefined;
+  try {
+    return executeStatements(body, environment);
+  } finally {
+    environment.mainLineBoundary.fn = suppressed;
+  }
+}
+
+/**
+ * The main-line boundary for one **loop iteration** (maintainer ruling #984,
+ * `spec/interaction-events.md:189-204`), returning a halting {@link ExecSignal} or `undefined`.
+ *
+ * `executeStatements` already offers a boundary before each statement, so a non-empty body has one
+ * per unit of progress and needs nothing here — firing again per iteration would drain twice for the
+ * same unit and make a loop offer more boundaries than the equivalent comprehension. An **empty**
+ * body executes no statements at all, yet each of its iterations is charged against the budget and
+ * is main-line progress just the same, so the iteration itself is that body's only unit and its only
+ * boundary. Measured before this existed: `forever [ ]` gave a queued `every` occurrence three
+ * firings before `ol-limit` where `forever [ print 0 ]` gave eleven — the ruling's back-to-back
+ * guarantee held only for loops that happened to contain a statement.
+ */
+function runIterationBoundary(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal | undefined {
+  return body.length === 0 ? environment.mainLineBoundary.fn?.() : undefined;
 }
 
 /**
@@ -2827,12 +2857,15 @@ function isEveryStatement(statement: StatementNode): boolean {
  * integration"): emit the `instruction` event for the block-head that caused the handler to run —
  * carrying the `every` keyword's own span, so replay attributes each repeated run to the
  * registration site — then execute the handler body, whose own effects emit the ordinary
- * after-effect events. Unlike {@link invokeWhenHandler}'s one-shot `fired`, an `every` handler is
- * marked `running` for the duration of its body and cleared afterwards, so a re-entrant `wait`
- * inside the body cannot deliver a second overlapping invocation of the same handler
- * ({@link claimDueEveryHandlers} consumes but does not re-enter a `running` handler) — the spec's "at most
- * one pending invocation" guarantee, here read conservatively as zero overlap so a body whose own
- * `wait` re-arms the interval can never drive a non-terminating drain. Returns the body's
+ * after-effect events. Unlike {@link invokeWhenHandler}, an `every` handler is marked `running` for
+ * the duration of its body (and has its batch `claimed` flag cleared as it starts), so a re-entrant
+ * `wait` inside the body cannot deliver a second overlapping invocation of the same handler: that
+ * arriving interval is queued instead and drained as soon as the handler is free
+ * ({@link claimQueuedEveryHandlers}) — at the end of the dispatch batch, or at the main line's next
+ * statement boundary, never at some later checkpoint the program might never supply. That is the
+ * spec's required "queue that occurrence and run it once the handler is free", capped at one pending
+ * invocation
+ * (`spec/interaction-events.md:189-196`). Returns the body's
  * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
@@ -2846,7 +2879,7 @@ function invokeEveryHandler(
   if (guard) {
     return guard;
   }
-  handler.pending = false;
+  handler.claimed = false;
   handler.running = true;
   environment.events.push({
     seq: environment.events.length,
@@ -2856,7 +2889,7 @@ function invokeEveryHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   handler.running = false;
   if (signal.kind === "return") {
     return halt(
@@ -2898,7 +2931,7 @@ function invokeOnKeyHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -2935,7 +2968,7 @@ function invokeOnClickHandler(
       statement_kind: "ProfileStatement",
     } satisfies InstructionPayload,
   });
-  const signal = executeStatements(handler.block.body, handler.environment);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
       runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
@@ -2964,7 +2997,8 @@ function invokeOnClickHandler(
  * so a run is deterministic in the program's own registration order (`spec/interaction-events.md`
  * l.84-89 names no delivery-order concept). The whole tick's ordered invocation batch is built by
  * claiming **all four buckets up front** — each `claim*` empties its pending queue (and
- * `claimDueEveryHandlers` marks its handlers `pending`/advances `nextDueTick`) at claim time — and
+ * `claimDueEveryHandlers` claims its handlers, advancing `nextDueTick` and marking them `claimed`) at
+ * claim time — and
  * only then are the bodies run. That up-front claim is what makes a nested `wait` inside a handler
  * body re-entrancy-safe: a same-tick re-entry finds every queue already drained, so it cannot steal
  * a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier handlers
@@ -3010,8 +3044,9 @@ function dispatchDueHandlers(
     environment.hostInputConsumed.count,
   );
   // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
-  // empties its pending queue (and `claimDueEveryHandlers` marks its handlers `pending`/advances
-  // `nextDueTick`) at claim time, so the whole tick's ordered batch is fixed up front. This is what
+  // empties its pending queue (and `claimDueEveryHandlers` claims its handlers, advancing
+  // `nextDueTick` and marking them `claimed`) at claim time, so the whole tick's ordered batch is
+  // fixed up front. This is what
   // makes a nested `wait` inside a handler body re-entrancy-safe: when that nested `wait` re-enters
   // this dispatcher at the SAME tick, every queue for this tick is already drained, so it cannot
   // steal a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier
@@ -3037,6 +3072,29 @@ function dispatchDueHandlers(
   // at the first non-normal signal.
   for (const invoke of invocations) {
     const signal = invoke();
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  // Drain the one-slot `every` queues ONCE, after this tick's batch. A handler is free the moment
+  // its body returns, and the spec requires a queued occurrence to run "once the handler is free"
+  // (`spec/interaction-events.md:189-196`) — NOT at whatever later checkpoint the program happens to
+  // supply. Deferring it to the next tick silently drops the occurrence whenever the program's
+  // `wait`s are exhausted first, which is the "drop the missed occurrence" reading ruling #984
+  // rejects.
+  //
+  // Draining once per dispatch rather than looping until the queues are empty is the other half of
+  // that ruling: "the run's lifetime is the main line's business — an `every` handler does not
+  // extend it" (`spec/interaction-events.md:198-204`). A drained invocation whose own body outruns
+  // the interval re-queues, and looping here would run that occurrence too, and the next,
+  // manufacturing ticks the main line never asked for until the budget raised `ol-limit`. Instead
+  // the re-queued occurrence waits for the next checkpoint the MAIN LINE provides. A program that
+  // wants the timer to keep firing says so explicitly — `forever`, or a longer `wait` — and then
+  // back-to-back running continues until the budget bounds it (`spec/interaction-events.md:79`). A
+  // program whose main line has finished simply closes, discarding whatever is still queued but not
+  // yet started.
+  for (const handler of claimQueuedEveryHandlers(registry)) {
+    const signal = invokeEveryHandler(handler, environment);
     if (signal.kind !== "normal") {
       return signal;
     }
@@ -3150,6 +3208,7 @@ function executeEach(
   // way `executeAsk`/`executeWhenStatement` do.
   const block = statement.body as BlockNode;
   try {
+    const span = statement.source_span;
     for (const id of iterationIds) {
       // Narrow the addressed set to this one turtle so the block runs scoped to it: `who` reports it
       // and its per-turtle commands run once, stamped with its id. `explicit` is forced true so the
@@ -3157,13 +3216,27 @@ function executeEach(
       // turtle addressed (a single-turtle `each` still attributes its events). Each narrowing emits
       // its own addressing `primitive` event, so a consumer sees which single turtle the iteration's
       // events belong to (issue #766).
-      pointAddressedSet(
-        addressing,
-        [id],
-        environment,
-        "each",
-        statement.source_span,
-      );
+      //
+      // One `each` iteration is one unit of main-line progress — it narrows the addressed set and
+      // runs a body — so it is charged like any other loop iteration and carries the same boundary
+      // (ruling #984). Without the charge the iteration is invisible to the budget; without the
+      // boundary an EMPTY `each` body strands a queued `every` occurrence exactly as `forever [ ]`
+      // did.
+      //
+      // Order matters twice over. The charge comes BEFORE the narrowing, because `pointAddressedSet`
+      // emits an addressing `primitive` event and charging afterwards would publish the narrowing for
+      // an iteration the budget then refuses — an observable effect for work that never happened. The
+      // boundary stays AFTER it, so a drained handler observes the same addressed set the iteration's
+      // own statements would have.
+      const limitDiagnostic = checkExecutionLimits(environment, span);
+      if (limitDiagnostic) {
+        return halt(limitDiagnostic);
+      }
+      pointAddressedSet(addressing, [id], environment, "each", span);
+      const iterationBoundary = runIterationBoundary(block.body, environment);
+      if (iterationBoundary) {
+        return iterationBoundary;
+      }
       const signal = executeStatements(block.body, environment);
       // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
       // so a diagnostic or early exit in one iteration is never masked by a later one.
@@ -4141,7 +4214,7 @@ function evaluateCondition(
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
  */
-type ExecSignal =
+export type ExecSignal =
   | { readonly kind: "normal" }
   | { readonly kind: "halt"; readonly diagnostic: Diagnostic }
   | {
@@ -4738,6 +4811,16 @@ function executeStatements(
   environment: Environment,
 ): ExecSignal {
   for (const rawStatement of statements) {
+    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:189-204`). Runs
+    // before each statement so a queued `every` occurrence gets its "once the handler is free" turn
+    // while the main line has not finished, and NOT after the last statement — that missing final
+    // boundary is exactly what makes the ruling's discard-at-close observable. The hook is carried on
+    // a shared box that child environments inherit, so it reaches procedure and control-form bodies
+    // (still the main line) while handler bodies clear it for their duration.
+    const boundarySignal = environment.mainLineBoundary.fn?.();
+    if (boundarySignal) {
+      return boundarySignal;
+    }
     // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
     // no new semantics" (`spec/conformance.md:150`): the reader recorded the Core name the alias
     // spells on the node's `canonical` field. Normalizing the callee to that Core name ONCE here —
@@ -4960,6 +5043,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         const condition = evaluateCondition(
           statement.condition,
           environment,
@@ -5011,6 +5106,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         environment.repeatTurns.push(turn);
         const signal = executeStatements(statement.body.body, environment);
         environment.repeatTurns.pop();
@@ -5033,6 +5140,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const signal = executeStatements(statement.body.body, environment);
         if (signal.kind !== "normal") {
@@ -5074,6 +5193,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const bound = bindElement(statement.binder, element);
         if (!bound.ok) {
@@ -5166,6 +5297,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const signal = executeStatements(
           statement.body.body,
@@ -5399,6 +5542,7 @@ function createExecutionEnvironment(
       DEFAULT_INSTRUCTION_BUDGET,
     ),
     instructionCount: { count: 0 },
+    mainLineBoundary: { fn: undefined },
     signal: options?.signal,
     turtleWorld: new TurtleWorld(),
     addressing: createTurtleAddressing(mainTurtleState),
@@ -5542,6 +5686,58 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
 }
 
 /**
+ * Run the program's top level, giving a queued `every` occurrence a chance to run **between
+ * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:189-204`).
+ *
+ * The end-of-tick drain in {@link dispatchDueHandlers} covers the occurrences that were queued while
+ * a `wait` was still advancing the clock, but a drained invocation's own body can outrun the
+ * interval and queue another one *after* that dispatch has finished. If the main line still has
+ * statements to run, the run has not closed, so discarding that occurrence would be the rejected
+ * "drop the missed occurrence" reading — the handler is free and the spec says to run it. The main
+ * line's own statement boundary is the checkpoint that lets it.
+ *
+ * Draining once per boundary — rather than looping until the queues are empty — is what keeps ruling
+ * 4 intact: a handler that keeps overrunning gets exactly one invocation per statement the main line
+ * still has, never an unbounded catch-up that manufactures ticks nobody asked for. The drain runs
+ * **before** each statement rather than after, so there is no boundary after the last one: when the
+ * main line finishes, whatever is still queued but unstarted is discarded, exactly as ruling 4 says.
+ *
+ * Implemented as a hook on a shared {@link Environment} box rather than as a parameter threaded
+ * through each call site. Child environments are built by spreading the parent, so the box reaches
+ * procedure bodies and control-form bodies **by construction** — a `repeat`/`while`/`if`/`for` body
+ * and a procedure called from the main line are all still the main line, and the run has not closed
+ * while any of them is running. Handler bodies are the one exception and opt out explicitly
+ * ({@link executeHandlerBody}); comprehension bodies are expressions that never reach this function,
+ * so they run the same hook at their own per-iteration progress point in `evaluate.ts`.
+ *
+ * The hook fires inside {@link executeStatements} rather than by running the top
+ * level one statement at a time, because a statement list is **not** just a sequence: the
+ * educational meta-commands resolve their target by looking back through their own sibling list
+ * ({@link findPrecedingSiblingStatement}), so slicing the top level into single-statement calls
+ * silently strips `explain`/`why`/`debug`/`hint` of their targets. Only the top-level call passes a
+ * callback, so nested bodies — procedures, loops, handler blocks — are unaffected.
+ */
+function executeMainLine(
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  environment.mainLineBoundary.fn = () => {
+    for (const handler of claimQueuedEveryHandlers(environment.eventHandlers)) {
+      const drained = invokeEveryHandler(handler, environment);
+      if (drained.kind !== "normal") {
+        return drained;
+      }
+    }
+    return undefined;
+  };
+  try {
+    return executeStatements(statements, environment);
+  } finally {
+    environment.mainLineBoundary.fn = undefined;
+  }
+}
+
+/**
  * Parse `source` and run it, sharing {@link execute}'s and
  * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
@@ -5589,7 +5785,7 @@ export function runProgram(
       options,
       source,
     );
-    const signal = executeStatements(program.body, environment);
+    const signal = executeMainLine(program.body, environment);
     const diagnostic =
       signal.kind === "halt"
         ? signal.diagnostic
