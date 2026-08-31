@@ -152,14 +152,18 @@ export interface AnimationSnapshot {
  *   at least one copy per step too — and cheapening it needs the controller to keep the fold open
  *   across consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot}, which
  *   changes no shared contract and was left out purely on scope.
- * - **The world fold copies the turtle map on `spawn-turtle` and on any event that changes a
- *   turtle's own state** (`world-state.ts`) — `instruction`, `print`, `clear`, control-flow, and
- *   the scene-only per-turtle kinds `fill`/`stamp` all reuse the map — so the cost is the **sum of
- *   the live map's size over those events**: roughly `O(spawns² + state-bearing effects × live
- *   turtles)`. A **Sprites** stream is therefore quadratic in two independent ways, a spawn-only
- *   stream included. Measured at a fixed 4 000 state-bearing effect events, the effect term
- *   outweighs the spawn term ~20×, so it is not primarily a spawn-time cost. Not addressed here
- *   and not claimed to be.
+ * - **The world fold has costs the scene fold's linearity says nothing about**, all in
+ *   `world-state.ts` and none of them addressed here. It copies the turtle map on `spawn-turtle`
+ *   and on any event that changes a turtle's own state — `instruction`, `print`, `clear`,
+ *   control-flow, and the scene-only kinds `fill`/`stamp` all reuse it — so that part costs the sum
+ *   of the live map's size over those events, roughly `O(spawns² + state-bearing effects × live
+ *   turtles)`. Separately, a `primitive` event carrying an addressing snapshot scans and may copy
+ *   the **addressed set** (`foldAddressing`/`sameAddressedTurtles`), and that scan runs before its
+ *   early return, so an *unchanged* set costs the same as a changed one: `ask all […]` in a loop
+ *   over *n* turtles is quadratic with **zero** map copies. Which term dominates depends on the
+ *   program's shape, so no single ratio is quoted here — a **Sprites** stream is quadratic in
+ *   several independent ways, and any follow-up must measure the shape it intends to fix rather
+ *   than assume this list is exhaustive.
  *
  * So `run()` under a synchronous scheduler and `seekToEnd()` reach the same final scene by
  * different costs. {@link AnimationSnapshot.state} is read out of that same world
@@ -312,6 +316,12 @@ export class TurtleAnimationController {
    * that is *every* seek, so an empty controller stays `"idle"` here where {@link step} and
    * {@link seekToEnd} report `"done"` — deliberate, because this control's equivalence is to the
    * step loop it replaces, which would not have run either.
+   *
+   * The `"done"` early return below is **defensive depth, not a live branch**: every site that sets
+   * `"done"` also leaves the cursor at the end of the stream, so the no-progress return would catch
+   * the same case. No input distinguishes the two, and no test can pin it — it is kept because
+   * every sibling control opens the same way, and removing it would make this the one that reads
+   * differently.
    *
    * ## Why this exists (issue #977)
    * A host resuming a picture it has already drawn — `@openlogo/studio`'s replay — used to step

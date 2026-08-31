@@ -541,11 +541,19 @@ test("reduceSceneRange never writes through the scene it was given (#977 shared-
  * the array iterator, `slice`, and `concat` — and nothing else. Quadratic folds it cannot see
  * include `toSpliced`, `filter`, `flat`, `with`, `structuredClone`, `Object.values` and `map` (all
  * ordinary bulk-copy builtins, all genuinely quadratic here — a `toSpliced` mutant survives the
- * whole suite), a hand-rolled `for (i) out[i] = a[i]`, a module-level alias captured before this
- * patch runs (`const copy = Array.prototype.slice`), and a per-object iterator override
+ * whole suite), a per-object iterator override
  * (`Object.defineProperty(items, Symbol.iterator, { value: Array.prototype.values })`, which
- * bypasses the prototype patch a spread would otherwise go through). Some of those a longer
- * whitelist could cover; the last three none could.
+ * bypasses the prototype patch a spread would otherwise go through), a module-level alias captured
+ * before this patch installs (`const copy = Array.prototype.slice`), and a hand-rolled
+ * `for (i) out[i] = a[i]`.
+ *
+ * Most of those a longer wrapper list would reach — the iterator override included, by wrapping
+ * `Array.prototype.values`. **Two are beyond any whitelist**: the pre-import cached alias (the
+ * patch installs too late to be seen) and the hand-rolled loop (it calls nothing).
+ *
+ * Two of these gaps — `toSpliced` and the iterator override — are **asserted** by a test, so those
+ * two cannot silently change in either direction. The rest are documented only, and this list is
+ * not claimed to be exhaustive.
  *
  * **What it does guard** is a regression that reintroduces the copy through the spellings #977's
  * defect actually used and their nearest neighbours. That is worth having — it is what kills the
@@ -674,12 +682,12 @@ for (const [spelling, append] of QUADRATIC_SPELLINGS) {
   });
 }
 
-test("a quadratic fold spelled with an UNWRAPPED builtin is invisible — the declared gap (#977)", () => {
-  // Pins two of the declared blind spots so the declaration above cannot quietly become false in
-  // either direction. `toSpliced` is an ordinary bulk-copy builtin; the second case overrides one
-  // array's own `Symbol.iterator`, bypassing the prototype patch a spread goes through. Both folds
-  // are genuinely Θ(n²) and both must read as linear here. If either ever fails, the counter got
-  // wider and the documented coverage must be widened with it.
+test("two declared blind spots stay invisible to the counter (#977)", () => {
+  // Pins TWO of the declared gaps — not the whole list, which is documented rather than asserted.
+  // `toSpliced` is an ordinary bulk-copy builtin; the second overrides one array's own
+  // `Symbol.iterator`, bypassing the prototype patch a spread goes through. Both folds are
+  // genuinely Θ(n²) and both must read as linear here. If either ever fails, the counter got wider
+  // and the documented coverage must be widened with it.
   const count = 500;
   const items = segmentEvents(count);
 
@@ -774,12 +782,18 @@ test("seekToEventIndex does not copy through the wrapped mechanisms per event (#
   // mechanism guard, and the two are not the same thing. Lives beside the counter rather than in
   // `animation.test.mjs` so there is exactly one copy of the instrument to keep correct.
   //
+  // **Instruction-aligned on purpose.** `segmentEvents` has no `instruction` events, so a whole
+  // stream is one step and a per-step rewrite of the seek folds identically — measured: that
+  // rewrite survived every test in this package while only the studio's step-count caught it. With
+  // real step boundaries the same rewrite folds ~n²/2 elements and fails here, so the package that
+  // owns `seekToEventIndex` now guards it too.
+  //
   // The ceiling is tight, not generous: a seek measures exactly 3n — `applyRange`'s ONE slice of
   // the window plus two linear passes over it (world/overlay, then the scene). That 3n is the
   // measurement behind `animation.ts`'s "sliced once and shared" comment, so pinning it here is
   // what stops that comment silently becoming false again: routing the raw event array into
   // `reduceSceneRange` instead of the window restores the two-transient shape at 4n and fails here.
-  const events = segmentEvents(2_000);
+  const events = steppedSegmentEvents(1_000);
   const copied = countCopiedElements(() => {
     const controller = new OL.TurtleAnimationController(events);
     controller.seekToEventIndex(events.length);
@@ -796,8 +810,9 @@ test("seekToEventIndex's wrapped-mechanism copying grows ~2x per doubling, not ~
   // implementation that is linear but wasteful.
   const measure = (count) =>
     countCopiedElements(() => {
-      const controller = new OL.TurtleAnimationController(segmentEvents(count));
-      controller.seekToEventIndex(count);
+      const events = steppedSegmentEvents(count);
+      const controller = new OL.TurtleAnimationController(events);
+      controller.seekToEventIndex(events.length);
     });
   const ratio = measure(2_000) / measure(1_000);
   assert.ok(

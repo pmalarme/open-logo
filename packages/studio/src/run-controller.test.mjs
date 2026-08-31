@@ -701,32 +701,66 @@ test("run() with reducedMotion:false still paints instantly when the slider is a
 });
 
 /**
- * Counts `TurtleAnimationController.step()` calls made anywhere during `run()`, by patching the
- * prototype and restoring it in a `finally`. The resume path builds its controller internally, so
- * there is no seam to inject a spy through — the prototype is the seam.
+ * Records every `seekToEventIndex` argument and counts every `step()` call made during `run()`, by
+ * patching the `TurtleAnimationController` prototype and restoring it in a `finally`. The resume
+ * path builds its controller internally, so there is no injection seam — the prototype is the seam.
+ *
+ * **What this covers, and what it does not.** It sees explicit `step()` calls. Paced consumption
+ * reaches the reducers through `driveRun`/`consumeOneStep` and never touches `prototype.step`, so a
+ * regression spelled that way would be invisible here. Every plausible regression of this code is
+ * spelled as a step loop over the prefix — that is literally what #977 was — but this is a guard on
+ * that shape, not a proof that no stepping occurs.
  */
 function countAnimationSteps(run) {
   const prototype = Turtle.TurtleAnimationController.prototype;
-  const originalStep = prototype.step;
-  const originalSeek = prototype.seekToEventIndex;
+  const original = {
+    step: prototype.step,
+    seek: prototype.seekToEventIndex,
+    seekToEnd: prototype.seekToEnd,
+  };
   let steps = 0;
-  let seeks = 0;
+  const seekArguments = [];
+  const drawnBoundaries = [];
   prototype.step = function countingStep(...args) {
     steps += 1;
-    return originalStep.apply(this, args);
+    return original.step.apply(this, args);
   };
   prototype.seekToEventIndex = function countingSeek(...args) {
-    seeks += 1;
-    return originalSeek.apply(this, args);
+    seekArguments.push(args[0]);
+    return original.seek.apply(this, args);
+  };
+  prototype.seekToEnd = function countingSeekToEnd(...args) {
+    const result = original.seekToEnd.apply(this, args);
+    // The cursor a completed instant playback reached — i.e. how much is actually on the canvas.
+    drawnBoundaries.push(this.getSnapshot().cursor);
+    return result;
   };
   try {
     run();
   } finally {
-    prototype.step = originalStep;
-    prototype.seekToEventIndex = originalSeek;
+    prototype.step = original.step;
+    prototype.seekToEventIndex = original.seek;
+    prototype.seekToEnd = original.seekToEnd;
   }
-  return { steps, seeks };
+  return { steps, seekArguments, drawnBoundaries };
 }
+
+test("countAnimationSteps restores the prototype it patches, even when run() throws", () => {
+  const prototype = Turtle.TurtleAnimationController.prototype;
+  const before = {
+    step: prototype.step,
+    seek: prototype.seekToEventIndex,
+    seekToEnd: prototype.seekToEnd,
+  };
+  assert.throws(() => {
+    countAnimationSteps(() => {
+      throw new Error("boom");
+    });
+  }, /boom/);
+  assert.equal(prototype.step, before.step);
+  assert.equal(prototype.seekToEventIndex, before.seek);
+  assert.equal(prototype.seekToEnd, before.seekToEnd);
+});
 
 test("a stop() replay RESUMES the canvas with one seek, never by stepping the prefix (#977)", () => {
   // The regression test for #977 itself, at the layer where the defect actually lived. Everything
@@ -750,20 +784,34 @@ test("a stop() replay RESUMES the canvas with one seek, never by stepping the pr
   const store = OL.createStudioState({ source });
   const controller = OL.createRunController(store, { reducedMotion: true });
 
-  controller.run();
+  // Observe the first run too, so the expected boundary is the cursor instant playback actually
+  // reached rather than a constant this test asserts against itself.
+  const firstRun = countAnimationSteps(() => {
+    controller.run();
+  });
+  const shownBeforeStop = firstRun.drawnBoundaries.at(-1);
+  assert.ok(shownBeforeStop > 0, "the first run must have drawn something");
 
-  const { steps, seeks } = countAnimationSteps(() => {
+  const { steps, seekArguments } = countAnimationSteps(() => {
     controller.stop();
   });
 
-  assert.equal(seeks, 1, "the replay must fast-forward with exactly one seek");
-  assert.ok(
-    steps <= 2,
-    `the replay must not step over the already-drawn prefix: ${steps} step() calls`,
+  // Assert WHICH seek, not merely that one happened: `seekToEventIndex(0)` would satisfy a call
+  // count while blanking the prefix, and under reduced motion the following `seekToEnd()` would
+  // repaint everything and hide it. The argument is the whole contract, and ±1 — the granularity
+  // the comment beside the call site warns about — fails here too.
+  assert.deepEqual(
+    seekArguments,
+    [shownBeforeStop],
+    "the replay must seek to exactly the boundary already drawn",
+  );
+  assert.equal(
+    steps,
+    0,
+    `the replay must not step at all under reduced motion: ${steps} step() calls`,
   );
   assert.deepEqual(store.getState().output, ["bye"]);
-
-  // The control that makes "steps <= 2" mean something: the spy must actually be able to count a
+  // The control that makes "steps === 0" mean something: the spy must actually be able to count a
   // step. Without this, an unwired spy would report 0 and the assertion above would pass for the
   // wrong reason — the same circularity that made two earlier instruments in this change hollow.
   const observed = countAnimationSteps(() => {
@@ -773,5 +821,5 @@ test("a stop() replay RESUMES the canvas with one seek, never by stepping the pr
     animation.step();
   });
   assert.equal(observed.steps, 1, "the step spy must count a real step() call");
-  assert.equal(observed.seeks, 0);
+  assert.deepEqual(observed.seekArguments, []);
 });

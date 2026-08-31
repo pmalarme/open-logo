@@ -511,17 +511,27 @@ test("large repeat stress case consumes without recursion blowing the call stack
 });
 
 test("controller over an empty event stream is immediately done on run/step/seekToEnd", () => {
+  // The cursor assertions are the point of this test as much as the status ones: without them,
+  // deleting `consumeOneStep`'s exhausted guard leaves the whole suite green while `step()` walks
+  // the cursor to 1 on a zero-event stream (#977 review, `@testing` N17).
   const runController = new OL.TurtleAnimationController([]);
   runController.run();
   assert.equal(runController.getSnapshot().status, "done");
+  assert.equal(runController.getSnapshot().cursor, 0);
 
   const stepController = new OL.TurtleAnimationController([]);
   stepController.step();
   assert.equal(stepController.getSnapshot().status, "done");
+  assert.equal(
+    stepController.getSnapshot().cursor,
+    0,
+    "a step on an empty stream must not move the cursor past the stream",
+  );
 
   const seekController = new OL.TurtleAnimationController([]);
   seekController.seekToEnd();
   assert.equal(seekController.getSnapshot().status, "done");
+  assert.equal(seekController.getSnapshot().cursor, 0);
 });
 
 test("a genuinely asynchronous scheduler resumes driveRun from its own callback", () => {

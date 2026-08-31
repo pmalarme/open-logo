@@ -334,9 +334,9 @@
  * *and* every complexity test in `@openlogo/turtle` green while reintroducing the defect. The fold
  * itself is guarded there, against the copy mechanisms the original defect used; neither guard is
  * a proof of linearity in general, and neither extends to a Sprites-heavy stream, whose world fold
- * copies the turtle map on `spawn-turtle` and on any state-changing event — roughly
- * `O(spawns² + state-bearing effects × live turtles)` — a separate cost this change does not
- * address.
+ * is quadratic in several independent ways (turtle-map copies on spawn and on state changes, plus
+ * an addressed-set scan per addressing snapshot) — separate costs this change does not address.
+ * See `@openlogo/turtle`'s `TurtleAnimationController` doc block for the enumeration.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same

@@ -425,9 +425,9 @@ so the **scene** fold over that prefix costs one array copy rather than one per 
 wiring — that the resume seeks once and never steps over the prefix — and `@openlogo/turtle`'s copy
 counter guards the fold against the copy mechanisms the original defect used (that counter's doc
 block records what it does *not* cover). Neither is a proof of linearity in general, and none of
-this extends to a Sprites-heavy stream, whose world fold copies the turtle map on `spawn-turtle`
-and on any state-changing event — roughly `O(spawns² + state-bearing effects × live turtles)` — a
-separate cost #977 did not address.
+this extends to a Sprites-heavy stream, whose world fold is quadratic in several independent ways
+(turtle-map copies on spawn and on state changes, plus an addressed-set scan per addressing
+snapshot) — separate costs #977 did not address.
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes
