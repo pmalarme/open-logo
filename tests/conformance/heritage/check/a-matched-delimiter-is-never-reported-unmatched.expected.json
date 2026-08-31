@@ -14,7 +14,7 @@
       "params": {
         "text": "set"
       },
-      "message": "i don't know how to read set here.",
+      "message": "i don't know how to read set here. set is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -56,7 +56,7 @@
       "params": {
         "text": "if"
       },
-      "message": "i don't know how to read if here.",
+      "message": "i don't know how to read if here. if is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -127,7 +127,7 @@
       "params": {
         "text": "in"
       },
-      "message": "i don't know how to read in here.",
+      "message": "i don't know how to read in here. in is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -155,7 +155,7 @@
       "params": {
         "text": "struct"
       },
-      "message": "i don't know how to read struct here.",
+      "message": "i don't know how to read struct here. struct is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -197,7 +197,7 @@
       "params": {
         "text": "add"
       },
-      "message": "i don't know how to read add here.",
+      "message": "i don't know how to read add here. add is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -225,7 +225,7 @@
       "params": {
         "text": "value"
       },
-      "message": "i don't know how to read value here.",
+      "message": "i don't know how to read value here. value is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
