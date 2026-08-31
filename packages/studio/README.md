@@ -420,7 +420,8 @@ receives nothing — Stop's `"stop"` notification included — and still pays fo
 
 **What a delivery costs.** One execution per delivery, like an `input` answer. The canvas is
 resumed with a single seek to the already-drawn boundary rather than replayed one step at a time,
-so the resume does not grow with how much the program has already drawn.
+so the resume grows linearly with how much has been drawn rather than quadratically
+([#977](https://github.com/pmalarme/open-logo/issues/977)).
 
 **The mechanism is #769's replay, extended.** A delivery appends to the chain's schedule and runs
 another attempt of the *same* chain — same captured source, same pinned seed. The canvas resumes

@@ -328,7 +328,7 @@
  * ### What a delivery costs
  * One execution per delivery, as an `input` answer does. `finishAttempt` resumes the canvas with a
  * single `seekToEventIndex` to the already-drawn boundary rather than stepping to it, so the resume
- * is not a function of how much the program has already drawn.
+ * grows linearly with how much has been drawn rather than quadratically (#977).
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same
@@ -336,8 +336,7 @@
  * learner sees is the canvas, output, and
  * turtle state updating to reflect the input they just gave, because the replay is fast-forwarded
  * past the events already drawn (`shownEventCount`, set from the live animation's own cursor) rather
- * than redrawing from a blank canvas. What that costs is measured under "What a delivery costs"
- * above — and it is the fast-forward, not the execution, that dominates.
+ * than redrawing from a blank canvas.
  *
  * A replay for delivered input deliberately does **not** re-announce `runStatus` as `"running"`: it
  * is the *same* run with more input, not a new one. `run-log.ts` and `tutor-output-pane.ts`

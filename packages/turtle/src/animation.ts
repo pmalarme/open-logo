@@ -129,12 +129,24 @@ export interface AnimationSnapshot {
  *
  * This is **not** a second reduction: {@link TurtleWorldState} and {@link TurtleScene} are always
  * derived by folding the same `reduceTurtleWorldState`/`reduceSceneRange` functions the sibling
- * reducers export, incrementally over just the newly consumed events on each step — so the
- * controller stays O(n) total across a full run (never re-reducing an already-folded prefix)
- * and can never diverge from what a direct `reduceTurtleWorldEvents`/`reduceSceneEvents` call over
- * the same events would produce. That O(n) claim is only true since #977: the scene fold copied
- * its whole item array per event, so a resume that folded a long prefix one event at a time cost
- * Θ(n²) while this paragraph said otherwise. Folding a range in one pass is what makes it so.
+ * reducers export, incrementally over just the newly consumed events (never re-reducing an
+ * already-folded prefix), and can never diverge from what a direct
+ * `reduceTurtleWorldEvents`/`reduceSceneEvents` call over the same events would produce.
+ *
+ * **What is linear and what is not** (#977 — stated precisely, because this paragraph previously
+ * claimed a blanket O(n) the code did not deliver). A *range* fold is linear: {@link seekToEnd} and
+ * {@link seekToEventIndex} consume any span in one pass. **Step-driven consumption is still Θ(n²)**
+ * — {@link step}, and therefore {@link run} at *every* speed **including {@link IMMEDIATE_SCHEDULER}
+ * instant playback** — because each step materialises one immutable snapshot of a growing scene, so
+ * a drawing-heavy run pays one whole-array copy per step. Measured on one machine at n=40 000
+ * (200 001 events): `seekToEnd()` 47 ms, `run()` 6 825 ms. That is a residual this change did not
+ * introduce and deliberately did not widen its scope to fix — before #977 `run()` paid at least one
+ * copy per step too — but it means `run()` under a synchronous scheduler and `seekToEnd()` are
+ * **behaviorally identical and asymptotically different**, which is a distinction a host choosing
+ * between them now needs. Cheapening it needs the controller to keep the fold open across
+ * consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot} — which changes no
+ * shared contract, and was left out purely on scope.
+ *
  * {@link AnimationSnapshot.state} is read out of that same world
  * ({@link lastActedTurtleState}) rather than folded a second time, so the avatar, the state text, and
  * the per-turtle world can never disagree about the turtle a command last drove — and the addressed set
@@ -291,7 +303,6 @@ export class TurtleAnimationController {
     if (this.status === "done") {
       return;
     }
-    this.cancelScheduledStep();
     const limit = Math.min(eventIndex, this.events.length);
     let target = this.cursor;
     while (target < limit) {
@@ -302,10 +313,15 @@ export class TurtleAnimationController {
       target = next;
     }
     if (target === this.cursor) {
-      // Nothing to fold: leave the status exactly as it was, so a seek that moves nothing is
-      // indistinguishable from the step loop it replaces, which would not have run either.
+      // Nothing to fold — and therefore nothing to disturb. The target is computed BEFORE any
+      // mutation precisely so this path has no side effect at all: cancelling a scheduled step
+      // here would leave a `"running"` controller with nothing pending, and `run()` refuses to
+      // restart while the status is already `"running"`, so playback would wedge permanently. The
+      // step loop this replaces never called into the controller when it took zero steps, and this
+      // is what makes that equivalence true rather than merely claimed.
       return;
     }
+    this.cancelScheduledStep();
     this.applyRange(this.cursor, target);
     this.cursor = target;
     this.status = this.cursor >= this.events.length ? "done" : "paused";
@@ -318,7 +334,9 @@ export class TurtleAnimationController {
    * schedule a second, overlapping drive loop (which would leak an uncancellable pending step
    * once {@link pause} only has a handle to the newest one). With the default
    * {@link IMMEDIATE_SCHEDULER} this drains the whole remaining stream synchronously in one
-   * call — behaviorally identical to {@link seekToEnd} — matching the spec's "running
+   * call — behaviorally identical to {@link seekToEnd}, though **not** asymptotically so: this
+   * path is step-driven and stays Θ(n²) where `seekToEnd` is linear (see this class's doc block)
+   * — matching the spec's "running
    * instantly … MUST produce the same final retained scene" requirement.
    */
   run(): void {
@@ -396,11 +414,14 @@ export class TurtleAnimationController {
    * folding one of them separately over the same events in the same order is the same
    * computation — not an approximation of it. */
   private applyRange(start: number, end: number): void {
-    for (const event of this.events.slice(start, end)) {
+    // Sliced once and shared: world/overlay iterate the window and the scene folds the same window,
+    // so the hot path allocates one transient array rather than two.
+    const window = this.events.slice(start, end);
+    for (const event of window) {
       this.world = reduceTurtleWorldState(this.world, event);
       this.overlay = reduceOverlayState(this.overlay, event);
     }
-    this.scene = reduceSceneRange(this.scene, this.events, start, end);
+    this.scene = reduceSceneRange(this.scene, window, 0, window.length);
   }
 
   /** Milliseconds to wait between steps at the current speed. */

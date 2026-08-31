@@ -436,6 +436,49 @@ test("reduceSceneRange clamps both bounds to the event array", () => {
   assert.equal(clamped.items.length, 2);
 });
 
+test("reduceSceneRange clamps a NEGATIVE start that Array.slice would read from the end", () => {
+  // `-5` on a 2-element array is the one value that does NOT distinguish clamping from `slice`'s
+  // own semantics, because it underflows past `-length` and slice clamps it to 0 anyway. `-1` on a
+  // 3-element array does distinguish them: unclamped, `slice(-1, 3)` yields only the LAST element.
+  const events = [
+    event("fill", { color: "gold" }),
+    event("fill", { color: "teal" }),
+    event("fill", { color: "plum" }),
+  ];
+  const clamped = OL.reduceSceneRange(
+    OL.INITIAL_TURTLE_SCENE,
+    events,
+    -1,
+    events.length,
+  );
+  assert.equal(
+    clamped.items.length,
+    3,
+    "a negative start means 'from the beginning'",
+  );
+  assert.deepEqual(clamped, foldOneAtATime(events));
+});
+
+test("reduceSceneRange clamps a NEGATIVE end instead of folding all-but-the-last (#977)", () => {
+  // `Array.prototype.slice` reads a negative end as an offset from the array end, so an unclamped
+  // `end` of -1 would fold every event but the last where the contract promises none at all.
+  const events = [
+    event("fill", { color: "gold" }),
+    event("fill", { color: "teal" }),
+    event("fill", { color: "plum" }),
+  ];
+  const scene = OL.INITIAL_TURTLE_SCENE;
+  for (const end of [-1, -3, -99]) {
+    assert.equal(
+      OL.reduceSceneRange(scene, events, 0, end),
+      scene,
+      `end=${end} must fold nothing and return the same scene reference`,
+    );
+  }
+  // And a negative end paired with a negative start is still empty, not "the middle".
+  assert.equal(OL.reduceSceneRange(scene, events, -5, -2), scene);
+});
+
 test("reduceSceneRange never writes through the scene it was given (#977 shared-array hazard)", () => {
   const base = OL.reduceSceneEvents([
     event("draw-segment", {
@@ -474,12 +517,44 @@ test("reduceSceneRange never writes through the scene it was given (#977 shared-
   );
 });
 
-test("reduceSceneEvents over a long stream stays linear, not quadratic (#977)", () => {
-  // A behavioural guard, not a timing assertion: 20 000 segments folded one at a time used to be
-  // 20 000 full array copies. Correctness of the result is what is asserted; the size is what
-  // makes a regression to the quadratic fold show up as a timeout rather than a pass.
+/**
+ * Counts how many array elements are *copied* while `run()` executes, by instrumenting the array
+ * iterator that both `[...spread]` and `for…of` go through, and restoring it afterwards.
+ *
+ * This is what makes "linear, not quadratic" a **testable** claim rather than an aspiration. The
+ * defect #977 fixed was one full array copy per appended event; the number of elements those
+ * copies traverse is Θ(n²) for the old fold and Θ(n) for the new one, and counting them is exact,
+ * deterministic, and free of any wall clock — so it cannot flake on a shared CI box the way a
+ * timing ratio would, and it cannot silently pass the way the previous size-only test did (a
+ * restored quadratic fold ran 78× slower and still passed, because `node --test` applies no
+ * timeout by default).
+ */
+function countCopiedElements(run) {
+  const originalIterator = Array.prototype[Symbol.iterator];
+  let yielded = 0;
+  Array.prototype[Symbol.iterator] = function countingIterator() {
+    const inner = originalIterator.call(this);
+    return {
+      next() {
+        const result = inner.next();
+        if (result.done !== true) {
+          yielded += 1;
+        }
+        return result;
+      },
+    };
+  };
+  try {
+    run();
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+  }
+  return yielded;
+}
+
+function segmentEvents(count) {
   const events = [];
-  for (let index = 0; index < 20_000; index += 1) {
+  for (let index = 0; index < count; index += 1) {
     events.push(
       event("draw-segment", {
         from: [index, 0],
@@ -489,6 +564,45 @@ test("reduceSceneEvents over a long stream stays linear, not quadratic (#977)", 
       }),
     );
   }
+  return events;
+}
+
+test("reduceSceneEvents copies a LINEAR number of elements, not a quadratic one (#977)", () => {
+  const count = 2_000;
+  const events = segmentEvents(count);
+  const copied = countCopiedElements(() => OL.reduceSceneEvents(events));
+
+  // The fold must visit each event once (n) plus a bounded amount of copying. The pre-#977 fold
+  // copied the accumulated array on every append, traversing count*(count-1)/2 = 1 999 000
+  // elements on top of that — three orders of magnitude above this ceiling, so the bound is
+  // generous enough never to flake yet nowhere near large enough to admit a regression.
+  assert.ok(
+    copied <= count * 4,
+    `expected <= ${count * 4} elements copied for ${count} events, got ${copied}`,
+  );
+});
+
+test("the linearity counter actually detects a quadratic fold (control for #977)", () => {
+  // Pairs the assertion above with a positive control: the same counter, over a deliberately
+  // quadratic fold, must report the quadratic figure. Without this, a counter that silently
+  // measured nothing would make the test above pass for the wrong reason.
+  const count = 2_000;
+  const events = segmentEvents(count);
+  const quadratic = countCopiedElements(() => {
+    let items = [];
+    for (const _ of events) {
+      items = [...items, _];
+    }
+    return items;
+  });
+  assert.ok(
+    quadratic > count * 100,
+    `the control fold should traverse ~${(count * (count - 1)) / 2} elements, got ${quadratic}`,
+  );
+});
+
+test("reduceSceneEvents folds a long stream to the right result (#977)", () => {
+  const events = segmentEvents(20_000);
   const scene = OL.reduceSceneEvents(events);
   assert.equal(scene.items.length, 20_000);
   assert.deepEqual(scene.items[0].segment.from, [0, 0]);

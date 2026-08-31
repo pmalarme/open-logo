@@ -184,9 +184,10 @@ function startFold(scene: TurtleScene): SceneFold {
 
 /**
  * Settle a fold back into an immutable scene — returning `scene` itself, by reference, when
- * nothing scene-bearing occurred. That identity is relied upon: a caller may compare scenes by
- * reference to decide whether a repaint is needed, and `scene.test.mjs` asserts it directly for
- * inert kinds.
+ * nothing scene-bearing occurred, so that a caller *can* compare scenes by reference to decide
+ * whether a repaint is needed. That is a supported property rather than a satisfied dependency:
+ * nothing in `@openlogo/turtle` or `@openlogo/studio` compares scenes by reference today, but
+ * `scene.test.mjs` pins the identity directly so a consumer may rely on it.
  */
 function finishFold(fold: SceneFold, scene: TurtleScene): TurtleScene {
   return fold.changed
@@ -232,7 +233,11 @@ export function reduceSceneRange(
   end: number,
 ): TurtleScene {
   const from = Math.max(start, 0);
-  const to = Math.min(end, events.length);
+  // Both bounds clamped into [0, events.length] BEFORE slicing, because `Array.prototype.slice`
+  // reads a negative index as an offset from the end: `slice(0, -1)` drops the last element rather
+  // than yielding nothing, so an unclamped negative `end` would fold almost the whole stream where
+  // this function promises an empty range.
+  const to = Math.min(Math.max(end, 0), events.length);
   const fold = startFold(scene);
   for (const event of events.slice(from, to)) {
     applySceneEvent(fold, event);
