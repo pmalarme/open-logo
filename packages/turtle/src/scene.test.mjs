@@ -537,27 +537,25 @@ test("reduceSceneRange never writes through the scene it was given (#977 shared-
  * per-mechanism controls below.
  *
  * ### What it is NOT — read this before trusting it
- * This instrument catches the **three spellings enumerated in the controls below** and nothing
- * else. It does **not** verify linearity in general, and the gap is not limited to hand-rolled
- * loops: `toSpliced`, `filter`, `flat`, `with`, `structuredClone`, `Object.values` and `map` are
- * all ordinary bulk-copy builtins, all produce a genuinely quadratic fold, and all are **invisible
- * here** — a mutation copying via `toSpliced` on every append survives the whole suite. Some of
- * those a longer whitelist could cover; a hand-rolled `for (i) out[i] = a[i]` none could. The
- * honest summary is: **it pins against the spellings #977's defect actually used and their nearest
- * neighbours, not against quadratic behaviour as such.**
+ * This instrument **does not verify linearity**. It counts copying done through three mechanisms —
+ * the array iterator, `slice`, and `concat` — and nothing else. Quadratic folds it cannot see
+ * include `toSpliced`, `filter`, `flat`, `with`, `structuredClone`, `Object.values` and `map` (all
+ * ordinary bulk-copy builtins, all genuinely quadratic here — a `toSpliced` mutant survives the
+ * whole suite), a hand-rolled `for (i) out[i] = a[i]`, a module-level alias captured before this
+ * patch runs (`const copy = Array.prototype.slice`), and a per-object iterator override
+ * (`Object.defineProperty(items, Symbol.iterator, { value: Array.prototype.values })`, which
+ * bypasses the prototype patch a spread would otherwise go through). Some of those a longer
+ * whitelist could cover; the last three none could.
  *
- * A worse relative of the same gap: a quadratic fold spelled with `structuredClone` does not fail
- * the large-stream test, it **hangs** it — the round-1 failure mode, still live, because
- * `node --test` applies no default timeout.
+ * **What it does guard** is a regression that reintroduces the copy through the spellings #977's
+ * defect actually used and their nearest neighbours. That is worth having — it is what kills the
+ * historical defect — but it is a guard on *those mechanisms*, not a proof about growth, and no
+ * comment, test name or README sentence in this change should say otherwise.
  *
  * `Array.from` is deliberately **not** wrapped: over an array it reads its source through the array
- * iterator, which is wrapped already, so a separate wrapper would double-count and its "control"
- * would pass with that wrapper removed — the round-2 circularity, relocated. It is covered by the
- * iterator, and the control below says so rather than claiming its own mechanism.
- *
- * A final limit worth naming: the instrument patches builtins at **call time**, so a subject that
- * captured a module-level alias (`const copy = Array.prototype.slice`) before this runs would
- * bypass it entirely.
+ * iterator, which is wrapped already, so a wrapper would double-count and a control for it would
+ * pass with that wrapper removed — the circularity that failed review once already. It is covered
+ * by the iterator, and no separate control claims otherwise.
  */
 function countCopiedElements(run) {
   const original = {
@@ -677,13 +675,15 @@ for (const [spelling, append] of QUADRATIC_SPELLINGS) {
 }
 
 test("a quadratic fold spelled with an UNWRAPPED builtin is invisible — the declared gap (#977)", () => {
-  // Pins the limitation itself, so the declaration above cannot quietly become false in either
-  // direction. `toSpliced` is an ordinary bulk-copy builtin, this fold is genuinely Θ(n²), and the
-  // counter reports a linear figure for it. If a future change makes this detectable, this test
-  // fails and the doc comment must be updated to claim the wider coverage.
+  // Pins two of the declared blind spots so the declaration above cannot quietly become false in
+  // either direction. `toSpliced` is an ordinary bulk-copy builtin; the second case overrides one
+  // array's own `Symbol.iterator`, bypassing the prototype patch a spread goes through. Both folds
+  // are genuinely Θ(n²) and both must read as linear here. If either ever fails, the counter got
+  // wider and the documented coverage must be widened with it.
   const count = 500;
   const items = segmentEvents(count);
-  const copied = countCopiedElements(() => {
+
+  const viaToSpliced = countCopiedElements(() => {
     let accumulated = [];
     for (const item of items) {
       accumulated = accumulated.toSpliced(accumulated.length, 0, item);
@@ -691,8 +691,24 @@ test("a quadratic fold spelled with an UNWRAPPED builtin is invisible — the de
     return accumulated;
   });
   assert.ok(
-    copied <= count * 4,
-    `toSpliced is expected to be INVISIBLE to this counter; it reported ${copied}. If this now fails, widen the documented coverage.`,
+    viaToSpliced <= count * 4,
+    `toSpliced is expected to be INVISIBLE to this counter; it reported ${viaToSpliced}. If this now fails, widen the documented coverage.`,
+  );
+
+  const viaIteratorOverride = countCopiedElements(() => {
+    let accumulated = [];
+    for (const item of items) {
+      Object.defineProperty(accumulated, Symbol.iterator, {
+        value: Array.prototype.values,
+        configurable: true,
+      });
+      accumulated = [...accumulated, item];
+    }
+    return accumulated;
+  });
+  assert.ok(
+    viaIteratorOverride <= count * 4,
+    `a per-object iterator override is expected to be INVISIBLE; it reported ${viaIteratorOverride}. If this now fails, widen the documented coverage.`,
   );
 });
 
@@ -723,7 +739,7 @@ test("countCopiedElements restores every builtin it patches, even when run() thr
   assert.equal(Array.prototype.concat, before.concat);
 });
 
-test("reduceSceneEvents copies a LINEAR number of elements, not a quadratic one (#977)", () => {
+test("reduceSceneEvents does not copy through the wrapped mechanisms per event (#977)", () => {
   const count = 2_000;
   const copied = countCopiedElements(() =>
     OL.reduceSceneEvents(segmentEvents(count)),
@@ -736,7 +752,7 @@ test("reduceSceneEvents copies a LINEAR number of elements, not a quadratic one 
   );
 });
 
-test("reduceSceneEvents copying grows LINEARLY with n, not quadratically (#977)", () => {
+test("reduceSceneEvents' wrapped-mechanism copying grows ~2x per doubling, not ~4x (#977)", () => {
   // Stronger than a ceiling at one size, which a third legitimate linear pass would trip: doubling
   // the input must not more than roughly double the copying. A quadratic fold quadruples it.
   const small = countCopiedElements(() =>
@@ -752,10 +768,10 @@ test("reduceSceneEvents copying grows LINEARLY with n, not quadratically (#977)"
   );
 });
 
-test("seekToEventIndex copies a LINEAR number of elements over the resume prefix (#977)", () => {
-  // This is what makes the studio's resume claim enforceable rather than merely written down:
-  // `packages/studio/README.md` and `run-controller.ts` both state that the scene fold over a
-  // resumed prefix is linear in how much has been drawn. Lives beside the counter rather than in
+test("seekToEventIndex does not copy through the wrapped mechanisms per event (#977)", () => {
+  // Guards the studio's resume claim against the historical defect's spellings — see the counter's
+  // doc block for what that does and does not cover. The claim itself is a growth claim; this is a
+  // mechanism guard, and the two are not the same thing. Lives beside the counter rather than in
   // `animation.test.mjs` so there is exactly one copy of the instrument to keep correct.
   //
   // The ceiling is tight, not generous: a seek measures exactly 3n — `applyRange`'s ONE slice of
@@ -774,7 +790,7 @@ test("seekToEventIndex copies a LINEAR number of elements over the resume prefix
   );
 });
 
-test("seekToEventIndex copying grows LINEARLY with n, not quadratically (#977)", () => {
+test("seekToEventIndex's wrapped-mechanism copying grows ~2x per doubling, not ~4x (#977)", () => {
   // The ceiling above fixes the constant; this fixes the shape. Both are needed: a ceiling alone
   // passes a quadratic implementation at a small enough n, and a ratio alone passes an
   // implementation that is linear but wasteful.

@@ -328,11 +328,15 @@
  * ### What a delivery costs
  * One execution per delivery, as an `input` answer does. `finishAttempt` resumes the canvas with a
  * single `seekToEventIndex` to the already-drawn boundary rather than stepping to it, so the
- * **scene** fold over that prefix costs one array copy rather than one per event — linear rather
- * than quadratic in how much has been drawn (#977). That is the claim `@openlogo/turtle` pins with
- * a test; it does not extend to a Sprites-heavy stream, whose world fold copies the turtle map on
- * every per-turtle effect event and so costs O(effect events × live turtles) — a separate cost this
- * change does not address.
+ * **scene** fold over that prefix costs one array copy rather than one per event (#977).
+ * `run-controller.test.mjs` guards this wiring — one seek, no stepping over the prefix — because
+ * restoring the old step loop here would otherwise leave every behavioural test in this package
+ * *and* every complexity test in `@openlogo/turtle` green while reintroducing the defect. The fold
+ * itself is guarded there, against the copy mechanisms the original defect used; neither guard is
+ * a proof of linearity in general, and neither extends to a Sprites-heavy stream, whose world fold
+ * copies the turtle map on `spawn-turtle` and on any state-changing event — roughly
+ * `O(spawns² + state-bearing effects × live turtles)` — a separate cost this change does not
+ * address.
  *
  * ### The mechanism is #769's replay, extended
  * A delivery appends to the chain's schedule and runs **another attempt of the same chain** — same

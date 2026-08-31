@@ -134,10 +134,13 @@ export interface AnimationSnapshot {
  * `reduceTurtleWorldEvents`/`reduceSceneEvents` call over the same events would produce.
  *
  * **What is linear and what is not** (#977 — stated narrowly, because this paragraph previously
- * claimed a blanket O(n) the code did not deliver, and a first correction over-claimed again).
+ * claimed a blanket O(n) the code did not deliver, and two corrections over-claimed again).
  * The **scene** fold is linear over any range: {@link seekToEnd} and {@link seekToEventIndex}
- * consume a span with one copy of the item array rather than one per event, and that is the only
- * complexity claim here pinned by a test (`scene.test.mjs` counts the copying).
+ * consume a span with one copy of the item array rather than one per event. `scene.test.mjs`
+ * *guards* that against the copy mechanisms the original defect used — it counts copying through
+ * the array iterator, `slice` and `concat`, and its doc block enumerates the several ways a
+ * quadratic fold could still evade it. Read that as a regression guard, not as a proof of
+ * linearity.
  *
  * Two things are **not** covered by it, both measured rather than assumed:
  * - **Step-driven consumption is O(n²)** — {@link step}, and therefore {@link run} at *every* speed
@@ -149,12 +152,14 @@ export interface AnimationSnapshot {
  *   at least one copy per step too — and cheapening it needs the controller to keep the fold open
  *   across consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot}, which
  *   changes no shared contract and was left out purely on scope.
- * - **The world fold copies the turtle map on every per-turtle effect event** (`world-state.ts`) —
- *   `instruction`, `print`, `clear` and control-flow kinds copy nothing — so a **Sprites** stream
- *   costs O(effect events × live turtles): quadratic when the turtle population grows with the
- *   program, and expensive even at a fixed large sprite count. Measured at a fixed 4 000 effect
- *   events, the effect phase outweighs the spawn phase ~20×, so this is not primarily a
- *   spawn-time cost. Not addressed here and not claimed to be.
+ * - **The world fold copies the turtle map on `spawn-turtle` and on any event that changes a
+ *   turtle's own state** (`world-state.ts`) — `instruction`, `print`, `clear`, control-flow, and
+ *   the scene-only per-turtle kinds `fill`/`stamp` all reuse the map — so the cost is the **sum of
+ *   the live map's size over those events**: roughly `O(spawns² + state-bearing effects × live
+ *   turtles)`. A **Sprites** stream is therefore quadratic in two independent ways, a spawn-only
+ *   stream included. Measured at a fixed 4 000 state-bearing effect events, the effect term
+ *   outweighs the spawn term ~20×, so it is not primarily a spawn-time cost. Not addressed here
+ *   and not claimed to be.
  *
  * So `run()` under a synchronous scheduler and `seekToEnd()` reach the same final scene by
  * different costs. {@link AnimationSnapshot.state} is read out of that same world
