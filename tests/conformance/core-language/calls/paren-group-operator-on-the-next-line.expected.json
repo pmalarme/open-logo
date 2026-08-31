@@ -1,0 +1,192 @@
+{
+  "description": "Parenthesized grouping (issue #1021): `spec/grammar.md:34` makes newlines insignificant inside a parenthesized group, so the branch decision that picks `parenthesized-expression` (grammar.md:213) over `parenthesized-call` (:215) looks PAST any newlines between the head and the operator — a group written across lines reads exactly as its one-line form. Added because the newline-skipping was otherwise proven only in the TypeScript unit suite: deleting the skip left all 931 stack-neutral fixtures passing, and the conformance corpus is the proof meant to outlive this implementation.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [10, 1],
+        "end": [12, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [13, 1],
+        "end": [14, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [13, 1],
+        "end": [14, 6]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [15, 1],
+        "end": [16, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [15, 8],
+        "end": [15, 11]
+      },
+      "payload": {
+        "name": "six",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [11, 3],
+        "end": [11, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [11, 3],
+        "end": [11, 11]
+      },
+      "payload": {
+        "value": 6
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [15, 8],
+        "end": [15, 11]
+      },
+      "payload": {
+        "name": "six",
+        "result": 6
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [15, 1],
+        "end": [16, 4]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [17, 1],
+        "end": [18, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [17, 8],
+        "end": [17, 11]
+      },
+      "payload": {
+        "name": "six",
+        "args": []
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [11, 3],
+        "end": [11, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [11, 3],
+        "end": [11, 11]
+      },
+      "payload": {
+        "value": 6
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [17, 8],
+        "end": [17, 11]
+      },
+      "payload": {
+        "name": "six",
+        "result": 6
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-operator-on-the-next-line",
+        "start": [17, 1],
+        "end": [18, 4]
+      },
+      "payload": {
+        "values": [12]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -635,37 +635,83 @@ test("#944: the one-line word-key spellings now parse as two entries", () => {
   }
 });
 
-// --- issue #709 is adjacent but untouched --------------------------------------------------------
+// --- issue #709, finally closed by #1021 ---------------------------------------------------------
 //
-// `(pi == pi)` mis-reads as a `parenthesized-call` because `spec/grammar.md` defines both
-// `parenthesized-expression` and `parenthesized-call` without saying how to disambiguate a
-// parenthesized expression that *begins* with a callable name. That is a grammar ambiguity needing
-// a `[spec]` ruling, not something a newline fix may resolve — or silence. This fix touches the
-// same parenthesized path, so both directions are pinned here: the defect still reports exactly the
-// diagnostics it reported before, and the controls around it still parse clean.
+// `(pi == pi)` used to mis-read as a `parenthesized-call`: {@link parseParenthesized} committed to
+// the call on the head token alone, so it gathered arguments until it met `==` in an argument slot
+// and raised `ol-bad-token` — while the identical unparenthesized `pi == pi` read clean.
+//
+// This block was pinned as a deliberate NEGATIVE — "the defect still reports exactly the
+// diagnostics it reported before, and is not silenced" — on the belief that `spec/grammar.md`
+// defines `parenthesized-expression` and `parenthesized-call` "without saying how to disambiguate",
+// making it a grammar ambiguity needing a `[spec]` ruling. **That premise was wrong, and #1021
+// measured it.** The grammar is unambiguous here: `(pi == pi)` has no derivation as a
+// `parenthesized-call` (`==` is not an `expression`, :215) and exactly one as a
+// `parenthesized-expression` (:213). It was a reader defect all along, and needed no spec change.
+//
+// So this is the positive replacement, in the shape #944's flip above established. The controls
+// that surrounded the defect are kept exactly as they were — they were clean before and must stay
+// clean — and the traps a lookahead-based fix could break are pinned beside them.
 
-test("issue #709 still reports the same diagnostics — not fixed and not silenced", () => {
+test("#709/#1021: a group headed by a zero-arity reporter parses as an expression", () => {
   const { ast, diagnostics } = OL.parse("print (pi == pi)", doc);
 
+  assert.deepEqual(diagnostics, []);
   assert.deepEqual(
-    diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-bad-token"],
+    OL.check(ast, { profiles: OL.OL_CHECK_PROFILES }).diagnostics,
+    [],
   );
+});
+
+test("#709/#1021: every binary operator is admitted, `-` included", () => {
+  // All of `spec/grammar.md:181-190`'s infix operators: the ten symbolic ones plus the worded
+  // `mod`, `and`, `or` and `is`. `-` is in the list on purpose: an earlier revision of #1021
+  // declared it unresolvable without arity, which measurement disproved — spaced `- 1` continues
+  // the expression while glued `-1` opens an argument, and the reader already tells those apart by
+  // adjacency (`spec/grammar.md:60,230`).
+  for (const operator of [
+    "== pi",
+    "!= pi",
+    "+ 1",
+    "- 1",
+    "* 2",
+    "/ 2",
+    "> 1",
+    "< 1",
+    ">= 1",
+    "<= 1",
+    "mod 2",
+    "and true",
+    "or true",
+    'is a "number"',
+  ]) {
+    const source = `print (pi ${operator})`;
+
+    assert.deepEqual(codesOf(source), [], source);
+  }
+});
+
+test("#709/#1021: the head need not be Core — a profile-blind reader sees no arity", () => {
+  // `heading` is a *turtle* primitive, so `corePrimitiveArity("heading")` is `undefined` and this
+  // reader — deliberately profile-blind (issue #878) — cannot know its arity. The lookahead needs
+  // none: it reads the operator, not the callee.
+  assert.deepEqual(codesOf("forward (heading + 90)"), []);
+  assert.deepEqual(codesOf("forward (heading - 90)"), []);
+});
+
+test("#709/#1021: a user-declared zero-arity procedure works the same way", () => {
   assert.deepEqual(
-    OL.check(ast, { profiles: OL.OL_CHECK_PROFILES }).diagnostics.map(
-      (diagnostic) => diagnostic.code,
-    ),
-    ["ol-too-many-inputs"],
+    codesOf("define zero\n  return 0\nend\nprint (zero == 1)"),
+    [],
   );
 });
 
 test("issue #709 reads a line-spanning group exactly as its one-line form", () => {
-  const { diagnostics } = OL.parse("print (pi ==\n  pi)", doc);
-
-  assert.deepEqual(
-    diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-bad-token"],
-  );
+  // `spec/grammar.md:34` — newlines are insignificant inside one parenthesized group — so the
+  // lookahead skips them and the operator binds across the break on either side of itself.
+  assert.deepEqual(codesOf("print (pi ==\n  pi)"), []);
+  assert.deepEqual(codesOf("print (pi\n  == pi)"), []);
+  assert.equal(shapeOf("print (pi\n  == pi)"), shapeOf("print (pi == pi)"));
 });
 
 test("issue #709's controls still parse clean", () => {
@@ -674,6 +720,127 @@ test("issue #709's controls still parse clean", () => {
 
     assert.deepEqual(diagnostics, [], source);
   }
+});
+
+test("#1021: the lookahead does not swallow a parenthesized call", () => {
+  // The traps a naive "an operator follows, so it is an expression" fix breaks. Each parses clean
+  // TODAY and must keep parsing clean, and each fails for a different reason if the rule is wrong:
+  // `-1` is a negative *argument* (adjacency, not arity, tells it from `- 1`); `and`/`or` are the
+  // variadic logic *heads* here, so the lookahead must look PAST the head; `)` is no operator; and
+  // an ordinary call must be untouched.
+  for (const source of [
+    "print (round -1)",
+    "print (max 1 -2)",
+    "print (and true false)",
+    "print (or true false)",
+    "print (pi)",
+    "print (round 1)",
+    "print (max 1 2)",
+    'print (word "a" "b")',
+    'print (value of :d for key "a")',
+  ]) {
+    assert.deepEqual(codesOf(source), [], source);
+  }
+});
+
+test("#1021: a glued negative argument stays an ARITY question, not a parse error", () => {
+  // `( pi -1 )` is a call of `pi` on `-1`, so it parses clean and the CHECKER reports the arity
+  // mistake. The reader deliberately does not second-guess arity — that is the checker's layer —
+  // which is what keeps it profile-blind.
+  const { ast, diagnostics } = OL.parse("print (pi -1)", doc);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(
+    OL.check(ast, { profiles: OL.OL_CHECK_PROFILES }).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["ol-too-many-inputs"],
+  );
+});
+
+test("#1021: a head short of an input keeps the branch's pre-existing recovery", () => {
+  // The other direction of "no arity in the reader": `( round - 1 )` declines the call, and then
+  // `round` runs the expression reader for its one input. A spaced `-` cannot begin a `primary`,
+  // so `parsePrimary`'s default branch consumes it and reports the first `ol-bad-token`, and
+  // `parseFixedCall` breaks with zero arguments. The trailing `1` and `)` are reported downstream
+  // by the group's tail and the statement loop — three diagnostics from three sites.
+  //
+  // Pinned because the count CHANGED (it was one `ol-bad-token` while the call branch swallowed
+  // these), and the point is that it changed INTO the one-per-stray-token shape this branch has
+  // always had rather than into a new one: `( 1 2 )` and `( 1 2 3 )` already reported that way
+  // before this fix and still do, unchanged.
+  assert.deepEqual(codesOf("print (1 2)"), ["ol-bad-token", "ol-bad-token"]);
+  assert.deepEqual(codesOf("print (1 2 3)"), [
+    "ol-bad-token",
+    "ol-bad-token",
+    "ol-bad-token",
+  ]);
+  assert.deepEqual(codesOf("print (round - 1)"), [
+    "ol-bad-token",
+    "ol-bad-token",
+    "ol-bad-token",
+  ]);
+
+  // `round` took NO argument — the claim above, asserted rather than described.
+  const { ast } = OL.parse("print (round - 1)", doc);
+  assert.equal(ast.body[0].args[0].callee.name, "round");
+  assert.equal(ast.body[0].args[0].args.length, 0);
+
+  // The control that proves the first diagnostic is NOT a grouping artifact: the same `round -`
+  // with no parentheses at all reports the same single `ol-bad-token` on the same token. Without
+  // this, "the group reported it" and "the argument reader reported it" look identical.
+  assert.deepEqual(codesOf("round -"), ["ol-bad-token"]);
+
+  // The stray tokens are reported by several different sites, not by one loop — pinned on the
+  // MESSAGES, because the shared `ol-bad-token` code cannot distinguish them. `( 1 2 3 )`'s `3`
+  // carries the statement loop's terminator wording while its `2` carries the bad-token wording,
+  // so "one diagnostic per stray token" is a shape the paths share, not a path itself.
+  const literalHead = OL.parse("print (1 2 3)", doc).diagnostics.map(
+    (diagnostic) => diagnostic.message,
+  );
+  assert.match(literalHead[0], /don't know how to read 2/);
+  assert.match(literalHead[1], /needs a new line of its own/);
+
+  // `spec/error-model.md:165-172` is the MUST NOT that governs every recovery path: no
+  // unmatched-delimiter diagnostic for a delimiter that is in fact matched. These parentheses are
+  // matched, so no amount of wreckage inside them may produce `ol-unmatched-paren`.
+  for (const source of ["print (round - 1)", "print (round == 1)"]) {
+    assert.ok(
+      !codesOf(source).includes("ol-unmatched-paren"),
+      `${source} must not blame its matched parenthesis`,
+    );
+  }
+});
+
+test("#1021: the arity-short RECOVERY still reads the two spellings apart (saga #1017)", () => {
+  // Two inherited consequences of routing arity-short heads into the expression branch, pinned so
+  // they are documented choices rather than surprises. Both are confined to programs that are
+  // invalid either way, and both are the parser-resynchronisation defect tracked by saga #1017
+  // (Half B) — deliberately NOT special-cased here, because papering over a general defect in one
+  // error path only hides it.
+  //
+  // 1. The trailing operand leaks out of the group as a top-level sibling statement.
+  const oneLine = OL.parse("print (round - 1)", doc);
+  assert.equal(oneLine.ast.body.length, 2);
+  assert.equal(oneLine.ast.body[1].kind, "NumberLit");
+
+  // 2. The one-line and multi-line spellings stop agreeing, because across the newline the `-` is
+  //    reached through `continuesOnNextLine` rather than through a pending argument slot.
+  const multiLine = OL.parse("print (round\n- 1)", doc);
+  assert.deepEqual(multiLine.diagnostics, []);
+  assert.equal(multiLine.ast.body.length, 1);
+  assert.deepEqual(
+    OL.check(multiLine.ast, { profiles: OL.OL_CHECK_PROFILES }).diagnostics.map(
+      (diagnostic) => diagnostic.code,
+    ),
+    ["ol-not-enough-inputs"],
+  );
+
+  // The branch DECISION itself is newline-blind, which is what `spec/grammar.md:34` requires: an
+  // arity-0 head reads identically either way. Only the already-failing recovery differs.
+  assert.deepEqual(codesOf("print (pi - 1)"), []);
+  assert.deepEqual(codesOf("print (pi\n- 1)"), []);
+  assert.equal(shapeOf("print (pi\n- 1)"), shapeOf("print (pi - 1)"));
 });
 
 // --- a multi-line expression spans the source it actually covers ---------------------------------

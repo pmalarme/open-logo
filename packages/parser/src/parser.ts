@@ -1928,6 +1928,58 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return { key, value, source_span: spanBetween(key, value) };
   }
 
+  /**
+   * Does the token at `offset` **continue** an expression rather than **begin** one — i.e. is it
+   * one of the infix operators the expression grammar layers into `expression`
+   * (`spec/grammar.md:181-190`: `or`, `and`, the `compare-op`s and `is`, `+`/`-`, `*`/`/`/`mod`)?
+   *
+   * **The symbolic operators are derived from the predicates the expression readers themselves
+   * branch on** ({@link isAdditiveOp}, {@link isMultiplicativeOp}, {@link isCompareOp}), never
+   * re-listed — the same anti-drift discipline {@link isCalleeName} follows for callee-hood (issue
+   * #853). A symbol added to one of those productions in a future slice reaches this answer through
+   * the reader that already recognises it, so the two cannot disagree about what an operator is.
+   *
+   * **The three worded heads are hand-mirrored, and that is a real seam.** `and`, `or` and `is` are
+   * recognised by their readers with inline `isName(…)` rather than through a shared predicate
+   * ({@link parseOr}, {@link parseAnd}, {@link parseComparison}), so there is no single source of
+   * truth to derive them from and they are restated here with {@link isKeywordToken}. A *new* worded
+   * infix operator — or a rename of one of these three — must be added here by hand; it will not
+   * flow through on its own. `mod` is not in that group: it arrives via
+   * {@link isMultiplicativeOp}, which its reader also uses.
+   *
+   * Every word here is a keyword (`spec/grammar.md:373-374`) and therefore in
+   * {@link NON_PRIMARY_NAMES}, and every symbol here is an `op` token. So **nothing this predicate
+   * admits can start an expression** — which is what makes {@link parseParenthesized} safe to treat
+   * it as proof that the head before it is complete. `not` is deliberately absent: it is prefix
+   * (:191), so it *does* begin an expression and is a perfectly good argument.
+   *
+   * The one token needing care is `-`, the single symbol a `primary` **can** begin with, and the
+   * grammar — not arity — settles it. A leading `-` glued to a numeral is *part of the `number`*
+   * (`spec/grammar.md:60`, restated at :230: *"A leading `-` on a numeral is part of a negative
+   * literal, not a unary operator"*), so `-1` opens an argument while `- 1` continues an
+   * expression. The **lexer emits `op(-) number(1)` for both** — measured, and the module doc of
+   * `tokens.ts` says so outright: *"a `-` that is only ever the minus operator (a negative numeral
+   * is assembled by the reader)"*. So the discriminator is **adjacency**, not token kind:
+   * {@link isNegativeNumberLiteralAt} compares the `-`'s end to the numeral's start on both line and
+   * column, exactly as {@link parseUnary} and {@link continuesOnNextLine} already do. Consulting it
+   * here is what lets `-` join the other nine operators instead of being carved out as an exception
+   * (issue #1021).
+   */
+  function isInfixOperatorAt(offset: number): boolean {
+    if (isNegativeNumberLiteralAt(offset)) {
+      return false;
+    }
+    const token = peek(offset);
+    return (
+      isAdditiveOp(token) ||
+      isMultiplicativeOp(token) ||
+      isCompareOp(token) ||
+      isKeywordToken(token, "and") ||
+      isKeywordToken(token, "or") ||
+      isKeywordToken(token, "is")
+    );
+  }
+
   function parseParenthesized(): ExpressionNode | undefined {
     const open = current();
     advance();
@@ -1944,9 +1996,76 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // `( value of :d for key "a" )` declines here, reaches `parseExpression()`, and lands in
     // {@link parseNamePrimary}'s `value`-then-`of` interception. Widening this condition to admit
     // a worded reader's head word would swallow the reader and re-open #830.
+    //
+    // **A callable head is not enough on its own: the token after it must be able to *be* an
+    // argument.** `(` opens either production and this reader has no backtracking, so committing on
+    // the head alone made `( pi == pi )` gather arguments until it met `==` in an argument slot and
+    // raised `ol-bad-token` — while the identical unparenthesized `pi == pi` read cleanly. Adding
+    // parentheses to group an expression more explicitly is exactly what a learner is taught to do,
+    // so it must never be what breaks the program (issue #1021).
+    //
+    // One token of lookahead settles it, and the grammar makes that lookahead total: an infix
+    // operator can only *continue* an expression, so meeting one right after the head proves the
+    // head was a whole operand and the group is a `parenthesized-expression` (:213), not a
+    // `parenthesized-call` (:215) — a reading the call branch has no derivation for anyway. It is
+    // decided on the token stream alone, with **no arity and no profile knowledge**: `heading` is a
+    // turtle primitive whose arity this profile-blind reader cannot see (issue #878), and it needs
+    // to see none. Newlines are skipped first because they are insignificant inside one
+    // parenthesized group (`spec/grammar.md:34`), so `( pi` ⏎ `+ 1 )` reads like `( pi + 1 )`.
+    //
+    // The AC3 traps all survive by this same rule rather than by exceptions to it: `( round -1 )`
+    // keeps its negative *argument* because a glued `-1` is a `number` literal, not an operator
+    // (see {@link isInfixOperatorAt}); `( and true false )` keeps its variadic call because `and` is
+    // the **head** here, and the lookahead looks *past* the head at `true`; and `( pi )` keeps its
+    // zero-argument call because `)` is no operator.
+    //
+    // What the lookahead deliberately does **not** do is second-guess arity, and both directions of
+    // that were measured rather than assumed:
+    //
+    // - `( pi -1 )` still commits to a call of `pi` on `-1`, so it parses clean and the **checker**
+    //   reports `ol-too-many-inputs` — the arity layer answering an arity question.
+    // - `( round - 1 )`, where the head is short of an input, stays a **parse** error. Declining the
+    //   call sends it to the branch below, where `round` runs {@link parseExpression} for its one
+    //   input; a spaced `-` cannot begin a `primary`, so {@link parsePrimary}'s `default` branch
+    //   consumes it and reports the first `ol-bad-token`, and {@link parseFixedCall} then breaks
+    //   with **zero** arguments (pinned, not described — the test asserts that arity). That first
+    //   diagnostic is not a grouping artifact: the bare, unparenthesized `round -` reports the same
+    //   one on the same token. The trailing `1` and `)` are then reported downstream, by the
+    //   group's tail and by the statement loop — three diagnostics from three sites, one per stray
+    //   token. `spec/error-model.md:165-172`'s MUST NOT is upheld throughout, since
+    //   {@link findUnmatchedDelimiters} answers from the source: no `ol-unmatched-paren` is raised
+    //   for these correctly-matched parentheses.
+    //
+    // That last recovery is inherited in **shape**, not invented — `( 1 2 )` and `( 1 2 3 )` already
+    // reported one `ol-bad-token` per stray token before this change and are unchanged by it. What
+    // is inherited is that shape, not one shared code path: the diagnostics come from several sites
+    // and their messages say so (`( 1 2 3 )`'s `3` carries the statement loop's *"each instruction
+    // needs a new line of its own"*, not a bad-token-in-a-group message). The difference worth
+    // naming is at the front: a literal head runs no argument reader at all, whereas above the
+    // **first** diagnostic is raised inside `round`'s argument attempt — which is exactly what the
+    // bare, unparenthesized `round -` control pins, since it reports that same single diagnostic on
+    // that same token with no group anywhere in sight.
+    //
+    // Declining the call newly routes arity-short heads into that recovery, with two consequences
+    // worth naming rather than discovering later. Both are confined to programs that are **invalid
+    // either way**, and both belong to the parser-resynchronisation defect tracked by saga #1017
+    // (Half B, *"after rejecting a token the parser does not resynchronise, so one mistake yields
+    // several messages"*); they are deliberately **not** special-cased here, since papering over a
+    // general defect in one error path only hides it:
+    //
+    // 1. The trailing operand leaks out of the group as a top-level sibling statement, so
+    //    `print ( round - 1 )` yields `print(round())` *and* a stray `1`.
+    // 2. The one-line and multi-line spellings of such a group stop agreeing:
+    //    `print ( round` ⏎ `- 1 )` parses clean as `print(round() - 1)` and leaves the arity
+    //    complaint to the checker, because there the `-` is reached through
+    //    {@link continuesOnNextLine} rather than through a pending argument slot. `spec/grammar.md:34`
+    //    makes newlines insignificant inside a group, and for the branch **decision** above they are
+    //    (that is what {@link skippingNewlines} is for, and an arity-0 head such as `pi` agrees in
+    //    both spellings). It is only this already-failing **recovery** that still reads them apart.
     if (
       head.kind === "name" &&
-      (isCalleeName(head.text) || lower === "and" || lower === "or")
+      (isCalleeName(head.text) || lower === "and" || lower === "or") &&
+      !isInfixOperatorAt(skippingNewlines(1))
     ) {
       advance();
       const callee =
