@@ -22,11 +22,24 @@ top of that: each returned token keeps `highlight()`'s `class`/`role`/span field
 [`tooling.md:278-280`](../../spec/tooling.md#L278-L280) — `declaration`, `reference`, `readonly`,
 `defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
 
-`options` is optional on both (`HighlightOptions`). Its one field, `profiles`, is the **active
-profile set**, in the same vocabulary `check()` uses. It decides a single thing: a profile
-block-head — Sprites' `ask`/`each` and its mode-switch command `tell`, Interaction's
-`when`/`every`/`on_key`/`on_click` — is `keyword` while its profile is active
-([`tooling.md:30`](../../spec/tooling.md#L30)) and `primitive` without it
+`options` is optional on both (`HighlightOptions`); `document` is **required** on both, and that is
+a rule rather than an accident. **A `document` parameter may keep a default only where it is the
+last parameter** — otherwise a two-argument call binds the argument meant for the next parameter
+into the `document` slot, which is silent in JavaScript and cost this repo two false issues (#832,
+#840) before #951 closed it. The hazard is not specific to an options object: a trailing
+`profiles: readonly CheckProfile[]` mis-binds an array just as silently, and TypeScript permits a
+required parameter after a defaulted one. `parse(source, document = "<input>")` is compliant with
+the rule today because nothing follows it — it is not immune to the trap, only out of its reach, so
+**appending** a parameter after `document` means making it required in the same change. Inserting
+one *before* `document` leaves it last, so this rule permits it — but that is not a free move
+either: it re-binds every existing two-argument call, and if the inserted parameter carries its own
+default the same trap moves one slot to the left. The `execute(source, document, options)` entry
+point in `@openlogo/runtime` already has that shape.
+
+`options`' one field, `profiles`, is the **active profile set**, in the same vocabulary `check()`
+uses. It decides a single thing: a profile block-head — Sprites' `ask`/`each` and its mode-switch
+command `tell`, Interaction's `when`/`every`/`on_key`/`on_click` — is `keyword` while its profile
+is active ([`tooling.md:30`](../../spec/tooling.md#L30)) and `primitive` without it
 ([`:31`](../../spec/tooling.md#L31)). Profile *primitives* (the Sound commands, `wait`, `input`,
 the Sprites reporters) are `primitive` under every profile set. Omit `options` and both APIs read
 as Core Language alone, which is exactly what callers saw before the option existed.

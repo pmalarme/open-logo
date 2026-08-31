@@ -170,6 +170,190 @@ export interface HighlightOptions {
 }
 
 /**
+ * The kinds {@link describeArgument} names: `typeof`'s eight results, plus `"null"` and `"array"`,
+ * which `typeof` collapses into `"object"`.
+ *
+ * A closed union rather than `string` so the compiler, not the tests, is what keeps
+ * {@link ARM_FOR_KIND} total: adding a member here is an error at that `Record` until it is mapped,
+ * and removing one is an error at `describeArgument`'s `return typeof value`. Both directions
+ * matter, and neither is enforceable with a bare `string`.
+ */
+type ArgumentKind =
+  | "null"
+  | "array"
+  | "undefined"
+  | "object"
+  | "string"
+  | "number"
+  | "boolean"
+  | "function"
+  | "symbol"
+  | "bigint";
+
+/** The {@link adviceFor} arm a `document` of a given {@link ArgumentKind} gets. */
+type AdviceArm = "required" | "object" | "generic";
+
+/**
+ * Which arm each kind takes — total over {@link ArgumentKind} by the `Record`, so a new kind is a
+ * compile error here until it is mapped and can never reach a fall-through default.
+ *
+ * Exported for the tests, which use `Object.keys` as the oracle for "every kind is swept". It is
+ * deliberately **not** re-exported from `index.ts`, so it stays package-internal; the tests reach
+ * it by the `../dist/*.js` relative import this repo already uses for internals (for example
+ * `child-edges.test.mjs` → `../dist/ast.js`).
+ *
+ * (`"string"` is mapped for totality only — {@link assertDocumentArgument} returns before a string
+ * can reach {@link adviceFor}.)
+ */
+export const ARM_FOR_KIND: Record<ArgumentKind, AdviceArm> = {
+  undefined: "required",
+  object: "object",
+  null: "generic",
+  array: "generic",
+  string: "generic",
+  number: "generic",
+  boolean: "generic",
+  function: "generic",
+  symbol: "generic",
+  bigint: "generic",
+};
+
+/** Name a runtime value for a diagnostic message: `null` and arrays are not just `"object"`. */
+function describeArgument(value: unknown): ArgumentKind {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+}
+
+/**
+ * The advice each arm produces. A `Record` over {@link AdviceArm} for the same reason
+ * {@link ARM_FOR_KIND} is one over {@link ArgumentKind}: it is **total by type**, so a new arm is a
+ * compile error here until it is written, and there is no fall-through default for it to land in.
+ *
+ * A `switch` with an `assertNever` default gives exhaustiveness too, but strictly less. This form
+ * additionally makes an arm that is written but **routed to no kind** a dead function, which the
+ * 100%-function-coverage gate fails — a guarantee `assertNever` cannot give at all, and one it
+ * would have cost by permanently parking an uncoverable `default` in a repo that gates at 100%.
+ * Exhaustive *and* non-vacuous, with no branches.
+ *
+ * The two lookups also defend each other's annotations, which is what makes them hard to weaken:
+ * because {@link adviceFor} is the single composed expression `ADVICE_BY_ARM[ARM_FOR_KIND[k]](c)`,
+ * loosening either `Record`'s key type to `string` makes the *other* lookup ill-typed (`TS2538` on
+ * the index, `TS2722` on the call). That coupling is a property of the two annotations, not of the
+ * expression's shape — splitting it into intermediate variables was measured and still produces
+ * both errors — so it survives an ordinary refactor.
+ *
+ * Exported, with {@link ARM_FOR_KIND}, only so the tests can use `Object.keys` as an oracle; it is
+ * not re-exported from `index.ts` and stays package-internal, which a test asserts.
+ */
+export const ADVICE_BY_ARM: Record<
+  AdviceArm,
+  (callee: "highlight" | "semanticTokens") => string
+> = {
+  required: (callee) =>
+    `\`document\` is required: name the source, e.g. ${callee}(source, "<input>").`,
+  object: (callee) =>
+    `An options object belongs in the THIRD argument — ${callee}(source, "<input>", { profiles }). ` +
+    "Passed second it would bind to `document`, which is why this is rejected rather than " +
+    "silently discarding your options.",
+  generic: (callee) =>
+    `Pass a string naming the source, e.g. ${callee}(source, "<input>").`,
+};
+
+/**
+ * The remedy to offer for a `document` of `received` kind (as named by {@link describeArgument}).
+ *
+ * Three arms, because the mistakes have **disjoint** remedies — "put a string in that slot" versus
+ * "move your object to third position" versus "that is not a name at all". One message would have
+ * to state them all and leave the caller to work out which applies, and having to work that out is
+ * the exact cost #951 was about. Only an object is plausibly a misplaced options bag: an omitted
+ * or `undefined` argument needs a **string** in that slot (it is not a missing argument when the
+ * caller wrote `undefined` explicitly, so "add a second argument" would be wrong advice), while
+ * `null`, an array, and a number are simply the wrong type — so no arm but the object one is told
+ * to move options it never passed.
+ *
+ * The object arm is `describeArgument`'s `"object"`, i.e. **any** non-null, non-array object. That
+ * breadth is what `typeof` hands us rather than a decision that was weighed — but it is also the
+ * safer default, and that is the reason to keep it. `Object.getPrototypeOf(value) ===
+ * Object.prototype` is false for a same-realm options bag built with
+ * `Object.assign(Object.create(null), { profiles: [...] })` — no `vm` needed — and false again for
+ * one built in another realm, so a prototype-narrowed predicate would route the **real** mistake
+ * shape to "that is not a name at all" and lose the options advice on the one call it was written
+ * for.
+ *
+ * A shape test (`"profiles" in value`) would be better still: it is prototype- and realm-agnostic,
+ * so it keeps both of those on the object arm, and it also fixes the cost at the other end — a
+ * boxed `new String("x")`, which a caller might genuinely have meant as a name, currently gets the
+ * options advice. The prototype argument above does **not** count against it. What counts against
+ * it is that `profiles` is **optional** on {@link HighlightOptions}, so the test keys on a field a
+ * perfectly valid options bag need not carry: `highlight(src, {})`, `highlight(src, { profile: [] })`
+ * — the singular typo, a caller already in trouble — and every bag using a field this interface
+ * has not grown yet would all fall to the generic arm and lose the options advice. That cost is
+ * open-ended and grows with the interface, which is why this is not being done. A considered
+ * alternative, recorded so the next reader inherits the reasoning rather than re-deriving it — not
+ * scheduled work, and there is no tracking issue.
+ */
+
+function adviceFor(
+  received: ArgumentKind,
+  callee: "highlight" | "semanticTokens",
+): string {
+  return ADVICE_BY_ARM[ARM_FOR_KIND[received]](callee);
+}
+
+/**
+ * Reject a non-string in the `document` slot of {@link highlight}/{@link semanticTokens} (#951).
+ *
+ * When `document` was optional, `highlight(source, { profiles })` bound the options object to
+ * `document`, so `options` defaulted to `{}` and `activeProfiles` silently fell back to
+ * {@link DEFAULT_CHECK_PROFILES} — a plausible, wrong answer — *and* wrote that object into every
+ * token's `source_span.document`, a field typed `string`. That trap produced two false issues
+ * (#832, #840) and a withdrawn Epic Gate PASS before it was closed; the ledger is
+ * `.github/skills/shared/review-gate/SKILL.md:175-178`.
+ *
+ * The two halves of the fix do different jobs, and neither substitutes for the other. Making
+ * `document` **required** is the static half: TypeScript then rejects both the omission and the
+ * mis-bound object. This guard is the runtime half, and it is the one that matters in practice,
+ * because a two-argument call from `.mjs` — where every test that calls these functions, and every
+ * script here, lives — still binds the object into the slot with no types to stop it.
+ *
+ * The governing rule, stated so the next entry point inherits it rather than re-deriving it:
+ * **a `document` parameter may keep a default only where it is the last parameter.** Phrasing it
+ * as "only where no *options* parameter follows" would be under-general — a trailing
+ * `profiles: readonly CheckProfile[]` mis-binds an array into `document` just as silently, and
+ * TypeScript permits a required parameter after a defaulted one. `parse(source, document =
+ * "<input>")` is compliant with the rule today because nothing follows it; **appending** anything
+ * after it means making `document` required in the same change. Inserting a parameter *before*
+ * `document` leaves it last, so this rule permits it — but that is not a free move either: it
+ * re-binds every existing two-argument call, and if the inserted parameter carries its own default
+ * the same trap simply moves one slot to the left. `@openlogo/runtime`'s `execute(source,
+ * document, options)` already has the required-`document` shape this now matches.
+ *
+ * This does **not** weaken the never-throw contract {@link highlight} states. That contract is
+ * about malformed *OpenLogo source* — any `source` string still yields a best-effort token stream.
+ * `document` is a host argument, so tripping this is a caller bug that is deterministic and
+ * independent of the program being classified: a caller passing a literal (as `@openlogo/studio`
+ * does on every keystroke) can never reach it.
+ */
+export function assertDocumentArgument(
+  document: unknown,
+  callee: "highlight" | "semanticTokens",
+): void {
+  if (typeof document === "string") {
+    return;
+  }
+  const received = describeArgument(document);
+  throw new TypeError(
+    `${callee}(source, document, options): \`document\` must be a string naming the source, but ` +
+      `received ${received}. ${adviceFor(received, callee)}`,
+  );
+}
+
+/**
  * Classify `source` into a flat, source-ordered `Token[]` — the grammar-derived lexical first
  * pass. Reuses {@link tokenize} for the raw token stream and {@link parse} for the AST that
  * resolves grammatical position (list/instruction-block/selector roles, dict-key selector
@@ -181,12 +365,19 @@ export interface HighlightOptions {
  * input that changes a class here, and it changes exactly one thing: whether a profile
  * block-head — or the Sprites mode-switch command `tell`, which takes no block — is `keyword`
  * or `primitive`. Profile *primitives* never move.
+ *
+ * `document` names the source for each token's `source_span` and is **required**. TypeScript then
+ * rejects an options object in that slot; {@link assertDocumentArgument} rejects it at runtime,
+ * where `.mjs` callers live and where it would otherwise still bind silently. That guard is about
+ * the host's *arguments*, and leaves the never-throw contract above — which is about malformed
+ * *source* — intact.
  */
 export function highlight(
   source: string,
-  document = "<input>",
+  document: string,
   options: HighlightOptions = {},
 ): Token[] {
+  assertDocumentArgument(document, "highlight");
   const activeProfiles = options.profiles ?? DEFAULT_CHECK_PROFILES;
   const lex = tokenize(source, document).tokens;
   const program = parse(source, document).ast;

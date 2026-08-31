@@ -308,7 +308,7 @@ test("the studio's classes match batch highlight() token-for-token for the same 
     const studioTokens = createParserHighlighter({ profiles })(
       PROFILE_BLOCK_HEAD_SOURCE,
     );
-    const batchTokens = highlight(PROFILE_BLOCK_HEAD_SOURCE, undefined, {
+    const batchTokens = highlight(PROFILE_BLOCK_HEAD_SOURCE, "<input>", {
       profiles,
     });
 
