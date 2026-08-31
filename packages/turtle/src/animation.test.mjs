@@ -720,7 +720,7 @@ test("reset() restores the controller's world to its seed", () => {
  * and nothing else: a reducer that mis-handles an event kind, or one that `applyRange` drops
  * entirely, is invisible to it (a mutation deleting the overlay fold passed this test). Per-event
  * semantics are pinned only by the concrete-value tests elsewhere in this file and in
- * `scene.test.mjs`/`overlay.test.mjs`, and by the independent-oracle test below. **Do not delete
+ * `scene.test.mjs`/`overlay.test.mjs`, and by the wiring-oracle test below. **Do not delete
  * those on the assumption that this every-index loop subsumes them — it does not.**
  */
 function fastForwardByStepping(events, alreadyDrawn) {
@@ -750,7 +750,7 @@ function fastForwardByStepping(events, alreadyDrawn) {
  * **What this fixture does and does not buy.** It exercises step boundaries over richer kinds. It
  * does **not**, on its own, catch a reducer that `applyRange` drops entirely — a mutation deleting
  * the overlay fold still passes the every-index loop, because that oracle drives `step()`, which
- * reaches the reducers through the same `applyRange`. The independent-reducer test below is what
+ * reaches the reducers through the same `applyRange`. The wiring-oracle test below is what
  * catches that. Stated because the enrichment was added in response to exactly that mutation and it
  * would be easy to assume it closed it.
  *
@@ -1005,6 +1005,65 @@ test("a no-move seekToEventIndex while running leaves playback alive (#977)", ()
   assert.equal(cancelled, 1, "a moving seek must cancel the scheduled step");
   assert.equal(pending, null);
   assert.equal(controller.getSnapshot().status, "done");
+});
+
+test("a zero-effect instruction is its own step (#977 — the stepEndFrom boundary)", () => {
+  // `stepEndFrom` is new in this change and is documented as "the single definition of a step
+  // boundary, shared by consumeOneStep and seekToEventIndex". Nothing pinned it: no other fixture
+  // contains two ADJACENT `instruction` events, and the every-index seek≡step oracle structurally
+  // cannot see a boundary defect because both sides route through `stepEndFrom` — subject compared
+  // with subject. Mutating `cursor + 1` to `cursor + 2` swallowed a whole program (cursor 4,
+  // status "done", one item drawn, on the first step) with the entire suite still green.
+  //
+  // `spec/rendering.md`: a step is one `instruction` plus every effect event up to the next
+  // `instruction` or the end of the stream — so an instruction that produces no effects is a step
+  // all by itself.
+  const events = [
+    event("instruction", { text: "pen_down" }),
+    event("instruction", { text: "forward 10" }),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }),
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 10],
+      color: "black",
+      width: 1,
+    }),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+
+  controller.step();
+  assert.equal(
+    controller.getSnapshot().cursor,
+    1,
+    "the first step ends at the next instruction, consuming only the zero-effect one",
+  );
+  assert.equal(controller.getSnapshot().scene.items.length, 0);
+  assert.equal(controller.getSnapshot().status, "paused");
+
+  controller.step();
+  assert.equal(controller.getSnapshot().cursor, 4);
+  assert.equal(controller.getSnapshot().scene.items.length, 1);
+  assert.equal(controller.getSnapshot().status, "done");
+});
+
+test("seekToEventIndex respects a zero-effect instruction's boundary too (#977)", () => {
+  // The same boundary, reached through the seek rather than through `step()`, so a defect in the
+  // shared `stepEndFrom` is caught on both of its callers rather than only one.
+  const events = [
+    event("instruction", { text: "pen_down" }),
+    event("instruction", { text: "forward 10" }),
+    event("move", { from: [0, 0], to: [0, 10], heading: 0 }),
+    event("draw-segment", {
+      from: [0, 0],
+      to: [0, 10],
+      color: "black",
+      width: 1,
+    }),
+  ];
+  const controller = new OL.TurtleAnimationController(events);
+  controller.seekToEventIndex(1);
+  assert.equal(controller.getSnapshot().cursor, 1);
+  assert.equal(controller.getSnapshot().scene.items.length, 0);
 });
 
 test("seekToEventIndex never lands mid-step: the cursor is always a step boundary", () => {

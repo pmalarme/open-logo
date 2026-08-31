@@ -149,9 +149,12 @@ export interface AnimationSnapshot {
  *   at least one copy per step too — and cheapening it needs the controller to keep the fold open
  *   across consecutive steps and materialise a `TurtleScene` only in {@link getSnapshot}, which
  *   changes no shared contract and was left out purely on scope.
- * - **The world fold copies the turtle map per event** (`world-state.ts`), so a **Sprites** stream
- *   that spawns *n* turtles is O(n²) inside a single seek regardless of the scene fold. Not
- *   addressed here and not claimed to be.
+ * - **The world fold copies the turtle map on every per-turtle effect event** (`world-state.ts`) —
+ *   `instruction`, `print`, `clear` and control-flow kinds copy nothing — so a **Sprites** stream
+ *   costs O(effect events × live turtles): quadratic when the turtle population grows with the
+ *   program, and expensive even at a fixed large sprite count. Measured at a fixed 4 000 effect
+ *   events, the effect phase outweighs the spawn phase ~20×, so this is not primarily a
+ *   spawn-time cost. Not addressed here and not claimed to be.
  *
  * So `run()` under a synchronous scheduler and `seekToEnd()` reach the same final scene by
  * different costs. {@link AnimationSnapshot.state} is read out of that same world

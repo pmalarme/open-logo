@@ -232,10 +232,17 @@ export function reduceSceneRange(
   start: number,
   end: number,
 ): TurtleScene {
-  // Both bounds clamped into `[0, events.length]` BEFORE use, because `Array.prototype.slice`
-  // reads a negative index as an offset from the end: `slice(0, -1)` drops the last element rather
-  // than yielding nothing, so an unclamped negative bound would fold almost the whole stream where
-  // this function promises an empty range.
+  // `end` is clamped into `[0, events.length]` before use, because `Array.prototype.slice` reads a
+  // negative index as an offset from the end: `slice(0, -1)` drops the last element rather than
+  // yielding nothing, so an unclamped negative `end` would fold almost the whole stream where this
+  // function promises an empty range. Its UPPER clamp is load-bearing too — it is what lets an
+  // `end` past the array still reach the in-place branch below.
+  //
+  // `start`'s lower clamp is load-bearing for the same negative-index reason. Its upper clamp is
+  // not: `slice` already yields `[]` once `from` exceeds the length, so no input distinguishes it.
+  // It is here so both bounds read alike, and deliberately has no test — one cannot exist.
+  // Non-finite bounds are out of contract: `NaN` survives both clamps and merely misses the
+  // in-place branch (`NaN === 0` is false), which costs an allocation but changes no result.
   const from = Math.min(Math.max(start, 0), events.length);
   const to = Math.min(Math.max(end, 0), events.length);
   const fold = startFold(scene);
