@@ -1,0 +1,15 @@
+# Issue #1021, the other direction: the one-token lookahead that makes `(pi == pi)` a parenthesized
+# expression must NOT swallow a genuine `parenthesized-call` (grammar.md:215). Each line here is a
+# trap for a naive "an operator follows, so this is an expression" rule, and each fails differently
+# if the rule is wrong:
+#   - `and`/`or` are the variadic logic HEADS here, not infix uses, so the lookahead must look PAST
+#     the head token before judging;
+#   - `(pi)` is a zero-argument call with nothing following at all — `)` is no operator;
+#   - an ordinary fixed call, a word-building call, and the variadic `(print …)` form must be
+#     completely untouched.
+print (and true false)
+print (or true false)
+print (pi)
+print (round 1)
+print (word "a" "b")
+(print 1 2 3)
