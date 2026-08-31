@@ -59,7 +59,11 @@
         "end": [1, 7]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "space"
+        }
       }
     },
     {
@@ -95,7 +99,11 @@
         "end": [1, 23]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 10
+        }
       }
     },
     {
@@ -131,7 +139,11 @@
         "end": [1, 23]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 10
+        }
       }
     },
     {
@@ -167,7 +179,11 @@
         "end": [1, 23]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 10
+        }
       }
     },
     {

@@ -46,6 +46,7 @@ import type { Diagnostic, TraceEvent } from "@openlogo/core";
 import { runProgram } from "./execute-internal.js";
 import type { CancellationSignal } from "./evaluate.js";
 import type { HostInputEvent } from "./interaction.js";
+import type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
@@ -94,6 +95,7 @@ export {
 } from "./interaction.js";
 export type { TickClock } from "./interaction.js";
 export type { HostInputEvent } from "./interaction.js";
+export type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
 export type {
   TutorCommandMetadata,
   TutorContext,
@@ -104,13 +106,20 @@ export type {
 export const RUNTIME_PACKAGE = "@openlogo/runtime";
 
 /**
- * Payload for the generic `instruction` start event this M0 spine emits: the AST node kind of
- * the top-level statement about to run. Refined per-statement payload shapes (e.g. the callee
- * name for a `Call`) are added by the evaluator slice that gives that statement kind meaning.
+ * Payload for the generic `instruction` start event, re-exported unchanged from `@openlogo/core`.
+ *
+ * It was declared **here** until issue #954, the only `*Payload` type in the monorepo living outside
+ * `@openlogo/core` — which owns the trace/event contract while this package merely produces it. It
+ * now lives beside every other payload type in `packages/core/src/events.ts`, where #954's handler
+ * discriminator ({@link HandlerFiring}) was added to it. The re-export is kept so
+ * `@openlogo/runtime`'s public surface is unchanged for anything that already imported the name from
+ * here.
  */
-export interface InstructionPayload {
-  readonly statement_kind: string;
-}
+export type {
+  HandlerFiring,
+  HandlerKind,
+  InstructionPayload,
+} from "@openlogo/core";
 
 /** The result of {@link execute}: the ordered trace/event stream plus any diagnostic. */
 export interface ExecuteResult {
@@ -176,8 +185,12 @@ export interface ExecuteResult {
  *   each `wait`/tick checkpoint and drains them in spec order. Entries may be supplied in any order —
  *   they are copied and sorted by non-decreasing `tick` once per run; same-tick entries keep caller
  *   order (a stable sort), which is the deterministic tie-break the same-tick order depends on. This
- *   is host-supplied execution *context*, exactly like `signal`: it is never observable in any
- *   trace-event payload (the event stream stays headless — no tick, coordinate, or key smuggled in).
+ *   is host-supplied execution *context*, exactly like `signal`: no *host* fact is smuggled into the
+ *   trace stream — no tick, no coordinate, and no delivery timing appears in any payload, which is
+ *   what keeps the stream headless. Since issue #954 an `on_key` firing's `instruction` payload does
+ *   carry a **key word**, but that is the word the *program* registered (`InstructionPayload.handler`
+ *   in `@openlogo/core`), reported because a delivered key only ever matches a handler whose own
+ *   registered key equals it — never the host's raw device input, and never a key no handler named.
  *   It deliberately does **NOT** model a TTY or pointer device, does **NOT** define any
  *   input-coalescing policy, and is **NOT** the blocking `input` reporter: that reporter's scripted
  *   answers are the sibling {@link HostInput.responses} field (issue #681, per the #657 ruling —
@@ -236,6 +249,38 @@ export interface ExecuteResult {
  *   Pass a **fresh empty array** per run: the events are appended, never cleared, so reusing one
  *   across runs concatenates them. Reading it while a run is in progress is only meaningful from
  *   inside a `read` call, since `execute()` never yields anywhere else.
+ * - `handlerRegistrations` (issue #975) — a caller-supplied array this run appends one
+ *   {@link HandlerRegistration} to per handler registration, in registration order. It answers the
+ *   first of the two questions an interactive host could not previously ask the runtime: **which key
+ *   words currently have handlers.**
+ *
+ *   A host must decide *synchronously, inside a browser `keydown` handler*, whether a key belongs to
+ *   the running program, because that decision drives `preventDefault` and is wrong in both
+ *   directions — too eager steals the editor's keys and the page's scrolling from the ~90% of
+ *   programs with no interaction, too lazy scrolls the studio away while a learner plays a game. The
+ *   registration `primitive` event carries only the primitive's *name*
+ *   (`spec/interaction-events.md:120-122`), never its key word, so answering it previously meant
+ *   parsing the source and pairing declarations to registration events **by source position**. This
+ *   sink is the runtime handing over the key word it already had.
+ *
+ *   Read the honest limit on {@link HandlerRegistration}: a registration does not exist until its
+ *   statement executes, so no implementation can answer *before* a run — what this gives is "which
+ *   handlers are registered **now**". For an in-process host that is sufficient, because `execute()`
+ *   is synchronous: the log is complete the instant the call returns, inside the same `keydown` turn.
+ * - `handlerDeliveries` (issue #975) — a caller-supplied array this run appends one
+ *   {@link HandlerDelivery} to per host-input occurrence it actually delivers, in delivery order,
+ *   each counting how many handler bodies that occurrence ran. It answers the second question:
+ *   **was this delivered input handled** (`handled === invocations > 0`).
+ *
+ *   Both host-side proxies for this were measured unsound, and {@link HandlerDelivery} records why:
+ *   event-stream growth is not monotonic in the thing it proxies (a handler that *raises* shortens
+ *   the stream), and asking after the run settles answers a turn too late to suppress anything.
+ *
+ *   Like `observedEvents` and `tickTimeline` these are **out-of-band sinks, not trace payload
+ *   fields**, and they change no event, diagnostic, or ordering — a run with and without them emits
+ *   byte-identical `events` and `diagnostics`. Both default to omitted, in which case nothing is
+ *   recorded and no record is allocated. Pass a **fresh empty array** per run, for the same reason
+ *   `observedEvents` requires one.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -246,6 +291,8 @@ export interface ExecuteOptions {
   readonly hostInput?: HostInput;
   readonly randomSeed?: number;
   readonly observedEvents?: TraceEvent[];
+  readonly handlerRegistrations?: HandlerRegistration[];
+  readonly handlerDeliveries?: HandlerDelivery[];
 }
 
 /**

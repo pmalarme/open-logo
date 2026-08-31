@@ -83,7 +83,11 @@
         "end": [2, 7]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "space"
+        }
       }
     },
     {
@@ -119,7 +123,11 @@
         "end": [1, 6]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
       }
     },
     {
@@ -155,7 +163,11 @@
         "end": [1, 6]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
       }
     },
     {

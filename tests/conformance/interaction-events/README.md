@@ -231,6 +231,39 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   any event payload; it is NOT a device/TTY, defines no coalescing policy, and is NOT the blocking
   `input` reporter — that reporter's scripted answers are the sibling `hostInput.responses` field
   (#681/#657, see `input/` above).
+
+  **The handler discriminator (issue #954)** is proven by two fixtures here.
+  `handler-firing-discriminated-from-registration` is the gap in one file: an `on_key` registration
+  and its firing emit `instruction` events that start at the **same** line 1 column 1 with the same
+  `statement_kind`, and before #954 they differed only in `end` column (27 versus 7) — so a consumer
+  told registration from firing by comparing span **width**, an invariant the spec never states and
+  no fixture asserted. Now the registration carries no `handler` key at all while the firing carries
+  `{kind: "on_key", key: "space"}`. `handler-firing-names-its-own-argument` supplies the
+  discriminating power a single-handler fixture cannot: four handlers with four distinct arguments
+  (keys `space`/`enter`, intervals 2/3) all fire in one run, so a payload that hardcoded its argument
+  or read a sibling's fails. `on_key/on-key-registered-not-delivered` is the negative control — a
+  registration that never fires produces no `handler` key anywhere. What the payload carries is the
+  handler's **registration-time signature**: the block-head kind plus the argument the handler was
+  registered with, evaluated (so `every :n` reports the number `:n` held at registration, and
+  `every "3"` reports the number `3`, not the word). It excludes **occurrence and dispatch
+  metadata** — anything describing *when* or *how* one firing was delivered — which is the rule
+  recorded on `HandlerFiring` in `@openlogo/core` and the reason a **tick** is deliberately not
+  carried there: a tick describes when a firing happened rather than what the handler is, and
+  `spec/interaction-events.md:69-73` makes it an implementation-defined logical frame besides. It is
+  a signature and **not an identifier**: duplicate registrations (`repeat 3 [ on_key "space" … ]`)
+  emit an identical payload *and* an identical span, so the stream cannot tell them apart — a
+  consumer needing per-registration identity uses `ExecuteOptions.handlerRegistrations` instead.
+  Note also what is *not* claimed: a registered argument may be computed (`every (random 1 3) [ … ]`),
+  and `spec/commands.md:353-378` promises reproducible randomness only within an implementation, so
+  this is not a claim that two independent implementations emit identical values here.
+
+  The **inbound** half of that contract — `ExecuteOptions.handlerRegistrations` ("which key words
+  currently have handlers") and `ExecuteOptions.handlerDeliveries` ("was this delivered input
+  handled"), issue #975 — is deliberately **not** fixtured here. Those are host-facing TypeScript
+  API rather than language behavior: a conformant implementation in another language would expose
+  them differently, so pinning them in a stack-neutral corpus would over-claim. They are proven in
+  `packages/runtime/src/handler-contract.test.mjs`, which also asserts that supplying the sinks
+  leaves `events` and `diagnostics` byte-identical — the property that keeps them out of band.
 - **`forms-check-clean/`** and **`forms-unknown-without-interaction/`** — the profile-wide tooling
   pair (issue #687, slice I8; extended by #681, slice I2): one `check`-mode program that USES all
   six implemented forms together (`wait` and `input` plus the four block-heads, with `wait` nested

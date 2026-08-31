@@ -64,7 +64,11 @@
         "end": [1, 5]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "when",
+          "event": "acme.shake"
+        }
       }
     },
     {
@@ -100,7 +104,11 @@
         "end": [1, 5]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "when",
+          "event": "acme.shake"
+        }
       }
     },
     {

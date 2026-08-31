@@ -72,7 +72,11 @@
         "end": [2, 6]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
       }
     },
     {
