@@ -100,7 +100,7 @@
       "params": {
         "text": "mod"
       },
-      "message": "i don't know how to read mod here.",
+      "message": "i don't know how to read mod here. mod is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -142,7 +142,7 @@
       "params": {
         "text": "mod"
       },
-      "message": "i don't know how to read mod here.",
+      "message": "i don't know how to read mod here. mod is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -184,7 +184,7 @@
       "params": {
         "text": "and"
       },
-      "message": "i don't know how to read and here.",
+      "message": "i don't know how to read and here. and is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -226,7 +226,7 @@
       "params": {
         "text": "and"
       },
-      "message": "i don't know how to read and here.",
+      "message": "i don't know how to read and here. and is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
