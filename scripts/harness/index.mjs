@@ -1040,29 +1040,90 @@ export function diffStream(label, keyField, expected, actual) {
   return null;
 }
 
+/**
+ * The five fields that are a diagnostic's **identity** under `spec/error-model.md:254-259`:
+ * "diagnostic identity is `code` plus `params`; prose is presentation", with the span, stage and
+ * severity carried alongside because a fixture asserts *where* and *when* too. Every fixture is
+ * compared on these, always.
+ */
+function diagnosticIdentity(diagnostic) {
+  return {
+    code: diagnostic.code,
+    source_span: diagnostic.source_span,
+    params: diagnostic.params,
+    stage: diagnostic.stage,
+    severity: diagnostic.severity,
+  };
+}
+
+/**
+ * Does this **expected** diagnostic opt into having its learner `message` compared? The opt-in is
+ * the presence of the `message` key itself — a fixture that writes one is asserting it (issue
+ * #1025).
+ *
+ * **Why presence, and not a separate flag.** The corpus already carried 306 `message` fields across
+ * 193 files, none of them compared: data that reads as evidence and is not. A flag would have left
+ * every one of them inert until somebody went back and set it, which is the same defect one level
+ * up; making presence the opt-in turns all 306 live in one step and leaves nothing
+ * present-but-ignored. It is also the finest possible grain — per diagnostic, not per fixture — so
+ * a fixture may pin the one message it cares about and leave its siblings on identity alone.
+ *
+ * **Why this does not break the localization boundary.** `spec/error-model.md:254-259` says tests
+ * "SHOULD assert codes and params, not English text", and that stays the default: a fixture that
+ * writes no `message` compares no prose, which is every fixture that has not asked. The exception it
+ * leaves room for is the case the spec itself fixes the words — `spec/error-model.md:125` does not
+ * merely describe `ol-reserved-word`, it says *"Say `{name} is already part of OpenLogo. choose
+ * another name.`"* and then makes the words *keyword*, *primitive* and *alias* a **MUST NOT** in
+ * that message. A MUST NOT about message text is unenforceable by a harness that never reads
+ * message text; #751 and #871 both shipped a message violating it and the corpus did not move.
+ * A translated pack that rewords such a fixture retranslates its expected `message` with it, exactly
+ * as it retranslates the sentence — which is a localization *task*, not a boundary violation.
+ *
+ * `undefined` is the surplus-diagnostic case: an actual diagnostic past the end of the expected
+ * stream has no expectation to consult, so it compares identity alone and is reported as surplus by
+ * {@link diffStream} either way. A `null` entry cannot reach here — {@link fixtureErrors} reads
+ * `diagnostic.code` off every expected diagnostic first and would throw on one.
+ */
+function comparesMessage(expectedDiagnostic) {
+  return (
+    expectedDiagnostic !== undefined &&
+    Object.hasOwn(expectedDiagnostic, "message")
+  );
+}
+
+/**
+ * Project one expected/actual diagnostic down to the fields to compare: its identity, plus
+ * `message` only when `withMessage`. Both sides of a pair are projected with the **same**
+ * `withMessage`, decided by the expected side alone, so an actual message is never compared against
+ * an expectation that did not ask for one.
+ */
+function projectDiagnostic(diagnostic, withMessage) {
+  const projected = diagnosticIdentity(diagnostic);
+  if (withMessage) {
+    projected.message = diagnostic.message;
+  }
+  return projected;
+}
+
 /** Compare produced output against expected; `matched` is true when both streams agree. */
 export function compare(expected, actual) {
-  // Per spec/error-model.md:254-259, diagnostic identity = code+params, not prose.
-  // Exclude "message" from comparison (prose may change under localization/rewording).
-  const projectDiagnostic = (d) => ({
-    code: d.code,
-    source_span: d.source_span,
-    params: d.params,
-    stage: d.stage,
-    severity: d.severity,
-  });
+  // Diagnostics are aligned by index, so the expected diagnostic at index i decides whether the
+  // actual one at index i has its message compared (see comparesMessage). An actual diagnostic with
+  // no expected counterpart has none to consult and is projected to identity alone — it is reported
+  // as a surplus diagnostic either way.
+  const expectedDiagnostics = expected.diagnostics.map((diagnostic) =>
+    projectDiagnostic(diagnostic, comparesMessage(diagnostic)),
+  );
+  const actualDiagnostics = actual.diagnostics.map((diagnostic, index) =>
+    projectDiagnostic(diagnostic, comparesMessage(expected.diagnostics[index])),
+  );
 
   // No ctx is created (or shared) here: diffStream gives every individual event/diagnostic its
   // own fresh graph-identity ctx, so $id/$ref aliasing can never leak across two events, across
   // two diagnostics, or between the event stream and the diagnostic stream.
   const reports = [
     diffStream("event", "seq", expected.events, actual.events),
-    diffStream(
-      "diagnostic",
-      "code",
-      expected.diagnostics.map(projectDiagnostic),
-      actual.diagnostics.map(projectDiagnostic),
-    ),
+    diffStream("diagnostic", "code", expectedDiagnostics, actualDiagnostics),
   ].filter((report) => report !== null);
   return { matched: reports.length === 0, report: reports.join("\n") };
 }

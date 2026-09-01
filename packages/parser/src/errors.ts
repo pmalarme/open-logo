@@ -9,6 +9,7 @@
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
+import { builtInNameOwnershipSentence } from "@openlogo/core";
 import { isKeyword } from "./keywords.js";
 
 function parseError(
@@ -64,6 +65,12 @@ export const KEYWORDS_WITH_NO_READER_PRODUCTION: ReadonlySet<string> = new Set([
  * reason and on the same axis — `Alias forward fd` must keep the bare message just as
  * `alias forward fd` does — and a test pins that arm, because review found a mutant that dropped the
  * normalization and survived the suite.
+ *
+ * The sentence itself comes from `@openlogo/core`'s {@link builtInNameOwnershipSentence}, not from a
+ * literal here: this stage and the two declaration-slot producers must say the same thing about the
+ * same fact, and issue #1025 found that agreement resting on nothing (see that module's doc). Only
+ * the leading space and the absent repair tail are this site's own, and both are deliberate — see
+ * {@link parseDiag.badToken} for why the parse stage names the owner but no repair.
  */
 function misplacedKeywordClause(text: string): string {
   if (
@@ -72,7 +79,7 @@ function misplacedKeywordClause(text: string): string {
   ) {
     return "";
   }
-  return ` ${text} is already part of OpenLogo.`;
+  return ` ${builtInNameOwnershipSentence(text)}`;
 }
 
 /** Parse-stage diagnostics, one builder per `ol-*` code the reader/lexer can raise. */

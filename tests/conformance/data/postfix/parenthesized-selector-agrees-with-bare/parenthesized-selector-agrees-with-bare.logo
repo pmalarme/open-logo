@@ -1,0 +1,5 @@
+define pair
+  return [ 10 20 ]
+end
+print pair[1]
+print ( pair[1] )

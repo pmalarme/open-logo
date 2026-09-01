@@ -76,6 +76,7 @@ import type {
   OLValue,
   SourceSpan,
 } from "@openlogo/core";
+import { builtInNameMessage } from "@openlogo/core";
 import type { ComprehensionNode, ReturnNode } from "@openlogo/parser";
 import { canonicalOfHeritageFormHead } from "@openlogo/parser";
 
@@ -1188,13 +1189,20 @@ export const runtimeDiag = {
    * {@link runtimeDiag.duplicateDefinition}. The message is the single learner-facing sentence
    * `spec/error-model.md:125` prescribes, and the words *keyword*, *primitive* and *alias* MUST NOT
    * appear in it.
+   *
+   * **The sentence is imported from `@openlogo/core`, not written here** (issue #1025). Identity
+   * agreement with the parser was already enforced by conformance; the *wording* agreement was
+   * enforced by nothing, and this constructor is the one that shipped it wrong twice — #751 and
+   * #871 both read `<name> is already a reserved primitive, so it can't be redefined here.`,
+   * leaking the word the spec forbids. See `diagnostic-messages.ts` for why the sentence is owned
+   * there.
    */
   reservedWord(source_span: SourceSpan, name: string): Diagnostic {
     return runtimeError(
       "ol-reserved-word",
       source_span,
       { name },
-      `${name} is already part of OpenLogo. choose another name.`,
+      builtInNameMessage(name),
     );
   },
 

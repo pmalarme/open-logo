@@ -94,9 +94,13 @@ widening ruling should relax this"). A false one propagates.
 It is not the only unchecked thing in an `.expected.json`, and knowing the others keeps you from
 writing an assertion that quietly asserts nothing:
 
-- A **diagnostic `message`** is deliberately excluded from comparison — diagnostic identity is
-  `code` + `params` and prose is presentation (`spec/error-model.md`), so wording may differ from a
-  fixture's without failing.
+- A **diagnostic `message`** is compared **only when the expected diagnostic carries one** — the
+  presence of the key is the opt-in (issue #1025). Default identity is `code` + `params`
+  (`spec/error-model.md:254-259`), so a fixture that writes no `message` asserts no prose and any
+  wording passes. Write one only where the spec fixes the words — `ol-reserved-word`'s
+  `spec/error-model.md:125` both prescribes the sentence and makes *keyword*/*primitive*/*alias* a
+  MUST NOT in it — and then it is a real assertion that fails on the wrong sentence. A localized
+  keyword pack retranslates the fixtures that opted in, exactly as it retranslates the sentence.
 - An **unknown top-level key** is dropped rather than rejected (see "Fixture shape" above).
 
 What *is* proven: `events` and `diagnostics` are diffed item-by-item; every `kind` and `code` is

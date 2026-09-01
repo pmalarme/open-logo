@@ -1,0 +1,6 @@
+struct point [ x y ]
+define origin
+  return point 7 9
+end
+print origin.x
+print ( origin.x )

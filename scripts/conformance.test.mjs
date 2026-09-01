@@ -453,43 +453,55 @@ test("compare returns not matched with diff report", () => {
   assert.ok(result.report.includes("diagnostic mismatch"));
 });
 
-test("compare ignores diagnostic message field (prose not identity)", () => {
-  // Per spec/error-model.md:254-259, diagnostic identity = code+params, not prose
-  const expected = {
-    events: [],
-    diagnostics: [
-      {
-        code: "ol-test",
-        source_span: { document: "test", start: [1, 1], end: [1, 2] },
-        params: { foo: "bar" },
-        stage: "parse",
-        severity: "error",
-        message: "Expected prose A",
-      },
-    ],
-  };
-  const actual = {
-    events: [],
-    diagnostics: [
-      {
-        code: "ol-test",
-        source_span: { document: "test", start: [1, 1], end: [1, 2] },
-        params: { foo: "bar" },
-        stage: "parse",
-        severity: "error",
-        message: "Actual prose B (different)",
-      },
-    ],
-  };
-  const result = compare(expected, actual);
+test("compare() compares a diagnostic message when — and only when — the expected side carries one, so a wrong learner sentence fails (issue #1025)", () => {
+  // The opt-in is the presence of the `message` key itself. spec/error-model.md:254-259 keeps
+  // identity at code+params and says tests SHOULD assert those, not English text — which stays the
+  // default for every fixture that writes no message (see the sibling test below). But :125 does
+  // not merely describe `ol-reserved-word`: it says *"Say `{name} is already part of OpenLogo.
+  // choose another name.`"* and makes the words *keyword*, *primitive* and *alias* a MUST NOT in
+  // that message. Both #751 and #871 shipped a message violating that MUST NOT, and the corpus did
+  // not move, because `compare()` dropped `message` unconditionally.
+  const diagnostic = (message) => ({
+    code: "ol-reserved-word",
+    source_span: { document: "test", start: [1, 8], end: [1, 15] },
+    params: { name: "forward" },
+    stage: "semantic",
+    severity: "error",
+    message,
+  });
+  const right = "forward is already part of OpenLogo. choose another name.";
+  const wrong =
+    "forward is already a reserved primitive, so it can't be redefined here.";
+
+  const agreeing = compare(
+    { events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(right)] },
+  );
   assert.ok(
-    result.matched,
-    "Diagnostics differing only in message should match",
+    agreeing.matched,
+    "an opted-in fixture whose message is right must still pass",
+  );
+
+  const diverging = compare(
+    { events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(wrong)] },
+  );
+  assert.ok(
+    !diverging.matched,
+    "an opted-in fixture must fail when the producer's message is wrong",
+  );
+  assert.ok(diverging.report.includes("diagnostic mismatch"));
+  assert.ok(
+    diverging.report.includes("reserved primitive"),
+    "the report must name the offending prose so the failure is actionable",
   );
 });
 
-test("compare matches diagnostic without message field", () => {
-  // Fixtures may omit message (canonical format per conformance-fixture skill)
+test("compare() ignores a diagnostic message the expected side did not ask for, keeping the localization boundary for every fixture that has not opted in", () => {
+  // The other arm of the #1025 opt-in, and the one no fixture can express: a fixture asserting
+  // "prose is NOT compared" would have to record the prose it is not asserting. Every diagnostic
+  // `produce()` returns carries a message (validateDiagnostics makes that a hard requirement), so
+  // this is the shape of the 326 corpus diagnostics that deliberately stay on identity alone.
   const expected = {
     events: [],
     diagnostics: [
@@ -499,7 +511,7 @@ test("compare matches diagnostic without message field", () => {
         params: {},
         stage: "parse",
         severity: "error",
-        // no message field
+        // no message field: this fixture asserts identity only
       },
     ],
   };
@@ -512,7 +524,7 @@ test("compare matches diagnostic without message field", () => {
         params: {},
         stage: "parse",
         severity: "error",
-        message: "This message is ignored",
+        message: "any prose at all, in any language",
       },
     ],
   };
@@ -521,6 +533,27 @@ test("compare matches diagnostic without message field", () => {
     result.matched,
     "Expected without message should match actual with message",
   );
+});
+
+test("compare() projects a surplus actual diagnostic that has no expected counterpart to consult, and still reports it as surplus (issue #1025)", () => {
+  // The index-aligned opt-in has to answer "what does actual[1] compare, when expected[1] does not
+  // exist?". It compares identity only — there is no expectation to have opted in — and the extra
+  // diagnostic is reported as surplus either way. Pinned because the alternative, reading a
+  // `message` off `undefined`, throws.
+  const shared = {
+    code: "ol-test",
+    source_span: { document: "test", start: [1, 1], end: [1, 2] },
+    params: {},
+    stage: "parse",
+    severity: "error",
+    message: "first",
+  };
+  const result = compare(
+    { events: [], diagnostics: [shared] },
+    { events: [], diagnostics: [shared, { ...shared, message: "second" }] },
+  );
+  assert.ok(!result.matched, "a surplus actual diagnostic must be reported");
+  assert.ok(result.report.includes("(missing)"));
 });
 
 // --- Graph fixtures: $id/$ref reference-identity extension (issue #495 fixture-format

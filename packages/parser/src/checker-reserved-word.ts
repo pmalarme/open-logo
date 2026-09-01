@@ -85,8 +85,8 @@
  *   *"thing is already a reserved"* and the jargon-leaking *"count is already a primitive"* that
  *   issue #883 reported. Whether the taken name is a keyword, a primitive, or an alias spelling "is
  *   an implementation distinction the learner never has to learn" — so the one message is
- *   {@link builtInMessage}'s *"`<name>` is already part of OpenLogo. choose another name."*, and
- *   the words *keyword*, *primitive* and *alias* MUST NOT appear in it.
+ *   `@openlogo/core`'s {@link builtInNameMessage}, *"`<name>` is already part of OpenLogo. choose
+ *   another name."*, and the words *keyword*, *primitive* and *alias* MUST NOT appear in it.
  * - **`ol-duplicate-definition` — something in the program already declares this name.** The
  *   `procedure` and `struct` namespaces move here (`spec/grammar.md:412`), and the code carries
  *   **both** spans: `source_span` at the later declaration, `original_span` in `params` at the
@@ -116,6 +116,7 @@
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
+import { builtInNameMessage } from "@openlogo/core";
 import type {
   AnyNode,
   ProcedureDefNode,
@@ -128,26 +129,22 @@ import { isBuiltInName } from "./built-in-names.js";
 
 /**
  * The one learner-facing sentence for a built-in name, from `spec/error-model.md:125`. It names no
- * category on purpose: *keyword*, *primitive* and *alias* MUST NOT appear (issue #883).
+ * category on purpose: *keyword*, *primitive* and *alias* MUST NOT appear (issue #883), and the
+ * lowercase after the period is the house voice rather than a typo (`spec/error-model.md:18`).
  *
- * **Lowercase after the period is deliberate**, and is the house voice rather than a typo:
- * `spec/error-model.md:18` requires "the warm, **lowercase** Logo voice", and its own canonical
- * example at `:20` reads `i don't know how to fowad. did you mean forward?`. Every shipped
- * diagnostic already follows it — `@openlogo/runtime`'s `errors.ts` has
- * "…`check the spelling.`" and "…`put it between 'define' and 'end'.`". The capitalized
- * spelling in `docs/design-notes/0007-binding-vs-registration.md` is the outlier (non-normative,
- * tracked as issue #887), not the model.
+ * **It is imported, not written here** (issue #1025). This sentence has three producers — this
+ * rule, `errors.ts`'s parse-stage `misplacedKeywordClause` (the ownership half alone), and
+ * `@openlogo/runtime`'s `errors.ts` for the same slot at `stage: "runtime"` — and while this file
+ * kept a private copy, the agreement between them was enforced by nothing. Two of the wrong-wording
+ * regressions that copy invites had already shipped (#751, #871). `@openlogo/core`'s
+ * `diagnostic-messages.ts` is now the one source; see it for why so little prose belongs there.
  */
-function builtInMessage(name: string): string {
-  return `${name} is already part of OpenLogo. choose another name.`;
-}
-
 function reservedWordDiagnostic(spannedName: SpannedName): Diagnostic {
   return {
     code: "ol-reserved-word",
     source_span: spannedName.source_span,
     params: { name: spannedName.name },
-    message: builtInMessage(spannedName.name),
+    message: builtInNameMessage(spannedName.name),
     stage: "semantic",
     severity: "error",
   };

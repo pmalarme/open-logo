@@ -37,11 +37,21 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   description passes every check and misleads every later reader — and descriptions in this corpus
   are cited by later slices as settled fact. Measure what you assert, be hardest on prose justifying
   why a fixture is *absent*, and prefer pointing at the spec section or harness function that
-  settles a claim over paraphrasing it. Two neighbours are also unchecked: a diagnostic `message` is
-  deliberately excluded from comparison (identity is `code` + `params`; prose is presentation), and
-  any **unknown top-level key is silently dropped rather than rejected**, so an assertion written in
-  an invented field asserts nothing. See `.github/skills/shared/conformance-fixture/SKILL.md`.
-- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity`.
+  settles a claim over paraphrasing it. Its one-time neighbour in this list, a diagnostic `message`,
+  is no longer unchecked (see below); **unknown top-level keys still are** — any such key is
+  silently dropped rather than rejected, so an assertion written in an invented field asserts
+  nothing. See `.github/skills/shared/conformance-fixture/SKILL.md`.
+- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity` — always
+  compared — plus an **optional `message`, compared only when the expected diagnostic carries one**
+  (issue #1025). The presence of the key *is* the opt-in, at per-diagnostic grain: write no
+  `message` and the fixture asserts identity alone, which is the default `spec/error-model.md:254-259`
+  asks for ("diagnostic identity is `code` plus `params`; prose is presentation"). Write one and the
+  harness fails the fixture on the wrong sentence. Opt in where the **spec fixes the words**:
+  `spec/error-model.md:125` does not merely describe `ol-reserved-word`, it says *"Say `{name} is
+  already part of OpenLogo. choose another name.`"* and then makes *keyword*, *primitive* and
+  *alias* a MUST NOT in that message — a MUST NOT no harness can enforce without reading the text.
+  A localized keyword pack retranslates the opted-in fixtures along with the sentences themselves.
+  `_harness-selftest/detects-message-mismatch` pins that the opt-in actually bites.
 - **`execute` (optional, default `false`)** opts a fixture into execution. When `false` (or
   absent), `produce()` stays parse-only — it calls `@openlogo/parser`'s `parse()` and always
   returns `events: []`, exactly as the existing parse-focused corpus expects (many of those
