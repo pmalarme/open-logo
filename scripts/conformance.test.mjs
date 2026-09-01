@@ -1674,8 +1674,17 @@ function placeFixture(root, name, spec, source = RESERVED_WORD_SOURCE) {
   };
 }
 
+/**
+ * The fixture name both polarity twins carry, and the `document` the harness therefore hands the
+ * parser for them (`<name>/<stem>`, the fixture name minus its suffix). Defined once because the
+ * isolation block in the run-level test has to reconstruct the same `document` to call `produce()`
+ * directly — two literals that must agree is one literal too many.
+ */
+const POLARITY_PROBE_NAME = "polarity-probe";
+const POLARITY_PROBE_DOCUMENT = `${POLARITY_PROBE_NAME}/${POLARITY_PROBE_NAME}`;
+
 /** Both twins, written under sibling roots with one identical fixture name and path. */
-function placePolarityTwin(polarity, name = "polarity-probe") {
+function placePolarityTwin(polarity, name = POLARITY_PROBE_NAME) {
   const root = join(TEMP_ROOT, `arm-${polarity}`);
   return {
     root,
@@ -1760,7 +1769,7 @@ test('runHarness fails a fixture combining compareMessages with expect: "mismatc
   // the output would not by itself prove the prose was the cause. Running the same expected stream
   // against the same produced one with message comparison switched OFF matches, so identity, span,
   // stage, severity and events all agree — leaving the sentence as the only possible difference.
-  const document = "polarity-probe/polarity-probe";
+  const document = POLARITY_PROBE_DOCUMENT;
   const produced = produce(
     RESERVED_WORD_SOURCE,
     document,
