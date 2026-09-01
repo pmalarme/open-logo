@@ -2379,3 +2379,70 @@ test("#985/#976: a click DELIVERED before its handler registers reports zero inv
   );
   assert.deepEqual(store.getState().output, ["clicked"]);
 });
+
+test("#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it waited", () => {
+  // duck's round-4 BLOCKING 1, with the witness `@testing` built after I reported it open. I had
+  // implemented this fix once and reverted it because I could not exercise it; the harness below
+  // uses only `createDeferredHost`, already in this file as the suite's model of a host that settles
+  // across event-loop turns — which is the production Worker host on a cross-origin-isolated page.
+  //
+  // The defect: `scheduleHostInput` fixes a delivery's tick at schedule time and never recomputes
+  // it. While the delivery is deferred (`attemptPending`), the program runs on, draws output the
+  // learner reads, and finishes a SECOND `input`. The stale tick then replays the handler earlier
+  // than what the learner already observed — #976 AC2 verbatim, and it emits no diagnostic.
+  //
+  //   shipped before the fix : ["A","turned","C","B"]   "turned" inserted in front of "C"
+  //   with the re-clamp      : ["A","C","turned","B"]
+  const deferred = createDeferredHost();
+  const host = createPromptHost();
+  const store = OL.createStudioState({
+    source: [
+      'on_key "left" [',
+      '  print "turned"',
+      "]",
+      "wait 2",
+      ':a = input "first?"',
+      "print :a",
+      "wait 3",
+      'print "C"',
+      "wait 2",
+      ':b = input "second?"',
+      "print :b",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+    inputPrompt: host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  deferred.settleNext();
+  host.respond("A");
+
+  // Deferred: an execution is still in flight, so this is scheduled and not yet replayed.
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "an in-flight attempt defers the delivery rather than starting a second execution",
+  );
+
+  deferred.settleNext();
+  const observed = store.getState().output;
+  assert.deepEqual(
+    observed,
+    ["A", "C"],
+    "the learner has now read both lines, with the press still undelivered",
+  );
+
+  host.respond("B");
+  deferred.settleAll();
+
+  const after = store.getState().output;
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    'what the learner already read must survive as a PREFIX — with a stale tick the replay puts "turned" in front of "C"',
+  );
+  assert.deepEqual(host.prompts, ["first?", "second?"], "each asked once");
+});

@@ -1477,6 +1477,41 @@ export function createRunController(
       // stranded.
       return;
     }
+    // #976 — re-clamp the still-undelivered tail before replaying it. `scheduleHostInput` fixes a
+    // delivery's tick when it is scheduled and never recomputes it; while that delivery is deferred
+    // the program can run on, draw output the learner reads, and finish a **second** `input`. The
+    // stale tick then replays the handler at a point earlier than what the learner already observed
+    // — #976 AC2 verbatim, and it emits no diagnostic.
+    //
+    // Measured on the suite's own deferred-host model: `["A","C"]` observed, replay produced
+    // `["A","turned","C","B"]` — `"turned"` inserted in front of a line already read. With this,
+    // `["A","C","turned","B"]`.
+    //
+    // Mutated **in place**: `deliveryRanAHandler` matches a report to its occurrence by object
+    // identity, so replacing the entries would break the match. Forward-only, like every other clamp
+    // here — the rewinding inverse is @testing's M8.
+    const readFloor =
+      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
+    const drawnFloor = tickAtEventIndex(chainTickTimeline, drawnEventCount);
+    for (
+      let index = deliveredScheduleLength;
+      index < hostInputEvents.length;
+      index += 1
+    ) {
+      const occurrence = hostInputEvents[index];
+      if (occurrence !== undefined) {
+        // `HostInputEvent.tick` is `readonly` on the public type — correct for a caller, wrong for
+        // the owner of the schedule. This controller *is* the owner: it created these objects in
+        // `scheduleHostInput` and no one else may write them. Mutating rather than replacing is
+        // required, because `deliveryRanAHandler` matches the runtime's report to its occurrence by
+        // object identity, which a fresh object would destroy.
+        (occurrence as { tick: number }).tick = Math.max(
+          occurrence.tick,
+          drawnFloor,
+          readFloor,
+        );
+      }
+    }
     deliveringInput = true;
     try {
       while (
