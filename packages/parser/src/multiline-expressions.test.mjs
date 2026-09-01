@@ -811,7 +811,7 @@ test("#1025: a group headed by a callable with a glued selector reads exactly li
 });
 
 test("#1025: a SPACED `[` after the head keeps the parenthesized call — adjacency is the discriminator", () => {
-  // The negative half, and the reason `beginsPostfixAt` asks `peekAdjacent` rather than just
+  // The negative half, and the reason `mayBeginPostfixAt` asks `peekAdjacent` rather than just
   // "is the next token a `[`". A selector binds only when glued (`:durations[:i]`), so a spaced
   // `( pair [1] )` is still `parenthesized-call` (`spec/grammar.md:215`) passing a one-element list
   // — which is what the parenthesized-call form is FOR, and it deliberately does NOT agree with the

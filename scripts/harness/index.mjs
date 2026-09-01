@@ -235,7 +235,6 @@ function validateHostResponses(responses) {
   return null;
 }
 
-/** Parse and normalise a fixture; returns `{ error }` on malformed JSON or missing source. */
 /**
  * The five fields a fixture's expected diagnostic must always carry — its **identity** under
  * `spec/error-model.md:254-259` ("diagnostic identity is `code` plus `params`; prose is
@@ -260,6 +259,7 @@ const ALLOWED_DIAGNOSTIC_KEYS = new Set([
   "message",
 ]);
 
+/** Parse and normalise a fixture; returns `{ error }` on malformed JSON or missing source. */
 export function loadFixture(fixture) {
   // Validate that both .logo and .expected.json exist
   if (!existsSync(fixture.logoPath)) {
@@ -304,6 +304,15 @@ export function loadFixture(fixture) {
           error: `diagnostic[${i}] has unknown key "${key}" (allowed: ${[...ALLOWED_DIAGNOSTIC_KEYS].join(", ")}) — an unrecognized key would be silently dropped and assert nothing`,
         };
       }
+    }
+    // `message` is optional, but when present it must be the string it will be compared against.
+    // `Object.hasOwn` is what decides the per-diagnostic opt-in below, so `"message": null` would
+    // otherwise opt in and then fail at compare time instead of here (`@testing` R2-F3). Loud
+    // either way; failing at load time names the fixture's own mistake rather than a diff.
+    if (Object.hasOwn(diag, "message") && typeof diag.message !== "string") {
+      return {
+        error: `diagnostic[${i}] has a non-string "message" (${JSON.stringify(diag.message)})`,
+      };
     }
   }
 

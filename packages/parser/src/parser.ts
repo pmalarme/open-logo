@@ -1981,21 +1981,28 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Does a **postfix segment** begin at `offset` — a `.field`, or a selector `[` glued to the token
+   * Could a **postfix segment** begin at `offset` — a `.field`, or a selector `[` glued to the token
    * before it (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`)?
    *
-   * The second half of {@link parseParenthesized}'s lookahead, and the mirror image of the first.
-   * {@link isInfixOperatorAt} asks *"is the head a complete operand that something continues?"*; this
-   * asks *"is the head the **base** of something larger?"*. Both answers mean the same thing for the
-   * branch decision — the head is not a whole call — so both must decline it.
+   * **It is a lexical question, and the answer is deliberately not a conclusion.** It reports that
+   * the tokens after the head *could* continue it, not that they do: for `( round[1] )` this answers
+   * true, the call branch declines, and the ordinary expression path then reads `[1]` as `round`'s
+   * **argument** rather than as a selector — agreeing with bare `round[1]`, which does the same. So
+   * what a `true` buys is "the head is not a bare parenthesized call; let the normal expression
+   * grammar decide", which is exactly the decision {@link parseParenthesized} needs and no more.
+   * (An earlier revision of this doc said it "proves the head is a base". That was a stronger claim
+   * than the code makes, and `( round[1] )` is the counter-example.)
+   *
+   * The mirror image of {@link isInfixOperatorAt}, which asks whether something *continues* a
+   * complete head; this asks whether something *extends* it. Either way the head is not a bare call.
    *
    * **Ask it only of a head that can be a `primary`** — in this reader, an {@link isCalleeName}. A
    * postfix segment extends a primary, so for a head that is no primary the question is meaningless
-   * and its answer is actively wrong: `parseParenthesized` also admits the keyword heads `and`/`or`,
+   * and its answer actively wrong: `parseParenthesized` also admits the keyword heads `and`/`or`,
    * which are callable only in that parenthesized form, and treating a glued `[` after one as a
-   * selector turned the legal `( and[true false] true )` into two `ol-bad-token`s. The caller states
-   * that restriction; this predicate does not re-test it, because it has no way to know which of its
-   * caller's admitted heads are primaries.
+   * possible postfix turned the legal `( and[true false] true )` into two `ol-bad-token`s. The caller
+   * states that restriction; this predicate does not re-test it, because it has no way to know which
+   * of its caller's admitted heads are primaries.
    *
    * **The two conditions are transcribed from {@link parsePostfix}'s own `hasPostfixAhead`, not
    * re-derived**, and that is the whole point: a parenthesized group must read its head exactly as
@@ -2006,7 +2013,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * also keeps {@link peekAdjacent}'s stated invariant: its caller must never span a newline, and
    * here a newline at `offset` fails the `lbracket` test before adjacency is ever asked.
    */
-  function beginsPostfixAt(offset: number): boolean {
+  function mayBeginPostfixAt(offset: number): boolean {
     const fieldOffset = skippingNewlines(offset);
     if (
       peek(fieldOffset).kind === "dot" &&
@@ -2050,8 +2057,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //   the head proves the head was a whole operand and the group is a `parenthesized-expression`
     //   (:213), not a `parenthesized-call` (:215) — a reading the call branch has no derivation for
     //   anyway. {@link isInfixOperatorAt}.
-    // - **A postfix segment extends the head** (`postfix-expression`, :192), so a `.field` or a glued
-    //   selector `[` proves the head is a *base*, not a callee. {@link beginsPostfixAt}.
+    // - **A postfix segment may extend the head** (`postfix-expression`, :192), so a `.field` or a
+    //   glued selector `[` means the head is not a *bare* call and the ordinary expression grammar
+    //   should read the whole thing. It does not follow that the head is a base: `( round[1] )`
+    //   declines here and then reads `[1]` as `round`'s **argument**, agreeing with bare `round[1]`,
+    //   which does the same. {@link mayBeginPostfixAt}.
     //
     // **The postfix question is asked only of an `isCalleeName` head, and that restriction is
     // load-bearing rather than incidental.** {@link isCalleeName} is exactly "this name can head a
@@ -2087,7 +2097,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // and it needs to see none. Newlines are skipped first for the operator (and for a `.field`,
     // which may sit on the next line) because they are insignificant inside one parenthesized group
     // (`spec/grammar.md:34`), so `( pi` ⏎ `+ 1 )` reads like `( pi + 1 )`. A selector `[`
-    // deliberately does not cross a newline; {@link beginsPostfixAt} says why.
+    // deliberately does not cross a newline; {@link mayBeginPostfixAt} says why.
     //
     // The AC3 traps all survive by this same rule rather than by exceptions to it: `( round -1 )`
     // keeps its negative *argument* because a glued `-1` is a `number` literal, not an operator
@@ -2150,7 +2160,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (
       (headIsCallee || headIsVariadicLogic) &&
       !isInfixOperatorAt(skippingNewlines(1)) &&
-      !(headIsCallee && beginsPostfixAt(1))
+      !(headIsCallee && mayBeginPostfixAt(1))
     ) {
       advance();
       const callee =

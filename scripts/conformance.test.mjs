@@ -1493,6 +1493,20 @@ test("loadFixture rejects compareMessages: true when no expected diagnostic carr
   assert.ok(loaded.error.includes("no expected diagnostic carries"));
 });
 
+test("loadFixture rejects a non-string message, so `null` cannot opt in and then fail at compare time (@testing R2-F3 on issue #1025)", () => {
+  // `Object.hasOwn` decides the per-diagnostic opt-in, so `"message": null` would otherwise count
+  // as opting in and fail later against a diff instead of naming the fixture's own mistake.
+  const loaded = loadTempFixture("null-message", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    diagnostics: [tempDiagnostic({ message: null })],
+    events: [],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('non-string "message"'));
+});
+
 test("loadFixture rejects a non-boolean compareMessages field", () => {
   const loaded = loadTempFixture("bad-compare-messages", {
     profiles: ["core-language"],
