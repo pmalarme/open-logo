@@ -220,8 +220,11 @@ function pinnedSeed(seed) {
  * - `pending()` — how many steps are outstanding; non-zero means playback is genuinely mid-flight.
  * - `drain()` — run every queued step, and anything they queue in turn, to completion.
  *
- * Deliberately no `step()` or `delays()` accessor: nothing needs them yet, and an unexercised
- * helper method is an unverified claim about a seam nobody uses. Add them when a test does.
+ * **What it can and cannot do.** It holds playback *before its next step*, which is enough to make a
+ * run observably mid-flight and to act while it is. It does **not** let a test stop at an arbitrary
+ * intermediate boundary — there is no single-step control, because nothing needs one yet and an
+ * unexercised helper method is an unverified claim about a seam nobody uses. Add one when a test
+ * does.
  */
 function createHandDrivenScheduler() {
   const queued = [];
@@ -233,13 +236,18 @@ function createHandDrivenScheduler() {
     pending: () => queued.length,
     drain() {
       // Bounded: a step may queue its successor, and a runaway would otherwise hang the suite
-      // rather than fail it.
+      // rather than fail it. The assertion is on the QUEUE being empty, not on the guard — a drain
+      // that legitimately consumes exactly the bound must not be reported as a runaway.
       let guard = 0;
       while (queued.length > 0 && guard < 500) {
         guard += 1;
         queued.shift().callback();
       }
-      assert.ok(guard < 500, "hand-driven playback drained without settling");
+      assert.equal(
+        queued.length,
+        0,
+        "hand-driven playback did not settle within the step bound",
+      );
     },
   };
 }

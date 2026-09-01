@@ -382,7 +382,11 @@
  *   status). {@link resolveRecordedAnswer}'s prompt pairing stops an answer reaching the wrong
  *   question; it cannot stop history being rewritten. #985's tick timeline removes that cause — a
  *   delivery lands at the tick the learner is looking at, never earlier than a read they answered —
- *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. An answer
+ *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. The tick
+ *   timeline alone is not sufficient for that, and two further clamps carry the rest: the
+ *   answered-read boundary (`lastAnsweredReadTick`, because a tick cannot order a delivery against
+ *   a read that finished *within* it) and the re-clamp of the undelivered tail before replay
+ *   (because a deferred delivery's tick is fixed before a later read exists). An answer
  *   chain mid-pump is still refused: it is what stops a prompt host answering synchronously from
  *   inside `present()` being handed one more read per answer, the quadratic hang the "#881" section
  *   above describes.

@@ -1023,3 +1023,139 @@ test("#976: a delivery arriving between resolveRead() and the run's own report d
     "and the answered question is not put to them a second time",
   );
 });
+
+/**
+ * A **scripted** Worker port: it records the run commands the host posts and lets a test emit
+ * `read` and `done` reports by hand. `createBlockingHost()` cannot do this — it drives the real
+ * runner, which unwinds at `PARKED` and can therefore never emit the later `"done"` a resumed run
+ * produces. That is why the race test built on it could only ever prove "no immediate corruption".
+ */
+function createScriptedPort() {
+  const commands = [];
+  let listener = null;
+  const port = {
+    postMessage(command) {
+      commands.push(command);
+    },
+    onReport(next) {
+      listener = next;
+    },
+  };
+  return {
+    commands,
+    port,
+    read(prompt, output, events) {
+      listener({
+        type: "read",
+        runId: commands.at(-1).runId,
+        prompt,
+        events,
+        output,
+        tutorOutput: [],
+        tickTimeline: [],
+      });
+    },
+    done(output, tickTimeline, retainedAnswers, events) {
+      listener({
+        type: "done",
+        runId: commands.at(-1).runId,
+        events,
+        output,
+        tutorOutput: [],
+        diagnostics: [],
+        tickTimeline,
+        retainedAnswers,
+      });
+    },
+  };
+}
+
+const RACE_SOURCE = [
+  'on_key "a" [',
+  '  print "HANDLER"',
+  "]",
+  "wait 1",
+  'print "BEFORE"',
+  ':who = input "who?"',
+  "print :who",
+  "wait 3",
+].join("\n");
+
+test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answer retained", () => {
+  // duck's round-4 BLOCKING 3. The previous test asserted only that nothing was corrupted at the
+  // moment of delivery; every outcome that matters happens *after* the resumed run reports, and
+  // `createBlockingHost()` structurally cannot get there. This scripts the port instead, so the
+  // load-bearing outcomes are asserted rather than assumed: a SECOND run command, carrying the
+  // retained answer and the scheduled key, and the handler's output arriving after the line the
+  // learner had already read.
+  // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
+  // actually registers — a scripted report carrying vents: [] would be refused before scheduling,
+  // and the test would pass for the wrong reason.
+  const realEvents = settlementFor(RACE_SOURCE).events;
+  const scripted = createScriptedPort();
+  const host = OL.createWorkerExecutionHost({
+    allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
+    notify: () => 1,
+    port: scripted.port,
+  });
+  const prompt = createTestPromptHost();
+  const store = OL.createStudioState({ source: RACE_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  assert.equal(scripted.commands.length, 1, "one run command so far");
+  scripted.read("who?", ["BEFORE"], realEvents);
+  assert.deepEqual(prompt.prompts, ["who?"]);
+
+  // Answer, then deliver before the resumed run has reported: the race window itself.
+  prompt.respond("Ada");
+  const observed = store.getState().output;
+  controller.deliverKey("a");
+
+  // The resumed run finishes and reports, carrying the answer it consumed.
+  // The runner's OWN view of the FIFO: this run started with no recorded answers and parked, so it
+  // truncated nothing and reports an empty list. The host adds the answer it resolved in place.
+  scripted.done(
+    ["BEFORE", "Ada"],
+    [{ tick: 1, eventCount: 0 }],
+    [],
+    realEvents,
+  );
+
+  assert.equal(
+    scripted.commands.length,
+    2,
+    "the deferred delivery is REPLAYED once the racing attempt settles — not stranded",
+  );
+  const replay = scripted.commands.at(-1).request;
+  assert.deepEqual(
+    replay.answers,
+    [{ prompt: "who?", answer: "Ada" }],
+    "…and the replay carries the answer the racing attempt consumed, so nothing is re-asked",
+  );
+  assert.ok(
+    replay.hostInputEvents?.some((entry) => entry.kind === "key"),
+    "…and the scheduled key is actually in the replay's schedule",
+  );
+
+  // The replay reports the handler having run, after the line already read.
+  scripted.done(
+    ["BEFORE", "Ada", "HANDLER"],
+    [{ tick: 1, eventCount: 0 }],
+    [{ prompt: "who?", answer: "Ada" }],
+    realEvents,
+  );
+
+  const after = store.getState().output;
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a prefix",
+  );
+  assert.deepEqual(after, ["BEFORE", "Ada", "HANDLER"]);
+  assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
+  assert.equal(store.getState().runStatus, "done");
+});
