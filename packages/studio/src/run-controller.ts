@@ -321,11 +321,13 @@
  * (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
  * reasons about ordering either.
  *
- * Two consequences of scheduling against the real clock, both deliberate and both recorded in
+ * Two consequences of scheduling against the real clock, both recorded in
  * `packages/studio/README.md`:
- * - a program is responsive for as many inputs as the learner gives it. The old counter capped the
- *   presses at the program's tick count; `spec/interaction-events.md:381-384` names *cancellation*
- *   as what "stops future handler delivery", and nothing names tick exhaustion.
+ * - a program is responsive for as many inputs as the learner gives it, because the old counter's
+ *   cap at the program's tick count was an artifact. Whether delivery should nonetheless close when
+ *   the run does (`spec/interaction-events.md:198-200`) is **an open question awaiting a maintainer
+ *   ruling**, not a settled deviation — see the README, which records why the obvious guard is not
+ *   the answer either.
  * - under this synchronous replay host a handler registered **by** a handler cannot be reached,
  *   because a completed replay has one tick to deliver into and the runtime claims pending keys
  *   against the handlers existing when that tick's dispatch begins. It fails visibly (the inner

@@ -539,10 +539,18 @@ single; a host pricing a step differently from the step it actually gets is a de
 Two consequences, both deliberate:
 
 - **A program is responsive for as many inputs as the learner gives it.** The old counter capped the
-  number of presses at the program's tick count, so `wait 5` accepted five and then went silent. That
-  was an artifact, not a design: `spec/interaction-events.md:381-384` names *cancellation* as what
-  "stops future handler delivery", and `:152-156` makes `"stop"` a **requested** notification.
-  Nothing names tick exhaustion. Stop and Reset end delivery; running out of ticks does not.
+  number of presses at the program's tick count, so `wait 5` accepted five and then went silent —
+  an artifact of the counter rather than a decision.
+
+  **Open question, not a settled one.** An earlier version of this bullet argued from
+  `spec/interaction-events.md:381-384` that *cancellation* is what "stops future handler delivery"
+  and nothing names tick exhaustion. Review rejected that reading, correctly: `:381-384` says
+  cancellation stops delivery, it does **not** say cancellation is the only way a run closes — and
+  `:198-200` says plainly that once the main line has finished "the run closes". So the studio
+  currently accepts deliveries after `runStatus` is `"done"`, which that line does not permit. The
+  obvious guard (refuse once the run is `"done"`) is not the answer either: under the default
+  `IMMEDIATE_SCHEDULER` a run is `"done"` the instant `run()` returns, so it would disable delivery
+  everywhere except a paced browser. Tracked for a maintainer ruling rather than argued away here.
 - **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
   be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
   replay settles, so every delivery lands on the program's final tick, and the runtime claims pending
