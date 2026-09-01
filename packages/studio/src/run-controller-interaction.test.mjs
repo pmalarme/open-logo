@@ -197,6 +197,54 @@ function pinnedSeed(seed) {
 }
 
 /**
+ * A **hand-driven** `Scheduler`: it queues playback steps instead of running them, so a test can
+ * hold the animation part-drawn and act while the run is genuinely mid-flight.
+ *
+ * ## Why this is the default worth reaching for
+ *
+ * Review's single most durable finding about this suite: **every studio test used
+ * `IMMEDIATE_SCHEDULER`**, under which playback drains completely inside `run()`. `drawnEventCount`
+ * is therefore always the whole stream — so **no behaviour that depends on a partially-drawn picture
+ * is observable at all**, and an entire class of defects is unreachable by construction rather than
+ * by accident.
+ *
+ * Two of round 4's four blocking findings lived in exactly that blind spot: the answered-read clamp
+ * (whose mutant survived the whole suite) and the click that is delivered before its `on_click`
+ * registration (an arm previously declared "unreachable by construction" — it was not, it was
+ * unreachable *by this suite's harness*).
+ *
+ * Prefer this over `IMMEDIATE_SCHEDULER` for any test about *when* something is delivered, drawn, or
+ * confirmed. Use `IMMEDIATE_SCHEDULER` only when the test is about the settled result.
+ *
+ * - `scheduler` — pass to `createRunController`.
+ * - `pending()` — how many steps are outstanding; non-zero means playback is genuinely mid-flight.
+ * - `drain()` — run every queued step, and anything they queue in turn, to completion.
+ *
+ * Deliberately no `step()` or `delays()` accessor: nothing needs them yet, and an unexercised
+ * helper method is an unverified claim about a seam nobody uses. Add them when a test does.
+ */
+function createHandDrivenScheduler() {
+  const queued = [];
+  return {
+    scheduler(callback, delayMs) {
+      queued.push({ callback, delayMs });
+      return NO_OP_CANCEL;
+    },
+    pending: () => queued.length,
+    drain() {
+      // Bounded: a step may queue its successor, and a runaway would otherwise hang the suite
+      // rather than fail it.
+      let guard = 0;
+      while (queued.length > 0 && guard < 500) {
+        guard += 1;
+        queued.shift().callback();
+      }
+      assert.ok(guard < 500, "hand-driven playback drained without settling");
+    },
+  };
+}
+
+/**
  * A Worker-shaped host: it settles a turn LATER, the way `worker-execution-host.ts` does, so a
  * delivery can land while an execution is still in flight. Settlements are released by hand
  * (`settleNext`) so a test observes the window rather than racing it.
@@ -2179,11 +2227,7 @@ test("#985 F4: a long `wait` holds the run open while handlers drive the animati
   //
   // Queueing the callbacks instead of running them is what makes the wait genuinely outstanding, so
   // `runStatus` is observably `"running"` at the moment the key is delivered.
-  const queued = [];
-  const scheduler = (callback, delayMs) => {
-    queued.push({ callback, delayMs });
-    return NO_OP_CANCEL;
-  };
+  const paced = createHandDrivenScheduler();
   const store = OL.createStudioState({
     source: [
       'on_key "a" [',
@@ -2194,7 +2238,7 @@ test("#985 F4: a long `wait` holds the run open while handlers drive the animati
     ].join("\n"),
   });
   const controller = OL.createRunController(store, {
-    scheduler,
+    scheduler: paced.scheduler,
     randomSeedSource: pinnedSeed(7),
   });
 
@@ -2204,7 +2248,11 @@ test("#985 F4: a long `wait` holds the run open while handlers drive the animati
     "running",
     "the long wait holds the run open rather than completing it",
   );
-  assert.equal(queued.length, 1, "…with a step genuinely pending, not drained");
+  assert.equal(
+    paced.pending(),
+    1,
+    "…with a step genuinely pending, not drained",
+  );
 
   // Delivered WHILE the wait is outstanding — the property `:116-118` describes.
   assert.equal(
@@ -2220,11 +2268,7 @@ test("#985 F4: a long `wait` holds the run open while handlers drive the animati
   );
 
   // Draining the queue closes the run, so "running" above was the wait, not a stuck status.
-  let guard = 0;
-  while (queued.length > 0 && guard < 200) {
-    guard += 1;
-    queued.shift().callback();
-  }
+  paced.drain();
   assert.equal(store.getState().runStatus, "done");
   assert.deepEqual(store.getState().output, ["moved"]);
 });
@@ -2306,18 +2350,14 @@ test("#985/#976: a click DELIVERED before its handler registers reports zero inv
   //
   // so the delivery exists, is reported, and ran nothing. That is the arm `invocations > 0` decides,
   // and until now only the key path exercised it.
-  const queued = [];
-  const scheduler = (callback) => {
-    queued.push(callback);
-    return NO_OP_CANCEL;
-  };
+  const paced = createHandDrivenScheduler();
   const store = OL.createStudioState({
     source: ["wait 5", "on_click [", '  print "clicked"', "]", "wait 5"].join(
       "\n",
     ),
   });
   const controller = OL.createRunController(store, {
-    scheduler,
+    scheduler: paced.scheduler,
     randomSeedSource: pinnedSeed(7),
   });
 
@@ -2331,11 +2371,7 @@ test("#985/#976: a click DELIVERED before its handler registers reports zero inv
 
   // The control: once playback passes the registration the same click IS confirmed, so the `false`
   // above means "ran nothing", not "clicks are inert in this harness".
-  let guard = 0;
-  while (queued.length > 0 && guard < 300) {
-    guard += 1;
-    queued.shift()();
-  }
+  paced.drain();
   assert.equal(
     controller.deliverClick(),
     true,
