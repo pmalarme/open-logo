@@ -52,7 +52,6 @@
         "type": "person",
         "field": "height"
       },
-      "message": "person has no field height. check the spelling.",
       "stage": "runtime",
       "severity": "error"
     }

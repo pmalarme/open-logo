@@ -29,7 +29,6 @@
         "value": 3,
         "length": 2
       },
-      "message": "this pattern expects 2 values, but got 3.",
       "stage": "runtime",
       "severity": "error"
     }

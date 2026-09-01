@@ -1989,15 +1989,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * asks *"is the head the **base** of something larger?"*. Both answers mean the same thing for the
    * branch decision — the head is not a whole call — so both must decline it.
    *
+   * **Ask it only of a head that can be a `primary`** — in this reader, an {@link isCalleeName}. A
+   * postfix segment extends a primary, so for a head that is no primary the question is meaningless
+   * and its answer is actively wrong: `parseParenthesized` also admits the keyword heads `and`/`or`,
+   * which are callable only in that parenthesized form, and treating a glued `[` after one as a
+   * selector turned the legal `( and[true false] true )` into two `ol-bad-token`s. The caller states
+   * that restriction; this predicate does not re-test it, because it has no way to know which of its
+   * caller's admitted heads are primaries.
+   *
    * **The two conditions are transcribed from {@link parsePostfix}'s own `hasPostfixAhead`, not
-   * re-derived**, and that is the whole point: this predicate exists so a parenthesized group reads
-   * its head exactly as the bare spelling does. A `.field` crosses newlines (a `dot` begins no
-   * statement, so continuing onto one can swallow no valid reading — see
-   * {@link continuesOnNextLineWithFieldPostfix}), while a selector `[` does **not**, because
-   * adjacency is what separates `:nums[1]` from a control's `[ … ]` body and a newline breaks
-   * adjacency by construction. Reading the raw stream for the `[` also keeps {@link peekAdjacent}'s
-   * stated invariant: its caller must never span a newline, and here a newline at `offset` fails the
-   * `lbracket` test before adjacency is ever asked.
+   * re-derived**, and that is the whole point: a parenthesized group must read its head exactly as
+   * the bare spelling does. A `.field` crosses newlines (a `dot` begins no statement, so continuing
+   * onto one can swallow no valid reading — see {@link continuesOnNextLineWithFieldPostfix}), while a
+   * selector `[` does **not**, because adjacency is what separates `:nums[1]` from a control's
+   * `[ … ]` body and a newline breaks adjacency by construction. Reading the raw stream for the `[`
+   * also keeps {@link peekAdjacent}'s stated invariant: its caller must never span a newline, and
+   * here a newline at `offset` fails the `lbracket` test before adjacency is ever asked.
    */
   function beginsPostfixAt(offset: number): boolean {
     const fieldOffset = skippingNewlines(offset);
@@ -2034,22 +2041,35 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // parentheses to group an expression more explicitly is exactly what a learner is taught to do,
     // so it must never be what breaks the program (issue #1021).
     //
-    // **Two tokens of lookahead settle it, and between them they cover every way the token after
-    // the head can mean "this head is not a whole call".** There are exactly two, because there are
-    // exactly two things the grammar lets follow a complete `primary`:
+    // **The lookahead asks two questions, one per way the grammar can continue a complete
+    // `primary`.** Neither is a claim of totality — the previous revision of this comment made one
+    // ("the grammar makes that lookahead total") and it was false, which is what issue #1025 came
+    // back to correct. What is claimed here is only what each question covers, and what it does not:
     //
     // - **An infix operator continues the head** (`spec/grammar.md:191`), so meeting one right after
     //   the head proves the head was a whole operand and the group is a `parenthesized-expression`
     //   (:213), not a `parenthesized-call` (:215) — a reading the call branch has no derivation for
     //   anyway. {@link isInfixOperatorAt}.
-    // - **A postfix segment extends the head** (`postfix-expression`, :192), so meeting a `.field`
-    //   or a glued selector `[` proves the head is a *base*, not a callee. {@link beginsPostfixAt}.
+    // - **A postfix segment extends the head** (`postfix-expression`, :192), so a `.field` or a glued
+    //   selector `[` proves the head is a *base*, not a callee. {@link beginsPostfixAt}.
     //
-    // The postfix half is issue #1025, and it is the correction of a claim this comment used to make
-    // and did not have: that one token of lookahead was *total* because "an infix operator can only
-    // continue an expression". The premise is true and the conclusion did not follow — an infix
-    // operator is not the only continuation the grammar has, and the two it missed disagreed with
-    // their own bare spellings. Measured at `f3066730`, with `define origin`/`define pair`:
+    // **The postfix question is asked only of an `isCalleeName` head, and that restriction is
+    // load-bearing rather than incidental.** {@link isCalleeName} is exactly "this name can head a
+    // `primary`", so it is exactly the set of heads a postfix segment could be extending. The
+    // `and`/`or` arm is admitted here *despite* answering false to it — they are keywords, and this
+    // parenthesized form is the only place they are callable — so they can never be a postfix base,
+    // and a glued `[` after one is a list **argument**. Asking them the postfix question broke
+    // `( and[true false] true )` into two `ol-bad-token`s while the spaced `( and [true false] true )`
+    // stayed clean (measured; `spec/grammar.md:390` gives the variadic form). Both spellings are
+    // pinned in `multiline-expressions.test.mjs`.
+    //
+    // A glued `[` is therefore **not** invariably a selector even among admitted heads, and the
+    // reader needs no arity to see it: after declining, `( round[1] )` reads `[1]` as `round`'s
+    // argument through the ordinary expression path — agreeing with bare `round[1]`, which does the
+    // same thing for the same reason.
+    //
+    // The postfix half is issue #1025, routing a decline #1021 left open. Measured at `f3066730`,
+    // with `define origin`/`define pair`:
     //
     // | source | parenthesized (before) | bare (control) |
     // |---|---|---|
@@ -2073,8 +2093,14 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // keeps its negative *argument* because a glued `-1` is a `number` literal, not an operator
     // (see {@link isInfixOperatorAt}); `( and true false )` keeps its variadic call because `and` is
     // the **head** here, and the lookahead looks *past* the head at `true`; and `( pi )` keeps its
-    // zero-argument call because `)` is no operator. A **spaced** `( pair [1] )` likewise keeps its
-    // call on a list argument, agreeing with the bare `pair [1]` for the same adjacency reason.
+    // zero-argument call because `)` is no operator.
+    //
+    // A **spaced** `( pair [1] )` keeps the call on a one-element list argument — which is what
+    // `parenthesized-call` (:215) is *for*, and it deliberately does **not** agree with the bare
+    // `pair [1]`, which is a complete `pair` call followed by a stray list (`ol-bad-token`). The
+    // parenthesized call form has no bare equivalent by design: parentheses are how a call supplies
+    // arguments explicitly. Adjacency is what separates the two spellings, exactly as it already
+    // separates `-1` from `- 1`.
     //
     // What the lookahead deliberately does **not** do is second-guess arity, and both directions of
     // that were measured rather than assumed:
@@ -2119,11 +2145,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //    makes newlines insignificant inside a group, and for the branch **decision** above they are
     //    (that is what {@link skippingNewlines} is for, and an arity-0 head such as `pi` agrees in
     //    both spellings). It is only this already-failing **recovery** that still reads them apart.
+    const headIsCallee = head.kind === "name" && isCalleeName(head.text);
+    const headIsVariadicLogic = lower === "and" || lower === "or";
     if (
-      head.kind === "name" &&
-      (isCalleeName(head.text) || lower === "and" || lower === "or") &&
+      (headIsCallee || headIsVariadicLogic) &&
       !isInfixOperatorAt(skippingNewlines(1)) &&
-      !beginsPostfixAt(1)
+      !(headIsCallee && beginsPostfixAt(1))
     ) {
       advance();
       const callee =

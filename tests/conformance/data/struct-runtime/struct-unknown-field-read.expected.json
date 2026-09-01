@@ -52,7 +52,6 @@
         "type": "point",
         "field": "height"
       },
-      "message": "point has no field height. check the spelling.",
       "stage": "runtime",
       "severity": "error"
     }

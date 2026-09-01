@@ -206,7 +206,6 @@
       "params": {
         "message": "stop now"
       },
-      "message": "stop now",
       "stage": "runtime",
       "severity": "error"
     }

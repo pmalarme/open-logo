@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 20]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -22,8 +24,10 @@
         "start": [1, 14],
         "end": [1, 16]
       },
-      "params": { "operation": "first", "value": [] },
-      "message": "first needs a non-empty word or list, but got an empty one.",
+      "params": {
+        "operation": "first",
+        "value": []
+      },
       "stage": "runtime",
       "severity": "error"
     }

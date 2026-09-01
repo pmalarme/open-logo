@@ -1,5 +1,6 @@
 {
   "description": "Issue #839: a Heritage short alias is a built-in name at run time, exactly as illegal to declare as the canonical it spells. The runtime resolves the alias to its canonical and re-runs the same lookup rather than consulting a table of its own (`spec/conformance.md:150`, Heritage is \"alternate spellings only\"), so `define fd` is `ol-reserved-word` because `define forward` is. The empty event stream is what makes this discriminating: `999` would mean the learner's procedure ran, and a `move` event would mean the turtle did.",
+  "compareMessages": true,
   "profiles": ["core-language", "turtle-rendering", "data", "heritage"],
   "execute": true,
   "events": [],
@@ -11,7 +12,9 @@
         "start": [1, 8],
         "end": [1, 10]
       },
-      "params": { "name": "fd" },
+      "params": {
+        "name": "fd"
+      },
       "message": "fd is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"

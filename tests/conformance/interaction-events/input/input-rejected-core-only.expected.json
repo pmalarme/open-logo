@@ -15,7 +15,6 @@
         "name": "input",
         "suggestion": "fput"
       },
-      "message": "i don't know how to input. did you mean fput?",
       "stage": "semantic",
       "severity": "error"
     }

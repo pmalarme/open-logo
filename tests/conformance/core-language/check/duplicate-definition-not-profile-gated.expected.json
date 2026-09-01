@@ -19,7 +19,6 @@
           "end": [1, 13]
         }
       },
-      "message": "you already defined point on line 1.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -38,7 +37,6 @@
           "end": [3, 14]
         }
       },
-      "message": "you already defined helper on line 3.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -57,7 +55,6 @@
           "end": [3, 14]
         }
       },
-      "message": "you already defined helper on line 3.",
       "stage": "semantic",
       "severity": "error"
     }

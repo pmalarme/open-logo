@@ -29,7 +29,6 @@
         "expected": 2,
         "actual": 3
       },
-      "message": "is_a? takes 2 inputs, but got 3.",
       "stage": "runtime",
       "severity": "error"
     }

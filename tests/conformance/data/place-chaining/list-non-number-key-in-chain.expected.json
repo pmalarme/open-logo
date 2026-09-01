@@ -66,7 +66,6 @@
         "value": "a",
         "operation": "index"
       },
-      "message": "index needs a number, but got a word.",
       "stage": "runtime",
       "severity": "error"
     }

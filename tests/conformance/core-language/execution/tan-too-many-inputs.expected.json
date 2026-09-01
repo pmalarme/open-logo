@@ -29,7 +29,6 @@
         "expected": 1,
         "actual": 2
       },
-      "message": "tan takes one input, but got 2.",
       "stage": "runtime",
       "severity": "error"
     }

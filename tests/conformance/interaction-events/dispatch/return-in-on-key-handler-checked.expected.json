@@ -14,7 +14,6 @@
       "params": {
         "keyword": "return"
       },
-      "message": "return only reports a value from inside a procedure. put it between 'define' and 'end'.",
       "stage": "semantic",
       "severity": "error"
     }

@@ -29,7 +29,6 @@
         "expected": "record",
         "actual": "number"
       },
-      "message": "type_of needs a record, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

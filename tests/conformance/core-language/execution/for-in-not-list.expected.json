@@ -30,7 +30,6 @@
         "value": 5,
         "operation": "for"
       },
-      "message": "for ... in needs a list, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

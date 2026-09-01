@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [3, 2]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 1,
@@ -21,7 +23,9 @@
         "start": [4, 1],
         "end": [4, 13]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 2,
@@ -31,7 +35,9 @@
         "start": [5, 1],
         "end": [5, 19]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -48,7 +54,6 @@
         "value": true,
         "operation": "index"
       },
-      "message": "index needs a word or number, but got a boolean.",
       "stage": "runtime",
       "severity": "error"
     }

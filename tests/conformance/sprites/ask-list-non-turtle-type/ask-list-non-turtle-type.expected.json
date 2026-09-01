@@ -62,7 +62,6 @@
         "value": 5,
         "operation": "ask"
       },
-      "message": "ask needs a turtle, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

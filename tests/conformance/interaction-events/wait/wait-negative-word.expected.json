@@ -28,7 +28,6 @@
         "operation": "wait",
         "value": -1
       },
-      "message": "wait needs a count of 0 or greater, but got -1.",
       "stage": "runtime",
       "severity": "error"
     }

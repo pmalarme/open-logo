@@ -11,8 +11,9 @@
         "start": [1, 1],
         "end": [1, 7]
       },
-      "params": { "keyword": "return" },
-      "message": "output only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "params": {
+        "keyword": "return"
+      },
       "stage": "semantic",
       "severity": "error"
     },
@@ -23,8 +24,9 @@
         "start": [2, 1],
         "end": [2, 3]
       },
-      "params": { "keyword": "return" },
-      "message": "op only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "params": {
+        "keyword": "return"
+      },
       "stage": "semantic",
       "severity": "error"
     }

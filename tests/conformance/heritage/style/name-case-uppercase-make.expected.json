@@ -15,7 +15,6 @@
       "params": {
         "name": "MAKE"
       },
-      "message": "MAKE should be lowercase, like a learner would read it aloud.",
       "stage": "semantic",
       "severity": "warning"
     }

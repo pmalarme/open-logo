@@ -15,7 +15,6 @@
         "name": "ask",
         "suggestion": "abs"
       },
-      "message": "i don't know how to ask. did you mean abs?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -29,7 +28,6 @@
       "params": {
         "name": "each"
       },
-      "message": "i don't know how to each. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -44,7 +42,6 @@
         "name": "ask",
         "suggestion": "abs"
       },
-      "message": "i don't know how to ask. did you mean abs?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -58,7 +55,6 @@
       "params": {
         "name": "each"
       },
-      "message": "i don't know how to each. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     }

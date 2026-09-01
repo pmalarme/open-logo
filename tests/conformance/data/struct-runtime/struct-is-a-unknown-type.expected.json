@@ -51,7 +51,6 @@
       "params": {
         "name": "circle"
       },
-      "message": "i don't know a type called \"circle\" — try number, word, list, or boolean.",
       "stage": "runtime",
       "severity": "error"
     }

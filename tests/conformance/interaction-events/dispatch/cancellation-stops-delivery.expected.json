@@ -28,7 +28,6 @@
       "params": {
         "limit": "cancelled"
       },
-      "message": "execution was cancelled before the program finished.",
       "stage": "runtime",
       "severity": "error"
     }

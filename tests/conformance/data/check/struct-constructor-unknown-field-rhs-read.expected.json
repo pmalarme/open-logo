@@ -11,8 +11,10 @@
         "start": [2, 17],
         "end": [2, 19]
       },
-      "params": { "type": "point", "field": "z" },
-      "message": "point has no field z. check the spelling.",
+      "params": {
+        "type": "point",
+        "field": "z"
+      },
       "stage": "semantic",
       "severity": "error"
     }

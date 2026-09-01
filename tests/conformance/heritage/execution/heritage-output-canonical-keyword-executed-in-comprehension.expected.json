@@ -11,7 +11,9 @@
         "start": [4, 1],
         "end": [4, 18]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 1,
@@ -21,7 +23,9 @@
         "start": [5, 1],
         "end": [5, 35]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -32,8 +36,10 @@
         "start": [5, 24],
         "end": [5, 33]
       },
-      "params": { "keyword": "return", "form": "map" },
-      "message": "output doesn't belong in a map — a map reports its last expression instead.",
+      "params": {
+        "keyword": "return",
+        "form": "map"
+      },
       "stage": "runtime",
       "severity": "error"
     }

@@ -11,8 +11,10 @@
         "start": [2, 24],
         "end": [2, 30]
       },
-      "params": { "keyword": "return", "form": "map" },
-      "message": "output doesn't belong in a map — a map reports its last expression instead.",
+      "params": {
+        "keyword": "return",
+        "form": "map"
+      },
       "stage": "semantic",
       "severity": "error"
     },
@@ -23,8 +25,10 @@
         "start": [3, 24],
         "end": [3, 26]
       },
-      "params": { "keyword": "return", "form": "map" },
-      "message": "op doesn't belong in a map — a map reports its last expression instead.",
+      "params": {
+        "keyword": "return",
+        "form": "map"
+      },
       "stage": "semantic",
       "severity": "error"
     }

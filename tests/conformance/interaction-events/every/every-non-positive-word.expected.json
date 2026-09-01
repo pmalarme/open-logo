@@ -28,7 +28,6 @@
         "operation": "every",
         "value": 0
       },
-      "message": "every needs a positive whole number of ticks, but got 0.",
       "stage": "runtime",
       "severity": "error"
     }

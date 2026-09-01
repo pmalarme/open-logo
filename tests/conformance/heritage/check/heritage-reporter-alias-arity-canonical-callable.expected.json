@@ -11,8 +11,11 @@
         "start": [1, 8],
         "end": [1, 10]
       },
-      "params": { "callable": "butfirst", "expected": 1, "actual": 0 },
-      "message": "butfirst needs one input.",
+      "params": {
+        "callable": "butfirst",
+        "expected": 1,
+        "actual": 0
+      },
       "stage": "semantic",
       "severity": "error"
     }

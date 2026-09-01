@@ -27,10 +27,11 @@
       "params": {
         "expected": "whole number",
         "actual": "dict",
-        "value": { "name": "ada" },
+        "value": {
+          "name": "ada"
+        },
         "operation": "wait"
       },
-      "message": "wait needs a whole number, but got a dict.",
       "stage": "runtime",
       "severity": "error"
     }

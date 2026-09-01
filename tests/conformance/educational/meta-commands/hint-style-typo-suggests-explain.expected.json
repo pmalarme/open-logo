@@ -11,8 +11,10 @@
         "start": [1, 2],
         "end": [1, 9]
       },
-      "params": { "name": "explian", "suggestion": "explain" },
-      "message": "i don't know how to explian. did you mean explain?",
+      "params": {
+        "name": "explian",
+        "suggestion": "explain"
+      },
       "stage": "semantic",
       "severity": "error"
     }

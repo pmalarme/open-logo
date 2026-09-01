@@ -760,10 +760,12 @@ test("#1021: the lookahead does not swallow a parenthesized call", () => {
 // and the parenthesized spelling failed. "Adding parentheses to group an expression more explicitly
 // is exactly what a learner is taught to do, so it must never be what breaks the program."
 //
-// These tests assert AGREEMENT — the same span-stripped tree for both spellings — rather than
-// "parses clean", because clean-on-both-sides would also be satisfied by two different readings that
-// both happen not to raise a diagnostic, which is the silent-no-op class this area keeps
-// rediscovering.
+// Most of these tests assert AGREEMENT — the same span-stripped tree for both spellings — rather
+// than "parses clean", because clean-on-both-sides would also be satisfied by two different
+// readings that both happen not to raise a diagnostic, which is the silent-no-op class this area
+// keeps rediscovering. The two that assert a DISAGREEMENT instead (the spaced `[`, and the
+// `and`/`or` heads) are the boundary: they pin where the parenthesized call form legitimately has
+// no bare equivalent, and where the postfix question must not be asked at all.
 
 /** The two zero-arity procedures the postfix tests below read from. */
 const POSTFIX_PRELUDE =
@@ -780,30 +782,30 @@ test("#1025: a group headed by a callable with a `.field` postfix reads exactly 
     ["print (origin\n  .x)", "print origin.x"],
   ]) {
     assert.deepEqual(
-      codesOf(POSTFIX_PRELUDE + parenthesized),
+      codesOf(`${POSTFIX_PRELUDE}${parenthesized}`),
       [],
       parenthesized,
     );
     assert.equal(
-      shapeOf(POSTFIX_PRELUDE + parenthesized),
-      shapeOf(POSTFIX_PRELUDE + bare),
+      shapeOf(`${POSTFIX_PRELUDE}${parenthesized}`),
+      shapeOf(`${POSTFIX_PRELUDE}${bare}`),
       `${JSON.stringify(parenthesized)} must read as ${JSON.stringify(bare)}`,
     );
   }
 });
 
 test("#1025: a group headed by a callable with a glued selector reads exactly like its bare spelling", () => {
-  assert.deepEqual(codesOf(POSTFIX_PRELUDE + "print (pair[1])"), []);
+  assert.deepEqual(codesOf(`${POSTFIX_PRELUDE}print (pair[1])`), []);
   assert.equal(
-    shapeOf(POSTFIX_PRELUDE + "print (pair[1])"),
-    shapeOf(POSTFIX_PRELUDE + "print pair[1]"),
+    shapeOf(`${POSTFIX_PRELUDE}print (pair[1])`),
+    shapeOf(`${POSTFIX_PRELUDE}print pair[1]`),
   );
 
   // The node kind is asserted, not inferred from the absence of diagnostics: a `ParenCall` of
   // `pair` on a one-element list literal also parses clean, and that is precisely the wrong reading
   // this fixes.
   assert.equal(
-    OL.parse(POSTFIX_PRELUDE + "print (pair[1])", doc).ast.body[2].args[0].kind,
+    OL.parse(`${POSTFIX_PRELUDE}print (pair[1])`, doc).ast.body[2].args[0].kind,
     "PostfixExpression",
   );
 });
@@ -812,22 +814,58 @@ test("#1025: a SPACED `[` after the head keeps the parenthesized call — adjace
   // The negative half, and the reason `beginsPostfixAt` asks `peekAdjacent` rather than just
   // "is the next token a `[`". A selector binds only when glued (`:durations[:i]`), so a spaced
   // `( pair [1] )` is still `parenthesized-call` (`spec/grammar.md:215`) passing a one-element list
-  // — which is what the parenthesized-call form is FOR. Same adjacency rule the bare
-  // `collectPostfixSegments` uses, and the same one that already tells `-1` from `- 1`.
-  assert.deepEqual(codesOf(POSTFIX_PRELUDE + "print (pair [1])"), []);
+  // — which is what the parenthesized-call form is FOR, and it deliberately does NOT agree with the
+  // bare `pair [1]`, a complete `pair` call followed by a stray list. Measured, and asserted here,
+  // because an earlier revision of this fix's branch comment claimed those two spellings agreed:
+  // the parenthesized call form has no bare equivalent by design.
+  assert.deepEqual(codesOf(`${POSTFIX_PRELUDE}print (pair [1])`), []);
   assert.equal(
-    OL.parse(POSTFIX_PRELUDE + "print (pair [1])", doc).ast.body[2].args[0]
+    OL.parse(`${POSTFIX_PRELUDE}print (pair [1])`, doc).ast.body[2].args[0]
       .kind,
     "ParenCall",
   );
+  assert.deepEqual(codesOf(`${POSTFIX_PRELUDE}print pair [1]`), [
+    "ol-bad-token",
+  ]);
 
   // A newline breaks adjacency exactly as a space does, so the group's own newline-insignificance
   // does not manufacture a selector out of a `[` on the next line.
   assert.equal(
-    OL.parse(POSTFIX_PRELUDE + "print (pair\n  [1])", doc).ast.body[2].args[0]
+    OL.parse(`${POSTFIX_PRELUDE}print (pair\n  [1])`, doc).ast.body[2].args[0]
       .kind,
     "ParenCall",
   );
+});
+
+test("#1025: the postfix lookahead is NOT asked of the `and`/`or` heads, which are no primaries", () => {
+  // The regression an earlier revision of this fix shipped, caught in review. `and`/`or` are
+  // keywords admitted as heads here only because this parenthesized form is the one place they are
+  // callable (`spec/grammar.md:390`) — they answer false to `isCalleeName` and can never be the
+  // base of a postfix expression. Treating a glued `[` after one as a selector declined the call
+  // branch, and `and` is then no primary at all: two `ol-bad-token`s for a legal variadic call.
+  for (const head of ["and", "or"]) {
+    const glued = `print (${head}[true false] true)`;
+    const spaced = `print (${head} [true false] true)`;
+
+    assert.deepEqual(codesOf(glued), [], glued);
+    assert.equal(OL.parse(glued, doc).ast.body[0].args[0].kind, "ParenCall");
+    // The control that makes "both are clean" mean something: the spaced spelling was never
+    // broken, so it is the glued one that has to have been repaired.
+    assert.deepEqual(codesOf(spaced), [], spaced);
+    assert.equal(
+      shapeOf(glued),
+      shapeOf(spaced),
+      `${JSON.stringify(glued)} must read as ${JSON.stringify(spaced)}`,
+    );
+  }
+});
+
+test("#1025: a glued `[` after an arity-bearing head stays its ARGUMENT, and agrees with the bare spelling", () => {
+  // A glued `[` is not invariably a selector even among heads the postfix question IS asked of.
+  // `round` takes an input, so once the branch declines, the ordinary expression path reads `[1]`
+  // as that input — exactly as the bare spelling does, and with no arity knowledge in the reader.
+  assert.deepEqual(codesOf("print (round[1])"), []);
+  assert.equal(shapeOf("print (round[1])"), shapeOf("print round[1]"));
 });
 
 test("#1021: a glued negative argument stays an ARITY question, not a parse error", () => {

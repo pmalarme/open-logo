@@ -453,14 +453,15 @@ test("compare returns not matched with diff report", () => {
   assert.ok(result.report.includes("diagnostic mismatch"));
 });
 
-test("compare() compares a diagnostic message when — and only when — the expected side carries one, so a wrong learner sentence fails (issue #1025)", () => {
-  // The opt-in is the presence of the `message` key itself. spec/error-model.md:254-259 keeps
-  // identity at code+params and says tests SHOULD assert those, not English text — which stays the
-  // default for every fixture that writes no message (see the sibling test below). But :125 does
-  // not merely describe `ol-reserved-word`: it says *"Say `{name} is already part of OpenLogo.
-  // choose another name.`"* and makes the words *keyword*, *primitive* and *alias* a MUST NOT in
-  // that message. Both #751 and #871 shipped a message violating that MUST NOT, and the corpus did
-  // not move, because `compare()` dropped `message` unconditionally.
+test("compare() compares a diagnostic message when — and only when — the fixture opted in with compareMessages, so a wrong learner sentence fails (issue #1025)", () => {
+  // The opt-in is the explicit per-fixture `"compareMessages": true`, NOT the presence of a
+  // `message` key: the corpus carried 306 messages written while the documented behaviour was
+  // "message is not compared", and reading those as consent would have frozen ~275 English
+  // sentences that spec/error-model.md:261-263 positively permits an implementation to reword.
+  // spec/error-model.md:254-259 stays the default — identity is code+params. :125 is the case this
+  // exists for: it prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT
+  // inside it, and #751 and #871 both shipped a message violating that while the corpus stayed
+  // green, because compare() dropped `message` unconditionally.
   const diagnostic = (message) => ({
     code: "ol-reserved-word",
     source_span: { document: "test", start: [1, 8], end: [1, 15] },
@@ -474,7 +475,7 @@ test("compare() compares a diagnostic message when — and only when — the exp
     "forward is already a reserved primitive, so it can't be redefined here.";
 
   const agreeing = compare(
-    { events: [], diagnostics: [diagnostic(right)] },
+    { compareMessages: true, events: [], diagnostics: [diagnostic(right)] },
     { events: [], diagnostics: [diagnostic(right)] },
   );
   assert.ok(
@@ -483,7 +484,7 @@ test("compare() compares a diagnostic message when — and only when — the exp
   );
 
   const diverging = compare(
-    { events: [], diagnostics: [diagnostic(right)] },
+    { compareMessages: true, events: [], diagnostics: [diagnostic(right)] },
     { events: [], diagnostics: [diagnostic(wrong)] },
   );
   assert.ok(
@@ -495,13 +496,25 @@ test("compare() compares a diagnostic message when — and only when — the exp
     diverging.report.includes("reserved primitive"),
     "the report must name the offending prose so the failure is actionable",
   );
+
+  // The control that makes the two assertions above mean something: the SAME wrong message, with
+  // the flag absent, matches. So it is the opt-in doing the work, not some other field.
+  const notOptedIn = compare(
+    { events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(wrong)] },
+  );
+  assert.ok(
+    notOptedIn.matched,
+    "without compareMessages the localization boundary is preserved",
+  );
 });
 
 test("compare() ignores a diagnostic message the expected side did not ask for, keeping the localization boundary for every fixture that has not opted in", () => {
-  // The other arm of the #1025 opt-in, and the one no fixture can express: a fixture asserting
-  // "prose is NOT compared" would have to record the prose it is not asserting. Every diagnostic
-  // `produce()` returns carries a message (validateDiagnostics makes that a hard requirement), so
-  // this is the shape of the 326 corpus diagnostics that deliberately stay on identity alone.
+  // The arm no fixture can express: a fixture asserting "prose is NOT compared" would have to
+  // record the prose it is not asserting — and loadFixture now rejects a `message` without the
+  // flag outright, so this shape only exists in-memory. Every diagnostic `produce()` returns
+  // carries a message (validateDiagnostics makes that a hard requirement), so this is the shape of
+  // the 326 corpus diagnostics that deliberately stay on identity alone.
   const expected = {
     events: [],
     diagnostics: [
@@ -535,6 +548,36 @@ test("compare() ignores a diagnostic message the expected side did not ask for, 
   );
 });
 
+test("compare() keeps the per-diagnostic grain inside an opted-in fixture: a sibling with no message is still identity-only (issue #1025)", () => {
+  // `compareMessages` is per fixture, as the issue required, but within one fixture only the
+  // diagnostics that actually carry a message are asserted on prose — so a fixture may pin the one
+  // sentence the spec fixes and leave its siblings free to be reworded.
+  const span = { document: "test", start: [1, 1], end: [1, 2] };
+  const pinned = {
+    code: "ol-reserved-word",
+    source_span: span,
+    params: { name: "forward" },
+    stage: "semantic",
+    severity: "error",
+    message: "forward is already part of OpenLogo. choose another name.",
+  };
+  const loose = {
+    code: "ol-test",
+    source_span: span,
+    params: {},
+    stage: "parse",
+    severity: "error",
+  };
+  const result = compare(
+    { compareMessages: true, events: [], diagnostics: [pinned, loose] },
+    {
+      events: [],
+      diagnostics: [pinned, { ...loose, message: "reworded freely" }],
+    },
+  );
+  assert.ok(result.matched);
+});
+
 test("compare() projects a surplus actual diagnostic that has no expected counterpart to consult, and still reports it as surplus (issue #1025)", () => {
   // The index-aligned opt-in has to answer "what does actual[1] compare, when expected[1] does not
   // exist?". It compares identity only — there is no expectation to have opted in — and the extra
@@ -549,7 +592,7 @@ test("compare() projects a surplus actual diagnostic that has no expected counte
     message: "first",
   };
   const result = compare(
-    { events: [], diagnostics: [shared] },
+    { compareMessages: true, events: [], diagnostics: [shared] },
     { events: [], diagnostics: [shared, { ...shared, message: "second" }] },
   );
   assert.ok(!result.matched, "a surplus actual diagnostic must be reported");
@@ -1390,6 +1433,120 @@ test("loadFixture reads an explicit execute: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.execute, true);
+});
+
+// --- issue #1025: the `compareMessages` opt-in, and why both directions are errors --------------
+
+/** Write a throwaway fixture pair under TEMP_ROOT and load it. */
+function loadTempFixture(name, spec, source = "") {
+  mkdirSync(join(TEMP_ROOT, name), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, name, `${name}.logo`), source);
+  writeFileSync(
+    join(TEMP_ROOT, name, `${name}.expected.json`),
+    JSON.stringify(spec),
+  );
+  return loadFixture({
+    name: `${name}/${name}.expected.json`,
+    expectedPath: join(TEMP_ROOT, name, `${name}.expected.json`),
+    logoPath: join(TEMP_ROOT, name, `${name}.logo`),
+  });
+}
+
+/** A minimal well-formed expected diagnostic, plus whatever `extra` keys a test needs. */
+function tempDiagnostic(extra = {}) {
+  return {
+    code: "ol-bad-token",
+    source_span: { document: "t", start: [1, 1], end: [1, 2] },
+    params: {},
+    stage: "parse",
+    severity: "error",
+    ...extra,
+  };
+}
+
+test("loadFixture rejects a `message` on a fixture that did not set compareMessages, so nothing can be present-but-ignored again (issue #1025)", () => {
+  // This is AC-A3 turned from a one-time cleanup into a structural property. Before #1025 the
+  // corpus carried 306 message fields that the harness silently dropped — data that reads as
+  // evidence and is not. Deleting them once would have fixed the corpus and not the hole.
+  const loaded = loadTempFixture("message-without-optin", {
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "asserted by nothing" })],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("compareMessages"));
+  assert.ok(loaded.error.includes("delete the message"));
+});
+
+test("loadFixture rejects compareMessages: true when no expected diagnostic carries a message (issue #1025)", () => {
+  // The other direction: an opt-in that asserts nothing is a fixture-author mistake, not a no-op —
+  // the same reason `executeOptions` without `"execute": true` is rejected rather than ignored.
+  const loaded = loadTempFixture("optin-without-message", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic()],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("no expected diagnostic carries"));
+});
+
+test("loadFixture rejects a non-boolean compareMessages field", () => {
+  const loaded = loadTempFixture("bad-compare-messages", {
+    profiles: ["core-language"],
+    compareMessages: "yes",
+    events: [],
+    diagnostics: [],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"compareMessages" must be a boolean'));
+});
+
+test("loadFixture accepts a fixture that opts in and carries a message, defaulting the flag to false otherwise", () => {
+  const optedIn = loadTempFixture("with-compare-messages", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "asserted on purpose" })],
+  });
+  assert.equal(optedIn.expected.compareMessages, true);
+
+  const plain = loadTempFixture("without-compare-messages", {
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [tempDiagnostic()],
+  });
+  assert.equal(plain.expected.compareMessages, false);
+});
+
+test("loadFixture rejects an unknown key on an expected diagnostic, so a misspelled `message` cannot assert nothing (@testing F1 on issue #1025)", () => {
+  // Now that `message` is load-bearing, `mesage`/`Message`/`msg` would buy exactly the defect
+  // #1025 exists to kill, one level down: a field that reads as evidence and is silently dropped.
+  // Same allow-list reflex as validateExecuteOptions and ALLOWED_HOST_INPUT_KEYS.
+  const loaded = loadTempFixture("typo-message-key", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [
+      tempDiagnostic({ message: "real", mesage: "TOTALLY WRONG PROSE" }),
+    ],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('unknown key "mesage"'));
+
+  // The control: the correctly-spelled key on the same fixture loads clean, so the rejection is
+  // about the spelling and not about the fixture shape.
+  const control = loadTempFixture("typo-message-key-control", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "real" })],
+  });
+  assert.equal(control.error, undefined);
 });
 
 test("loadFixture rejects a non-boolean execute field", () => {

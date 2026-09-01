@@ -15,7 +15,6 @@
         "name": "list",
         "suggestion": "last"
       },
-      "message": "i don't know how to list. did you mean last?",
       "stage": "semantic",
       "severity": "error"
     }

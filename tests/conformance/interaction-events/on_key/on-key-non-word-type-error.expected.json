@@ -29,7 +29,6 @@
         "expected": "word",
         "actual": "number"
       },
-      "message": "on_key needs a key word, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

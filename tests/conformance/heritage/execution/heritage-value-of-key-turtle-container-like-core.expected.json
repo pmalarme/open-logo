@@ -17,7 +17,9 @@
         "start": [1, 1],
         "end": [1, 9]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 1,
@@ -27,7 +29,9 @@
         "start": [2, 1],
         "end": [2, 32]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -41,10 +45,11 @@
       "params": {
         "expected": "dict",
         "actual": "turtle",
-        "value": { "id": 0 },
+        "value": {
+          "id": 0
+        },
         "operation": "field"
       },
-      "message": "field needs a dict, but got a turtle.",
       "stage": "runtime",
       "severity": "error"
     }

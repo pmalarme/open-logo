@@ -39,7 +39,6 @@
       "params": {
         "key": "tom"
       },
-      "message": "this dict has no key \"tom\".",
       "stage": "runtime",
       "severity": "error"
     }

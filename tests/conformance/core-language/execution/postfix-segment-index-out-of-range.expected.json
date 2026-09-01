@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 15]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -22,8 +24,11 @@
         "start": [1, 12],
         "end": [1, 15]
       },
-      "params": { "operation": "index", "index": 5, "length": 2 },
-      "message": "index 5 is out of range for a list of 2.",
+      "params": {
+        "operation": "index",
+        "index": 5,
+        "length": 2
+      },
       "stage": "runtime",
       "severity": "error"
     }

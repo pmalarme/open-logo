@@ -1,5 +1,6 @@
 {
   "description": "Issue #839 AC4 in the HERITAGE `to` spelling: `to forward :n … end` is `ol-reserved-word` exactly as `define forward` is, and the turtle command that follows never runs. Heritage is \"alternate spellings only\" (`spec/conformance.md:150`), so the declaration slot cannot be more permissive in one spelling than the other — otherwise a learner writing Heritage could shadow `forward` while a learner writing Core could not, which is the profile-dependent unpredictability `spec/grammar.md` rules out. Paired with `to-twice-is-not-a-silent-override`, which covers the duplicate half of the same slot. The span starts at column 4, not 8, because `to` is three characters — the property that made a hard-coded column in the unit suite fail, and the reason a `define`-only corpus could not have caught a keyword-sensitive guard.",
+  "compareMessages": true,
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
   "events": [],
@@ -11,7 +12,9 @@
         "start": [1, 4],
         "end": [1, 11]
       },
-      "params": { "name": "forward" },
+      "params": {
+        "name": "forward"
+      },
       "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"

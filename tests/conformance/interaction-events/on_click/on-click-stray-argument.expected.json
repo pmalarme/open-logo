@@ -15,7 +15,6 @@
         "opener": "on_click",
         "hint": "wrap the body in [ ] or close it with end."
       },
-      "message": "on_click needs a body. wrap the body in [ ] or close it with end.",
       "stage": "parse",
       "severity": "error"
     },
@@ -29,7 +28,6 @@
       "params": {
         "text": "["
       },
-      "message": "each instruction needs a new line of its own. i didn't expect [ to keep going on this line.",
       "stage": "parse",
       "severity": "error"
     }

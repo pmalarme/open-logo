@@ -15,7 +15,6 @@
         "expected": "every",
         "actual": "when"
       },
-      "message": "this when doesn't close the block that is open. did you mean every?",
       "stage": "parse",
       "severity": "error"
     }

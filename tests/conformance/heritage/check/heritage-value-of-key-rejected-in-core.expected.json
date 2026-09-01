@@ -11,8 +11,9 @@
         "start": [2, 7],
         "end": [2, 12]
       },
-      "params": { "name": "value" },
-      "message": "i don't know how to value. check the spelling, or define it with 'define'.",
+      "params": {
+        "name": "value"
+      },
       "stage": "semantic",
       "severity": "error"
     }

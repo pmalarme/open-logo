@@ -11,7 +11,9 @@
         "start": [4, 1],
         "end": [4, 5]
       },
-      "payload": { "statement_kind": "Return" }
+      "payload": {
+        "statement_kind": "Return"
+      }
     },
     {
       "seq": 1,
@@ -21,7 +23,9 @@
         "start": [4, 1],
         "end": [4, 5]
       },
-      "payload": { "value": 5 }
+      "payload": {
+        "value": 5
+      }
     }
   ],
   "diagnostics": [
@@ -32,8 +36,9 @@
         "start": [4, 1],
         "end": [4, 5]
       },
-      "params": { "keyword": "return" },
-      "message": "op only reports a value from inside a procedure. put it between 'define' and 'end'.",
+      "params": {
+        "keyword": "return"
+      },
       "stage": "runtime",
       "severity": "error"
     }

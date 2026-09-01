@@ -88,7 +88,6 @@
       "params": {
         "message": "area knows only the polygon and circle shapes"
       },
-      "message": "area knows only the polygon and circle shapes",
       "stage": "runtime",
       "severity": "error"
     }

@@ -1,5 +1,6 @@
 {
   "description": "Issue #839 AC4, the Turtle & Rendering half of \"nothing shadows\": `define forward :n … print 999 … end` then `forward 10`. Phase-1 registration raises `ol-reserved-word` (`spec/error-model.md:125`), matching what `check()` reports. The empty event stream is the assertion that matters: a `print` payload of `999` would mean the shadow is back, and a `move` payload would mean the primitive silently won instead.",
+  "compareMessages": true,
   "profiles": ["core-language", "turtle-rendering"],
   "execute": true,
   "events": [],
@@ -11,7 +12,9 @@
         "start": [1, 8],
         "end": [1, 15]
       },
-      "params": { "name": "forward" },
+      "params": {
+        "name": "forward"
+      },
       "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"

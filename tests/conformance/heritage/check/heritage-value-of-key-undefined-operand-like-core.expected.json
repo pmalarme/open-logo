@@ -11,8 +11,9 @@
         "start": [1, 16],
         "end": [1, 21]
       },
-      "params": { "name": "nope" },
-      "message": ":nope is not defined yet. declare it with a parameter, 'local', or an assignment first.",
+      "params": {
+        "name": "nope"
+      },
       "stage": "semantic",
       "severity": "error"
     },
@@ -23,8 +24,9 @@
         "start": [2, 7],
         "end": [2, 12]
       },
-      "params": { "name": "nope" },
-      "message": ":nope is not defined yet. declare it with a parameter, 'local', or an assignment first.",
+      "params": {
+        "name": "nope"
+      },
       "stage": "semantic",
       "severity": "error"
     }
