@@ -1096,9 +1096,13 @@ test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly tha
 // --- ol-style-nested-handler (issue #828) -----------------------------------------------------
 // The TEACHING half of the #828 ruling. Its other half -- charging each handler firing against the
 // instruction budget (PR #910) -- already makes the program safe, so these are warnings that never
-// change program meaning. Message wording is asserted HERE and not in a conformance fixture,
-// because the conformance harness excludes `message` from comparison entirely: a fixture cannot
-// fail on wording, so wording must be pinned by a unit test or it is pinned nowhere.
+// change program meaning. Message wording is asserted HERE and not in a conformance fixture, and
+// not because the harness cannot compare it: a fixture opts in with `"compareMessages": true`
+// (issue #1025). This wording deliberately does not opt in. `spec/error-model.md:256-259` makes
+// identity `code` plus `params` and asks tests to assert those, and `:261-263` positively permits a
+// template author to reorder, inflect, or soften prose -- so freezing a style lint's English in a
+// stack-neutral fixture would oblige every conforming implementation to emit it verbatim. The
+// opt-in is for the messages the spec fixes itself; a unit test is where ours belong.
 
 const INTERACTION_STYLE = ["core-language", "interaction-events"];
 
@@ -1130,8 +1134,9 @@ test("ol-style-nested-handler: an every that registers an every is flagged once,
 });
 
 test("ol-style-nested-handler: the message names both forms and says what to do", () => {
-  // The harness never compares `message`, so this is the only place the learner-facing wording is
-  // pinned. `spec/error-model.md` requires the warm lowercase Logo voice.
+  // No fixture pins this sentence, for the reason given above the section: this lint's prose is
+  // ours and stays out of the conformance opt-in, so the unit assertion is where it lives.
+  // `spec/error-model.md` requires the warm lowercase Logo voice.
   const [diagnostic] = nestedHandlerFindings(
     'every 3 [ on_key "x" [ print 1 ] ]',
   );
