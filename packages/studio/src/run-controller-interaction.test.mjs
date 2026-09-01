@@ -134,6 +134,35 @@ function createResolveInPlaceHost() {
   return host;
 }
 
+/**
+ * A host that runs the program for real but **cannot carry the delivery report** — the one thing
+ * that distinguishes a Worker host from the in-process one for #976's purposes. A real Worker's
+ * `ExecutionRequest` crosses the thread boundary by structured clone, so the occurrence objects its
+ * run reports back are copies and no identity survives to match a delivery on; its
+ * `execution-worker-runner.ts` therefore installs no `handlerDeliveries` sink at all.
+ *
+ * Modelled by stripping the field rather than by spawning a Worker, so the test isolates exactly
+ * that one variable against the in-process control — same program, same schedule, same events.
+ */
+function createNoDeliveryReportHost() {
+  const signal = { aborted: false };
+  const inner = OL.createInProcessExecutionHost({ signal });
+  return {
+    signal,
+    host: {
+      execute(request, settle) {
+        inner.execute(request, (settlement) => {
+          const { handlerDeliveries: _dropped, ...withoutReport } = settlement;
+          settle(withoutReport);
+        });
+      },
+      cancel() {
+        inner.cancel();
+      },
+    },
+  };
+}
+
 /** A seed source that pins every chain to one value, so a replay is reproducible by construction. */
 function pinnedSeed(seed) {
   return () => seed;
@@ -180,6 +209,75 @@ function createDeferredHost() {
     },
   };
 }
+
+test("#976: a host that cannot carry the delivery report confirms nothing — and the handler still runs", () => {
+  // The Worker limitation, pinned rather than merely documented. A stated limitation is a claim,
+  // and an unasserted claim is unverified however green the suite is.
+  //
+  // The failure direction is what makes this acceptable: the press is DELIVERED and the handler
+  // fires — the program's own output is the independent witness — only the *confirmation* is
+  // withheld, so `canvas-interaction.ts` declines to call `preventDefault` and the browser keeps
+  // scrolling. That is visible to a learner. The opposite trade (claiming the press) would swallow
+  // a key silently.
+  //
+  // Do not "fix" this by pairing reports to schedule entries by index: the runtime sorts the
+  // schedule by tick, and index arithmetic over that order is exactly the reconstruction #975 exists
+  // to delete. If this test starts failing because a report became matchable across the boundary,
+  // that is a real improvement — replace the test, do not weaken it.
+  const worker = createNoDeliveryReportHost();
+  const store = OL.createStudioState({ source: ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: worker.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverKey("left"),
+    false,
+    "no report, so nothing is confirmed and nothing is suppressed",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["turned"],
+    "…while the handler genuinely ran: a confirmation gap, not a delivery gap",
+  );
+
+  // Reset reaches the host, so the harness's `cancel` is exercised rather than declared.
+  controller.reset();
+  assert.deepEqual(store.getState().output, []);
+});
+
+test("#976: the CONTROL — the same program and press over a host that DOES report is confirmed", () => {
+  // Pairs with the test above. Without this, "reports false" would be satisfied by a controller that
+  // confirms nothing at all, and the Worker assertion would prove nothing about the Worker.
+  const store = OL.createStudioState({ source: ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverKey("left"),
+    true,
+    "the in-process host reports the delivery, so the very same press IS confirmed",
+  );
+  assert.deepEqual(store.getState().output, ["turned"]);
+});
+
+test("#976: structured clone is why — a cloned schedule entry is not the object a report names", () => {
+  // The cause behind the limitation above, asserted so it cannot be mistaken for an oversight.
+  // `HandlerDelivery.input` is matched by identity ("the schedule entry itself"), and identity is
+  // precisely what a thread boundary destroys.
+  const scheduled = { kind: "key", key: "left", tick: 1 };
+  const crossed = structuredClone(scheduled);
+
+  assert.deepEqual(crossed, scheduled, "the DATA survives the boundary intact");
+  assert.ok(
+    crossed !== scheduled,
+    "…but the identity a delivery is matched on does not",
+  );
+});
 
 test("#952: an on_key handler FIRES through the studio host seam — deliverKey produces the handler's own output", () => {
   const store = OL.createStudioState({ source: ON_KEY_SOURCE });
@@ -1381,6 +1479,86 @@ test("#985: a press after a delayed registration is DELIVERED — the F3 defect 
 
   assert.equal(controller.deliverKey("up"), true, "and so must the next");
   assert.deepEqual(store.getState().output, ["hit", "hit"]);
+});
+
+test("#985/#1022: the lead sweep — every lead delivers every press, so the seek cursor and the tick read agree", () => {
+  // The measurement the F3 test above samples at one point, run across the whole range #985 recorded
+  // — and the direct check that #1022's rewrite of the resume path and this slice's scheduling still
+  // agree, which a textual auto-merge between them says nothing about.
+  //
+  // The coupling is real and narrow: #1022 replaced `prepare()`'s step-by-step fast-forward with a
+  // single `seekToEventIndex(shownEventCount)`, and it is that seek which advances the animation
+  // cursor that `pushTurtleSnapshot` publishes as `drawnEventCount` — the very index
+  // `scheduleHostInput` passes to `tickAtEventIndex`. If the seek left the cursor anywhere but where
+  // stepping did, deliveries would land at the wrong tick and presses would be lost again, silently.
+  //
+  // Pre-#985 this table read 1,1,1,1,1,1,0,0 / 0,1,1,1,1,1,1,0 / … — presses lost equalled the
+  // lead's tick count exactly. Every lead must now give eight hits.
+  for (const lead of [0, 1, 2, 3, 5]) {
+    const store = OL.createStudioState({
+      source: [
+        ...(lead > 0 ? [`wait ${lead}`] : []),
+        'on_key "up" [',
+        '  print "hit"',
+        "]",
+        "wait 6",
+      ].join("\n"),
+    });
+    const controller = OL.createRunController(store, {
+      randomSeedSource: pinnedSeed(7),
+    });
+    controller.run();
+
+    const reported = [];
+    for (let press = 0; press < 8; press += 1) {
+      reported.push(controller.deliverKey("up"));
+    }
+
+    assert.deepEqual(
+      reported,
+      Array.from({ length: 8 }, () => true),
+      `lead ${lead}: every press must be confirmed`,
+    );
+    assert.equal(
+      store.getState().output.length,
+      8,
+      `lead ${lead}: …and the program's own output must agree`,
+    );
+  }
+});
+
+test("#985/#1022: a delivery RESUMES the drawn picture rather than redrawing it from blank", () => {
+  // The other half of the #1022 coupling. `prepare()`'s seek exists so a replay fast-forwards past
+  // what is already on the canvas; if it stopped advancing the cursor, the canvas would still end up
+  // correct (the replay redraws everything) while `drawnEventCount` collapsed toward 0 — which is
+  // invisible in a picture assertion and fatal to the tick read, because tick 0 is where F3 lived.
+  //
+  // So this asserts the cursor's OBSERVABLE consequence rather than the picture: after a delivery,
+  // the schedule's tick must be the tick the program had actually reached, not 0.
+  const recorder = createRecordingHost();
+  const store = OL.createStudioState({
+    source: ["wait 3", 'on_key "up" [', "  forward 10", "]", "wait 6"].join(
+      "\n",
+    ),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: recorder.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  controller.deliverKey("up");
+
+  const schedule = recorder.requests.at(-1).hostInputEvents;
+  assert.equal(schedule.length, 1);
+  assert.ok(
+    schedule[0].tick > 0,
+    `the delivery landed at tick ${schedule[0].tick}: a resumed cursor, not a reset one`,
+  );
+  assert.ok(
+    schedule[0].tick >= 3,
+    "…and at or past the registration's own tick, which is what makes the press fire",
+  );
 });
 
 test("#985: a press that runs nothing is still never suppressed — the direction that must not regress", () => {

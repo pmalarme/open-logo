@@ -48,6 +48,7 @@ import type {
   ExecutionHost,
   ExecutionRequest,
   ExecutionSettle,
+  RecordedAnswer,
 } from "./execution-host.js";
 import type {
   Diagnostic,
@@ -152,11 +153,27 @@ export function createWorkerExecutionHost(
   let request: ExecutionRequest | null = null;
   let settle: ExecutionSettle | null = null;
   let currentRunId = 0;
+  // #976 — the questions this run has parked on and the answers given for them, in ask order. The
+  // controller records nothing on the resolve-in-place path (there is no replay for it to record
+  // for), so without this the chain's FIFO would stay empty and a delivery replay — which #976 makes
+  // reachable for the first time — would re-ask everything the learner has already answered. Held
+  // per run and cleared with it: an answer belongs to the execution that consumed it.
+  let pendingPrompt: string | null = null;
+  let resolvedAnswers: RecordedAnswer[] = [];
+
+  /** The chain's answers as they now stand: what this run was given, plus what it has consumed. */
+  function answersSoFar(active: ExecutionRequest): readonly RecordedAnswer[] {
+    return resolvedAnswers.length === 0
+      ? active.answers
+      : [...active.answers, ...resolvedAnswers];
+  }
 
   function endRun(): void {
     channel = null;
     request = null;
     settle = null;
+    pendingPrompt = null;
+    resolvedAnswers = [];
   }
 
   options.port.onReport((report) => {
@@ -170,6 +187,7 @@ export function createWorkerExecutionHost(
       return;
     }
     if (report.type === "read") {
+      pendingPrompt = report.prompt;
       activeSettle({
         events: report.events,
         output: report.output,
@@ -179,10 +197,11 @@ export function createWorkerExecutionHost(
         // for the opposite reason — it really did cancel the attempt.
         diagnostics: [],
         pendingPrompt: report.prompt,
-        retainedAnswers: activeRequest.answers,
+        retainedAnswers: answersSoFar(activeRequest),
       });
       return;
     }
+    const retainedAnswers = answersSoFar(activeRequest);
     endRun();
     activeSettle({
       events: report.events,
@@ -190,7 +209,7 @@ export function createWorkerExecutionHost(
       tutorOutput: report.tutorOutput,
       diagnostics: report.diagnostics,
       pendingPrompt: null,
-      retainedAnswers: activeRequest.answers,
+      retainedAnswers,
     });
   });
 
@@ -254,6 +273,17 @@ export function createWorkerExecutionHost(
         !deliverBlockingAnswer(activeChannel, answer, options.notify).delivered
       ) {
         dismissBlockingRead(activeChannel, options.notify);
+        return;
+      }
+      // #976 — the answer reached the parked run, so it is now part of this chain's history and a
+      // later delivery replay must be able to consume it rather than re-ask. Recorded only on the
+      // delivered path: a refused or dismissed answer was never given to the program.
+      if (pendingPrompt !== null) {
+        resolvedAnswers = [
+          ...resolvedAnswers,
+          { prompt: pendingPrompt, answer },
+        ];
+        pendingPrompt = null;
       }
     },
   };

@@ -345,55 +345,60 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:221-225` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-`deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** —
-compared as a strict increase in invocation markers across that one delivery. Each is `false` for a
-handler the run never reached, and for a program whose clock never reaches a dispatch checkpoint at
-all (one with no `wait`); `deliverKey` is additionally `false` for a key no handler names. Since
-#985 a delivery is no longer `false` merely for arriving after a delayed registration — that was
-F3, and it is fixed rather than reported.
+`deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** — read
+from the runtime's own per-delivery count (`ExecuteOptions.handlerDeliveries`, #1024). Each is
+`false` for a handler the run never reached, and for a program whose clock never reaches a dispatch
+checkpoint at all (one with no `wait`); `deliverKey` is additionally `false` for a key no handler
+names. Since #985 a delivery is no longer `false` merely for arriving after a delayed registration —
+that was F3, and it is fixed rather than reported.
 
 Until #985 `deliverClick` reported something narrower and different in kind — `chain accepts input &&
 on_click registered` — which is a question about the *run*, not about this activation. On the
 README's own example, `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
 handlers ran `[true, true, false, false, false]`; they now agree, both measuring
-`[true, true, false, false, false]` over output `["C", "C"]`. A click names no key word, but it needs
-none: `on_click` takes no argument (`spec/interaction-events.md:59`) and every registered handler
-answers every click (`:88`), so the question is "did **any** of them run" and summing the
-registration positions the runtime already stamped answers it — strictly less machinery than the key
-path, which must additionally pair parsed key words to positions. Nothing reads the click's return
-today (`canvas-interaction.ts` discards it, and a click has no browser default to suppress), so the
-fix buys a contract rather than a behaviour: two booleans on one interface no longer mean two
-different things.
+`[true, true, false, false, false]` over output `["C", "C"]`.
+
+### The answer comes from the runtime, not from the event stream (#976)
 
 Every formulation that answers from *history* rather than from the delivery re-created silent
-interception somewhere, and four did — which is why the narrow one is worth the cost. The replay's
-event *stream length* is not **monotonic** (a handler that raises *shortens* the stream, measured 45
-events down to 5 with `ol-undefined-var`, reporting "nothing responded" for a handler that ran).
-Asking after the replay settles fails on **timing**. Pairing declarations with registration events by
-source position proved only **eventual** registration, so a press before the handler existed was
-suppressed with nothing running. And an "ever responded" set kept answering `true` after the last
-tick that could fire — invocation counts `[0,1,2,2]` gave returns `[true,true,true]`.
+interception somewhere, and four did. The replay's event *stream length* is not **monotonic** (a
+handler that raises *shortens* the stream, measured 45 events down to 5 with `ol-undefined-var`,
+reporting "nothing responded" for a handler that ran). Asking after the replay settles fails on
+**timing**. Pairing declarations with registration events by source position proved only **eventual**
+registration, so a press before the handler existed was suppressed with nothing running. And an
+"ever responded" set kept answering `true` after the last tick that could fire — invocation counts
+`[0,1,2,2]` gave returns `[true,true,true]`.
 
-Counting invocation markers per delivery is sound on all of those, and on **aliasing**:
-`spec/interaction-events.md:102-103` gives each invocation a block-head `instruction` event, while
-registration emits an `instruction` *and* a `primitive` at the same position, so
-`invocations = instructions − registrations` per position. `repeat 2 [ on_key "up" [ … ] ]` registers
-twice at one position and one press fires **both** — the count says 2 and the program prints twice,
-an independent witness agreeing with the arithmetic. Because that block-head marker is emitted for
-**every** registration form, the same arithmetic carries to `on_click` unchanged, which is what let
-#985 bring the click onto one shared counter rather than a second mechanism: re-measured there,
-`repeat 2 [ on_click [ print "c" ] ]` counts 2 then 4 across two clicks and prints 2 then 4, and
-`on_click [ print :nope ]` — which raises on its first instruction — still counts 1, the axis the
-stream-length formulation fails on.
+The fifth formulation, `invocations = instructions − registrations` per source position folded onto
+key words parsed back out of the program text, was sound on all of those — but it was still an
+answer from history, differenced across a delivery, and its soundness depended on the differencing
+window being exactly one press wide. **#976 deletes it.** The runtime reports one
+`HandlerDelivery` per delivered occurrence, counting the handler bodies that occurrence entered, so
+there is no window to get wrong and no source text to parse. What went with it:
+`handlerInvocationsByPosition`, `onKeyInvocationsByKeyWord`, `onClickInvocations`, and
+`key-words.ts`'s `collectDeclaredKeyHandlers`/`DeclaredKeyHandler` — 381 lines removed against 176
+added. `normalizeKeyWord` stays: mapping `KeyboardEvent.key` onto the spec's vocabulary is not
+reconstruction.
+
+A report is matched to its own delivery **by identity** — `HandlerDelivery.input` is the very
+schedule entry the controller supplied, never an index into a schedule the runtime sorted. Measured
+with the control that makes it mean something: supplying `[tick 4, tick 2]` forces the runtime's
+tick sort to reorder, every reported `input` is still `===` a supplied object, and a
+structurally-equal copy does *not* match.
+
+A non-literal key word is now confirmable, which the declaration pairing could never do:
+`on_key :chosen [ … ]` reported `false` however plainly the handler fired, because the key word
+could not be read from the source. A count does not care how it was written.
 
 **Under a host that settles across event-loop turns it is always `false`, so such a host suppresses
-nothing at all.** That is a real capability gap ([#975](https://github.com/pmalarme/open-logo/issues/975)),
-and it is the deliberate direction: silent *interception* is worse than silent *inaction*, because it
-hits every learner and presents as "the editor is broken". A page that scrolls during a game is a
-nuisance; a key that vanishes with nothing happening is a bug report.
-
-A program whose `on_key` key word is not a literal reports `false` and suppresses nothing while still
-delivering the press.
+nothing at all.** The cause is structural rather than incidental: an `ExecutionRequest` crosses that
+thread boundary by structured clone, so the occurrence objects a Worker run reports back are copies
+and no identity survives to match on. Pairing on schedule index would close the gap and would be
+precisely the reconstruction #975 exists to delete, so it stays open — and it is the deliberate
+direction anyway: silent *interception* is worse than silent *inaction*, because it hits every
+learner and presents as "the editor is broken". A page that scrolls during a game is a nuisance; a
+key that vanishes with nothing happening is a bug report. Pinned by a test, with its in-process
+control, so it cannot be quietly "improved" into index arithmetic.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
@@ -407,9 +412,8 @@ would present as "the editor is broken". So:
   `up` and nothing else; a program with no `on_key` suppresses nothing and behaves byte-identically
   to the pre-fix build. Both are asserted against the *real* controller. Suppression needs
   **synchronous confirmation** that the press ran a handler, so it never happens for a press on a
-  program whose clock reaches no dispatch checkpoint (nothing ran — exact), nor for a non-literal key
-  word or any press under the Worker host (something may have run, but it cannot be confirmed —
-  conservative, #975).
+  program whose clock reaches no dispatch checkpoint (nothing ran — exact), nor for any press under
+  the Worker host (something may have run, but it cannot be confirmed — conservative).
 - **No tab stop is added for a program that cannot use it.** The activation button starts `hidden`
   and is revealed only while the live run registered `on_click` (`RunController.acceptsClick()`) —
   the `hidden`-attribute mechanism `a11y.ts` already documents for the lesson pane, so

@@ -27,6 +27,17 @@
  * `spec/interaction-events.md:108-110` explicitly permits this ("the implementation **MAY** continue
  * rendering already-emitted trace events"), and before the `observedEvents` seam that allowance was
  * unreachable.
+ *
+ * ## Why a read is answered from the FIFO before it is put to the learner (#976)
+ * Parking is the *second* thing this reader tries, not the first. Until #976 a chain that had asked
+ * a question refused host input for the rest of its life, so this host never re-ran a program past a
+ * read and could always park. #976 deletes that refusal — `:108-111` blocks handlers only "until the
+ * read finishes" — so a key press now replays the chain, and a reader that always parked would
+ * **re-ask every question the learner had already answered**, one modal per press.
+ *
+ * `ExecutionRequest.answers` is the chain's own accumulated answers, and `resolveRecordedAnswer`
+ * pairs each to the question it was given for, so an answer can never reach a question the learner
+ * was not shown. A read the FIFO has no answer for still parks, exactly as before.
  */
 
 import { execute } from "@openlogo/runtime";
@@ -42,6 +53,7 @@ import type { BlockingInputWait } from "./blocking-input-channel.js";
 import {
   collectOutput,
   collectTutorOutput,
+  resolveRecordedAnswer,
   toExecuteOptions,
 } from "./execution-host.js";
 import type {
@@ -75,9 +87,24 @@ export function runExecutionWorkerCommand(
   // The live sink (#876's `ExecuteOptions.observedEvents`): the run appends to it as it goes, so the
   // reader below can report what has already been drawn while it waits.
   const observedEvents: TraceEvent[] = [];
+  // #976 — one cursor per run over the chain's accumulated answers, exactly as the in-process host
+  // keeps. A read is answered from the FIFO only when the entry at this position was given for this
+  // same question; anything else parks.
+  let answerCursor = 0;
+  let retainedAnswers = command.request.answers;
 
   const read = command.request.acceptsReads
     ? (prompt: string): string | undefined => {
+        const resolution = resolveRecordedAnswer(
+          retainedAnswers,
+          answerCursor,
+          prompt,
+        );
+        retainedAnswers = resolution.retained;
+        if (resolution.answer !== undefined) {
+          answerCursor += 1;
+          return resolution.answer;
+        }
         // Arm BEFORE reporting: the main thread can only see a prompt that is already waiting, so
         // an answer can never be overwritten by an arm that runs after it.
         armBlockingRead(channel);

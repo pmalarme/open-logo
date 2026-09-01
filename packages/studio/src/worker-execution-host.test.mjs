@@ -442,6 +442,95 @@ test("both halves together: three questions, one execution, answers threaded thr
     settlements.at(-1).events.filter((event) => event.kind === "print").length,
     2,
   );
+  // #976 — and the chain now KEEPS those three answers. Before this slice the host echoed back the
+  // request's own (empty) list, so a chain that resolved its reads in place ended with no record
+  // that anything had been answered. That was invisible while a chain which had asked a question
+  // refused host input for the rest of its life; #976 deletes that refusal, so the next delivery
+  // replay would have re-asked all three.
+  assert.deepEqual(
+    settlements.at(-1).retainedAnswers,
+    [
+      { prompt: "first?", answer: "10" },
+      { prompt: "second?", answer: "20" },
+      { prompt: "third?", answer: "30" },
+    ],
+    "each answer is retained against the question it was given for",
+  );
+});
+
+test("#976: an answer the shared region refuses is not retained — it never reached the program", () => {
+  // The control for the retention above, on the axis that matters: `retainedAnswers` must record
+  // what the program actually CONSUMED, not what the learner typed. An over-long answer is refused
+  // and the read dismissed, so retaining it would seed a later replay with an answer no run ever
+  // received — and `resolveRecordedAnswer` would then hand it to that question in good faith.
+  let listener = null;
+  const host = OL.createWorkerExecutionHost({
+    allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
+    notify: () => 1,
+    answerCapacity: 4,
+    port: {
+      postMessage(command) {
+        OL.runExecutionWorkerCommand(command, {
+          wait: recordPark,
+          post: (report) => listener?.(report),
+        });
+      },
+      onReport(next) {
+        listener = next;
+      },
+    },
+  });
+
+  const settlements = [];
+  host.execute(
+    makeRequest({ source: ':a = input "first?"\nprint :a' }),
+    (settlement) => {
+      settlements.push(settlement);
+      if (settlement.pendingPrompt !== null) {
+        host.resolveRead("far too long for four bytes");
+      }
+    },
+  );
+
+  assert.deepEqual(
+    settlements.at(-1).retainedAnswers,
+    [],
+    "a refused answer is not part of the chain's history",
+  );
+});
+
+test("#976: a dismissed question is not retained either", () => {
+  // The other non-delivered ending. A dismissal is the learner declining to answer
+  // (`spec/interaction-events.md:110-111`'s unanswered read), so there is no answer to keep.
+  let listener = null;
+  const host = OL.createWorkerExecutionHost({
+    allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
+    notify: () => 1,
+    port: {
+      postMessage(command) {
+        OL.runExecutionWorkerCommand(command, {
+          wait: recordPark,
+          post: (report) => listener?.(report),
+        });
+      },
+      onReport(next) {
+        listener = next;
+      },
+    },
+  });
+
+  const settlements = [];
+  host.execute(
+    makeRequest({ source: ':a = input "first?"\nprint :a' }),
+    (settlement) => {
+      settlements.push(settlement);
+      if (settlement.pendingPrompt !== null) {
+        host.resolveRead(undefined);
+      }
+    },
+  );
+
+  assert.deepEqual(settlements.at(-1).retainedAnswers, []);
 });
 
 test("both halves together: Stop while a question is open ends the run", () => {

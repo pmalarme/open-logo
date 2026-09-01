@@ -764,3 +764,84 @@ test("a fresh Run after Stop starts a genuinely new execution", () => {
     "what is your name?",
   ]);
 });
+
+/**
+ * A program that asks a question and THEN expects key presses — the shape #976 exists for. Before
+ * this slice the studio refused every press after the question, permanently, which is stricter than
+ * `spec/interaction-events.md:108-111` ("until the read finishes").
+ */
+const ASK_THEN_ON_KEY_SOURCE = [
+  ':name = input "who?"',
+  "print :name",
+  'on_key "left" [',
+  '  print "turned"',
+  "]",
+  "wait 5",
+].join("\n");
+
+test("#976: under the Worker host a key press after an answered question does NOT re-ask it", () => {
+  // AC3, end to end through the real host and the real Worker-side runner.
+  //
+  // The two halves this needs are both new. The host now reports the answers it resolved in place
+  // (it used to echo the request's own empty list, so the chain ended with no record that anything
+  // had been answered), and the runner now consumes `ExecutionRequest.answers` before parking (it
+  // used to present a live read unconditionally). Revert either and this test fails on the prompt
+  // count: the delivery replay puts "who?" back on the learner's screen.
+  //
+  // This was unreachable until #976 removed the permanent refusal — a chain that had asked a
+  // question delivered no input at all, so no replay ever crossed a read.
+  const { host, state } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "ada");
+  const store = OL.createStudioState({ source: ASK_THEN_ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  assert.deepEqual(prompt.prompts, ["who?"], "asked once by the run itself");
+  assert.deepEqual(store.getState().output, ["ada"]);
+
+  const runsBeforePress = state.runCommandCount;
+  controller.deliverKey("left");
+
+  assert.ok(
+    state.runCommandCount > runsBeforePress,
+    "the press genuinely replayed the chain — otherwise this proves nothing",
+  );
+  assert.deepEqual(
+    prompt.prompts,
+    ["who?"],
+    "…and the replay consumed the recorded answer instead of re-asking",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["ada", "turned"],
+    "the question's answer survives the replay AND the handler ran",
+  );
+});
+
+test("#976: the question is not re-asked across several presses either", () => {
+  // One press could pass by luck if the FIFO were consumed destructively somewhere. Three presses
+  // over the same chain pin that the chain's answers survive every replay.
+  const { host } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "ada");
+  const store = OL.createStudioState({ source: ASK_THEN_ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  controller.deliverKey("left");
+  controller.deliverKey("left");
+  controller.deliverKey("left");
+
+  assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
+  assert.deepEqual(store.getState().output, [
+    "ada",
+    "turned",
+    "turned",
+    "turned",
+  ]);
+});

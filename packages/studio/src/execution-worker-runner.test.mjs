@@ -308,3 +308,106 @@ test("tutor output is reduced in the Worker, alongside print output", () => {
 
   assert.equal(reports[0].tutorOutput.length > 0, true);
 });
+
+test("#976: a question the chain has already answered is consumed, not re-asked", () => {
+  // The defect #976 AC3 names. This runner ALWAYS parked, whatever the request carried, because
+  // until #976 a chain that had asked a question refused host input for the rest of its life — so a
+  // Worker chain never re-ran past a read and there was nothing to consume. #976 deletes that
+  // refusal (`spec/interaction-events.md:108-111` blocks handlers only "until the read finishes"),
+  // so a key press replays the chain, and a reader that always parked would put every answered
+  // question back on the learner's screen, one modal per press.
+  //
+  // Reverting the reader to its pre-#976 form fails this test on the FIRST assertion: it posts a
+  // `"read"` report for a question the chain answered.
+  const { command, channel } = makeCommand(
+    ':name = input "who?"\nprint :name',
+    { answers: [{ prompt: "who?", answer: "ada" }] },
+  );
+
+  // No onRead: a read report would fail the assertions below, and an unreachable callback is a
+  // coverage hole rather than a stronger check.
+  const { reports, parkIntervals } = runWorker(command, channel);
+
+  assert.deepEqual(
+    reports.map((report) => report.type),
+    ["done"],
+    "no read report: the answer came from the chain's FIFO",
+  );
+  assert.deepEqual(parkIntervals, [], "and the interpreter never parked");
+  assert.deepEqual(
+    reports[0].output,
+    ["ada"],
+    "the program received the learner's own answer",
+  );
+});
+
+test("#976: the CONTROL — with no recorded answer that same program DOES park and ask", () => {
+  // Pairs with the test above: without it, "no read report" would also be satisfied by a runner that
+  // never asks at all, and the assertion would prove nothing.
+  //
+  // The answer is delivered from `onPark` rather than from the read report, so it arrives only once
+  // the interpreter has genuinely blocked — the real ordering, and what makes "parked" a measurement
+  // rather than a word. (Answering from the report instead satisfies `awaitBlockingRead` before it
+  // ever calls `wait`, so the park is real but unobservable.)
+  const { command, channel } = makeCommand(':name = input "who?"\nprint :name');
+
+  const { reports, parkIntervals } = runWorker(command, channel, undefined, {
+    onPark(parked) {
+      OL.deliverBlockingAnswer(parked, "ada", SILENT_NOTIFY);
+    },
+  });
+
+  assert.deepEqual(
+    reports.map((report) => report.type),
+    ["read", "done"],
+    "an unanswered question is still put to the learner",
+  );
+  assert.equal(parkIntervals.length, 1, "and the interpreter genuinely parked");
+  assert.deepEqual(reports[1].output, ["ada"]);
+});
+
+test("#976: an answer recorded for a DIFFERENT question is never handed to this one", () => {
+  // The pairing `resolveRecordedAnswer` exists for, now that this host consults it too. A FIFO entry
+  // is used only when it was given for this same question at this position — otherwise the read
+  // parks, because handing a learner's answer to something they never saw is a silent corruption
+  // and the one failure mode with no visible symptom.
+  const { command, channel } = makeCommand(
+    ':name = input "who?"\nprint :name',
+    {
+      answers: [{ prompt: "how far?", answer: "40" }],
+    },
+  );
+
+  const { reports } = runWorker(command, channel, answerWith("ada"));
+
+  assert.deepEqual(
+    reports.map((report) => report.type),
+    ["read", "done"],
+    "the mismatched answer is refused and the question is asked",
+  );
+  assert.equal(reports[0].prompt, "who?");
+  assert.deepEqual(
+    reports[1].output,
+    ["ada"],
+    "…and the learner's own answer is what the program got",
+  );
+});
+
+test("#976: a chain's answers are consumed in order across two different questions", () => {
+  // Position matters as much as prompt text: the FIFO is a queue, and a run that asks two questions
+  // must take them in ask order rather than matching by text alone.
+  const { command, channel } = makeCommand(
+    ':first = input "one?"\n:second = input "two?"\nprint :first\nprint :second',
+    {
+      answers: [
+        { prompt: "one?", answer: "a" },
+        { prompt: "two?", answer: "b" },
+      ],
+    },
+  );
+
+  const { reports, parkIntervals } = runWorker(command, channel);
+
+  assert.deepEqual(parkIntervals, []);
+  assert.deepEqual(reports[0].output, ["a", "b"]);
+});
