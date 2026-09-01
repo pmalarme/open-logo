@@ -235,6 +235,30 @@ function validateHostResponses(responses) {
   return null;
 }
 
+/**
+ * The five fields a fixture's expected diagnostic must always carry — its **identity** under
+ * `spec/error-model.md:254-259` ("diagnostic identity is `code` plus `params`; prose is
+ * presentation"), plus the span, stage and severity, because a fixture asserts *where* and *when*
+ * too.
+ */
+const REQUIRED_DIAGNOSTIC_KEYS = [
+  "code",
+  "source_span",
+  "params",
+  "stage",
+  "severity",
+];
+
+/**
+ * Every key an expected diagnostic may carry: the five required ones plus the optional `message`,
+ * which is only meaningful when the fixture sets `"compareMessages": true` (see
+ * {@link loadFixture}). Anything else is rejected by name rather than dropped.
+ */
+const ALLOWED_DIAGNOSTIC_KEYS = new Set([
+  ...REQUIRED_DIAGNOSTIC_KEYS,
+  "message",
+]);
+
 /** Parse and normalise a fixture; returns `{ error }` on malformed JSON or missing source. */
 export function loadFixture(fixture) {
   // Validate that both .logo and .expected.json exist
@@ -262,28 +286,39 @@ export function loadFixture(fixture) {
     return { error: `"diagnostics" must be an array` };
   }
 
-  // Validate each diagnostic has required fields per spec/error-model.md:28-38
-  // Note: "message" is optional in a FIXTURE because this harness compares identity
-  // (code+params), not prose (spec/error-model.md:254-259). A real diagnostic MUST carry one
-  // (spec/error-model.md:35).
+  // Validate each diagnostic has required fields per spec/error-model.md:28-38, and reject any key
+  // outside the contract. Rejecting unknown keys is what stops a misspelled `mesage`/`Message`/`msg`
+  // from loading clean and asserting nothing (`@testing` F1 on issue #1025) — the same
+  // typo-masking hole {@link validateExecuteOptions} and ALLOWED_HOST_INPUT_KEYS already close
+  // elsewhere in this file, and one that matters more now that `message` is load-bearing.
   for (let i = 0; i < spec.diagnostics.length; i++) {
     const diag = spec.diagnostics[i];
-    if (!diag.code) {
-      return { error: `diagnostic[${i}] missing required field "code"` };
+    for (const field of REQUIRED_DIAGNOSTIC_KEYS) {
+      if (!diag[field]) {
+        return { error: `diagnostic[${i}] missing required field "${field}"` };
+      }
     }
-    if (!diag.source_span) {
-      return { error: `diagnostic[${i}] missing required field "source_span"` };
+    for (const key of Object.keys(diag)) {
+      if (!ALLOWED_DIAGNOSTIC_KEYS.has(key)) {
+        return {
+          error: `diagnostic[${i}] has unknown key "${key}" (allowed: ${[...ALLOWED_DIAGNOSTIC_KEYS].join(", ")}) — an unrecognized key would be silently dropped and assert nothing`,
+        };
+      }
     }
-    if (!diag.params) {
-      return { error: `diagnostic[${i}] missing required field "params"` };
+    // `message` is optional, but when present it must be the non-empty string it will be compared
+    // against. `Object.hasOwn` is what decides the per-diagnostic opt-in below, so `"message": null`
+    // would otherwise opt in and then fail at compare time instead of here (`@testing` R2-F3). `""`
+    // is rejected for the same reason and not a different one (R3-F2): `validateDiagnostics` makes
+    // every *produced* message truthy, so an empty expectation can never match either — and the
+    // point of checking here is to name the fixture's own mistake rather than hand back a diff.
+    if (
+      Object.hasOwn(diag, "message") &&
+      (typeof diag.message !== "string" || diag.message === "")
+    ) {
+      return {
+        error: `diagnostic[${i}] has a non-string or empty "message" (${JSON.stringify(diag.message)})`,
+      };
     }
-    if (!diag.stage) {
-      return { error: `diagnostic[${i}] missing required field "stage"` };
-    }
-    if (!diag.severity) {
-      return { error: `diagnostic[${i}] missing required field "severity"` };
-    }
-    // message is optional (prose, not identity)
   }
 
   // "execute" is an opt-in flag (default false): only fixtures that opt in get their AST
@@ -332,6 +367,52 @@ export function loadFixture(fixture) {
     }
   }
 
+  // "compareMessages" (issue #1025) is the per-fixture opt-in that makes a fixture's expected
+  // diagnostic `message` load-bearing. It is DELIBERATELY explicit rather than inferred from the
+  // presence of a `message` key, and the two validations below are the point of the design.
+  //
+  // The default stays what `spec/error-model.md:254-259` asks for — "Tests and editor tools SHOULD
+  // assert codes and params, not English text" — and that is not a formality: `:261-263` positively
+  // permits a template author to "reorder, inflect, or soften prose", so most learner wording is
+  // presentation a conforming implementation may change. Opt in only where the spec fixes the words
+  // themselves; `ol-reserved-word` (`:125`) is the case this was built for, since it prescribes the
+  // sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT inside it — a MUST NOT no harness
+  // can enforce without reading the text.
+  //
+  // Inferring the opt-in from a `message` key was tried first and rejected in review: the corpus
+  // carried 306 of them written while the documented behaviour was "message is not compared", so
+  // reading them as consent would have retroactively frozen ~275 English sentences the spec allows
+  // an implementation to reword. Consent cannot be retroactive.
+  //
+  // Both directions are errors, so nothing can be present-but-ignored again — which is AC-A3 turned
+  // from a one-time cleanup into a structural property:
+  //   - a `message` without the flag would be silently dropped, the exact defect #1025 exists to kill;
+  //   - the flag without any `message` asserts nothing, the same way `executeOptions` without
+  //     `"execute": true` does, and is a fixture-author mistake rather than a no-op.
+  if (spec.compareMessages !== undefined) {
+    if (typeof spec.compareMessages !== "boolean") {
+      return { error: `"compareMessages" must be a boolean when present` };
+    }
+    if (
+      spec.compareMessages === true &&
+      !spec.diagnostics.some((diag) => Object.hasOwn(diag, "message"))
+    ) {
+      return {
+        error: `"compareMessages": true but no expected diagnostic carries a "message" — the opt-in asserts nothing`,
+      };
+    }
+  }
+  if (spec.compareMessages !== true) {
+    const withMessage = spec.diagnostics.findIndex((diag) =>
+      Object.hasOwn(diag, "message"),
+    );
+    if (withMessage !== -1) {
+      return {
+        error: `diagnostic[${withMessage}] carries a "message" but the fixture does not set "compareMessages": true — it would be compared against nothing (issue #1025). Either opt in, or delete the message.`,
+      };
+    }
+  }
+
   const expected = {
     description: spec.description ?? "",
     profiles: spec.profiles,
@@ -339,6 +420,7 @@ export function loadFixture(fixture) {
     execute: spec.execute ?? false,
     check: spec.check ?? false,
     style: spec.style ?? false,
+    compareMessages: spec.compareMessages ?? false,
     executeOptions: spec.executeOptions,
     events: spec.events,
     diagnostics: spec.diagnostics,
@@ -1040,29 +1122,68 @@ export function diffStream(label, keyField, expected, actual) {
   return null;
 }
 
-/** Compare produced output against expected; `matched` is true when both streams agree. */
+/**
+ * The five fields that are a diagnostic's **identity** under `spec/error-model.md:254-259`:
+ * "diagnostic identity is `code` plus `params`; prose is presentation", with the span, stage and
+ * severity carried alongside because a fixture asserts *where* and *when* too. Every fixture is
+ * compared on these, always.
+ */
+function diagnosticIdentity(diagnostic) {
+  return {
+    code: diagnostic.code,
+    source_span: diagnostic.source_span,
+    params: diagnostic.params,
+    stage: diagnostic.stage,
+    severity: diagnostic.severity,
+  };
+}
+
+/**
+ * Project one expected/actual diagnostic down to the fields to compare: its identity, plus
+ * `message` only when `withMessage`. Both sides of a pair are projected with the **same**
+ * `withMessage`, so an actual message is never compared against an expectation that did not ask for
+ * one.
+ */
+function projectDiagnostic(diagnostic, withMessage) {
+  const projected = diagnosticIdentity(diagnostic);
+  if (withMessage) {
+    projected.message = diagnostic.message;
+  }
+  return projected;
+}
+
+/**
+ * Compare produced output against expected; `matched` is true when both streams agree.
+ *
+ * Diagnostic prose is compared only when the fixture set `"compareMessages": true` **and** the
+ * individual expected diagnostic carries a `message` — see {@link loadFixture} for why the fixture
+ * flag is explicit rather than inferred, and why a `message` without the flag is a fixture error
+ * instead of a silent no-op. Within an opted-in fixture the per-diagnostic grain is what lets a
+ * fixture pin the one sentence the spec fixes and leave its siblings on identity alone.
+ */
 export function compare(expected, actual) {
-  // Per spec/error-model.md:254-259, diagnostic identity = code+params, not prose.
-  // Exclude "message" from comparison (prose may change under localization/rewording).
-  const projectDiagnostic = (d) => ({
-    code: d.code,
-    source_span: d.source_span,
-    params: d.params,
-    stage: d.stage,
-    severity: d.severity,
-  });
+  // Diagnostics are aligned by index, and by the SAME index alignment diffStream uses, so the
+  // expected diagnostic at index i decides whether the actual one at index i has its message
+  // compared. An actual diagnostic past the end of the expected stream has no expectation to
+  // consult, so it is projected to identity alone — it is reported as surplus either way.
+  const comparesMessage = (expectedDiagnostic) =>
+    expected.compareMessages === true &&
+    expectedDiagnostic !== undefined &&
+    Object.hasOwn(expectedDiagnostic, "message");
+
+  const expectedDiagnostics = expected.diagnostics.map((diagnostic) =>
+    projectDiagnostic(diagnostic, comparesMessage(diagnostic)),
+  );
+  const actualDiagnostics = actual.diagnostics.map((diagnostic, index) =>
+    projectDiagnostic(diagnostic, comparesMessage(expected.diagnostics[index])),
+  );
 
   // No ctx is created (or shared) here: diffStream gives every individual event/diagnostic its
   // own fresh graph-identity ctx, so $id/$ref aliasing can never leak across two events, across
   // two diagnostics, or between the event stream and the diagnostic stream.
   const reports = [
     diffStream("event", "seq", expected.events, actual.events),
-    diffStream(
-      "diagnostic",
-      "code",
-      expected.diagnostics.map(projectDiagnostic),
-      actual.diagnostics.map(projectDiagnostic),
-    ),
+    diffStream("diagnostic", "code", expectedDiagnostics, actualDiagnostics),
   ].filter((report) => report !== null);
   return { matched: reports.length === 0, report: reports.join("\n") };
 }

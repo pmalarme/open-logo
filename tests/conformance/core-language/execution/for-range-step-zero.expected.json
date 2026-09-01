@@ -28,7 +28,6 @@
         "operation": "for",
         "value": 0
       },
-      "message": "for ... by 0 never reaches the end — try a step other than 0.",
       "stage": "runtime",
       "severity": "error"
     }

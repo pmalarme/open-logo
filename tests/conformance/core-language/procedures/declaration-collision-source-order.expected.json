@@ -19,7 +19,6 @@
           "end": [1, 13]
         }
       },
-      "message": "you already defined tally on line 1.",
       "stage": "runtime",
       "severity": "error"
     }

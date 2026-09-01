@@ -30,7 +30,6 @@
         "value": [1, 2],
         "operation": "wait"
       },
-      "message": "wait needs a whole number, but got a list.",
       "stage": "runtime",
       "severity": "error"
     }

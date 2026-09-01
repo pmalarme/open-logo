@@ -30,7 +30,6 @@
         "value": "thick",
         "operation": "set_width"
       },
-      "message": "set_width needs a number, but got a word.",
       "stage": "runtime",
       "severity": "error"
     }

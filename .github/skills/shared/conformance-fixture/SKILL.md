@@ -94,10 +94,17 @@ widening ruling should relax this"). A false one propagates.
 It is not the only unchecked thing in an `.expected.json`, and knowing the others keeps you from
 writing an assertion that quietly asserts nothing:
 
-- A **diagnostic `message`** is deliberately excluded from comparison — diagnostic identity is
-  `code` + `params` and prose is presentation (`spec/error-model.md`), so wording may differ from a
-  fixture's without failing.
-- An **unknown top-level key** is dropped rather than rejected (see "Fixture shape" above).
+- A **diagnostic `message`** is compared **only when the fixture sets `"compareMessages": true`**
+  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:254-259`) — and
+  `:261-263` positively permits a template author to reword prose, so most learner wording is
+  presentation a conforming implementation may change. Opt in only where the spec fixes the words
+  themselves: `ol-reserved-word`'s `spec/error-model.md:125` both prescribes the sentence and makes
+  *keyword*/*primitive*/*alias* a MUST NOT in it. Both halves are enforced — a `message` without the
+  flag, and the flag without any `message`, are each fixture errors — so a message can never sit in
+  a fixture asserting nothing.
+- An **unknown key inside an expected diagnostic** is rejected by name, so a misspelled `mesage`
+  fails the fixture rather than loading clean.
+- An **unknown top-level key** is still dropped rather than rejected (see "Fixture shape" above).
 
 What *is* proven: `events` and `diagnostics` are diffed item-by-item; every `kind` and `code` is
 validated against the `@openlogo/core` registries; and every `profiles` tag is validated against the

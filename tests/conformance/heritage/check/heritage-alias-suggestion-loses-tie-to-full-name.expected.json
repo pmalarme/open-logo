@@ -15,7 +15,6 @@
         "name": "dca",
         "suggestion": "dict"
       },
-      "message": "i don't know how to dca. did you mean dict?",
       "stage": "semantic",
       "severity": "error"
     }

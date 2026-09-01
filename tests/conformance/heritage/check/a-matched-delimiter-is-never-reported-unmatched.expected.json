@@ -1,5 +1,5 @@
 {
-  "description": "Issues #947, #879 and #980. `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: \"on any recovery path, for any malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic -- the class whose members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` -- for a delimiter that is, in fact, correctly matched in the source.\" Every program here is malformed and every delimiter in it is matched, so no member of that class may appear; `ol-bad-token` names the real defect instead. Measured at `ca653709` before the fix: each of the seven reserved-word rows raised `ol-unmatched-paren` TWICE on balanced parens and some named the offending word nowhere at all (#879), `print [ 1 + ]` raised `ol-unmatched-bracket`, and `print :nums[]` raised it against a `]` one character from its own `[`. This is mechanism B of the slice and it is NOT newline-related: every row is a single line, which is the measurement that separated #879's root from #980's -- they share the emission site, not the cause. It is also ONE recovery path reachable from several productions: parenthesized groups, list literals, dict literals, selectors and comprehension binders all route their \"expected a closer, found something else\" recovery through the same two places, which is why the fix is expressed once rather than per construct. Its partner `heritage/check/a-genuinely-unmatched-delimiter-is-still-reported` pins the opposite direction, without which a parser could satisfy this file by never emitting the class at all. A reserved word cannot be a `callable-name` (`spec/grammar.md:390`), which is what makes each paren row malformed.",
+  "description": "Issues #947, #879 and #980. `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: \"on any recovery path, for any malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic -- the class whose members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` -- for a delimiter that is, in fact, correctly matched in the source.\" Every program here is malformed and every delimiter in it is matched, so no member of that class may appear; `ol-bad-token` names the real defect instead. Measured at `ca653709` before the fix: each of the seven reserved-word rows raised `ol-unmatched-paren` TWICE on balanced parens and some named the offending word nowhere at all (#879), `print [ 1 + ]` raised `ol-unmatched-bracket`, and `print :nums[]` raised it against a `]` one character from its own `[`. This is mechanism B of the slice and it is NOT newline-related: every row is a single line, which is the measurement that separated #879's root from #980's -- they share the emission site, not the cause. It is also ONE recovery path reachable from several productions: parenthesized groups, list literals, dict literals, selectors and comprehension binders all route their \"expected a closer, found something else\" recovery through the same two places, which is why the fix is expressed once rather than per construct. Its partner `heritage/check/a-genuinely-unmatched-delimiter-is-still-reported` pins the opposite direction, without which a parser could satisfy this file by never emitting the class at all. A reserved word cannot be a `callable-name` (`spec/grammar.md:390`), which is what makes each paren row malformed. On `message`: this fixture deliberately does NOT set `compareMessages` (issue #1025 review round 2). Its `ol-bad-token` prose is `i don't know how to read <word> here.` plus the shared ownership clause, and only the CLAUSE is a cross-stage contract -- comparing the whole string would also freeze the prefix, which `spec/error-model.md:110` constrains in content but not in words and `:261-263` positively permits an implementation to reword. The property that matters here, that the parse stage reuses the SAME ownership sentence as `ol-reserved-word`, is pinned instead by `packages/parser/src/misplaced-keyword-message.test.mjs`, which reads the sibling code's EMITTED message and asserts this one ends with it -- agreement proved by derivation rather than by freezing English, and the only form of it another implementation could not be expected to share anyway.",
   "profiles": ["core-language", "data", "heritage"],
   "check": true,
   "events": [],
@@ -14,7 +14,6 @@
       "params": {
         "text": "set"
       },
-      "message": "i don't know how to read set here. set is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -28,7 +27,6 @@
       "params": {
         "text": "1"
       },
-      "message": "i don't know how to read 1 here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -42,7 +40,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -56,7 +53,6 @@
       "params": {
         "text": "if"
       },
-      "message": "i don't know how to read if here. if is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -71,7 +67,6 @@
         "opener": "if",
         "hint": "wrap the body in [ ] or close it with end."
       },
-      "message": "if needs a body. wrap the body in [ ] or close it with end.",
       "stage": "parse",
       "severity": "error"
     },
@@ -85,7 +80,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -99,7 +93,6 @@
       "params": {
         "text": "import"
       },
-      "message": "i don't know how to read import here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -113,7 +106,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -127,7 +119,6 @@
       "params": {
         "text": "in"
       },
-      "message": "i don't know how to read in here. in is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -141,7 +132,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -155,7 +145,6 @@
       "params": {
         "text": "struct"
       },
-      "message": "i don't know how to read struct here. struct is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -169,7 +158,6 @@
       "params": {
         "text": "1"
       },
-      "message": "i don't know how to read 1 here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -183,7 +171,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -197,7 +184,6 @@
       "params": {
         "text": "add"
       },
-      "message": "i don't know how to read add here. add is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -211,7 +197,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -225,7 +210,6 @@
       "params": {
         "text": "value"
       },
-      "message": "i don't know how to read value here. value is already part of OpenLogo.",
       "stage": "parse",
       "severity": "error"
     },
@@ -239,7 +223,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -253,7 +236,6 @@
       "params": {
         "text": ")"
       },
-      "message": "i don't know how to read ) here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -267,7 +249,6 @@
       "params": {
         "text": "]"
       },
-      "message": "i don't know how to read ] here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -281,7 +262,6 @@
       "params": {
         "text": "}"
       },
-      "message": "i don't know how to read } here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -295,7 +275,6 @@
       "params": {
         "text": "]"
       },
-      "message": "i don't know how to read ] here.",
       "stage": "parse",
       "severity": "error"
     },
@@ -309,7 +288,6 @@
       "params": {
         "text": "]"
       },
-      "message": "i don't know how to read ] here.",
       "stage": "parse",
       "severity": "error"
     }

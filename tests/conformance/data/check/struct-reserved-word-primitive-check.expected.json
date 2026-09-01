@@ -1,5 +1,6 @@
 {
   "description": "M4 audit finding F3 (issue #405): the declaration-slot rule checks a `struct` type name against Data-primitive names when the `data` profile is active, so `struct dict` raises `ol-reserved-word` statically -- the static counterpart to the existing runtime fixture `data/struct-runtime/struct-reserved-word-primitive`.",
+  "compareMessages": true,
   "profiles": ["core-language", "data"],
   "check": true,
   "events": [],

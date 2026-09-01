@@ -14,7 +14,6 @@
       "params": {
         "delimiter": ")"
       },
-      "message": "this ) doesn't have a matching parenthesis. a group needs both ( and ).",
       "stage": "parse",
       "severity": "error"
     },
@@ -28,7 +27,6 @@
       "params": {
         "delimiter": "]"
       },
-      "message": "this ] doesn't have a matching bracket. lists and blocks need both [ and ].",
       "stage": "parse",
       "severity": "error"
     },
@@ -42,7 +40,6 @@
       "params": {
         "delimiter": "}"
       },
-      "message": "this } doesn't have a matching brace. dictionary literals need both { and }.",
       "stage": "parse",
       "severity": "error"
     },
@@ -56,7 +53,6 @@
       "params": {
         "delimiter": "("
       },
-      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
       "stage": "parse",
       "severity": "error"
     },
@@ -70,7 +66,6 @@
       "params": {
         "delimiter": "["
       },
-      "message": "this [ doesn't have a matching bracket. lists and blocks need both [ and ].",
       "stage": "parse",
       "severity": "error"
     },
@@ -84,7 +79,6 @@
       "params": {
         "delimiter": "{"
       },
-      "message": "this { doesn't have a matching brace. dictionary literals need both { and }.",
       "stage": "parse",
       "severity": "error"
     },
@@ -98,7 +92,6 @@
       "params": {
         "delimiter": "["
       },
-      "message": "this [ doesn't have a matching bracket. lists and blocks need both [ and ].",
       "stage": "parse",
       "severity": "error"
     }

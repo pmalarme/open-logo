@@ -29,7 +29,6 @@
         "expected": 1,
         "actual": 0
       },
-      "message": "set_shape needs one input, but got 0.",
       "stage": "runtime",
       "severity": "error"
     }

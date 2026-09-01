@@ -59,10 +59,11 @@
       "params": {
         "expected": "whole number",
         "actual": "turtle",
-        "value": { "id": 1 },
+        "value": {
+          "id": 1
+        },
         "operation": "wait"
       },
-      "message": "wait needs a whole number, but got a turtle.",
       "stage": "runtime",
       "severity": "error"
     }

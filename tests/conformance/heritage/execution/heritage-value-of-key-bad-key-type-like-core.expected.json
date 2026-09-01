@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 19]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 1,
@@ -21,7 +23,9 @@
         "start": [2, 1],
         "end": [2, 13]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 2,
@@ -31,7 +35,9 @@
         "start": [3, 1],
         "end": [3, 32]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -48,7 +54,6 @@
         "value": [1, 2],
         "operation": "index"
       },
-      "message": "index needs a word or number, but got a list.",
       "stage": "runtime",
       "severity": "error"
     }

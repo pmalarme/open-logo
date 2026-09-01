@@ -16,7 +16,6 @@
         "outer": "every",
         "inner": "on_key"
       },
-      "message": "every runs again and again, so this on_key can add another handler each time. register it once, outside the every.",
       "stage": "semantic",
       "severity": "warning"
     }

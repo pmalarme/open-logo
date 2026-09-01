@@ -11,8 +11,9 @@
         "start": [2, 1],
         "end": [2, 14]
       },
-      "params": { "text": "(point 0 0).z" },
-      "message": "(point 0 0).z is a value, not a place you can change.",
+      "params": {
+        "text": "(point 0 0).z"
+      },
       "stage": "semantic",
       "severity": "error"
     }

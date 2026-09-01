@@ -30,6 +30,10 @@ export { makeSpan } from "./spans.js";
 export type { Position, SourceSpan } from "./spans.js";
 
 export {
+  builtInNameMessage,
+  builtInNameOwnershipSentence,
+} from "./diagnostic-messages.js";
+export {
   isDiagnosticCode,
   OL_DIAGNOSTIC_CODES,
   OL_STYLE_DIAGNOSTIC_CODES,

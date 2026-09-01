@@ -30,7 +30,6 @@
         "value": "not-a-shape",
         "operation": "set_shape"
       },
-      "message": "i don't know the shape \"not-a-shape\". try a shape like \"turtle\", \"triangle\", \"arrow\", or \"circle\".",
       "stage": "runtime",
       "severity": "error"
     }

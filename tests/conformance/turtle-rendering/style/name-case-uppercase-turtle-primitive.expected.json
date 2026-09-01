@@ -15,7 +15,6 @@
       "params": {
         "name": "FORWARD"
       },
-      "message": "FORWARD should be lowercase snake_case, like a learner would read it aloud.",
       "stage": "semantic",
       "severity": "warning"
     }

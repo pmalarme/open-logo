@@ -1,5 +1,6 @@
 {
   "description": "F5: a `struct` type name colliding with the Geometry overlay primitive `axes` raises `ol-reserved-word` at phase-1 registration. Issue #403; byte-identical in `code`/`params` to what `check()` reports for the same program (`spec/error-model.md:125`).",
+  "compareMessages": true,
   "profiles": ["core-language", "data", "geometry"],
   "execute": true,
   "events": [],

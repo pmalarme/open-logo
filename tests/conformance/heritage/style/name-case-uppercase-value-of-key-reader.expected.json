@@ -15,7 +15,6 @@
       "params": {
         "name": "VALUE"
       },
-      "message": "VALUE should be lowercase, like a learner would read it aloud.",
       "stage": "semantic",
       "severity": "warning"
     }

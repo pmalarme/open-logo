@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 21]
       },
-      "payload": { "statement_kind": "StructDef" }
+      "payload": {
+        "statement_kind": "StructDef"
+      }
     },
     {
       "seq": 1,
@@ -21,7 +23,9 @@
         "start": [2, 1],
         "end": [2, 15]
       },
-      "payload": { "statement_kind": "Assign" }
+      "payload": {
+        "statement_kind": "Assign"
+      }
     },
     {
       "seq": 2,
@@ -31,7 +35,9 @@
         "start": [3, 1],
         "end": [3, 32]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -45,10 +51,12 @@
       "params": {
         "expected": "dict",
         "actual": "record",
-        "value": { "x": 1, "y": 2 },
+        "value": {
+          "x": 1,
+          "y": 2
+        },
         "operation": "field"
       },
-      "message": "field needs a dict, but got a record.",
       "stage": "runtime",
       "severity": "error"
     }

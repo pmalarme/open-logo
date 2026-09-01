@@ -54,7 +54,6 @@
         "value": 5,
         "operation": "is_a?"
       },
-      "message": "is_a? needs a word, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

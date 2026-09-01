@@ -1,5 +1,6 @@
 {
   "description": "Issue #839 (maintainer ruling #833 rule 3, \"nothing shadows\"): `define forward … return 55 … end` then `print (fd 1 2)`. The runtime phase-1 registration guard (`spec/execution-model.md:82-89`) raises `ol-reserved-word` (`spec/error-model.md:125`) before phase 2, so the arity guard is never reached — the event stream is empty and no `ol-too-many-inputs` is produced at all. This fixture is the cheapest guard against the *precondition* silently coming back. Re-legalise `define forward` and this goes red, leading the next reader straight to #787. The evaluator invariant — that the two chokepoints in one call path derive the same callee name — is carried at a lower level in `packages/runtime/src/heritage-alias-chokepoint.test.mjs`, which drives `evaluate()` over a hand-assembled `Environment` and so is unaffected by what registration admits. `params.callable`'s canonicalisation rule is pinned by `heritage-aliases-eval.test.mjs`, through `bf` and NOT through `fd`: the rows that carry it are `(bf)` → `ol-not-enough-inputs{callable:\"butfirst\"}` and `bf []` → `ol-range{operation:\"butfirst\"}`.",
+  "compareMessages": true,
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
   "events": [],
@@ -11,7 +12,9 @@
         "start": [5, 8],
         "end": [5, 15]
       },
-      "params": { "name": "forward" },
+      "params": {
+        "name": "forward"
+      },
       "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"

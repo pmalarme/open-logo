@@ -15,7 +15,6 @@
         "expected": "on_click",
         "actual": "when"
       },
-      "message": "this when doesn't close the block that is open. did you mean on_click?",
       "stage": "parse",
       "severity": "error"
     }

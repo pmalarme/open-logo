@@ -628,7 +628,7 @@
       "kind": "stale-citation",
       "issue": "#948",
       "why": "Lands on blank space in tooling.md: the nearest text above is line 192 (\"| Repeated `reduce` or pattern binder name | `ol-duplicate-bin…\") and below is line 194 (\"Semantic tools SHOULD also report statically knowable uses of …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "fa5af093c87c1f0e"
+      "fingerprint": "21ad28898cd2bee9"
     }
   ],
   "tests/conformance/data/dict-runtime/dict-read-bad-key-type.expected.json": [

@@ -14,7 +14,6 @@
       "params": {
         "name": "when"
       },
-      "message": "i don't know how to when. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     }

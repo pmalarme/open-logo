@@ -15,7 +15,6 @@
       "params": {
         "name": "every"
       },
-      "message": "i don't know how to every. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -29,7 +28,6 @@
       "params": {
         "name": "every"
       },
-      "message": "i don't know how to every. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     }

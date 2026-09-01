@@ -15,7 +15,6 @@
         "name": "fd",
         "suggestion": "add"
       },
-      "message": "i don't know how to fd. did you mean add?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -30,7 +29,6 @@
         "name": "bk",
         "suggestion": "by"
       },
-      "message": "i don't know how to bk. did you mean by?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -45,7 +43,6 @@
         "name": "lt",
         "suggestion": "at"
       },
-      "message": "i don't know how to lt. did you mean at?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -60,7 +57,6 @@
         "name": "rt",
         "suggestion": "at"
       },
-      "message": "i don't know how to rt. did you mean at?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -75,7 +71,6 @@
         "name": "pu",
         "suggestion": "pi"
       },
-      "message": "i don't know how to pu. did you mean pi?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -90,7 +85,6 @@
         "name": "pd",
         "suggestion": "pi"
       },
-      "message": "i don't know how to pd. did you mean pi?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -105,7 +99,6 @@
         "name": "st",
         "suggestion": "at"
       },
-      "message": "i don't know how to st. did you mean at?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -120,7 +113,6 @@
         "name": "ht",
         "suggestion": "at"
       },
-      "message": "i don't know how to ht. did you mean at?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -135,7 +127,6 @@
         "name": "cs",
         "suggestion": "cos"
       },
-      "message": "i don't know how to cs. did you mean cos?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -150,7 +141,6 @@
         "name": "pr",
         "suggestion": "or"
       },
-      "message": "i don't know how to pr. did you mean or?",
       "stage": "semantic",
       "severity": "error"
     }

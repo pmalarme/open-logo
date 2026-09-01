@@ -11,8 +11,11 @@
         "start": [1, 1],
         "end": [1, 5]
       },
-      "params": { "callable": "keys", "expected": 1, "actual": 0 },
-      "message": "keys needs one input.",
+      "params": {
+        "callable": "keys",
+        "expected": 1,
+        "actual": 0
+      },
       "stage": "semantic",
       "severity": "error"
     }

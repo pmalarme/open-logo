@@ -34,7 +34,6 @@
         "expected": "word",
         "actual": "boolean"
       },
-      "message": "input needs a prompt word, but got a boolean.",
       "stage": "runtime",
       "severity": "error"
     }

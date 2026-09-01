@@ -11,8 +11,11 @@
         "start": [1, 2],
         "end": [1, 9]
       },
-      "params": { "callable": "type_of", "expected": 1, "actual": 2 },
-      "message": "type_of takes one input, but got 2.",
+      "params": {
+        "callable": "type_of",
+        "expected": 1,
+        "actual": 2
+      },
       "stage": "semantic",
       "severity": "error"
     }

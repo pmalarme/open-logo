@@ -14,7 +14,6 @@
       "params": {
         "delimiter": "("
       },
-      "message": "this ( doesn't have a matching parenthesis. a group needs both ( and ).",
       "stage": "parse",
       "severity": "error"
     }

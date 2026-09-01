@@ -53,7 +53,6 @@
         "field": "height",
         "write": true
       },
-      "message": "point has no field height, and records can't grow new fields.",
       "stage": "runtime",
       "severity": "error"
     }

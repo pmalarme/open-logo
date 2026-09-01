@@ -16,7 +16,6 @@
         "outer": "every",
         "inner": "every"
       },
-      "message": "every runs again and again, so this every can add another handler each time. register it once, outside the every.",
       "stage": "semantic",
       "severity": "warning"
     },
@@ -31,7 +30,6 @@
         "outer": "every",
         "inner": "every"
       },
-      "message": "every runs again and again, so this every can add another handler each time. register it once, outside the every.",
       "stage": "semantic",
       "severity": "warning"
     }

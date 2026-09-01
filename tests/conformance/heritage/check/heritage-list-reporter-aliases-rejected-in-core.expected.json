@@ -15,7 +15,6 @@
         "name": "bf",
         "suggestion": "by"
       },
-      "message": "i don't know how to bf. did you mean by?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -30,7 +29,6 @@
         "name": "bl",
         "suggestion": "by"
       },
-      "message": "i don't know how to bl. did you mean by?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -45,7 +43,6 @@
         "name": "se",
         "suggestion": "set"
       },
-      "message": "i don't know how to se. did you mean set?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -60,7 +57,6 @@
         "name": "bf",
         "suggestion": "by"
       },
-      "message": "i don't know how to bf. did you mean by?",
       "stage": "semantic",
       "severity": "error"
     },
@@ -75,7 +71,6 @@
         "name": "bl",
         "suggestion": "by"
       },
-      "message": "i don't know how to bl. did you mean by?",
       "stage": "semantic",
       "severity": "error"
     }

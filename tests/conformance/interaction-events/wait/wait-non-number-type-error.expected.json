@@ -30,7 +30,6 @@
         "value": "soon",
         "operation": "wait"
       },
-      "message": "wait needs a whole number, but got a word.",
       "stage": "runtime",
       "severity": "error"
     }

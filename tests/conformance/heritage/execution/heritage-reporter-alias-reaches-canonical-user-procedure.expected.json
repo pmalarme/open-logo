@@ -1,5 +1,6 @@
 {
   "description": "Issue #839 (maintainer ruling #833 rule 3, \"nothing shadows\"): `define forward … return 55 … end` then `print fd`, issue #787's original host-crash repro. `define forward` is `ol-reserved-word` (`spec/error-model.md:125`) at phase-1 registration (`spec/execution-model.md:82-89`), so nothing runs and the event stream is empty. The evaluator invariant lives in `packages/runtime/src/heritage-alias-chokepoint.test.mjs`, which assembles an `Environment` by hand (registration cannot admit one) and asserts that the node handed to `callProcedure` already spells `forward` while its `source_span` still covers the two columns of `fd`. That is the surface the crash is still reachable through: `evaluate` and `createEnvironment` are public API a host can drive directly.",
+  "compareMessages": true,
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
   "events": [],
@@ -11,7 +12,9 @@
         "start": [5, 8],
         "end": [5, 15]
       },
-      "params": { "name": "forward" },
+      "params": {
+        "name": "forward"
+      },
       "message": "forward is already part of OpenLogo. choose another name.",
       "stage": "runtime",
       "severity": "error"

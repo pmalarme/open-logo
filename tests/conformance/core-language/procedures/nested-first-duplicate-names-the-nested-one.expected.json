@@ -19,7 +19,6 @@
           "end": [2, 13]
         }
       },
-      "message": "you already defined dup on line 2.",
       "stage": "runtime",
       "severity": "error"
     }

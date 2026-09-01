@@ -37,11 +37,39 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   description passes every check and misleads every later reader — and descriptions in this corpus
   are cited by later slices as settled fact. Measure what you assert, be hardest on prose justifying
   why a fixture is *absent*, and prefer pointing at the spec section or harness function that
-  settles a claim over paraphrasing it. Two neighbours are also unchecked: a diagnostic `message` is
-  deliberately excluded from comparison (identity is `code` + `params`; prose is presentation), and
-  any **unknown top-level key is silently dropped rather than rejected**, so an assertion written in
-  an invented field asserts nothing. See `.github/skills/shared/conformance-fixture/SKILL.md`.
-- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity`.
+  settles a claim over paraphrasing it. Its one-time neighbour in this list, a diagnostic `message`,
+  is no longer unchecked (see below); **unknown top-level keys still are** — any such key is
+  silently dropped rather than rejected, so an assertion written in an invented field asserts
+  nothing. (Keys *inside* an expected diagnostic are now rejected by name.) See
+  `.github/skills/shared/conformance-fixture/SKILL.md`.
+- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity` — all
+  required and always compared — plus an optional `message`. **Any other key is rejected by name**,
+  so a misspelled `mesage` fails the fixture instead of loading clean and asserting nothing.
+- **`compareMessages` (optional, default `false`)** is the per-fixture opt-in that makes an expected
+  diagnostic's `message` load-bearing (issue #1025). Both directions are fixture errors, which is
+  what makes "present but ignored" impossible rather than merely cleaned up once:
+  - a `message` **without** the flag is rejected — it would be compared against nothing;
+  - the flag **without** any `message` is rejected — it asserts nothing, the same way
+    `executeOptions` without `"execute": true` does.
+
+  Inside an opted-in fixture the grain is per diagnostic: only those that carry a `message` have
+  their prose asserted, so a fixture can pin one sentence and leave its siblings free.
+
+  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md:254-259`
+  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `:261-263`
+  positively permits a template author to "reorder, inflect, or soften" a message, so most learner
+  wording is presentation a conforming implementation may change. Freezing it would make this corpus
+  resist a change the spec allows. `ol-reserved-word` is the case this exists for: `:125` prescribes
+  the sentence *and* makes *keyword*, *primitive* and *alias* a MUST NOT inside it — a MUST NOT no
+  harness can enforce without reading the text, and one that shipped violated twice (#751, #871)
+  while the corpus stayed green. Today the only fixtures that opt in are the built-in-name ones
+  (every live `message` in the corpus is an `ol-reserved-word`), plus the harness self-test below.
+  Deliberately no count here: a number in prose is an assertion no gate re-checks, and this one was
+  already stale once.
+
+  `_harness-selftest/detects-message-mismatch` pins that the opt-in actually bites. **Do not combine
+  `expect: "mismatch"` with a `message` anywhere else**: a self-test that exists to prove some
+  *other* mismatch is detected would then be able to pass on prose while its real subject regresses.
 - **`execute` (optional, default `false`)** opts a fixture into execution. When `false` (or
   absent), `produce()` stays parse-only — it calls `@openlogo/parser`'s `parse()` and always
   returns `events: []`, exactly as the existing parse-focused corpus expects (many of those

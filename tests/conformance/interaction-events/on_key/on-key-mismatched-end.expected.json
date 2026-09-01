@@ -15,7 +15,6 @@
         "expected": "on_key",
         "actual": "when"
       },
-      "message": "this when doesn't close the block that is open. did you mean on_key?",
       "stage": "parse",
       "severity": "error"
     }

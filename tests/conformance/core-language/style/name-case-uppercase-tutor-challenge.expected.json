@@ -15,7 +15,6 @@
       "params": {
         "name": "CHALLENGE"
       },
-      "message": "i don't know how to CHALLENGE. check the spelling, or define it with 'define'.",
       "stage": "semantic",
       "severity": "error"
     },
@@ -29,7 +28,6 @@
       "params": {
         "name": "CHALLENGE"
       },
-      "message": "CHALLENGE should be lowercase snake_case, like a learner would read it aloud.",
       "stage": "semantic",
       "severity": "warning"
     }

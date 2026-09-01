@@ -34,7 +34,6 @@
         "expected": "word",
         "actual": "number"
       },
-      "message": "input needs a prompt word, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

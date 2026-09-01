@@ -51,10 +51,13 @@
       "params": {
         "expected": "whole number",
         "actual": "record",
-        "value": { "__type": "person", "name": "ada", "age": 36 },
+        "value": {
+          "__type": "person",
+          "name": "ada",
+          "age": 36
+        },
         "operation": "every"
       },
-      "message": "every needs a whole number, but got a record.",
       "stage": "runtime",
       "severity": "error"
     }

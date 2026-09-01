@@ -30,7 +30,6 @@
         "value": -1.5,
         "operation": "wait"
       },
-      "message": "wait needs a whole number, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

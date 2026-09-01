@@ -1159,7 +1159,6 @@
         "limit": "instruction-budget",
         "value": 60
       },
-      "message": "this program ran 60 instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.",
       "stage": "runtime",
       "severity": "error"
     }

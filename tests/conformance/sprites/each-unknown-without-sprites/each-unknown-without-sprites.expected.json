@@ -15,7 +15,6 @@
         "name": "each",
         "suggestion": "back"
       },
-      "message": "i don't know how to each. did you mean back?",
       "stage": "semantic",
       "severity": "error"
     }

@@ -34,7 +34,6 @@
         "expected": "word",
         "actual": "list"
       },
-      "message": "input needs a prompt word, but got a list.",
       "stage": "runtime",
       "severity": "error"
     }

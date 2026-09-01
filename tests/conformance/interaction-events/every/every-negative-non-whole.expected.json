@@ -30,7 +30,6 @@
         "value": -2.5,
         "operation": "every"
       },
-      "message": "every needs a whole number, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }
