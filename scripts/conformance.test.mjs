@@ -1493,18 +1493,25 @@ test("loadFixture rejects compareMessages: true when no expected diagnostic carr
   assert.ok(loaded.error.includes("no expected diagnostic carries"));
 });
 
-test("loadFixture rejects a non-string message, so `null` cannot opt in and then fail at compare time (@testing R2-F3 on issue #1025)", () => {
+test('loadFixture rejects a non-string or empty message, so neither `null` nor `""` can opt in and then fail at compare time (@testing R2-F3 / R3-F2 on issue #1025)', () => {
   // `Object.hasOwn` decides the per-diagnostic opt-in, so `"message": null` would otherwise count
-  // as opting in and fail later against a diff instead of naming the fixture's own mistake.
-  const loaded = loadTempFixture("null-message", {
-    profiles: ["core-language"],
-    compareMessages: true,
-    diagnostics: [tempDiagnostic({ message: null })],
-    events: [],
-  });
+  // as opting in and fail later against a diff instead of naming the fixture's own mistake. `""`
+  // goes the same way for the same reason: `validateDiagnostics` makes every produced message
+  // truthy, so an empty expectation can never match.
+  for (const [index, message] of [null, "", 42, true, ["a"]].entries()) {
+    const loaded = loadTempFixture(`bad-message-${index}`, {
+      profiles: ["core-language"],
+      compareMessages: true,
+      diagnostics: [tempDiagnostic({ message })],
+      events: [],
+    });
 
-  assert.ok(loaded.error);
-  assert.ok(loaded.error.includes('non-string "message"'));
+    assert.ok(
+      loaded.error,
+      `message ${JSON.stringify(message)} must be rejected`,
+    );
+    assert.ok(loaded.error.includes('non-string or empty "message"'));
+  }
 });
 
 test("loadFixture rejects a non-boolean compareMessages field", () => {

@@ -305,13 +305,18 @@ export function loadFixture(fixture) {
         };
       }
     }
-    // `message` is optional, but when present it must be the string it will be compared against.
-    // `Object.hasOwn` is what decides the per-diagnostic opt-in below, so `"message": null` would
-    // otherwise opt in and then fail at compare time instead of here (`@testing` R2-F3). Loud
-    // either way; failing at load time names the fixture's own mistake rather than a diff.
-    if (Object.hasOwn(diag, "message") && typeof diag.message !== "string") {
+    // `message` is optional, but when present it must be the non-empty string it will be compared
+    // against. `Object.hasOwn` is what decides the per-diagnostic opt-in below, so `"message": null`
+    // would otherwise opt in and then fail at compare time instead of here (`@testing` R2-F3). `""`
+    // is rejected for the same reason and not a different one (R3-F2): `validateDiagnostics` makes
+    // every *produced* message truthy, so an empty expectation can never match either — and the
+    // point of checking here is to name the fixture's own mistake rather than hand back a diff.
+    if (
+      Object.hasOwn(diag, "message") &&
+      (typeof diag.message !== "string" || diag.message === "")
+    ) {
       return {
-        error: `diagnostic[${i}] has a non-string "message" (${JSON.stringify(diag.message)})`,
+        error: `diagnostic[${i}] has a non-string or empty "message" (${JSON.stringify(diag.message)})`,
       };
     }
   }

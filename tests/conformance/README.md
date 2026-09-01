@@ -62,7 +62,10 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   resist a change the spec allows. `ol-reserved-word` is the case this exists for: `:125` prescribes
   the sentence *and* makes *keyword*, *primitive* and *alias* a MUST NOT inside it — a MUST NOT no
   harness can enforce without reading the text, and one that shipped violated twice (#751, #871)
-  while the corpus stayed green. Today 20 fixtures opt in, for the built-in-name sentence alone.
+  while the corpus stayed green. Today the only fixtures that opt in are the built-in-name ones
+  (every live `message` in the corpus is an `ol-reserved-word`), plus the harness self-test below.
+  Deliberately no count here: a number in prose is an assertion no gate re-checks, and this one was
+  already stale once.
 
   `_harness-selftest/detects-message-mismatch` pins that the opt-in actually bites. **Do not combine
   `expect: "mismatch"` with a `message` anywhere else**: a self-test that exists to prove some
