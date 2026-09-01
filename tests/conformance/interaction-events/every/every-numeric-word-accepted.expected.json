@@ -48,7 +48,11 @@
         "end": [1, 6]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 2
+        }
       }
     },
     {
@@ -84,7 +88,11 @@
         "end": [1, 6]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 2
+        }
       }
     },
     {

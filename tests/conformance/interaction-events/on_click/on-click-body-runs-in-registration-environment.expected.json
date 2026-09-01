@@ -108,7 +108,10 @@
         "end": [2, 11]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
       }
     },
     {

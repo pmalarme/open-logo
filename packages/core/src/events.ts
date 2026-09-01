@@ -234,6 +234,125 @@ export interface PrintPayload {
 }
 
 /**
+ * Which handler an `instruction` event is the **start of a handler block** for, carried on
+ * {@link InstructionPayload.handler} (issue #954).
+ *
+ * ## The invariant that governs what may live here
+ *
+ * **This payload carries the handler's *registration-time signature* — the block-head kind and the
+ * argument it was registered with — and MUST NOT carry occurrence or dispatch metadata: anything
+ * describing *when* or *how* a particular firing was delivered.** That is the rule separating
+ * contract information, which belongs in the normative stream, from host-facing state, which does
+ * not, and it is the reason this addition is not the mistake `@openlogo/runtime`'s `TickBoundary`
+ * warns against.
+ *
+ * The test is **what the value is about**, not where it came from:
+ *
+ * - A **tick** is occurrence metadata and fails the test. It describes *when this firing happened*,
+ *   not *what this handler is*; `spec/interaction-events.md:69-73` additionally makes it "an
+ *   implementation-defined logical frame". It stays out of band, in `@openlogo/runtime`'s
+ *   caller-supplied `ExecuteOptions.tickTimeline` sink. Do not add one here. The same exclusion
+ *   covers a delivery index, a queue depth, or a host device detail.
+ * - A **handler kind and its registered argument** are registration-time signature and pass. They
+ *   are fixed when the registration statement ran and never re-read afterwards, so every firing of
+ *   one handler reports the same values — which is what makes the field a stable description of the
+ *   handler rather than a description of one delivery.
+ *
+ * **This is a signature, deliberately not an identifier, and it does not distinguish duplicate
+ * registrations.** `repeat 3 [ on_key "space" [ … ] ]` registers three distinct handlers — the spec
+ * requires exactly that ("implementations MUST NOT collapse, deduplicate, or replace registrations")
+ * — and all three emit an identical payload *and* an identical `source_span`, so nothing in the
+ * stream tells them apart (pinned by `handler-contract.test.mjs`'s `duplicate registrations are NOT
+ * distinguishable in the stream`). That is a real limit, not an oversight: the field exists to say
+ * *which handler kind fired and on what argument*, which is what a renderer or a11y surface needs
+ * ("your space-key handler fired"). A consumer needing per-registration identity should use
+ * `ExecuteOptions.handlerRegistrations` in `@openlogo/runtime`, which enumerates registrations in
+ * order and so reports three entries for that program.
+ *
+ * Note carefully that the argument is the **evaluated** value, not the source text: `every :n [ … ]`
+ * reports the number `:n` held at registration, and `every "2"` reports the number `2` rather than
+ * the word `"2"`, because the count is validated to a whole number before the handler is recorded.
+ * Nothing here is recoverable by slicing source text at the span — which is exactly why the runtime
+ * has to report it.
+ *
+ * **No claim is made that two independent implementations emit identical values here.** An earlier
+ * wording of this invariant asserted exactly that, twice, and was false both times: a registered
+ * argument may be computed (`every (random 1 3) [ … ]`), and `spec/commands.md:353-378` promises
+ * reproducible randomness only *within* an implementation, so conformant implementations may
+ * legitimately disagree. What is claimed is narrower and true: within a run, this field reports the
+ * argument the program itself registered the handler with. That is also all a consumer needs, since
+ * the whole purpose is to tell one registered handler from another in the stream it is reading.
+ *
+ * ## Why the field exists at all
+ *
+ * `spec/interaction-events.md`'s "Trace stream integration" already makes this event *about* the
+ * handler: "The start of a handler block emits an `instruction` event for the block-head that caused
+ * the handler to run." Without this field that fact is recoverable only by **span arithmetic** — a
+ * handler firing carries the block-head keyword's span while the registration statement carries the
+ * whole statement's span, so registration and firing are otherwise identical `instruction` events
+ * with the same `statement_kind`, told apart only by width. That is an undocumented, unasserted
+ * invariant doing a contract's job, and it left a non-visual surface able to say only "`on_key`"
+ * where it should say "your space-key handler fired". The runtime knew which handler it was
+ * invoking; this field stops it dropping that fact on the floor.
+ *
+ * A **registration** never carries one: executing `on_key "space" [ … ]` is an ordinary statement,
+ * so its `instruction` event is an ordinary statement instruction. Presence of `handler` is
+ * therefore exactly the registration-versus-firing discriminator, with no span comparison at all.
+ */
+export type HandlerFiring =
+  | { readonly kind: "when"; readonly event: string }
+  | { readonly kind: "every"; readonly interval: number }
+  | { readonly kind: "on_key"; readonly key: string }
+  | { readonly kind: "on_click" };
+
+/**
+ * The four Interaction & Events block-heads that can register a handler
+ * (`spec/interaction-events.md`'s "Profiles and reservation" table). Spelled exactly as the
+ * canonical OpenLogo source keyword, so a consumer never maps between a wire name and the word the
+ * learner wrote. A closed set, unlike the open {@link PrimitiveName}: the spec's profile grammar
+ * fixes these four forms (`interaction-statement ::= when-statement | every-statement |
+ * on-key-statement | on-click-statement`), so a fifth handler kind is a spec change, not an
+ * implementation's private extension.
+ *
+ * **Derived from {@link HandlerFiring} rather than re-listing the four literals**, so the two cannot
+ * drift: a fifth arm added to `HandlerFiring` widens this automatically instead of leaving it
+ * silently wrong with nothing to fail.
+ *
+ * Exported for **consumers**, which is why it has no in-repo user yet: a host switching on which
+ * handler fired wants to name that type without reaching into `HandlerFiring["kind"]` itself. The
+ * first such consumer is the `@openlogo/studio` slice that migrates off its source-position
+ * reconstruction onto this contract (#976, sequenced immediately after this one).
+ */
+export type HandlerKind = HandlerFiring["kind"];
+
+/**
+ * Payload for the `instruction` start event (`spec/execution-model.md`'s trace and event registry —
+ * "A step is the span from one `instruction` event to the next").
+ *
+ * `statement_kind` is the AST node kind of the statement about to run. `handler` is present **only**
+ * when this event is the start of a handler block rather than an ordinary statement
+ * (`spec/interaction-events.md`'s "Trace stream integration"), naming which of the four
+ * Interaction & Events block-heads fired and its registered argument — see {@link HandlerFiring} for
+ * the invariant governing what may be added here.
+ *
+ * The field is **optional in the same sense as {@link PrimitivePayload.addressing}**: it is absent
+ * wherever it has nothing to say, so a Core program — which cannot register a handler at all — emits
+ * a stream that is byte-identical to the one it emitted before this field existed, and a
+ * handler-unaware consumer keeps reading `statement_kind` and simply ignores an extra key.
+ *
+ * That is a claim about **absence**, and it is deliberately not the stronger claim that no consumer
+ * had to change: a consumer comparing payloads by **exact equality** does see a new key wherever a
+ * handler fires, and 43 conformance fixtures were updated for precisely that reason. Neither
+ * `statement_kind` nor `handler` is enumerated by `spec/execution-model.md`, which lists payload
+ * shapes by example rather than closing them; this repo's corpus pins both by exact equality as the
+ * contract its own consumers rely on.
+ */
+export interface InstructionPayload {
+  readonly statement_kind: string;
+  readonly handler?: HandlerFiring;
+}
+
+/**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
  * default applied when the caller omitted them (`spec/execution-model.md:775-813`'s worked

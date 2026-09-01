@@ -29,6 +29,7 @@ import type {
   DrawSegmentPayload,
   FillPayload,
   GridOverlayPayload,
+  InstructionPayload,
   MeasureOverlayPayload,
   MelodyStep,
   MovePayload,
@@ -120,16 +121,13 @@ import {
   runWait,
   STANDARD_EVENT_WORDS,
   type EveryHandler,
+  type HandlerDelivery,
   type HostInputEvent,
   type OnClickHandler,
   type OnKeyHandler,
   type WhenHandler,
 } from "./interaction.js";
-import type {
-  ExecuteOptions,
-  ExecuteResult,
-  InstructionPayload,
-} from "./index.js";
+import type { ExecuteOptions, ExecuteResult } from "./index.js";
 import {
   createRandomNumberGeneratorState,
   drawImplementationSeed,
@@ -2415,6 +2413,31 @@ function guardHandlerDispatch(
 }
 
 /**
+ * Credit one handler invocation to the host-input occurrence that caused it (issue #975), or do
+ * nothing when the caller supplied no delivery sink.
+ *
+ * Called at exactly one point in each `invoke*Handler`: **immediately after the handler-block
+ * `instruction` event is pushed**, and therefore only once {@link guardHandlerDispatch} has passed.
+ * That placement is the whole definition of the count and is deliberate on both sides:
+ *
+ * - A handler that ran and then **raised** is still counted, because the block-head event is emitted
+ *   before the body runs. That is the axis on which every host-side proxy for this fact failed — a
+ *   raising handler *shortens* the event stream, so stream growth reported "nothing responded" for a
+ *   handler that plainly responded.
+ * - A handler that was **guarded off** — cancelled, or out of budget — is not counted, because
+ *   `guardHandlerDispatch` returns before the event is pushed and nothing ran.
+ *
+ * So `HandlerDelivery.invocations` is exactly "how many handler-firing `instruction` events this
+ * occurrence produced". Tying the inbound count to the outbound event at a single line is what stops
+ * the two halves of this contract drifting apart, the way a re-derived count did.
+ */
+function countHandlerInvocation(delivery: HandlerDelivery | undefined): void {
+  if (delivery) {
+    delivery.invocations += 1;
+  }
+}
+
+/**
  * Run one `when` handler's block for one occurrence of its event (`spec/interaction-events.md`'s
  * "Trace stream integration"): first emit the `instruction` event for the block-head that caused the
  * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
@@ -2431,10 +2454,18 @@ function guardHandlerDispatch(
  * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
  * at the boundary makes the diagnostic independent of whether the `when` was registered inside a
  * procedure.
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "when", event}` — so a
+ * consumer reads which handler fired from a field instead of inferring it from the span being the
+ * bare keyword rather than the whole statement. `delivery` is the {@link HandlerDelivery} record of
+ * the host input that caused this invocation (#975), credited by {@link countHandlerInvocation} at
+ * the same point; it is absent for a `when "start"` handler, which fires from registration rather
+ * than from any host delivery.
  */
 function invokeWhenHandler(
   handler: WhenHandler,
   environment: Environment,
+  delivery?: HandlerDelivery,
 ): ExecSignal {
   const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
@@ -2446,8 +2477,10 @@ function invokeWhenHandler(
     source_span: handler.keyword.source_span,
     payload: {
       statement_kind: "ProfileStatement",
+      handler: { kind: "when", event: handler.event },
     } satisfies InstructionPayload,
   });
+  countHandlerInvocation(delivery);
   const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
@@ -2525,6 +2558,11 @@ function executeWhenStatement(
     environment,
   );
   emitWhenPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "when",
+    event,
+    source_span: statement.source_span,
+  });
   if (event === STANDARD_EVENT_WORDS.start) {
     const signal = invokeWhenHandler(handler, environment);
     if (signal.kind !== "normal") {
@@ -2870,6 +2908,11 @@ function isEveryStatement(statement: StatementNode): boolean {
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
  * body, exactly like the top level and {@link invokeWhenHandler}).
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "every", interval}`, this
+ * handler's own validated tick count — so two `every` handlers in one program are distinguishable in
+ * the stream without slicing source text at the span. `every` is tick-driven rather than host-driven,
+ * so it never carries a {@link HandlerDelivery}: no delivered input caused it.
  */
 function invokeEveryHandler(
   handler: EveryHandler,
@@ -2887,6 +2930,7 @@ function invokeEveryHandler(
     source_span: handler.keyword.source_span,
     payload: {
       statement_kind: "ProfileStatement",
+      handler: { kind: "every", interval: handler.interval },
     } satisfies InstructionPayload,
   });
   const signal = executeHandlerBody(handler.block.body, handler.environment);
@@ -2914,10 +2958,16 @@ function invokeEveryHandler(
  * cancellation"); a `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
  * body, exactly like the top level and {@link invokeWhenHandler}).
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "on_key", key}`, this
+ * handler's own registered key word. That is the field an accessibility surface needs to announce
+ * "your space-key handler fired" rather than just `on_key`, which is indistinguishable from
+ * re-running the registration line. `delivery` credits the press that caused it (#975).
  */
 function invokeOnKeyHandler(
   handler: OnKeyHandler,
   environment: Environment,
+  delivery?: HandlerDelivery,
 ): ExecSignal {
   const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
@@ -2929,8 +2979,10 @@ function invokeOnKeyHandler(
     source_span: handler.keyword.source_span,
     payload: {
       statement_kind: "ProfileStatement",
+      handler: { kind: "on_key", key: handler.key },
     } satisfies InstructionPayload,
   });
+  countHandlerInvocation(delivery);
   const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
@@ -2951,10 +3003,16 @@ function invokeOnKeyHandler(
  * surface can be clicked any number of times). Returns the body's {@link ExecSignal} so a `halt`
  * propagates; a `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic, exactly like the other handler kinds.
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "on_click"}` with no
+ * argument, because `on_click` is the only Interaction & Events block-head that takes none. The
+ * discriminator is still what tells its firing apart from its registration, which is the point.
+ * `delivery` credits the click that caused it (#975).
  */
 function invokeOnClickHandler(
   handler: OnClickHandler,
   environment: Environment,
+  delivery?: HandlerDelivery,
 ): ExecSignal {
   const guard = guardHandlerDispatch(handler, environment);
   if (guard) {
@@ -2966,8 +3024,10 @@ function invokeOnClickHandler(
     source_span: handler.keyword.source_span,
     payload: {
       statement_kind: "ProfileStatement",
+      handler: { kind: "on_click" },
     } satisfies InstructionPayload,
   });
+  countHandlerInvocation(delivery);
   const signal = executeHandlerBody(handler.block.body, handler.environment);
   if (signal.kind === "return") {
     return halt(
@@ -3042,6 +3102,7 @@ function dispatchDueHandlers(
     environment.hostInput,
     tick,
     environment.hostInputConsumed.count,
+    environment.handlerDeliveries,
   );
   // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
   // empties its pending queue (and `claimDueEveryHandlers` claims its handlers, advancing
@@ -3053,14 +3114,20 @@ function dispatchDueHandlers(
   // handlers finish. Newly scheduled input only becomes pending at a strictly later tick.
   const registry = environment.eventHandlers;
   const invocations: Array<() => ExecSignal> = [];
-  for (const handler of claimPendingEventHandlers(registry)) {
-    invocations.push(() => invokeWhenHandler(handler, environment));
+  for (const claimed of claimPendingEventHandlers(registry)) {
+    invocations.push(() =>
+      invokeWhenHandler(claimed.handler, environment, claimed.delivery),
+    );
   }
-  for (const handler of claimPendingKeyHandlers(registry)) {
-    invocations.push(() => invokeOnKeyHandler(handler, environment));
+  for (const claimed of claimPendingKeyHandlers(registry)) {
+    invocations.push(() =>
+      invokeOnKeyHandler(claimed.handler, environment, claimed.delivery),
+    );
   }
-  for (const handler of claimPendingClickHandlers(registry)) {
-    invocations.push(() => invokeOnClickHandler(handler, environment));
+  for (const claimed of claimPendingClickHandlers(registry)) {
+    invocations.push(() =>
+      invokeOnClickHandler(claimed.handler, environment, claimed.delivery),
+    );
   }
   for (const handler of claimDueEveryHandlers(registry, tick)) {
     invocations.push(() => invokeEveryHandler(handler, environment));
@@ -3164,6 +3231,11 @@ function executeEveryStatement(
     environment.tickClock.tick,
   );
   emitEveryPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "every",
+    interval: whole.value,
+    source_span: statement.source_span,
+  });
   return undefined;
 }
 
@@ -3333,6 +3405,11 @@ function executeOnKeyStatement(
     environment,
   );
   emitOnKeyPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "on_key",
+    key,
+    source_span: statement.source_span,
+  });
   return undefined;
 }
 
@@ -3394,6 +3471,10 @@ function executeOnClickStatement(
     environment,
   );
   emitOnClickPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "on_click",
+    source_span: statement.source_span,
+  });
 }
 
 /**
@@ -5556,6 +5637,11 @@ function createExecutionEnvironment(
       options?.randomSeed,
     ),
     tickClock: createTickClock(),
+    // #975 — the host's registration-log and delivery-report sinks when supplied. `undefined` for
+    // every ordinary run, so nothing is recorded and no record is allocated. See `interaction.ts`'s
+    // `HandlerRegistration`/`HandlerDelivery` for the questions they answer.
+    handlerRegistrations: options?.handlerRegistrations,
+    handlerDeliveries: options?.handlerDeliveries,
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
     hostInput: sortHostInputByTick(options?.hostInput?.events),

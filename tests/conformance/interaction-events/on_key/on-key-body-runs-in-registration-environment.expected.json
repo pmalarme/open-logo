@@ -109,7 +109,11 @@
         "end": [2, 9]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "space"
+        }
       }
     },
     {

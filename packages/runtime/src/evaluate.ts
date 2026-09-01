@@ -93,6 +93,7 @@ import {
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { createTickClock } from "./interaction.js";
 import type { TickClock } from "./interaction.js";
+import type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
 import type { HostInputEvent } from "./interaction.js";
@@ -334,6 +335,19 @@ export interface Environment {
    * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
+  /**
+   * The caller-supplied **handler-registration log** sink (issue #975), or `undefined` when no host
+   * asked for one — in which case nothing is recorded and this costs a run one optional-call check
+   * per handler registration. See {@link HandlerRegistration} for what a host asks it, and for why
+   * "which handlers are registered *now*" is the honest contract.
+   */
+  readonly handlerRegistrations: HandlerRegistration[] | undefined;
+  /**
+   * The caller-supplied **delivery report** sink (issue #975), or `undefined` when no host asked for
+   * one — in which case no {@link HandlerDelivery} record is allocated at all. See
+   * {@link HandlerDelivery} for exactly what its `invocations` counts.
+   */
+  readonly handlerDeliveries: HandlerDelivery[] | undefined;
   /**
    * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
    * the tempo `set_tempo` sets. A box like
@@ -590,6 +604,8 @@ export function createEnvironment(): Environment {
     addressing: createTurtleAddressing(mainTurtleState),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
+    handlerRegistrations: undefined,
+    handlerDeliveries: undefined,
     sound: createSoundState(),
     eventHandlers: createEventHandlerRegistry(),
     hostInput: [],

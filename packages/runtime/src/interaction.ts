@@ -501,15 +501,28 @@ export type HostInputEvent =
  * host input was supplied (a normal headless run), so they never disturb the I5/I6 never-fires
  * behavior. Kept as separate queues (not merged into one) so the drain order is imposed purely here,
  * at the dispatch point, exactly as the four registration lists are kept separate.
+ *
+ * Each queued occurrence carries the {@link HandlerDelivery} record of the host input that created
+ * it (issue #975), so an invocation can be credited back to the occurrence that caused it. The tag
+ * is attached **here, at enqueue time**, and kept uniform across all three queues. For keys and
+ * named events that is load-bearing rather than merely tidy: those two claim functions flatten
+ * handler-major/occurrence-minor, so after the fact an invocation's occurrence is **not** recoverable
+ * by position, and re-deriving it is exactly the reconstruction #975 exists to delete. Clicks flatten
+ * the other way round — occurrence-major/handler-minor, since `on_click` takes no argument and every
+ * registered handler answers every click — so position alone would suffice there; the tag is carried
+ * anyway so one mechanism covers all three and no future reordering of the click loop can quietly
+ * break attribution. `pendingClicks` is a list of those tags rather than a bare count for the same
+ * reason: the delivery record is the only thing distinguishing one pending click from another. The
+ * tag is `undefined` when the caller supplied no delivery sink, which is every ordinary run.
  */
 export interface EventHandlerRegistry {
   readonly handlers: WhenHandler[];
   readonly everyHandlers: EveryHandler[];
   readonly onKeyHandlers: OnKeyHandler[];
   readonly onClickHandlers: OnClickHandler[];
-  readonly pendingEvents: string[];
-  readonly pendingKeys: string[];
-  readonly pendingClicks: { count: number };
+  readonly pendingEvents: PendingOccurrence[];
+  readonly pendingKeys: PendingOccurrence[];
+  readonly pendingClicks: (HandlerDelivery | undefined)[];
 }
 
 /** A fresh, empty event-handler registry — the state at program start (no handlers registered). */
@@ -521,7 +534,7 @@ export function createEventHandlerRegistry(): EventHandlerRegistry {
     onClickHandlers: [],
     pendingEvents: [],
     pendingKeys: [],
-    pendingClicks: { count: 0 },
+    pendingClicks: [],
   };
 }
 
@@ -817,6 +830,130 @@ export function emitOnClickPrimitive(
 }
 
 /**
+ * One entry of the **handler-registration log** (issue #975), appended once per handler registration
+ * in registration order to the caller-supplied `ExecuteOptions.handlerRegistrations` sink.
+ *
+ * ## The question it answers
+ *
+ * An interactive host must decide **synchronously, inside a browser `keydown` handler**, whether a
+ * key belongs to the running program — that decision drives `preventDefault`, and it fails in both
+ * directions: too eager and the ~90% of programs with no interaction lose page scrolling, too lazy
+ * and a game scrolls the studio away while the learner plays it. Answering it needs one fact the
+ * runtime had and dropped: **which key words currently have handlers.** The registration `primitive`
+ * event carries only the primitive's *name* (`spec/interaction-events.md:120-122` — "Event
+ * registration forms emit `primitive` events after the handler is registered"), never its key word,
+ * so before this a host had to re-derive the set by parsing the source and pairing declarations with
+ * registration events by source position. This log is the runtime handing over what it already knew.
+ *
+ * The log is **append-only and never pruned, and that is exactly correct**: a registration is
+ * permanent for the run — "Each registration creates a distinct handler: implementations MUST NOT
+ * collapse, deduplicate, or replace registrations" and a handler is never retired after its first
+ * invocation (`spec/interaction-events.md`, §Time, ticks, and handlers and `### when`). So the log
+ * *is* the current registration set, and `on_key` entries' `key` values are the answer to "does
+ * anything listen for `left`?".
+ *
+ * ## The limit of "currently", stated rather than smoothed over
+ *
+ * A registration does not exist until its statement executes, so **no implementation can answer
+ * before the run** — `on_key :chosen_key [ … ]` inside a conditional is not knowable until it runs.
+ * What this delivers is "which handlers are registered **now**", appended as each registration
+ * executes. For an in-process host that is enough: `execute()` is synchronous, so the log is
+ * complete and readable the instant the call returns — inside the same `keydown` turn, before the
+ * next press. A host that runs the program across event-loop turns gets a log that grows as the run
+ * proceeds and must accept the same partial knowledge the program itself has.
+ *
+ * `source_span` is the registration site — the span the block-head statement's own `instruction` and
+ * `primitive` events carry. It is what makes two `on_key "space"` registrations distinguishable, and
+ * it is what lets a host stop pairing declarations to registrations by source position at all.
+ */
+export type HandlerRegistration =
+  | {
+      readonly kind: "when";
+      readonly event: string;
+      readonly source_span: SourceSpan;
+    }
+  | {
+      readonly kind: "every";
+      readonly interval: number;
+      readonly source_span: SourceSpan;
+    }
+  | {
+      readonly kind: "on_key";
+      readonly key: string;
+      readonly source_span: SourceSpan;
+    }
+  | { readonly kind: "on_click"; readonly source_span: SourceSpan };
+
+/**
+ * One entry of the **delivery report** (issue #975), appended to the caller-supplied
+ * `ExecuteOptions.handlerDeliveries` sink once per host-input occurrence the run actually delivers,
+ * in delivery order.
+ *
+ * ## The question it answers
+ *
+ * "Was this delivered input **handled**?" — the second fact a host needs and could not get. Two
+ * host-side proxies for it were built and both measured unsound, and their failures define what this
+ * record must be:
+ *
+ * - **Event-stream growth is not monotonic in the thing it proxies.** A handler that *raises*
+ *   *shortens* the stream (measured 45 events → 5 with `ol-undefined-var`), so the proxy reported
+ *   "nothing responded" for a handler that ran and threw.
+ * - **Asking after the run settles answers too late.** A Worker host settles a turn later, after the
+ *   `keydown` has already scrolled the page. The answer arrives correct and useless.
+ *
+ * So `invocations` counts **handler bodies entered**, not bodies that completed: a handler that runs
+ * and raises counts `1`, which is the axis that broke the stream-length formulation. `handled` is
+ * simply `invocations > 0`; the count is reported rather than the boolean because the count is not
+ * recoverable from the boolean and a consumer already asserts on it (two handlers at two positions
+ * across two clicks count `2` then `4`).
+ *
+ * ## Precisely what `invocations` counts
+ *
+ * It is incremented at exactly the point the handler-block `instruction` event is emitted — the
+ * event that carries issue #954's {@link HandlerFiring} discriminator. The outbound and inbound
+ * halves of this contract are therefore **two views of one fact**, and cannot drift: `invocations`
+ * equals the number of firing `instruction` events attributable to this delivery. An occurrence
+ * whose handlers were never reached — the run halted, the budget ran out, or cancellation stopped
+ * further delivery before it — truthfully reports `0` rather than the count it would have had.
+ *
+ * `input` is the schedule entry itself, the same object the caller supplied in
+ * `ExecuteOptions.hostInput.events`, so a host matches a report to its own delivery by identity
+ * rather than by index arithmetic over a schedule the runtime sorted. `invocations` is **mutable and
+ * grows as the run proceeds**; it is final once `execute()` returns.
+ */
+export interface HandlerDelivery {
+  readonly input: HostInputEvent;
+  invocations: number;
+}
+
+/**
+ * One claimed handler invocation: the handler to run, paired with the {@link HandlerDelivery} record
+ * of the host-input occurrence that caused it (issue #975), or `undefined` when the caller supplied
+ * no delivery sink. Pairing them **at claim time** is what makes the count observed rather than
+ * derived. For the key and named-event queues that is the only sound option, because those claim
+ * functions flatten handler-major/occurrence-minor and an invocation therefore cannot be attributed
+ * back to its occurrence by position afterwards — precisely the kind of reconstruction issue #975
+ * exists to delete. The click queue flattens occurrence-major instead, where position would suffice;
+ * it is paired the same way so attribution has exactly one mechanism.
+ *
+ * Internal to this package: the three `claimPending*` functions that produce it are not part of
+ * `@openlogo/runtime`'s public surface, so this type is not exported from `index.ts` either.
+ */
+export interface ClaimedInvocation<H> {
+  readonly handler: H;
+  readonly delivery: HandlerDelivery | undefined;
+}
+
+/**
+ * One key press or named event sitting in a pending queue, tagged with the delivery it came from so
+ * {@link ClaimedInvocation} can carry that tag through to the invocation.
+ */
+interface PendingOccurrence {
+  readonly word: string;
+  readonly delivery: HandlerDelivery | undefined;
+}
+
+/**
  * Move every {@link HostInputEvent} scheduled at or before `tick` from `hostInput` into `registry`'s
  * tick-scheduled pending queues (issue #686, slice I7), in the order they were supplied. This is the
  * headless stand-in for a host delivering keyboard/pointer/named events as the tick clock reaches
@@ -833,24 +970,37 @@ export function emitOnClickPrimitive(
  * enqueued at the very first checkpoint (`wait 0`'s yield, or the first advanced tick), matching the
  * clock's initial value. Enqueuing only appends to the pending queues; it never runs a handler, so
  * it cannot itself be interrupted.
+ *
+ * When `deliveries` is supplied (issue #975), each entry moved into a pending queue also gets one
+ * {@link HandlerDelivery} record appended — **at the moment it is delivered, with `invocations: 0`**,
+ * so an occurrence that goes on to run nothing still appears in the report and reads as unhandled
+ * rather than being silently absent. Because entries are enqueued in schedule order and each exactly
+ * once, `deliveries[i]` describes the run's `i`-th *delivered* occurrence; an entry the run never
+ * reached has no record at all.
  */
 export function enqueueHostInput(
   registry: EventHandlerRegistry,
   hostInput: readonly HostInputEvent[],
   tick: number,
   consumed: number,
+  deliveries?: HandlerDelivery[],
 ): number {
   let cursor = consumed;
   for (const entry of hostInput.slice(consumed)) {
     if (entry.tick > tick) {
       break;
     }
+    let delivery: HandlerDelivery | undefined;
+    if (deliveries) {
+      delivery = { input: entry, invocations: 0 };
+      deliveries.push(delivery);
+    }
     if (entry.kind === "key") {
-      registry.pendingKeys.push(entry.key);
+      registry.pendingKeys.push({ word: entry.key, delivery });
     } else if (entry.kind === "click") {
-      registry.pendingClicks.count += 1;
+      registry.pendingClicks.push(delivery);
     } else {
-      registry.pendingEvents.push(entry.event);
+      registry.pendingEvents.push({ word: entry.event, delivery });
     }
     cursor += 1;
   }
@@ -875,16 +1025,16 @@ export function enqueueHostInput(
  */
 export function claimPendingEventHandlers(
   registry: EventHandlerRegistry,
-): readonly WhenHandler[] {
+): readonly ClaimedInvocation<WhenHandler>[] {
   const events = registry.pendingEvents.splice(
     0,
     registry.pendingEvents.length,
   );
-  const due: WhenHandler[] = [];
+  const due: ClaimedInvocation<WhenHandler>[] = [];
   for (const handler of registry.handlers) {
     for (const event of events) {
-      if (handler.event === event) {
-        due.push(handler);
+      if (handler.event === event.word) {
+        due.push({ handler, delivery: event.delivery });
       }
     }
   }
@@ -908,13 +1058,13 @@ export function claimPendingEventHandlers(
  */
 export function claimPendingKeyHandlers(
   registry: EventHandlerRegistry,
-): readonly OnKeyHandler[] {
+): readonly ClaimedInvocation<OnKeyHandler>[] {
   const keys = registry.pendingKeys.splice(0, registry.pendingKeys.length);
-  const due: OnKeyHandler[] = [];
+  const due: ClaimedInvocation<OnKeyHandler>[] = [];
   for (const handler of registry.onKeyHandlers) {
     for (const key of keys) {
-      if (handler.key === key) {
-        due.push(handler);
+      if (handler.key === key.word) {
+        due.push({ handler, delivery: key.delivery });
       }
     }
   }
@@ -934,13 +1084,15 @@ export function claimPendingKeyHandlers(
  */
 export function claimPendingClickHandlers(
   registry: EventHandlerRegistry,
-): readonly OnClickHandler[] {
-  const clicks = registry.pendingClicks.count;
-  registry.pendingClicks.count = 0;
-  const due: OnClickHandler[] = [];
-  for (let index = 0; index < clicks; index += 1) {
+): readonly ClaimedInvocation<OnClickHandler>[] {
+  const clicks = registry.pendingClicks.splice(
+    0,
+    registry.pendingClicks.length,
+  );
+  const due: ClaimedInvocation<OnClickHandler>[] = [];
+  for (const delivery of clicks) {
     for (const handler of registry.onClickHandlers) {
-      due.push(handler);
+      due.push({ handler, delivery });
     }
   }
   return due;

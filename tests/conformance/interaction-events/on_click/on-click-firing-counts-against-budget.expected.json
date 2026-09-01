@@ -71,7 +71,10 @@
         "end": [1, 9]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
       }
     },
     {
@@ -83,7 +86,10 @@
         "end": [1, 9]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
       }
     },
     {
@@ -95,7 +101,10 @@
         "end": [1, 9]
       },
       "payload": {
-        "statement_kind": "ProfileStatement"
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
       }
     }
   ],
