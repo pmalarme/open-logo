@@ -967,3 +967,59 @@ test("#985: the Worker host and the in-process host schedule a delivery IDENTICA
     "the Worker confirms none — the documented, conservative limitation, stated rather than hidden",
   );
 });
+
+test("#976: a delivery arriving between resolveRead() and the run's own report does not corrupt the chain", () => {
+  // The race rubber-duck found. `resolveRead()` hands the answer to a run that is still in flight;
+  // the host only transfers that answer onto a *settlement*. A delivery landing in that window used
+  // to start a SECOND execution whose `ExecutionRequest.answers` did not yet carry it.
+  //
+  // Measured on the real Worker host + real runner, before the fix:
+  //   prompts ["who?","who?"]           the answered question put to the learner again
+  //   output  ["HANDLER","BEFORE"]      the handler's line inserted BEFORE the line already read,
+  //                                     and the learner's own answer lost entirely
+  //
+  // The fix is to honour what `drainDeliveredInput`'s doc comment already claimed: while an attempt
+  // is in flight the delivery stays SCHEDULED and is replayed when that attempt settles. The
+  // settlement path now resumes the drain, so it is deferred rather than dropped.
+  const { host } = createBlockingHost();
+  // The question must be HELD, not answered from inside `present()` — answering synchronously
+  // resolves the read before `run()` returns and there is no window to land in.
+  const prompt = createTestPromptHost();
+  const store = OL.createStudioState({
+    source: [
+      'on_key "a" [',
+      '  print "HANDLER"',
+      "]",
+      "wait 1",
+      'print "BEFORE"',
+      ':who = input "who?"',
+      "print :who",
+      "wait 5",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  const observed = store.getState().output;
+  assert.deepEqual(observed, ["BEFORE"], "the learner has read this much");
+  assert.deepEqual(prompt.prompts, ["who?"]);
+
+  // Answer it, then deliver before the resumed run has reported: the window itself.
+  prompt.respond("Ada");
+  controller.deliverKey("a");
+  const after = store.getState().output;
+
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a PREFIX — the race inserted the handler's line in front of it",
+  );
+  assert.deepEqual(
+    prompt.prompts,
+    ["who?"],
+    "and the answered question is not put to them a second time",
+  );
+});

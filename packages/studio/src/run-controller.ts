@@ -1152,6 +1152,12 @@ export function createRunController(
         withdrawPendingRead();
       }
       then(current);
+      // #976 — an attempt has just settled, so anything `drainDeliveredInput` deferred while it was
+      // in flight can now be replayed. `playCurrentAttempt` already does this for a delivery replay,
+      // but the attempt that settles here is often the ORIGINAL run — and under a host that resumes
+      // a read in place, that is exactly the settlement a deferred delivery is waiting on. Without
+      // it the delivery is scheduled, never replayed, and silently does nothing.
+      drainDeliveredInput();
     });
   }
 
@@ -1413,6 +1419,20 @@ export function createRunController(
   function drainDeliveredInput(upTo?: number): void {
     if (deliveringInput) {
       // Re-entered from a synchronous settlement; the running loop re-reads the schedule.
+      return;
+    }
+    if (attemptPending) {
+      // #976 — an execution is still in flight, so this delivery stays SCHEDULED and is replayed
+      // when that attempt lands, exactly as this function's doc comment has always claimed. Starting
+      // a second attempt here is what made the claim false, and under the Worker host it corrupted
+      // the chain: a delivery arriving between `resolveRead()` and the run's own `"done"` report
+      // began a fresh execution whose `answers` did not yet carry the answer the resumed run had
+      // consumed — the host only transfers it onto a settlement. Measured on
+      // `on_key … / wait 1 / print "BEFORE" / input "who?" / … `: the answered question was re-asked
+      // (`prompts: ["who?","who?"]`) and the handler's output was inserted BEFORE the line the
+      // learner had already read (`["HANDLER","BEFORE"]`, the answer lost entirely).
+      //
+      // `playCurrentAttempt` calls this again once the attempt settles, so nothing is stranded.
       return;
     }
     deliveringInput = true;
