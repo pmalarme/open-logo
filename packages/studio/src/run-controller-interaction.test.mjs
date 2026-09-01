@@ -2463,3 +2463,119 @@ test("#976 AC2: a DEFERRED delivery is re-clamped past a read that finished whil
   assert.deepEqual(after, ["A", "C", "turned", "B"]);
   assert.deepEqual(host.prompts, ["first?", "second?"], "each asked once");
 });
+
+test('#976: Stop re-clamps its own notification — a `when "stop"` registered mid-program still fires', () => {
+  // All three reviewers found this independently: `stop()` schedules its notification and calls
+  // `beginAttempt` DIRECTLY, so a re-clamp living only in `drainDeliveredInput` skipped it, and a
+  // round that deleted the schedule-time copy as "redundant" regressed it. It was not redundant, it
+  // was UNPINNED — the suite covered no Stop-notification tick at all, so all three arms of the
+  // delete-A/delete-B/delete-both rule came back green while the behaviour changed.
+  //
+  // `scheduleHostInput` gives a first occurrence tick 0. `when "stop"` here registers only after the
+  // leading `wait 2`, so a tick-0 notification is consumed before the handler exists and the
+  // pre-termination notification `spec/interaction-events.md:152-156` requires is lost with no
+  // diagnostic. Measured with `reclampUndeliveredTail()` removed from `stop()`: output `[]`.
+  //
+  // Paced, not immediate: the floor is `tickAtEventIndex(chainTickTimeline, drawnEventCount)`, so a
+  // harness that never advances the picture leaves it 0 and the mutant survives.
+  const paced = createHandDrivenScheduler();
+  const store = OL.createStudioState({
+    source: [
+      "wait 2",
+      'when "stop" [',
+      '  print "bye"',
+      "]",
+      "wait 5",
+      "forward 10",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    scheduler: paced.scheduler,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  paced.drain();
+  controller.stop();
+
+  assert.deepEqual(
+    store.getState().output,
+    ["bye"],
+    'the `when "stop"` handler registered after a wait must still receive its notification',
+  );
+  assert.equal(store.getState().runStatus, "stopped");
+});
+
+test("#985: a re-entrant press never lands before the presses that preceded it", () => {
+  // Pins `scheduleHostInput`'s `lastScheduled` term, which survived every mutation from round 1 to
+  // round 10 and was twice on the verge of being deleted as dead. It is not dead.
+  //
+  // `reclampUndeliveredTail()` runs ONCE, before `drainDeliveredInput`'s loop, so an occurrence
+  // appended re-entrantly *during* that loop is dispatched without ever being re-clamped. This term
+  // is the only floor covering it.
+  //
+  // Measured: shipped `["MID","L","L","R","END"]` with ticks `[left@20, left@20, right@20]`; with
+  // `const tick = 0` it becomes `["R","MID","L","L","END"]` and `right@0` — "R" jumps ahead of
+  // "MID", which the learner had already read. That is #976 AC2 verbatim.
+  const SOURCE = [
+    'on_key "left" [',
+    '  print "L"',
+    "]",
+    'on_key "right" [',
+    '  print "R"',
+    "]",
+    "wait 10",
+    'print "MID"',
+    "wait 10",
+    'print "END"',
+  ].join("\n");
+
+  function runWithReentrancy(depth) {
+    let armed = 0;
+    let controller;
+    const signal = { aborted: false };
+    const inner = OL.createInProcessExecutionHost({ signal });
+    const host = {
+      execute(request, settle) {
+        inner.execute(request, (settlement) => {
+          settle(settlement);
+          if (armed > 0) {
+            armed -= 1;
+            controller.deliverKey(armed === 0 ? "right" : "left");
+          }
+        });
+      },
+      // Bound rather than wrapped: a `cancel() { inner.cancel(); }` wrapper is a function body no
+      // arm of this test ever calls, and the 100 % coverage gate counts test files too.
+      cancel: inner.cancel.bind(inner),
+    };
+    const store = OL.createStudioState({ source: SOURCE });
+    controller = OL.createRunController(store, {
+      executionHost: host,
+      randomSeedSource: pinnedSeed(7),
+    });
+    controller.run();
+    const observed = [...store.getState().output];
+    armed = depth - 1;
+    controller.deliverKey(depth === 1 ? "right" : "left");
+    return { observed, output: store.getState().output };
+  }
+
+  // Control: at depth 1 there is no re-entrant append, so this arm cannot depend on the term. It
+  // must be identical under the mutation, or the probe below is measuring something else. Asserted
+  // FIRST so it runs in the mutant arm too — after the deep assertion, `assert` throws before
+  // reaching it.
+  assert.deepEqual(runWithReentrancy(1).output, ["MID", "R", "END"]);
+
+  const deep = runWithReentrancy(3);
+  assert.deepEqual(
+    deep.observed,
+    ["MID", "END"],
+    "the learner has already read both lines before any press",
+  );
+  assert.deepEqual(
+    deep.output,
+    ["MID", "L", "L", "R", "END"],
+    'a re-entrant press must sort with its predecessors — ["R","MID",…] puts it ahead of output already read',
+  );
+});

@@ -476,10 +476,57 @@ announcing it would file a run-log entry per keystroke.
   handlers *until the read finishes*, and this is exactly that — a transient block, matching the
   spec's "until". Until #976 the studio was stricter: a chain that had *ever* asked a question
   refused delivery for the rest of its life, because a delivery was then scheduled at a synthetic
-  tick that could land *before* the read and rewrite history the learner had already observed. #985's
-  tick timeline removed that cause, so the permanent gate is **deleted** rather than narrowed. An
-  answer chain mid-pump is still refused — it is what stops a synchronously-answering prompt host
-  being handed one more read per answer (the quadratic hang the `#881` section describes).
+  tick that could land *before* the read and rewrite history the learner had already observed. The
+  permanent gate is **deleted** rather than narrowed — but the tick timeline alone did not earn that
+  deletion, and an earlier version of this section claimed it did. What replaces the gate is the
+  re-clamp below. An answer chain mid-pump is still refused — it is what stops a synchronously-
+  answering prompt host being handed one more read per answer (the quadratic hang the `#881`
+  section describes).
+
+**What actually makes the deletion safe: `reclampUndeliveredTail()`.** `Math.max` of three terms:
+
+| floor | why | pinned? |
+| --- | --- | --- |
+| `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
+| `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes, 10 tests |
+| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:108-111`: a delivery must not land at or before a read it should have followed | yes, 1 test |
+
+**The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
+an occurrence appended **re-entrantly during** `drainDeliveredInput`'s loop — the re-clamp runs once
+*before* that loop and never revisits it. Neutralising it to `const tick = 0` left the whole suite
+green from round 1, and it twice came close to being deleted as dead. Every probe reached it through
+`deliverKey`, whose second, unbounded drain silently repairs the mutation.
+
+**A mutation that survives tells you where your probes go, not only what your tests check.** That is
+the sharper form of the rule, and it is exactly what the round that deleted a floor on "no test
+moves" was missing.
+
+It is raised **at delivery time, not at schedule time**, because the drawn and answered-read floors
+keep *moving* while an occurrence waits: a copy taken when the input arrived is stale by the time it
+is delivered.
+
+**The residual window is deliberate.** Moving `reclampUndeliveredTail()` *inside* the drain loop
+would close it and make the schedule-time term genuinely redundant. Today it is not: the two are
+complementary. If that ever changes, run the third arm — delete **both** — before deleting either.
+
+**It is called from both paths that turn the schedule into a request** — `drainDeliveredInput`, and
+`stop()`'s direct `beginAttempt`. There are **four** `beginAttempt` call sites, and the other two are
+safe for reasons *other* than the re-clamp, recorded here so the next reader does not have to
+re-derive them — that enumeration is what caught the bug below:
+
+- `pump()` — `run()` resets the schedule to `[]`, and during the pump loop `acceptsHostInput()` is
+  false, so no undelivered tail can accumulate.
+- the lazy `step()` — reachable only before any run, where the schedule is empty and the chain does
+  not accept host input.
+
+Deleting the schedule-time copy without adding the second call was
+a regression review caught: `stop()` does not drain, so its `when "stop"` notification kept tick 0,
+was consumed during a leading `wait` before the handler had registered, and the pre-termination
+notification `spec/interaction-events.md:152-156` requires was lost with no diagnostic. One function
+called twice rather than a floor duplicated at each site, because duplication is exactly the
+redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests: in
+`run-controller-interaction.test.mjs`, deleting the `stop()` call fails 1 test, deleting the drain
+call fails 11, and deleting both fails 12 — exactly the sum, so neither is a subset of the other.
 
 ### Deliveries are scheduled against the program's tick clock (#985)
 

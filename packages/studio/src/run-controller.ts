@@ -383,10 +383,11 @@
  *   question; it cannot stop history being rewritten. #985's tick timeline removes that cause — a
  *   delivery lands at the tick the learner is looking at, never earlier than a read they answered —
  *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. The tick
- *   timeline alone is not sufficient for that, and two further clamps carry the rest: the
- *   answered-read boundary (`lastAnsweredReadTick`, because a tick cannot order a delivery against
- *   a read that finished *within* it) and the re-clamp of the undelivered tail before replay
- *   (because a deferred delivery's tick is fixed before a later read exists). An answer
+ *   timeline alone is not sufficient for that: {@link reclampUndeliveredTail} raises every
+ *   still-undelivered occurrence to `max(its own tick, the drawn tick, the answered-read boundary)`
+ *   immediately before the schedule becomes a request, and is called from **both** paths that compose
+ *   one — the drain, and `stop()`'s direct `beginAttempt`. Review found the second after a round had
+ *   deleted the schedule-time copy as redundant; it was not redundant, it was unpinned. An answer
  *   chain mid-pump is still refused: it is what stops a prompt host answering synchronously from
  *   inside `present()` being handed one more read per answer, the quadratic hang the "#881" section
  *   above describes.
@@ -1426,10 +1427,8 @@ export function createRunController(
    * program*, never of the wall clock, so two identical play sessions still produce byte-identical
    * event streams.
    *
-   * A delivery is never scheduled *before* one already in the schedule: the runtime requires
-   * non-decreasing ticks (`enqueueHostInput`'s forward cursor would otherwise strand an entry behind
-   * a later-tick one), and a learner cannot press a key at an earlier moment than their previous
-   * press. Both facts point the same way, so the tick is clamped up to the last one scheduled.
+   * A delivery is never scheduled *before* one already in the schedule: a learner cannot press a key
+   * at an earlier moment than their previous press.
    *
    * Returns the scheduled entry — **the very object** installed as `ExecuteOptions.hostInput.events`
    * — so a caller can find the runtime's report for *this* occurrence by identity (#976). The
@@ -1437,16 +1436,24 @@ export function createRunController(
    * are these ones; matching on them needs no index arithmetic over that sorted order.
    */
   function scheduleHostInput(occurrence: HostInputOccurrence): HostInputEvent {
-    // Only the term that is unique to scheduling: a delivery is never scheduled before one already
-    // in the schedule, because the runtime requires non-decreasing ticks and a learner cannot press
-    // a key at an earlier moment than their previous press.
+    // Only the term that is unique to scheduling: never schedule an occurrence before one already in
+    // the schedule.
     //
-    // The drawn-tick and answered-read floors deliberately do **not** appear here. They are applied
-    // by `drainDeliveredInput`'s re-clamp, which every occurrence passes through before it is
-    // delivered — so duplicating them here made two mechanisms where exactly one is load-bearing,
-    // and review measured that deleting these terms left the whole suite green while a comment
-    // claimed they were guarded. That is the same shape as the two redundant drains, resolved the
-    // same way: keep the one that covers strictly more, delete the other.
+    // NOT because the runtime requires it. Review (the contract's owner) measured that claim false:
+    // `packages/runtime/src/execute-internal.ts:5565` is `[...hostInput].sort(...)`, so the runtime
+    // NORMALISES and accepts an unsorted schedule. The reason is local: a learner cannot press a key
+    // at an earlier moment than their previous press.
+    //
+    // **This is the only floor covering a re-entrant append.** `reclampUndeliveredTail()` runs once
+    // BEFORE `drainDeliveredInput`'s loop, so an occurrence appended from inside that loop is
+    // dispatched without ever being re-clamped, and this term is what keeps it in order.
+    //
+    // Now pinned by test — neutralise this to `const tick = 0` and a press jumps ahead of output the
+    // learner had already read.
+    //
+    // The drawn-tick and answered-read floors deliberately do **not** appear here. They are applied by
+    // `reclampUndeliveredTail()` at delivery time, because both keep MOVING while an occurrence waits,
+    // so a copy taken at schedule time is stale by the time it is delivered.
     const tick = hostInputEvents.at(-1)?.tick ?? 0;
     const scheduled: HostInputEvent = { ...occurrence, tick };
     hostInputEvents = [...hostInputEvents, scheduled];
@@ -1466,6 +1473,45 @@ export function createRunController(
    * happened during the previous attempt — the same bound `pump()` has. Under a host that has not
    * settled yet it returns instead, and the settlement's own call resumes the drain.
    */
+  /**
+   * Raise every still-undelivered scheduled occurrence to the floors that hold *now*.
+   *
+   * Called from **both** paths that turn the schedule into a request: `drainDeliveredInput`, and
+   * Stop's direct `beginAttempt`. Review found the second one after the schedule-time clamp was
+   * deleted as redundant — `stop()` schedules its `when "stop"` notification and begins an attempt
+   * **without draining**, so a re-clamp living only in the drain silently skipped it. Measured on a
+   * paced run of `wait 2 / when "stop" [ … ] / wait 5 / forward 10`: the notification took tick 0,
+   * was consumed during the leading `wait` before `when "stop"` had registered, and the required
+   * pre-termination notification was lost with no diagnostic.
+   *
+   * That is why this is one function rather than two call-site copies: the redundancy the deletion
+   * removed was two mechanisms computing one floor, and the fix must not reintroduce it.
+   */
+  function reclampUndeliveredTail(): void {
+    const readFloor =
+      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
+    const drawnFloor = tickAtEventIndex(chainTickTimeline, drawnEventCount);
+    for (
+      let index = deliveredScheduleLength;
+      index < hostInputEvents.length;
+      index += 1
+    ) {
+      const occurrence = hostInputEvents[index];
+      if (occurrence !== undefined) {
+        // `HostInputEvent.tick` is `readonly` on the public type — correct for a caller, wrong for
+        // the owner of the schedule. This controller *is* the owner: it created these objects in
+        // `scheduleHostInput` and no one else may write them. Mutating rather than replacing is
+        // required, because `deliveryRanAHandler` matches the runtime's report to its occurrence by
+        // object identity, which a fresh object would destroy.
+        (occurrence as { tick: number }).tick = Math.max(
+          occurrence.tick,
+          drawnFloor,
+          readFloor,
+        );
+      }
+    }
+  }
+
   function drainDeliveredInput(upTo?: number): void {
     if (deliveringInput) {
       // Re-entered from a synchronous settlement; the running loop re-reads the schedule.
@@ -1495,32 +1541,7 @@ export function createRunController(
     // Measured on the suite's own deferred-host model: `["A","C"]` observed, replay produced
     // `["A","turned","C","B"]` — `"turned"` inserted in front of a line already read. With this,
     // `["A","C","turned","B"]`.
-    //
-    // Mutated **in place**: `deliveryRanAHandler` matches a report to its occurrence by object
-    // identity, so replacing the entries would break the match. Forward-only, like every other clamp
-    // here — the rewinding inverse is @testing's M8.
-    const readFloor =
-      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
-    const drawnFloor = tickAtEventIndex(chainTickTimeline, drawnEventCount);
-    for (
-      let index = deliveredScheduleLength;
-      index < hostInputEvents.length;
-      index += 1
-    ) {
-      const occurrence = hostInputEvents[index];
-      if (occurrence !== undefined) {
-        // `HostInputEvent.tick` is `readonly` on the public type — correct for a caller, wrong for
-        // the owner of the schedule. This controller *is* the owner: it created these objects in
-        // `scheduleHostInput` and no one else may write them. Mutating rather than replacing is
-        // required, because `deliveryRanAHandler` matches the runtime's report to its occurrence by
-        // object identity, which a fresh object would destroy.
-        (occurrence as { tick: number }).tick = Math.max(
-          occurrence.tick,
-          drawnFloor,
-          readFloor,
-        );
-      }
-    }
+    reclampUndeliveredTail();
     deliveringInput = true;
     try {
       while (
@@ -1728,6 +1749,10 @@ export function createRunController(
     userStopped = true;
     if (notifies) {
       scheduleHostInput({ kind: "event", event: "stop" });
+      // #976 — this path begins an attempt WITHOUT draining, so the drain's re-clamp never sees it.
+      // Without this call the notification keeps the tick it was scheduled at and can be consumed
+      // before `when "stop"` has registered, losing it silently.
+      reclampUndeliveredTail();
       shownEventCount = drawnEventCount;
       // Keyed to the attempt this call is about to start, so no later chain can inherit it.
       stopNotificationAttempt = attemptSequence + 1;

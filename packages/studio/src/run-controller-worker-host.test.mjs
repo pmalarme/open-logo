@@ -1029,6 +1029,23 @@ test("#976: a delivery arriving between resolveRead() and the run's own report d
  * `read` and `done` reports by hand. `createBlockingHost()` cannot do this — it drives the real
  * runner, which unwinds at `PARKED` and can therefore never emit the later `"done"` a resumed run
  * produces. That is why the race test built on it could only ever prove "no immediate corruption".
+ *
+ * **Every field it emits must be a shape the real runner can produce.** Review found two that were
+ * not: a hard-coded `tickTimeline: []` on `read`, and a fabricated `[{ tick: 1, eventCount: 0 }]` on
+ * `done` — unproducible for *any* program, because a boundary is pushed as
+ * `{ tick, eventCount: events.length }` only after the `wait` instruction is emitted, so the floor is
+ * 1 even at minimum. Both were measured harmless today, but a harness that emits shapes the Worker
+ * cannot is one assertion away from proving nothing. The timelines now come from `settlementFor()`,
+ * i.e. from the real runtime, and `retainedAnswers` is always present because
+ * `worker-execution-host.ts` declares it required.
+ *
+ * **Per FIELD, not per report.** Review was right to narrow this: `settlementFor()` is run with
+ * `acceptsReads: false` and no answers, so the events and timeline it yields are the *read-prefix*
+ * artifacts, and the test then pairs them with `done` outputs containing `"Ada"` and `"HANDLER"`. No
+ * single real `done` report has that combination. Every field is individually of a producible shape;
+ * the composite is still assembled. Closing that would mean teaching `settlementFor` to take answers
+ * and host input and deriving three distinct real settlements — worth doing when something asserts on
+ * delivery *tick* here, which nothing does today.
  */
 function createScriptedPort() {
   const commands = [];
@@ -1044,7 +1061,7 @@ function createScriptedPort() {
   return {
     commands,
     port,
-    read(prompt, output, events) {
+    read(prompt, output, events, tickTimeline) {
       listener({
         type: "read",
         runId: commands.at(-1).runId,
@@ -1052,7 +1069,8 @@ function createScriptedPort() {
         events,
         output,
         tutorOutput: [],
-        tickTimeline: [],
+        tickTimeline,
+        retainedAnswers: [],
       });
     },
     done(output, tickTimeline, retainedAnswers, events) {
@@ -1091,7 +1109,18 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
   // actually registers — a scripted report carrying vents: [] would be refused before scheduling,
   // and the test would pass for the wrong reason.
-  const realEvents = settlementFor(RACE_SOURCE).events;
+  // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
+  // actually registers — a scripted report carrying events: [] would be refused before scheduling,
+  // and the test would pass for the wrong reason. The tick timeline now comes from the same real
+  // settlement, for the same reason: review measured the fabricated one unproducible by any program.
+  const realSettlement = settlementFor(RACE_SOURCE);
+  const realEvents = realSettlement.events;
+  const realTicks = realSettlement.tickTimeline;
+  assert.ok(
+    realTicks.length > 0 &&
+      realTicks.every((boundary) => boundary.eventCount > 0),
+    `control: the real timeline must be non-empty with positive eventCounts, else it could not detect the fabricated one (got ${JSON.stringify(realTicks)})`,
+  );
   const scripted = createScriptedPort();
   const host = OL.createWorkerExecutionHost({
     allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
@@ -1107,7 +1136,7 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
 
   controller.run();
   assert.equal(scripted.commands.length, 1, "one run command so far");
-  scripted.read("who?", ["BEFORE"], realEvents);
+  scripted.read("who?", ["BEFORE"], realEvents, realTicks);
   assert.deepEqual(prompt.prompts, ["who?"]);
 
   // Answer, then deliver before the resumed run has reported: the race window itself.
@@ -1118,12 +1147,7 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   // The resumed run finishes and reports, carrying the answer it consumed.
   // The runner's OWN view of the FIFO: this run started with no recorded answers and parked, so it
   // truncated nothing and reports an empty list. The host adds the answer it resolved in place.
-  scripted.done(
-    ["BEFORE", "Ada"],
-    [{ tick: 1, eventCount: 0 }],
-    [],
-    realEvents,
-  );
+  scripted.done(["BEFORE", "Ada"], realTicks, [], realEvents);
 
   assert.equal(
     scripted.commands.length,
@@ -1144,7 +1168,7 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   // The replay reports the handler having run, after the line already read.
   scripted.done(
     ["BEFORE", "Ada", "HANDLER"],
-    [{ tick: 1, eventCount: 0 }],
+    realTicks,
     [{ prompt: "who?", answer: "Ada" }],
     realEvents,
   );
