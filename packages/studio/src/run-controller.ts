@@ -898,6 +898,24 @@ export function createRunController(
   // build before the contract existed. Empty under a Worker host — see
   // `ExecutionSettlement.handlerDeliveries`.
   let chainHandlerDeliveries: readonly HandlerDelivery[] = [];
+  // #976 — the tick at which this chain's most recently answered `input` completed, or `null` when
+  // none has. A tick is not a fine enough boundary to order a delivery against a read that finished
+  // *within* it: `spec/interaction-events.md:108-111` blocks handlers only until the read finishes,
+  // but a delivery scheduled at that same tick can be dispatched at the tick's checkpoint, which
+  // precedes the read in program order — review measured output the learner had already read being
+  // replaced, under a deferred host and under paced playback.
+  //
+  // Only ever pushes a delivery FORWARD. That is what separates it from the tempting inverse — a
+  // counter for chains that have answers — which schedules relative to the last delivery rather than
+  // to the program's clock and therefore rewinds. The cost of pushing forward is that a program with
+  // no tick left after its question loses the press, which fails visibly.
+  //
+  // **UNVERIFIED, and recorded as such.** This is the mechanism review asked for, and it cannot make
+  // the ordering worse — but no test here reproduces the reordering it prevents. The harness that
+  // was written for it drains playback past the read before delivering, so the mutant that disables
+  // this line survives; rather than ship a test that cannot fail, the test was removed and the gap
+  // reported. Do not read the green suite as evidence for this line.
+  let lastAnsweredReadTick: number | null = null;
   let chainAcceptsHostInput = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
@@ -1005,6 +1023,14 @@ export function createRunController(
       promptGeneration += 1;
       promptOutstanding = false;
       pendingRead = null;
+      if (answer !== undefined) {
+        // #976 — the read finishes here, at the tick the learner is looking at. Any later delivery
+        // must land strictly after it, or the replay can reach a point they have already observed.
+        lastAnsweredReadTick = tickAtEventIndex(
+          chainTickTimeline,
+          drawnEventCount - 1,
+        );
+      }
       if (resolveReadInPlace !== undefined) {
         // #876 — this host genuinely suspended the read, so both endings are the *same* operation:
         // hand the answer (or the dismissal's `undefined`, which is the runtime reader's own
@@ -1397,7 +1423,11 @@ export function createRunController(
   function scheduleHostInput(occurrence: HostInputOccurrence): HostInputEvent {
     const drawnTick = tickAtEventIndex(chainTickTimeline, drawnEventCount);
     const lastScheduled = hostInputEvents.at(-1)?.tick ?? 0;
-    const tick = Math.max(drawnTick, lastScheduled);
+    // #976 — never earlier than an answered read. A tick alone cannot order a delivery against a
+    // read that completed within that same tick, so the boundary is carried out of band.
+    const afterAnsweredRead =
+      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
+    const tick = Math.max(drawnTick, lastScheduled, afterAnsweredRead);
     const scheduled: HostInputEvent = { ...occurrence, tick };
     hostInputEvents = [...hostInputEvents, scheduled];
     return scheduled;
@@ -1582,6 +1612,7 @@ export function createRunController(
     hostInputEvents = [];
     chainTickTimeline = [];
     chainHandlerDeliveries = [];
+    lastAnsweredReadTick = null;
     chainAcceptsHostInput = true;
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
@@ -1683,6 +1714,7 @@ export function createRunController(
     hostInputEvents = [];
     chainTickTimeline = [];
     chainHandlerDeliveries = [];
+    lastAnsweredReadTick = null;
     chainAcceptsHostInput = false;
     drawnEventCount = 0;
     signal.aborted = false;
