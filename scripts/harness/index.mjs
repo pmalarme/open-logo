@@ -20,6 +20,33 @@ import { detectUsedProfiles } from "../profile-detection.mjs";
 export const ROOT = "tests/conformance";
 export const EXPECTED_SUFFIX = ".expected.json";
 
+/**
+ * The fixture-name prefix that marks a harness self-test — a fixture whose job is to make the
+ * harness report a failure, so it declares `expect: "mismatch"` and its *pass* is that detection.
+ * Defined once because two places **in this file** must agree on it: {@link runHarness}, which
+ * requires the polarity and never profile-filters these, and {@link MESSAGE_MISMATCH_SELF_TEST}.
+ * (`scripts/coverage-report.mjs` keeps its own slash-less literal deliberately: it filters raw
+ * `readdir` entries joined with the OS `sep`, not the POSIX fixture names this constant describes.)
+ * Fixture names are POSIX-joined by {@link discoverFixtures}, so the separator is `/` everywhere.
+ */
+export const SELF_TEST_PREFIX = "_harness-selftest/";
+
+/**
+ * The ONE fixture allowed to combine `"compareMessages": true` with `expect: "mismatch"` — the
+ * self-test that exists to prove the message comparison bites, and which can only demonstrate a
+ * detection by expecting it (issue #1028).
+ *
+ * This is a complete fixture name compared by EQUALITY, not a prefix: a directory-prefix test would
+ * let any additional fixture sited beside that self-test bypass the guard, which is not what "one
+ * fixture" means. Narrowed to a single fixture rather than to {@link SELF_TEST_PREFIX} as a whole,
+ * because `tests/conformance/README.md` already states the rule that way for fixture authors —
+ * "**Do not combine `expect: "mismatch"` with a `message` anywhere else**: a self-test that exists
+ * to prove some *other* mismatch is detected would then be able to pass on prose while its real
+ * subject regresses". Exempting the whole tree would have enforced something looser than the
+ * documented rule, and would have re-opened the hole for the other three self-tests.
+ */
+export const MESSAGE_MISMATCH_SELF_TEST = `${SELF_TEST_PREFIX}detects-message-mismatch/detects-message-mismatch${EXPECTED_SUFFIX}`;
+
 // Profile dependency closure from spec/conformance.md's DAG.
 export const PROFILE_DEPS = {
   "core-language": [],
@@ -369,7 +396,7 @@ export function loadFixture(fixture) {
 
   // "compareMessages" (issue #1025) is the per-fixture opt-in that makes a fixture's expected
   // diagnostic `message` load-bearing. It is DELIBERATELY explicit rather than inferred from the
-  // presence of a `message` key, and the two validations below are the point of the design.
+  // presence of a `message` key, and the validations below are the point of the design.
   //
   // The default stays what `spec/error-model.md:254-259` asks for — "Tests and editor tools SHOULD
   // assert codes and params, not English text" — and that is not a formality: `:261-263` positively
@@ -384,11 +411,15 @@ export function loadFixture(fixture) {
   // reading them as consent would have retroactively frozen ~275 English sentences the spec allows
   // an implementation to reword. Consent cannot be retroactive.
   //
-  // Both directions are errors, so nothing can be present-but-ignored again — which is AC-A3 turned
-  // from a one-time cleanup into a structural property:
+  // Every way of leaving a `message` unable to assert what it claims is an error, so nothing can be
+  // present-but-ignored again — which is AC-A3 turned from a one-time cleanup into a structural
+  // property. Two of the three are checked here; the third (`expect: "mismatch"`, issue #1028)
+  // follows immediately after, because it needs the fixture's name to exempt the self-test:
   //   - a `message` without the flag would be silently dropped, the exact defect #1025 exists to kill;
   //   - the flag without any `message` asserts nothing, the same way `executeOptions` without
   //     `"execute": true` does, and is a fixture-author mistake rather than a no-op.
+  // (The third is different in kind: it does not drop the message, it removes the *guarantee* that
+  // the message is what the fixture's verdict rests on. See the comment below it.)
   if (spec.compareMessages !== undefined) {
     if (typeof spec.compareMessages !== "boolean") {
       return { error: `"compareMessages" must be a boolean when present` };
@@ -411,6 +442,39 @@ export function loadFixture(fixture) {
         error: `diagnostic[${withMessage}] carries a "message" but the fixture does not set "compareMessages": true — it would be compared against nothing (issue #1025). Either opt in, or delete the message.`,
       };
     }
+  }
+
+  // The third way a `message` stops being guaranteed to assert what it claims, and the one the two
+  // directions above left open (issue #1028): `expect: "mismatch"` INVERTS the harness verdict, so
+  // an opted-in fixture that also expects a mismatch is satisfied by ANY disagreement — an event, a
+  // diagnostic identity, or the prose. Which one it was is not knowable here, and that is exactly
+  // the problem: the opt-in stops being *guaranteed* to assert anything, because the fixture can
+  // pass on a difference that has nothing to do with the message it opted in to pin. Measured on
+  // `4ad13363`: a fixture identical to what `check()` produces except for one wrong sentence
+  // reported `1 passed, 0 failed`, while the twin differing only in polarity failed on that
+  // sentence.
+  //
+  // The exemption is {@link MESSAGE_MISMATCH_SELF_TEST} alone — one complete fixture name, compared
+  // by equality — NOT the whole self-test tree and not its directory: being a self-test does not
+  // imply needing this combination, and a self-test that proves some *other* mismatch would be able
+  // to pass on prose while its real subject regressed. A fixture object carrying no `name`
+  // stringifies to something that is not that name, so the guard fails closed rather than open —
+  // deliberately more defensive than `runHarness`'s bare `fixture.name`, because `loadFixture` is
+  // exported and called directly, while `runHarness` only ever sees {@link discoverFixtures} output.
+  //
+  // Two orderings are deliberate. `expect` is validated below and defaults to `"match"`, so an
+  // absent, mis-cased, or invalid value simply is not `"mismatch"` and falls through to its own
+  // error rather than being reported as this one. And a fixture that sets the flag with NO
+  // `message` at all is already rejected above as an opt-in that asserts nothing, so it is reported
+  // as that mistake rather than this one — the combination is still refused either way.
+  if (
+    spec.compareMessages === true &&
+    spec.expect === "mismatch" &&
+    String(fixture.name) !== MESSAGE_MISMATCH_SELF_TEST
+  ) {
+    return {
+      error: `"compareMessages": true with "expect": "mismatch" — the inverted verdict is satisfied by ANY disagreement (an event, a diagnostic identity, or the message), so the opt-in is not guaranteed to assert anything (issue #1028). Only ${MESSAGE_MISMATCH_SELF_TEST} may combine the two fields.`,
+    };
   }
 
   const expected = {
@@ -1259,7 +1323,7 @@ export function runHarness(options = {}) {
     }
 
     // Identify self-tests early (before profile filtering) so they always run
-    const isSelfTest = fixture.name.startsWith("_harness-selftest/");
+    const isSelfTest = fixture.name.startsWith(SELF_TEST_PREFIX);
 
     // Self-tests must declare expect: "mismatch"
     if (isSelfTest && expected.expect !== "mismatch") {

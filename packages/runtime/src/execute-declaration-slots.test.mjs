@@ -701,11 +701,20 @@ test("`params.name` is the DECLARED surface spelling for a built-in too, never t
 });
 
 test("the learner-facing MESSAGE quotes the declared spelling too, and matches the checker's", () => {
-  // `params` is diagnostic identity, but the message is what the learner reads — and the
-  // conformance harness deliberately EXCLUDES `message` from comparison, so a unit test is the only
-  // place wording can be pinned at all. A mutant lowercasing only the message would survive every
-  // fixture and every params assertion above. `spec/error-model.md` fixes both the sentence and its
-  // warm lowercase voice, so the two stages must produce it identically.
+  // `params` is diagnostic identity, but the message is what the learner reads — and
+  // `spec/error-model.md:125` fixes this one rather than leaving it to the template author: it
+  // prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT inside it. That is
+  // precisely the case the conformance opt-in was built for, so fixtures setting
+  // `"compareMessages": true` (issue #1025) now pin this sentence at both stages —
+  // `core-language/check/declare-built-in-names-core-only` for check, the `heritage/execution` and
+  // `data/struct-runtime` reserved-word fixtures for execute. (This comment used to say the harness
+  // excluded `message` and a unit test was the only place wording could live; that stopped being
+  // true at #1026 — issue #1028.)
+  //
+  // What no fixture can assert is the equality below: the harness's `produce()` runs a fixture in
+  // check mode OR execute mode, never both, so only a unit test can pin that the two stages build
+  // the SAME sentence from the same declaration in one run — including the Heritage alias spelling
+  // and the `struct` slot, which reach the message by different paths.
   for (const source of ["define FORWARD\nend", "struct FD [ x ]"]) {
     const declared = source.split(/\s+/)[1];
     const { ast } = parse(source, doc);

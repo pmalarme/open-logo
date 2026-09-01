@@ -148,10 +148,16 @@ test("the diagnostic is the full C10 shape, with the span on the word alone", ()
 });
 
 test("the message names the word and the closest legal form, in the lowercase Logo voice", () => {
-  // Pinned in a UNIT test on purpose: the conformance harness excludes `message` from comparison
-  // (`scripts/harness/index.mjs`'s `projectDiagnostic`), so a fixture cannot hold this wording — the
-  // unit assertion is the SOLE guard on it. Swept over every rejected word rather than sampling one,
-  // so a future profile block-head is covered the moment it is classified.
+  // Pinned in a UNIT test on purpose, and NOT in a conformance fixture — but not because the
+  // harness cannot compare prose. It can: a fixture opts in with `"compareMessages": true` (issue
+  // #1025). This wording deliberately does not opt in. `spec/error-model.md:110` makes the
+  // `ol-bad-token` message a SHOULD ("point at the unexpected text and mention the closest legal
+  // form when clear"), `:256-259` makes identity `code` plus `params` and asks tests to assert
+  // those, and `:261-263` positively permits a template author to reorder, inflect, or soften this
+  // prose — so freezing this English sentence in a stack-neutral fixture would oblige every
+  // conforming implementation to emit it verbatim. The opt-in is for messages the spec fixes
+  // itself, such as `:125`'s `ol-reserved-word`. Swept over every rejected word rather than
+  // sampling one, so a future profile block-head is covered the moment it is classified.
   for (const { profile, word } of SPECIAL_FORM_PROFILE_WORDS) {
     assert.equal(
       allDiagnostics(`print ${word}\n`, activeSetFor(profile))[0].message,
