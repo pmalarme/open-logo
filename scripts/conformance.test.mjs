@@ -1704,9 +1704,10 @@ function runHarnessCapturingOutput(options) {
 }
 
 test('loadFixture rejects `expect: "mismatch"` on a fixture that opted into message comparison, naming both fields (issue #1028)', () => {
-  // `expect: "mismatch"` inverts the verdict, so an opted-in fixture that also expects a mismatch
-  // passes BECAUSE its message failed to match — the third way to hold a `message` that asserts
-  // nothing, and the one #1025's two directions left open.
+  // Measured on `4ad13363`: such a fixture — identical to what `check()` produces except for one
+  // wrong sentence — reported `1 passed, 0 failed`, while the twin differing only in polarity
+  // failed on that sentence. The third way to hold a `message` that is not guaranteed to assert
+  // anything, and the one #1025's two directions left open.
   const neutralised = loadFixture(placePolarityTwin("mismatch").fixture);
 
   assert.ok(neutralised.error);
@@ -1751,9 +1752,30 @@ test('runHarness fails a fixture combining compareMessages with expect: "mismatc
 
   assert.equal(control.exitCode, 1);
   assert.ok(control.output.includes("diagnostic mismatch"));
+
+  // …and the reason is isolated MECHANICALLY rather than read off the report: `diffStream` prints
+  // the whole expected diagnostic for a mismatch in ANY field, so finding the offending prose in
+  // the output would not by itself prove the prose was the cause. Running the same expected stream
+  // against the same produced one with message comparison switched OFF matches, so identity, span,
+  // stage, severity and events all agree — leaving the sentence as the only possible difference.
+  const document = "polarity-probe/polarity-probe";
+  const produced = produce(
+    RESERVED_WORD_SOURCE,
+    document,
+    false,
+    true,
+    ["core-language"],
+    false,
+    undefined,
+  );
+  const specification = wrongMessageOptedInSpec("match", document);
   assert.ok(
-    control.output.includes("reserved primitive"),
-    "the control must fail on the prose, naming it — not on a missing or differently-shaped diagnostic",
+    compare({ ...specification, compareMessages: false }, produced).matched,
+    "with prose excluded the two streams must agree, or the control is failing on something other than the message",
+  );
+  assert.ok(
+    !compare(specification, produced).matched,
+    "with prose included they must disagree — that difference is the whole subject of the opt-in",
   );
 });
 
@@ -1791,6 +1813,25 @@ test("runHarness rejects ANOTHER self-test that combines the two fields, because
   assert.equal(other.exitCode, 1);
   assert.ok(other.output.includes('"compareMessages": true'));
   assert.ok(other.output.includes('"expect": "mismatch"'));
+});
+
+test("runHarness rejects a SECOND fixture sited inside the allowed self-test's own directory, because the exemption is one fixture and not a directory (issue #1028)", () => {
+  // The allowlist is a complete fixture name compared by equality, not a prefix. A directory test
+  // would let anything sited beside `detects-message-mismatch` inherit its exemption, which is not
+  // what "one fixture" means — and a neighbour is the easiest place to put such a fixture by
+  // accident, since it is the one directory where the combination is known to be legal.
+  const root = join(TEMP_ROOT, "arm-selftest-neighbour");
+  const name = "_harness-selftest/detects-message-mismatch/a-neighbour";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
+  );
+  const neighbour = runHarnessCapturingOutput({ root });
+
+  assert.equal(neighbour.exitCode, 1);
+  assert.ok(neighbour.output.includes('"compareMessages": true'));
+  assert.ok(neighbour.output.includes('"expect": "mismatch"'));
 });
 
 test("loadFixture rejects a non-boolean execute field", () => {
