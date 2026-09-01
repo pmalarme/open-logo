@@ -915,8 +915,9 @@ export function createRunController(
   // to the program's clock and therefore rewinds. The cost of pushing forward is that a program with
   // no tick left after its question loses the press, which fails visibly.
   //
-  // Guarded by `#976: with NO tick after the read, a press must not reorder what the learner already
-  // read`. An earlier revision of this comment declared the line untestable; that was **false**, and
+  // Applied by `drainDeliveredInput`'s re-clamp, and guarded by both `#976: with NO tick after the
+  // read, a press must not reorder what the learner already read` and `#976 AC2: a DEFERRED delivery
+  // is re-clamped past a read that finished while it waited` — deleting the re-clamp fails them. An earlier revision of this comment declared the line untestable; that was **false**, and
   // it was false because the AC2 helper appended a trailing `wait` which left ticks after the read,
   // so a clamped and an unclamped delivery produced the same observable order. Dropping that one
   // line separates the arms. Recorded because the wrong lesson is easy to draw here: the obstacle
@@ -1436,13 +1437,17 @@ export function createRunController(
    * are these ones; matching on them needs no index arithmetic over that sorted order.
    */
   function scheduleHostInput(occurrence: HostInputOccurrence): HostInputEvent {
-    const drawnTick = tickAtEventIndex(chainTickTimeline, drawnEventCount);
-    const lastScheduled = hostInputEvents.at(-1)?.tick ?? 0;
-    // #976 — never earlier than an answered read. A tick alone cannot order a delivery against a
-    // read that completed within that same tick, so the boundary is carried out of band.
-    const afterAnsweredRead =
-      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
-    const tick = Math.max(drawnTick, lastScheduled, afterAnsweredRead);
+    // Only the term that is unique to scheduling: a delivery is never scheduled before one already
+    // in the schedule, because the runtime requires non-decreasing ticks and a learner cannot press
+    // a key at an earlier moment than their previous press.
+    //
+    // The drawn-tick and answered-read floors deliberately do **not** appear here. They are applied
+    // by `drainDeliveredInput`'s re-clamp, which every occurrence passes through before it is
+    // delivered — so duplicating them here made two mechanisms where exactly one is load-bearing,
+    // and review measured that deleting these terms left the whole suite green while a comment
+    // claimed they were guarded. That is the same shape as the two redundant drains, resolved the
+    // same way: keep the one that covers strictly more, delete the other.
+    const tick = hostInputEvents.at(-1)?.tick ?? 0;
     const scheduled: HostInputEvent = { ...occurrence, tick };
     hostInputEvents = [...hostInputEvents, scheduled];
     return scheduled;
