@@ -2163,37 +2163,80 @@ test("#985 F4: a program with no `wait` is paced exactly as before — the ~90% 
 
 test("#985 F4: a long `wait` holds the run open while handlers drive the animation", () => {
   // `spec/interaction-events.md:116-118` — "This is what lets a program register its handlers and
-  // then hold itself open with a long `wait` while those handlers drive the animation." The pacing
-  // above is what makes that true in the studio rather than only in the runtime: the wait's ticks
-  // now cost real playback time, so there is an interval for handlers to run in.
-  const source = [
-    'on_key "left" [',
-    "  forward 10",
-    '  print "moved"',
-    "]",
-    "wait 20",
-  ].join("\n");
+  // then hold itself open with a long `wait` while those handlers drive the animation."
+  //
+  // This must be measured with a **hand-driven** scheduler, not the immediate one. Review showed
+  // why: the first version of this test paced synchronously and then delivered to a *separate*
+  // controller whose animation was already complete, so it never delivered during a pending wait at
+  // all — and the mutation "only accept delivery once `animation.status === 'done'`", the exact
+  // inversion of the property, **survived all 4750 tests**.
+  //
+  // Queueing the callbacks instead of running them is what makes the wait genuinely outstanding, so
+  // `runStatus` is observably `"running"` at the moment the key is delivered.
+  const queued = [];
+  const scheduler = (callback, delayMs) => {
+    queued.push({ callback, delayMs });
+    return NO_OP_CANCEL;
+  };
+  const store = OL.createStudioState({
+    source: [
+      'on_key "a" [',
+      "  forward 10",
+      '  print "moved"',
+      "]",
+      "wait 30",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    scheduler,
+    randomSeedSource: pinnedSeed(7),
+  });
 
-  const { delays, total } = pacedDelaysFor(source);
+  controller.run();
+  assert.equal(
+    store.getState().runStatus,
+    "running",
+    "the long wait holds the run open rather than completing it",
+  );
+  assert.equal(queued.length, 1, "…with a step genuinely pending, not drained");
+
+  // Delivered WHILE the wait is outstanding — the property `:116-118` describes.
+  assert.equal(
+    controller.deliverKey("a"),
+    true,
+    "a handler can be driven during the open wait",
+  );
+  assert.deepEqual(store.getState().output, ["moved"]);
+  assert.equal(
+    store.getState().runStatus,
+    "running",
+    "and the run is still open afterwards — the handler did not end it",
+  );
+
+  // Draining the queue closes the run, so "running" above was the wait, not a stuck status.
+  let guard = 0;
+  while (queued.length > 0 && guard < 200) {
+    guard += 1;
+    queued.shift().callback();
+  }
+  assert.equal(store.getState().runStatus, "done");
+  assert.deepEqual(store.getState().output, ["moved"]);
+});
+
+test("#985 F4: a long `wait` takes measurably longer to play than a short one", () => {
+  // The pacing half, kept separate from the delivery half above so neither can stand in for the
+  // other — conflating them is what made the original version unable to fail.
+  const long = pacedDelaysFor(
+    ['on_key "a" [', "  forward 10", "]", "wait 20"].join("\n"),
+  );
   const short = pacedDelaysFor(
-    ['on_key "left" [', "  forward 10", '  print "moved"', "]", "wait 1"].join(
-      "\n",
-    ),
+    ['on_key "a" [', "  forward 10", "]", "wait 1"].join("\n"),
   );
 
   assert.ok(
-    total > short.total,
-    `the long wait must hold the run open longer: wait 20 (${total}) vs wait 1 (${short.total})`,
+    long.total > short.total,
+    `wait 20 (${long.total}) must hold the run open longer than wait 1 (${short.total})`,
   );
-  assert.ok(delays.length > 0, "the run was genuinely paced, not drained");
-
-  // …and handlers delivered during it still run, which is the half that makes holding the run open
-  // worth anything.
-  const store = OL.createStudioState({ source });
-  const controller = OL.createRunController(store, {
-    randomSeedSource: pinnedSeed(7),
-  });
-  controller.run();
-  assert.equal(controller.deliverKey("left"), true);
-  assert.deepEqual(store.getState().output, ["moved"]);
+  assert.deepEqual(long.delays.map(Math.round), [505, 10605]);
+  assert.deepEqual(short.delays.map(Math.round), [505, 1010]);
 });
