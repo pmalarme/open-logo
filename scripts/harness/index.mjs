@@ -411,13 +411,15 @@ export function loadFixture(fixture) {
   // reading them as consent would have retroactively frozen ~275 English sentences the spec allows
   // an implementation to reword. Consent cannot be retroactive.
   //
-  // Every way of holding a `message` that asserts nothing is an error, so nothing can be
+  // Every way of leaving a `message` unable to assert what it claims is an error, so nothing can be
   // present-but-ignored again — which is AC-A3 turned from a one-time cleanup into a structural
   // property. Two of the three are checked here; the third (`expect: "mismatch"`, issue #1028)
   // follows immediately after, because it needs the fixture's name to exempt the self-test:
   //   - a `message` without the flag would be silently dropped, the exact defect #1025 exists to kill;
   //   - the flag without any `message` asserts nothing, the same way `executeOptions` without
   //     `"execute": true` does, and is a fixture-author mistake rather than a no-op.
+  // (The third is different in kind: it does not drop the message, it removes the *guarantee* that
+  // the message is what the fixture's verdict rests on. See the comment below it.)
   if (spec.compareMessages !== undefined) {
     if (typeof spec.compareMessages !== "boolean") {
       return { error: `"compareMessages" must be a boolean when present` };
@@ -442,14 +444,15 @@ export function loadFixture(fixture) {
     }
   }
 
-  // The third way to make a `message` assert nothing, and the one the two directions above left
-  // open (issue #1028): `expect: "mismatch"` INVERTS the harness verdict, so an opted-in fixture
-  // that also expects a mismatch is satisfied by ANY disagreement — an event, a diagnostic
-  // identity, or the prose. Which one it was is not knowable here, and that is exactly the problem:
-  // the opt-in stops being *guaranteed* to assert anything, because the fixture can pass on a
-  // difference that has nothing to do with the message it opted in to pin. Measured on `4ad13363`:
-  // a fixture identical to what `check()` produces except for one wrong sentence reported
-  // `1 passed, 0 failed`, while the twin differing only in polarity failed on that sentence.
+  // The third way a `message` stops being guaranteed to assert what it claims, and the one the two
+  // directions above left open (issue #1028): `expect: "mismatch"` INVERTS the harness verdict, so
+  // an opted-in fixture that also expects a mismatch is satisfied by ANY disagreement — an event, a
+  // diagnostic identity, or the prose. Which one it was is not knowable here, and that is exactly
+  // the problem: the opt-in stops being *guaranteed* to assert anything, because the fixture can
+  // pass on a difference that has nothing to do with the message it opted in to pin. Measured on
+  // `4ad13363`: a fixture identical to what `check()` produces except for one wrong sentence
+  // reported `1 passed, 0 failed`, while the twin differing only in polarity failed on that
+  // sentence.
   //
   // The exemption is {@link MESSAGE_MISMATCH_SELF_TEST} alone — one complete fixture name, compared
   // by equality — NOT the whole self-test tree and not its directory: being a self-test does not

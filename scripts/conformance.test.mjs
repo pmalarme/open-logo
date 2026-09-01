@@ -1725,7 +1725,9 @@ test('loadFixture rejects `expect: "mismatch"` on a fixture that opted into mess
 
 test('runHarness fails a fixture combining compareMessages with expect: "mismatch", where it used to pass — with the expect: "match" twin as the positive control (issue #1028)', () => {
   // Reproduces the measurement taken on `4ad13363`, where these two arms exited 0 and 1 — the
-  // mismatch arm passing while asserting nothing, the match arm failing on the prose.
+  // mismatch arm passing on the very disagreement its opt-in was supposed to fail on, the match arm
+  // failing on that prose. Inverted polarity is satisfied by any disagreement at all, so an opted-in
+  // fixture's verdict is no longer guaranteed to rest on the message it opted in to pin.
   //
   // The control is what makes the first arm mean anything: without it, a harness broken for every
   // fixture would satisfy the new rejection just as well as a working one. Each arm gets its own
