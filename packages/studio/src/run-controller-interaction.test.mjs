@@ -46,13 +46,22 @@ const WHEN_STOP_SOURCE = ['when "stop" [', '  print "bye"', "]", "wait 5"].join(
 );
 
 /**
- * A program that registers `on_key`, optionally burns `lead` ticks, then asks a question and holds
- * itself open (#976). The lead is the whole point: it puts the read at a tick a wrongly-scheduled
- * delivery could land *before*, which is what makes rewritten history reachable at all. With
- * `lead 0` the read completes at tick 0 and no schedulable tick can precede it, so that shape alone
- * cannot exhibit the defect — see the sweep in the AC2 test.
+ * A program that registers `on_key`, optionally burns `lead` ticks, then asks a question (#976).
+ * The lead is what puts the read at a tick a wrongly-scheduled delivery could land *before*, which
+ * is what makes rewritten history reachable at all. With `lead 0` the read completes at tick 0 and
+ * no schedulable tick can precede it, so lead 0 is the sweep's built-in insensitive control.
+ *
+ * `trailingWaitTicks` is the part review had to teach me. The first version of this helper always
+ * appended `wait 5`, and that trailing wait is what made the whole AC2 sweep blind: it leaves ticks
+ * *after* the answered read, so a delivery clamped forward and a delivery not clamped land on
+ * different-but-both-valid ticks and produce the **same observable order**. The window the clamp
+ * exists to close was never entered. Deleting that one line is the entire difference between a
+ * sweep that cannot fail and one that kills the mutant (measured by `@testing`, round 4).
+ *
+ * So the default is now **no trailing wait**. Pass a count only when a test genuinely needs ticks
+ * after the read.
  */
-function askThenOnKeySource(lead) {
+function askThenOnKeySource(lead, trailingWaitTicks = 0) {
   return [
     'on_key "left" [',
     '  print "turned"',
@@ -60,7 +69,7 @@ function askThenOnKeySource(lead) {
     ...(lead > 0 ? [`wait ${lead}`] : []),
     ':name = input "who?"',
     "print :name",
-    "wait 5",
+    ...(trailingWaitTicks > 0 ? [`wait ${trailingWaitTicks}`] : []),
   ].join("\n");
 }
 
@@ -855,7 +864,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
   // excludes the defect. The lead is what puts the read at a tick a wrong delivery could land
   // before, so `lead 0` alone is exactly the blind spot.
   for (const lead of [0, 1, 2, 3, 5]) {
-    const source = askThenOnKeySource(lead);
+    const source = askThenOnKeySource(lead, 5);
 
     const store = OL.createStudioState({ source });
     const host = createPromptHost();
@@ -910,7 +919,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
   }
 
   // A chain that never asks anything is unaffected, even with a prompt host installed.
-  const source = askThenOnKeySource(1);
+  const source = askThenOnKeySource(1, 5);
   const plainStore = OL.createStudioState({ source: ON_KEY_SOURCE });
   const plainController = OL.createRunController(plainStore, {
     inputPrompt: createPromptHost(),
@@ -1855,14 +1864,11 @@ test("#985: a click that runs no handler still reports false — the mirror dire
   // path instead (`#985: the boolean answers whether THIS press ran a handler…`, which does die to
   // that mutation), and the two paths read the same one-line helper.
   //
-  // That is not laziness: the reported-zero case is **unreachable for a click by construction**, and
-  // it was measured rather than argued. `acceptsHostInputFor("on_click")` refuses a click outright
-  // when the run registered no `on_click`, so nothing is scheduled and nothing is reported
-  // (measured on `if false [ on_click … ]` + `wait 5`: `acceptsClick()` false,
-  // `handlerDeliveries` holds only the key entry). And when one *is* registered, every registered
-  // handler answers every click (`spec/interaction-events.md:88`), so a delivered click always
-  // invokes at least one — measured across the five-click program as `invocations: 1` every time,
-  // never 0. A key can be a word nothing names; a click has no such case.
+  // The reported-zero arm is covered by the test below. An earlier revision of this comment claimed
+  // it was "unreachable for a click by construction" — measurably FALSE: review built it by
+  // scheduling the click at a tick BEFORE the `on_click` registration. Replacing a thin claim with
+  // a false impossibility claim was a regression in claim quality; it asserted something untrue AND
+  // closed the door on writing the missing test.
   const store = OL.createStudioState({
     source: ["on_click [", '  print "clicked"', "]"].join("\n"),
   });
@@ -2239,4 +2245,101 @@ test("#985 F4: a long `wait` takes measurably longer to play than a short one", 
   );
   assert.deepEqual(long.delays.map(Math.round), [505, 10605]);
   assert.deepEqual(short.delays.map(Math.round), [505, 1010]);
+});
+
+test("#976: with NO tick after the read, a press must not reorder what the learner already read", () => {
+  // The window the AC2 sweep above cannot enter, and the reason it cannot: that sweep's program ends
+  // in `wait 5`, which leaves ticks AFTER the answered read — so a delivery clamped forward and a
+  // delivery not clamped land on different-but-both-valid ticks and produce the same observable
+  // order. Delete the trailing wait and the two arms separate. Review measured it; I had written the
+  // helper that hid it and then concluded the defect was unreachable.
+  //
+  // Measured, `lastAnsweredReadTick` forced to 0 (`afterAnsweredRead = 0`):
+  //
+  //   lead 0        ["Ada"]            prefix ok    <- insensitive: the built-in control
+  //   lead 1/2/3/5  ["turned","Ada"]   prefix VIOLATED
+  //
+  // The learner had already read `"Ada"`; without the clamp the replay puts `"turned"` in front of
+  // it. That is AC2's failure mode exactly, and it produces no diagnostic.
+  //
+  // The assertion here is the PREFIX, not confirmation: with no tick left the press legitimately
+  // runs nothing and reports `false`. Confirmation is the trailing-wait sweep's job.
+  for (const lead of [0, 1, 2, 3, 5]) {
+    const store = OL.createStudioState({ source: askThenOnKeySource(lead) });
+    const host = createPromptHost();
+    const controller = OL.createRunController(store, {
+      inputPrompt: host,
+      randomSeedSource: pinnedSeed(7),
+    });
+
+    controller.run();
+    host.respond("Ada");
+    const observed = store.getState().output;
+    assert.deepEqual(
+      observed,
+      ["Ada"],
+      `lead ${lead}: the learner has read this`,
+    );
+
+    controller.deliverKey("left");
+
+    const after = store.getState().output;
+    assert.deepEqual(
+      after.slice(0, observed.length),
+      observed,
+      `lead ${lead}: what the learner already read must survive as a PREFIX — without the answered-read clamp this becomes ["turned","Ada"]`,
+    );
+    assert.deepEqual(
+      host.prompts,
+      ["who?"],
+      `lead ${lead}: and nothing is re-asked`,
+    );
+  }
+});
+
+test("#985/#976: a click DELIVERED before its handler registers reports zero invocations", () => {
+  // The reported-zero arm for the click path, which an earlier revision declared unreachable. Review
+  // built it: schedule the click at a tick BEFORE the `on_click` registration — the same lead-tick
+  // shape the key tests already use — and the runtime reports
+  //
+  //   handlerDeliveries: [ { input: { kind: "click", tick: 0 }, invocations: 0 } ]
+  //
+  // so the delivery exists, is reported, and ran nothing. That is the arm `invocations > 0` decides,
+  // and until now only the key path exercised it.
+  const queued = [];
+  const scheduler = (callback) => {
+    queued.push(callback);
+    return NO_OP_CANCEL;
+  };
+  const store = OL.createStudioState({
+    source: ["wait 5", "on_click [", '  print "clicked"', "]", "wait 5"].join(
+      "\n",
+    ),
+  });
+  const controller = OL.createRunController(store, {
+    scheduler,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverClick(),
+    false,
+    "delivered and reported, but it ran nothing — so it may claim nothing",
+  );
+  assert.deepEqual(store.getState().output, []);
+
+  // The control: once playback passes the registration the same click IS confirmed, so the `false`
+  // above means "ran nothing", not "clicks are inert in this harness".
+  let guard = 0;
+  while (queued.length > 0 && guard < 300) {
+    guard += 1;
+    queued.shift()();
+  }
+  assert.equal(
+    controller.deliverClick(),
+    true,
+    "control — past the registration the same click runs the handler",
+  );
+  assert.deepEqual(store.getState().output, ["clicked"]);
 });

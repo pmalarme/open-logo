@@ -411,3 +411,63 @@ test("#976: a chain's answers are consumed in order across two different questio
   assert.deepEqual(parkIntervals, []);
   assert.deepEqual(reports[0].output, ["a", "b"]);
 });
+
+test("#976: the runner REPORTS its truncated answers, so the host has a truncation to adopt", () => {
+  // The producing half of fix D. The consuming half (`worker-execution-host.ts`'s
+  // `reportedAnswers ?? active.answers`) is pinned in `worker-execution-host.test.mjs`, and its
+  // death gave the appearance that fix D was guarded. Only half of it was: deleting
+  // `retainedAnswers = resolution.retained;` here left the whole suite green, because every existing
+  // use of `retainedAnswers` exercises the plumbing rather than the truncation.
+  //
+  // `resolveRecordedAnswer` drops every entry from the position a replay reached a different
+  // question. The report must carry that SHORTER list — if it carries the request's own, the host
+  // has nothing to adopt, the stale entry is restored, and the replacement question is re-asked on
+  // every delivery forever.
+  const { command, channel } = makeCommand(
+    ':first = input "who?"\n:second = input "changed?"\nprint :second',
+    {
+      answers: [
+        { prompt: "who?", answer: "ada" },
+        { prompt: "colour?", answer: "red" },
+      ],
+    },
+  );
+
+  const { reports } = runWorker(command, channel, answerWith("blue"));
+
+  const read = reports.find((report) => report.type === "read");
+  assert.ok(read, "the diverged second question is put to the learner");
+  assert.equal(read.prompt, "changed?");
+  assert.ok(
+    read.retainedAnswers.length < command.request.answers.length,
+    `the report must carry the TRUNCATED list, got ${JSON.stringify(read.retainedAnswers)}`,
+  );
+  assert.deepEqual(
+    read.retainedAnswers,
+    [{ prompt: "who?", answer: "ada" }],
+    "everything from the divergence on is dropped; the matched prefix is kept",
+  );
+});
+
+test("#976: the CONTROL — with no divergence the runner reports the chain unchanged", () => {
+  // Without this, "reports a shorter list" would also be satisfied by a runner that truncated
+  // unconditionally, and the assertion above would prove nothing.
+  const { command, channel } = makeCommand(
+    ':first = input "who?"\n:second = input "colour?"\nprint :second',
+    {
+      answers: [
+        { prompt: "who?", answer: "ada" },
+        { prompt: "colour?", answer: "red" },
+      ],
+    },
+  );
+
+  const { reports, parkIntervals } = runWorker(command, channel);
+
+  assert.deepEqual(parkIntervals, [], "both questions came from the FIFO");
+  assert.deepEqual(
+    reports.at(-1).retainedAnswers,
+    command.request.answers,
+    "an undiverged chain is carried through whole",
+  );
+});

@@ -902,19 +902,21 @@ export function createRunController(
   // none has. A tick is not a fine enough boundary to order a delivery against a read that finished
   // *within* it: `spec/interaction-events.md:108-111` blocks handlers only until the read finishes,
   // but a delivery scheduled at that same tick can be dispatched at the tick's checkpoint, which
-  // precedes the read in program order — review measured output the learner had already read being
-  // replaced, under a deferred host and under paced playback.
+  // precedes the read in program order. Measured: without this clamp, a program whose read is the
+  // last thing before the end replays `["Ada"]` into `["turned","Ada"]` — the line the learner had
+  // already read, no longer first, and no diagnostic.
   //
   // Only ever pushes a delivery FORWARD. That is what separates it from the tempting inverse — a
   // counter for chains that have answers — which schedules relative to the last delivery rather than
   // to the program's clock and therefore rewinds. The cost of pushing forward is that a program with
   // no tick left after its question loses the press, which fails visibly.
   //
-  // **UNVERIFIED, and recorded as such.** This is the mechanism review asked for, and it cannot make
-  // the ordering worse — but no test here reproduces the reordering it prevents. The harness that
-  // was written for it drains playback past the read before delivering, so the mutant that disables
-  // this line survives; rather than ship a test that cannot fail, the test was removed and the gap
-  // reported. Do not read the green suite as evidence for this line.
+  // Guarded by `#976: with NO tick after the read, a press must not reorder what the learner already
+  // read`. An earlier revision of this comment declared the line untestable; that was **false**, and
+  // it was false because the AC2 helper appended a trailing `wait` which left ticks after the read,
+  // so a clamped and an unclamped delivery produced the same observable order. Dropping that one
+  // line separates the arms. Recorded because the wrong lesson is easy to draw here: the obstacle
+  // was never the mechanism, it was a fixture that could not reach it.
   let lastAnsweredReadTick: number | null = null;
   let chainAcceptsHostInput = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
@@ -1179,10 +1181,16 @@ export function createRunController(
       }
       then(current);
       // #976 — an attempt has just settled, so anything `drainDeliveredInput` deferred while it was
-      // in flight can now be replayed. `playCurrentAttempt` already does this for a delivery replay,
-      // but the attempt that settles here is often the ORIGINAL run — and under a host that resumes
-      // a read in place, that is exactly the settlement a deferred delivery is waiting on. Without
-      // it the delivery is scheduled, never replayed, and silently does nothing.
+      // in flight can now be replayed. **This is the one place that resumption happens**, and it is
+      // here rather than in `playCurrentAttempt` because it must hold for *every* continuation, not
+      // just a delivery replay: the attempt a deferred delivery waits on is usually the ORIGINAL run.
+      //
+      // An earlier revision added this while leaving the equivalent drain at the end of
+      // `playCurrentAttempt`, and asserted both were necessary. Review measured all three arms:
+      // deleting either one alone left the suite green, deleting **both** killed a test. They were
+      // mutually redundant, exactly one was load-bearing, nothing pinned which, and two comments in
+      // this file contradicted each other about it. The `playCurrentAttempt` copy is gone; this one
+      // survives because it covers strictly more continuations.
       drainDeliveredInput();
     });
   }
@@ -1332,17 +1340,20 @@ export function createRunController(
   }
 
   /** Start (or resume) playback of the attempt `prepare()` (now `beginAttempt()`/`finishAttempt()`)
-   * just built, then settle its outcome. */
+   * just built, then settle its outcome.
+   *
+   * Deliberately does **not** drain deferred input. It used to, and that drain was measured to be
+   * redundant with the one in `beginAttempt`'s settle callback: deleting either alone left the suite
+   * green, deleting both killed a test. Keeping the resumption in exactly one place — the settle
+   * path, which covers every continuation rather than only a delivery replay — is what stops the two
+   * from drifting into contradictory explanations of each other, which is what they had already
+   * done. */
   function playCurrentAttempt(current: TurtleAnimationController): void {
     playWithMotionPreference(current, {
       reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
     });
     pushTurtleSnapshot(current);
     settleAttempt(current);
-    // #952 — an input delivered while this attempt was still in flight is scheduled but not yet
-    // replayed; now that it has landed, deliver it. A no-op whenever nothing arrived meanwhile,
-    // which is every attempt of every program that takes no input.
-    drainDeliveredInput();
   }
 
   /**
@@ -1462,7 +1473,8 @@ export function createRunController(
       // (`prompts: ["who?","who?"]`) and the handler's output was inserted BEFORE the line the
       // learner had already read (`["HANDLER","BEFORE"]`, the answer lost entirely).
       //
-      // `playCurrentAttempt` calls this again once the attempt settles, so nothing is stranded.
+      // The settle path in `beginAttempt` resumes this drain once the attempt lands, so nothing is
+      // stranded.
       return;
     }
     deliveringInput = true;
