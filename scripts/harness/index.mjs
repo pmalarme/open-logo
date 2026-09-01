@@ -23,12 +23,27 @@ export const EXPECTED_SUFFIX = ".expected.json";
 /**
  * The fixture-name prefix that marks a harness self-test — a fixture whose job is to make the
  * harness report a failure, so it declares `expect: "mismatch"` and its *pass* is that detection.
- * Defined once because two places must agree on it: {@link runHarness}, which requires the
- * polarity and never profile-filters these, and {@link loadFixture}, which exempts them from the
- * `compareMessages`/`expect: "mismatch"` rejection (issue #1028). Fixture names are POSIX-joined
- * by {@link discoverFixtures}, so the separator is `/` on every platform.
+ * Defined once because two places **in this file** must agree on it: {@link runHarness}, which
+ * requires the polarity and never profile-filters these, and {@link MESSAGE_MISMATCH_SELF_TEST}.
+ * (`scripts/coverage-report.mjs` keeps its own slash-less literal deliberately: it filters raw
+ * `readdir` entries joined with the OS `sep`, not the POSIX fixture names this constant describes.)
+ * Fixture names are POSIX-joined by {@link discoverFixtures}, so the separator is `/` everywhere.
  */
 export const SELF_TEST_PREFIX = "_harness-selftest/";
+
+/**
+ * The ONE fixture allowed to combine `"compareMessages": true` with `expect: "mismatch"` — the
+ * self-test that exists to prove the message comparison bites, and which can only demonstrate a
+ * detection by expecting it (issue #1028).
+ *
+ * Narrowed to this single fixture rather than to {@link SELF_TEST_PREFIX} as a whole, because
+ * `tests/conformance/README.md` already states the rule that way for fixture authors — "**Do not
+ * combine `expect: "mismatch"` with a `message` anywhere else**: a self-test that exists to prove
+ * some *other* mismatch is detected would then be able to pass on prose while its real subject
+ * regresses". Exempting the whole tree would have enforced something looser than the documented
+ * rule, and would have re-opened the hole for the other three self-tests.
+ */
+export const MESSAGE_MISMATCH_SELF_TEST = `${SELF_TEST_PREFIX}detects-message-mismatch/`;
 
 // Profile dependency closure from spec/conformance.md's DAG.
 export const PROFILE_DEPS = {
@@ -428,25 +443,31 @@ export function loadFixture(fixture) {
   // The third way to make a `message` assert nothing, and the one the two directions above left
   // open (issue #1028): `expect: "mismatch"` INVERTS the harness verdict, so an opted-in fixture
   // that also expects a mismatch passes precisely BECAUSE its expected prose failed to match.
-  // Measured on `4ad13363`: such a fixture carrying an `ol-reserved-word` message over EMPTY
-  // source — no diagnostic produced at all — reported `1 passed, 0 failed`, while the
-  // byte-identical `expect: "match"` twin failed with `actual: (missing)`. Rejecting the
-  // combination is what keeps this mechanism's own claim true: a message in a fixture always
-  // asserts something.
+  // Measured on `4ad13363`: such a fixture — identical to what `check()` produces except for one
+  // wrong sentence — reported `1 passed, 0 failed`, while the twin differing only in polarity
+  // failed on that sentence. Rejecting the combination is what keeps this mechanism's own claim
+  // true: a message in a fixture always asserts something.
   //
-  // {@link SELF_TEST_PREFIX} is the one legitimate user, exempt by name: `detects-message-mismatch`
-  // exists to prove the comparison fires, and a self-test can only demonstrate a detection by
-  // expecting it. A fixture object carrying no `name` stringifies to something that is not that
-  // prefix, so the guard fails closed rather than open. `expect` is validated below and defaults to
-  // `"match"`, so an absent or invalid value simply is not `"mismatch"` and falls through to its
-  // own error rather than being reported as this one.
+  // The exemption is {@link MESSAGE_MISMATCH_SELF_TEST} alone, NOT the whole self-test tree: being
+  // a self-test does not imply needing this combination, and a self-test that proves some *other*
+  // mismatch would be able to pass on prose while its real subject regressed. A fixture object
+  // carrying no `name` stringifies to something that is not that path, so the guard fails closed
+  // rather than open — deliberately more defensive than `runHarness`'s bare `fixture.name`, because
+  // `loadFixture` is exported and called directly, while `runHarness` only ever sees
+  // {@link discoverFixtures} output.
+  //
+  // Two orderings are deliberate. `expect` is validated below and defaults to `"match"`, so an
+  // absent, mis-cased, or invalid value simply is not `"mismatch"` and falls through to its own
+  // error rather than being reported as this one. And a fixture that sets the flag with NO
+  // `message` at all is already rejected above as an opt-in that asserts nothing, so it is reported
+  // as that mistake rather than this one — the combination is still refused either way.
   if (
     spec.compareMessages === true &&
     spec.expect === "mismatch" &&
-    !String(fixture.name).startsWith(SELF_TEST_PREFIX)
+    !String(fixture.name).startsWith(MESSAGE_MISMATCH_SELF_TEST)
   ) {
     return {
-      error: `"compareMessages": true with "expect": "mismatch" — the inverted verdict makes this fixture pass BECAUSE its expected "message" did not match, so the opt-in asserts nothing (issue #1028). Only ${SELF_TEST_PREFIX} fixtures may combine the two fields.`,
+      error: `"compareMessages": true with "expect": "mismatch" — the inverted verdict makes this fixture pass BECAUSE its expected "message" did not match, so the opt-in asserts nothing (issue #1028). Only ${MESSAGE_MISMATCH_SELF_TEST} may combine the two fields.`,
     };
   }
 

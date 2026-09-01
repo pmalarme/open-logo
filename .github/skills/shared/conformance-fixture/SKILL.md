@@ -99,9 +99,15 @@ writing an assertion that quietly asserts nothing:
   `:261-263` positively permits a template author to reword prose, so most learner wording is
   presentation a conforming implementation may change. Opt in only where the spec fixes the words
   themselves: `ol-reserved-word`'s `spec/error-model.md:125` both prescribes the sentence and makes
-  *keyword*/*primitive*/*alias* a MUST NOT in it. Both halves are enforced — a `message` without the
-  flag, and the flag without any `message`, are each fixture errors — so a message can never sit in
-  a fixture asserting nothing.
+  *keyword*/*primitive*/*alias* a MUST NOT in it. **Three** ways of holding a message that asserts
+  nothing are each a fixture error, so a message can never sit in a fixture asserting nothing: a
+  `message` without the flag; the flag without any `message`; and the flag together with
+  `expect: "mismatch"` (issue #1028), whose inverted verdict would otherwise make the fixture pass
+  *because* its prose failed to match. The last is allowed for exactly one fixture,
+  `_harness-selftest/detects-message-mismatch`, which exists to prove the comparison bites and can
+  only demonstrate a detection by expecting it — never for any other self-test, since one that
+  proves some *other* mismatch would then be able to pass on prose while its real subject
+  regressed.
 - An **unknown key inside an expected diagnostic** is rejected by name, so a misspelled `mesage`
   fails the fixture rather than loading clean.
 - An **unknown top-level key** is still dropped rather than rejected (see "Fixture shape" above).

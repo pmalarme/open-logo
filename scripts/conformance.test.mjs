@@ -12,6 +12,7 @@ import { text } from "node:stream/consumers";
 import { OLDict, OLRecord } from "@openlogo/core";
 import {
   PROFILE_DEPS,
+  EXPECTED_SUFFIX,
   closureOf,
   deepEqual,
   produce,
@@ -514,12 +515,12 @@ test("compare() ignores a diagnostic message the expected side did not ask for, 
   // record the prose it is not asserting — and loadFixture now rejects a `message` without the
   // flag outright, so this shape only exists in-memory. Every diagnostic `produce()` returns
   // carries a message (validateDiagnostics makes that a hard requirement), so this is the shape of
-  // the corpus diagnostics that deliberately stay on identity alone — the great majority of them.
+  // the corpus diagnostics that deliberately stay on identity alone — the majority of them.
   // HOW MANY is deliberately not written here. This sentence used to say "the 326 corpus
   // diagnostics", a hand-written count nothing re-checked: it described the design of #1025's
   // review round 1, which round 2 reversed, and it was already stale when #1026 shipped. The split
   // is derived from the corpus by `the corpus is majority identity-only` below instead, which is
-  // also what makes "the great majority" a checked claim rather than another number in prose
+  // also what makes "the majority" a checked claim rather than another number in prose
   // (issue #1028). `tests/conformance/README.md` declines to state a count for the same reason.
   const expected = {
     events: [],
@@ -580,7 +581,7 @@ test("the corpus is majority identity-only, and the split is derived here rather
   );
   assert.ok(
     identityOnly > compared,
-    `identity-only (${identityOnly}) must stay the majority over compared (${compared}): spec/error-model.md:256-259 makes identity the default and :261-263 lets an implementation reword the rest`,
+    `identity-only (${identityOnly}) is no longer the majority over compared (${compared}). That is not forbidden by anything — the spec fixes no corpus ratio — but the characterization just above this test describes identity-only as the majority shape, so one of the two now needs updating`,
   );
 });
 
@@ -1609,16 +1610,33 @@ test("loadFixture rejects an unknown key on an expected diagnostic, so a misspel
 // --- issue #1028: `expect: "mismatch"` may not neutralise the opt-in ---------------------------
 
 /**
- * A fixture that opts into message comparison and can never match: the expected `ol-reserved-word`
- * diagnostic is well-formed, but the `.logo` source it ships with is EMPTY, so `produce()` returns
- * no diagnostic at all. Under `expect: "match"` that is a plain failure; under `expect: "mismatch"`
- * the inverted verdict turned it into a PASS, which is the hole #1028 closes.
+ * The one source these probes use, and the reason they isolate MESSAGE comparison rather than
+ * anything else: under `"check": true` it produces exactly one `ol-reserved-word` diagnostic, whose
+ * every field except the prose is pinned identically by {@link wrongMessageOptedInSpec}. It is the
+ * source `_harness-selftest/detects-message-mismatch` itself uses.
  */
-function unmatchableOptedInSpec(expectPolarity, document) {
+const RESERVED_WORD_SOURCE = "define forward :n\n  print :n\nend\n";
+
+/**
+ * A fixture that opts into message comparison and is wrong in EXACTLY ONE way: its expected
+ * `ol-reserved-word` sentence is the wording issues #751/#871 shipped, which
+ * `spec/error-model.md:125` forbids (it leaks the word *primitive* at a learner). Identity — code,
+ * span, params, stage, severity — matches what `check()` really produces, so the only thing that
+ * can make the streams disagree is the message.
+ *
+ * Under `expect: "match"` that is a failure naming the offending prose. Under `expect: "mismatch"`
+ * the inverted verdict turned it into a PASS: the hole #1028 closes.
+ *
+ * `document` is the fixture's own name minus the suffix, which is what the harness passes the
+ * parser — so two fixtures with the same name under different roots are byte-identical apart from
+ * the one field under test.
+ */
+function wrongMessageOptedInSpec(expectPolarity, document) {
   return {
     description: "issue #1028 probe fixture",
     expect: expectPolarity,
     compareMessages: true,
+    check: true,
     profiles: ["core-language"],
     events: [],
     diagnostics: [
@@ -1626,7 +1644,8 @@ function unmatchableOptedInSpec(expectPolarity, document) {
         code: "ol-reserved-word",
         source_span: { document, start: [1, 8], end: [1, 15] },
         params: { name: "forward" },
-        message: "forward is already part of OpenLogo. choose another name.",
+        message:
+          "forward is already a reserved primitive, so it can't be redefined here.",
         stage: "semantic",
         severity: "error",
       },
@@ -1636,17 +1655,36 @@ function unmatchableOptedInSpec(expectPolarity, document) {
 
 /**
  * Write one fixture pair at `name` — a `/`-separated fixture path relative to `root`, so a test can
- * place a fixture INSIDE `_harness-selftest/`, which `loadTempFixture` above cannot express.
+ * place a fixture INSIDE `_harness-selftest/`, which `loadTempFixture` above cannot express — and
+ * return the descriptor `loadFixture`/`runHarness` would see for it. Returning the descriptor is
+ * what lets the polarity twins below carry the SAME name under different roots, so nothing but
+ * `expect` differs between them.
  */
-function writeFixtureAt(root, name, spec, source = "") {
+function placeFixture(root, name, spec, source = RESERVED_WORD_SOURCE) {
   const segments = name.split("/");
+  const stem = segments.at(-1);
   const directory = join(root, ...segments);
   mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, `${segments.at(-1)}.logo`), source);
-  writeFileSync(
-    join(directory, `${segments.at(-1)}.expected.json`),
-    JSON.stringify(spec),
-  );
+  writeFileSync(join(directory, `${stem}.logo`), source);
+  writeFileSync(join(directory, `${stem}.expected.json`), JSON.stringify(spec));
+  return {
+    name: `${name}/${stem}${EXPECTED_SUFFIX}`,
+    expectedPath: join(directory, `${stem}${EXPECTED_SUFFIX}`),
+    logoPath: join(directory, `${stem}.logo`),
+  };
+}
+
+/** Both twins, written under sibling roots with one identical fixture name and path. */
+function placePolarityTwin(polarity, name = "polarity-probe") {
+  const root = join(TEMP_ROOT, `arm-${polarity}`);
+  return {
+    root,
+    fixture: placeFixture(
+      root,
+      name,
+      wrongMessageOptedInSpec(polarity, `${name}/${name}`),
+    ),
+  };
 }
 
 /**
@@ -1669,42 +1707,31 @@ test('loadFixture rejects `expect: "mismatch"` on a fixture that opted into mess
   // `expect: "mismatch"` inverts the verdict, so an opted-in fixture that also expects a mismatch
   // passes BECAUSE its message failed to match — the third way to hold a `message` that asserts
   // nothing, and the one #1025's two directions left open.
-  const neutralised = loadTempFixture(
-    "neutralised-optin",
-    unmatchableOptedInSpec("mismatch", "neutralised-optin"),
-  );
+  const neutralised = loadFixture(placePolarityTwin("mismatch").fixture);
 
   assert.ok(neutralised.error);
   assert.ok(neutralised.error.includes('"compareMessages": true'));
   assert.ok(neutralised.error.includes('"expect": "mismatch"'));
 
-  // The control: the same fixture differing ONLY in polarity loads clean, so the rejection is about
-  // the combination and not about the fixture's shape.
-  const control = loadTempFixture(
-    "polarity-control",
-    unmatchableOptedInSpec("match", "polarity-control"),
-  );
+  // The control: the twin differing in NOTHING but polarity — same fixture name, same document,
+  // same bytes otherwise, under a sibling root — loads clean. So the rejection is about the
+  // combination and not about anything else in the fixture.
+  const control = loadFixture(placePolarityTwin("match").fixture);
   assert.equal(control.error, undefined);
   assert.equal(control.expected.compareMessages, true);
   assert.equal(control.expected.expect, "match");
 });
 
-test('runHarness fails a non-self-test fixture combining compareMessages with expect: "mismatch", where it used to pass — with the expect: "match" twin as the positive control (issue #1028)', () => {
-  // Reproduces the measurement taken on `4ad13363`, where the two arms below exited 0 and 1:
-  //
-  //   NON_SELFTEST_EXPECT_MISMATCH_EXIT=0   conformance: 1 passed, 0 failed
-  //   MATCH_CONTROL_EXIT=1                  diagnostic mismatch ... actual: (missing)
+test('runHarness fails a fixture combining compareMessages with expect: "mismatch", where it used to pass — with the expect: "match" twin as the positive control (issue #1028)', () => {
+  // Reproduces the measurement taken on `4ad13363`, where these two arms exited 0 and 1 — the
+  // mismatch arm passing while asserting nothing, the match arm failing on the prose.
   //
   // The control is what makes the first arm mean anything: without it, a harness broken for every
   // fixture would satisfy the new rejection just as well as a working one. Each arm gets its own
-  // root so its exit code is attributable to its own single fixture.
-  const mismatchRoot = join(TEMP_ROOT, "arm-mismatch");
-  writeFixtureAt(
-    mismatchRoot,
-    "neutralised-optin",
-    unmatchableOptedInSpec("mismatch", "neutralised-optin"),
-  );
-  const neutralised = runHarnessCapturingOutput({ root: mismatchRoot });
+  // root so its exit code is attributable to its own single fixture, and both fixtures are named
+  // identically so `expect` is the only difference between them.
+  const neutralisedTwin = placePolarityTwin("mismatch");
+  const neutralised = runHarnessCapturingOutput({ root: neutralisedTwin.root });
 
   assert.equal(
     neutralised.exitCode,
@@ -1715,36 +1742,55 @@ test('runHarness fails a non-self-test fixture combining compareMessages with ex
   assert.ok(neutralised.output.includes('"compareMessages": true'));
   assert.ok(neutralised.output.includes('"expect": "mismatch"'));
 
-  // The positive control: the byte-identical fixture under `expect: "match"` still fails the
-  // ordinary way, on the missing diagnostic — so the instrument fires, and the arm above is not
-  // passing (or failing) for some unrelated reason.
-  const matchRoot = join(TEMP_ROOT, "arm-match");
-  writeFixtureAt(
-    matchRoot,
-    "match-control",
-    unmatchableOptedInSpec("match", "match-control"),
-  );
-  const control = runHarnessCapturingOutput({ root: matchRoot });
+  // The positive control: the twin under `expect: "match"` runs and fails on the MESSAGE alone —
+  // every other field agrees with what `check()` produced, so this is the comparison the opt-in
+  // exists for, firing. That is what the mismatch arm was cancelling.
+  const control = runHarnessCapturingOutput({
+    root: placePolarityTwin("match").root,
+  });
 
   assert.equal(control.exitCode, 1);
   assert.ok(control.output.includes("diagnostic mismatch"));
-  assert.ok(control.output.includes("actual:   (missing)"));
+  assert.ok(
+    control.output.includes("reserved primitive"),
+    "the control must fail on the prose, naming it — not on a missing or differently-shaped diagnostic",
+  );
 });
 
-test("runHarness still runs a _harness-selftest fixture that combines the two fields, since proving the comparison fires needs exactly that combination (issue #1028)", () => {
-  // The exemption is not a courtesy: `_harness-selftest/detects-message-mismatch` demonstrates a
-  // DETECTION, and a detection can only be demonstrated by expecting it. Keyed on the same
-  // `SELF_TEST_PREFIX` runHarness uses, so the two cannot drift apart.
-  const selfTestRoot = join(TEMP_ROOT, "arm-selftest");
-  writeFixtureAt(
-    selfTestRoot,
-    "_harness-selftest/keeps-the-combination",
-    unmatchableOptedInSpec("mismatch", "keeps-the-combination"),
+test("runHarness still runs `_harness-selftest/detects-message-mismatch`, the one fixture that needs the combination to prove the comparison fires (issue #1028)", () => {
+  // The exemption is not a courtesy: this self-test demonstrates a DETECTION, and a detection can
+  // only be demonstrated by expecting it.
+  const root = join(TEMP_ROOT, "arm-allowed-selftest");
+  const name = "_harness-selftest/detects-message-mismatch";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
   );
-  const selfTest = runHarnessCapturingOutput({ root: selfTestRoot });
+  const selfTest = runHarnessCapturingOutput({ root });
 
   assert.equal(selfTest.exitCode, 0);
   assert.ok(selfTest.output.includes("self-test: mismatch correctly detected"));
+});
+
+test("runHarness rejects ANOTHER self-test that combines the two fields, because being a self-test does not imply needing them (issue #1028)", () => {
+  // The exemption is one named fixture, not the whole `_harness-selftest/` tree, and this is why:
+  // `tests/conformance/README.md` already tells fixture authors "do not combine `expect:
+  // "mismatch"` with a `message` anywhere else", because a self-test that exists to prove some
+  // OTHER mismatch is detected would be able to pass on prose while its real subject regressed.
+  // A prefix-wide exemption would have enforced something looser than the documented rule.
+  const root = join(TEMP_ROOT, "arm-other-selftest");
+  const name = "_harness-selftest/detects-execution-mismatch";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
+  );
+  const other = runHarnessCapturingOutput({ root });
+
+  assert.equal(other.exitCode, 1);
+  assert.ok(other.output.includes('"compareMessages": true'));
+  assert.ok(other.output.includes('"expect": "mismatch"'));
 });
 
 test("loadFixture rejects a non-boolean execute field", () => {
