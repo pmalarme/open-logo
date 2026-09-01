@@ -41,6 +41,7 @@
  */
 
 import { execute } from "@openlogo/runtime";
+import type { TickBoundary } from "@openlogo/runtime";
 import type { TraceEvent } from "@openlogo/core";
 import {
   armBlockingRead,
@@ -87,6 +88,11 @@ export function runExecutionWorkerCommand(
   // The live sink (#876's `ExecuteOptions.observedEvents`): the run appends to it as it goes, so the
   // reader below can report what has already been drawn while it waits.
   const observedEvents: TraceEvent[] = [];
+  // #985 — the tick-timeline sink. Composed HERE as well as in the in-process host, because
+  // `toExecuteOptions` cannot allocate it for a caller that must also report it back. Omitting it
+  // was measured to collapse every Worker delivery onto tick 0, which is strictly worse than the
+  // pre-#985 counter it was meant to replace.
+  const tickTimeline: TickBoundary[] = [];
   // #976 — one cursor per run over the chain's accumulated answers, exactly as the in-process host
   // keeps. A read is answered from the FIFO only when the entry at this position was given for this
   // same question; anything else parks.
@@ -116,6 +122,11 @@ export function runExecutionWorkerCommand(
           events: prefix,
           output: collectOutput(prefix),
           tutorOutput: collectTutorOutput(prefix),
+          tickTimeline: tickTimeline.slice(),
+          // The truncated list, not the request's own: `resolveRecordedAnswer` drops every entry
+          // from this position on when the replay reached a different question here, and the host
+          // must adopt that or it will restore the stale entry and re-ask this question forever.
+          retainedAnswers,
         });
         const outcome =
           options.pollIntervalMs === undefined
@@ -131,6 +142,7 @@ export function runExecutionWorkerCommand(
       command.request,
       createSharedCancellationSignal(channel),
       read,
+      tickTimeline,
     ),
     observedEvents,
   });
@@ -142,5 +154,7 @@ export function runExecutionWorkerCommand(
     output: collectOutput(result.events),
     tutorOutput: collectTutorOutput(result.events),
     diagnostics: result.diagnostics,
+    tickTimeline: tickTimeline.slice(),
+    retainedAnswers,
   });
 }

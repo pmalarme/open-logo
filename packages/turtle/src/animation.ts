@@ -241,6 +241,29 @@ export class TurtleAnimationController {
   }
 
   /**
+   * The exclusive end index of the step that {@link step} would consume next, or the cursor itself
+   * once the stream is exhausted. A **pure measurement** — it consumes nothing and changes no state.
+   *
+   * Exists so a host can price the upcoming step *before* it runs without re-deriving the step
+   * boundary. `@openlogo/studio` needs exactly that to pace playback against the program's logical
+   * tick clock (issue #985 F4, `spec/interaction-events.md:69-73` — rendering, animation and event
+   * dispatch share one clock): the delay before a step must reflect the ticks that step will spend,
+   * and a trailing `wait` — the `:116-118` "hold the run open" case — has no following step to
+   * charge them to.
+   *
+   * It reads {@link stepEndFrom}, so it is the **same** boundary rule stepping and seeking use.
+   * That is the whole point of exposing it rather than letting a caller reimplement it: a second
+   * definition of a step could disagree with this one, and a host pricing a step differently from
+   * the step it actually gets is a defect nothing would catch.
+   */
+  nextStepEndIndex(): number {
+    if (this.cursor >= this.events.length) {
+      return this.cursor;
+    }
+    return this.stepEndFrom(this.cursor);
+  }
+
+  /**
    * Consumes exactly one step: the event at the cursor plus every following event up to (but
    * not including) the next `instruction` event or the end of the stream — matching
    * `spec/rendering.md`'s worked `repeat 4 [ forward 100 right 90 ]` example, where stepping

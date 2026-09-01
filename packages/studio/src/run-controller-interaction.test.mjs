@@ -46,6 +46,25 @@ const WHEN_STOP_SOURCE = ['when "stop" [', '  print "bye"', "]", "wait 5"].join(
 );
 
 /**
+ * A program that registers `on_key`, optionally burns `lead` ticks, then asks a question and holds
+ * itself open (#976). The lead is the whole point: it puts the read at a tick a wrongly-scheduled
+ * delivery could land *before*, which is what makes rewritten history reachable at all. With
+ * `lead 0` the read completes at tick 0 and no schedulable tick can precede it, so that shape alone
+ * cannot exhibit the defect — see the sweep in the AC2 test.
+ */
+function askThenOnKeySource(lead) {
+  return [
+    'on_key "left" [',
+    '  print "turned"',
+    "]",
+    ...(lead > 0 ? [`wait ${lead}`] : []),
+    ':name = input "who?"',
+    "print :name",
+    "wait 5",
+  ].join("\n");
+}
+
+/**
  * Wraps the real in-process host so a test can read every {@link OL.ExecutionRequest} the controller
  * built and every settlement it received — the only way to prove *what schedule* was delivered and
  * that two identical input sequences produce byte-identical event streams.
@@ -243,7 +262,10 @@ test("#976: a host that cannot carry the delivery report confirms nothing — an
     "…while the handler genuinely ran: a confirmation gap, not a delivery gap",
   );
 
-  // Reset reaches the host, so the harness's `cancel` is exercised rather than declared.
+  // Reset ends the chain — asserted on its observable effect, the cleared output. It also reaches
+  // the host's `cancel`, but nothing here depends on `cancel` doing anything: review made both
+  // harness `cancel()` bodies no-ops and the whole suite stayed green. Claiming this "exercises"
+  // cancellation would be an unfalsifiable assertion, so it does not.
   controller.reset();
   assert.deepEqual(store.getState().output, []);
 });
@@ -814,55 +836,81 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
   // permanent gate is DELETED rather than narrowed and `pendingRead === null` alone enforces
   // `:108-111`. What must be asserted is therefore both halves: the key is delivered, AND the
   // history the learner observed is not rewritten — the failure mode here produces no diagnostic.
-  const source = [
-    'on_key "left" [',
-    '  print "turned"',
-    "]",
-    ':name = input "who?"',
-    "print :name",
-    "wait 5",
-  ].join("\n");
+  //
+  // ## Why this runs over a LEAD SWEEP rather than one program
+  //
+  // The first version of this test asserted all of the above on a program with **no `wait` before
+  // the `input`**. Every assertion was real, and the test was worthless: with nothing before the
+  // read, the read completes at tick 0, so *every* schedulable tick is already >= it and the
+  // rewrite it claims to guard against **cannot occur in that shape**. Review demonstrated it by
+  // reintroducing the exact pre-#976 hazard, scoped to chains that have answers —
+  //
+  //   const tick = answers.length > 0 ? lastScheduled + 1 : Math.max(drawnTick, lastScheduled);
+  //
+  // — and the entire suite stayed green (1994/1994) while lead 1/2/3/5 measured
+  // `["Ada"] -> ["turned","Ada"]`: the line the learner had already read, replaced, with
+  // `deliverKey` returning `true` so the key was suppressed as well.
+  //
+  // A test's INPUT SHAPE is part of its instrument. An assertion cannot rescue a fixture that
+  // excludes the defect. The lead is what puts the read at a tick a wrong delivery could land
+  // before, so `lead 0` alone is exactly the blind spot.
+  for (const lead of [0, 1, 2, 3, 5]) {
+    const source = askThenOnKeySource(lead);
 
-  const store = OL.createStudioState({ source });
-  const host = createPromptHost();
-  const controller = OL.createRunController(store, {
-    inputPrompt: host,
-    randomSeedSource: pinnedSeed(7),
-  });
+    const store = OL.createStudioState({ source });
+    const host = createPromptHost();
+    const controller = OL.createRunController(store, {
+      inputPrompt: host,
+      randomSeedSource: pinnedSeed(7),
+    });
 
-  controller.run();
-  assert.deepEqual(host.prompts, ["who?"]);
-  assert.equal(
-    controller.deliverKey("left"),
-    false,
-    "spec/interaction-events.md:108-111 — no handler block WHILE the read is outstanding",
-  );
+    controller.run();
+    assert.deepEqual(host.prompts, ["who?"], `lead ${lead}: asked once`);
+    assert.equal(
+      controller.deliverKey("left"),
+      false,
+      `lead ${lead}: :108-111 — no handler block WHILE the read is outstanding`,
+    );
 
-  host.respond("Ada");
-  assert.deepEqual(store.getState().output, ["Ada"], "the answer was consumed");
+    host.respond("Ada");
+    const observed = store.getState().output;
+    assert.deepEqual(
+      observed,
+      ["Ada"],
+      `lead ${lead}: the answer was consumed`,
+    );
 
-  assert.equal(
-    controller.deliverKey("left"),
-    true,
-    "the read has finished, so :108-111 permits handlers again",
-  );
-  assert.deepEqual(
-    store.getState().output,
-    ["Ada", "turned"],
-    "the handler ran, and the output the learner had already read is EXTENDED, never rewritten",
-  );
-  assert.deepEqual(
-    host.prompts,
-    ["who?"],
-    "and no question is re-asked — the replay reaches no earlier point than the learner observed",
-  );
-  assert.deepEqual(
-    store.getState().diagnostics,
-    [],
-    "history rewriting produces no diagnostic, so the assertions above are the only witness",
-  );
+    assert.equal(
+      controller.deliverKey("left"),
+      true,
+      `lead ${lead}: the read has finished, so :108-111 permits handlers again`,
+    );
+
+    const after = store.getState().output;
+    assert.deepEqual(
+      after.slice(0, observed.length),
+      observed,
+      `lead ${lead}: what the learner had already read must survive verbatim as a PREFIX — a replay reaching an earlier point rewrites it here, silently`,
+    );
+    assert.deepEqual(
+      after,
+      ["Ada", "turned"],
+      `lead ${lead}: the handler ran, and its output was appended rather than substituted`,
+    );
+    assert.deepEqual(
+      host.prompts,
+      ["who?"],
+      `lead ${lead}: no question re-asked — the replay reached no earlier point than the learner observed`,
+    );
+    assert.deepEqual(
+      store.getState().diagnostics,
+      [],
+      `lead ${lead}: history rewriting produces no diagnostic, so the assertions above are the only witness`,
+    );
+  }
 
   // A chain that never asks anything is unaffected, even with a prompt host installed.
+  const source = askThenOnKeySource(1);
   const plainStore = OL.createStudioState({ source: ON_KEY_SOURCE });
   const plainController = OL.createRunController(plainStore, {
     inputPrompt: createPromptHost(),
@@ -1627,7 +1675,7 @@ test("#952 (review round 7): a delivery that arrives re-entrantly is not credite
   );
 });
 
-test("#952 (review round 8), re-measured for #976: a re-entrant press is flushed, and each press is credited to itself", () => {
+test("#952 (review round 8), re-measured for #976: a re-entrant press is flushed, and the outer press is credited to itself", () => {
   // The remainder flush this pins is unchanged: a press arriving re-entrantly during the bounded
   // drain must be delivered once this press's own answer has been read, never stranded until some
   // unrelated later delivery happens to drain it (measured pre-fix: two presses produced one
@@ -1636,7 +1684,14 @@ test("#952 (review round 8), re-measured for #976: a re-entrant press is flushed
   // What changed at #976 is the answer's source. The old declaration pairing could not read a
   // non-literal key word, so this press reported `false`; the runtime's per-delivery count reports
   // what THIS press actually did. That is also the attribution the bound exists to protect — the
-  // answer is press 1's own `invocations`, never a total that the re-entrant press 2 has moved.
+  // answer is the outer press's own `invocations`, never a total the re-entrant press has moved.
+  //
+  // **The nested press reports `false` even though its handler does run**, and that is asserted
+  // below rather than glossed. The outer drain owns `deliveringInput`, so the nested
+  // `drainDeliveredInput()` returns immediately and no report exists for the nested occurrence at
+  // the moment it must answer; the outer remainder flush delivers it a moment later. Under-claiming
+  // is the **visible** direction — the handler runs, only the browser default is left alone — and it
+  // is the same trade `canvas-interaction.ts` documents for a host that cannot confirm in time.
   const store = OL.createStudioState({
     source: [
       ':chosen = "left"',
@@ -1653,25 +1708,31 @@ test("#952 (review round 8), re-measured for #976: a re-entrant press is flushed
   controller.run();
 
   let reentered = false;
+  let nestedReturn = null;
   const unsubscribe = store.subscribe(() => {
     if (reentered) {
       return;
     }
     reentered = true;
-    controller.deliverKey("left");
+    nestedReturn = controller.deliverKey("left");
   });
 
   assert.equal(
     controller.deliverKey("left"),
     true,
-    "this press ran a handler, and it is credited with its own invocation",
+    "the outer press ran a handler, and is credited with its own invocation",
   );
   unsubscribe();
 
+  assert.equal(
+    nestedReturn,
+    false,
+    "the re-entrant press claims nothing — no report exists for it yet, so it suppresses nothing",
+  );
   assert.deepEqual(
     store.getState().output,
     ["turned", "turned"],
-    "both presses are delivered — neither is stranded waiting for an unrelated one",
+    "…while both presses are delivered: the nested one under-claims, it is not dropped",
   );
 });
 
@@ -1787,6 +1848,21 @@ test("#985: a click that runs no handler still reports false — the mirror dire
   // The fix must not merely stop over-claiming; reporting `true` for a click that ran nothing would
   // be the same defect pointing the other way. A program that never reaches a dispatch checkpoint
   // (no `wait` at all) runs no handler for any click.
+  //
+  // **Which arm this takes, stated rather than assumed.** It is satisfied by "no delivery report
+  // exists", not by "a report says zero" — review measured that this test still passes with
+  // `invocations > 0` deleted from `deliveryRanAHandler`. The counting arm is pinned on the KEY
+  // path instead (`#985: the boolean answers whether THIS press ran a handler…`, which does die to
+  // that mutation), and the two paths read the same one-line helper.
+  //
+  // That is not laziness: the reported-zero case is **unreachable for a click by construction**, and
+  // it was measured rather than argued. `acceptsHostInputFor("on_click")` refuses a click outright
+  // when the run registered no `on_click`, so nothing is scheduled and nothing is reported
+  // (measured on `if false [ on_click … ]` + `wait 5`: `acceptsClick()` false,
+  // `handlerDeliveries` holds only the key entry). And when one *is* registered, every registered
+  // handler answers every click (`spec/interaction-events.md:88`), so a delivered click always
+  // invokes at least one — measured across the five-click program as `invocations: 1` every time,
+  // never 0. A key can be a word nothing names; a click has no such case.
   const store = OL.createStudioState({
     source: ["on_click [", '  print "clicked"', "]"].join("\n"),
   });
@@ -1889,4 +1965,110 @@ test("#985: one click fires every registration at a position, and the count agre
     6,
     "three clicks × two registrations at one position",
   );
+});
+
+/** Collect every delay a paced run schedules, driving each callback immediately so no real time passes. */
+function pacedDelaysFor(source) {
+  const delays = [];
+  const scheduler = (callback, delayMs) => {
+    delays.push(delayMs);
+    callback();
+    return () => {};
+  };
+  const store = OL.createStudioState({ source });
+  const controller = OL.createRunController(store, {
+    scheduler,
+    randomSeedSource: pinnedSeed(7),
+  });
+  controller.run();
+  return {
+    delays,
+    total: delays.reduce((sum, delay) => sum + delay, 0),
+    store,
+  };
+}
+
+test("#985 F4: `wait n` paces the animation — wait 0, 1, 2 and 9 are measurably different", () => {
+  // F4, and the half the pre-freeze work never implemented. Measured before the fix: `wait 0`,
+  // `wait 1` and `wait 9` produced IDENTICAL playback — 3 callbacks, delays [951, 951, 951], total
+  // 2853 for all three. A learner writing `wait 9` to slow a drawing down saw no difference at all.
+  //
+  // `spec/interaction-events.md:69-73` makes a tick "an implementation-defined logical frame used by
+  // rendering, animation, and event dispatch" — ONE clock for all three. The studio was using it for
+  // none of them, which is the same root as F3: it had no way to observe the tick. The tick timeline
+  // is the fix for both, which answers #985's "state explicitly whether F3 and F4 shared a root".
+  const measured = [0, 1, 2, 9].map((ticks) => ({
+    ticks,
+    ...pacedDelaysFor(`forward 10\nwait ${ticks}\nforward 10`),
+  }));
+
+  const totals = measured.map((entry) => entry.total);
+  assert.equal(
+    new Set(totals).size,
+    totals.length,
+    `each wait count must pace differently, got ${JSON.stringify(totals)}`,
+  );
+  for (let index = 1; index < totals.length; index += 1) {
+    assert.ok(
+      totals[index] > totals[index - 1],
+      `a longer wait must take longer: wait ${measured[index].ticks} (${totals[index]}) vs wait ${measured[index - 1].ticks} (${totals[index - 1]})`,
+    );
+  }
+
+  // The step counts are identical — this is pacing, not extra frames. Playback still draws the same
+  // three steps; only the time between them changes.
+  assert.deepEqual(
+    measured.map((entry) => entry.delays.length),
+    [3, 3, 3, 3],
+  );
+});
+
+test("#985 F4: a program with no `wait` is paced exactly as before — the ~90% case is untouched", () => {
+  // The control. Without it "measurably different" would also be satisfied by a change that slowed
+  // everything down, and every non-Interaction program in the curriculum would have paid for it.
+  const { delays } = pacedDelaysFor("forward 10\nforward 10");
+
+  assert.equal(delays.length, 2);
+  assert.equal(
+    new Set(delays).size,
+    1,
+    `a program that spends no tick must keep a uniform delay, got ${JSON.stringify(delays)}`,
+  );
+});
+
+test("#985 F4: a long `wait` holds the run open while handlers drive the animation", () => {
+  // `spec/interaction-events.md:116-118` — "This is what lets a program register its handlers and
+  // then hold itself open with a long `wait` while those handlers drive the animation." The pacing
+  // above is what makes that true in the studio rather than only in the runtime: the wait's ticks
+  // now cost real playback time, so there is an interval for handlers to run in.
+  const source = [
+    'on_key "left" [',
+    "  forward 10",
+    '  print "moved"',
+    "]",
+    "wait 20",
+  ].join("\n");
+
+  const { delays, total } = pacedDelaysFor(source);
+  const short = pacedDelaysFor(
+    ['on_key "left" [', "  forward 10", '  print "moved"', "]", "wait 1"].join(
+      "\n",
+    ),
+  );
+
+  assert.ok(
+    total > short.total,
+    `the long wait must hold the run open longer: wait 20 (${total}) vs wait 1 (${short.total})`,
+  );
+  assert.ok(delays.length > 0, "the run was genuinely paced, not drained");
+
+  // …and handlers delivered during it still run, which is the half that makes holding the run open
+  // worth anything.
+  const store = OL.createStudioState({ source });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+  controller.run();
+  assert.equal(controller.deliverKey("left"), true);
+  assert.deepEqual(store.getState().output, ["moved"]);
 });

@@ -845,3 +845,120 @@ test("#976: the question is not re-asked across several presses either", () => {
     "turned",
   ]);
 });
+
+/**
+ * The shape the round-1 Worker tests missed: a `wait` runs BEFORE the read, so the read completes at
+ * a non-zero tick and a wrongly-scheduled delivery can land in front of it. `ASK_THEN_ON_KEY_SOURCE`
+ * asks first, which puts the read at tick 0 where no schedulable tick can precede it.
+ */
+function waitThenAskThenOnKeySource(lead) {
+  return [
+    'on_key "a" [',
+    '  print "HANDLER"',
+    "]",
+    `wait ${lead}`,
+    ':who = input "who?"',
+    "print :who",
+    "wait 3",
+  ].join("\n");
+}
+
+test("#985/#976: the Worker host schedules against the program's tick clock, not tick 0", () => {
+  // Round 1 shipped this broken and all ten gates passed. `execution-worker-runner.ts` called
+  // `toExecuteOptions(request, signal, read)` with three arguments while the tick-timeline sink was
+  // the fourth, so `settlement.tickTimeline` was `undefined` on this host, `tickAtEventIndex([], …)`
+  // returned 0 unconditionally, and EVERY Worker delivery landed at tick 0.
+  //
+  // That is worse than the counter #985 replaced, not a graceful degradation: four presses used to
+  // land at [1,2,3,4] and collapsed onto [0,0,0,0]. `web/main.ts` selects this host whenever the
+  // page is cross-origin isolated, so it is a production path.
+  const { host } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "tom");
+  const store = OL.createStudioState({
+    source: waitThenAskThenOnKeySource(3),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  const observed = store.getState().output;
+  assert.deepEqual(observed, ["tom"], "the learner has read the answer");
+
+  controller.deliverKey("a");
+  const after = store.getState().output;
+
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a PREFIX — at tick 0 the handler's line was inserted BEFORE it",
+  );
+  assert.deepEqual(after, ["tom", "HANDLER"]);
+  assert.deepEqual(prompt.prompts, ["who?"], "and nothing was re-asked");
+});
+
+test("#985: the Worker host and the in-process host schedule a delivery IDENTICALLY", () => {
+  // The claim that was false. `execution-host.ts` said "every host composes it here … so the two
+  // hosts cannot drift on what a run is given" while the Worker passed three arguments to a
+  // four-parameter `toExecuteOptions` and got no timeline at all — so it scheduled every delivery
+  // at tick 0 while the in-process host used the program's clock. All ten gates passed.
+  //
+  // Asserting the two schedules are equal is the direct form of that claim, and it is what a
+  // one-host test cannot say however carefully it is written. Reverting the runner's 4th argument
+  // makes this fail with `[0,0,0,0]` against `[30,30,30,30]`.
+  //
+  // The two hosts still differ in what they CONFIRM — a Worker carries no delivery report, because
+  // structured clone destroys the occurrence identity a report is matched on — so this asserts the
+  // schedule, which both can carry, and states the confirmation difference rather than hiding it.
+  const source = ['on_key "a" [', "  forward 10", "]", "wait 30"].join("\n");
+
+  function scheduleUnder(executionHost) {
+    const requests = [];
+    const recording = {
+      execute(request, settle) {
+        requests.push(request);
+        executionHost.execute(request, settle);
+      },
+      cancel: () => executionHost.cancel(),
+    };
+    const store = OL.createStudioState({ source });
+    const controller = OL.createRunController(store, {
+      executionHost: recording,
+    });
+    controller.run();
+    const confirmed = [];
+    for (let press = 0; press < 4; press += 1) {
+      confirmed.push(controller.deliverKey("a"));
+    }
+    return {
+      ticks: (requests.at(-1).hostInputEvents ?? []).map((entry) => entry.tick),
+      confirmed,
+    };
+  }
+
+  const inProcess = scheduleUnder(
+    OL.createInProcessExecutionHost({ signal: { aborted: false } }),
+  );
+  const worker = scheduleUnder(createBlockingHost().host);
+
+  assert.deepEqual(
+    worker.ticks,
+    inProcess.ticks,
+    "the two hosts must schedule the same program's presses at the same ticks",
+  );
+  assert.ok(
+    worker.ticks.length === 4 && worker.ticks.every((tick) => tick > 0),
+    `and at the program's own clock, not tick 0 — got ${JSON.stringify(worker.ticks)}`,
+  );
+  assert.deepEqual(
+    inProcess.confirmed,
+    [true, true, true, true],
+    "the in-process host confirms every press",
+  );
+  assert.deepEqual(
+    worker.confirmed,
+    [false, false, false, false],
+    "the Worker confirms none — the documented, conservative limitation, stated rather than hidden",
+  );
+});

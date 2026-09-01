@@ -220,12 +220,17 @@ export interface ExecutionSettlement {
    * "which tick was the program at when it emitted event *i*", which is how the controller
    * schedules a delivery against the program's own clock instead of a counter of its own.
    *
-   * Optional so a host that predates the seam still type-checks; absent, the controller degrades to
-   * the pre-#985 behaviour rather than guessing a tick. It crosses a Worker boundary as plain data
-   * (numbers only), so it survives structured clone unchanged — unlike the values in a `print`
-   * event, which is why this can be carried while `output` cannot.
+   * **Required, and that is the point.** It was optional for one round, and the Worker host silently
+   * omitted it: `settlement.tickTimeline` was `undefined` there, so `tickAtEventIndex([], …)`
+   * returned `0` and *every* Worker delivery landed at tick 0 — measured as four presses collapsing
+   * from `[1, 2, 3, 4]` onto `[0, 0, 0, 0]`, which is worse than the counter #985 replaced, not a
+   * graceful degradation. A required field makes that omission a type error instead of a silence.
+   *
+   * It crosses a Worker boundary as plain data (numbers only), so it survives structured clone
+   * unchanged — unlike the values in a `print` event, which is why this can be carried while
+   * `output` cannot, and unlike {@link handlerDeliveries}, whose whole contract is object identity.
    */
-  readonly tickTimeline?: readonly TickBoundary[];
+  readonly tickTimeline: readonly TickBoundary[];
   /**
    * This run's **delivery report** (#976) — one `@openlogo/runtime` `HandlerDelivery` per host-input
    * occurrence the run actually delivered, in delivery order, each counting the handler bodies that
@@ -337,7 +342,7 @@ export function toExecuteOptions(
   request: ExecutionRequest,
   signal: CancellationSignal,
   read: ((prompt: string) => string | undefined) | undefined,
-  tickTimeline?: TickBoundary[],
+  tickTimeline: TickBoundary[],
   handlerDeliveries?: HandlerDelivery[],
 ): ExecuteOptions {
   const hostInputEvents = request.hostInputEvents ?? [];
@@ -349,13 +354,14 @@ export function toExecuteOptions(
     signal,
     tutorTemplates: eduTutorTemplate,
     randomSeed: request.randomSeed,
-    // #985 — the tick-timeline sink, when the caller wants one. Every host composes it here for the
-    // same reason each already composes `tutorTemplates` here: one place decides, so the two hosts
-    // cannot drift on what a run is given.
-    ...(tickTimeline === undefined ? {} : { tickTimeline }),
-    // #976 — the delivery-report sink, likewise. `hostInput.events` is installed above **by
-    // reference**, so each report's `input` is the caller's own occurrence object and a host matches
-    // its delivery by identity.
+    // #985 — the tick-timeline sink. A **required** parameter, because when it was optional the
+    // Worker host simply did not pass it and every delivery there landed at tick 0. A host that
+    // forgets it is now a compile error rather than a silent collapse.
+    tickTimeline,
+    // #976 — the delivery-report sink. Optional, and the asymmetry with `tickTimeline` above is
+    // real rather than an oversight: a timeline is plain numbers and survives a Worker's structured
+    // clone, while a delivery report is matched by object identity, which that boundary destroys.
+    // So a Worker host can carry the first and genuinely cannot carry the second.
     ...(handlerDeliveries === undefined ? {} : { handlerDeliveries }),
     ...(read === undefined && hostInputEvents.length === 0
       ? {}

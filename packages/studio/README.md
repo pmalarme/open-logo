@@ -308,8 +308,11 @@ consequence forward: with the cap gone, a reintroduction of divergence would be 
 A Worker host answers that **structurally** — it never replays to answer a read, so there is no attempt
 sequence to
 diverge and nothing for a counter to count (asserted directly: one run command for a program with
-several reads). Since #952 it does replay to deliver *input*, but a chain that has asked a question
-delivers none, so the two never interleave. Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
+several reads). Since #952 it does replay to deliver *input*, and since **#976** a chain that has
+asked a question keeps accepting input, so a delivery replay **can** now cross a read — which is why
+`execution-worker-runner.ts` consumes `ExecutionRequest.answers` before parking rather than
+presenting a live read. That path is bounded: one press causes one replay, and each recorded answer
+is consumed once, at the position it was given for. Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
 re-reads the control block, so a Stop is observed within one poll interval even if its wake-up were
 missed entirely. What remains unbounded is unchanged and still a host contract: a prompt host that
 restarts the run from inside `present()` on *every* presentation, since each restart brings a fresh
@@ -355,8 +358,15 @@ that was F3, and it is fixed rather than reported.
 Until #985 `deliverClick` reported something narrower and different in kind — `chain accepts input &&
 on_click registered` — which is a question about the *run*, not about this activation. On the
 README's own example, `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
-handlers ran `[true, true, false, false, false]`; they now agree, both measuring
-`[true, true, false, false, false]` over output `["C", "C"]`.
+handlers ran `[true, true, false, false, false]`: the gate answered `true` for three activations
+that ran nothing.
+
+They now agree — **re-measured on the shipped build**, five clicks report `[true × 5]` over output
+`["C", "C", "C", "C", "C"]`. The earlier figures in this paragraph were the *capped* behaviour, where
+the old counter stopped accepting presses once the program's tick count ran out; scheduling against
+the program's own clock removed that cap (see the next bullet), so every click both fires and is
+confirmed. The point that survives is the one that mattered: the two numbers are now the same
+measurement rather than two booleans that merely looked alike.
 
 ### The answer comes from the runtime, not from the event stream (#976)
 
@@ -473,6 +483,18 @@ announcing it would file a run-log entry per keystroke.
 
 ### Deliveries are scheduled against the program's tick clock (#985)
 
+`spec/interaction-events.md:69-73` makes a tick "an implementation-defined logical frame used by
+rendering, animation, and event dispatch" — **one clock for all three**. The studio used it for none
+of them, and #985 recorded the two consequences separately: **F3**, deliveries scheduled at a
+counter, and **F4**, `wait n` not pacing playback. They share that one root, so the tick timeline
+(`ExecuteOptions.tickTimeline` + `tickAtEventIndex`) fixes both.
+
+**Both hosts compose the sink.** `ExecutionSettlement.tickTimeline` is **required**, not optional,
+because it was optional for one review round and the Worker host silently omitted it: every Worker
+delivery then landed at tick 0 — worse than the counter it replaced, not a graceful degradation.
+A required field makes that omission a type error rather than a silence, and the two hosts are
+asserted to schedule the same program's presses at the same ticks.
+
 The *n*-th delivery used to take tick *n*, from a counter unrelated to the program. That counter was
 #985's F3: measured on `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost equalled the
 lead's tick count exactly — lead 1 lost 1, lead 5 lost 5 — because each early delivery was scheduled
@@ -482,6 +504,36 @@ A delivery now lands at the tick the learner is actually looking at, read from t
 timeline (`ExecuteOptions.tickTimeline` + `tickAtEventIndex`, #985). The schedule stays a pure
 function of the input sequence and the program — never of the wall clock — so two identical play
 sessions still produce byte-identical event streams.
+
+### `wait n` paces the animation (#985 F4)
+
+The other half of the same root. Playback used a uniform per-step delay and never consulted the
+clock, so `wait 0`, `wait 1` and `wait 9` were **identical** — 3 callbacks, delays
+`[951, 951, 951]`, total 2853 for all three. A learner writing `wait 9` to slow a drawing down saw
+no difference at all.
+
+A step's delay is now scaled by the ticks that step spends: `1 + elapsed`, its own drawing time plus
+its pause. Measured on `forward 10 / wait n / forward 10`:
+
+| program | delays | total |
+|---|---|---|
+| `wait 0` | `[505, 505, 505]` | 1515 |
+| `wait 1` | `[505, 1010, 505]` | 2020 |
+| `wait 2` | `[505, 1515, 505]` | 2525 |
+| `wait 9` | `[505, 5050, 505]` | 6060 |
+| *no `wait` (control)* | `[505, 505]` | 1010 |
+
+`1 + elapsed` rather than `max(1, elapsed)` is what keeps `wait 0` and `wait 1` distinguishable —
+`wait 0` yields without advancing the clock, so it spends 0 ticks and costs 1, while `wait 1` spends
+one and costs 2. An ordinary drawing step spends no tick and costs exactly 1, so every program below
+the Interaction profile paces exactly as it did before.
+
+The step is priced **before** it runs, from `TurtleAnimationController.nextStepEndIndex()`, not
+after. That matters for `spec/interaction-events.md:116-118` — "hold itself open with a long `wait`
+while those handlers drive the animation" — because that is a *trailing* `wait`, and a trailing step
+has no successor to charge: pricing backwards left `wait 20` and `wait 1` both at 1010. Asking the
+animation controller rather than re-deriving the step boundary keeps #1022's single definition
+single; a host pricing a step differently from the step it actually gets is a defect with no witness.
 
 Two consequences, both deliberate:
 

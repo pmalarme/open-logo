@@ -371,23 +371,19 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **The chain has never asked the learner an `input` question.** A question outstanding refuses the
- *   delivery outright, because `spec/interaction-events.md:108-111` forbids running a handler block
- *   until the read finishes — and once one has been asked the window stays shut for the rest of that
- *   chain, which is stricter than `:108-111` requires and deliberately so. The studio has no tick for
- *   the read boundary, so the next delivery lands at tick 1 and the replay reaches an *earlier* point
- *   than the learner has already observed: measured, a key scheduled at tick 1 after an answered
- *   question introduced a question they had never seen, erased output they had already read, and left
- *   a prompt open over a `"done"` status. {@link resolveRecordedAnswer}'s prompt pairing stops an
- *   answer reaching the wrong question; it cannot stop history being rewritten. An answer chain
- *   mid-pump is refused for the same family of reasons — it is what stops a prompt host answering
- *   synchronously from inside `present()` being handed one more read per answer, the quadratic hang
- *   the "#881" section above describes.
- *
- *   So a program that uses `input` receives no delivered interaction for the rest of that chain.
- *   `run()`/`reset()` reopen the window. That deviation is tracked as **#976**; closing it depends on
- *   **#975** giving the runtime a delivery boundary (or live host input) rather than a static
- *   pre-run schedule.
+ * - **No `input` question is outstanding right now.** `spec/interaction-events.md:108-111` forbids
+ *   running a handler block "until the read finishes" — an *until*, so the block is transient. Until
+ *   #976 the studio was stricter: once a chain had asked anything the window stayed shut for the rest
+ *   of its life, because a delivery was then scheduled at a synthetic tick that could land *before*
+ *   the read and rewrite history the learner had already observed (measured: a question they had
+ *   never seen introduced, output they had already read erased, a prompt left open over a `"done"`
+ *   status). {@link resolveRecordedAnswer}'s prompt pairing stops an answer reaching the wrong
+ *   question; it cannot stop history being rewritten. #985's tick timeline removes that cause — a
+ *   delivery lands at the tick the learner is looking at, never earlier than a read they answered —
+ *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. An answer
+ *   chain mid-pump is still refused: it is what stops a prompt host answering synchronously from
+ *   inside `present()` being handed one more read per answer, the quadratic hang the "#881" section
+ *   above describes.
  *
  * Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
  * settlement has landed, a delivery arriving while a later attempt is in flight — only reachable
@@ -402,26 +398,18 @@
  * fails safe (nothing is scheduled, nothing is suppressed) and the window is one settlement wide,
  * but the pacing-independence claim above is genuinely "after the run's first settlement".
  *
- * ## #985 — a click answers the same question a key press does
- * #952 built the per-delivery invocation count for `on_key` only, and left `deliverClick` returning
+ * ## #985/#976 — one question, answered by the runtime
+ * #952 built a per-delivery invocation count for `on_key` only, and left `deliverClick` returning
  * `true` as soon as its gate passed. Those are different questions — "did this activation run a
- * handler" versus "could an activation reach one at all" — and the gap between them is measurable:
+ * handler" versus "could an activation reach one at all" — and the gap between them was measurable:
  * on `wait 1 / on_click [ … ] / wait 2` the first click returned `true` having run nothing and
- * printed nothing. The count generalizes without any new mechanism, because
- * `spec/interaction-events.md:102-103`'s block-head marker is emitted for **every** registration
- * form, so `invocations = instructions − registrations` holds per source position for `on_click`
- * exactly as it does for `on_key` — re-measured on the same four axes, including the raising handler
- * that broke the event-stream-length formulation. `on_click` needs no declaration side at all
- * ({@link onClickInvocations}), so this is strictly less machinery than the key path, not more.
+ * printed nothing. Both now read the **same** answer from the same place: `@openlogo/runtime`'s
+ * `ExecuteOptions.handlerDeliveries`, one record per delivered occurrence, matched to this delivery's
+ * own schedule entry by identity. See {@link deliveryRanAHandler}.
  *
- * That `wait 1` lead is **#985's F3**, and it is not fixed here: a delivery is still scheduled at
- * `tick n` for the *n*-th delivery, from a counter unrelated to the program's tick clock, so a
- * delivery can still land before the handler exists. Measured on
- * `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost is exactly the lead's tick count —
- * lead 1 loses 1, lead 5 loses 5. What changes here is only that a click no longer *claims* to have
- * run a handler when it did not; the loss itself is the tick-clock defect, which needs a runtime
- * seam the studio does not have (`ExecuteResult` is `{events, diagnostics}` and no `ExecuteOptions`
- * field carries a tick), and is tracked on **#985** alongside **#976**.
+ * That `wait 1` lead was **#985's F3**, and it **is** fixed here: a delivery is scheduled at the tick
+ * the program has actually reached, read from the run's own tick timeline, rather than at `tick n`
+ * for the *n*-th delivery.
  */
 
 import { tickAtEventIndex } from "@openlogo/runtime";
@@ -617,22 +605,29 @@ export interface RunController {
    * `spec/interaction-events.md:221-225` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
-   * The press is scheduled at the next studio tick and the current chain is replayed with it, so
-   * every matching `on_key` handler fires. **This is the one place the boolean is defined:** it
-   * reports whether *this press actually ran a handler*, compared as a strict increase in `on_key`
-   * invocation markers across this one delivery (see `onKeyInvocationsByKeyWord`). It is `false`
-   * for a key no handler names, for a handler the run never reached, for a press scheduled before
-   * the handler registered, and for a program whose clock reaches no dispatch checkpoint at all.
+   * The press is scheduled at the tick the program has actually reached and the current chain is
+   * replayed with it, so every matching `on_key` handler fires. **This is the one place the boolean
+   * is defined:** it reports whether *this press actually ran a handler*, read from the runtime's
+   * own per-delivery count for this occurrence (`ExecuteOptions.handlerDeliveries`, see
+   * {@link deliveryRanAHandler}). It is `false` for a key no handler names, for a handler the run
+   * never reached, and for a program whose clock reaches no dispatch checkpoint at all.
+   *
+   * It is **not** `false` merely for a press that arrives after a delayed registration: scheduling
+   * against the program's clock (#985 F3) means such a press lands at a tick the handler is
+   * registered for and genuinely fires.
    *
    * Every formulation that answers from *history* rather than from this delivery re-creates silent
-   * interception somewhere, and four did: stream length inverted on the error path, a settle-later
+   * interception somewhere, and five did: stream length inverted on the error path, a settle-later
    * query answered too late, declaration/registration pairing proved only *eventual* registration,
-   * and an "ever responded" set kept returning `true` after the last tick that could fire
-   * (invocation counts `[0,1,2,2]` → returns `[true,true,true]`).
+   * an "ever responded" set kept returning `true` after the last tick that could fire (invocation
+   * counts `[0,1,2,2]` → returns `[true,true,true]`), and the source-position count that replaced
+   * them was sound only while its differencing window stayed exactly one press wide. Asking the
+   * runtime what *this* delivery did removes the window, and with it the class of mistake.
    *
-   * **Under a host that settles across event-loop turns this is always `false`**, because the
-   * delivery has not run by the time the answer is needed — so such a host suppresses nothing at
-   * all. That is a real capability gap (**#975**), and it is the deliberate direction: the
+   * **Under a host that settles across event-loop turns this is always `false`**, because that host
+   * carries no delivery report at all: an `ExecutionRequest` crosses a Worker boundary by structured
+   * clone, so the occurrence objects it reports back are copies and no identity survives to match
+   * one on. Such a host therefore suppresses nothing, and that is the deliberate direction: the
    * maintainer's constraint is that silent *interception* is worse than silent *inaction*, because
    * it hits every learner and presents as "the editor is broken". A page that scrolls during a game
    * is a nuisance; a key that vanishes with nothing happening is a bug report.
@@ -640,10 +635,12 @@ export interface RunController {
    * `canvas-interaction.ts` decides whether to suppress the browser's own scrolling from this
    * answer, which is why the narrowness is load-bearing rather than fussy.
    *
-   * A program whose `on_key` key word is not a literal reports `false` and suppresses nothing, while
-   * still delivering the press. `false` with **no execution at all** whenever the chain is not
-   * accepting input or the run registered no `on_key` handler. See this module's doc comment
-   * ("#952") for those gates and for why a delivery costs a tick rather than a timestamp.
+   * A non-literal key word — `on_key :chosen [ … ]` — is now reported like any other: the runtime
+   * counts what the delivery did and does not care how the key word was written. Until #976 the
+   * studio read declared key words out of the source, so such a handler reported `false` however
+   * plainly it fired. `false` with **no execution at all** whenever the chain is not accepting input
+   * or the run registered no `on_key` handler. See this module's doc comment ("#952") for those
+   * gates and for why a delivery costs a tick rather than a timestamp.
    */
   deliverKey(key: string): boolean;
   /**
@@ -1215,12 +1212,42 @@ export function createRunController(
 
     const baseScheduler = options?.scheduler ?? IMMEDIATE_SCHEDULER;
     let current: TurtleAnimationController;
-    const scheduler: Scheduler = (callback, delayMs) =>
-      baseScheduler(() => {
+    // #985 F4 — the tick the pacing has already charged for. Each step's delay is scaled by the
+    // ticks *that step* will spend, which is how `wait n` finally paces the animation:
+    // `spec/interaction-events.md:69-73` makes rendering, animation and event dispatch share one
+    // tick clock, and before this the studio's playback ignored it entirely — `wait 0`, `wait 1` and
+    // `wait 9` produced identical `[951, 951, 951]` delays over an identical 2853 total.
+    //
+    // The step is priced BEFORE it runs, which is why this reads the animation controller's own
+    // `nextStepEndIndex()` rather than charging the step that just finished: `:116-118`'s case —
+    // "hold itself open with a long `wait` while those handlers drive the animation" — is a
+    // *trailing* wait, and a trailing step has no successor to charge. Measured, pricing backwards
+    // left `on_key … / wait 20` and `… / wait 1` both at 1010.
+    //
+    // `nextStepEndIndex()` is the animation controller's single definition of a step boundary
+    // (#1022), deliberately asked for rather than re-derived here: a second definition could
+    // disagree with it, and pricing a step differently from the step actually played is a defect
+    // with no witness.
+    let pacedTick = 0;
+    const scheduler: Scheduler = (callback, delayMs) => {
+      const reachedTick = tickAtEventIndex(
+        chainTickTimeline,
+        current.nextStepEndIndex() - 1,
+      );
+      // A step costs its own drawing time **plus** the ticks it spends: `1 + elapsed`, not
+      // `max(1, elapsed)`. The difference is `wait 0` versus `wait 1` — `wait 0` yields without
+      // advancing the clock, so it spends 0 ticks and costs 1, while `wait 1` spends one and costs
+      // 2. Under `max(1, …)` those two collapse and the pacing is not measurably different for the
+      // smallest step a learner can write. An ordinary drawing step spends no tick and still costs
+      // exactly 1, so a program outside the Interaction profile paces exactly as it always did.
+      const stepCost = 1 + Math.max(0, reachedTick - pacedTick);
+      pacedTick = Math.max(pacedTick, reachedTick);
+      return baseScheduler(() => {
         callback();
         pushTurtleSnapshot(current);
         settleAttempt(current);
-      }, delayMs);
+      }, delayMs * stepCost);
+    };
 
     const tickDelayMs = mapSpeedSliderValueToTickDelayMs(
       state.getState().speedSliderValue,
@@ -1255,6 +1282,13 @@ export function createRunController(
     // controller as `seekToEventIndex`, which applies it in one fold instead of one step at a
     // time — #977; it clamps to the new stream's own length itself.
     current.seekToEventIndex(shownEventCount);
+    // #985 F4 — a resumed attempt has already *spent* the ticks up to the point the learner is
+    // looking at, so pacing must start from that tick rather than from 0. Without this the first
+    // step after a delivery replay would be charged the whole run's elapsed ticks.
+    pacedTick = tickAtEventIndex(
+      chainTickTimeline,
+      current.getSnapshot().cursor - 1,
+    );
     return current;
   }
 
