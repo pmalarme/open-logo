@@ -37,8 +37,6 @@
  * `deliverKey` for why every delivery costs a tick.
  */
 
-import { parse, walk } from "@openlogo/parser";
-
 /**
  * The browser key names ({@link https://www.w3.org/TR/uievents-key/ UI Events `key` values}) this
  * studio renames, and the OpenLogo key word each becomes. Only keys whose browser name is *not*
@@ -100,75 +98,4 @@ export function normalizeKeyWord(key: string): string | null {
     return renamed;
   }
   return key.toLowerCase();
-}
-
-/**
- * One `on_key` declaration a program's source contains (#952, review round 3): the key word it
- * names, at the source position the runtime will stamp its registration event with.
- *
- * The position is what makes the pairing exact. A declaration alone proves only that the program
- * *contains* an `on_key`; `if false [ on_key "up" [ … ] ]` declares `up` and registers nothing, and
- * measured, that made the studio swallow `ArrowUp` for a handler that could never run.
- */
-export interface DeclaredKeyHandler {
-  /** The key word the declaration names. */
-  readonly keyWord: string;
-  /** Line of the `on_key` statement's start, matching the registration event's `source_span`. */
-  readonly line: number;
-  /** Column of that start. */
-  readonly column: number;
-}
-
-/**
- * The `on_key` declarations a program's source contains, or `null` when that set cannot be known
- * statically (#952, review round 2).
- *
- * ## Why this is read from the source rather than measured
- * A host must decide **synchronously, inside the `keydown` handler**, whether to suppress the
- * browser's own scrolling — and it must decide per key word, so that a program registering
- * `on_key "up"` stops `up` scrolling the page and nothing else. Neither fact is observable at
- * runtime: registration emits only the `primitive`'s *name* (`spec/interaction-events.md:120-122`),
- * never its key word, so `@openlogo/runtime` hands a host no way to ask "does anything listen for
- * `left`?".
- *
- * Two proxies were tried and both are unsound, which is why this exists:
- * - *"Did the replay's event stream grow?"* — a handler that raises **shortens** the stream
- *   (measured: an `on_key "up"` body referencing an undefined variable, followed by twenty prints,
- *   took the stream from 45 events to 5 with `ol-undefined-var`), so a handler that genuinely ran
- *   reported "nothing responded". The proxy is **not monotonic in the thing it proxies**: it does
- *   not merely lose precision, it inverts on the error path.
- * - *"Ask the controller after the replay settles"* — a Worker host settles a turn later, so the
- *   answer arrives after the `keydown` has already been allowed to scroll the page.
- *
- * Reading the declaration is exact for the literal form every OpenLogo document uses, needs no new
- * runtime API, and cannot be perturbed by what the program does at runtime. Each entry carries its
- * **source position** so a caller can pair it with the run's own registration event and ignore a
- * declaration the run never reached — see {@link DeclaredKeyHandler}. That pairing is a
- * reconstruction with a scheduled end: **#975** exposes the registered key words from the runtime,
- * and this function goes away when it lands.
- *
- * ## What `null` means
- * A key word that is not a literal — `on_key :chosen [ … ]` — is unknowable before the run, so the
- * whole set collapses to `null` rather than being silently under-reported. Callers treat `null` as
- * "suppress nothing", the safe direction: the page keeps scrolling, and no key is ever silently
- * swallowed from a learner who did not ask for it.
- */
-export function collectDeclaredKeyHandlers(
-  source: string,
-): readonly DeclaredKeyHandler[] | null {
-  const declared: DeclaredKeyHandler[] = [];
-  let unknown = false;
-  walk(parse(source).ast, (node) => {
-    if (node.kind !== "ProfileStatement" || node.keyword.name !== "on_key") {
-      return;
-    }
-    const keyWord = node.args[0];
-    if (keyWord?.kind !== "WordLit") {
-      unknown = true;
-      return;
-    }
-    const [line, column] = node.source_span.start;
-    declared.push({ keyWord: keyWord.value, line, column });
-  });
-  return unknown ? null : declared;
 }

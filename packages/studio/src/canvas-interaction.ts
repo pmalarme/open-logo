@@ -37,13 +37,20 @@
  * Two exceptions follow directly from that, and neither over-suppresses:
  * - **a host that settles across event-loop turns** (the Worker one) cannot confirm in time, so it
  *   reports `false` for every press and **nothing is suppressed there at all**. The handler still
- *   *runs* — this is a gap in confirmation, not in delivery — which is the documented #975 gap;
- * - **a program whose `on_key` key word is not a literal** reports `false` too, so the press is
- *   delivered and the handler fires, but the browser default stands.
+ *   *runs* — this is a gap in confirmation, not in delivery. It is structural rather than
+ *   incidental: an `ExecutionRequest` crosses that boundary by structured clone, so the occurrence
+ *   objects a Worker run reports back are copies and no identity survives to match a delivery on
+ *   (`execution-host.ts`'s `ExecutionSettlement.handlerDeliveries`);
+ * - **a press past the program's last usable tick**, where nothing ran and not suppressing is
+ *   simply *exact*.
  *
- * Both are *conservative*: the studio declines to intercept a key it cannot prove ran a handler.
- * That is different in kind from a press past the program's last usable tick, where nothing ran and
- * not suppressing is simply *exact*.
+ * The first is *conservative*: the studio declines to intercept a key it cannot prove ran a handler.
+ *
+ * **A non-literal key word is no longer an exception.** Until #976 the studio read declared key
+ * words out of the program's source, so `on_key :chosen [ … ]` was unknowable and reported `false`
+ * however plainly the handler fired. The runtime now reports what each delivery actually did
+ * (`@openlogo/runtime`'s `ExecuteOptions.handlerDeliveries`), and a count does not care how the key
+ * word was written.
  *
  * The unit of the decision is the **individual press**, not the program: a program registering
  * `on_key "up"` only suppresses `up`, and one with no interaction at all suppresses nothing and
@@ -162,9 +169,8 @@ export function suppressesBrowserDefault(keyWord: string): boolean {
  *   `on_key` at all, or a press past the program's last usable tick. Not suppressing is *exact*.
  * - **Something may have run, but it cannot be confirmed in time.** Under a host that settles across
  *   event-loop turns the handler does fire — measured, a Worker press reported `null` with
- *   `preventDefault` never called while the program still printed `"hit"` — and a non-literal
- *   `on_key` key word is unknowable before the run. Not suppressing is *conservative*: the studio
- *   declines to intercept a key it cannot prove was the program's.
+ *   `preventDefault` never called while the program still printed `"hit"`. Not suppressing is
+ *   *conservative*: the studio declines to intercept a key it cannot prove was the program's.
  *
  * Exported so the decision is testable without a DOM.
  */

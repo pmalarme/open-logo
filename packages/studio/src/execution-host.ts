@@ -51,6 +51,7 @@ import { execute, printedForm } from "@openlogo/runtime";
 import type {
   CancellationSignal,
   ExecuteOptions,
+  HandlerDelivery,
   HostInput,
   HostInputEvent,
   TickBoundary,
@@ -220,6 +221,24 @@ export interface ExecutionSettlement {
    * event, which is why this can be carried while `output` cannot.
    */
   readonly tickTimeline?: readonly TickBoundary[];
+  /**
+   * This run's **delivery report** (#976) — one `@openlogo/runtime` `HandlerDelivery` per host-input
+   * occurrence the run actually delivered, in delivery order, each counting the handler bodies that
+   * occurrence entered. It is how `run-controller.ts` answers "did **this** press or click run a
+   * handler" from the runtime's own count rather than by differencing the event stream.
+   *
+   * Each entry's `input` is **the very object** the controller put in
+   * {@link ExecutionRequest.hostInputEvents}, so a delivery is matched by identity rather than by
+   * index arithmetic over a schedule the runtime sorted (`HandlerDelivery`'s own contract).
+   *
+   * **A Worker host cannot carry this, by construction.** An `ExecutionRequest` crosses that
+   * boundary by structured clone, so the occurrence objects a Worker run reports are copies and no
+   * identity survives to match. Absent, the controller confirms nothing and suppresses nothing —
+   * which is the conservative direction `canvas-interaction.ts` already documents for that host, not
+   * a new gap. Do not "fix" it by pairing on schedule index: that is exactly the reconstruction
+   * issue #975 exists to delete.
+   */
+  readonly handlerDeliveries?: readonly HandlerDelivery[];
 }
 
 /** How a host reports a settled view of the run it was given. */
@@ -314,6 +333,7 @@ export function toExecuteOptions(
   signal: CancellationSignal,
   read: ((prompt: string) => string | undefined) | undefined,
   tickTimeline?: TickBoundary[],
+  handlerDeliveries?: HandlerDelivery[],
 ): ExecuteOptions {
   const hostInputEvents = request.hostInputEvents ?? [];
   const hostInput: HostInput = {
@@ -328,6 +348,10 @@ export function toExecuteOptions(
     // same reason each already composes `tutorTemplates` here: one place decides, so the two hosts
     // cannot drift on what a run is given.
     ...(tickTimeline === undefined ? {} : { tickTimeline }),
+    // #976 — the delivery-report sink, likewise. `hostInput.events` is installed above **by
+    // reference**, so each report's `input` is the caller's own occurrence object and a host matches
+    // its delivery by identity.
+    ...(handlerDeliveries === undefined ? {} : { handlerDeliveries }),
     ...(read === undefined && hostInputEvents.length === 0
       ? {}
       : { hostInput }),
@@ -391,10 +415,17 @@ export function createInProcessExecutionHost(
         : undefined;
 
       const tickTimeline: TickBoundary[] = [];
+      const handlerDeliveries: HandlerDelivery[] = [];
       const result = execute(
         request.source,
         request.document,
-        toExecuteOptions(request, options.signal, read, tickTimeline),
+        toExecuteOptions(
+          request,
+          options.signal,
+          read,
+          tickTimeline,
+          handlerDeliveries,
+        ),
       );
 
       settle({
@@ -405,6 +436,7 @@ export function createInProcessExecutionHost(
         pendingPrompt,
         retainedAnswers,
         tickTimeline,
+        handlerDeliveries,
       });
     },
     cancel() {

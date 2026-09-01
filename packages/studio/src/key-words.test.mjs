@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
 
@@ -9,18 +7,12 @@ import * as OL from "@openlogo/studio";
  * `spec/interaction-events.md:221-225` asks for ("Implementations SHOULD document their supported
  * key words and SHOULD normalize physical keyboard input to those lowercase words **for
  * accessibility**").
+ *
+ * The declaration-reading half of this module (`collectDeclaredKeyHandlers`, which paired `on_key`
+ * statements to registration events by source position) was deleted at #976, when the runtime began
+ * reporting deliveries directly. Its tests went with it. Normalization stays: it maps a browser
+ * `KeyboardEvent.key` onto the spec's vocabulary and is not reconstruction.
  */
-
-/**
- * The key words a source declares, ignoring position — the shape most of these tests care about.
- * `null` (a non-literal key word) is passed straight through.
- */
-function declaredKeyWordsOf(source) {
-  const declared = OL.collectDeclaredKeyHandlers(source);
-  return declared === null
-    ? null
-    : new Set(declared.map((entry) => entry.keyWord));
-}
 
 test("#952: the four arrows normalize to the spec's own examples", () => {
   assert.equal(OL.normalizeKeyWord("ArrowLeft"), "left");
@@ -118,97 +110,4 @@ test("#952: KEY_WORD_BY_BROWSER_KEY only renames keys whose lowercase form is no
       `${browserKey} needs no entry: lowercasing already produces "${keyWord}"`,
     );
   }
-});
-
-test("#952 (review round 3): each declaration carries the source position the runtime stamps its registration with, so an unreached one can be told apart", () => {
-  const declared = OL.collectDeclaredKeyHandlers(
-    [
-      'on_key "down" [',
-      '  print "d"',
-      "]",
-      "if false [",
-      '  on_key "up" [',
-      '    print "u"',
-      "  ]",
-      "]",
-      "wait 3",
-    ].join("\n"),
-  );
-
-  assert.deepEqual(declared, [
-    { keyWord: "down", line: 1, column: 1 },
-    { keyWord: "up", line: 5, column: 3 },
-  ]);
-});
-
-test("#952 (review round 2): collectDeclaredKeyHandlers reads the key words a program's on_key statements name", () => {
-  const declared = declaredKeyWordsOf(
-    [
-      'on_key "left" [',
-      "  left 15",
-      "]",
-      'on_key "space" [',
-      "  stamp",
-      "]",
-      "wait 30",
-    ].join("\n"),
-  );
-
-  assert.deepEqual([...declared].sort(), ["left", "space"]);
-});
-
-test("#952: a program with no on_key declares no key words", () => {
-  assert.deepEqual([...declaredKeyWordsOf("forward 100")], []);
-});
-
-test("#952: on_key nested inside a block or a procedure is still found", () => {
-  const declared = declaredKeyWordsOf(
-    [
-      "define setup",
-      '  on_key "up" [',
-      "    forward 10",
-      "  ]",
-      "end",
-      "repeat 1 [",
-      '  on_key "down" [',
-      "    back 10",
-      "  ]",
-      "]",
-      "setup",
-      "wait 10",
-    ].join("\n"),
-  );
-
-  assert.deepEqual([...declared].sort(), ["down", "up"]);
-});
-
-test("#952: a non-literal key word collapses the whole set to null — the safe direction, so nothing is suppressed", () => {
-  assert.equal(
-    declaredKeyWordsOf(
-      [
-        ':chosen = "left"',
-        "on_key :chosen [",
-        "  left 15",
-        "]",
-        "wait 10",
-      ].join("\n"),
-    ),
-    null,
-    "the key word is not knowable before the run, so it must not be silently under-reported",
-  );
-});
-
-test("#952: the real spec/examples/10-game.logo declares exactly the three keys it names", () => {
-  const source = readFileSync(
-    fileURLToPath(
-      new URL("../../../spec/examples/10-game.logo", import.meta.url),
-    ),
-    "utf8",
-  );
-
-  assert.deepEqual([...declaredKeyWordsOf(source)].sort(), [
-    "left",
-    "right",
-    "up",
-  ]);
 });

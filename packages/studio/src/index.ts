@@ -378,11 +378,9 @@ export {
   mountRunController,
 } from "./run-controller.js";
 
-export type { DeclaredKeyHandler } from "./key-words.js";
 export {
   KEY_WORD_BY_BROWSER_KEY,
   MODIFIER_KEY_NAMES,
-  collectDeclaredKeyHandlers,
   normalizeKeyWord,
 } from "./key-words.js";
 

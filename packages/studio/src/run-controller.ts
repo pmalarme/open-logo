@@ -427,6 +427,7 @@
 import { tickAtEventIndex } from "@openlogo/runtime";
 import type {
   CancellationSignal,
+  HandlerDelivery,
   HostInputEvent,
   TickBoundary,
 } from "@openlogo/runtime";
@@ -447,8 +448,6 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import { createInProcessExecutionHost } from "./execution-host.js";
-import { collectDeclaredKeyHandlers } from "./key-words.js";
-import type { DeclaredKeyHandler } from "./key-words.js";
 import type {
   ExecutionHost,
   ExecutionRequest,
@@ -748,128 +747,21 @@ function hasRegisteredHandler(
 }
 
 /**
- * How many times this run **invoked** the `<name>` handler registered at each source position
- * (#952, review round 6; generalized from `on_key` to any registration form by #985).
+ * Whether `delivery` — the runtime's report for one host-input occurrence — says that occurrence
+ * ran a handler (#976). `undefined` means no report exists for it, which is **not** "nothing ran":
+ * a Worker settlement carries no report at all, and an occurrence the run never reached has none
+ * either. Both resolve to `false`, and both are the conservative direction — the studio confirms
+ * nothing it cannot prove, so nothing is silently intercepted.
  *
- * `spec/interaction-events.md:102-103` — "The start of a handler block emits an `instruction` event
- * for the block-head that caused the handler to run." Registration emits an `instruction` **and** a
- * `primitive` at the same start position, an invocation emits only the `instruction`, so at a given
- * position `invocations = instructions − registrations`.
- *
- * Keyed by position and restricted to positions that actually **registered** a `<name>` handler,
- * because "how many times did the handler here run" is meaningless where no handler was registered.
- * That restriction is also the safe direction: were the runtime's registration position ever to
- * disagree with a caller's own idea of it, the answer is `0` — "nothing ran" — which suppresses
- * nothing, rather than an uncorrelated instruction count that would suppress a key silently.
- *
- * This is the counting half of the **fifth** formulation for one question; the four before it each
- * answered from *history* and each re-created silent interception on a different axis:
- * event-stream **length** was not *monotonic* (a raising handler shortens the stream, so a handler
- * that ran reported "nothing responded"), a settle-later **query** failed on *timing* (the answer
- * arrives after the `keydown` has already scrolled), declaration/registration **pairing** proved
- * only *eventual* registration, and "ever responded" **membership** outlived the ticks that could
- * fire. Counting is sound on those axes, measured for `on_key` at #952 and re-measured for
- * `on_click` at #985:
- * - **monotonicity** — a handler raising on its *first* instruction still reports 1, because the
- *   block-head marker is emitted before the handler can fail (measured: `on_click [ print :nope ]`
- *   counts 1 invocation while printing nothing and raising `ol-undefined-var`);
- * - **aliasing** — `repeat 2 [ on_key "up" [ … ] ]` registers twice at one position, and one press
- *   fires **both** (`interaction-events.md` forbids collapsing duplicate registrations), so the
- *   arithmetic gives 2 and the program prints twice: an independent witness agreeing with the count.
- *   Nesting keeps each position's arithmetic separate. Measured identically for `on_click`:
- *   `repeat 2 [ on_click [ print "c" ] ]` counts 2 then 4 across two clicks, and prints 2 then 4.
- *
- * It is a **count, not a boolean**, and callers must read it as a strict increase across one
- * delivery — never as "non-zero", which would report every delivery after the first.
+ * This one line replaces the whole source-position reconstruction #952 needed before the runtime
+ * reported deliveries: `instructions − registrations` per `line:column`, folded onto key words
+ * parsed back out of the program text, then differenced across a delivery. That machinery answered
+ * from *history*, which is the failure mode #985 warns against and the reason `deliverKey` had to
+ * bound its own drain so a later press's invocation could not be credited to this one. A per-
+ * delivery count is not a smaller version of that mechanism; it removes the class of mistake.
  */
-function handlerInvocationsByPosition(
-  events: readonly TraceEvent[],
-  name: string,
-): ReadonlyMap<string, number> {
-  // One entry per position, counting both markers together: a registration always emits its
-  // `instruction` at the same position as its `primitive`, so a separate instruction lookup would
-  // carry a "no instruction here" fallback that no program can reach.
-  const countsAt = new Map<
-    string,
-    { instructions: number; registrations: number }
-  >();
-  for (const event of events) {
-    const isInstruction = event.kind === "instruction";
-    const isRegistration =
-      event.kind === "primitive" &&
-      (event.payload as PrimitivePayload).name === name;
-    if (!isInstruction && !isRegistration) {
-      continue;
-    }
-    const [line, column] = event.source_span.start;
-    const position = `${line}:${column}`;
-    const counts = countsAt.get(position) ?? {
-      instructions: 0,
-      registrations: 0,
-    };
-    if (isInstruction) {
-      counts.instructions += 1;
-    } else {
-      counts.registrations += 1;
-    }
-    countsAt.set(position, counts);
-  }
-  const invocationsAt = new Map<string, number>();
-  for (const [position, counts] of countsAt) {
-    if (counts.registrations > 0) {
-      invocationsAt.set(position, counts.instructions - counts.registrations);
-    }
-  }
-  return invocationsAt;
-}
-
-/**
- * How many times this run invoked an `on_key` handler declared at each of `declared`'s positions
- * (#952, review round 6), keyed by key word — {@link handlerInvocationsByPosition} folded onto the
- * key words `key-words.ts` parsed out of the same source, which is what turns a per-position count
- * into the per-key one `deliverKey` compares.
- */
-function onKeyInvocationsByKeyWord(
-  declared: readonly DeclaredKeyHandler[],
-  events: readonly TraceEvent[],
-): ReadonlyMap<string, number> {
-  const invocationsAt = handlerInvocationsByPosition(events, "on_key");
-  const byKeyWord = new Map<string, number>();
-  for (const entry of declared) {
-    const position = `${entry.line}:${entry.column}`;
-    byKeyWord.set(
-      entry.keyWord,
-      (byKeyWord.get(entry.keyWord) ?? 0) + (invocationsAt.get(position) ?? 0),
-    );
-  }
-  return byKeyWord;
-}
-
-/**
- * How many times this run invoked an `on_click` handler, across every position that registered one
- * (#985) — the click counterpart of {@link onKeyInvocationsByKeyWord}, and the measure `deliverClick`
- * compares across a single delivery.
- *
- * It needs **no** declaration side, and that asymmetry is the whole reason it is a plain total rather
- * than a map: `on_click` takes no argument (`spec/interaction-events.md:59`), so there is no key word
- * to pair a registration with and nothing for `key-words.ts` to parse. Every registered `on_click`
- * handler answers every click (`:88` — "pending `on_click` events in registration order"), so the
- * question a click asks is "did **any** of them run", and summing the registration positions the
- * runtime itself stamped answers it directly from the trace stream.
- *
- * Summing is what makes two handlers agree with their own witness rather than with a hand-written
- * expectation: `on_click [ print "a" ] / on_click [ print "b" ]` counts 2 then 4 across two clicks
- * while printing 2 then 4 lines (measured), so a position nobody thought of still moves the total.
- */
-function onClickInvocations(events: readonly TraceEvent[]): number {
-  let invocations = 0;
-  for (const positionInvocations of handlerInvocationsByPosition(
-    events,
-    "on_click",
-  ).values()) {
-    invocations += positionInvocations;
-  }
-  return invocations;
+function deliveryRanAHandler(delivery: HandlerDelivery | undefined): boolean {
+  return delivery !== undefined && delivery.invocations > 0;
 }
 
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
@@ -1000,12 +892,14 @@ export function createRunController(
   // #985 — the current chain's tick timeline, from the last settlement. It is what makes a delivery
   // land at the tick the PROGRAM is at rather than at a count of how many deliveries preceded it.
   let chainTickTimeline: readonly TickBoundary[] = [];
+  // #976 — the current chain's delivery report, from the last settlement: one entry per host-input
+  // occurrence the run actually delivered, each counting the handler bodies it entered. This is the
+  // runtime *telling* the studio what a delivery did, replacing the source-position reconstruction
+  // (`instructions − registrations`, paired to declarations parsed out of the source) #952 had to
+  // build before the contract existed. Empty under a Worker host — see
+  // `ExecutionSettlement.handlerDeliveries`.
+  let chainHandlerDeliveries: readonly HandlerDelivery[] = [];
   let chainAcceptsHostInput = false;
-  // #952 (review round 2/3) — the `on_key` declarations this chain's program contains, computed once
-  // per chain from the captured source, each with the source position the runtime stamps its
-  // registration with. `null` means at least one `on_key` names a non-literal key, so the set is
-  // unknowable before the run. See `key-words.ts`'s `collectDeclaredKeyHandlers`.
-  let declaredKeyHandlers: readonly DeclaredKeyHandler[] | null = null;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
   // under a host that settles across event-loop turns — is still SCHEDULED and simply replayed when
@@ -1276,6 +1170,10 @@ export function createRunController(
     // #985 — this attempt's tick timeline becomes the chain's, so the NEXT delivery is scheduled
     // against the clock of the run the learner is currently watching.
     chainTickTimeline = settlement.tickTimeline ?? [];
+    // #976 — and so does its delivery report, which is what the next `deliverKey`/`deliverClick`
+    // reads its own occurrence's invocation count out of. Absent under a Worker host, where
+    // structured clone destroys the occurrence identity the match needs.
+    chainHandlerDeliveries = settlement.handlerDeliveries ?? [];
     preparedSource = sourceText;
     // `host` is captured into `pendingRead` so a question can only ever exist when a host was
     // supplied — true by construction rather than by a runtime check.
@@ -1448,12 +1346,19 @@ export function createRunController(
    * non-decreasing ticks (`enqueueHostInput`'s forward cursor would otherwise strand an entry behind
    * a later-tick one), and a learner cannot press a key at an earlier moment than their previous
    * press. Both facts point the same way, so the tick is clamped up to the last one scheduled.
+   *
+   * Returns the scheduled entry — **the very object** installed as `ExecuteOptions.hostInput.events`
+   * — so a caller can find the runtime's report for *this* occurrence by identity (#976). The
+   * runtime sorts the schedule by tick but copies the array shallowly, so the objects it reports back
+   * are these ones; matching on them needs no index arithmetic over that sorted order.
    */
-  function scheduleHostInput(occurrence: HostInputOccurrence): void {
+  function scheduleHostInput(occurrence: HostInputOccurrence): HostInputEvent {
     const drawnTick = tickAtEventIndex(chainTickTimeline, drawnEventCount);
     const lastScheduled = hostInputEvents.at(-1)?.tick ?? 0;
     const tick = Math.max(drawnTick, lastScheduled);
-    hostInputEvents = [...hostInputEvents, { ...occurrence, tick }];
+    const scheduled: HostInputEvent = { ...occurrence, tick };
+    hostInputEvents = [...hostInputEvents, scheduled];
+    return scheduled;
   }
 
   /**
@@ -1537,37 +1442,28 @@ export function createRunController(
     if (!acceptsHostInputFor("on_key")) {
       return false;
     }
-    const declared = declaredKeyHandlers;
-    // #952 (review round 7) — the answer is "did **this press** run a handler", compared strictly
-    // across this one delivery. Membership of an "ever responded" set was tried and is unsound in
-    // the same direction as every earlier mechanism: invocation counts `[0,1,2,2]` produced returns
-    // `[true,true,true]`, so a press that ran nothing was still suppressed. Every formulation that
-    // answers from history rather than from this delivery re-creates silent interception somewhere.
-    const before =
-      declared === null
-        ? 0
-        : (onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0);
-    scheduleHostInput({ kind: "key", key });
+    // #976 — the answer is "did **this press** run a handler", and since #1024 the runtime reports
+    // exactly that: one `HandlerDelivery` per delivered occurrence, counting the handler bodies it
+    // entered. The occurrence scheduled here is the object the report names, so the answer is read
+    // rather than reconstructed.
+    //
+    // What this replaces was the fifth formulation of the same question and the first sound one, but
+    // it was still answered from history — `instructions − registrations` per source position,
+    // folded onto key words parsed back out of the program text, differenced across the delivery.
+    // Its soundness depended on the differencing window: an unbounded drain credited a *later*
+    // press's invocation to this one (measured at #952 review round 7). A per-delivery count has no
+    // window to get wrong.
+    const scheduled = scheduleHostInput({ kind: "key", key });
     // Drain **only as far as this press**. A settlement can deliver more input re-entrantly (a state
-    // subscriber, a prompt host), and an unbounded drain consumed those too — so `after` counted a
-    // *later* press's invocation and credited it to this one: measured, the tick-1 press reported
-    // `true` and suppressed the key while only the nested tick-2 press actually printed. Anything
-    // scheduled during this drain is left for the loop that owns it.
-    const scheduledLength = hostInputEvents.length;
-    drainDeliveredInput(scheduledLength);
-    if (declared === null) {
-      // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing. The
-      // remainder still has to be flushed on this path too — returning early from here stranded a
-      // re-entrant press until some unrelated later delivery happened to drain it.
-      drainDeliveredInput();
-      return false;
-    }
-    const after =
-      onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0;
-    const ranAHandler = after > before;
-    // Anything scheduled re-entrantly during the drain above was deliberately left behind so it
-    // could not be credited to this press. Deliver it now that the attribution is settled — leaving
-    // it stranded would be the other half of the same bug.
+    // subscriber, a prompt host), so anything scheduled during this drain is left for the loop that
+    // owns it — the schedule must not grow past this press before its own delivery has settled.
+    drainDeliveredInput(hostInputEvents.length);
+    const ranAHandler = deliveryRanAHandler(
+      chainHandlerDeliveries.find((delivery) => delivery.input === scheduled),
+    );
+    // Anything scheduled re-entrantly during the drain above was deliberately left behind. Deliver
+    // it now that this press's own report has been read — leaving it stranded would be the other
+    // half of the same bug.
     drainDeliveredInput();
     return ranAHandler;
   }
@@ -1576,22 +1472,17 @@ export function createRunController(
     if (!acceptsHostInputFor("on_click")) {
       return false;
     }
-    // #985 — measured across THIS delivery, exactly as `deliverKey` measures a press. Before this,
-    // `deliverClick` returned `true` the moment the gate above passed, which answers a different
-    // question: measured on `wait 1 / on_click [ print :score ] / wait 2`, the first click returned
-    // `true` while the handler had not run and nothing was printed. Every reason the key side
-    // rejected a gate-shaped answer applies unchanged to a click, so the two now report the same
-    // thing rather than two booleans that merely look alike.
-    const before = onClickInvocations(currentEvents);
-    scheduleHostInput({ kind: "click" });
-    // Drain only as far as this click, for the reason `deliverKey` documents: a settlement can
-    // deliver more input re-entrantly, and an unbounded drain would credit a later click's
-    // invocation to this one.
-    const scheduledLength = hostInputEvents.length;
-    drainDeliveredInput(scheduledLength);
-    const ranAHandler = onClickInvocations(currentEvents) > before;
-    // Flush what the bounded drain deliberately left behind, now that the attribution is settled —
-    // stranding it would be the other half of the same bug.
+    // #976 — read from the runtime's report for exactly this occurrence, as `deliverKey` does. The
+    // two used to be two booleans that merely looked alike: before #985 `deliverClick` returned
+    // `true` the moment the gate above passed, which answers a question about the *run* rather than
+    // about this activation (measured on `wait 1 / on_click [ print :score ] / wait 2`, the first
+    // click returned `true` while the handler had not run and nothing was printed). They now report
+    // the same thing because they read the same contract.
+    const scheduled = scheduleHostInput({ kind: "click" });
+    drainDeliveredInput(hostInputEvents.length);
+    const ranAHandler = deliveryRanAHandler(
+      chainHandlerDeliveries.find((delivery) => delivery.input === scheduled),
+    );
     drainDeliveredInput();
     return ranAHandler;
   }
@@ -1634,8 +1525,8 @@ export function createRunController(
     // opens.
     hostInputEvents = [];
     chainTickTimeline = [];
+    chainHandlerDeliveries = [];
     chainAcceptsHostInput = true;
-    declaredKeyHandlers = collectDeclaredKeyHandlers(chainSource);
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1735,8 +1626,8 @@ export function createRunController(
     // starts a genuinely fresh chain in this dimension too, exactly as it does for the answer FIFO.
     hostInputEvents = [];
     chainTickTimeline = [];
+    chainHandlerDeliveries = [];
     chainAcceptsHostInput = false;
-    declaredKeyHandlers = null;
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;

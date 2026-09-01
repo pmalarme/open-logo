@@ -1080,10 +1080,15 @@ test("#952 (review finding 2): a handler that RAISES still counts as this press 
   );
 });
 
-test("#952: a non-literal on_key key word still DELIVERS, it just never suppresses — the safe direction", () => {
-  // `collectDeclaredKeyWords` reports `null` when a key word is not a literal, because the set is
-  // unknowable before the run. The press is still scheduled and the handler still fires; only the
-  // browser-default suppression is withheld, so a key is never silently swallowed on a guess.
+test("#976: a non-literal on_key key word is now CONFIRMED, because the runtime reports the delivery", () => {
+  // The improvement the contract buys. `collectDeclaredKeyHandlers` read key words out of the
+  // source, so `on_key :chosen [ … ]` was unknowable and the studio reported `false` — the handler
+  // fired, but the press was never confirmed and its browser default never suppressed. The runtime
+  // now counts the handler bodies THIS delivery entered, and it does not care whether the key word
+  // was a literal, so a non-literal handler that genuinely fires is confirmable like any other.
+  //
+  // Reverting `deliverKey` to the pre-#976 declaration pairing fails this test: it returns `false`
+  // here while the output still shows the handler ran.
   const store = OL.createStudioState({
     source: [
       ':chosen = "left"',
@@ -1102,13 +1107,44 @@ test("#952: a non-literal on_key key word still DELIVERS, it just never suppress
 
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "nothing is claimed about a key word that cannot be read from the source",
+    true,
+    "the press is confirmed from the runtime's own count, not from the source text",
   );
   assert.deepEqual(
     store.getState().output,
     ["turned"],
-    "…but the delivery genuinely happened and the handler ran",
+    "…and the program's own output agrees that the handler ran",
+  );
+});
+
+test("#976: a non-literal on_key handler that does NOT match the pressed key still reports false", () => {
+  // The control for the test above, and the direction that matters: confirming a non-literal key
+  // word must not become "confirm every press". `:chosen` is `"left"`, so a `"right"` press runs
+  // nothing — and an answer read from this delivery's own invocation count says so, where an
+  // "anything registered?" gate would have claimed the press and swallowed the browser's scroll.
+  const store = OL.createStudioState({
+    source: [
+      ':chosen = "left"',
+      "on_key :chosen [",
+      '  print "turned"',
+      "]",
+      "wait 5",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    controller.deliverKey("right"),
+    false,
+    "a key no handler names ran nothing, and nothing is suppressed",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    [],
+    "…which the program's own silence confirms",
   );
 });
 
@@ -1413,10 +1449,16 @@ test("#952 (review round 7): a delivery that arrives re-entrantly is not credite
   );
 });
 
-test("#952 (review round 8): a re-entrant press is flushed on the non-literal path too", () => {
-  // The `declared === null` early return sat before the remainder flush, so a press arriving
-  // re-entrantly was stranded until some unrelated later delivery happened to drain it. Measured on
-  // the pre-fix tree: two presses produced one invocation, and a third flushed both pending ticks.
+test("#952 (review round 8), re-measured for #976: a re-entrant press is flushed, and each press is credited to itself", () => {
+  // The remainder flush this pins is unchanged: a press arriving re-entrantly during the bounded
+  // drain must be delivered once this press's own answer has been read, never stranded until some
+  // unrelated later delivery happens to drain it (measured pre-fix: two presses produced one
+  // invocation, and a third flushed both pending ticks).
+  //
+  // What changed at #976 is the answer's source. The old declaration pairing could not read a
+  // non-literal key word, so this press reported `false`; the runtime's per-delivery count reports
+  // what THIS press actually did. That is also the attribution the bound exists to protect — the
+  // answer is press 1's own `invocations`, never a total that the re-entrant press 2 has moved.
   const store = OL.createStudioState({
     source: [
       ':chosen = "left"',
@@ -1443,8 +1485,8 @@ test("#952 (review round 8): a re-entrant press is flushed on the non-literal pa
 
   assert.equal(
     controller.deliverKey("left"),
-    false,
-    "a non-literal key word claims nothing and suppresses nothing",
+    true,
+    "this press ran a handler, and it is credited with its own invocation",
   );
   unsubscribe();
 
