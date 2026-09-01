@@ -105,6 +105,11 @@ const READ_REPORT = {
   events: [],
   output: ["before"],
   tutorOutput: [],
+  // #985's field, on the shared fixture so every test that spreads it produces a valid report.
+  // `retainedAnswers` is deliberately NOT here: the read-report test below relies on its absence to
+  // exercise the host's `reportedAnswers ?? active.answers` fallback, and the two tests that care
+  // about adoption supply it explicitly.
+  tickTimeline: [],
 };
 
 test("execute posts one run command carrying the request and a shared buffer", () => {
@@ -569,4 +574,57 @@ test("both halves together: Stop while a question is open ends the run", () => {
     ["?"],
   );
   assert.deepEqual(settlements[0].output, ["before"]);
+});
+
+test("#976: the host ADOPTS the runner's truncated answers, so a diverged prompt is not re-asked forever", () => {
+  // `worker-execution-host.ts`'s `reportedAnswers ?? active.answers`. Review measured that reverting
+  // it to `active.answers` — the pre-fix form — survives all 4750 tests: line coverage was satisfied
+  // (`retainedAnswers` appears in four test files) while every one of them exercised the *plumbing*,
+  // and none constructed the only case the line changes.
+  //
+  // That case: `request.answers` is non-empty AND the runner truncated it. The runner drops every
+  // entry from the position a replay reached a different question (`resolveRecordedAnswer`), because
+  // an answer given for a question the learner is no longer being asked must never reach its
+  // replacement. If the host restores the request's own list instead, the next replay diverges at
+  // the same position again — so the replacement question is re-asked on **every** delivery, forever.
+  const { fake, host } = makeHost();
+  const request = makeRequest({
+    answers: [
+      { prompt: "who?", answer: "ada" },
+      { prompt: "colour?", answer: "red" },
+    ],
+  });
+
+  host.execute(request, recordSettlement);
+  // The runner reached "who?" again but a DIFFERENT second question, so it kept only the first entry.
+  fake.report({
+    ...READ_REPORT,
+    retainedAnswers: [{ prompt: "who?", answer: "ada" }],
+  });
+
+  const settlement = takeSettlements().at(-1);
+  assert.deepEqual(
+    settlement.retainedAnswers,
+    [{ prompt: "who?", answer: "ada" }],
+    "the truncation must survive into the chain — restoring the request's own two-entry list is the forever-re-ask bug",
+  );
+});
+
+test("#976: with no truncation the host still reports the chain's own answers — the control", () => {
+  // Pairs with the test above. Without it, "adopts the reported list" would also be satisfied by a
+  // host that dropped answers unconditionally, and the assertion would prove nothing.
+  const { fake, host } = makeHost();
+  const answers = [
+    { prompt: "who?", answer: "ada" },
+    { prompt: "colour?", answer: "red" },
+  ];
+
+  host.execute(makeRequest({ answers }), recordSettlement);
+  fake.report({ ...READ_REPORT, retainedAnswers: answers });
+
+  assert.deepEqual(
+    takeSettlements().at(-1).retainedAnswers,
+    answers,
+    "an untruncated report carries the whole chain through unchanged",
+  );
 });

@@ -1196,7 +1196,10 @@ test("#985: nextStepEndIndex reports the boundary step() would consume, and the 
   assert.ok(predicted.length > 1, "the stream really did take several steps");
 
   // Exhausted: there is no next step, so it reports the cursor itself rather than running past the
-  // end. This is the branch a host hits on the final step of a trailing `wait`.
+  // end. Reached directly here rather than through playback: `driveRun` guards `cursor >= length`
+  // before it would ever schedule, so a host never observes an exhausted cursor — measured at 0 hits
+  // across seven studio program shapes, including a trailing `wait`, against a control of 1 for a
+  // direct call. The branch is defensive depth, and it is covered here rather than incidentally.
   assert.equal(controller.getSnapshot().status, "done");
   assert.equal(controller.nextStepEndIndex(), controller.getSnapshot().cursor);
   assert.equal(controller.nextStepEndIndex(), events.length);
