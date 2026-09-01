@@ -509,7 +509,8 @@ sessions still produce byte-identical event streams.
 
 The other half of the same root. Playback used a uniform per-step delay and never consulted the
 clock, so `wait 0`, `wait 1` and `wait 9` were **identical** — 3 callbacks, delays
-`[951, 951, 951]`, total 2853 for all three. A learner writing `wait 9` to slow a drawing down saw
+`[505, 505, 505]`, total 1515 for all three — identical to the no-`wait` control's own per-step
+delay. A learner writing `wait 9` to slow a drawing down saw
 no difference at all.
 
 A step's delay is now scaled by the ticks that step spends: `1 + elapsed`, its own drawing time plus

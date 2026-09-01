@@ -1216,7 +1216,7 @@ export function createRunController(
     // ticks *that step* will spend, which is how `wait n` finally paces the animation:
     // `spec/interaction-events.md:69-73` makes rendering, animation and event dispatch share one
     // tick clock, and before this the studio's playback ignored it entirely — `wait 0`, `wait 1` and
-    // `wait 9` produced identical `[951, 951, 951]` delays over an identical 2853 total.
+    // `wait 9` produced identical `[505, 505, 505]` delays over an identical 1515 total.
     //
     // The step is priced BEFORE it runs, which is why this reads the animation controller's own
     // `nextStepEndIndex()` rather than charging the step that just finished: `:116-118`'s case —

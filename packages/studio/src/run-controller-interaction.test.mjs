@@ -1998,8 +1998,9 @@ function pacedDelaysFor(source) {
 
 test("#985 F4: `wait n` paces the animation — wait 0, 1, 2 and 9 are measurably different", () => {
   // F4, and the half the pre-freeze work never implemented. Measured before the fix: `wait 0`,
-  // `wait 1` and `wait 9` produced IDENTICAL playback — 3 callbacks, delays [951, 951, 951], total
-  // 2853 for all three. A learner writing `wait 9` to slow a drawing down saw no difference at all.
+  // `wait 1` and `wait 9` produced IDENTICAL playback — 3 callbacks, delays [505, 505, 505], total
+  // 1515 for all three, indistinguishable from a program with no `wait` at all. A learner writing
+  // `wait 9` to slow a drawing down saw no difference whatsoever.
   //
   // `spec/interaction-events.md:69-73` makes a tick "an implementation-defined logical frame used by
   // rendering, animation, and event dispatch" — ONE clock for all three. The studio was using it for
@@ -2009,6 +2010,25 @@ test("#985 F4: `wait n` paces the animation — wait 0, 1, 2 and 9 are measurabl
     ticks,
     ...pacedDelaysFor(`forward 10\nwait ${ticks}\nforward 10`),
   }));
+
+  // **Assert the delay VECTOR, not just the total.** Review measured two mutants that a totals-only
+  // check waves through, both with multi-second user-visible consequences and neither producing a
+  // diagnostic:
+  //   - dropping the `pacedTick` accumulator charges every ordinary step AFTER a wait the whole
+  //     elapsed tick count — `wait 5 / forward ×3` goes from [3030,505,505,505] to
+  //     [3030,3030,3030,3030] — while the totals stay distinct and increasing;
+  //   - pricing at `nextStepEndIndex()` instead of `… - 1` shifts which step pays.
+  // A total is a lossy projection of the thing under test. The vector is the thing under test.
+  assert.deepEqual(
+    measured.map((entry) => entry.delays.map(Math.round)),
+    [
+      [505, 505, 505],
+      [505, 1010, 505],
+      [505, 1515, 505],
+      [505, 5050, 505],
+    ],
+    "each wait must charge its own step, and only its own step",
+  );
 
   const totals = measured.map((entry) => entry.total);
   assert.equal(
@@ -2022,12 +2042,105 @@ test("#985 F4: `wait n` paces the animation — wait 0, 1, 2 and 9 are measurabl
       `a longer wait must take longer: wait ${measured[index].ticks} (${totals[index]}) vs wait ${measured[index - 1].ticks} (${totals[index - 1]})`,
     );
   }
+});
 
-  // The step counts are identical — this is pacing, not extra frames. Playback still draws the same
-  // three steps; only the time between them changes.
+test("#985 F4: a step after a wait is charged its OWN ticks, never the run's elapsed total", () => {
+  // The invariant `run-controller.ts` states — "an ordinary drawing step spends no tick and still
+  // costs exactly 1" — asserted rather than declared. Removing the `pacedTick` accumulator leaves
+  // this program at [3030, 3030, 3030, 3030] with the whole suite green, so without this the
+  // documented claim has no witness.
   assert.deepEqual(
-    measured.map((entry) => entry.delays.length),
-    [3, 3, 3, 3],
+    pacedDelaysFor("wait 5\nforward 10\nforward 10\nforward 10").delays.map(
+      Math.round,
+    ),
+    [3030, 505, 505, 505],
+    "the wait's step pays 6x; the three drawing steps after it pay 1x each",
+  );
+
+  // Two waits, so the accumulator has to advance twice rather than once.
+  assert.deepEqual(
+    pacedDelaysFor(
+      "forward 10\nwait 9\nforward 10\nwait 9\nforward 10",
+    ).delays.map(Math.round),
+    [505, 5050, 505, 5050, 505],
+    "each wait charges only itself, and the second is not charged the first's ticks again",
+  );
+});
+
+test("#985 F4: a delivery replay resumes pacing at the tick already spent, not from zero", () => {
+  // The resume seed, whose own comment names the consequence: "without this the first step after a
+  // delivery replay would be charged the whole run's elapsed ticks." Measured with it deleted, on
+  // this exact program: the first replay step takes **15655 ms** instead of 505 — a 15-second freeze
+  // on every key press, at default speed, in precisely the `spec/interaction-events.md:116-118`
+  // program this feature exists to serve. `deliverKey` still returns `true`, the output is still
+  // correct, and there is no diagnostic. The suite was green.
+  const delays = [];
+  const scheduler = (callback, delayMs) => {
+    delays.push(delayMs);
+    callback();
+    return NO_OP_CANCEL;
+  };
+  const store = OL.createStudioState({
+    source: [
+      'on_key "a" [',
+      "  forward 10",
+      '  print "moved"',
+      "]",
+      "wait 30",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    scheduler,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.deepEqual(
+    delays.map(Math.round),
+    [505, 15655],
+    "the initial run charges the trailing wait 31x, on its own step",
+  );
+
+  delays.length = 0;
+  assert.equal(controller.deliverKey("a"), true);
+  assert.deepEqual(
+    delays.map(Math.round),
+    [505, 505],
+    "the replay resumes at the tick already spent — every step is 1x, not 31x",
+  );
+
+  // And it must not creep: a second press re-seeds from the same place.
+  delays.length = 0;
+  controller.deliverKey("a");
+  assert.deepEqual(
+    delays.map(Math.round),
+    [505, 505],
+    "…and the same holds on every subsequent press",
+  );
+});
+
+test("#985 F4: a handler firing inside a wait is charged the tick it ran on, not the next one", () => {
+  // The boundary choice `nextStepEndIndex() - 1` — pricing a step at its LAST event rather than at
+  // the first event of the next step. Review found no test could tell the two apart; measured, they
+  // differ exactly when a tick boundary lands on a step boundary, which is what an `every` handler
+  // firing once per tick produces (6 such collisions across the shapes probed, versus 0 for plain
+  // `forward`/`wait` programs — which is why the simple shapes above cannot pin it).
+  //
+  // `every 1 [ … ] / wait 4` fires a handler on each of four ticks. Each handler body is its own
+  // step, and each must be charged the tick it actually ran on. Pricing at `nextStepEndIndex()`
+  // instead shifts every one of them onto the following step.
+  assert.deepEqual(
+    pacedDelaysFor('every 1 [ print "e" ]\nwait 4').delays.map(Math.round),
+    [505, 505, 1010, 505, 1010, 505, 1010, 505, 1010, 505],
+    "each tick's handler pays for its own tick; the steps between pay 1x",
+  );
+
+  // A registration followed by a wait nothing fires in: one step for the registration, one for the
+  // wait, and the wait's three ticks land wholly on the wait's own step.
+  assert.deepEqual(
+    pacedDelaysFor('on_key "a" [ print "x" ]\nwait 3').delays.map(Math.round),
+    [505, 2020],
+    "the registration step costs 1x and the wait step costs 4x",
   );
 });
 
