@@ -1967,13 +1967,21 @@ test("#985: one click fires every registration at a position, and the count agre
   );
 });
 
+/**
+ * The canceller `Scheduler` requires. These harnesses drive each step immediately, so playback
+ * completes inside `run()` and the animation controller never has a pending step to cancel — but the
+ * contract still requires one and it must be safe to call. Hoisted rather than allocated per
+ * scheduling call, so "is a safe no-op" is one assertable fact rather than one per step.
+ */
+const NO_OP_CANCEL = () => {};
+
 /** Collect every delay a paced run schedules, driving each callback immediately so no real time passes. */
 function pacedDelaysFor(source) {
   const delays = [];
   const scheduler = (callback, delayMs) => {
     delays.push(delayMs);
     callback();
-    return () => {};
+    return NO_OP_CANCEL;
   };
   const store = OL.createStudioState({ source });
   const controller = OL.createRunController(store, {
@@ -2034,6 +2042,10 @@ test("#985 F4: a program with no `wait` is paced exactly as before — the ~90% 
     1,
     `a program that spends no tick must keep a uniform delay, got ${JSON.stringify(delays)}`,
   );
+  // The canceller this harness hands back satisfies `Scheduler`'s contract and is safe to call even
+  // though nothing here has a pending step to cancel — asserted rather than assumed, since an
+  // unexercised canceller is exactly the kind of thing that turns out to throw.
+  assert.doesNotThrow(NO_OP_CANCEL);
 });
 
 test("#985 F4: a long `wait` holds the run open while handlers drive the animation", () => {

@@ -931,8 +931,13 @@ test("#985: the Worker host and the in-process host schedule a delivery IDENTICA
     for (let press = 0; press < 4; press += 1) {
       confirmed.push(controller.deliverKey("a"));
     }
+    const scheduled = requests.at(-1).hostInputEvents;
+    assert.ok(scheduled, "the replay carried a schedule");
+    // Reset so each host's run is closed before the next is measured, and so the recording
+    // wrapper's `cancel` is reached rather than merely declared.
+    controller.reset();
     return {
-      ticks: (requests.at(-1).hostInputEvents ?? []).map((entry) => entry.tick),
+      ticks: scheduled.map((entry) => entry.tick),
       confirmed,
     };
   }

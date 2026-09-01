@@ -1171,3 +1171,59 @@ test("seekToEventIndex cancels a step scheduled by a prior run(), like step() do
   );
   assert.equal(controller.getSnapshot().status, "done");
 });
+
+test("#985: nextStepEndIndex reports the boundary step() would consume, and the cursor once exhausted", () => {
+  // A host pricing the upcoming step needs its end index BEFORE the step runs, and must get the
+  // SAME boundary stepping uses — a second definition could disagree, and a host that priced a step
+  // differently from the step it then played would be wrong with nothing to catch it. So this
+  // asserts the equivalence directly rather than the rule.
+  const events = repeat4ForwardRightEvents();
+  const controller = new OL.TurtleAnimationController(events);
+
+  const predicted = [];
+  const actual = [];
+  while (controller.getSnapshot().status !== "done") {
+    predicted.push(controller.nextStepEndIndex());
+    controller.step();
+    actual.push(controller.getSnapshot().cursor);
+  }
+
+  assert.deepEqual(
+    predicted,
+    actual,
+    "every predicted boundary is exactly where step() landed",
+  );
+  assert.ok(predicted.length > 1, "the stream really did take several steps");
+
+  // Exhausted: there is no next step, so it reports the cursor itself rather than running past the
+  // end. This is the branch a host hits on the final step of a trailing `wait`.
+  assert.equal(controller.getSnapshot().status, "done");
+  assert.equal(controller.nextStepEndIndex(), controller.getSnapshot().cursor);
+  assert.equal(controller.nextStepEndIndex(), events.length);
+});
+
+test("#985: nextStepEndIndex is a pure measurement — asking never advances anything", () => {
+  // The control for the test above: if asking consumed a step, the equivalence there would still
+  // hold while the animation silently skipped frames.
+  const controller = new OL.TurtleAnimationController(
+    repeat4ForwardRightEvents(),
+  );
+  const before = controller.getSnapshot();
+
+  controller.nextStepEndIndex();
+  controller.nextStepEndIndex();
+  controller.nextStepEndIndex();
+
+  const after = controller.getSnapshot();
+  assert.equal(after.cursor, before.cursor);
+  assert.equal(after.status, before.status);
+});
+
+test("#985: nextStepEndIndex over an empty stream reports the cursor", () => {
+  // The other way to reach the exhausted branch: a controller with nothing to play at all, which is
+  // what a program that fails to parse hands the studio.
+  const controller = new OL.TurtleAnimationController([]);
+
+  assert.equal(controller.nextStepEndIndex(), 0);
+  assert.equal(controller.getSnapshot().cursor, 0);
+});
