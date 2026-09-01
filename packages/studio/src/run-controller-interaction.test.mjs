@@ -220,6 +220,11 @@ function pinnedSeed(seed) {
  * - `pending()` — how many steps are outstanding; non-zero means playback is genuinely mid-flight.
  * - `drain()` — run every queued step, and anything they queue in turn, to completion.
  *
+ * **Cancellation is not modelled.** scheduler returns a no-op canceller, so a cancel the controller
+ * requests is discarded and drain() will still run work the controller cancelled. Harmless today —
+ * the controller guards its own state, and the observable outcome after Stop is identical — but a
+ * test asserting pending() === 0 after Stop would be measuring the harness, not the product.
+ *
  * **What it can and cannot do.** It holds playback *before its next step*, which is enough to make a
  * run observably mid-flight and to act while it is. It does **not** let a test stop at an arbitrary
  * intermediate boundary — there is no single-step control, because nothing needs one yet and an
@@ -2452,5 +2457,9 @@ test("#976 AC2: a DEFERRED delivery is re-clamped past a read that finished whil
     observed,
     'what the learner already read must survive as a PREFIX — with a stale tick the replay puts "turned" in front of "C"',
   );
+  // The FULL vector, not just the prefix. Review measured that asserting the prefix alone survives an
+  // over-raise: push the delivery past the program's end and the handler silently never runs, while
+  // the prefix still holds. A one-sided assertion catches reordering and misses disappearance.
+  assert.deepEqual(after, ["A", "C", "turned", "B"]);
   assert.deepEqual(host.prompts, ["first?", "second?"], "each asked once");
 });
