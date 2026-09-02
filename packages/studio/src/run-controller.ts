@@ -1603,8 +1603,8 @@ export function createRunController(
    * both read **playback**, and under the default `IMMEDIATE_SCHEDULER` playback drains inside
    * `run()`, so both read `"done"` for a program sitting in a `wait`. Measured here as a mutation
    * arm: replacing this body with `animation?.getSnapshot().status !== "done"` — the predicate
-   * review proposed — fails **41 of the 622** studio tests, AC2's among them, while AC1's and
-   * AC3's still pass.
+   * review proposed — fails **42 of the 622** studio tests, AC2's among them, while AC1's and the
+   * yielding-`forever` AC3's still pass.
    *
    * This reads the program's **clock** instead. Playback enters only as the floor, and the floor is
    * *compared against the clock*: a fully-drawn `wait 300` program has `floor === 300` and

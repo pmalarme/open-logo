@@ -2659,7 +2659,7 @@ test("#1039 AC2: a program pausing in a `wait` is NOT ended — its handler runs
   // is `"done"` here the instant `run()` returns — asserted below — and a gate on playback reads the
   // same, because the immediate scheduler drains the whole stream inside `run()`. Measured: swapping
   // `programIsStillRunning`'s body for `animation?.getSnapshot().status !== "done"`, the predicate
-  // review proposed in #1027, fails 41 of the 622 studio tests and **this** test is one of them.
+  // review proposed in #1027, fails 42 of the 622 studio tests and **this** test is one of them.
   // No `scheduler` option is passed on purpose: this is the default, and the path such a gate would
   // have broken.
   const store = OL.createStudioState({
