@@ -848,16 +848,24 @@ test("#953/#1034: charging a tick creates no additional step or `instruction` ev
   // `### wait <n>`): "Charging a tick does not create an additional step or `instruction` event."
   //
   // Its companion fixture (`tests/conformance/interaction-events/wait/
-  // wait-emits-no-per-tick-instruction`) pins ONE n exactly. The property the sentence states is
-  // stronger — the count must not grow with n at all — and a conformance fixture cannot express
-  // "for any n", so this is the half that lives here. An implementation emitting a per-tick
-  // `instruction` passes at no n; one that emitted it only past some threshold would pass the
-  // fixture and fail here.
+  // wait-emits-no-per-tick-instruction`) pins ONE n exactly, and `wait 2` above already pins n = 2
+  // by asserting a two-event stream — so an UNCONDITIONAL per-tick emission was never unguarded.
+  // What had no guard anywhere is constancy in n, and that is what this test is for: a THRESHOLD
+  // implementation, emitting per-tick only past some count, passes every fixture whose n is below
+  // it. Measured by the reviewing QA at a threshold of 1000: all 942 conformance fixtures pass, all
+  // five pre-existing witnesses pass, and this test alone fails. The samples below span 0 to
+  // 200,000, so a threshold inside that span is caught; one above it is not, and this test does not
+  // claim otherwise.
+  //
+  // `wait 0` is the boundary case rather than a witness for per-tick emission — it advances no tick,
+  // so no per-tick rule can act on it. It pins that a pause which charges nothing still emits
+  // exactly the one `instruction` event its own statement owes.
   //
   // "Step" is not a separate thing to measure: `spec/execution-model.md`'s trace-and-event registry
   // defines a step as "the span from one `instruction` event to the next", so the `instruction`
   // count IS the step count. That is also why this is learner-visible rather than merely tidy —
-  // had charging created steps, `wait 300` would take 300 presses of the studio's Next step.
+  // under an unconditional per-tick emission `wait 300` measures 301 instruction events, so a
+  // learner stepping through `spec/examples/10-game.logo` would face 301 presses instead of one.
   const instructionCount = (source) =>
     execute(source, doc).events.filter((event) => event.kind === "instruction")
       .length;
@@ -870,10 +878,12 @@ test("#953/#1034: charging a tick creates no additional step or `instruction` ev
     );
   }
 
-  // The discriminating control, without which the assertion above is satisfied by a runtime that
-  // emits no `instruction` events at all: a charged unit the learner CAN step through emits one per
-  // pass, and its count does scale with n. So "1, constant" is a property of `wait` specifically,
-  // not an artefact of how this test counts.
+  // The positive control for the instrument. It is NOT what rejects a runtime emitting no
+  // `instruction` events at all — the assertion above already does that, since such a runtime makes
+  // `instructionCount` return 0 and `assert.equal(0, 1)` throws. What it proves is that the counting
+  // works and that a charged unit the learner CAN step through does scale with n, so "1, constant"
+  // is a property of `wait` rather than an artefact of how this test counts. A "0 findings" result
+  // from an enumerator is a broken instrument until a positive control passes.
   for (const n of [2, 10, 300]) {
     assert.equal(instructionCount(`repeat ${n} [ forward 1 ]`), n + 1);
   }

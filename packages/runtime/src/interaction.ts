@@ -202,10 +202,12 @@ export type TickDispatch = (tick: number) => boolean;
  *
  * The second half of that sentence — no additional step or `instruction` event — is pinned by
  * `tests/conformance/interaction-events/wait/wait-emits-no-per-tick-instruction` at one tick count
- * and by `interaction-wait.test.mjs` as constant in `n`. It is load-bearing for the learner, not
- * merely for the trace: a step is "the span from one `instruction` event to the next"
- * (`spec/execution-model.md`'s trace-and-event registry), so a per-tick `instruction` would have
- * made a single **Next step** press on `spec/examples/10-game.logo`'s `wait 300` cost 300 presses.
+ * and by `interaction-wait.test.mjs` as constant in `n` (the half a fixture cannot express, and the
+ * only guard against an implementation that emits per-tick past a threshold). It is load-bearing
+ * for the learner, not merely for the trace: a step is "the span from one `instruction` event to
+ * the next" (`spec/execution-model.md`'s trace-and-event registry), so a per-tick `instruction`
+ * would have made a single **Next step** press on `spec/examples/10-game.logo`'s `wait 300` cost
+ * 301 — measured under that mutation, not estimated.
  *
  * Modelled as a plain `boolean`, like {@link TickDispatch}, so this module stays free of the
  * evaluator's control-flow types; the caller in `execute-internal.ts` stashes the real `ExecSignal`
