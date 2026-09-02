@@ -76,7 +76,8 @@
  * keystroke), this is a single, continuously-current piece of text a `status` live region can
  * expose at any time, and that is recomputed on every store update as a program runs. It tracks the
  * Canvas view at the precision it speaks: since #778 rounds `x`/`y`/`heading` for speech, two ticks
- * whose positions round to the same value render the same text and so notify no listener.
+ * whose positions land in the same rounding bucket render the same position clause, and notify no
+ * listener while the rest of the text — the current-instruction clause included — is unchanged too.
  *
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
  * state: with several turtles the text now names **which** turtle it is describing, as
@@ -493,7 +494,7 @@ function describeFullTurtleState(state: StudioState): string {
   );
 }
 
-/** A subscriber notified with the current text whenever the turtle state changes. */
+/** A subscriber notified with the current text whenever the rendered text changes. */
 export type TurtleStateTextListener = (text: string) => void;
 
 /**
@@ -511,7 +512,8 @@ export interface TurtleStateRegion {
    * `describeTurtleWorldState` plus (#410) the current source instruction when available from
    * `source_span`. */
   getText(): string;
-  /** Register a listener notified with the new text whenever the turtle state changes. */
+  /** Register a listener notified with the new text whenever the rendered text changes — not on
+   * every turtle-state change, since a tick that renders identical text notifies nobody. */
   subscribeText(listener: TurtleStateTextListener): Unsubscribe;
 }
 
@@ -531,9 +533,10 @@ export interface TurtleStateRegion {
  * when the color is already `"black"` — a reference check alone would re-notify identical text on
  * every such no-op tick during a long animation. Comparing the rendered text (like
  * `diagnosticsKey` does for diagnostics, above) is what suppresses those repeats. Since #778 that
- * comparison is made on the *rounded* text, so it also suppresses a tick whose position rounds to
- * the same value as the last: the region reports every change it can express at the precision it
- * speaks, not every change the world underwent. Unlike
+ * comparison is made on the *rounded* text, so it also suppresses a tick whose position lands in
+ * the same rounding bucket as the last — but only while every other field is unchanged too, since
+ * the comparison is over the whole rendered string: the region reports every change it can express
+ * at the precision it speaks, not every change the world underwent. Unlike
  * {@link createA11yAnnouncer}, the initial state's text *is* available immediately via
  * {@link TurtleStateRegion.getText} (there is always a "current" turtle state to describe, even
  * before any run) — only {@link TurtleStateRegion.subscribeText} listeners are limited to changes

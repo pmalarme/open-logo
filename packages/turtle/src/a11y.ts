@@ -47,19 +47,23 @@ import type { TurtleWorldState } from "./world-state.js";
  * was filed about, `1.4210854715202004e-14`, as `1.421085472e-14` — still an exponent — and
  * `84.8528137423857` as `84.85281374`, still eight decimals to speak.
  *
- * **The threshold is a deliberate trade.** Rounding to 3 places means two positions that round to
- * the same value render the same text and so notify no listener — the effect is bucket-relative,
- * not magnitude-relative, so `0.00049` and `0.00051` differ by 0.00002 yet render `y 0` and
- * `y 0.001`, while `repeat 4 / forward 0.0001 / end repeat` produces 3 announcements where the
- * same program with `forward 80` produces 7, ending at a real `y` of 0.0004 announced as `y 0`.
+ * **The threshold is a deliberate trade.** Rounding to 3 places puts positions into buckets 0.001
+ * wide, and two positions in the same bucket render the same position clause — the effect is
+ * bucket-relative, not magnitude-relative, so `0.00049` and `0.00051` differ by 0.00002 yet render
+ * `y 0` and `y 0.001`, while `0` and `0.0004`, twenty times further apart, render identically. A
+ * listener is notified only when the *whole* rendered text changes, so a collapsed position is
+ * silent only while every other field, the current-instruction clause included, is also unchanged:
+ * `repeat 4 / forward 0.0001 / end repeat` produces 3 announcements where the same program with
+ * `forward 80` produces 7, ending at a real `y` of 0.0004 announced as `y 0`.
+ *
  * A scale-aware formatter — snapping only values within some residue band of zero, then rounding
  * — could keep `0.0004` while still collapsing `1.4210854715202004e-14`, so this is a chosen trade
  * and not a forced one. It is not built here because it needs a second threshold to tune and no
  * measured program needs it: taking, for each runnable example and each turtle, the distance
  * between that same turtle's position at consecutive announcements, all 192 non-zero movements are
- * at least 0.2571255761402784 (the smallest, in `12-fractal.logo`) and **none** falls in
- * `[1e-6, 0.0005)`, the band the threshold could wrongly collapse. The behaviour is pinned by a
- * test so it stays a decision rather than a surprise.
+ * at least 0.2571255761402784 (the smallest, in `12-fractal.logo`) and **none** falls below
+ * 0.001 — one bucket width, so none can be collapsed at all. The behaviour is pinned by a test so
+ * it stays a decision rather than a surprise.
  *
  * This is presentation only: it is reached from this module alone (nothing in `state.ts`,
  * `world-state.ts`, `scene.ts`, `canvas.ts`, `svg.ts`, `png.ts`, `animation.ts` or `overlay.ts`
@@ -161,13 +165,11 @@ function formatDescribedWidth(width: number): string {
  *   verbosity is a user setting we cannot exercise in CI, so this is a conservative choice rather
  *   than a measured one; what *is* measured is the shape of the string — it never contains a
  *   newline and reproduces no line but the head.
- * - The comma before `plus` is load-bearing, and its justification is a property of the string.
+ * - The comma before `plus` is load-bearing, and its justification is a property of the string: it
+ *   marks where the learner's own source text ends and this function's generated count begins.
  *   Without it, 11 of the 53 distinct block announcements the runnable examples produce match
- *   `/\d+\s+plus\s+\d+/`: `if :sides < 3 plus 2 more lines` runs the guard's own `3` straight into
- *   the count, so a description of the learner's comparison reads in English as arithmetic
- *   performed on it. The collision is in the reading, not the grammar — `plus` is not OpenLogo at
- *   all (`print 3 plus 2` raises `ol-bad-token`; `print 3 + 2` prints `5`), which is why a marker
- *   word was safe to choose in the first place. With the comma, 0 of 53 match. A test asserts both
+ *   `/\d+\s+plus\s+\d+/` — `if :sides < 3 plus 2 more lines` runs the guard's trailing `3` straight
+ *   into the count with nothing between them. With the comma, 0 of 53 match. A test asserts both
  *   directions on one such announcement.
  *
  * The count is of the span's remaining lines, blank ones included — it describes the source, not
@@ -248,9 +250,9 @@ function describeState(
  * and width, always; visibility and the current source instruction are appended only when they
  * add information (hidden, or an instruction is available and has something to name) — this keeps
  * the common case byte-identical to the spec's own worked example. For a visible turtle at world
- * `(100, 0)`,
- * heading `90`, pen down, color `"black"`, width `1`, and no known current instruction, this
- * produces exactly `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
+ * `(100, 0)`, heading `90`, pen down, color `"black"`, width `1`, and no known current instruction,
+ * this produces exactly
+ * `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
  * matching `spec/rendering.md`'s example text verbatim.
  *
  * This describes **one** turtle, so it never names an identity: with a single turtle there is

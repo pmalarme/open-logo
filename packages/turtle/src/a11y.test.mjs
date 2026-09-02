@@ -589,7 +589,7 @@ test("describeTurtleState never speaks a negative zero (#778)", () => {
   assert.doesNotMatch(text, /-0/);
 });
 
-test("describeTurtleState rounds a float-noise heading, and leaves width alone (#778)", () => {
+test("describeTurtleState rounds a float-noise heading (#778)", () => {
   // The issue named only x/y; the sweep found 311/1423 texts with a noisy `heading` as well
   // (a 7-pointed star turns 1080/7 = 154.28571428571428 degrees).
   assert.equal(
@@ -622,13 +622,11 @@ test("describeTurtleState never speaks a positive width as 0, and still removes 
   assert.equal(widthOf(1), "1");
 });
 
-test("summarizeSourceInstruction's comma stops the count reading as arithmetic (#778)", () => {
-  // The measurable property the comma exists for: without it the rendered text runs the guard's
-  // own `3` straight into the count as `3 plus 2`, so a description of the learner's comparison
-  // reads in English as arithmetic performed on it. The collision is in the reading, not the
-  // grammar — `plus` is not OpenLogo at all (`print 3 plus 2` raises `ol-bad-token`; `print 3 + 2`
-  // prints `5`). 11 of the 53 distinct block announcements the runnable examples produce hit this;
-  // with the comma, 0 do.
+test("summarizeSourceInstruction's comma separates the source text from the generated count (#778)", () => {
+  // The measurable property the comma exists for: it marks where the learner's own source text
+  // ends and the generated count begins. Without it the guard's trailing `3` runs straight into
+  // the count with nothing between them. 11 of the 53 distinct block announcements the runnable
+  // examples produce hit this; with the comma, 0 do.
   const summary = OL.summarizeSourceInstruction(
     "if :sides < 3\n  forward 1\nend if",
   );
@@ -639,13 +637,14 @@ test("summarizeSourceInstruction's comma stops the count reading as arithmetic (
 });
 
 test("describeTurtleState renders two positions in the same rounding bucket identically (#778)", () => {
-  // The accepted cost of rounding, pinned so it stays a decision rather than a surprise. The
-  // effect is bucket-relative, not magnitude-relative: `0.00049` and `0.00051` differ by only
-  // 0.00002 and still render differently, while `0` and `0.0004` render the same. A scale-aware
-  // snap could have kept `0.0004`; it is not built because across the runnable examples all 192
-  // non-zero per-turtle movements are at least 0.2571255761402784 and none falls in
-  // [1e-6, 0.0005). Measured end to end: `repeat 4 / forward 0.0001 / end repeat` yields 3 region
-  // announcements where the same program with `forward 80` yields 7.
+  // The accepted cost of rounding, pinned so it stays a decision rather than a surprise. Buckets
+  // are 0.001 wide and the effect is bucket-relative, not magnitude-relative: `0.00049` and
+  // `0.00051` differ by only 0.00002 and still render differently, while `0` and `0.0004`, twenty
+  // times further apart, render the same. A scale-aware snap could have kept `0.0004`; it is not
+  // built because across the runnable examples all 192 non-zero per-turtle movements are at least
+  // 0.2571255761402784, none below one bucket width. Measured end to end: `repeat 4 /
+  // forward 0.0001 / end repeat` yields 3 region announcements where the same program with
+  // `forward 80` yields 7.
   assert.equal(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,
