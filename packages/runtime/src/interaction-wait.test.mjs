@@ -536,3 +536,124 @@ test("#985: the timeline is deterministic — same source, seed and input schedu
 
   assert.equal(play(), play());
 });
+
+// --- #953: a `wait` tick is a charged instruction ----------------------------------------------
+//
+// Before #953 the whole pause was ONE charged statement no matter how many ticks it ran, so `wait`
+// was the only form in the language that was cancellable but not budgeted — half of the pair
+// `spec/execution-model.md`'s Execution safety says safety comes from ("`forever` is therefore safe
+// only because it is cancellable AND budgeted"). Measured on the saga tip before the fix, at the
+// default budget: `wait 5000000` ran 2.0 s and produced two events and no diagnostic, while a bare
+// `wait N` completed cleanly for every N up to 20,000,000 — there was no gate at all.
+
+test("#953: a wait larger than the budget raises ol-limit, and an ordinary wait at the SAME budget does not", () => {
+  // The paired control is the point: `ol-limit` on its own is satisfied by any budget too small for
+  // anything, so the same budget must let a smaller `wait` through.
+  const halted = execute("wait 5", doc, { instructionBudget: 5 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(halted.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 5,
+  });
+  // The diagnostic points at the paused instruction, not at whatever ran before it.
+  assert.deepEqual(halted.diagnostics[0].source_span.start, [1, 1]);
+
+  const ordinary = execute("wait 2", doc, { instructionBudget: 5 });
+  assert.deepEqual(ordinary.diagnostics, []);
+  assert.equal(effectEvents(ordinary).length, 1);
+});
+
+test("#953: the rule is exactly one instruction per tick — `wait n` completes iff n < budget", () => {
+  // Stated as the boundary rather than as a magnitude: the statement itself costs 1 and each tick
+  // costs 1, so `wait n` needs n + 1. Both sides of the boundary are asserted, so a charge that
+  // silently became 2-per-tick or 0-per-tick fails here rather than in a distant integration test.
+  for (const n of [1, 2, 5, 20]) {
+    assert.equal(
+      execute(`wait ${n}`, doc, { instructionBudget: n }).diagnostics.length,
+      1,
+      `wait ${n} must not be affordable at a budget of ${n}`,
+    );
+    assert.deepEqual(
+      execute(`wait ${n}`, doc, { instructionBudget: n + 1 }).diagnostics,
+      [],
+      `wait ${n} must be affordable at a budget of ${n + 1}`,
+    );
+  }
+});
+
+test("#953: a cut-short pause keeps its partial trace, stops the clock at the last affordable tick, and emits no primitive", () => {
+  // `ol-limit` preserves the partial trace rather than discarding it — the established behavior
+  // (`tests/conformance/core-language/execution/forever-instruction-budget-limit.expected.json`).
+  // The trailing `primitive` is NOT emitted, because the pause did not complete, and the clock stops
+  // where the budget did: at a budget of 5 the statement takes 1 and four ticks are affordable, so
+  // the timeline records exactly four boundaries and the fifth tick is never advanced to.
+  const tickTimeline = [];
+  const halted = execute("wait 5", doc, { instructionBudget: 5, tickTimeline });
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(
+    halted.events.map((event) => event.kind),
+    ["instruction"],
+  );
+  assert.equal(tickTimeline.length, 4);
+  assert.equal(tickTimeline[tickTimeline.length - 1].tick, 4);
+  // ...against the same program one unit richer, which completes and DOES emit the primitive.
+  const clean = [];
+  const completed = execute("wait 5", doc, {
+    instructionBudget: 6,
+    tickTimeline: clean,
+  });
+  assert.deepEqual(completed.diagnostics, []);
+  assert.deepEqual(
+    completed.events.map((event) => event.kind),
+    ["instruction", "primitive"],
+  );
+  assert.equal(clean.length, 5);
+});
+
+test("#953: `wait 0` advances no tick and is therefore charged nothing extra", () => {
+  // The charge is taken per tick ADVANCED, and `wait 0` advances none — its spec-mandated yield is
+  // not a tick. A budget of 1 covers the statement and nothing else, so a `wait 0` that took a tick
+  // charge would halt here.
+  const tickTimeline = [];
+  const result = execute("wait 0", doc, { instructionBudget: 1, tickTimeline });
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(tickTimeline.length, 0);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "primitive"],
+  );
+});
+
+test("#953: cancellation still wins over the budget at a tick", () => {
+  // `checkExecutionLimits` checks the abort FIRST and does not charge for it, so an aborted run
+  // paused in a `wait` reports `cancelled` — not `instruction-budget` — even with budget to spare.
+  const result = execute("wait 5", doc, {
+    instructionBudget: 100,
+    signal: { aborted: true },
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+});
+
+test("#953: the idiomatic 'register handlers then hold the run open' program is unaffected", () => {
+  // AC2. `spec/interaction-events.md` names this shape explicitly — "This is what lets a program
+  // register its handlers and then hold itself open with a long `wait` while those handlers drive
+  // the animation" — and `spec/examples/10-game.logo` is exactly it, holding open with `wait 300`.
+  // At the default budget the whole program is three orders of magnitude inside the new ceiling, so
+  // it runs clean and its handler still fires on every interval.
+  const source = [
+    'on_key "left" [ left 15 ]',
+    "on_click [ print 1 ]",
+    "every 30 [ forward 1 ]",
+    "wait 300",
+  ].join("\n");
+  const result = execute(source, doc);
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(
+    result.events.filter((event) => event.kind === "move").length,
+    10,
+    "every 30 must still fire ten times across 300 ticks",
+  );
+});

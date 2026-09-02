@@ -1,9 +1,9 @@
 {
-  "description": "an on_key handler firing is itself one charged instruction, exactly as every other handler kind is: four key presses on an empty-bodied handler exhaust an instruction budget of 5 and raise ol-limit. The body is empty precisely so the firing is the ONLY thing that can be charged - an implementation that charged bodies but not firings completes this program cleanly, so the fixture flips on the rule it names",
+  "description": "an on_key handler firing is itself one charged instruction, exactly as every other handler kind is: four key presses on an empty-bodied handler exhaust an instruction budget of 9 and raise ol-limit. The body is empty precisely so the firing is the ONLY thing that can be charged - an implementation that charged bodies but not firings completes this program cleanly (registration + the wait statement + its four now-charged ticks = 6, well inside 9), so the fixture flips on the rule it names. The budget was 5 before issue #953 made each wait tick a charged instruction; it was re-derived to 9 so the run folds to the byte-identical event stream and refuses the same fourth firing, at the same source span",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
-    "instructionBudget": 5,
+    "instructionBudget": 9,
     "hostInput": {
       "events": [
         {
@@ -125,7 +125,7 @@
       },
       "params": {
         "limit": "instruction-budget",
-        "value": 5
+        "value": 9
       },
       "stage": "runtime",
       "severity": "error"

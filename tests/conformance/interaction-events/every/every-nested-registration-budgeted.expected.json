@@ -3,7 +3,7 @@
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
-    "instructionBudget": 14
+    "instructionBudget": 26
   },
   "events": [
     {
@@ -277,7 +277,7 @@
       },
       "params": {
         "limit": "instruction-budget",
-        "value": 14
+        "value": 26
       },
       "stage": "runtime",
       "severity": "error"

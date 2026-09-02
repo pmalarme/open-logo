@@ -473,13 +473,29 @@ test("a halt from the boundary drain propagates and stops the run", () => {
   // The drain at a main-line statement boundary is a real handler dispatch, so it passes the same
   // budget/cancellation gate as any other: `guardHandlerDispatch` refuses a firing the budget cannot
   // afford and the halt propagates instead of the statement running. Measured against the same
-  // program WITHOUT the trailing `print` at the same budget of 9, which completes cleanly with no
+  // program WITHOUT the trailing `print` at the same budget of 19, which completes cleanly with no
   // diagnostic — so the `ol-limit` here is caused specifically by the boundary drain being attempted,
-  // not by the budget being too small for the program's own statements.
+  // not by the budget being too small for the program's own statements. The budget was 9 before
+  // issue #953 made each `wait` tick a charged instruction (this program pays for seven of them: the
+  // main line's `wait 3` and the handler's `wait 4`); 19 is where the SAME two firings and the SAME
+  // clean/halted split reappear, and the refusal is now attributable on its face — the diagnostic
+  // carries the `every` block-head's span, which is the drained firing itself.
   const source = 'every 3 [ print "a" wait 4 ]\nwait 3\nprint "main"';
-  const halted = execute(source, doc, { instructionBudget: 9 });
+  const halted = execute(source, doc, { instructionBudget: 19 });
   assert.equal(halted.diagnostics.length, 1);
   assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(halted.diagnostics[0].source_span.start, [1, 1]);
+  // ...and the trailing statement never started: the boundary is offered BEFORE a statement's
+  // `instruction` event, so a halt at it leaves line 3 with no instruction event. That is the whole
+  // claim — "instead of the statement running" — and without it the assertions above are equally
+  // satisfied by a halt raised anywhere else in the program.
+  assert.ok(
+    !halted.events.some(
+      (event) =>
+        event.kind === "instruction" && event.source_span.start[0] === 3,
+    ),
+    'print "main" must never have started',
+  );
   assert.deepEqual(
     effectEvents(halted)
       .filter((event) => event.kind === "print")
@@ -487,7 +503,7 @@ test("a halt from the boundary drain propagates and stops the run", () => {
     ["a", "a"],
   );
   const withoutTail = execute('every 3 [ print "a" wait 4 ]\nwait 3', doc, {
-    instructionBudget: 9,
+    instructionBudget: 19,
   });
   assert.deepEqual(withoutTail.diagnostics, []);
 });
@@ -513,24 +529,54 @@ test("a halt from the comprehension boundary propagates out of the comprehension
   // The per-iteration boundary inside a comprehension is a real handler dispatch, so the budget gate
   // can refuse a drained firing — and a comprehension is an EXPRESSION context, which has no way to
   // carry an execution signal. The halt therefore has to surface as the evaluation's own diagnostic.
-  // Measured at a budget of 19: the handler fires five times and the run then stops with `ol-limit`,
-  // against six firings and no diagnostic at a budget of 24.
+  // Measured at a budget of 44: the handler fires five times and the run then stops with `ol-limit`,
+  // against six firings and no diagnostic at a budget of 51. The budgets were 19/24 before issue
+  // #953 made each `wait` tick a charged instruction — a drained occurrence costs eight instructions
+  // now (four, plus the handler's own `wait 4`), so the same five-then-six split sits further up.
+  //
+  // The two assertions after the code are what make 44 the RIGHT budget rather than merely a halting
+  // one, and they are derived from the code's own order rather than from inspection. A budget that
+  // halts at the comprehension's own `checkExecutionLimits` charge carries the `map`'s span, not the
+  // handler's, and proves nothing about the boundary; and `executeStatements` runs the main-line
+  // boundary BEFORE it emits a statement's `instruction` event, so a halt at THAT boundary would
+  // leave line 3 with no instruction event at all. A refused firing (the `every` block-head's span)
+  // with line 3 already started can only be the comprehension's own per-iteration boundary.
+  // Without both, this test passed at a budget where the comprehension boundary never ran — the
+  // coverage gate caught exactly that during #953's re-derivation.
   const source =
     'every 3 [ print "a" wait 4 ]\nwait 3\nprint map i in [1 2 3] [ :i ]';
-  const halted = execute(source, doc, { instructionBudget: 19 });
+  const halted = execute(source, doc, { instructionBudget: 44 });
   assert.equal(halted.diagnostics.length, 1);
   assert.equal(halted.diagnostics[0].code, "ol-limit");
-  const clean = execute(source, doc, { instructionBudget: 24 });
+  assert.deepEqual(halted.diagnostics[0].source_span.start, [1, 1]);
+  assert.ok(
+    halted.events.some(
+      (event) =>
+        event.kind === "instruction" && event.source_span.start[0] === 3,
+    ),
+    "the comprehension statement must already have started, or the halt was the boundary BEFORE it",
+  );
+  const clean = execute(source, doc, { instructionBudget: 51 });
   assert.deepEqual(clean.diagnostics, []);
 });
 
 test("the same halt propagates out of a reduce comprehension", () => {
   // `reduce` has its own iteration loop, so its boundary is a separate code path from `map`/`filter`.
+  // Budget re-derived from 19 to 44 with the `map` twin above, and discriminated the same way:
+  // `ol-limit` alone is satisfied by any budget too small for anything.
   const source =
     'every 3 [ print "a" wait 4 ]\nwait 3\nprint reduce sum i in [1 2 3] from 0 [ :sum + :i ]';
-  const halted = execute(source, doc, { instructionBudget: 19 });
+  const halted = execute(source, doc, { instructionBudget: 44 });
   assert.equal(halted.diagnostics.length, 1);
   assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(halted.diagnostics[0].source_span.start, [1, 1]);
+  assert.ok(
+    halted.events.some(
+      (event) =>
+        event.kind === "instruction" && event.source_span.start[0] === 3,
+    ),
+    "the reduce statement must already have started, or the halt was the boundary BEFORE it",
+  );
 });
 
 test("the `each` iteration charge and its boundary halt both propagate", () => {
@@ -560,15 +606,28 @@ test("the `each` iteration charge and its boundary halt both propagate", () => {
   assert.deepEqual(affordable.diagnostics, []);
   // (2) The boundary drain inside an empty `each` body is a real handler dispatch, so the budget
   //     gate can refuse it mid-drain, and that halt must propagate out of the loop rather than be
-  //     swallowed. Each drained occurrence costs four instructions, so a budget between two
-  //     completed drains stops inside one: at 28 the handler has printed six times, at 30 the run
-  //     completes with seven.
+  //     swallowed. Each drained occurrence costs eight instructions since issue #953 charged the
+  //     handler's own `wait 4` ticks (four before), so a budget between two completed drains stops
+  //     inside one: at 54 the handler has printed six times, at 61 the run completes with seven.
+  //     Budgets re-derived from 28/30; part (1) above needed none, because it contains no `wait`.
+  //     Discriminated like the comprehension twin in this file: the halt must carry the `every`
+  //     block-head's span (a refused firing, not the `each`'s own per-iteration charge) with the
+  //     `each` statement's instruction event ALREADY emitted — `executeStatements` offers the
+  //     main-line boundary before that event, so a halt there would leave line 6 unstarted.
   const handled =
     ':t0 = new_turtle\n:t1 = new_turtle\nevery 3 [ print "a" wait 4 ]\nwait 3\ntell turtles\neach [ ]';
-  const refused = execute(handled, doc, { instructionBudget: 28 });
+  const refused = execute(handled, doc, { instructionBudget: 54 });
   assert.equal(refused.diagnostics.length, 1);
   assert.equal(refused.diagnostics[0].code, "ol-limit");
-  const clean = execute(handled, doc, { instructionBudget: 30 });
+  assert.deepEqual(refused.diagnostics[0].source_span.start, [3, 1]);
+  assert.ok(
+    refused.events.some(
+      (event) =>
+        event.kind === "instruction" && event.source_span.start[0] === 6,
+    ),
+    "the each statement must already have started, or the halt was the boundary BEFORE it",
+  );
+  const clean = execute(handled, doc, { instructionBudget: 61 });
   assert.deepEqual(clean.diagnostics, []);
 });
 

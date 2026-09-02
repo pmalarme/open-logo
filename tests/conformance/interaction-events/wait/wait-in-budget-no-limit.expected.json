@@ -1,0 +1,35 @@
+{
+  "description": "issue #953, the in-budget control twin of wait-over-budget-limit: `wait 3` under the SAME deliberately small instruction budget of 5 completes cleanly and emits its trailing `primitive` event, so that fixture's ol-limit is caused by the pause being longer than the budget and not merely by a budget too small for any program. Since #953 a `wait` tick is itself one charged instruction (spec/execution-model.md#execution-safety: a budget is one of the two things `forever` is \"safe only because it is cancellable and budgeted\" by, and a `wait` tick is unbounded work by exactly the same construction), so the cost of `wait n` is n on top of the statement's own charge: `wait n` completes exactly when n < budget. 3 < 5 here; 8 is not < 5 in the twin. The pause completing is what emits the `primitive` (spec/interaction-events.md: \"wait emits a `primitive` event after the pause completes\"), so its presence here and absence there is the whole observable difference.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 5
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-in-budget-no-limit",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-in-budget-no-limit",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

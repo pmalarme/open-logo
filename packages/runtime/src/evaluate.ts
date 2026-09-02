@@ -159,7 +159,7 @@ export type StructRegistry = ReadonlyMap<string, StructDefNode>;
 
 /**
  * Minimal structural shape of the standard `AbortSignal` this package's cancellation gate needs
- * (issue #102, `spec/execution-model.md:551-557`) — just the boolean `aborted` flag it polls.
+ * (issue #102, `spec/execution-model.md#execution-safety`) — just the boolean `aborted` flag it polls.
  * Defined locally instead of referencing the global `AbortSignal` type because this package's
  * `tsconfig` targets `lib: ["es2023"]` with no DOM types (it runs in both Node and the browser).
  *
@@ -200,10 +200,10 @@ export interface CancellationSignal {
  * adds `callDepth`, a mutable stack `runProcedure` pushes onto before running a callee's body and
  * pops after (mirroring `repeatTurns`'s push/pop-around-a-pass shape): its length is the current
  * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
- * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
+ * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md#execution-safety`) instead of
  * overflowing the host's own call stack.
  *
- * Issue #102 adds the other two execution-safety gates `spec/execution-model.md:551-557`
+ * Issue #102 adds the other two execution-safety gates `spec/execution-model.md#execution-safety`
  * requires alongside recursion depth: a configurable instruction-execution budget
  * (`instructionBudget`, checked against the running `instructionCount` box) and external
  * cancellation (`signal`, an `AbortSignal`). `recursionDepthLimit` promotes the previously
@@ -642,7 +642,7 @@ export function createEnvironment(): Environment {
 
 /**
  * The single execution-safety gate every looping/recursive execution path must pass before
- * running another pass or statement (`spec/execution-model.md:551-557`): external cancellation
+ * running another pass or statement (`spec/execution-model.md#execution-safety`): external cancellation
  * first, then the instruction-count budget. Returns the `ol-limit` diagnostic to halt with, or
  * `undefined` when it is safe to proceed — the caller is responsible for turning that into
  * whatever "stop now" outcome its own control-flow shape uses (`execute-internal.ts`'s `halt()`
@@ -652,9 +652,13 @@ export function createEnvironment(): Environment {
  * loop pass (`While`/`Forever`/`Repeat`/`ForIn`/`ForRange` in `execute-internal.ts`, plus
  * `evaluateComprehension`'s per-element pass here) — not just the former — because a loop whose
  * body is empty (`while true [ ]`, `forever [ ]`) never enters `executeStatements`' per-statement
- * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Every call
- * increments `environment.instructionCount`, so budget/cancellation responsiveness does not depend on
- * how many statements a particular pass happens to contain.
+ * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Since issue #953
+ * it is also called once per tick a `wait` pause advances to (`executeWaitCall`'s `chargeTick`),
+ * for the same reason one more time: a `wait <n>` loops over a learner-supplied `n` and so is
+ * unbounded work by construction, and before that charge it was the one form in the language that
+ * was cancellable but not budgeted. Every call increments `environment.instructionCount`, so
+ * budget/cancellation responsiveness does not depend on how many statements a particular pass
+ * happens to contain — or on how long a pause happens to be.
  */
 export function checkExecutionLimits(
   environment: Environment,
@@ -692,7 +696,7 @@ export function checkExecutionLimits(
  *
  * The maintainer-delegated ruling on #828 is that handler firings **are** instructions and count
  * against the ordinary budget, rather than that construct getting a mechanism of its own. The
- * precedent is already in the spec: `spec/execution-model.md:625-629` — "Implementations must
+ * precedent is already in the spec: `spec/execution-model.md#execution-safety` — "Implementations must
  * support cancellation. They should enforce configurable instruction budgets … **`forever` is
  * therefore safe only because it is cancellable and budgeted.**" A repeating handler registering a
  * repeating handler is the same shape — unbounded by construction, made safe by being budgeted — so

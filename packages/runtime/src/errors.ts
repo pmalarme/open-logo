@@ -29,7 +29,7 @@
  * the runtime's own copies of the checker's `ol-return-outside-proc`/`ol-stop-outside-proc`
  * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above; and
  * `ol-limit` for a procedure call nested past a configured recursion-depth threshold
- * (`spec/execution-model.md:551-557`), so unbounded recursion raises a friendly diagnostic instead
+ * (`spec/execution-model.md#execution-safety`), so unbounded recursion raises a friendly diagnostic instead
  * of a raw host stack overflow. Issue #105 adds comprehension diagnostics: `ol-type` for a
  * `map`/`filter`/`reduce` iterable that is not a list; `ol-no-value` for a comprehension body
  * whose last statement produces no value; `ol-return-in-comprehension` for a `return`/`stop`
@@ -1302,7 +1302,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: a configurable safety limit was reached — here, the procedure-call recursion
-   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised either at the call
+   * depth (`spec/execution-model.md#execution-safety`, `spec/error-model.md:119`). Raised either at the call
    * site that would have pushed one frame past `limit`, or — issue #726 — when nesting deep enough
    * to overflow the host's own call stack is caught at the `execute()` boundary (a smaller host
    * stack, or expression/parse nesting the depth counter does not itself bound), instead of letting
@@ -1323,11 +1323,14 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: the other configurable safety limit besides recursion depth — the instruction
-   * execution budget (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised the
-   * moment the running count of executed statements/loop passes would exceed `value`, so a
+   * execution budget (`spec/execution-model.md#execution-safety`, `spec/error-model.md:119`). Raised the
+   * moment the running count of executed instructions would exceed `value`, so a
    * runaway `forever`/`while true [ ]` degrades to a friendly diagnostic instead of hanging the
    * host (issue #102: "`forever` is therefore safe only because it is cancellable and
-   * budgeted."). `params.limit` is `"instruction-budget"` and `params.value` is the configured
+   * budgeted."). An instruction is a statement, a loop pass, a handler firing (issue #828) or — since
+   * issue #953 — one tick of a `wait` pause, which is why the message names a long `wait` beside a
+   * runaway loop: both are unbounded by construction and both land here.
+   * `params.limit` is `"instruction-budget"` and `params.value` is the configured
    * threshold, matching `recursionLimit`'s `{limit, value}` shape above.
    */
   instructionLimit(source_span: SourceSpan, value: number): Diagnostic {
@@ -1335,13 +1338,14 @@ export const runtimeDiag = {
       "ol-limit",
       source_span,
       { limit: "instruction-budget", value },
-      `this program ran ${value} instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.`,
+      `this program ran ${value} instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false, or a 'wait' for a very large number of ticks.`,
     );
   },
 
   /**
-   * `ol-limit`: execution was cancelled from outside the program (`spec/execution-model.md:
-   * 551-557` — "implementations must support cancellation"), e.g. a learner pressing Stop while
+   * `ol-limit`: execution was cancelled from outside the program
+   * (`spec/execution-model.md#execution-safety` — "implementations must support cancellation"),
+   * e.g. a learner pressing Stop while
    * a program is still running. `params.limit` is `"cancelled"`; there is no numeric threshold,
    * so unlike `recursionLimit`/`instructionLimit` there is no `value` param.
    */
