@@ -582,15 +582,45 @@ Two consequences, both deliberate:
   number of presses at the program's tick count, so `wait 5` accepted five and then went silent —
   an artifact of the counter rather than a decision.
 
-  **Open question, not a settled one.** An earlier version of this bullet argued from
-  `spec/interaction-events.md:381-384` that *cancellation* is what "stops future handler delivery"
-  and nothing names tick exhaustion. Review rejected that reading, correctly: `:381-384` says
-  cancellation stops delivery, it does **not** say cancellation is the only way a run closes — and
-  `:198-200` says plainly that once the main line has finished "the run closes". So the studio
-  currently accepts deliveries after `runStatus` is `"done"`, which that line does not permit. The
-  obvious guard (refuse once the run is `"done"`) is not the answer either: under the default
-  `IMMEDIATE_SCHEDULER` a run is `"done"` the instant `run()` returns, so it would disable delivery
-  everywhere except a paced browser. Tracked for a maintainer ruling rather than argued away here.
+  **Delivery does close when the program is genuinely ended (#1039).** An earlier version of this
+  bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
+  handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
+  `:381-384` says cancellation stops delivery, it does **not** say cancellation is the only way a run
+  closes — and `:198-200` says plainly that once the main line has finished "the run closes". The
+  maintainer then ruled: *"If the program is ended it should refuse it. If there is a `wait` the
+  program is not ended — it is still running."*
+
+  Neither obvious guard could express that. `runStatus` flips to `"done"` when `run()` returns, and
+  `animation.status` is `"done"` once `cursor >= events.length`; under the default
+  `IMMEDIATE_SCHEDULER` playback drains inside `run()`, so **both read `"done"` for a program sitting
+  in a `wait`** — gating on `animation.status` was measured to make `deliverKey` return `false`
+  everywhere except a real paced browser. Both read *playback*; the ruling is about the *program*.
+
+  So `run-controller.ts`'s `programIsStillRunning` asks a different question: **has this program got
+  a yield left for a delivery to land on?** A scheduled occurrence is dispatched at a yield, and
+  `runWait` is the only place the runtime yields — once per tick it advances to, and once at the
+  current tick for `wait 0`. #985's tick timeline records every advancing yield, so its last boundary
+  is the program's last one; the `wait 0` yield records none, so the run's own trace (`wait`'s
+  `primitive` event) carries that case. The test is then that last yield against the tick the
+  delivery would be clamped to — the drawn floor and the answered-read floor. Playback enters only as
+  that floor, and the floor is *compared against the clock*, which is why the immediate scheduler
+  does not defeat it: a fully-drawn `wait 300` program has floor `300` and last yield `300`.
+
+  Measured under `IMMEDIATE_SCHEDULER`, three presses each:
+
+  | program | before #1039 | after #1039 |
+  |---|---|---|
+  | `on_key … / wait 300` | `[true, true, true]` | `[true, true, true]` |
+  | `on_key … / wait 0` | `[true, true, true]` | `[true, true, true]` |
+  | `on_key …` (no `wait`) | `[false, false, false]`, **3 replays** | `[false, false, false]`, **0 replays** |
+
+  The boolean an ended program returns is therefore unchanged — the runtime never had a checkpoint to
+  dispatch into — but the studio no longer replays the whole program to discover that, and a chain
+  whose `input` consumed its last tick is refused up front instead of losing the press silently. Two
+  things are deliberately **outside** the gate: Stop's `when "stop"` notification, which is the
+  program's own pre-termination hook rather than input arriving at a live program, and any delivery
+  arriving while an attempt is still in flight, whose chain timeline still describes the previous
+  settlement and so cannot say how far the program goes.
 - **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
   be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
   replay settles, so every delivery lands on the program's final tick, and the runtime claims pending

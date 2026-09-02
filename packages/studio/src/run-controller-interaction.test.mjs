@@ -2382,13 +2382,15 @@ test("#985/#976: a click DELIVERED before its handler registers reports zero inv
   );
   assert.deepEqual(store.getState().output, []);
 
-  // The control: once playback passes the registration the same click IS confirmed, so the `false`
-  // above means "ran nothing", not "clicks are inert in this harness".
+  // The control: a SECOND click, once playback has passed the registration, IS confirmed — so the
+  // `false` above means "ran nothing", not "clicks are inert in this harness". It is deliberately
+  // not the same click: `drain()` alone never confirms the first one, which stays reported-zero for
+  // the rest of the chain, and the output stays `[]` until this second activation runs the handler.
   paced.drain();
   assert.equal(
     controller.deliverClick(),
     true,
-    "control — past the registration the same click runs the handler",
+    "control — past the registration a further click runs the handler",
   );
   assert.deepEqual(store.getState().output, ["clicked"]);
 });
@@ -2576,4 +2578,203 @@ test("#985: a re-entrant press never lands before the presses that preceded it",
     ["MID", "L", "L", "R", "END"],
     'a re-entrant press must sort with its predecessors — ["R","MID",…] puts it ahead of output already read',
   );
+});
+
+/**
+ * #1039 — *"If the program is ended it should refuse it. If there is a `wait` the program is not
+ * ended — it is still running."* (maintainer ruling).
+ *
+ * The four tests below are the ruling's two halves plus the two shapes that separate the mutants.
+ * Every one of them runs on the **default** `IMMEDIATE_SCHEDULER` except the `forever` confirmation,
+ * which is paced for the reason `.github/instructions/studio.instructions.md` gives: an oracle that
+ * reads playback progress is unobservable under the immediate default.
+ *
+ * The oracle for "ended" is **the absence of an execution**, not the boolean. A `false` return
+ * proves nothing on its own here: an ended program's press already returned `false` before this
+ * slice, because the runtime only dispatches host input at a `wait`'s yield and a program with no
+ * `wait` never reaches one. What it did *not* do was refuse — it scheduled the press, replayed the
+ * whole program to find out it could do nothing with it, and returned `false` afterwards. Measured
+ * on `on_key "left" [ print "turned" ]` at `492cdff7`, three presses: `[false, false, false]` with
+ * **three** extra executions. So the request count is what moves, and a test asserting only the
+ * boolean would pass on both trees.
+ */
+test("#1039 AC1: a genuinely ENDED program refuses a key and a click — with no execution at all", () => {
+  // "Genuinely ended" per the ruling: the main line has finished, and there is no `wait`, no
+  // `forever`, and no pending handler work holding the run open
+  // (`spec/interaction-events.md:198-204` — "A handler does not extend the run's lifetime; that is
+  // the main line's business").
+  const store = OL.createStudioState({
+    source: [
+      'on_key "left" [',
+      '  print "turned"',
+      "]",
+      "on_click [",
+      '  print "clicked"',
+      "]",
+      "forward 10",
+    ].join("\n"),
+  });
+  const recorder = createRecordingHost();
+  const controller = OL.createRunController(store, {
+    executionHost: recorder.host,
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  const afterRun = recorder.requests.length;
+
+  assert.equal(controller.deliverKey("left"), false);
+  assert.equal(controller.deliverClick(), false);
+  assert.equal(
+    recorder.requests.length,
+    afterRun,
+    "the run is over, so a stray keystroke must not re-execute the program to discover that",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    [],
+    "and no handler ran — the turtle does not move after the learner has watched the program finish",
+  );
+});
+
+test("#1039 AC2: a program pausing in a `wait` is NOT ended — its handler runs, under the IMMEDIATE scheduler", () => {
+  // The trap that defeated the two obvious predicates, pinned in the arm where it bites. `runStatus`
+  // is `"done"` here the instant `run()` returns, and `animation.status` is `"done"` too because the
+  // immediate scheduler drains playback inside `run()` — so a gate on either reads "ended" for a
+  // program sitting in a 300-tick pause. No `scheduler` option is passed on purpose: this is the
+  // default path every studio test takes and the one a gate on playback would have broken.
+  const store = OL.createStudioState({
+    source: ['on_key "left" [', "  left 15", "]", "wait 300"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+  assert.equal(
+    store.getState().runStatus,
+    "done",
+    "the status a `runStatus` gate would have read — recorded so the trap is visible in the fixture",
+  );
+  const restingHeading = store.getState().turtleState.heading;
+
+  assert.equal(
+    controller.deliverKey("left"),
+    true,
+    "a `wait` is a pause, not an end — the press reaches the handler",
+  );
+  assert.notEqual(
+    store.getState().turtleState.heading,
+    restingHeading,
+    "and the handler's own effect is on the canvas, not merely a `true` return",
+  );
+});
+
+test("#1039 AC3: `forever` holds the run open the same way a long `wait` does", () => {
+  // `spec/interaction-events.md:198-204` names `forever` and a long `wait` as *the* two ways a
+  // program keeps its handlers alive, so both must read "still running" here.
+  //
+  // Paced, and bounded by an explicit budget. Under the immediate scheduler this program's replay is
+  // halted by `ol-limit` at an EARLIER tick than the press was scheduled at — a `forever` spends the
+  // whole budget on ticks, so the replay cannot afford the handler as well — and the press reports
+  // `false` having genuinely run nothing. Measured, `instructionBudget: 60`: immediate
+  // `deliverKey -> false, output []`, paced `deliverKey -> true, output ["turned"]`, one replay
+  // either way. Pacing is what leaves the press at a tick the replay still reaches, so this is the
+  // arm that can assert the handler's own effect.
+  const paced = createHandDrivenScheduler();
+  const store = OL.createStudioState({
+    source: [
+      'on_key "left" [',
+      '  print "turned"',
+      "]",
+      "forever",
+      "  wait 1",
+      "end forever",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: createRecordingHost().host,
+    scheduler: paced.scheduler,
+    randomSeedSource: pinnedSeed(7),
+    instructionBudget: 60,
+  });
+
+  controller.run();
+
+  assert.equal(
+    controller.deliverKey("left"),
+    true,
+    "a `forever` program is still running, so the press reaches its handler",
+  );
+  assert.deepEqual(store.getState().output, ["turned"]);
+});
+
+test("#1039: `wait 0` is a yield, so a program that ends on one is still not ended", () => {
+  // The case the tick timeline alone cannot see, and the reason `programIsStillRunning` reads the
+  // trace as well as the timeline. `wait 0` "yields to the renderer and event loop without adding a
+  // visible delay" (`spec/interaction-events.md`'s `wait <n>`): `runWait` dispatches tick-0 input
+  // there but advances no tick, so it records no `TickBoundary` at all — `tickTimeline.length` is
+  // `0`, identical to a program with no `wait` whatsoever.
+  //
+  // Measured at `492cdff7`, three presses each: `on_key … / wait 0` gives `[true, true, true]` and
+  // prints `"turned"` three times, `on_key …` alone gives `[false, false, false]` and prints
+  // nothing. A predicate reading only the timeline turns the first into the second — a learner-
+  // visible regression with no diagnostic, which is exactly what this test refuses.
+  const store = OL.createStudioState({
+    source: ['on_key "left" [', '  print "turned"', "]", "wait 0"].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    randomSeedSource: pinnedSeed(7),
+  });
+
+  controller.run();
+
+  assert.equal(controller.deliverKey("left"), true);
+  assert.deepEqual(store.getState().output, ["turned"]);
+});
+
+test("#1039: a chain with no tick left after its question is ended too — the press is refused, not replayed", () => {
+  // The half of the predicate that compares the floor against the clock rather than merely asking
+  // whether the clock ever moved. `askThenOnKeySource(lead)` deliberately appends no trailing
+  // `wait`, so the answered read finishes on the program's LAST tick and
+  // `lastAnsweredReadTick + 1` — the floor `reclampUndeliveredTail` would clamp the press to — sits
+  // one past it. `lastAnsweredReadTick`'s own comment names the consequence: "a program with no tick
+  // left after its question loses the press".
+  //
+  // The press was already lost before this slice; what changes is that it is refused up front
+  // instead of costing a full replay to discover. So the request count is the oracle again, and the
+  // `lead 0` arm is this sweep's built-in control in the other direction — it has no `wait` at all,
+  // so it is refused by the "never yielded" half and cannot distinguish the two.
+  for (const lead of [1, 2, 3, 5]) {
+    const store = OL.createStudioState({ source: askThenOnKeySource(lead) });
+    const promptHost = createPromptHost();
+    const recorder = createRecordingHost();
+    const controller = OL.createRunController(store, {
+      executionHost: recorder.host,
+      inputPrompt: promptHost,
+      randomSeedSource: pinnedSeed(7),
+    });
+
+    controller.run();
+    promptHost.respond("Ada");
+    const observed = store.getState().output;
+    assert.deepEqual(observed, ["Ada"], `lead ${lead}: the learner read this`);
+    const afterAnswer = recorder.requests.length;
+
+    assert.equal(
+      controller.deliverKey("left"),
+      false,
+      `lead ${lead}: the read consumed the program's last tick, so nothing is left to deliver into`,
+    );
+    assert.equal(
+      recorder.requests.length,
+      afterAnswer,
+      `lead ${lead}: and no replay was spent finding that out`,
+    );
+    assert.deepEqual(
+      store.getState().output,
+      observed,
+      `lead ${lead}: what the learner already read is untouched`,
+    );
+  }
 });
