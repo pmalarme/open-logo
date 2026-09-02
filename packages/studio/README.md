@@ -488,7 +488,7 @@ announcing it would file a run-log entry per keystroke.
 | floor | why | pinned? |
 | --- | --- | --- |
 | `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
-| `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes, 10 tests |
+| `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes |
 | `lastAnsweredReadTick + 1` | `spec/interaction-events.md:108-111`: a delivery must not land at or before a read it should have followed | yes, 1 test |
 
 **The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
@@ -505,17 +505,12 @@ It is raised **at delivery time, not at schedule time**, because the drawn and a
 keep *moving* while an occurrence waits: a copy taken when the input arrived is stale by the time it
 is delivered.
 
-**The residual window is deliberate.** Moving `reclampUndeliveredTail()` *inside* the drain loop
-would close it and make the schedule-time term genuinely redundant. Today it is not: the two are
-complementary. If that ever changes, run the third arm — delete **both** — before deleting either.
-
 **It is called from both paths that turn the schedule into a request** — `drainDeliveredInput`, and
 `stop()`'s direct `beginAttempt`. There are **four** `beginAttempt` call sites, and the other two are
 safe for reasons *other* than the re-clamp, recorded here so the next reader does not have to
 re-derive them — that enumeration is what caught the bug below:
 
-- `pump()` — `run()` resets the schedule to `[]`, and during the pump loop `acceptsHostInput()` is
-  false, so no undelivered tail can accumulate.
+- `pump()` — `run()` resets the schedule to `[]`.
 - the lazy `step()` — reachable only before any run, where the schedule is empty and the chain does
   not accept host input.
 
@@ -524,9 +519,7 @@ a regression review caught: `stop()` does not drain, so its `when "stop"` notifi
 was consumed during a leading `wait` before the handler had registered, and the pre-termination
 notification `spec/interaction-events.md:152-156` requires was lost with no diagnostic. One function
 called twice rather than a floor duplicated at each site, because duplication is exactly the
-redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests: in
-`run-controller-interaction.test.mjs`, deleting the `stop()` call fails 1 test, deleting the drain
-call fails 11, and deleting both fails 12 — exactly the sum, so neither is a subset of the other.
+redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests.
 
 ### Deliveries are scheduled against the program's tick clock (#985)
 

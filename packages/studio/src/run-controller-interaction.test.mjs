@@ -2562,9 +2562,7 @@ test("#985: a re-entrant press never lands before the presses that preceded it",
   }
 
   // Control: at depth 1 there is no re-entrant append, so this arm cannot depend on the term. It
-  // must be identical under the mutation, or the probe below is measuring something else. Asserted
-  // FIRST so it runs in the mutant arm too — after the deep assertion, `assert` throws before
-  // reaching it.
+  // must be identical under the mutation, or the probe below is measuring something else.
   assert.deepEqual(runWithReentrancy(1).output, ["MID", "R", "END"]);
 
   const deep = runWithReentrancy(3);

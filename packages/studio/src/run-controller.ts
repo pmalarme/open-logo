@@ -383,10 +383,9 @@
  *   question; it cannot stop history being rewritten. #985's tick timeline removes that cause — a
  *   delivery lands at the tick the learner is looking at, never earlier than a read they answered —
  *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. The tick
- *   timeline alone is not sufficient for that: {@link reclampUndeliveredTail} raises every
- *   still-undelivered occurrence to `max(its own tick, the drawn tick, the answered-read boundary)`
- *   immediately before the schedule becomes a request, and is called from **both** paths that compose
- *   one — the drain, and `stop()`'s direct `beginAttempt`. Review found the second after a round had
+ *   timeline alone is not sufficient for that: {@link reclampUndeliveredTail} is called from **both**
+ *   paths that compose a request — the drain, and `stop()`'s direct `beginAttempt`. Review found the
+ *   second after a round had
  *   deleted the schedule-time copy as redundant; it was not redundant, it was unpinned. An answer
  *   chain mid-pump is still refused: it is what stops a prompt host answering synchronously from
  *   inside `present()` being handed one more read per answer, the quadratic hang the "#881" section
