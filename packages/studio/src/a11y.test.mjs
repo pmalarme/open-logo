@@ -805,8 +805,8 @@ test("createTurtleStateRegion's current-instruction clause is cleared by reset()
 
 test("createTurtleStateRegion reduces a multi-line current-instruction span to its head line plus a count, never splicing the block (#778, was #410's verbatim join)", () => {
   // #410 joined every covered line into the live region verbatim. #778 replaced that: the region
-  // is `aria-live="polite"` and re-read on each tick, and the elided lines are instructions that
-  // are *not* current, so announcing them said something untrue about what just ran.
+  // text then contained the block's body lines as well as its head, and a block head recurs (2 of
+  // 18 announcements for a four-line `repeat`), so those body lines were carried repeatedly.
   const state = OL.createStudioState();
   state.setSource("forward 100\nright 90\nback 50");
   state.setCurrentInstructionSourceSpan({
@@ -868,7 +868,7 @@ test("createTurtleStateRegion defensively tolerates a current-instruction span w
   assert.doesNotMatch(region.getText(), /current instruction/);
 });
 
-// --- #778: what a screen reader actually hears across a whole run ---
+// --- #778: what the region text carries across a whole run ---
 //
 // These assert the announcement VECTOR, not a total. Both defects were re-derived on the saga tip
 // by driving every runnable `spec/examples/*.logo` through this region: 163/1423 texts spliced a
@@ -921,7 +921,7 @@ test("a block instruction is announced by its head line, and its body lines neve
     `no head-line announcement in ${JSON.stringify(announcements)}`,
   );
   // `end repeat` is a line of the block that is never itself the current instruction; before
-  // #778 it was spoken on every tick of the loop.
+  // #778 the region text contained it whenever the block head was the current instruction.
   assert.ok(
     announcements.every((text) => !text.includes("end repeat")),
     "an elided block line was announced as the current instruction",

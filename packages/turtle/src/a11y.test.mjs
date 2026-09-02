@@ -601,15 +601,39 @@ test("describeTurtleState rounds a float-noise heading, and leaves width alone (
   );
 });
 
-test("describeTurtleState does NOT round width: a hairline pen must not be announced as no pen (#778)", () => {
-  // The sweep found 0/1423 noisy widths, so rounding width fixes nothing — and it would introduce
-  // a defect of its own: `set_width 0.0001` is diagnostic-free, and `width 0` states that the pen
-  // draws nothing. Rounding a coordinate abbreviates *where* the turtle is; rounding a width
-  // changes *what* it claims about the drawing.
-  assert.match(
-    OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, width: 0.0001 }),
-    /width 0\.0001$/,
+test("describeTurtleState never speaks a positive width as 0, and still removes width noise (#778)", () => {
+  // `set_width 0` and `set_width -1` both raise `ol-range`, so a width is never legitimately zero
+  // and `width 0` is false for every width that can exist. `set_width 0.0001` is diagnostic-free,
+  // so the hairline must survive — while `set_width 1 / 3` (0.3333333333333333) and
+  // `set_width 0.1 + 0.2` (0.30000000000000004) are equally diagnostic-free and must not recite
+  // sixteen digits.
+  const widthOf = (width) =>
+    /width (\S+)$/.exec(
+      OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, width }),
+    )[1];
+  assert.equal(widthOf(0.0001), "0.0001");
+  assert.equal(widthOf(0.00049), "0.00049");
+  assert.equal(widthOf(1 / 3), "0.333");
+  assert.equal(widthOf(0.1 + 0.2), "0.3");
+  assert.equal(widthOf(2.0000000000000004), "2");
+  // The fallback is only taken below the threshold, so an ordinary width is never re-scaled to
+  // three significant digits (which would turn 1234 into 1230).
+  assert.equal(widthOf(1234), "1234");
+  assert.equal(widthOf(1), "1");
+});
+
+test("summarizeSourceInstruction's comma stops the count reading as arithmetic (#778)", () => {
+  // The measurable property the comma exists for: without it the rendered text contains
+  // `3 plus 2`, itself a well-formed OpenLogo arithmetic expression, inside a description of the
+  // learner's own guard. 11 of the 53 distinct block announcements the runnable examples produce
+  // hit this; with the comma, 0 do.
+  const summary = OL.summarizeSourceInstruction(
+    "if :sides < 3\n  forward 1\nend if",
   );
+  assert.equal(summary, "if :sides < 3, plus 2 more lines");
+  assert.doesNotMatch(summary, /\d+\s+plus\s+\d+/);
+  // Control: the un-comma'd form really does match, so the assertion above is discriminating.
+  assert.match("if :sides < 3 plus 2 more lines", /\d+\s+plus\s+\d+/);
 });
 
 test("describeTurtleState speaks a movement below the rounding threshold as no change (#778)", () => {

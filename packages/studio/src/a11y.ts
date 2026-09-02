@@ -74,7 +74,10 @@
  * {@link createA11yAnnouncer}'s
  * discrete announcement log (deliberately sparse, so screen readers aren't spammed on every
  * keystroke), this is a single, continuously-current piece of text a screen reader can read at
- * any time and that updates in lockstep with the Canvas view as a program runs.
+ * any time and that is recomputed on every store update as a program runs. It tracks the Canvas
+ * view at the precision it speaks: since #778 rounds `x`/`y`/`heading` for speech, two ticks whose
+ * positions differ by less than the rounding threshold render the same text and so notify no
+ * listener.
  *
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
  * state: with several turtles the text now names **which** turtle it is describing, as
@@ -109,13 +112,13 @@
  *
  * #778 fixes what that clause did with a span covering a **block**: it put every line of the block
  * into the `status`/`aria-live="polite"` region text, so the region carried the block's body lines
- * as well as its head — measured on the base of that change, 163 of the 1423 region texts the 13
- * runnable `spec/examples` produce contained a newline, with 52 distinct head lines, and a block
- * head recurs (twice out of 18 announcements for a four-line `repeat`, 46 times for
+ * as well as its head — measured on the base of that change, 163 of the 1423 emitted region texts
+ * the 13 runnable `spec/examples` produce contained a newline, with 52 distinct head lines, and a
+ * block head recurs (twice out of 18 announcements for a four-line `repeat`, 46 times for
  * `12-fractal.logo`'s `if :depth == 0`). The slice is now reduced to its head line plus a count of
  * what was left out, by `@openlogo/turtle`'s `summarizeSourceInstruction` — studio decides which
  * text to hand over, `@openlogo/turtle` owns how it is worded, exactly as for the position/heading
- * half. The same issue rounds `x`/`y`/`heading` for speech, also in `@openlogo/turtle`. A
+ * half. The same issue renders `x`/`y`/`heading`/`width` for speech, also in `@openlogo/turtle`. A
  * single-line instruction keeps its wording (surrounding whitespace is trimmed) and so does a
  * position that rounds to itself — `spec/rendering.md:193`'s worked example included.
  */
@@ -528,9 +531,10 @@ export interface TurtleStateRegion {
  * genuine no-op like a repeated `pen_down` while the pen is already down, or `set_color "black"`
  * when the color is already `"black"` — a reference check alone would re-notify identical text on
  * every such no-op tick during a long animation. Comparing the rendered text (like
- * `diagnosticsKey` does for diagnostics, above) is what actually keeps an assistive-technology
- * user from hearing the same sentence repeated. So the region reads in lockstep with the Canvas
- * view as a program runs, only ever announcing a *genuine* change. Unlike
+ * `diagnosticsKey` does for diagnostics, above) is what suppresses those repeats. Since #778 that
+ * comparison is made on the *rounded* text, so it also suppresses a tick whose position differs
+ * from the last by less than the rounding threshold: the region reports every change it can
+ * express at the precision it speaks, not every change the world underwent. Unlike
  * {@link createA11yAnnouncer}, the initial state's text *is* available immediately via
  * {@link TurtleStateRegion.getText} (there is always a "current" turtle state to describe, even
  * before any run) — only {@link TurtleStateRegion.subscribeText} listeners are limited to changes

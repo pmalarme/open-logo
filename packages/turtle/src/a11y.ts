@@ -7,11 +7,13 @@
  * UI concern layered on top of these primitives (Studio's job, tracked separately) — this
  * package only supplies the render-agnostic content that wiring needs to expose.
  *
- * Issue #778 settled the two **presentation** questions this text had been answering by accident,
- * both of them audible on every tick of a live region: every number is rounded for speech by
- * {@link formatDescribedNumber}, and a multi-line instruction is reduced to a speakable line by
- * {@link summarizeSourceInstruction}. Both are text-only; nothing they touch reaches the turtle
- * state, the event stream, the scene, or an exporter.
+ * Issue #778 settled the two **presentation** questions this text had been answering by accident.
+ * Numbers are rendered for speech by {@link formatDescribedNumber} (and
+ * {@link formatDescribedHeading}/{@link formatDescribedWidth}) rather than interpolated raw, and a
+ * multi-line instruction is reduced to one line by {@link summarizeSourceInstruction}. Measured on
+ * that issue's base across the 13 runnable `spec/examples`, 1018 of the 1423 emitted region texts
+ * carried float noise and 163 contained a newline; both are 0 here. Both changes are text-only;
+ * nothing they touch reaches the turtle state, the event stream, the scene, or an exporter.
  */
 
 import type { Point, TurtleId } from "@openlogo/core";
@@ -26,39 +28,43 @@ import type { TurtleWorldState } from "./world-state.js";
  * `d·sin θ`/`d·cos θ`, so a closed square lands on `x 1.4210854715202004e-14` rather than `x 0`;
  * a heading is accumulated by repeated addition of the turn, so a 7-pointed star reports
  * `heading 154.28571428571428` (1080/7). Measured on the base of this change by driving the 13
- * runnable `spec/examples/*.logo` through studio's live region and collecting every distinct
- * announcement — 1423 texts, control non-zero — 917 carried such an `x`, 950 a `y`, 311 a
- * `heading`, and 1018 at least one of the three. After this change all four counts are 0 and the
- * control is still 1423.
+ * runnable `spec/examples/*.logo` through studio's live region and collecting every emitted
+ * announcement — 1423 emitted texts, control non-zero — 917 carried such an `x`, 950 a `y`, 311 a
+ * `heading`, and 1018 at least one of the three. After this change all four counts are 0, the
+ * emitted count is still 1423, and the number of globally distinct texts goes from 1313 to 1300.
  *
  * Why 3: `svg.ts`'s `COORDINATE_PRECISION` already fixes 3 decimal places as this package's
  * documented, stable precision for serialized numbers — the precision `spec/rendering.md`'s Export
  * determinism section requires be documented. Reusing that number keeps one numeric convention in
- * the package instead of inventing a second. It is deliberately **not** the same constant: this
+ * the package instead of inventing a second; it is a precedent for the value, not evidence that 3
+ * is the uniquely correct precision for speech. It is deliberately **not** the same constant: this
  * module imports nothing from `svg.ts` (it is a leaf that imports only types plus
  * {@link INITIAL_TURTLE_STATE}), the two format different things — device coordinates for a file
  * versus world coordinates for speech — and neither should move because the other did.
  *
  * The alternative considered was the language's own `print` rule (at most 10 significant digits,
- * `spec/execution-model.md:19`). It was rejected on measurement, not taste: of the five real values
- * above it leaves `1.4210854715202004e-14` — this issue's headline example — as
- * `1.421085472e-14`, and still speaks seven decimals of `100.8528137423857`.
+ * `spec/execution-model.md:19`). It was rejected on measurement: it renders the value this issue
+ * was filed about, `1.4210854715202004e-14`, as `1.421085472e-14` — still an exponent — and
+ * `84.8528137423857` as `84.85281374`, still eight decimals to speak.
  *
  * **The threshold is a deliberate trade, and it is audible.** Rounding to 3 places means a change
  * smaller than 0.0005 units is spoken as no change at all: `repeat 4 / forward 0.0001 / end repeat`
  * produces 3 announcements where the same program with `forward 80` produces 7, and ends at a real
- * `y` of 0.0004 announced as `y 0`. That is accepted rather than fixed, because any rule that kept
- * `0.0004` would also keep `1.4210854715202004e-14`, which is the defect. It is pinned by a test so
- * it stays a decision. `width` is deliberately **not** rounded for the same reason read the other
- * way — see {@link describeState}.
+ * `y` of 0.0004 announced as `y 0`. A scale-aware formatter — snapping only values within some
+ * residue band of zero, then rounding — could keep `0.0004` while still collapsing
+ * `1.4210854715202004e-14`, so this is a chosen trade and not a forced one. It is not built here
+ * because it needs a second threshold to tune and no measured program needs it: across the 13
+ * runnable examples the smallest non-zero distance between two announced positions is
+ * 2.0097183471152322e-14, i.e. pure residue, with nothing in between. The behaviour is pinned by a
+ * test so it stays a decision rather than a surprise.
  *
  * This is presentation only: it is reached from this module alone (nothing in `state.ts`,
  * `world-state.ts`, `scene.ts`, `canvas.ts`, `svg.ts`, `png.ts`, `animation.ts` or `overlay.ts`
  * imports this file), so turtle state, the trace events, the retained scene and every exporter are
  * untouched. The region and the program's own `print xcor` therefore now differ deliberately —
- * `x 0` here, `1.421085472e-14` there — because `print` reports the value in the language's
- * canonical form (at most 10 significant digits) for a program to use, while this describes it for
- * a person to hear.
+ * `x 0` here, `1.421085472e-14` there — because each abbreviates for its own audience: `print`
+ * renders the value in the language's canonical form for a program to read, this renders it for a
+ * person to hear.
  */
 const DESCRIBED_NUMBER_PRECISION = 3;
 
@@ -101,6 +107,31 @@ function formatDescribedHeading(heading: number): string {
 }
 
 /**
+ * Renders a pen width for a spoken description. Rounded like a coordinate, except that a positive
+ * width may never be spoken as `0`: below the decimal threshold it falls back to
+ * {@link DESCRIBED_NUMBER_PRECISION} *significant* digits, which cannot reach zero for a non-zero
+ * input.
+ *
+ * The asymmetry with {@link formatDescribedNumber} is not a preference, it is the difference
+ * between the two quantities. A width is **never legitimately zero** — `set_width 0` and
+ * `set_width -1` both raise `ol-range` — so `width 0` is false for every width that can exist, and
+ * `set_width 0.0001` is diagnostic-free. A coordinate *is* legitimately zero at the origin, and
+ * collapsing the float residue that lands near it is the whole point of rounding it.
+ *
+ * Both halves are measured and diagnostic-free: `set_width 0.0001` reaches the fallback and stays
+ * `0.0001`, while `set_width 1 / 3` (`0.3333333333333333`, sixteen digits) and
+ * `set_width 0.1 + 0.2` (`0.30000000000000004`, seventeen) are spoken as `0.333` and `0.3`. The
+ * fallback is only taken below the threshold, so an ordinary `set_width 1234` stays `1234` rather
+ * than becoming the `1230` that three significant digits alone would give.
+ */
+function formatDescribedWidth(width: number): string {
+  const rounded = Number(width.toFixed(DESCRIBED_NUMBER_PRECISION));
+  return rounded === 0
+    ? `${Number(width.toPrecision(DESCRIBED_NUMBER_PRECISION))}`
+    : `${rounded}`;
+}
+
+/**
  * Reduces an already-sliced source instruction to a single line safe to speak (issue #778).
  *
  * `spec/rendering.md` asks the state description for the "current source instruction when available
@@ -128,17 +159,18 @@ function formatDescribedHeading(heading: number): string {
  *   have no screen reader in CI, so this is a conservative choice, not a measured one; what *is*
  *   measured is the shape of the string — it never contains a newline and names no line but the
  *   head.
- * - The comma before `plus` is load-bearing. Without it, 11 of the 53 distinct block announcements
- *   the runnable examples produce put a bare number immediately before it, and
- *   `if :sides < 3 plus 2 more lines` re-parses the learner's own guard as the arithmetic
- *   `3 plus 2`. With punctuation spoken the comma is announced; with punctuation off the string
- *   degrades to exactly the un-comma'd wording, so it is never worse.
+ * - The comma before `plus` is load-bearing, and its justification is a property of the string,
+ *   not of any reader. Without it, 11 of the 53 distinct block announcements the runnable examples
+ *   produce match `/\d+\s+plus\s+\d+/` — `if :sides < 3 plus 2 more lines` contains `3 plus 2`,
+ *   which is itself a well-formed OpenLogo arithmetic expression sitting inside a description of
+ *   the learner's own guard. With the comma, 0 of 53 match. A test asserts exactly that.
  *
  * The count is of the span's remaining lines, blank ones included — it describes the source, not
  * the non-blank subset of it. An instruction whose head line is empty has nothing to name, so it
  * returns `""` and every caller — {@link describeState}, {@link describeCurrentStepCue}, and
- * studio's own clause — drops the label rather than speaking an empty one; only a span pointing
- * outside the current source can reach that.
+ * studio's own clause — drops the label rather than speaking an empty one. Studio reaches that
+ * only through a span pointing outside the current source; a direct caller of this package's
+ * public API can pass such a string outright.
  */
 export function summarizeSourceInstruction(instructionText: string): string {
   const firstNewlineIndex = instructionText.indexOf("\n");
@@ -178,12 +210,9 @@ export interface TurtleStateDescriptionOptions {
  * current source instruction are appended only when they add information (hidden, or an
  * instruction is available and has something to name).
  *
- * `x`, `y` and `heading` are rounded for speech ({@link DESCRIBED_NUMBER_PRECISION}); **`width` is
- * deliberately not**. The sweep behind #778 found 0 of 1423 announcements with a noisy width, so
- * there is no measured defect to fix, and rounding it would introduce one: `set_width 0.0001` is
- * diagnostic-free and would be announced as `width 0`, which states that the pen draws nothing.
- * For a coordinate, rounding below the threshold is an abbreviation of where the turtle is; for a
- * width, `0` is a different claim about the drawing.
+ * `x`, `y` and `heading` are rounded for speech ({@link DESCRIBED_NUMBER_PRECISION}); `width` goes
+ * through {@link formatDescribedWidth}, which rounds the same way but can never speak a positive
+ * width as `0`.
  */
 function describeState(
   subject: string,
@@ -194,7 +223,7 @@ function describeState(
   const parts = [
     `${subject} at x ${formatDescribedNumber(x)} y ${formatDescribedNumber(y)} heading ${formatDescribedHeading(state.heading)} degrees`,
     `pen ${state.penDown ? "down" : "up"}`,
-    `color ${state.color} width ${state.width}`,
+    `color ${state.color} width ${formatDescribedWidth(state.width)}`,
   ];
   if (!state.visible) {
     parts.push("hidden");
@@ -212,7 +241,8 @@ function describeState(
  * Builds the textual, non-visual turtle-state description required by
  * `spec/rendering.md#non-visual-state-descriptions`: position, heading, pen up/down, pen color
  * and width, always; visibility and the current source instruction are appended only when they
- * add information (hidden, or an instruction is available) — this keeps the common case
+ * add information (hidden, or an instruction is available and has something to name) — this keeps
+ * the common case
  * byte-identical to the spec's own worked example. For a visible turtle at world `(100, 0)`,
  * heading `90`, pen down, color `"black"`, width `1`, and no known current instruction, this
  * produces exactly `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
