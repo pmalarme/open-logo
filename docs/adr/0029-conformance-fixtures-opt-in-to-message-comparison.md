@@ -22,9 +22,9 @@ than an edit.
 the merge of #1026: **306** of **632** expected diagnostics, spread across **193** of **934**
 `tests/conformance/**/*.expected.json` files, carried a `message` field that no code path read.
 (Probe: parse every `*.expected.json` at that tree, count `Object.hasOwn(diagnostic, "message")`, and
-count the fixtures setting `compareMessages` — the second count is **0**, because the flag did not
-exist.) Those 306 sentences were not merely unused — they *read* as evidence. A fixture that names
-the exact learner wording looks like a fixture that asserts it.
+count the fixtures setting `compareMessages` — the second count is **0**, because the flag first
+appears in `scripts/harness/index.mjs` at `4ad13363`, which is why ADR-0010's sentence was accurate
+on its own date.)
 
 That the corpus could not detect a change to the wording is not inferred from the code's shape; it
 is measurable at the current tree. With the message comparison forced off in `compare()` and the
@@ -33,10 +33,13 @@ conformance` reports **941 passed, 1 failed** — and the single failure is
 `_harness-selftest/detects-message-mismatch` reporting that it can no longer detect the mismatch it
 exists to detect. Not one ordinary fixture notices. (Measured at `492cdff7`.)
 
-**And the decision had no record of its own.** Until this ADR, ADR-0010's sentence was the only
-ADR-level statement of the comparison contract, so the architecture record contradicted the code
-*and* the real decision — taken in #1025/#1026, with its last hole closed by #1028/#1029 — lived
-only in code comments and issue threads.
+**What was missing was the ADR, specifically.** The decision was not undocumented: the fixture
+format documentation in `tests/conformance/README.md` states the opt-in, both rejected directions,
+the per-diagnostic grain and the "opt in only where the spec fixes the words" rule for fixture
+authors, and tests enforce all of it. What did not exist was any **ADR-level** record — searching
+`docs/adr/` for the contract finds ADR-0010's sentence and nothing else — so the architecture
+history said the opposite of the code, and the decision that replaced it (taken in #1025/#1026, its
+last hole closed by #1028/#1029) had no entry in the decision log.
 
 ## Decision
 
@@ -96,18 +99,28 @@ time, so the 306-sentence state cannot recur one fixture at a time:
   does not drop the message; it removes the *guarantee* that the message is what the verdict rests
   on, because an inverted verdict is satisfied by any disagreement at all.
 
-The third carries exactly one exemption: `_harness-selftest/detects-message-mismatch`, the fixture
-that can only demonstrate the comparison firing by expecting it. It is named as a **single complete
-fixture name compared by equality**, not as a directory prefix — a prefix would let any fixture
-placed beside it inherit the exemption, which is not what "one fixture" means.
+The third carries exactly one exemption:
+`_harness-selftest/detects-message-mismatch/detects-message-mismatch.expected.json`, the fixture that
+can only demonstrate the comparison firing by expecting it. The exemption is that **complete fixture
+name, compared by equality** — deliberately not the `_harness-selftest/` prefix and not the fixture's
+own directory, either of which would let a fixture placed beside it inherit the exemption, which is
+not what "one fixture" means.
+
+(A fourth load-time rejection, a non-boolean `compareMessages`, is not listed above because it is an
+ordinary malformed-input check rather than a way for a well-formed `message` to assert nothing.)
 
 ### 4. What deliberately stays outside conformance
 
-The cross-stage `ol-bad-token` prefix (*"i don't know how to read … here."*) is pinned by unit tests
-in `packages/parser/src/misplaced-keyword-message.test.mjs`, **not** by fixtures. Its registry row
-says the message "SHOULD point at the unexpected text and mention the closest legal form when clear"
-— a condition to satisfy, not a sentence to reproduce. Freezing our English for it in a
-stack-neutral corpus would oblige every conforming implementation to emit our words for a
+The shared `ol-bad-token` opening *"i don't know how to read … here."* is pinned by **unit tests, not
+fixtures**, and it spans both stages, so both guards are named here: the parse-stage form in
+`packages/parser/src/misplaced-keyword-message.test.mjs` (which asserts `stage === "parse"`) and the
+semantic-stage form in `packages/parser/src/checker-profile-word-position.test.mjs` (which asserts
+`stage === "semantic"`). Naming only the first would describe half of a contract this section calls
+cross-stage.
+
+Its registry row says the message "SHOULD point at the unexpected text and mention the closest legal
+form when clear" — a condition to satisfy, not a sentence to reproduce. Freezing our English for it
+in a stack-neutral corpus would oblige every conforming implementation to emit our words for a
 requirement the spec states as a behaviour. The corpus reflects that: at `492cdff7` all 23 compared
 messages are `ol-reserved-word`, and no `ol-bad-token` message is compared anywhere.
 
@@ -131,17 +144,28 @@ forward (`AGENTS.md`; [ADR-0000](0000-record-architecture-decisions.md)).
   `492cdff7`, by both counts.
 - **A fixture author opts in only where the spec fixes the words**, and the fixture format
   documentation in `tests/conformance/README.md` is where that rule is stated for authors.
-- **This ADR cites `spec/` by section anchor and quotation rather than by line, deliberately.** An
-  Accepted ADR is immutable, so a line citation inside one is a claim that can rot into a CI failure
-  nobody is permitted to repair in place. That is not hypothetical:
-  `scripts/spec-citations-exceptions.json` already carries a **permanent** entry for
-  `docs/adr/0007-conformance-harness.md` on exactly that reasoning, and stale-citation entries for
-  `docs/design-notes/0003-…` whose `spec/commands.md` line numbers drifted onto blank space.
-  ADR-0010's own `error-model.md:193-194` — cited there for "identity is `code` + `params`" — now
-  lands on a blank line and the `## Did-you-mean` heading, while the statement it means sits under
-  `## Localization boundary`. No gate reports that, and the reason is a documented limit rather than
-  an oversight: the spec-citation gate checks that a citation **resolves to text**, not that the text
-  supports the claim beside it, and `## Did-you-mean` is text. The trade-off of the anchor form is
-  equally real and worth stating plainly: the same gate **does not resolve section anchors at all**
-  — it says so on every run — so a renamed heading here would pass unseen. Quoting the cited sentence
-  is what keeps such a citation recoverable by search.
+- **This ADR cites `spec/` by section anchor and quotation rather than by line, deliberately** — and
+  the reasoning is a judgement about two separately observed failure modes, not one observed
+  incident, so both are stated as what they are. First, a defect inside an Accepted ADR cannot be
+  repaired in place: `scripts/spec-citations-exceptions.json` carries a **permanent** entry for
+  `docs/adr/0007-conformance-harness.md` whose own `why` gives immutability as the reason it can
+  never be deleted — though the defect there is a status claim, not a citation. Second, line
+  citations in prose do rot: the same manifest carries `stale-citation` entries for
+  `docs/design-notes/0003-…` whose `spec/commands.md` line numbers now land on blank space — though a
+  design note is not an ADR and is freely editable. The compound case, a rotted line citation inside
+  an immutable ADR, has **not** been observed here; this ADR simply declines to be the first.
+- **Two independent blind spots keep ADR-0010's own stale citation invisible, and only the second is
+  the one people expect.** ADR-0010 cites `error-model.md:193-194` for "identity is `code` +
+  `params`"; those lines now hold a blank and the `## Did-you-mean` heading, while the statement
+  meant sits under `## Localization boundary`. Running the gate's own `collectCitations()` over
+  ADR-0010 returns exactly one citation — its `error-model.md:28-38` reference to the diagnostic
+  shape, which is written with the prefix — while the `193-194` reference is **never collected at
+  all**, because the scan pattern requires a literal `spec/` prefix that it omits. Written *with*
+  the prefix it is collected, and then **resolves cleanly**: `## Did-you-mean` is text, and the gate
+  checks that a citation resolves to text, not that the text supports the claim beside it. (Both
+  halves measured: the collection counts by calling `collectCitations` on ADR-0010 as written and on
+  a prefixed counterfactual, and the resolution by running the gate itself over that counterfactual,
+  which reports no finding against ADR-0010.) So a line citation can be invisible outright, or
+  visible and shallowly checked. The anchor form this ADR uses trades both for a third, which the
+  gate prints on every run: **section anchors are not resolved at all**, so a renamed heading here
+  would pass unseen. Quoting the cited sentence is what keeps such a citation recoverable by search.
