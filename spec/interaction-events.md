@@ -262,7 +262,7 @@ on_click [
 whole number: a non-whole count raises `ol-type`, and a negative count raises
 `ol-range`. `wait 0` yields to the renderer and event loop without adding a visible
 delay. Turtle and geometry documents may reference `wait` for animation, but
-this document owns its definition. Each tick a `wait` advances counts against the execution budget, exactly as one pass of `repeat` or `forever` counts ([execution safety](execution-model.md#execution-safety)), so a `wait` is bounded like a loop of the same length: a long enough `wait` exhausts the budget and raises `ol-limit`, exactly as `forever` does. That bounds a `wait` on its own, with no handler registered, as much as one whose accumulating handler invocations spend the budget alongside it. Charging a tick does not make it a step: `wait` emits one `instruction` event however many ticks it pauses for.
+this document owns its definition. Each tick a `wait` advances costs one instruction against the execution budget ([execution safety](execution-model.md#execution-safety)), so a long enough `wait` exhausts the budget and raises `ol-limit`, exactly as `forever` does, even when no handler is registered. Charging a tick does not create an additional step or `instruction` event.
 
 ```logo
 repeat 36
