@@ -1,4 +1,4 @@
-# 27. The child-edge gate's expected field set is derived from the type declarations
+# 28. The child-edge gate's expected field set is derived from the type declarations
 
 - Status: Accepted
 - Date: 2026-08-28

@@ -89,7 +89,7 @@
 //      `{ kind: "Block" | "Program"; source_span }`, each admitting `Program` and `Block`. The second
 //      is the reason this is a family rather than an example — the round-6 rule that preceded
 //      `holdsEveryNode` did catch it, and this one does not. Tracked with residual 1 under issue
-//      #1004; ADR-0027 records both shapes and the `tsc`-certificate technique for probing them.
+//      #1004; ADR-0028 records both shapes and the `tsc`-certificate technique for probing them.
 //
 // Paths resolve from this file, not from `process.cwd()`, so a package-scoped run still finds the
 // corpus.

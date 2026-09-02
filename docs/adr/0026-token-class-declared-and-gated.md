@@ -1,4 +1,4 @@
-# 25. The token class is declared data, gated against the shipped highlighter
+# 26. The token class is declared data, gated against the shipped highlighter
 
 - Status: Accepted
 - Date: 2026-08-25

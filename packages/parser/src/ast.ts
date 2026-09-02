@@ -946,7 +946,7 @@ function segmentChildren(segment: PlaceSegment): readonly AnyNode[] {
  * residual that left — a node-valued field that **no** fixture populates, which is invisible to
  * reflection too — is narrowed by the same file's declaration-derived field set, which reads these
  * declarations through the TypeScript compiler API and fails when one of them is never exercised
- * ([ADR-0027](../../../docs/adr/0027-child-edge-field-set-is-declaration-derived.md)). What survives
+ * ([ADR-0028](../../../docs/adr/0028-child-edge-field-set-is-declaration-derived.md)). What survives
  * is a field sharing a path with an exercised variant: paths are keyed by `kind` plus dotted route,
  * so an unexercised `initial` on `MapFilterComprehensionNode` hides behind
  * `ReduceComprehensionNode.initial` (measured, issue #1004). See also

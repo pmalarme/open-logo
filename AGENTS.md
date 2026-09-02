@@ -189,7 +189,7 @@ existed; *declaring* it was never tried. So each name now carries a `tokenClass`
 painted?" — and the gate re-paints every name through the shipped `highlight()` in nine grammatical
 positions, including the profile gating of `spec/tooling.md:31`. The reverse direction compares the
 name **sources** `highlight()` classifies from, which is narrower than comparing against arbitrary
-highlighter output; ADR-0025 names each mechanism and what it does not reach.
+highlighter output; ADR-0026 names each mechanism and what it does not reach.
 The four words that are keywords **by position only** (`empty`, `member`, `of`, `a`) cannot be table
 rows, so they are a declared exception set, pinned against their `excluded` carve-outs and against
 both prose statements of them.
