@@ -1592,8 +1592,10 @@ export function createRunController(
    * ## Why this survives the immediate scheduler
    * The two predicates review argued over for three rounds — `runStatus` and `animation.status` —
    * both read **playback**, and under the default `IMMEDIATE_SCHEDULER` playback drains inside
-   * `run()`, so both read `"done"` for a program sitting in a `wait`. Gating on `animation.status`
-   * was measured to make `deliverKey` return `false` everywhere except a real paced browser.
+   * `run()`, so both read `"done"` for a program sitting in a `wait`. Measured here as a mutation
+   * arm: replacing this body with `animation?.getSnapshot().status !== "done"` — the predicate
+   * review proposed — fails **40 of the 620** studio tests, AC2's among them, while AC1's and AC3's
+   * still pass. It refuses everywhere except a paced host, which is the opposite defect.
    *
    * This reads the program's **clock** instead. Playback enters only as the floor, and the floor is
    * *compared against the clock*: a fully-drawn `wait 300` program has `floor === 300` and
@@ -1621,7 +1623,7 @@ export function createRunController(
       //
       // Measured without this line: `#976 AC2: a DEFERRED delivery is re-clamped past a read that
       // finished while it waited` observes `["A","C","B"]` instead of `["A","C","turned","B"]` —
-      // the press dropped outright, silently.
+      // the press dropped outright, silently — and five more tests fail with it.
       return true;
     }
     const lastYieldedTick = lastTickTheRunYieldedAt();
@@ -1725,11 +1727,16 @@ export function createRunController(
    * genuinely ended refuses input rather than re-executing itself to discover it can do nothing
    * with it.
    *
-   * Deliberately **not** folded into {@link acceptsHostInput}. That predicate also gates
-   * `drainDeliveredInput`'s loop and Stop's `when "stop"` notification, and `"stop"` is the
-   * program's own pre-termination hook (`spec/interaction-events.md:152-156`) rather than input
-   * arriving at a live program — a Stop must keep behaving identically whether or not the program
-   * held itself open.
+   * Deliberately **narrow**: it gates the two learner-facing deliveries only, not
+   * {@link acceptsHostInput}, which also gates `drainDeliveredInput`'s loop and Stop's `when "stop"`
+   * notification. `"stop"` is the program's own pre-termination hook
+   * (`spec/interaction-events.md:152-156`) rather than input arriving at a live program, and the
+   * drain loop must stay free to replay an occurrence already accepted.
+   *
+   * Measured rather than assumed: folding the term into {@link acceptsHostInputFor} instead leaves
+   * all 620 studio tests green, so **nothing pins this boundary**. It is a scope choice, and its one
+   * observable cost today is that a Stop on a program whose clock never ticked still pays for the
+   * replay `#952 (QA finding 1)` records. Widening it is a separate decision, not this slice's.
    */
   function acceptsLearnerInputFor(registration: string): boolean {
     return acceptsHostInputFor(registration) && programIsStillRunning();

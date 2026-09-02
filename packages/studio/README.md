@@ -593,8 +593,9 @@ Two consequences, both deliberate:
   Neither obvious guard could express that. `runStatus` flips to `"done"` when `run()` returns, and
   `animation.status` is `"done"` once `cursor >= events.length`; under the default
   `IMMEDIATE_SCHEDULER` playback drains inside `run()`, so **both read `"done"` for a program sitting
-  in a `wait`** — gating on `animation.status` was measured to make `deliverKey` return `false`
-  everywhere except a real paced browser. Both read *playback*; the ruling is about the *program*.
+  in a `wait`**. Measured as a mutation arm: gating on `animation?.getSnapshot().status !== "done"`
+  fails **40 of the 620** studio tests, the `wait 300` case among them, because it refuses everywhere
+  except a paced host. Both read *playback*; the ruling is about the *program*.
 
   So `run-controller.ts`'s `programIsStillRunning` asks a different question: **has this program got
   a yield left for a delivery to land on?** A scheduled occurrence is dispatched at a yield, and
@@ -620,7 +621,10 @@ Two consequences, both deliberate:
   things are deliberately **outside** the gate: Stop's `when "stop"` notification, which is the
   program's own pre-termination hook rather than input arriving at a live program, and any delivery
   arriving while an attempt is still in flight, whose chain timeline still describes the previous
-  settlement and so cannot say how far the program goes.
+  settlement and so cannot say how far the program goes. The first of those is a scope choice no test
+  pins — folding the term into the shared gate leaves all 620 studio tests green — while the second
+  is pinned by six, `#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it
+  waited` among them, which observes `["A","C","B"]` instead of `["A","C","turned","B"]` without it.
 - **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
   be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
   replay settles, so every delivery lands on the program's final tick, and the runtime claims pending

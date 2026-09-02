@@ -2639,10 +2639,12 @@ test("#1039 AC1: a genuinely ENDED program refuses a key and a click — with no
 
 test("#1039 AC2: a program pausing in a `wait` is NOT ended — its handler runs, under the IMMEDIATE scheduler", () => {
   // The trap that defeated the two obvious predicates, pinned in the arm where it bites. `runStatus`
-  // is `"done"` here the instant `run()` returns, and `animation.status` is `"done"` too because the
-  // immediate scheduler drains playback inside `run()` — so a gate on either reads "ended" for a
-  // program sitting in a 300-tick pause. No `scheduler` option is passed on purpose: this is the
-  // default path every studio test takes and the one a gate on playback would have broken.
+  // is `"done"` here the instant `run()` returns — asserted below — and a gate on playback reads the
+  // same, because the immediate scheduler drains the whole stream inside `run()`. Measured: swapping
+  // `programIsStillRunning`'s body for `animation?.getSnapshot().status !== "done"`, the predicate
+  // review proposed in #1027, fails 40 of the 620 studio tests and **this** test is one of them.
+  // No `scheduler` option is passed on purpose: this is the default path every studio test takes and
+  // the one such a gate would have broken.
   const store = OL.createStudioState({
     source: ['on_key "left" [', "  left 15", "]", "wait 300"].join("\n"),
   });
