@@ -308,8 +308,11 @@ consequence forward: with the cap gone, a reintroduction of divergence would be 
 A Worker host answers that **structurally** — it never replays to answer a read, so there is no attempt
 sequence to
 diverge and nothing for a counter to count (asserted directly: one run command for a program with
-several reads). Since #952 it does replay to deliver *input*, but a chain that has asked a question
-delivers none, so the two never interleave. Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
+several reads). Since #952 it does replay to deliver *input*, and since **#976** a chain that has
+asked a question keeps accepting input, so a delivery replay **can** now cross a read — which is why
+`execution-worker-runner.ts` consumes `ExecutionRequest.answers` before parking rather than
+presenting a live read. That path is bounded: one press causes one replay, and each recorded answer
+is consumed once, at the position it was given for. Separately, no single **park** is indefinite: `awaitBlockingRead` parks with a timeout and
 re-reads the control block, so a Stop is observed within one poll interval even if its wake-up were
 missed entirely. What remains unbounded is unchanged and still a host contract: a prompt host that
 restarts the run from inside `present()` on *every* presentation, since each restart brings a fresh
@@ -345,42 +348,67 @@ installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two 
   `spec/interaction-events.md:221-225` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
-`deliverKey` reports whether **that press actually ran a handler** — compared as a strict increase in
-`on_key` invocation markers across that one delivery. It is `false` for a key no handler names, for a
-handler the run never reached, for a press scheduled **before** the handler registered, and for a
-press past the program's final usable tick.
+`deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** — read
+from the runtime's own per-delivery count (`ExecuteOptions.handlerDeliveries`, #1024). Each is
+`false` for a handler the run never reached, and for a program whose clock never reaches a dispatch
+checkpoint at all (one with no `wait`); `deliverKey` is additionally `false` for a key no handler
+names. Since #985 a delivery is no longer `false` merely for arriving after a delayed registration —
+that was F3, and it is fixed rather than reported.
 
-`deliverClick` reports the narrower **`chain accepts input && on_click registered`**, because a click
-names no key word to count against. It therefore stays `true` after the program's clicks have stopped
-firing — measured on `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
-handlers ran `[true, true, false, false, false]`. Nothing reads that return today
-(`canvas-interaction.ts` discards it), and a click has no browser default to suppress, so the
-narrowness costs nothing — but it is *not* the same contract as `deliverKey`'s.
+Until #985 `deliverClick` reported something narrower and different in kind — `chain accepts input &&
+on_click registered` — which is a question about the *run*, not about this activation. On the
+README's own example, `on_click [ print "C" ] / wait 2`, five clicks returned `[true × 5]` while
+handlers ran `[true, true, false, false, false]`: the gate answered `true` for three activations
+that ran nothing.
+
+They now agree — **re-measured on the shipped build**, five clicks report `[true × 5]` over output
+`["C", "C", "C", "C", "C"]`. The earlier figures in this paragraph were the *capped* behaviour, where
+the old counter stopped accepting presses once the program's tick count ran out; scheduling against
+the program's own clock removed that cap (see the next bullet), so every click both fires and is
+confirmed. The point that survives is the one that mattered: the two numbers are now the same
+measurement rather than two booleans that merely looked alike.
+
+### The answer comes from the runtime, not from the event stream (#976)
 
 Every formulation that answers from *history* rather than from the delivery re-created silent
-interception somewhere, and four did — which is why the narrow one is worth the cost. The replay's
-event *stream length* is not **monotonic** (a handler that raises *shortens* the stream, measured 45
-events down to 5 with `ol-undefined-var`, reporting "nothing responded" for a handler that ran).
-Asking after the replay settles fails on **timing**. Pairing declarations with registration events by
-source position proved only **eventual** registration, so a press before the handler existed was
-suppressed with nothing running. And an "ever responded" set kept answering `true` after the last
-tick that could fire — invocation counts `[0,1,2,2]` gave returns `[true,true,true]`.
+interception somewhere, and four did. The replay's event *stream length* is not **monotonic** (a
+handler that raises *shortens* the stream, measured 45 events down to 5 with `ol-undefined-var`,
+reporting "nothing responded" for a handler that ran). Asking after the replay settles fails on
+**timing**. Pairing declarations with registration events by source position proved only **eventual**
+registration, so a press before the handler existed was suppressed with nothing running. And an
+"ever responded" set kept answering `true` after the last tick that could fire — invocation counts
+`[0,1,2,2]` gave returns `[true,true,true]`.
 
-Counting invocation markers per delivery is sound on all of those, and on **aliasing**:
-`spec/interaction-events.md:102-103` gives each invocation a block-head `instruction` event, while
-registration emits an `instruction` *and* a `primitive` at the same position, so
-`invocations = instructions − registrations` per position. `repeat 2 [ on_key "up" [ … ] ]` registers
-twice at one position and one press fires **both** — the count says 2 and the program prints twice,
-an independent witness agreeing with the arithmetic.
+The fifth formulation, `invocations = instructions − registrations` per source position folded onto
+key words parsed back out of the program text, was sound on all of those — but it was still an
+answer from history, differenced across a delivery, and its soundness depended on the differencing
+window being exactly one press wide. **#976 deletes it.** The runtime reports one
+`HandlerDelivery` per delivered occurrence, counting the handler bodies that occurrence entered, so
+there is no window to get wrong and no source text to parse. What went with it:
+`handlerInvocationsByPosition`, `onKeyInvocationsByKeyWord`, `onClickInvocations`, and
+`key-words.ts`'s `collectDeclaredKeyHandlers`/`DeclaredKeyHandler` — 381 lines removed against 176
+added. `normalizeKeyWord` stays: mapping `KeyboardEvent.key` onto the spec's vocabulary is not
+reconstruction.
+
+A report is matched to its own delivery **by identity** — `HandlerDelivery.input` is the very
+schedule entry the controller supplied, never an index into a schedule the runtime sorted. Measured
+with the control that makes it mean something: supplying `[tick 4, tick 2]` forces the runtime's
+tick sort to reorder, every reported `input` is still `===` a supplied object, and a
+structurally-equal copy does *not* match.
+
+A non-literal key word is now confirmable, which the declaration pairing could never do:
+`on_key :chosen [ … ]` reported `false` however plainly the handler fired, because the key word
+could not be read from the source. A count does not care how it was written.
 
 **Under a host that settles across event-loop turns it is always `false`, so such a host suppresses
-nothing at all.** That is a real capability gap ([#975](https://github.com/pmalarme/open-logo/issues/975)),
-and it is the deliberate direction: silent *interception* is worse than silent *inaction*, because it
-hits every learner and presents as "the editor is broken". A page that scrolls during a game is a
-nuisance; a key that vanishes with nothing happening is a bug report.
-
-A program whose `on_key` key word is not a literal reports `false` and suppresses nothing while still
-delivering the press.
+nothing at all.** The cause is structural rather than incidental: an `ExecutionRequest` crosses that
+thread boundary by structured clone, so the occurrence objects a Worker run reports back are copies
+and no identity survives to match on. Pairing on schedule index would close the gap and would be
+precisely the reconstruction #975 exists to delete, so it stays open — and it is the deliberate
+direction anyway: silent *interception* is worse than silent *inaction*, because it hits every
+learner and presents as "the editor is broken". A page that scrolls during a game is a nuisance; a
+key that vanishes with nothing happening is a bug report. Pinned by a test, with its in-process
+control, so it cannot be quietly "improved" into index arithmetic.
 
 That narrowness is the whole safety story for the ~90% of OpenLogo programs that have no interaction
 at all. The bug this closes is *silent inaction*; the regression it must not introduce is *silent
@@ -393,26 +421,24 @@ would present as "the editor is broken". So:
 - **`preventDefault` is per press, not per program.** A program registering `on_key "up"` suppresses
   `up` and nothing else; a program with no `on_key` suppresses nothing and behaves byte-identically
   to the pre-fix build. Both are asserted against the *real* controller. Suppression needs
-  **synchronous confirmation** that the press ran a handler, so it never happens for a press past the
-  program's last usable tick (nothing ran — exact), nor for a non-literal key word or any press under
-  the Worker host (something may have run, but it cannot be confirmed — conservative, #975).
+  **synchronous confirmation** that the press ran a handler, so it never happens for a press on a
+  program whose clock reaches no dispatch checkpoint (nothing ran — exact), nor for any press under
+  the Worker host (something may have run, but it cannot be confirmed — conservative).
 - **No tab stop is added for a program that cannot use it.** The activation button starts `hidden`
   and is revealed only while the live run registered `on_click` (`RunController.acceptsClick()`) —
   the `hidden`-attribute mechanism `a11y.ts` already documents for the lesson pane, so
-  `REPL_FOCUS_ORDER` stays static. It reports **registration**, not reachability: a run whose tick
-  clock has passed the last usable tick still shows the control, visible and inert, because how many
-  ticks a program will consume is not knowable without running it.
+  `REPL_FOCUS_ORDER` stays static. It reports **registration**, not reachability: a run that
+  registered a handler its clock can never dispatch to still shows the control, visible and inert,
+  because whether a program reaches a checkpoint is not knowable without running it.
 
 **Real time never enters the event stream.** `hostInput.events` is a *static, tick-scheduled* list
 fixed before a run starts; a keystroke arrives on the wall clock. Bridging them by timestamp would
 make two identical play sessions produce different event streams. So the studio assigns ticks
-itself: **the *n*-th input delivered to a run is scheduled at tick *n***. Nothing about *when* a key
-was pressed is recorded, only how many inputs preceded it — so "same seed + same input sequence ⇒
-byte-identical event stream" holds exactly as it does for the `input` answer FIFO, and is asserted
-directly. It also lets the program bound its own lifetime for free: `10-game.logo` ends with
-`wait 300`, so its clock visits ticks 1…300 and the 300th delivery is the last one that can fire.
-Later ones are still scheduled and still replayed (each costing one execution); they simply reach a
-tick the program never gets to.
+itself — since #985 from the run's own tick timeline rather than from a counter, so a delivery lands
+at the tick the learner is looking at (see "Deliveries are scheduled against the program's tick
+clock" below). Nothing about *when* a key was pressed is recorded, only where the program had got
+to — so "same seed + same input sequence ⇒ byte-identical event stream" holds exactly as it does for
+the `input` answer FIFO, and is asserted directly.
 
 **One honest limit shared by all three deliveries:** a scheduled occurrence fires only if the tick
 clock reaches its tick, and only a `wait` pause advances that clock. A program that never waits
@@ -446,23 +472,139 @@ announcing it would file a run-log entry per keystroke.
 - the program actually registered a handler of that kind, according to its own `primitive` trace
   event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
   a stray keystroke;
-- **the chain has never asked the learner an `input` question.** `spec/interaction-events.md:108-111`
-  blocks handlers only *until the read finishes*, so this is stricter than the spec — deliberately.
-  The studio has no tick for the read boundary, so the next delivery is scheduled at tick 1 and the
-  replay reaches an *earlier* point than the learner has already observed. Measured: a key scheduled
-  at tick 1 after an answered question introduced a question the learner had never seen, erased
-  output they had already read, and left a prompt open over a `"done"` status.
-  `resolveRecordedAnswer`'s prompt pairing stops an answer reaching the wrong question; it cannot
-  stop history being rewritten. An answer chain mid-pump is refused for the same family of reasons —
-  it is what stops a synchronously-answering prompt host being handed one more read per answer (the
-  quadratic hang the `#881` section describes).
+- **no `input` question is outstanding right now.** `spec/interaction-events.md:108-111` blocks
+  handlers *until the read finishes*, and this is exactly that — a transient block, matching the
+  spec's "until". Until #976 the studio was stricter: a chain that had *ever* asked a question
+  refused delivery for the rest of its life, because a delivery was then scheduled at a synthetic
+  tick that could land *before* the read and rewrite history the learner had already observed. The
+  permanent gate is **deleted** rather than narrowed — but the tick timeline alone did not earn that
+  deletion, and an earlier version of this section claimed it did. What replaces the gate is the
+  re-clamp below. An answer chain mid-pump is still refused — it is what stops a synchronously-
+  answering prompt host being handed one more read per answer (the quadratic hang the `#881`
+  section describes).
 
-  **So a program that uses `input` gets no delivered interaction for the rest of that chain.** It is
-  a real limitation, not caution: `run()`/`reset()` reopen the window, but a program that asks a
-  question and *then* expects key presses will not receive them. Tracked as
-  [#976](https://github.com/pmalarme/open-logo/issues/976); closing it depends on
-  [#975](https://github.com/pmalarme/open-logo/issues/975), which would give the runtime a delivery
-  boundary (or live host input) instead of a static pre-run schedule.
+**What actually makes the deletion safe: `reclampUndeliveredTail()`.** `Math.max` of three terms:
+
+| floor | why | pinned? |
+| --- | --- | --- |
+| `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
+| `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes |
+| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:108-111`: a delivery must not land at or before a read it should have followed | yes, 1 test |
+
+**The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
+an occurrence appended **re-entrantly during** `drainDeliveredInput`'s loop — the re-clamp runs once
+*before* that loop and never revisits it. Neutralising it to `const tick = 0` left the whole suite
+green from round 1, and it twice came close to being deleted as dead. Every probe reached it through
+`deliverKey`, whose second, unbounded drain silently repairs the mutation.
+
+**A mutation that survives tells you where your probes go, not only what your tests check.** That is
+the sharper form of the rule, and it is exactly what the round that deleted a floor on "no test
+moves" was missing.
+
+It is raised **at delivery time, not at schedule time**, because the drawn and answered-read floors
+keep *moving* while an occurrence waits: a copy taken when the input arrived is stale by the time it
+is delivered.
+
+**It is called from both paths that turn the schedule into a request** — `drainDeliveredInput`, and
+`stop()`'s direct `beginAttempt`. There are **four** `beginAttempt` call sites, and the other two are
+safe for reasons *other* than the re-clamp, recorded here so the next reader does not have to
+re-derive them — that enumeration is what caught the bug below:
+
+- `pump()` — `run()` resets the schedule to `[]`.
+- the lazy `step()` — reachable only before any run, where the schedule is empty and the chain does
+  not accept host input.
+
+Deleting the schedule-time copy without adding the second call was
+a regression review caught: `stop()` does not drain, so its `when "stop"` notification kept tick 0,
+was consumed during a leading `wait` before the handler had registered, and the pre-termination
+notification `spec/interaction-events.md:152-156` requires was lost with no diagnostic. One function
+called twice rather than a floor duplicated at each site, because duplication is exactly the
+redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests.
+
+### Deliveries are scheduled against the program's tick clock (#985)
+
+`spec/interaction-events.md:69-73` makes a tick "an implementation-defined logical frame used by
+rendering, animation, and event dispatch" — **one clock for all three**. The studio used it for none
+of them, and #985 recorded the two consequences separately: **F3**, deliveries scheduled at a
+counter, and **F4**, `wait n` not pacing playback. They share that one root, so the tick timeline
+(`ExecuteOptions.tickTimeline` + `tickAtEventIndex`) fixes both.
+
+**Both hosts compose the sink.** `ExecutionSettlement.tickTimeline` is **required**, not optional,
+because it was optional for one review round and the Worker host silently omitted it: every Worker
+delivery then landed at tick 0 — worse than the counter it replaced, not a graceful degradation.
+A required field makes that omission a type error rather than a silence, and the two hosts are
+asserted to schedule the same program's presses at the same ticks.
+
+The *n*-th delivery used to take tick *n*, from a counter unrelated to the program. That counter was
+#985's F3: measured on `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost equalled the
+lead's tick count exactly — lead 1 lost 1, lead 5 lost 5 — because each early delivery was scheduled
+at a tick that had already passed before the handler existed.
+
+A delivery now lands at the tick the learner is actually looking at, read from the run's own tick
+timeline (`ExecuteOptions.tickTimeline` + `tickAtEventIndex`, #985). The schedule stays a pure
+function of the input sequence and the program — never of the wall clock — so two identical play
+sessions still produce byte-identical event streams.
+
+### `wait n` paces the animation (#985 F4)
+
+The other half of the same root. Playback used a uniform per-step delay and never consulted the
+clock, so `wait 0`, `wait 1` and `wait 9` were **identical** — 3 callbacks, delays
+`[505, 505, 505]`, total 1515 for all three — identical to the no-`wait` control's own per-step
+delay. A learner writing `wait 9` to slow a drawing down saw
+no difference at all.
+
+A step's delay is now scaled by the ticks that step spends: `1 + elapsed`, its own drawing time plus
+its pause. Measured on `forward 10 / wait n / forward 10`:
+
+| program | delays | total |
+|---|---|---|
+| `wait 0` | `[505, 505, 505]` | 1515 |
+| `wait 1` | `[505, 1010, 505]` | 2020 |
+| `wait 2` | `[505, 1515, 505]` | 2525 |
+| `wait 9` | `[505, 5050, 505]` | 6060 |
+| *no `wait` (control)* | `[505, 505]` | 1010 |
+
+`1 + elapsed` rather than `max(1, elapsed)` is what keeps `wait 0` and `wait 1` distinguishable —
+`wait 0` yields without advancing the clock, so it spends 0 ticks and costs 1, while `wait 1` spends
+one and costs 2. An ordinary drawing step spends no tick and costs exactly 1, so every program below
+the Interaction profile paces exactly as it did before.
+
+The step is priced **before** it runs, from `TurtleAnimationController.nextStepEndIndex()`, not
+after. That matters for `spec/interaction-events.md:116-118` — "hold itself open with a long `wait`
+while those handlers drive the animation" — because that is a *trailing* `wait`, and a trailing step
+has no successor to charge: pricing backwards left `wait 20` and `wait 1` both at 1010. Asking the
+animation controller rather than re-deriving the step boundary keeps #1022's single definition
+single; a host pricing a step differently from the step it actually gets is a defect with no witness.
+
+Two consequences, both deliberate:
+
+- **A program is responsive for as many inputs as the learner gives it.** The old counter capped the
+  number of presses at the program's tick count, so `wait 5` accepted five and then went silent —
+  an artifact of the counter rather than a decision.
+
+  **Open question, not a settled one.** An earlier version of this bullet argued from
+  `spec/interaction-events.md:381-384` that *cancellation* is what "stops future handler delivery"
+  and nothing names tick exhaustion. Review rejected that reading, correctly: `:381-384` says
+  cancellation stops delivery, it does **not** say cancellation is the only way a run closes — and
+  `:198-200` says plainly that once the main line has finished "the run closes". So the studio
+  currently accepts deliveries after `runStatus` is `"done"`, which that line does not permit. The
+  obvious guard (refuse once the run is `"done"`) is not the answer either: under the default
+  `IMMEDIATE_SCHEDULER` a run is `"done"` the instant `run()` returns, so it would disable delivery
+  everywhere except a paced browser. Tracked for a maintainer ruling rather than argued away here.
+- **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
+  be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
+  replay settles, so every delivery lands on the program's final tick, and the runtime claims pending
+  keys against the handlers that exist when a tick's dispatch begins. Measured on
+  `on_key "up" [ on_key "down" [ print "inner" ] ] / wait n` across `n` = 2, 4 and 20: outer `true`,
+  inner `false`, both scheduled at the final tick. It fails in the **visible** direction — the inner
+  handler simply does not fire, nothing is swallowed and no press is lost — and a **paced** host does
+  not exhibit it, because its drawn tick genuinely advances between presses.
+  `spec/interaction-events.md:79` is why there is no later tick to use: *"a handler does not extend
+  the run's lifetime"*. The language-level contract is unaffected, which the conformance corpus
+  proves independently — `interaction-events/on_key/on-key-registering-every-stays-clean` schedules
+  its press at an explicit `{tick: 1}` and the nested `every` fires 3 times over the remaining 39
+  ticks. This is the replay host choosing the tick, not the runtime's dispatch rule. See
+  [#977](https://github.com/pmalarme/open-logo/issues/977).
 
 Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
 settlement has landed, a delivery arriving while a later attempt is in flight — reachable only under a

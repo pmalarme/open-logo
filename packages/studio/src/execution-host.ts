@@ -51,8 +51,10 @@ import { execute, printedForm } from "@openlogo/runtime";
 import type {
   CancellationSignal,
   ExecuteOptions,
+  HandlerDelivery,
   HostInput,
   HostInputEvent,
+  TickBoundary,
 } from "@openlogo/runtime";
 import type {
   Diagnostic,
@@ -111,9 +113,14 @@ export interface RecordedAnswerResolution {
  * makes "an answer never reaches a question it did not answer" hold **by construction** rather than
  * by trusting that determinism argument, and it costs one comparison per read.
  *
- * A Worker host (#876) never consults it at all, because it never replays to answer a read — and a
- * chain that has asked a question delivers no host input either (#952), so its #952 replay cannot
- * reach a read at all.
+ * A Worker host (#876) never consults it to *replay* a read, because it never replays to answer one:
+ * it suspends the read in place and resumes it. Since **#976** it does consult it on the other path
+ * — a chain that has asked a question now keeps accepting host input
+ * (`spec/interaction-events.md:108-111` blocks handlers only "until the read finishes"), so a
+ * delivery replay under that host re-runs a program whose questions are already answered.
+ * `execution-worker-runner.ts` resolves each read from this FIFO first and parks only on a question
+ * the chain has no answer for, which is what stops a key press re-asking everything the learner has
+ * already answered.
  */
 export function resolveRecordedAnswer(
   answers: readonly RecordedAnswer[],
@@ -207,6 +214,41 @@ export interface ExecutionSettlement {
   readonly pendingPrompt: string | null;
   /** The answers the chain keeps — see {@link RecordedAnswerResolution.retained}. */
   readonly retainedAnswers: readonly RecordedAnswer[];
+  /**
+   * This run's **tick timeline** (#985) — one {@link TickBoundary} per elapsed tick, from
+   * `@openlogo/runtime`'s `ExecuteOptions.tickTimeline`. Paired with `tickAtEventIndex` it answers
+   * "which tick was the program at when it emitted event *i*", which is how the controller
+   * schedules a delivery against the program's own clock instead of a counter of its own.
+   *
+   * **Required, and that is the point.** It was optional for one round, and the Worker host silently
+   * omitted it: `settlement.tickTimeline` was `undefined` there, so `tickAtEventIndex([], …)`
+   * returned `0` and *every* Worker delivery landed at tick 0 — measured as four presses collapsing
+   * from `[1, 2, 3, 4]` onto `[0, 0, 0, 0]`, which is worse than the counter #985 replaced, not a
+   * graceful degradation. A required field makes that omission a type error instead of a silence.
+   *
+   * It crosses a Worker boundary as plain data (numbers only), so it survives structured clone
+   * unchanged — unlike the values in a `print` event, which is why this can be carried while
+   * `output` cannot, and unlike {@link handlerDeliveries}, whose whole contract is object identity.
+   */
+  readonly tickTimeline: readonly TickBoundary[];
+  /**
+   * This run's **delivery report** (#976) — one `@openlogo/runtime` `HandlerDelivery` per host-input
+   * occurrence the run actually delivered, in delivery order, each counting the handler bodies that
+   * occurrence entered. It is how `run-controller.ts` answers "did **this** press or click run a
+   * handler" from the runtime's own count rather than by differencing the event stream.
+   *
+   * Each entry's `input` is **the very object** the controller put in
+   * {@link ExecutionRequest.hostInputEvents}, so a delivery is matched by identity rather than by
+   * index arithmetic over a schedule the runtime sorted (`HandlerDelivery`'s own contract).
+   *
+   * **A Worker host cannot carry this, by construction.** An `ExecutionRequest` crosses that
+   * boundary by structured clone, so the occurrence objects a Worker run reports are copies and no
+   * identity survives to match. Absent, the controller confirms nothing and suppresses nothing —
+   * which is the conservative direction `canvas-interaction.ts` already documents for that host, not
+   * a new gap. Do not "fix" it by pairing on schedule index: that is exactly the reconstruction
+   * issue #975 exists to delete.
+   */
+  readonly handlerDeliveries?: readonly HandlerDelivery[];
 }
 
 /** How a host reports a settled view of the run it was given. */
@@ -300,6 +342,8 @@ export function toExecuteOptions(
   request: ExecutionRequest,
   signal: CancellationSignal,
   read: ((prompt: string) => string | undefined) | undefined,
+  tickTimeline: TickBoundary[],
+  handlerDeliveries?: HandlerDelivery[],
 ): ExecuteOptions {
   const hostInputEvents = request.hostInputEvents ?? [];
   const hostInput: HostInput = {
@@ -310,6 +354,15 @@ export function toExecuteOptions(
     signal,
     tutorTemplates: eduTutorTemplate,
     randomSeed: request.randomSeed,
+    // #985 — the tick-timeline sink. A **required** parameter, because when it was optional the
+    // Worker host simply did not pass it and every delivery there landed at tick 0. A host that
+    // forgets it is now a compile error rather than a silent collapse.
+    tickTimeline,
+    // #976 — the delivery-report sink. Optional, and the asymmetry with `tickTimeline` above is
+    // real rather than an oversight: a timeline is plain numbers and survives a Worker's structured
+    // clone, while a delivery report is matched by object identity, which that boundary destroys.
+    // So a Worker host can carry the first and genuinely cannot carry the second.
+    ...(handlerDeliveries === undefined ? {} : { handlerDeliveries }),
     ...(read === undefined && hostInputEvents.length === 0
       ? {}
       : { hostInput }),
@@ -372,10 +425,18 @@ export function createInProcessExecutionHost(
           }
         : undefined;
 
+      const tickTimeline: TickBoundary[] = [];
+      const handlerDeliveries: HandlerDelivery[] = [];
       const result = execute(
         request.source,
         request.document,
-        toExecuteOptions(request, options.signal, read),
+        toExecuteOptions(
+          request,
+          options.signal,
+          read,
+          tickTimeline,
+          handlerDeliveries,
+        ),
       );
 
       settle({
@@ -385,6 +446,8 @@ export function createInProcessExecutionHost(
         diagnostics: result.diagnostics,
         pendingPrompt,
         retainedAnswers,
+        tickTimeline,
+        handlerDeliveries,
       });
     },
     cancel() {

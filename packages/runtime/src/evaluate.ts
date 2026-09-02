@@ -92,7 +92,7 @@ import {
 } from "./random-number-generator.js";
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
 import { createTickClock } from "./interaction.js";
-import type { TickClock } from "./interaction.js";
+import type { TickBoundary, TickClock } from "./interaction.js";
 import type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
 import { createEventHandlerRegistry } from "./interaction.js";
 import type { EventHandlerRegistry } from "./interaction.js";
@@ -335,6 +335,12 @@ export interface Environment {
    * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
    */
   readonly tickClock: TickClock;
+  /**
+   * The caller-supplied **tick timeline** sink (issue #985), or `undefined` when no host asked for
+   * one — in which case nothing is recorded and this costs a run exactly one optional-call check per
+   * elapsed tick. See {@link TickBoundary} for why it is out of band rather than a trace payload.
+   */
+  readonly tickTimeline: TickBoundary[] | undefined;
   /**
    * The caller-supplied **handler-registration log** sink (issue #975), or `undefined` when no host
    * asked for one — in which case nothing is recorded and this costs a run one optional-call check
@@ -604,6 +610,7 @@ export function createEnvironment(): Environment {
     addressing: createTurtleAddressing(mainTurtleState),
     randomNumberGenerator: createRandomNumberGeneratorState(),
     tickClock: createTickClock(),
+    tickTimeline: undefined,
     handlerRegistrations: undefined,
     handlerDeliveries: undefined,
     sound: createSoundState(),

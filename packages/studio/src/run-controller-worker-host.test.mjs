@@ -764,3 +764,422 @@ test("a fresh Run after Stop starts a genuinely new execution", () => {
     "what is your name?",
   ]);
 });
+
+/**
+ * A program that asks a question and THEN expects key presses — the shape #976 exists for. Before
+ * this slice the studio refused every press after the question, permanently, which is stricter than
+ * `spec/interaction-events.md:108-111` ("until the read finishes").
+ */
+const ASK_THEN_ON_KEY_SOURCE = [
+  ':name = input "who?"',
+  "print :name",
+  'on_key "left" [',
+  '  print "turned"',
+  "]",
+  "wait 5",
+].join("\n");
+
+test("#976: under the Worker host a key press after an answered question does NOT re-ask it", () => {
+  // AC3, end to end through the real host and the real Worker-side runner.
+  //
+  // The two halves this needs are both new. The host now reports the answers it resolved in place
+  // (it used to echo the request's own empty list, so the chain ended with no record that anything
+  // had been answered), and the runner now consumes `ExecutionRequest.answers` before parking (it
+  // used to present a live read unconditionally). Revert either and this test fails on the prompt
+  // count: the delivery replay puts "who?" back on the learner's screen.
+  //
+  // This was unreachable until #976 removed the permanent refusal — a chain that had asked a
+  // question delivered no input at all, so no replay ever crossed a read.
+  const { host, state } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "ada");
+  const store = OL.createStudioState({ source: ASK_THEN_ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  assert.deepEqual(prompt.prompts, ["who?"], "asked once by the run itself");
+  assert.deepEqual(store.getState().output, ["ada"]);
+
+  const runsBeforePress = state.runCommandCount;
+  controller.deliverKey("left");
+
+  assert.ok(
+    state.runCommandCount > runsBeforePress,
+    "the press genuinely replayed the chain — otherwise this proves nothing",
+  );
+  assert.deepEqual(
+    prompt.prompts,
+    ["who?"],
+    "…and the replay consumed the recorded answer instead of re-asking",
+  );
+  assert.deepEqual(
+    store.getState().output,
+    ["ada", "turned"],
+    "the question's answer survives the replay AND the handler ran",
+  );
+});
+
+test("#976: the question is not re-asked across several presses either", () => {
+  // One press could pass by luck if the FIFO were consumed destructively somewhere. Three presses
+  // over the same chain pin that the chain's answers survive every replay.
+  const { host } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "ada");
+  const store = OL.createStudioState({ source: ASK_THEN_ON_KEY_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  controller.deliverKey("left");
+  controller.deliverKey("left");
+  controller.deliverKey("left");
+
+  assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
+  assert.deepEqual(store.getState().output, [
+    "ada",
+    "turned",
+    "turned",
+    "turned",
+  ]);
+});
+
+/**
+ * The shape the round-1 Worker tests missed: a `wait` runs BEFORE the read, so the read completes at
+ * a non-zero tick and a wrongly-scheduled delivery can land in front of it. `ASK_THEN_ON_KEY_SOURCE`
+ * asks first, which puts the read at tick 0 where no schedulable tick can precede it.
+ */
+function waitThenAskThenOnKeySource(lead) {
+  return [
+    'on_key "a" [',
+    '  print "HANDLER"',
+    "]",
+    `wait ${lead}`,
+    ':who = input "who?"',
+    "print :who",
+    "wait 3",
+  ].join("\n");
+}
+
+test("#985/#976: the Worker host schedules against the program's tick clock, not tick 0", () => {
+  // Round 1 shipped this broken and all ten gates passed. `execution-worker-runner.ts` called
+  // `toExecuteOptions(request, signal, read)` with three arguments while the tick-timeline sink was
+  // the fourth, so `settlement.tickTimeline` was `undefined` on this host, `tickAtEventIndex([], …)`
+  // returned 0 unconditionally, and EVERY Worker delivery landed at tick 0.
+  //
+  // That is worse than the counter #985 replaced, not a graceful degradation: four presses used to
+  // land at [1,2,3,4] and collapsed onto [0,0,0,0]. `web/main.ts` selects this host whenever the
+  // page is cross-origin isolated, so it is a production path.
+  const { host } = createBlockingHost();
+  const prompt = createTestPromptHost(() => "tom");
+  const store = OL.createStudioState({
+    source: waitThenAskThenOnKeySource(3),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  const observed = store.getState().output;
+  assert.deepEqual(observed, ["tom"], "the learner has read the answer");
+
+  controller.deliverKey("a");
+  const after = store.getState().output;
+
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a PREFIX — at tick 0 the handler's line was inserted BEFORE it",
+  );
+  assert.deepEqual(after, ["tom", "HANDLER"]);
+  assert.deepEqual(prompt.prompts, ["who?"], "and nothing was re-asked");
+});
+
+test("#985: the Worker host and the in-process host schedule a delivery IDENTICALLY", () => {
+  // The claim that was false. `execution-host.ts` said "every host composes it here … so the two
+  // hosts cannot drift on what a run is given" while the Worker passed three arguments to a
+  // four-parameter `toExecuteOptions` and got no timeline at all — so it scheduled every delivery
+  // at tick 0 while the in-process host used the program's clock. All ten gates passed.
+  //
+  // Asserting the two schedules are equal is the direct form of that claim, and it is what a
+  // one-host test cannot say however carefully it is written. Reverting the runner's 4th argument
+  // makes this fail with `[0,0,0,0]` against `[30,30,30,30]`.
+  //
+  // The two hosts still differ in what they CONFIRM — a Worker carries no delivery report, because
+  // structured clone destroys the occurrence identity a report is matched on — so this asserts the
+  // schedule, which both can carry, and states the confirmation difference rather than hiding it.
+  const source = ['on_key "a" [', "  forward 10", "]", "wait 30"].join("\n");
+
+  function scheduleUnder(executionHost) {
+    const requests = [];
+    const recording = {
+      execute(request, settle) {
+        requests.push(request);
+        executionHost.execute(request, settle);
+      },
+      cancel: () => executionHost.cancel(),
+    };
+    const store = OL.createStudioState({ source });
+    const controller = OL.createRunController(store, {
+      executionHost: recording,
+    });
+    controller.run();
+    const confirmed = [];
+    for (let press = 0; press < 4; press += 1) {
+      confirmed.push(controller.deliverKey("a"));
+    }
+    const scheduled = requests.at(-1).hostInputEvents;
+    assert.ok(scheduled, "the replay carried a schedule");
+    // Reset so each host's run is closed before the next is measured, and so the recording
+    // wrapper's `cancel` is reached rather than merely declared.
+    controller.reset();
+    return {
+      ticks: scheduled.map((entry) => entry.tick),
+      confirmed,
+    };
+  }
+
+  const inProcess = scheduleUnder(
+    OL.createInProcessExecutionHost({ signal: { aborted: false } }),
+  );
+  const worker = scheduleUnder(createBlockingHost().host);
+
+  assert.deepEqual(
+    worker.ticks,
+    inProcess.ticks,
+    "the two hosts must schedule the same program's presses at the same ticks",
+  );
+  assert.ok(
+    worker.ticks.length === 4 && worker.ticks.every((tick) => tick > 0),
+    `and at the program's own clock, not tick 0 — got ${JSON.stringify(worker.ticks)}`,
+  );
+  assert.deepEqual(
+    inProcess.confirmed,
+    [true, true, true, true],
+    "the in-process host confirms every press",
+  );
+  assert.deepEqual(
+    worker.confirmed,
+    [false, false, false, false],
+    "the Worker confirms none — the documented, conservative limitation, stated rather than hidden",
+  );
+});
+
+test("#976: a delivery arriving between resolveRead() and the run's own report does not corrupt the chain", () => {
+  // The race rubber-duck found. `resolveRead()` hands the answer to a run that is still in flight;
+  // the host only transfers that answer onto a *settlement*. A delivery landing in that window used
+  // to start a SECOND execution whose `ExecutionRequest.answers` did not yet carry it.
+  //
+  // Measured on the real Worker host + real runner, before the fix:
+  //   prompts ["who?","who?"]           the answered question put to the learner again
+  //   output  ["HANDLER","BEFORE"]      the handler's line inserted BEFORE the line already read,
+  //                                     and the learner's own answer lost entirely
+  //
+  // The fix is to honour what `drainDeliveredInput`'s doc comment already claimed: while an attempt
+  // is in flight the delivery stays SCHEDULED and is replayed when that attempt settles. The
+  // settlement path now resumes the drain, so it is deferred rather than dropped.
+  const { host } = createBlockingHost();
+  // The question must be HELD, not answered from inside `present()` — answering synchronously
+  // resolves the read before `run()` returns and there is no window to land in.
+  const prompt = createTestPromptHost();
+  const store = OL.createStudioState({
+    source: [
+      'on_key "a" [',
+      '  print "HANDLER"',
+      "]",
+      "wait 1",
+      'print "BEFORE"',
+      ':who = input "who?"',
+      "print :who",
+      "wait 5",
+    ].join("\n"),
+  });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  const observed = store.getState().output;
+  assert.deepEqual(observed, ["BEFORE"], "the learner has read this much");
+  assert.deepEqual(prompt.prompts, ["who?"]);
+
+  // Answer it, then deliver before the resumed run has reported: the window itself.
+  prompt.respond("Ada");
+  controller.deliverKey("a");
+  const after = store.getState().output;
+
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a PREFIX — the race inserted the handler's line in front of it",
+  );
+  assert.deepEqual(
+    prompt.prompts,
+    ["who?"],
+    "and the answered question is not put to them a second time",
+  );
+});
+
+/**
+ * A **scripted** Worker port: it records the run commands the host posts and lets a test emit
+ * `read` and `done` reports by hand. `createBlockingHost()` cannot do this — it drives the real
+ * runner, which unwinds at `PARKED` and can therefore never emit the later `"done"` a resumed run
+ * produces. That is why the race test built on it could only ever prove "no immediate corruption".
+ *
+ * **Every field it emits must be a shape the real runner can produce.** Review found two that were
+ * not: a hard-coded `tickTimeline: []` on `read`, and a fabricated `[{ tick: 1, eventCount: 0 }]` on
+ * `done` — unproducible for *any* program, because a boundary is pushed as
+ * `{ tick, eventCount: events.length }` only after the `wait` instruction is emitted, so the floor is
+ * 1 even at minimum. Both were measured harmless today, but a harness that emits shapes the Worker
+ * cannot is one assertion away from proving nothing. The timelines now come from `settlementFor()`,
+ * i.e. from the real runtime, and `retainedAnswers` is always present because
+ * `worker-execution-host.ts` declares it required.
+ *
+ * **Per FIELD, not per report.** Review was right to narrow this: `settlementFor()` is run with
+ * `acceptsReads: false` and no answers, so the events and timeline it yields are the *read-prefix*
+ * artifacts, and the test then pairs them with `done` outputs containing `"Ada"` and `"HANDLER"`. No
+ * single real `done` report has that combination. Every field is individually of a producible shape;
+ * the composite is still assembled. Closing that would mean teaching `settlementFor` to take answers
+ * and host input and deriving three distinct real settlements — worth doing when something asserts on
+ * delivery *tick* here, which nothing does today.
+ */
+function createScriptedPort() {
+  const commands = [];
+  let listener = null;
+  const port = {
+    postMessage(command) {
+      commands.push(command);
+    },
+    onReport(next) {
+      listener = next;
+    },
+  };
+  return {
+    commands,
+    port,
+    read(prompt, output, events, tickTimeline) {
+      listener({
+        type: "read",
+        runId: commands.at(-1).runId,
+        prompt,
+        events,
+        output,
+        tutorOutput: [],
+        tickTimeline,
+        retainedAnswers: [],
+      });
+    },
+    done(output, tickTimeline, retainedAnswers, events) {
+      listener({
+        type: "done",
+        runId: commands.at(-1).runId,
+        events,
+        output,
+        tutorOutput: [],
+        diagnostics: [],
+        tickTimeline,
+        retainedAnswers,
+      });
+    },
+  };
+}
+
+const RACE_SOURCE = [
+  'on_key "a" [',
+  '  print "HANDLER"',
+  "]",
+  "wait 1",
+  'print "BEFORE"',
+  ':who = input "who?"',
+  "print :who",
+  "wait 3",
+].join("\n");
+
+test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answer retained", () => {
+  // duck's round-4 BLOCKING 3. The previous test asserted only that nothing was corrupted at the
+  // moment of delivery; every outcome that matters happens *after* the resumed run reports, and
+  // `createBlockingHost()` structurally cannot get there. This scripts the port instead, so the
+  // load-bearing outcomes are asserted rather than assumed: a SECOND run command, carrying the
+  // retained answer and the scheduled key, and the handler's output arriving after the line the
+  // learner had already read.
+  // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
+  // actually registers — a scripted report carrying vents: [] would be refused before scheduling,
+  // and the test would pass for the wrong reason.
+  // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
+  // actually registers — a scripted report carrying events: [] would be refused before scheduling,
+  // and the test would pass for the wrong reason. The tick timeline now comes from the same real
+  // settlement, for the same reason: review measured the fabricated one unproducible by any program.
+  const realSettlement = settlementFor(RACE_SOURCE);
+  const realEvents = realSettlement.events;
+  const realTicks = realSettlement.tickTimeline;
+  assert.ok(
+    realTicks.length > 0 &&
+      realTicks.every((boundary) => boundary.eventCount > 0),
+    `control: the real timeline must be non-empty with positive eventCounts, else it could not detect the fabricated one (got ${JSON.stringify(realTicks)})`,
+  );
+  const scripted = createScriptedPort();
+  const host = OL.createWorkerExecutionHost({
+    allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),
+    notify: () => 1,
+    port: scripted.port,
+  });
+  const prompt = createTestPromptHost();
+  const store = OL.createStudioState({ source: RACE_SOURCE });
+  const controller = OL.createRunController(store, {
+    executionHost: host,
+    inputPrompt: prompt,
+  });
+
+  controller.run();
+  assert.equal(scripted.commands.length, 1, "one run command so far");
+  scripted.read("who?", ["BEFORE"], realEvents, realTicks);
+  assert.deepEqual(prompt.prompts, ["who?"]);
+
+  // Answer, then deliver before the resumed run has reported: the race window itself.
+  prompt.respond("Ada");
+  const observed = store.getState().output;
+  controller.deliverKey("a");
+
+  // The resumed run finishes and reports, carrying the answer it consumed.
+  // The runner's OWN view of the FIFO: this run started with no recorded answers and parked, so it
+  // truncated nothing and reports an empty list. The host adds the answer it resolved in place.
+  scripted.done(["BEFORE", "Ada"], realTicks, [], realEvents);
+
+  assert.equal(
+    scripted.commands.length,
+    2,
+    "the deferred delivery is REPLAYED once the racing attempt settles — not stranded",
+  );
+  const replay = scripted.commands.at(-1).request;
+  assert.deepEqual(
+    replay.answers,
+    [{ prompt: "who?", answer: "Ada" }],
+    "…and the replay carries the answer the racing attempt consumed, so nothing is re-asked",
+  );
+  assert.ok(
+    replay.hostInputEvents?.some((entry) => entry.kind === "key"),
+    "…and the scheduled key is actually in the replay's schedule",
+  );
+
+  // The replay reports the handler having run, after the line already read.
+  scripted.done(
+    ["BEFORE", "Ada", "HANDLER"],
+    realTicks,
+    [{ prompt: "who?", answer: "Ada" }],
+    realEvents,
+  );
+
+  const after = store.getState().output;
+  assert.deepEqual(
+    after.slice(0, observed.length),
+    observed,
+    "what the learner already read survives as a prefix",
+  );
+  assert.deepEqual(after, ["BEFORE", "Ada", "HANDLER"]);
+  assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
+  assert.equal(store.getState().runStatus, "done");
+});

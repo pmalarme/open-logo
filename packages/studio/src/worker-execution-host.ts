@@ -48,7 +48,9 @@ import type {
   ExecutionHost,
   ExecutionRequest,
   ExecutionSettle,
+  RecordedAnswer,
 } from "./execution-host.js";
+import type { TickBoundary } from "@openlogo/runtime";
 import type {
   Diagnostic,
   TraceEvent,
@@ -87,6 +89,24 @@ export interface ExecutionWorkerReadReport {
   readonly output: readonly string[];
   /** Those events' `tutor-output` payloads, in order. */
   readonly tutorOutput: readonly TutorOutputPayload[];
+  /**
+   * The tick boundaries elapsed before the read (#985). Plain numbers, so it survives structured
+   * clone unchanged — which is why the timeline can cross this boundary while `output` cannot.
+   *
+   * Carried on the **read** report as well as the done one because a chain that is suspended on a
+   * question can still receive input the moment the learner answers, and it must be scheduled at
+   * the tick the program has actually reached. Omitting it here would put every delivery on a
+   * suspended chain at tick 0.
+   */
+  readonly tickTimeline: readonly TickBoundary[];
+  /**
+   * The chain's answers as this run now holds them (#976) — the request's own list, **truncated at
+   * the first question the replay reached differently**. The runner drops every entry from that
+   * position on (`resolveRecordedAnswer`), because an answer given for a question the learner is no
+   * longer being asked must never be handed to its replacement. Reporting the truncation is what
+   * keeps the host from restoring the stale entry and re-asking the replacement question forever.
+   */
+  readonly retainedAnswers: readonly RecordedAnswer[];
 }
 
 /** The run finished — normally, on a diagnostic, or cancelled. */
@@ -102,6 +122,10 @@ export interface ExecutionWorkerDoneReport {
   readonly tutorOutput: readonly TutorOutputPayload[];
   /** The run's diagnostics, exactly as `@openlogo/runtime` produced them. */
   readonly diagnostics: readonly Diagnostic[];
+  /** The run's complete tick timeline — see {@link ExecutionWorkerReadReport.tickTimeline}. */
+  readonly tickTimeline: readonly TickBoundary[];
+  /** The chain's answers — see {@link ExecutionWorkerReadReport.retainedAnswers}. */
+  readonly retainedAnswers: readonly RecordedAnswer[];
 }
 
 /** Everything the Worker can send back. */
@@ -152,11 +176,33 @@ export function createWorkerExecutionHost(
   let request: ExecutionRequest | null = null;
   let settle: ExecutionSettle | null = null;
   let currentRunId = 0;
+  // #976 — the questions this run has parked on and the answers given for them, in ask order. The
+  // controller records nothing on the resolve-in-place path (there is no replay for it to record
+  // for), so without this the chain's FIFO would stay empty and a delivery replay — which #976 makes
+  // reachable for the first time — would re-ask everything the learner has already answered. Held
+  // per run and cleared with it: an answer belongs to the execution that consumed it.
+  //
+  // `reportedAnswers` is the runner's own view, which it TRUNCATES when a replay reaches a different
+  // question than the learner was shown. Adopting it rather than `request.answers` is what keeps a
+  // divergence from repeating forever: restoring the stale entry would make the next replay diverge
+  // at the same position, so the replacement question would be re-asked on every delivery.
+  let pendingPrompt: string | null = null;
+  let reportedAnswers: readonly RecordedAnswer[] | null = null;
+  let resolvedAnswers: RecordedAnswer[] = [];
+
+  /** The chain's answers as they now stand: what this run kept, plus what it has since consumed. */
+  function answersSoFar(active: ExecutionRequest): readonly RecordedAnswer[] {
+    const kept = reportedAnswers ?? active.answers;
+    return resolvedAnswers.length === 0 ? kept : [...kept, ...resolvedAnswers];
+  }
 
   function endRun(): void {
     channel = null;
     request = null;
     settle = null;
+    pendingPrompt = null;
+    reportedAnswers = null;
+    resolvedAnswers = [];
   }
 
   options.port.onReport((report) => {
@@ -169,7 +215,9 @@ export function createWorkerExecutionHost(
     ) {
       return;
     }
+    reportedAnswers = report.retainedAnswers;
     if (report.type === "read") {
+      pendingPrompt = report.prompt;
       activeSettle({
         events: report.events,
         output: report.output,
@@ -179,10 +227,13 @@ export function createWorkerExecutionHost(
         // for the opposite reason — it really did cancel the attempt.
         diagnostics: [],
         pendingPrompt: report.prompt,
-        retainedAnswers: activeRequest.answers,
+        retainedAnswers: answersSoFar(activeRequest),
+        tickTimeline: report.tickTimeline,
       });
       return;
     }
+    const retainedAnswers = answersSoFar(activeRequest);
+    const { tickTimeline } = report;
     endRun();
     activeSettle({
       events: report.events,
@@ -190,7 +241,8 @@ export function createWorkerExecutionHost(
       tutorOutput: report.tutorOutput,
       diagnostics: report.diagnostics,
       pendingPrompt: null,
-      retainedAnswers: activeRequest.answers,
+      retainedAnswers,
+      tickTimeline,
     });
   });
 
@@ -254,6 +306,17 @@ export function createWorkerExecutionHost(
         !deliverBlockingAnswer(activeChannel, answer, options.notify).delivered
       ) {
         dismissBlockingRead(activeChannel, options.notify);
+        return;
+      }
+      // #976 — the answer reached the parked run, so it is now part of this chain's history and a
+      // later delivery replay must be able to consume it rather than re-ask. Recorded only on the
+      // delivered path: a refused or dismissed answer was never given to the program.
+      if (pendingPrompt !== null) {
+        resolvedAnswers = [
+          ...resolvedAnswers,
+          { prompt: pendingPrompt, answer },
+        ];
+        pendingPrompt = null;
       }
     },
   };

@@ -1,0 +1,4 @@
+on_key "a" [ print "handler ran" ]
+:answer = input "who is there?"
+print :answer
+wait 1

@@ -17,6 +17,7 @@ import {
   createTickClock,
   execute,
   isWaitCall,
+  tickAtEventIndex,
   yieldToEventLoop,
 } from "@openlogo/runtime";
 import { parse } from "@openlogo/parser";
@@ -430,3 +431,108 @@ function firstStatement(source) {
   const result = parse(`${source}\n`, doc);
   return result.ast.body[0];
 }
+
+/**
+ * #985 — the tick timeline: `ExecuteOptions.tickTimeline` plus `tickAtEventIndex`, the seam an
+ * interactive host needs to schedule input against the program's own logical clock rather than a
+ * counter of its own. It is deliberately OUT OF BAND: the trace stream carries no tick, and these
+ * tests pin that supplying the sink changes neither the events nor the diagnostics.
+ */
+
+test("#985: tickAtEventIndex reports the tick an event was emitted at, and 0 before the first boundary", () => {
+  const timeline = [
+    { tick: 1, eventCount: 3 },
+    { tick: 2, eventCount: 3 },
+    { tick: 3, eventCount: 6 },
+  ];
+
+  // Events emitted before any tick advance belong to tick 0 — the program's own starting tick,
+  // reported because it is correct and not as a fallback.
+  assert.equal(tickAtEventIndex(timeline, 0), 0);
+  assert.equal(tickAtEventIndex(timeline, 2), 0);
+
+  // At and past a boundary's event count, that boundary's tick applies. Two boundaries share an
+  // event count here (a tick that emitted nothing), and the LATER one must win.
+  assert.equal(tickAtEventIndex(timeline, 3), 2);
+  assert.equal(tickAtEventIndex(timeline, 5), 2);
+  assert.equal(tickAtEventIndex(timeline, 6), 3);
+
+  // Past the end of the stream the last tick still applies — a host asks for "the tick I am at",
+  // and that is the final one once everything has been emitted.
+  assert.equal(tickAtEventIndex(timeline, 99), 3);
+
+  // An empty timeline is a run that never advanced its clock: every event is at tick 0.
+  assert.equal(tickAtEventIndex([], 0), 0);
+  assert.equal(tickAtEventIndex([], 42), 0);
+});
+
+test("#985: a run records one tick boundary per elapsed tick, and none for a pause that advances none", () => {
+  function timelineOf(source) {
+    const tickTimeline = [];
+    execute(source, "tick-timeline.logo", { tickTimeline });
+    return tickTimeline;
+  }
+
+  assert.deepEqual(
+    timelineOf("wait 0"),
+    [],
+    "`wait 0` yields without advancing the clock, so it crosses no boundary",
+  );
+  assert.deepEqual(timelineOf("wait 1"), [{ tick: 1, eventCount: 1 }]);
+  assert.deepEqual(timelineOf("wait 3"), [
+    { tick: 1, eventCount: 1 },
+    { tick: 2, eventCount: 1 },
+    { tick: 3, eventCount: 1 },
+  ]);
+  assert.deepEqual(
+    timelineOf("").length,
+    0,
+    "a program with no `wait` at all advances no tick",
+  );
+});
+
+test("#985: supplying the timeline sink changes neither the event stream nor the diagnostics", () => {
+  // The whole point of an out-of-band sink: it must be observationally inert. A host that asks for
+  // the timeline must get byte-identical execution to one that does not.
+  const source = ['on_key "up" [ print "H" ]', "wait 3"].join("\n");
+  const options = {
+    randomSeed: 7,
+    hostInput: { events: [{ tick: 2, kind: "key", key: "up" }] },
+  };
+
+  const without = execute(source, "tick-timeline.logo", options);
+  const tickTimeline = [];
+  const withSink = execute(source, "tick-timeline.logo", {
+    ...options,
+    tickTimeline,
+  });
+
+  assert.equal(
+    JSON.stringify(withSink.events),
+    JSON.stringify(without.events),
+    "no tick is smuggled into the trace stream, and nothing is reordered",
+  );
+  assert.deepEqual(withSink.diagnostics, without.diagnostics);
+  assert.ok(
+    tickTimeline.length > 0,
+    "…and the sink was genuinely populated, so this is not a vacuous comparison",
+  );
+});
+
+test("#985: the timeline is deterministic — same source, seed and input schedule, identical boundaries", () => {
+  function play() {
+    const tickTimeline = [];
+    execute(
+      ['on_key "up" [ print "H" ]', "wait 4"].join("\n"),
+      "tick-timeline.logo",
+      {
+        randomSeed: 7,
+        hostInput: { events: [{ tick: 2, kind: "key", key: "up" }] },
+        tickTimeline,
+      },
+    );
+    return JSON.stringify(tickTimeline);
+  }
+
+  assert.equal(play(), play());
+});

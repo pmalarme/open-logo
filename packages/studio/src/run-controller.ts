@@ -309,20 +309,34 @@
  * would make two identical play sessions produce different event streams, destroying the replay
  * determinism `input` already depends on (#881).
  *
- * So the studio assigns the ticks itself: **the *n*-th input delivered to a run is scheduled at
- * tick *n***, from a counter that starts at 1 when `run()` starts a chain. Nothing about *when* the
- * learner pressed the key is recorded, only *how many* inputs preceded it. The schedule is therefore
- * a pure function of the input sequence, and "same seed + same input schedule ⇒ byte-identical event
- * stream" holds exactly as it does for the answer FIFO. The runtime imposes the normative same-tick
- * order (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
+ * So the studio assigns the ticks itself. Until #985 that was **the *n*-th input at tick *n***, from
+ * a counter starting at 1 — which is exactly what F3 was: a delivery could land at a tick that had
+ * already passed before its handler registered, and the presses lost equalled the lead `wait`'s tick
+ * count. Since #985 the tick comes from the run's own timeline
+ * (`ExecuteOptions.tickTimeline` + `tickAtEventIndex`), read at the event the animation has drawn —
+ * "the tick the learner is looking at". Nothing about *when* the learner pressed the key is
+ * recorded, only where the program had got to, so the schedule stays a pure function of the input
+ * sequence and the program, and "same seed + same input schedule ⇒ byte-identical event stream"
+ * holds exactly as it does for the answer FIFO. The runtime imposes the normative same-tick order
+ * (`when` → `on_key` → `on_click` → due `every`) at its own drain point, so this module never
  * reasons about ordering either.
  *
- * That mapping also gives the program the last word on its own lifetime, for free: `10-game.logo`
- * ends with `wait 300`, so its tick clock visits ticks 1…300 and the 300th delivery is the last one
- * that can fire. A press past that is still scheduled and still replayed; it simply reaches a tick
- * the program never gets to, and `deliverKey` reports `false` for it because nothing ran. The
- * boolean's one definition lives on {@link RunController.deliverKey}, where it is produced — it is
- * deliberately not restated here, because two sentences describing one boolean is exactly how the
+ * Two consequences of scheduling against the real clock, both recorded in
+ * `packages/studio/README.md`:
+ * - a program is responsive for as many inputs as the learner gives it, because the old counter's
+ *   cap at the program's tick count was an artifact. Whether delivery should nonetheless close when
+ *   the run does (`spec/interaction-events.md:198-200`) is **an open question awaiting a maintainer
+ *   ruling**, not a settled deviation — see the README, which records why the obvious guard is not
+ *   the answer either.
+ * - under this synchronous replay host a handler registered **by** a handler cannot be reached,
+ *   because a completed replay has one tick to deliver into and the runtime claims pending keys
+ *   against the handlers existing when that tick's dispatch begins. It fails visibly (the inner
+ *   handler does not fire; nothing is swallowed), a paced host does not exhibit it, and the
+ *   language-level contract is unaffected — the conformance corpus schedules such a case at an
+ *   explicit tick and it stays clean. See **#977**.
+ *
+ * The boolean's one definition lives on {@link RunController.deliverKey}, where it is produced — it
+ * is deliberately not restated here, because two sentences describing one boolean is exactly how the
  * two of them diverged and had to be reconciled twice.
  *
  * ### What a delivery costs
@@ -359,23 +373,23 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **The chain has never asked the learner an `input` question.** A question outstanding refuses the
- *   delivery outright, because `spec/interaction-events.md:108-111` forbids running a handler block
- *   until the read finishes — and once one has been asked the window stays shut for the rest of that
- *   chain, which is stricter than `:108-111` requires and deliberately so. The studio has no tick for
- *   the read boundary, so the next delivery lands at tick 1 and the replay reaches an *earlier* point
- *   than the learner has already observed: measured, a key scheduled at tick 1 after an answered
- *   question introduced a question they had never seen, erased output they had already read, and left
- *   a prompt open over a `"done"` status. {@link resolveRecordedAnswer}'s prompt pairing stops an
- *   answer reaching the wrong question; it cannot stop history being rewritten. An answer chain
- *   mid-pump is refused for the same family of reasons — it is what stops a prompt host answering
- *   synchronously from inside `present()` being handed one more read per answer, the quadratic hang
- *   the "#881" section above describes.
- *
- *   So a program that uses `input` receives no delivered interaction for the rest of that chain.
- *   `run()`/`reset()` reopen the window. That deviation is tracked as **#976**; closing it depends on
- *   **#975** giving the runtime a delivery boundary (or live host input) rather than a static
- *   pre-run schedule.
+ * - **No `input` question is outstanding right now.** `spec/interaction-events.md:108-111` forbids
+ *   running a handler block "until the read finishes" — an *until*, so the block is transient. Until
+ *   #976 the studio was stricter: once a chain had asked anything the window stayed shut for the rest
+ *   of its life, because a delivery was then scheduled at a synthetic tick that could land *before*
+ *   the read and rewrite history the learner had already observed (measured: a question they had
+ *   never seen introduced, output they had already read erased, a prompt left open over a `"done"`
+ *   status). {@link resolveRecordedAnswer}'s prompt pairing stops an answer reaching the wrong
+ *   question; it cannot stop history being rewritten. #985's tick timeline removes that cause — a
+ *   delivery lands at the tick the learner is looking at, never earlier than a read they answered —
+ *   so the permanent gate is **deleted** and `pendingRead === null` carries the whole rule. The tick
+ *   timeline alone is not sufficient for that: {@link reclampUndeliveredTail} is called from **both**
+ *   paths that compose a request — the drain, and `stop()`'s direct `beginAttempt`. Review found the
+ *   second after a round had
+ *   deleted the schedule-time copy as redundant; it was not redundant, it was unpinned. An answer
+ *   chain mid-pump is still refused: it is what stops a prompt host answering synchronously from
+ *   inside `present()` being handed one more read per answer, the quadratic hang the "#881" section
+ *   above describes.
  *
  * Note what is deliberately **not** a gate: whether an execution has settled. Once the run's **first**
  * settlement has landed, a delivery arriving while a later attempt is in flight — only reachable
@@ -389,9 +403,28 @@
  * `currentEvents` — so a delivery in that window is refused and dropped rather than buffered. It
  * fails safe (nothing is scheduled, nothing is suppressed) and the window is one settlement wide,
  * but the pacing-independence claim above is genuinely "after the run's first settlement".
+ *
+ * ## #985/#976 — one question, answered by the runtime
+ * #952 built a per-delivery invocation count for `on_key` only, and left `deliverClick` returning
+ * `true` as soon as its gate passed. Those are different questions — "did this activation run a
+ * handler" versus "could an activation reach one at all" — and the gap between them was measurable:
+ * on `wait 1 / on_click [ … ] / wait 2` the first click returned `true` having run nothing and
+ * printed nothing. Both now read the **same** answer from the same place: `@openlogo/runtime`'s
+ * `ExecuteOptions.handlerDeliveries`, one record per delivered occurrence, matched to this delivery's
+ * own schedule entry by identity. See {@link deliveryRanAHandler}.
+ *
+ * That `wait 1` lead was **#985's F3**, and it **is** fixed here: a delivery is scheduled at the tick
+ * the program has actually reached, read from the run's own tick timeline, rather than at `tick n`
+ * for the *n*-th delivery.
  */
 
-import type { CancellationSignal, HostInputEvent } from "@openlogo/runtime";
+import { tickAtEventIndex } from "@openlogo/runtime";
+import type {
+  CancellationSignal,
+  HandlerDelivery,
+  HostInputEvent,
+  TickBoundary,
+} from "@openlogo/runtime";
 import type {
   Diagnostic,
   PrimitivePayload,
@@ -409,8 +442,6 @@ import type { Scheduler } from "@openlogo/turtle";
 import type { AppShell } from "./app-shell.js";
 import type { CanvasViewController } from "./canvas-view.js";
 import { createInProcessExecutionHost } from "./execution-host.js";
-import { collectDeclaredKeyHandlers } from "./key-words.js";
-import type { DeclaredKeyHandler } from "./key-words.js";
 import type {
   ExecutionHost,
   ExecutionRequest,
@@ -580,22 +611,29 @@ export interface RunController {
    * `spec/interaction-events.md:221-225` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
-   * The press is scheduled at the next studio tick and the current chain is replayed with it, so
-   * every matching `on_key` handler fires. **This is the one place the boolean is defined:** it
-   * reports whether *this press actually ran a handler*, compared as a strict increase in `on_key`
-   * invocation markers across this one delivery (see `onKeyInvocationsByKeyWord`). It is `false`
-   * for a key no handler names, for a handler the run never reached, for a press scheduled before
-   * the handler registered, and for a press past the program's final usable tick.
+   * The press is scheduled at the tick the program has actually reached and the current chain is
+   * replayed with it, so every matching `on_key` handler fires. **This is the one place the boolean
+   * is defined:** it reports whether *this press actually ran a handler*, read from the runtime's
+   * own per-delivery count for this occurrence (`ExecuteOptions.handlerDeliveries`, see
+   * {@link deliveryRanAHandler}). It is `false` for a key no handler names, for a handler the run
+   * never reached, and for a program whose clock reaches no dispatch checkpoint at all.
+   *
+   * It is **not** `false` merely for a press that arrives after a delayed registration: scheduling
+   * against the program's clock (#985 F3) means such a press lands at a tick the handler is
+   * registered for and genuinely fires.
    *
    * Every formulation that answers from *history* rather than from this delivery re-creates silent
-   * interception somewhere, and four did: stream length inverted on the error path, a settle-later
+   * interception somewhere, and five did: stream length inverted on the error path, a settle-later
    * query answered too late, declaration/registration pairing proved only *eventual* registration,
-   * and an "ever responded" set kept returning `true` after the last tick that could fire
-   * (invocation counts `[0,1,2,2]` → returns `[true,true,true]`).
+   * an "ever responded" set kept returning `true` after the last tick that could fire (invocation
+   * counts `[0,1,2,2]` → returns `[true,true,true]`), and the source-position count that replaced
+   * them was sound only while its differencing window stayed exactly one press wide. Asking the
+   * runtime what *this* delivery did removes the window, and with it the class of mistake.
    *
-   * **Under a host that settles across event-loop turns this is always `false`**, because the
-   * delivery has not run by the time the answer is needed — so such a host suppresses nothing at
-   * all. That is a real capability gap (**#975**), and it is the deliberate direction: the
+   * **Under a host that settles across event-loop turns this is always `false`**, because that host
+   * carries no delivery report at all: an `ExecutionRequest` crosses a Worker boundary by structured
+   * clone, so the occurrence objects it reports back are copies and no identity survives to match
+   * one on. Such a host therefore suppresses nothing, and that is the deliberate direction: the
    * maintainer's constraint is that silent *interception* is worse than silent *inaction*, because
    * it hits every learner and presents as "the editor is broken". A page that scrolls during a game
    * is a nuisance; a key that vanishes with nothing happening is a bug report.
@@ -603,10 +641,12 @@ export interface RunController {
    * `canvas-interaction.ts` decides whether to suppress the browser's own scrolling from this
    * answer, which is why the narrowness is load-bearing rather than fussy.
    *
-   * A program whose `on_key` key word is not a literal reports `false` and suppresses nothing, while
-   * still delivering the press. `false` with **no execution at all** whenever the chain is not
-   * accepting input or the run registered no `on_key` handler. See this module's doc comment
-   * ("#952") for those gates and for why a delivery costs a tick rather than a timestamp.
+   * A non-literal key word — `on_key :chosen [ … ]` — is now reported like any other: the runtime
+   * counts what the delivery did and does not care how the key word was written. Until #976 the
+   * studio read declared key words out of the source, so such a handler reported `false` however
+   * plainly it fired. `false` with **no execution at all** whenever the chain is not accepting input
+   * or the run registered no `on_key` handler. See this module's doc comment ("#952") for those
+   * gates and for why a delivery costs a tick rather than a timestamp.
    */
   deliverKey(key: string): boolean;
   /**
@@ -615,11 +655,18 @@ export interface RunController {
    * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
    * keyboard-reachable activation control is exactly as complete a click as a mouse is.
    *
-   * Scheduled and gated exactly like {@link deliverKey}. Reports the narrower
-   * `chain accepts input && on_click registered` — **not** {@link acceptsClick}, which deliberately
+   * Scheduled, gated, and **answered** exactly like {@link deliverKey}: `true` means *this
+   * activation* ran an `on_click` handler. That one definition lives on {@link deliverKey} and is
+   * deliberately not restated here — two sentences describing one boolean is how the earlier pair
+   * diverged. Every caveat there applies unchanged, including that a host settling across
+   * event-loop turns cannot confirm in time and so reports `false` (**#975**).
+   *
+   * Until #985 this reported something narrower and different in kind — that the chain accepted
+   * input and an `on_click` was registered — which is a question about the *run*, not about this
+   * activation. Measured on `wait 1 / on_click [ … ] / wait 2`, that answered `true` for a click
+   * whose handler never ran. Note what it still is **not**: {@link acceptsClick}, which deliberately
    * ignores the transient blockers so the activation control cannot flicker in and out of the tab
-   * order mid-run. The two diverge exactly while a question is outstanding or an answer chain is
-   * mid-pump.
+   * order mid-run.
    */
   deliverClick(): boolean;
   /**
@@ -703,61 +750,21 @@ function hasRegisteredHandler(
 }
 
 /**
- * How many times this run **invoked** an `on_key` handler declared at each of `declared`'s positions
- * (#952, review round 6), keyed by key word.
+ * Whether `delivery` — the runtime's report for one host-input occurrence — says that occurrence
+ * ran a handler (#976). `undefined` means no report exists for it, which is **not** "nothing ran":
+ * a Worker settlement carries no report at all, and an occurrence the run never reached has none
+ * either. Both resolve to `false`, and both are the conservative direction — the studio confirms
+ * nothing it cannot prove, so nothing is silently intercepted.
  *
- * `spec/interaction-events.md:102-103` — "The start of a handler block emits an `instruction` event
- * for the block-head that caused the handler to run." Registration emits an `instruction` **and** a
- * `primitive` at the same start position, an invocation emits only the `instruction`, so at a given
- * position `invocations = instructions − registrations`.
- *
- * This is the counting half of the **fifth** formulation for one question; the four before it each
- * answered from *history* and each re-created silent interception on a different axis:
- * event-stream **length** was not *monotonic* (a raising handler shortens the stream, so a handler
- * that ran reported "nothing responded"), a settle-later **query** failed on *timing* (the answer
- * arrives after the `keydown` has already scrolled), declaration/registration **pairing** proved
- * only *eventual* registration, and "ever responded" **membership** outlived the ticks that could
- * fire. Counting is sound on those axes:
- * - **monotonicity** — a handler raising on its *first* instruction still reports 1, because the
- *   block-head marker is emitted before the handler can fail;
- * - **aliasing** — `repeat 2 [ on_key "up" [ … ] ]` registers twice at one position, and one press
- *   fires **both** (`interaction-events.md` forbids collapsing duplicate registrations), so the
- *   arithmetic gives 2 and the program prints twice: an independent witness agreeing with the count.
- *   Nesting keeps each position's arithmetic separate.
- *
- * It is a **count, not a boolean**, and callers must read it as a strict increase across one
- * delivery — never as "non-zero", which would report every press after the first.
+ * This one line replaces the whole source-position reconstruction #952 needed before the runtime
+ * reported deliveries: `instructions − registrations` per `line:column`, folded onto key words
+ * parsed back out of the program text, then differenced across a delivery. That machinery answered
+ * from *history*, which is the failure mode #985 warns against and the reason `deliverKey` had to
+ * bound its own drain so a later press's invocation could not be credited to this one. A per-
+ * delivery count is not a smaller version of that mechanism; it removes the class of mistake.
  */
-function onKeyInvocationsByKeyWord(
-  declared: readonly DeclaredKeyHandler[],
-  events: readonly TraceEvent[],
-): ReadonlyMap<string, number> {
-  const instructionsAt = new Map<string, number>();
-  const registrationsAt = new Map<string, number>();
-  for (const event of events) {
-    const [line, column] = event.source_span.start;
-    const position = `${line}:${column}`;
-    if (event.kind === "instruction") {
-      instructionsAt.set(position, (instructionsAt.get(position) ?? 0) + 1);
-    } else if (
-      event.kind === "primitive" &&
-      (event.payload as PrimitivePayload).name === "on_key"
-    ) {
-      registrationsAt.set(position, (registrationsAt.get(position) ?? 0) + 1);
-    }
-  }
-  const byKeyWord = new Map<string, number>();
-  for (const entry of declared) {
-    const position = `${entry.line}:${entry.column}`;
-    const invocations =
-      (instructionsAt.get(position) ?? 0) -
-      (registrationsAt.get(position) ?? 0);
-    byKeyWord.set(
-      entry.keyWord,
-      (byKeyWord.get(entry.keyWord) ?? 0) + invocations,
-    );
-  }
-  return byKeyWord;
+function deliveryRanAHandler(delivery: HandlerDelivery | undefined): boolean {
+  return delivery !== undefined && delivery.invocations > 0;
 }
 
 /** Construct the Run/Stop/Reset/Step controller over an existing state model (never a copy). */
@@ -885,31 +892,38 @@ export function createRunController(
   // "#952"). `chainAcceptsHostInput` is the delivery window: `run()` opens it, Stop and Reset close
   // it, and a lazy `step()` preparation never opens it at all.
   let hostInputEvents: readonly HostInputEvent[] = [];
-  let nextHostInputTick = 1;
+  // #985 — the current chain's tick timeline, from the last settlement. It is what makes a delivery
+  // land at the tick the PROGRAM is at rather than at a count of how many deliveries preceded it.
+  let chainTickTimeline: readonly TickBoundary[] = [];
+  // #976 — the current chain's delivery report, from the last settlement: one entry per host-input
+  // occurrence the run actually delivered, each counting the handler bodies it entered. This is the
+  // runtime *telling* the studio what a delivery did, replacing the source-position reconstruction
+  // (`instructions − registrations`, paired to declarations parsed out of the source) #952 had to
+  // build before the contract existed. Empty under a Worker host — see
+  // `ExecutionSettlement.handlerDeliveries`.
+  let chainHandlerDeliveries: readonly HandlerDelivery[] = [];
+  // #976 — the tick at which this chain's most recently answered `input` completed, or `null` when
+  // none has. A tick is not a fine enough boundary to order a delivery against a read that finished
+  // *within* it: `spec/interaction-events.md:108-111` blocks handlers only until the read finishes,
+  // but a delivery scheduled at that same tick can be dispatched at the tick's checkpoint, which
+  // precedes the read in program order. Measured: without this clamp, a program whose read is the
+  // last thing before the end replays `["Ada"]` into `["turned","Ada"]` — the line the learner had
+  // already read, no longer first, and no diagnostic.
+  //
+  // Only ever pushes a delivery FORWARD. That is what separates it from the tempting inverse — a
+  // counter for chains that have answers — which schedules relative to the last delivery rather than
+  // to the program's clock and therefore rewinds. The cost of pushing forward is that a program with
+  // no tick left after its question loses the press, which fails visibly.
+  //
+  // Applied by `drainDeliveredInput`'s re-clamp, and guarded by both `#976: with NO tick after the
+  // read, a press must not reorder what the learner already read` and `#976 AC2: a DEFERRED delivery
+  // is re-clamped past a read that finished while it waited` — deleting the re-clamp fails them. An earlier revision of this comment declared the line untestable; that was **false**, and
+  // it was false because the AC2 helper appended a trailing `wait` which left ticks after the read,
+  // so a clamped and an unclamped delivery produced the same observable order. Dropping that one
+  // line separates the arms. Recorded because the wrong lesson is easy to draw here: the obstacle
+  // was never the mechanism, it was a fixture that could not reach it.
+  let lastAnsweredReadTick: number | null = null;
   let chainAcceptsHostInput = false;
-  // #952 (review round 2/3) — the `on_key` declarations this chain's program contains, computed once
-  // per chain from the captured source, each with the source position the runtime stamps its
-  // registration with. `null` means at least one `on_key` names a non-literal key, so the set is
-  // unknowable before the run. See `key-words.ts`'s `collectDeclaredKeyHandlers`.
-  let declaredKeyHandlers: readonly DeclaredKeyHandler[] | null = null;
-  // #952 (review round 1/3) — has this chain ever put an `input` question to the learner? Once it
-  // has, the chain stops accepting delivered input for good, under **every** host.
-  //
-  // Round 3 measured why a narrower rule does not hold. Reopening after the read finishes looks
-  // right — `spec/interaction-events.md:108-111` blocks handlers only "until the read finishes" —
-  // but the studio has no tick for that boundary, so the next delivery is scheduled at tick 1 and
-  // the replay reaches an *earlier* point than the learner has already observed: measured, a key
-  // scheduled at tick 1 introduced a question the learner had never seen, erased output they had
-  // already read, and left a prompt open over a `"done"` status. `resolveRecordedAnswer`'s prompt
-  // pairing stops an answer reaching the wrong question; it cannot stop history being rewritten.
-  //
-  // So the two input sources never coexist in one chain. That is stricter than the spec requires,
-  // and it is a real limitation for a program that asks a question and then expects key presses —
-  // tracked as **#976**, and documented in `packages/studio/README.md` rather than absorbed
-  // silently. Closing it depends on **#975** (a runtime delivery boundary, or live host input,
-  // instead of a static pre-run schedule). `run()`/`reset()` start a fresh chain and reopen the
-  // window.
-  let chainHasAskedQuestion = false;
   // How many schedule entries the attempt currently in flight (or the last one started) carried
   // (#952 review finding). A delivery that arrives while an attempt has not settled — only reachable
   // under a host that settles across event-loop turns — is still SCHEDULED and simply replayed when
@@ -1016,6 +1030,14 @@ export function createRunController(
       promptGeneration += 1;
       promptOutstanding = false;
       pendingRead = null;
+      if (answer !== undefined) {
+        // #976 — the read finishes here, at the tick the learner is looking at. Any later delivery
+        // must land strictly after it, or the replay can reach a point they have already observed.
+        lastAnsweredReadTick = tickAtEventIndex(
+          chainTickTimeline,
+          drawnEventCount - 1,
+        );
+      }
       if (resolveReadInPlace !== undefined) {
         // #876 — this host genuinely suspended the read, so both endings are the *same* operation:
         // hand the answer (or the dismissal's `undefined`, which is the runtime reader's own
@@ -1163,6 +1185,18 @@ export function createRunController(
         withdrawPendingRead();
       }
       then(current);
+      // #976 — an attempt has just settled, so anything `drainDeliveredInput` deferred while it was
+      // in flight can now be replayed. **This is the one place that resumption happens**, and it is
+      // here rather than in `playCurrentAttempt` because it must hold for *every* continuation, not
+      // just a delivery replay: the attempt a deferred delivery waits on is usually the ORIGINAL run.
+      //
+      // An earlier revision added this while leaving the equivalent drain at the end of
+      // `playCurrentAttempt`, and asserted both were necessary. Review measured all three arms:
+      // deleting either one alone left the suite green, deleting **both** killed a test. They were
+      // mutually redundant, exactly one was load-bearing, nothing pinned which, and two comments in
+      // this file contradicted each other about it. The `playCurrentAttempt` copy is gone; this one
+      // survives because it covers strictly more continuations.
+      drainDeliveredInput();
     });
   }
 
@@ -1177,6 +1211,13 @@ export function createRunController(
   ): TurtleAnimationController {
     answers = settlement.retainedAnswers;
     currentEvents = settlement.events;
+    // #985 — this attempt's tick timeline becomes the chain's, so the NEXT delivery is scheduled
+    // against the clock of the run the learner is currently watching.
+    chainTickTimeline = settlement.tickTimeline ?? [];
+    // #976 — and so does its delivery report, which is what the next `deliverKey`/`deliverClick`
+    // reads its own occurrence's invocation count out of. Absent under a Worker host, where
+    // structured clone destroys the occurrence identity the match needs.
+    chainHandlerDeliveries = settlement.handlerDeliveries ?? [];
     preparedSource = sourceText;
     // `host` is captured into `pendingRead` so a question can only ever exist when a host was
     // supplied — true by construction rather than by a runtime check.
@@ -1184,12 +1225,6 @@ export function createRunController(
       settlement.pendingPrompt !== null && host !== undefined
         ? { prompt: settlement.pendingPrompt, host }
         : null;
-    if (pendingRead !== null) {
-      // #952 — this chain has now asked something, so it stops accepting delivered input for good.
-      // Latched (never cleared by an answer) because the hazards are about the chain's answer FIFO
-      // existing at all, not about a question being outstanding right now — see the field's docs.
-      chainHasAskedQuestion = true;
-    }
 
     // #769 — a probe (an attempt that ended on an unanswered read) withholds its diagnostics until
     // the learner actually dismisses the question; see this module's doc comment for why the only
@@ -1224,12 +1259,42 @@ export function createRunController(
 
     const baseScheduler = options?.scheduler ?? IMMEDIATE_SCHEDULER;
     let current: TurtleAnimationController;
-    const scheduler: Scheduler = (callback, delayMs) =>
-      baseScheduler(() => {
+    // #985 F4 — the tick the pacing has already charged for. Each step's delay is scaled by the
+    // ticks *that step* will spend, which is how `wait n` finally paces the animation:
+    // `spec/interaction-events.md:69-73` makes rendering, animation and event dispatch share one
+    // tick clock, and before this the studio's playback ignored it entirely — `wait 0`, `wait 1` and
+    // `wait 9` produced identical `[505, 505, 505]` delays over an identical 1515 total.
+    //
+    // The step is priced BEFORE it runs, which is why this reads the animation controller's own
+    // `nextStepEndIndex()` rather than charging the step that just finished: `:116-118`'s case —
+    // "hold itself open with a long `wait` while those handlers drive the animation" — is a
+    // *trailing* wait, and a trailing step has no successor to charge. Measured, pricing backwards
+    // left `on_key … / wait 20` and `… / wait 1` both at 1010.
+    //
+    // `nextStepEndIndex()` is the animation controller's single definition of a step boundary
+    // (#1022), deliberately asked for rather than re-derived here: a second definition could
+    // disagree with it, and pricing a step differently from the step actually played is a defect
+    // with no witness.
+    let pacedTick = 0;
+    const scheduler: Scheduler = (callback, delayMs) => {
+      const reachedTick = tickAtEventIndex(
+        chainTickTimeline,
+        current.nextStepEndIndex() - 1,
+      );
+      // A step costs its own drawing time **plus** the ticks it spends: `1 + elapsed`, not
+      // `max(1, elapsed)`. The difference is `wait 0` versus `wait 1` — `wait 0` yields without
+      // advancing the clock, so it spends 0 ticks and costs 1, while `wait 1` spends one and costs
+      // 2. Under `max(1, …)` those two collapse and the pacing is not measurably different for the
+      // smallest step a learner can write. An ordinary drawing step spends no tick and still costs
+      // exactly 1, so a program outside the Interaction profile paces exactly as it always did.
+      const stepCost = 1 + Math.max(0, reachedTick - pacedTick);
+      pacedTick = Math.max(pacedTick, reachedTick);
+      return baseScheduler(() => {
         callback();
         pushTurtleSnapshot(current);
         settleAttempt(current);
-      }, delayMs);
+      }, delayMs * stepCost);
+    };
 
     const tickDelayMs = mapSpeedSliderValueToTickDelayMs(
       state.getState().speedSliderValue,
@@ -1264,6 +1329,13 @@ export function createRunController(
     // controller as `seekToEventIndex`, which applies it in one fold instead of one step at a
     // time — #977; it clamps to the new stream's own length itself.
     current.seekToEventIndex(shownEventCount);
+    // #985 F4 — a resumed attempt has already *spent* the ticks up to the point the learner is
+    // looking at, so pacing must start from that tick rather than from 0. Without this the first
+    // step after a delivery replay would be charged the whole run's elapsed ticks.
+    pacedTick = tickAtEventIndex(
+      chainTickTimeline,
+      current.getSnapshot().cursor - 1,
+    );
     return current;
   }
 
@@ -1273,17 +1345,20 @@ export function createRunController(
   }
 
   /** Start (or resume) playback of the attempt `prepare()` (now `beginAttempt()`/`finishAttempt()`)
-   * just built, then settle its outcome. */
+   * just built, then settle its outcome.
+   *
+   * Deliberately does **not** drain deferred input. It used to, and that drain was measured to be
+   * redundant with the one in `beginAttempt`'s settle callback: deleting either alone left the suite
+   * green, deleting both killed a test. Keeping the resumption in exactly one place — the settle
+   * path, which covers every continuation rather than only a delivery replay — is what stops the two
+   * from drifting into contradictory explanations of each other, which is what they had already
+   * done. */
   function playCurrentAttempt(current: TurtleAnimationController): void {
     playWithMotionPreference(current, {
       reducedMotion: (options?.reducedMotion ?? false) || currentIsInstant,
     });
     pushTurtleSnapshot(current);
     settleAttempt(current);
-    // #952 — an input delivered while this attempt was still in flight is scheduled but not yet
-    // replayed; now that it has landed, deliver it. A no-op whenever nothing arrived meanwhile,
-    // which is every attempt of every program that takes no input.
-    drainDeliveredInput();
   }
 
   /**
@@ -1339,14 +1414,49 @@ export function createRunController(
   }
 
   /**
-   * Schedule one host input at the chain's next tick (#952). Tick *n* for the *n*-th delivery — the
-   * counter is the whole of the wall-clock-to-tick mapping, which is why two identical play
-   * sessions produce byte-identical event streams. See this module's doc comment ("#952").
+   * Schedule one host input at the tick the program itself has reached (#985). Tick *n* for the
+   * *n*-th delivery — a synthetic counter unrelated to the program's clock — is what #985's F3 was:
+   * measured on `[wait <lead>] / on_key "up" [ … ] / wait 6`, the presses lost equalled the lead's
+   * tick count exactly, because each early delivery was scheduled at a tick that had already passed
+   * before the handler existed.
+   *
+   * The tick now comes from the run's own {@link TickBoundary} timeline, read at the event the
+   * animation has actually drawn — so it is "the tick the learner is looking at", not "how many keys
+   * they have pressed". That keeps the schedule a pure function of the input sequence *and the
+   * program*, never of the wall clock, so two identical play sessions still produce byte-identical
+   * event streams.
+   *
+   * A delivery is never scheduled *before* one already in the schedule: a learner cannot press a key
+   * at an earlier moment than their previous press.
+   *
+   * Returns the scheduled entry — **the very object** installed as `ExecuteOptions.hostInput.events`
+   * — so a caller can find the runtime's report for *this* occurrence by identity (#976). The
+   * runtime sorts the schedule by tick but copies the array shallowly, so the objects it reports back
+   * are these ones; matching on them needs no index arithmetic over that sorted order.
    */
-  function scheduleHostInput(occurrence: HostInputOccurrence): void {
-    const tick = nextHostInputTick;
-    nextHostInputTick += 1;
-    hostInputEvents = [...hostInputEvents, { ...occurrence, tick }];
+  function scheduleHostInput(occurrence: HostInputOccurrence): HostInputEvent {
+    // Only the term that is unique to scheduling: never schedule an occurrence before one already in
+    // the schedule.
+    //
+    // NOT because the runtime requires it. Review (the contract's owner) measured that claim false:
+    // `packages/runtime/src/execute-internal.ts:5565` is `[...hostInput].sort(...)`, so the runtime
+    // NORMALISES and accepts an unsorted schedule. The reason is local: a learner cannot press a key
+    // at an earlier moment than their previous press.
+    //
+    // **This is the only floor covering a re-entrant append.** `reclampUndeliveredTail()` runs once
+    // BEFORE `drainDeliveredInput`'s loop, so an occurrence appended from inside that loop is
+    // dispatched without ever being re-clamped, and this term is what keeps it in order.
+    //
+    // Now pinned by test — neutralise this to `const tick = 0` and a press jumps ahead of output the
+    // learner had already read.
+    //
+    // The drawn-tick and answered-read floors deliberately do **not** appear here. They are applied by
+    // `reclampUndeliveredTail()` at delivery time, because both keep MOVING while an occurrence waits,
+    // so a copy taken at schedule time is stale by the time it is delivered.
+    const tick = hostInputEvents.at(-1)?.tick ?? 0;
+    const scheduled: HostInputEvent = { ...occurrence, tick };
+    hostInputEvents = [...hostInputEvents, scheduled];
+    return scheduled;
   }
 
   /**
@@ -1362,11 +1472,75 @@ export function createRunController(
    * happened during the previous attempt — the same bound `pump()` has. Under a host that has not
    * settled yet it returns instead, and the settlement's own call resumes the drain.
    */
+  /**
+   * Raise every still-undelivered scheduled occurrence to the floors that hold *now*.
+   *
+   * Called from **both** paths that turn the schedule into a request: `drainDeliveredInput`, and
+   * Stop's direct `beginAttempt`. Review found the second one after the schedule-time clamp was
+   * deleted as redundant — `stop()` schedules its `when "stop"` notification and begins an attempt
+   * **without draining**, so a re-clamp living only in the drain silently skipped it. Measured on a
+   * paced run of `wait 2 / when "stop" [ … ] / wait 5 / forward 10`: the notification took tick 0,
+   * was consumed during the leading `wait` before `when "stop"` had registered, and the required
+   * pre-termination notification was lost with no diagnostic.
+   *
+   * That is why this is one function rather than two call-site copies: the redundancy the deletion
+   * removed was two mechanisms computing one floor, and the fix must not reintroduce it.
+   */
+  function reclampUndeliveredTail(): void {
+    const readFloor =
+      lastAnsweredReadTick === null ? 0 : lastAnsweredReadTick + 1;
+    const drawnFloor = tickAtEventIndex(chainTickTimeline, drawnEventCount);
+    for (
+      let index = deliveredScheduleLength;
+      index < hostInputEvents.length;
+      index += 1
+    ) {
+      const occurrence = hostInputEvents[index];
+      if (occurrence !== undefined) {
+        // `HostInputEvent.tick` is `readonly` on the public type — correct for a caller, wrong for
+        // the owner of the schedule. This controller *is* the owner: it created these objects in
+        // `scheduleHostInput` and no one else may write them. Mutating rather than replacing is
+        // required, because `deliveryRanAHandler` matches the runtime's report to its occurrence by
+        // object identity, which a fresh object would destroy.
+        (occurrence as { tick: number }).tick = Math.max(
+          occurrence.tick,
+          drawnFloor,
+          readFloor,
+        );
+      }
+    }
+  }
+
   function drainDeliveredInput(upTo?: number): void {
     if (deliveringInput) {
       // Re-entered from a synchronous settlement; the running loop re-reads the schedule.
       return;
     }
+    if (attemptPending) {
+      // #976 — an execution is still in flight, so this delivery stays SCHEDULED and is replayed
+      // when that attempt lands, exactly as this function's doc comment has always claimed. Starting
+      // a second attempt here is what made the claim false, and under the Worker host it corrupted
+      // the chain: a delivery arriving between `resolveRead()` and the run's own `"done"` report
+      // began a fresh execution whose `answers` did not yet carry the answer the resumed run had
+      // consumed — the host only transfers it onto a settlement. Measured on
+      // `on_key … / wait 1 / print "BEFORE" / input "who?" / … `: the answered question was re-asked
+      // (`prompts: ["who?","who?"]`) and the handler's output was inserted BEFORE the line the
+      // learner had already read (`["HANDLER","BEFORE"]`, the answer lost entirely).
+      //
+      // The settle path in `beginAttempt` resumes this drain once the attempt lands, so nothing is
+      // stranded.
+      return;
+    }
+    // #976 — re-clamp the still-undelivered tail before replaying it. `scheduleHostInput` fixes a
+    // delivery's tick when it is scheduled and never recomputes it; while that delivery is deferred
+    // the program can run on, draw output the learner reads, and finish a **second** `input`. The
+    // stale tick then replays the handler at a point earlier than what the learner already observed
+    // — #976 AC2 verbatim, and it emits no diagnostic.
+    //
+    // Measured on the suite's own deferred-host model: `["A","C"]` observed, replay produced
+    // `["A","turned","C","B"]` — `"turned"` inserted in front of a line already read. With this,
+    // `["A","C","turned","B"]`.
+    reclampUndeliveredTail();
     deliveringInput = true;
     try {
       while (
@@ -1392,23 +1566,26 @@ export function createRunController(
   }
 
   /**
-   * Is this chain accepting delivered input at all (#952)? It must be live — `run()` opens the
-   * window, Stop and Reset close it, and a lazy `step()` preparation never opens it — no question may
-   * be outstanding (`spec/interaction-events.md:108-111` forbids running a handler block until a read
-   * finishes), and the answer chain must not be mid-pump.
+   * Is this chain accepting delivered input at all (#952, narrowed by #976)? It must be live —
+   * `run()` opens the window, Stop and Reset close it, and a lazy `step()` preparation never opens
+   * it — no question may be outstanding (`spec/interaction-events.md:108-111` forbids running a
+   * handler block until a read finishes), and the answer chain must not be mid-pump.
    *
    * The `pumping` check is what keeps a prompt host that answers **synchronously from inside
    * `present()`** from being handed one more read per answer, which review measured as the quadratic
-   * hang the "#881" section above describes. The `chainHasAskedQuestion` check applies to **every**
-   * host — see that field for the measurement that forces it.
+   * hang the "#881" section above describes.
+   *
+   * **#976 removed the fourth check.** Until this slice a chain that had *ever* asked a question
+   * refused delivery for the rest of its life, which is stricter than `:108-111` — the spec blocks
+   * handlers only "until the read finishes". That gate existed because a delivery was scheduled at a
+   * synthetic tick that could land *before* the read, rewriting history the learner had already
+   * observed. #985's tick timeline removes the cause: a delivery is now scheduled at the tick the
+   * learner is actually looking at, which is never earlier than the read they have already answered.
+   * `pendingRead === null` is what enforces `:108-111` itself, and it is transient exactly as the
+   * spec's "until" is.
    */
   function acceptsHostInput(): boolean {
-    return (
-      chainAcceptsHostInput &&
-      pendingRead === null &&
-      !pumping &&
-      !chainHasAskedQuestion
-    );
+    return chainAcceptsHostInput && pendingRead === null && !pumping;
   }
 
   /**
@@ -1427,38 +1604,28 @@ export function createRunController(
     if (!acceptsHostInputFor("on_key")) {
       return false;
     }
-    const declared = declaredKeyHandlers;
-    // #952 (review round 7) — the answer is "did **this press** run a handler", compared strictly
-    // across this one delivery. Membership of an "ever responded" set was tried and is unsound in
-    // the same direction as every earlier mechanism: invocation counts `[0,1,2,2]` produced returns
-    // `[true,true,true]`, so a press past the program's final usable tick ran nothing and was still
-    // suppressed. Every formulation that answers from history rather than from this delivery
-    // re-creates silent interception somewhere.
-    const before =
-      declared === null
-        ? 0
-        : (onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0);
-    scheduleHostInput({ kind: "key", key });
+    // #976 — the answer is "did **this press** run a handler", and since #1024 the runtime reports
+    // exactly that: one `HandlerDelivery` per delivered occurrence, counting the handler bodies it
+    // entered. The occurrence scheduled here is the object the report names, so the answer is read
+    // rather than reconstructed.
+    //
+    // What this replaces was the fifth formulation of the same question and the first sound one, but
+    // it was still answered from history — `instructions − registrations` per source position,
+    // folded onto key words parsed back out of the program text, differenced across the delivery.
+    // Its soundness depended on the differencing window: an unbounded drain credited a *later*
+    // press's invocation to this one (measured at #952 review round 7). A per-delivery count has no
+    // window to get wrong.
+    const scheduled = scheduleHostInput({ kind: "key", key });
     // Drain **only as far as this press**. A settlement can deliver more input re-entrantly (a state
-    // subscriber, a prompt host), and an unbounded drain consumed those too — so `after` counted a
-    // *later* press's invocation and credited it to this one: measured, the tick-1 press reported
-    // `true` and suppressed the key while only the nested tick-2 press actually printed. Anything
-    // scheduled during this drain is left for the loop that owns it.
-    const scheduledLength = hostInputEvents.length;
-    drainDeliveredInput(scheduledLength);
-    if (declared === null) {
-      // A non-literal key word: unknowable, so deliver but claim nothing and suppress nothing. The
-      // remainder still has to be flushed on this path too — returning early from here stranded a
-      // re-entrant press until some unrelated later delivery happened to drain it.
-      drainDeliveredInput();
-      return false;
-    }
-    const after =
-      onKeyInvocationsByKeyWord(declared, currentEvents).get(key) ?? 0;
-    const ranAHandler = after > before;
-    // Anything scheduled re-entrantly during the drain above was deliberately left behind so it
-    // could not be credited to this press. Deliver it now that the attribution is settled — leaving
-    // it stranded would be the other half of the same bug.
+    // subscriber, a prompt host), so anything scheduled during this drain is left for the loop that
+    // owns it — the schedule must not grow past this press before its own delivery has settled.
+    drainDeliveredInput(hostInputEvents.length);
+    const ranAHandler = deliveryRanAHandler(
+      chainHandlerDeliveries.find((delivery) => delivery.input === scheduled),
+    );
+    // Anything scheduled re-entrantly during the drain above was deliberately left behind. Deliver
+    // it now that this press's own report has been read — leaving it stranded would be the other
+    // half of the same bug.
     drainDeliveredInput();
     return ranAHandler;
   }
@@ -1467,22 +1634,34 @@ export function createRunController(
     if (!acceptsHostInputFor("on_click")) {
       return false;
     }
-    scheduleHostInput({ kind: "click" });
+    // #976 — read from the runtime's report for exactly this occurrence, as `deliverKey` does. The
+    // two used to be two booleans that merely looked alike: before #985 `deliverClick` returned
+    // `true` the moment the gate above passed, which answers a question about the *run* rather than
+    // about this activation (measured on `wait 1 / on_click [ print :score ] / wait 2`, the first
+    // click returned `true` while the handler had not run and nothing was printed). They now report
+    // the same thing because they read the same contract.
+    const scheduled = scheduleHostInput({ kind: "click" });
+    drainDeliveredInput(hostInputEvents.length);
+    const ranAHandler = deliveryRanAHandler(
+      chainHandlerDeliveries.find((delivery) => delivery.input === scheduled),
+    );
     drainDeliveredInput();
-    return true;
+    return ranAHandler;
   }
 
   function acceptsClick(): boolean {
     // A capability question ("can a click reach a handler in this run"), not a right-now one: the
     // transient blockers in `acceptsHostInput` — a question outstanding, an answer chain mid-pump —
     // come and go within a single `run()` call, and hiding the control for those moments would make
-    // a tab stop flicker in and out under the learner. `chainHasAskedQuestion` is **not** transient:
-    // it closes delivery for the rest of the chain, so a control left visible past it would be a
-    // permanently inert tab stop (measured in review).
+    // a tab stop flicker in and out under the learner.
+    //
+    // #976 removed the `chainHasAskedQuestion` term here too. It was included precisely because it
+    // was NOT transient — it closed delivery for the rest of the chain, so a control left visible
+    // past it would be a permanently inert tab stop (measured in review). Now that a chain which has
+    // asked a question keeps accepting input, there is no permanent closure to reflect, and the
+    // control correctly stays available to a program that asks a question and then expects clicks.
     return (
-      chainAcceptsHostInput &&
-      !chainHasAskedQuestion &&
-      hasRegisteredHandler(currentEvents, "on_click")
+      chainAcceptsHostInput && hasRegisteredHandler(currentEvents, "on_click")
     );
   }
 
@@ -1507,10 +1686,10 @@ export function createRunController(
     // depends only on this run's own input sequence. This is also the one place the delivery window
     // opens.
     hostInputEvents = [];
-    nextHostInputTick = 1;
+    chainTickTimeline = [];
+    chainHandlerDeliveries = [];
+    lastAnsweredReadTick = null;
     chainAcceptsHostInput = true;
-    chainHasAskedQuestion = false;
-    declaredKeyHandlers = collectDeclaredKeyHandlers(chainSource);
     drawnEventCount = 0;
     // #876 — publish THIS run's (still empty) result before anything can observe it, and clear
     // every other field a run owns. With the default in-process host the settlement overwrites all
@@ -1569,6 +1748,10 @@ export function createRunController(
     userStopped = true;
     if (notifies) {
       scheduleHostInput({ kind: "event", event: "stop" });
+      // #976 — this path begins an attempt WITHOUT draining, so the drain's re-clamp never sees it.
+      // Without this call the notification keeps the tick it was scheduled at and can be consumed
+      // before `when "stop"` has registered, losing it silently.
+      reclampUndeliveredTail();
       shownEventCount = drawnEventCount;
       // Keyed to the attempt this call is about to start, so no later chain can inherit it.
       stopNotificationAttempt = attemptSequence + 1;
@@ -1609,10 +1792,10 @@ export function createRunController(
     // #952 — a Reset closes the delivery window and discards the schedule, so the next `run()`
     // starts a genuinely fresh chain in this dimension too, exactly as it does for the answer FIFO.
     hostInputEvents = [];
-    nextHostInputTick = 1;
+    chainTickTimeline = [];
+    chainHandlerDeliveries = [];
+    lastAnsweredReadTick = null;
     chainAcceptsHostInput = false;
-    chainHasAskedQuestion = false;
-    declaredKeyHandlers = null;
     drawnEventCount = 0;
     signal.aborted = false;
     userStopped = false;
