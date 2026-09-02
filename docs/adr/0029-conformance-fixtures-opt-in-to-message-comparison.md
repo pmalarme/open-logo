@@ -160,16 +160,17 @@ forward (`AGENTS.md`; [ADR-0000](0000-record-architecture-decisions.md)).
   `scripts/spec-citations-exceptions.json` carries `stale-citation` entries for
   `docs/design-notes/0003-…`, whose `spec/commands.md` line numbers now land on blank space — and
   that document is a Language Design Record, not an ADR, but `docs/design-notes/0000-…` makes LDRs
-  "immutable once Accepted" under the same convention, so it is not the freely-repairable case it
-  might look like. Second, **a defect inside such a record is hard to repair in place**: `AGENTS.md`
-  excepts "typo/link fixes", so a re-pointed citation is arguably permitted, but the repository's
-  operative practice is the stronger signal — the manifest's permanent entry for
+  "immutable once Accepted" under the same convention, so its citations are no more repairable in
+  place than an ADR's. Second, **a defect inside such a record is hard to repair in place**:
+  `AGENTS.md` excepts "typo/link fixes", so a re-pointed citation is arguably permitted, but the
+  repository's operative practice is the stronger signal — the manifest's permanent entry for
   `docs/adr/0007-conformance-harness.md` reads the rule as *not* permitting the edit and calls itself
   permanent by design, and that entry is a status claim rather than a citation. What has **not** been
   observed in `docs/adr/` is the full compound: a rotted line citation there that also fails CI.
-  ADR-0010's escapes only by the accident described next. This ADR declines to rely on that accident.
-- **Two independent blind spots keep ADR-0010's own stale citation invisible, and only the second is
-  the one people expect.** ADR-0010 cites `error-model.md:193-194` for "identity is `code` +
+  ADR-0010's escapes twice over, by either of the two independent accidents described next — each
+  sufficient on its own. This ADR declines to rely on them.
+- **Two independent blind spots keep ADR-0010's own stale citation invisible, and each would suffice
+  alone.** ADR-0010 cites `error-model.md:193-194` for "identity is `code` +
   `params`"; those lines now hold a blank and the `## Did-you-mean` heading, while the statement
   meant sits under `## Localization boundary`. Running the gate's own `collectCitations()` over
   ADR-0010 returns exactly one citation — its `error-model.md:28-38` reference to the diagnostic
