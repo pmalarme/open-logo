@@ -1,0 +1,19 @@
+{
+  "description": "ol-unknown-command for a mixed-case unknown callee `MyStErY` reports params.name as the case-folded resolution identity `mystery`, not the source spelling — every casing of one absent callable is one condition and must earn one identity (spec/error-model.md:254-259). Issue #1005.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check/unknown-command-case-fold-identity",
+        "start": [6, 1],
+        "end": [6, 8]
+      },
+      "params": { "name": "mystery" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

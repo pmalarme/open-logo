@@ -212,11 +212,111 @@ for (const field of fieldCorpus) {
   });
 }
 
-// The paired control: a field that IS declared (in another case) resolves cleanly, so the folded
-// identities above are genuine resolution, not blanket noise. `.X` addresses declared `x`.
-test("case-insensitive field resolution control: a declared field read in another case is clean", () => {
+// --- callable identity: arity / no-output / unknown-command (issue #1005, criterion 4) -----------
+//
+// Procedure and command *names* are case-insensitive identifiers too (the runtime folds the callee
+// before `environment.procedures.get`, and the checker resolves on the folded name), so `FOO`, `Foo`,
+// and `foo` are one callable: one condition. The canonical identity is the **definition's declared
+// spelling**, which is exactly what the static checker already reports (`checker-arity.ts`'s
+// `params.callable` = `procedure.declared`; the enter/exit trace events use `def.name.name`). Before
+// the fix the runtime's arity and no-output diagnostics echoed the *call site's* casing instead, so
+// `ol-not-enough-inputs` / `ol-too-many-inputs` diverged across `check()` and `execute()`, and
+// `ol-no-output` was unstable within the runtime. For an *unknown* command there is no runtime
+// counterpart (the runtime never resolves a name it cannot find), but the checker itself echoed the
+// source casing, so `Mystery` and `mystery` earned two identities for one absent callable; it now
+// folds to the resolution identity. These are still NOT Heritage-shaped — both sides spell the name
+// identically — so the `heritage-canonical-diagnostic-params` guards can never reach them.
+
+/** The lone diagnostic of `code` the checker raises for `source` (asserts exactly one). */
+function checkerCallable(source, code) {
+  const { ast, diagnostics } = parse(source, "callable-case.logo");
+  assert.deepEqual(
+    diagnostics,
+    [],
+    `unexpected parse diagnostics for: ${source}`,
+  );
+  const matches = check(ast, {}).diagnostics.filter(
+    (diagnostic) => diagnostic.code === code,
+  );
+  assert.equal(
+    matches.length,
+    1,
+    `expected exactly one checker ${code} for: ${source}`,
+  );
+  return matches[0];
+}
+
+/** The lone diagnostic of `code` the runtime raises for `source` (asserts exactly one). */
+function runtimeCallable(source, code) {
+  const matches = execute(source, "callable-case.logo").diagnostics.filter(
+    (diagnostic) => diagnostic.code === code,
+  );
+  assert.equal(
+    matches.length,
+    1,
+    `expected exactly one runtime ${code} for: ${source}`,
+  );
+  return matches[0];
+}
+
+// The definitions use a MIXED-case declared spelling on purpose: an all-lowercase name would let the
+// call site, the declared spelling, and the lowercased form coincide, so it could not tell "report
+// the declared spelling" apart from "lowercase the call site". `MixedProc`/`MixedCmd` pin the rule to
+// the DECLARED spelling — the same reasoning as the check-side `arity-procedure-declared-spelling`
+// fixture (issue #874). Each is called in several casings including its own.
+const declaredProc = "MixedProc";
+const declaredCmd = "MixedCmd";
+const callSpellingsFor = (declared) => [
+  declared,
+  declared.toUpperCase(),
+  declared.toLowerCase(),
+];
+
+for (const call of callSpellingsFor(declaredProc)) {
+  // `define MixedProc :a :b` called with one arg: too few. Checker and runtime must agree on
+  // `callable`, and it must be the DECLARED `MixedProc`, never the call-site casing or a lowercasing.
+  test(`ol-not-enough-inputs callable identity — (${call} 1)`, () => {
+    const source = `define ${declaredProc} :a :b\n  return :a\nend\nprint (${call} 1)`;
+    const runtimeDiagnostic = runtimeCallable(source, "ol-not-enough-inputs");
+    const checkerDiagnostic = checkerCallable(source, "ol-not-enough-inputs");
+    assert.deepEqual(runtimeDiagnostic.params, checkerDiagnostic.params);
+    assert.equal(runtimeDiagnostic.params.callable, declaredProc);
+  });
+
+  // `define MixedProc :a` called with two args: too many.
+  test(`ol-too-many-inputs callable identity — (${call} 1 2)`, () => {
+    const source = `define ${declaredProc} :a\n  return :a\nend\nprint (${call} 1 2)`;
+    const runtimeDiagnostic = runtimeCallable(source, "ol-too-many-inputs");
+    const checkerDiagnostic = checkerCallable(source, "ol-too-many-inputs");
+    assert.deepEqual(runtimeDiagnostic.params, checkerDiagnostic.params);
+    assert.equal(runtimeDiagnostic.params.callable, declaredProc);
+  });
+}
+
+for (const call of callSpellingsFor(declaredCmd)) {
+  // `define MixedCmd` (a command — never returns) read in value position: `ol-no-output`.
+  // Runtime-only, but its `params.procedure` must be the declared spelling regardless of call casing.
+  test(`ol-no-output procedure identity — print (${call})`, () => {
+    const source = `define ${declaredCmd}\n  forward 1\nend\nprint (${call})`;
+    const runtimeDiagnostic = runtimeCallable(source, "ol-no-output");
+    assert.deepEqual(runtimeDiagnostic.params, { procedure: declaredCmd });
+  });
+}
+
+// `ol-unknown-command` is a checker-only diagnostic (the runtime never resolves an unknown name), so
+// the guarantee is internal: every casing of one absent callable earns one folded `params.name`.
+for (const spelling of ["Mystery", "MYSTERY", "mystery"]) {
+  test(`ol-unknown-command params.name folds to the resolution identity — ${spelling}`, () => {
+    const diagnostic = checkerCallable(spelling, "ol-unknown-command");
+    assert.deepEqual(diagnostic.params, { name: "mystery" });
+  });
+}
+
+// The paired control: a callable that DOES resolve (in another case) is clean, so the folded
+// identities above are genuine resolution, not blanket noise. Declared `foo`, called `FOO`.
+test("case-insensitive callable resolution control: a declared procedure called in another case is clean", () => {
   const resolved = execute(
-    "struct point [ x y ]\n:p = point 1 2\nprint :p.X",
+    "define foo :a\n  return :a\nend\nprint (FOO 1)",
     "control.logo",
   ).diagnostics;
   assert.deepEqual(resolved, []);

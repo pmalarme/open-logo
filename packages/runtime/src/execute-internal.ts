@@ -4571,6 +4571,11 @@ function runProcedureBody(
 ): ProcedureOutcome {
   const name = node.callee.name.toLowerCase();
   const def = environment.procedures.get(name) as ProcedureDefNode;
+  // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
+  // diagnostic's identity (`spec/error-model.md:254-259`). The static checker reports the
+  // *definition's* declared spelling (`checker-arity.ts` `params.callable`); the runtime must
+  // agree, so arity diagnostics carry `def.name.name`, not `node.callee.name` (issue #1005).
+  const declaredName = def.name.name;
   const required = def.params.filter(
     (param) => param.defaultValue === undefined,
   ).length;
@@ -4581,7 +4586,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.notEnoughInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         required,
         actual,
       ),
@@ -4592,7 +4597,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.tooManyInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         max,
         actual,
       ),
@@ -4691,12 +4696,15 @@ function callProcedureAsValue(
     return outcome;
   }
   if (outcome.result === null) {
+    // Report the definition's declared spelling, not the call site's, so `ol-no-output`'s
+    // identity is stable across case-insensitive call spellings and matches the enter/exit
+    // events (which already use `def.name.name`) — issue #1005.
+    const def = environment.procedures.get(
+      node.callee.name.toLowerCase(),
+    ) as ProcedureDefNode;
     return {
       ok: false,
-      diagnostic: runtimeDiag.noOutput(
-        node.callee.source_span,
-        node.callee.name,
-      ),
+      diagnostic: runtimeDiag.noOutput(node.callee.source_span, def.name.name),
     };
   }
   return { ok: true, value: outcome.result };

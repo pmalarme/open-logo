@@ -224,14 +224,18 @@ export function unknownCommandRule(
     }
 
     const suggestion = bestSuggestion(lower, visible, declared);
+    // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be the
+    // diagnostic's identity (`spec/error-model.md:254-259`): `Mystery`, `MYSTERY`, and `mystery`
+    // are one absent callable and must report one `params.name`. Emit the case-folded resolution
+    // name, not the source spelling (issue #1005).
     const params: Record<string, unknown> =
-      suggestion === undefined ? { name: raw } : { name: raw, suggestion };
+      suggestion === undefined ? { name: lower } : { name: lower, suggestion };
 
     diagnostics.push({
       code: "ol-unknown-command",
       source_span: span,
       params,
-      message: messageFor(raw, suggestion),
+      message: messageFor(lower, suggestion),
       stage: "semantic",
       severity: "error",
     });
