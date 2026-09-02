@@ -42,3 +42,22 @@ presentation and interaction, never language logic.
 - Every control is keyboard-operable and screen-reader-labeled; honor reduced-motion.
 - Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
   [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).
+
+## Testing: pace the scheduler, or the defect is unobservable
+
+**A test that asserts anything about ordering, delivery, or timing uses a paced scheduler
+(`createManualScheduler` / `createHandDrivenScheduler`), not the immediate one.** Under the immediate
+scheduler playback consumes the whole event stream before the assertion runs, so `drawnEventCount` is
+always the full stream and **no behaviour that depends on a partially-drawn picture is observable at
+all** — a whole class of ordering defect passes silently.
+
+This is measured, not theoretical. Issue #985's review found three defects that only a paced harness
+could reach, including a press being delivered ahead of output the learner had already read. Each had
+a green test beside it: one harness appended a trailing `wait`, which left ticks after the answered
+read so a clamped and an unclamped delivery landed on different-but-both-valid ticks and produced
+identical observable order. The fixture hid the defect it was written to catch.
+
+Reach for the immediate scheduler only when the test is **not** about timing (bootstrap, wiring,
+pure state transitions), or as the paired half of a both-hosts assertion. If a timing test passes
+under the immediate scheduler, that is evidence the assertion is too weak, not that the code is
+right.
