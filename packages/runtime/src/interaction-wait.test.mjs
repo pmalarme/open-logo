@@ -679,42 +679,49 @@ test("#953: `wait 0` advances no tick and is therefore charged nothing extra", (
   );
 });
 
-test("#953: cancellation still wins over the budget AT A TICK, not merely at the statement gate", () => {
-  // `checkExecutionLimits` checks the abort FIRST and does not charge for it, so an aborted run
-  // paused in a `wait` reports `cancelled` — not `instruction-budget` — even with budget to spare.
+test("#953: cancellation WINS over budget exhaustion at a tick, not merely at the statement gate", () => {
+  // Two separate claims, and the budget is what separates them.
   //
-  // The signal must FLIP rather than start aborted. Review-gate finding: a pre-aborted signal halts
-  // at `executeStatements`' own statement gate BEFORE `runWait` is ever entered, so it proves
-  // nothing about the tick charge — the test reads as covering this path while covering a different
-  // one. This getter is false for the two statement-level gates the program reaches first and true
-  // from the third read on, which is inside `chargeTick`; the run therefore starts, enters the
-  // pause, and is cancelled by the tick charge specifically.
+  // `checkExecutionLimits` checks the abort FIRST and does not charge for it, so when a tick is
+  // both unaffordable AND cancelled the diagnostic must be `cancelled`, not `instruction-budget`.
+  // Review-gate finding, round 3: with a generous budget the two never compete, so the test proved
+  // only that cancellation is observed inside `chargeTick` — not that it takes priority. The budget
+  // is therefore 2, which `print 1` and the `wait` statement consume exactly; the pause's first
+  // tick is then unaffordable at the same moment the signal flips. Measured: `cancelled` with the
+  // signal, `instruction-budget` without it, at that same budget of 2.
+  //
+  // The signal must also FLIP rather than start aborted: a pre-aborted signal is consumed by
+  // `executeStatements`' statement gate and the run halts before `runWait` is entered, so the
+  // program emits no events at all. False for the two statement gates, true from the third read on,
+  // which is inside `chargeTick`.
   let reads = 0;
-  const signal = {
-    get aborted() {
-      reads += 1;
-      return reads > 2;
-    },
-  };
   const tickTimeline = [];
   const result = execute("print 1\nwait 50", doc, {
-    instructionBudget: 1000,
-    signal,
+    instructionBudget: 2,
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads > 2;
+      },
+    },
     tickTimeline,
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
-  // ...and it really was cancelled inside the pause: the first statement ran, and the pause was cut
-  // far short of its 50 ticks with budget left over (1000 was never approached).
+  // ...the first statement really ran, so the halt was not the statement gate...
   assert.equal(
     result.events.filter((event) => event.kind === "print").length,
     1,
   );
-  assert.ok(
-    tickTimeline.length < 50,
-    "the pause must have been cut short rather than completing",
-  );
+  assert.equal(tickTimeline.length, 0);
+  // ...and at that very budget, without the signal, the same tick is refused for the OTHER reason.
+  // This is what makes it a priority test rather than a reachability test.
+  const exhausted = execute("print 1\nwait 50", doc, { instructionBudget: 2 });
+  assert.deepEqual(exhausted.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 2,
+  });
 });
 
 test("#953: `wait 0` isolates the dispatcher's own cancellation poll, which no tick charge can mask", () => {
