@@ -595,8 +595,8 @@ Two consequences, both deliberate:
   `animation.status` is `"done"` once `cursor >= events.length`; under the default
   `IMMEDIATE_SCHEDULER` playback drains inside `run()`, so **both read `"done"` for a program sitting
   in a `wait`**. Measured as a mutation arm: gating on `animation?.getSnapshot().status !== "done"`
-  fails **42 of the 622** studio tests, the `wait 300` case among them, because it refuses everywhere
-  except a paced host. Both read *playback*; the ruling is about the *program*.
+  fails **42 of the 622** studio tests, the `wait 300` case among them. Both read *playback*; the
+  ruling is about the *program*.
 
   So `run-controller.ts`'s `programIsStillRunning` asks a different question: **has this program got
   a yield left for a delivery to land on?** A scheduled occurrence is dispatched at a yield, and

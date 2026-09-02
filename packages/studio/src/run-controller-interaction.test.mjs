@@ -226,10 +226,14 @@ function pinnedSeed(seed) {
  * test asserting pending() === 0 after Stop would be measuring the harness, not the product.
  *
  * **What it can and cannot do.** It holds playback *before its next step*, which is enough to make a
- * run observably mid-flight and to act while it is. It does **not** let a test stop at an arbitrary
- * intermediate boundary — there is no single-step control, because nothing needs one yet and an
- * unexercised helper method is an unverified claim about a seam nobody uses. Add one when a test
- * does.
+ * run observably mid-flight and to act while it is. `step()` runs exactly one queued step and
+ * reports whether one was available, so a test can walk every intermediate boundary rather than only
+ * the two ends. It was added for `#1039 AC3 (limitation)`: round-3 review built a mutant
+ * (`lastYieldedTick === null` falling back to `drawnEventCount > 0 && animation.status !== "done"`)
+ * that survived a test checking only *before the first step* and *after the last*, because at both
+ * ends the mutant agrees with the real predicate. It disagrees in between, and costs a wasted
+ * execution there. An unexercised helper method is an unverified claim about a seam nobody uses —
+ * this one has a caller.
  */
 function createHandDrivenScheduler() {
   const queued = [];
@@ -239,6 +243,15 @@ function createHandDrivenScheduler() {
       return NO_OP_CANCEL;
     },
     pending: () => queued.length,
+    /** Run exactly one queued step. Returns `false` when the queue was already empty. */
+    step() {
+      const next = queued.shift();
+      if (next === undefined) {
+        return false;
+      }
+      next.callback();
+      return true;
+    },
     drain() {
       // Bounded: a step may queue its successor, and a runaway would otherwise hang the suite
       // rather than fail it. The assertion is on the QUEUE being empty, not on the guard — a drain
@@ -2780,29 +2793,33 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
 
   controller.run();
 
-  // Press BEFORE draining playback, and again after. Round 2 review built a mutant that survived a
-  // drain-only version of this test — `if (lastYieldedTick === null) return
-  // animation?.getSnapshot().status !== "done"` left all 622 green, because once playback is fully
-  // drawn `status` is `"done"` and the mutant agrees with the real predicate. Mid-playback it does
-  // not: the mutant reads "still running" and pays an execution. Measured under it, pressing here:
-  // `deliverKey` false, **1** extra execution, 2 playback steps still queued.
-  const beforeDrain = recorder.requests.length;
-  assert.equal(controller.deliverKey("left"), false, "refused mid-playback");
-  assert.equal(
-    recorder.requests.length,
-    beforeDrain,
-    "a `forever` with no yield cannot deliver at ANY point in playback — including while the picture is still being drawn",
-  );
+  // Walk EVERY playback boundary, not just the two ends. Round-3 review killed the previous version
+  // of this test — which pressed only before the first step and after the last — with
+  // `lastYieldedTick === null ? drawnEventCount > 0 && animation?.getSnapshot().status !== "done"`.
+  // At both ends that mutant agrees with the real predicate (nothing drawn yet, then fully drawn and
+  // `"done"`), so 622/622 stayed green; one step in it disagrees and pays an execution. An earlier
+  // revision of this comment claimed refusal "at ANY point in playback" while testing two points.
+  let boundaries = 0;
+  do {
+    const before = recorder.requests.length;
+    assert.equal(
+      controller.deliverKey("left"),
+      false,
+      `boundary ${boundaries}: a bare \`forever\` can never deliver`,
+    );
+    assert.equal(
+      recorder.requests.length,
+      before,
+      `boundary ${boundaries}: and must not pay a replay to discover that`,
+    );
+    boundaries += 1;
+  } while (paced.step() && boundaries < 50);
 
-  paced.drain();
-  const afterRun = recorder.requests.length;
-
-  assert.equal(controller.deliverKey("left"), false);
-  assert.equal(
-    recorder.requests.length,
-    afterRun,
-    "a `forever` with no yield cannot deliver, so it must not pay a replay to discover that",
+  assert.ok(
+    boundaries > 2,
+    `the sweep must cross intermediate boundaries, not just the two ends — crossed ${boundaries}`,
   );
+  assert.equal(paced.pending(), 0, "playback ran to completion");
   assert.deepEqual(store.getState().output, []);
   assert.ok(
     store
