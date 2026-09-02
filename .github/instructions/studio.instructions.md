@@ -43,17 +43,26 @@ presentation and interaction, never language logic.
 - Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
   [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).
 
-## Testing: a timing test needs no slack ticks
+## Testing: two different things hide a timing defect
 
-- The immediate scheduler (the default — `run-controller.ts`'s `options?.scheduler ?? IMMEDIATE_SCHEDULER`)
-  drains playback inside `run()`, so `drawnEventCount` is always the whole stream. A test that must
-  observe a **partially-drawn** picture needs a paced scheduler — copy `createHandDrivenScheduler`
-  from `run-controller-interaction.test.mjs`; **there is no shared helper yet**, so it is defined
-  locally in each file that needs one.
-- **Pacing is not what makes an ordering defect visible — fixture shape is.** A program with ticks to
-  spare after the event you order against lets a clamped and an unclamped delivery land on
-  different-but-both-valid ticks with identical observable order. `askThenOnKeySource` defaults to no
-  trailing wait for exactly this reason; pass `trailingWaitTicks` only when a test needs slack.
-- **Prove it by mutation, not by scheduler choice**: if forcing the guard off leaves the test green,
-  the fixture has slack. Measured on #985's flagship ordering test — same immediate scheduler, the
-  variant with no trailing wait dies under the mutant while the variant with `wait 5` stays green.
+The immediate scheduler is the default (`run-controller.ts`'s `options?.scheduler ?? IMMEDIATE_SCHEDULER`).
+It drains playback inside `run()`, so `drawnEventCount` is always the whole stream. Which hazard you
+face depends on what your oracle reads:
+
+- **An oracle that reads playback progress needs a paced scheduler.** Anything about a
+  *partially-drawn* picture, or delivery before playback settles, is unobservable under the immediate
+  default — `#985/#976: a click DELIVERED before its handler registers reports zero invocations`
+  drives `createHandDrivenScheduler` and only confirms the click after `drain()`. Copy that helper
+  from `run-controller-interaction.test.mjs`; **there is no shared module yet**, so each file that
+  needs one defines it locally.
+- **An oracle that reads tick ordering can be defeated by fixture slack, under any scheduler.** A
+  program with ticks to spare after the event you order against lets a clamped and an unclamped
+  delivery land on different-but-both-valid ticks with identical observable order. Measured on the
+  `#976` answered-read sweep, same immediate scheduler in both arms: `askThenOnKeySource` with no
+  trailing wait dies under a `readFloor = 0` mutant (leads 1/2/3/5 violate, lead 0 insensitive),
+  while the `wait 5` variant stays green. `trailingWaitTicks` defaults to `0` for this reason — pass
+  it only when a test genuinely needs slack.
+- **A surviving mutant proves only that the test does not discriminate.** Fixture slack is one
+  diagnosis; the others are that the mutation never reached the built artifact, that it hit the wrong
+  guard, or that the assertion is weak. Confirm the mutation landed in `dist/` before reading
+  anything into a green suite.
