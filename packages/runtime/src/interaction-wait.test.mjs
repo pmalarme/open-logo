@@ -843,19 +843,25 @@ test("#953: the idiomatic 'register handlers then hold the run open' program is 
   );
 });
 
-test("#953/#1034: charging a tick creates no additional step or `instruction` event, at any n", () => {
+test("#953/#1034: charging a tick creates no additional step or `instruction` event, and does not begin to as n grows", () => {
   // The second half of the sentence #1034 made normative (`spec/interaction-events.md`,
   // `### wait <n>`): "Charging a tick does not create an additional step or `instruction` event."
   //
-  // Its companion fixture (`tests/conformance/interaction-events/wait/
-  // wait-emits-no-per-tick-instruction`) pins ONE n exactly, and `wait 2` above already pins n = 2
-  // by asserting a two-event stream — so an UNCONDITIONAL per-tick emission was never unguarded.
-  // What had no guard anywhere is constancy in n, and that is what this test is for: a THRESHOLD
-  // implementation, emitting per-tick only past some count, passes every fixture whose n is below
-  // it. Measured by the reviewing QA at a threshold of 1000: all 942 conformance fixtures pass, all
-  // five pre-existing witnesses pass, and this test alone fails. The samples below span 0 to
-  // 200,000, so a threshold inside that span is caught; one above it is not, and this test does not
-  // claim otherwise.
+  // An UNCONDITIONAL per-tick emission was never unguarded — `wait 2` above already asserts a
+  // two-event stream, this test's companion fixture pins `wait 300`, and 46 fixtures fail under it.
+  // Small n was already covered. What this test adds is **reach**: it extends detection to
+  // n = 200,000, which is what catches a THRESHOLD implementation — one that emits per-tick only
+  // past some count, and so passes every witness whose n is below that count.
+  //
+  // That blindness is structural, not incidental: the largest `wait` literal anywhere in
+  // `tests/conformance/**/*.logo` is this slice's own 300, across 63 fixtures that use `wait`. So
+  // the corpus cannot catch a threshold at or above 300 at all, no matter how many fixtures are
+  // added at that scale. Measured by the reviewing QA at a threshold of 1000 and reproduced here:
+  // all 942 conformance fixtures pass, all five pre-existing witnesses pass, and this test alone
+  // fails, of 4796 — on `wait 5000`.
+  //
+  // The reach is finite and this test claims nothing beyond it: a threshold inside the sampled
+  // 0–200,000 span is caught, one above it is not.
   //
   // `wait 0` is the boundary case rather than a witness for per-tick emission — it advances no tick,
   // so no per-tick rule can act on it. It pins that a pause which charges nothing still emits
