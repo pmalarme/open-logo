@@ -107,15 +107,17 @@
  * never a placeholder, while the span is `null` (program-start/`reset()`, or before the first
  * `run()`/`step()`).
  *
- * #778 fixes what that clause did with a span covering a **block**: it spliced every line of the
- * block into the `status`/`aria-live="polite"` region, so a screen reader re-read the whole body on
- * each tick and heard instructions that were not current announced as if they were. The slice is
- * now reduced to its head line plus a count of what was left out, by `@openlogo/turtle`'s
- * `summarizeSourceInstruction` — studio decides which text to hand over, `@openlogo/turtle` owns
- * how it is worded, exactly as for the position/heading half. The same issue rounds the numbers in
- * that half for speech, also in `@openlogo/turtle`. A single-line instruction is unchanged, byte
- * for byte, and so is a whole-numbered position — `spec/rendering.md:193`'s worked example
- * included.
+ * #778 fixes what that clause did with a span covering a **block**: it put every line of the block
+ * into the `status`/`aria-live="polite"` region text, so the region carried the block's body lines
+ * as well as its head — measured on the base of that change, 163 of the 1423 region texts the 13
+ * runnable `spec/examples` produce contained a newline, with 52 distinct head lines, and a block
+ * head recurs (twice out of 18 announcements for a four-line `repeat`, 46 times for
+ * `12-fractal.logo`'s `if :depth == 0`). The slice is now reduced to its head line plus a count of
+ * what was left out, by `@openlogo/turtle`'s `summarizeSourceInstruction` — studio decides which
+ * text to hand over, `@openlogo/turtle` owns how it is worded, exactly as for the position/heading
+ * half. The same issue rounds `x`/`y`/`heading` for speech, also in `@openlogo/turtle`. A
+ * single-line instruction keeps its wording (surrounding whitespace is trimmed) and so does a
+ * position that rounds to itself — `spec/rendering.md:193`'s worked example included.
  */
 
 import type { SourceSpan } from "@openlogo/core";
@@ -452,8 +454,8 @@ function extractSourceSpanText(source: string, span: SourceSpan): string {
  *
  * #778: the sliced text is reduced to one speakable line by `@openlogo/turtle`'s
  * {@link summarizeSourceInstruction} before it is spoken, so a span covering a block contributes
- * `current instruction ask :leader [ plus 4 more lines` rather than splicing the block's every
- * line into a live region that re-reads on each tick. The summarizer lives in `@openlogo/turtle`
+ * `current instruction ask :leader [, plus 7 more lines` rather than putting the block's every
+ * line into a live region. The summarizer lives in `@openlogo/turtle`
  * with the rest of the description wording (and the reasoning behind it) — this module still
  * writes no description logic of its own; it only decides *which* text to hand over, by slicing
  * the span out of the source it alone holds. When the summary is empty there is nothing to say,

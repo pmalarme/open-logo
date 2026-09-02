@@ -817,7 +817,7 @@ test("createTurtleStateRegion reduces a multi-line current-instruction span to i
   const region = OL.createTurtleStateRegion(state);
   assert.equal(
     region.getText(),
-    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1 current instruction forward 100 plus 2 more lines",
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1 current instruction forward 100, plus 2 more lines",
   );
   assert.doesNotMatch(region.getText(), /\n/);
   assert.doesNotMatch(region.getText(), /right 90|back 50/);
@@ -916,7 +916,7 @@ test("a block instruction is announced by its head line, and its body lines neve
 
   assert.ok(
     announcements.some((text) =>
-      text.endsWith("current instruction repeat 4 plus 3 more lines"),
+      text.endsWith("current instruction repeat 4, plus 3 more lines"),
     ),
     `no head-line announcement in ${JSON.stringify(announcements)}`,
   );
@@ -953,7 +953,7 @@ test("a repeatedly-firing handler is announced by the same head-line rule, and i
   assert.equal(state.getState().diagnostics.length, 0);
   assert.ok(
     announcements.some((text) =>
-      text.endsWith("current instruction every 2 [ plus 3 more lines"),
+      text.endsWith("current instruction every 2 [, plus 3 more lines"),
     ),
     `no handler head-line announcement in ${JSON.stringify(announcements)}`,
   );

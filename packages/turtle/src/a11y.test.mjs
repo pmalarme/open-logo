@@ -589,17 +589,78 @@ test("describeTurtleState never speaks a negative zero (#778)", () => {
   assert.doesNotMatch(text, /-0/);
 });
 
-test("describeTurtleState rounds a float-noise heading and width too (#778)", () => {
+test("describeTurtleState rounds a float-noise heading, and leaves width alone (#778)", () => {
   // The issue named only x/y; the sweep found 311/1423 texts with a noisy `heading` as well
   // (a 7-pointed star turns 1080/7 = 154.28571428571428 degrees).
   assert.equal(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,
       heading: 154.28571428571428,
-      width: 2.0000000000000004,
     }),
-    "turtle at x 0 y 0 heading 154.286 degrees pen down color black width 2",
+    "turtle at x 0 y 0 heading 154.286 degrees pen down color black width 1",
   );
+});
+
+test("describeTurtleState does NOT round width: a hairline pen must not be announced as no pen (#778)", () => {
+  // The sweep found 0/1423 noisy widths, so rounding width fixes nothing — and it would introduce
+  // a defect of its own: `set_width 0.0001` is diagnostic-free, and `width 0` states that the pen
+  // draws nothing. Rounding a coordinate abbreviates *where* the turtle is; rounding a width
+  // changes *what* it claims about the drawing.
+  assert.match(
+    OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, width: 0.0001 }),
+    /width 0\.0001$/,
+  );
+});
+
+test("describeTurtleState speaks a movement below the rounding threshold as no change (#778)", () => {
+  // The accepted cost of rounding, pinned so it stays a decision rather than a surprise: any rule
+  // that kept `0.0004` would also keep `1.4210854715202004e-14`, which is the defect being fixed.
+  // Measured end to end: `repeat 4 / forward 0.0001 / end repeat` yields 3 region announcements
+  // where the same program with `forward 80` yields 7.
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [0, 0.0004],
+    }),
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
+  );
+  // ...and the first value above the threshold is still spoken.
+  assert.match(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [0, 0.0005],
+    }),
+    /y 0\.001 /,
+  );
+});
+
+test("describeTurtleState speaks a magnitude at or above 1e21 in exponent form (#778)", () => {
+  // `toFixed` itself switches to exponent notation there, and it is reachable: `forward power 10
+  // 21` is diagnostic-free and announces `y 1e+21`. Recorded rather than special-cased — the
+  // number really is that big.
+  assert.match(
+    OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, position: [0, 1e21] }),
+    /y 1e\+21 /,
+  );
+});
+
+test("describeTurtleState omits the instruction label when the slice has no head line (#778)", () => {
+  // The summarizer returns "" here, and a label spoken with nothing in it is exactly what the
+  // whole clause-omission rule exists to avoid.
+  const text = OL.describeTurtleState(OL.INITIAL_TURTLE_STATE, {
+    currentInstruction: "\nright 90",
+  });
+  assert.equal(
+    text,
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  assert.doesNotMatch(text, /instruction/);
+});
+
+test("describeCurrentStepCue omits the trailing label when the slice has no head line (#778)", () => {
+  // `ColorIndependentCue.text` is documented as sufficient on its own, so `current step: ` with an
+  // empty tail would make it not so.
+  assert.equal(OL.describeCurrentStepCue("\nright 90").text, "current step");
 });
 
 test("describeTurtleState speaks a heading that rounds up to a full turn as 0 (#778)", () => {
@@ -635,17 +696,17 @@ test("summarizeSourceInstruction reduces a block to its head line plus a line co
     OL.summarizeSourceInstruction(
       "repeat 4\n  forward 80\n  right 90\nend repeat",
     ),
-    "repeat 4 plus 3 more lines",
+    "repeat 4, plus 3 more lines",
   );
   // Singular for exactly one elided line — a learner hears grammar, not a template.
   assert.equal(
     OL.summarizeSourceInstruction("repeat 4\n  forward 80"),
-    "repeat 4 plus 1 more line",
+    "repeat 4, plus 1 more line",
   );
   // Blank lines inside the span are counted: the phrase describes the source, not a subset of it.
   assert.equal(
     OL.summarizeSourceInstruction("repeat 4\n\n  forward 80"),
-    "repeat 4 plus 2 more lines",
+    "repeat 4, plus 2 more lines",
   );
 });
 
@@ -653,7 +714,7 @@ test("summarizeSourceInstruction never returns a newline or any line but the hea
   const summary = OL.summarizeSourceInstruction(
     'ask :leader [\n  set_shape "turtle"\n  set_color "blue"\n]',
   );
-  assert.equal(summary, "ask :leader [ plus 3 more lines");
+  assert.equal(summary, "ask :leader [, plus 3 more lines");
   assert.doesNotMatch(summary, /\n/);
   assert.doesNotMatch(summary, /set_shape|set_color/);
 });
@@ -671,7 +732,7 @@ test("describeTurtleState summarizes a multi-line currentInstruction option (#77
     OL.describeTurtleState(OL.INITIAL_TURTLE_STATE, {
       currentInstruction: "repeat 4\n  forward 80\nend repeat",
     }),
-    'turtle at x 0 y 0 heading 0 degrees pen down color black width 1 instruction "repeat 4 plus 2 more lines"',
+    'turtle at x 0 y 0 heading 0 degrees pen down color black width 1 instruction "repeat 4, plus 2 more lines"',
   );
 });
 
@@ -686,7 +747,7 @@ test("describeCurrentStepCue summarizes a multi-line instruction (#778)", () => 
   // `ColorIndependentCue.text` is documented as sufficient on its own, so it is an accessible
   // label; a newline inside one is never useful.
   const cue = OL.describeCurrentStepCue("repeat 4\n  forward 80\nend repeat");
-  assert.equal(cue.text, "current step: repeat 4 plus 2 more lines");
+  assert.equal(cue.text, "current step: repeat 4, plus 2 more lines");
   assert.doesNotMatch(cue.text, /\n/);
 });
 

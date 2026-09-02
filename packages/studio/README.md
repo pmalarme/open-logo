@@ -876,29 +876,35 @@ no DOM here to regress.
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility
   state. `run-controller.ts` maps each pushed turtle snapshot to the `source_span` of the most
   recently consumed `"instruction"` trace event (`state.currentInstructionSourceSpan`), and this
-  module slices that exact span out of `state.source` — the learner's own spelling, never
-  reformatted. The clause is omitted entirely (not a placeholder) before any run/step has happened,
+  module slices that exact span out of `state.source` — the learner's own spelling. The clause is
+  omitted entirely (not a placeholder) before any run/step has happened,
   or after `reset()`.
 
-  **#778 — what a screen reader actually hears.** A span covering a *block* used to be spliced into
-  the live region line by line, so the whole body was re-read on every tick and instructions that
-  were not current were announced as if they were; and the un-rounded turtle position reached the
-  text verbatim, as `x 1.4210854715202004e-14` or `x 80.00000000000001`. Measured across the
-  runnable `spec/examples`, 163 of 1423 region texts spliced a block and 1018 carried float noise
-  in `x`, `y` or `heading`. Both are now settled in `@openlogo/turtle`, which owns the wording:
-  a multi-line slice is reduced by `summarizeSourceInstruction` to its head line plus a count
-  (`current instruction ask :leader [ plus 7 more lines`), and every number is rounded for speech
-  to three decimals and printed without trailing zeros (`x 0`, `x 80`, `heading 154.286`). Studio
+  **#778 — what the region text carries.** A span covering a *block* used to put the whole block
+  into the live region, body lines and all; and the un-rounded turtle position reached the text
+  verbatim, as `x 1.4210854715202004e-14` or `x 80.00000000000001`. Measured across the 13 runnable
+  `spec/examples` (1423 distinct region texts, control non-zero), 163 texts contained a newline —
+  52 distinct block head lines — and 1018 carried float noise in `x`, `y` or `heading`; after the
+  change all of those counts are 0 and the control is still 1423. Both are settled in
+  `@openlogo/turtle`, which owns the wording: a multi-line slice is reduced by
+  `summarizeSourceInstruction` to its head line plus a count
+  (`current instruction ask :leader [, plus 7 more lines`), and `x`/`y`/`heading` are rounded for
+  speech to three decimals and printed without trailing zeros (`x 0`, `x 80`, `heading 154.286`).
+  `width` is deliberately left unrounded — no noisy width was measured, and rounding one would
+  announce a diagnostic-free `set_width 0.0001` as `width 0`. Studio
   still writes no description logic — it only decides *which* text to hand over. A single-line
-  instruction and a whole-numbered position are byte-identical to before, `spec/rendering.md:193`'s
-  worked example included, and nothing here touches the turtle state, the event stream, or an
-  exporter: `print xcor` still reports the exact value.
+  instruction keeps its wording and so does a position that rounds to itself,
+  `spec/rendering.md:193`'s worked example included, and nothing here touches the turtle state, the
+  event stream, or an exporter: `print xcor` still reports the value in the language's canonical
+  form, which the region now deliberately differs from (`x 0` here, `1.421085472e-14` there) —
+  a description abbreviates for a listener, a program's own value must not.
 
   Unlike the announcer's growing log, `getText()` always returns the *current*
   description (available immediately, even before any run), and `subscribeText(listener)` notifies
-  every listener with the new text whenever `turtleWorld`/`currentInstructionSourceSpan` changes —
-  so the region reads in lockstep with the Canvas view as a program runs, and multiple consumers
-  never desync.
+  every listener whenever the rendered text changes — as it already did for a
+  no-op tick, and now also when two ticks round to the same text (a movement below 0.0005 units,
+  such as `forward 0.0001`, is spoken as no change). So the region tracks the Canvas view at the
+  precision it speaks, and multiple consumers never desync.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
   cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
