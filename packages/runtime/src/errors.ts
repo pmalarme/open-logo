@@ -844,21 +844,32 @@ export const runtimeDiag = {
    * runtime halves agree on identity; raised here at `stage: "runtime"` because `execute()` runs
    * `parse()` only, never `check()`, and because a variable's struct type is generally only known
    * dynamically (issue #329).
+   *
+   * Field names are identifiers, so field access folds case (`spec/grammar.md:13`,
+   * `values.ts`'s case-folded slot map): `.X`, `.x`, and `.x` all address one field, so a missing
+   * `.Missing` and `.MISSING` name the *same* absent field — one condition. As with
+   * `ol-undefined-var` (issue #1005), the diagnostic identity (`code` + `params`,
+   * `spec/error-model.md:254-259`) must reflect that single condition, so `field` is folded to its
+   * case-insensitive resolution identity here and in `resolveRecordField`, and the message uses the
+   * same folded spelling so message and param never disagree. `type` is not folded: a record's
+   * `type` is always the single declared struct-name spelling (`values.ts` stores the declared
+   * form, never the constructor call's casing), so it is already canonical.
    */
   unknownField(
     source_span: SourceSpan,
     params: { type: string; field: string; write?: boolean },
   ): Diagnostic {
+    const field = params.field.toLowerCase();
     const outParams: Record<string, unknown> = params.write
-      ? { type: params.type, field: params.field, write: true }
-      : { type: params.type, field: params.field };
+      ? { type: params.type, field, write: true }
+      : { type: params.type, field };
     return runtimeError(
       "ol-unknown-field",
       source_span,
       outParams,
       params.write
-        ? `${params.type} has no field ${params.field}, and records can't grow new fields.`
-        : `${params.type} has no field ${params.field}. check the spelling.`,
+        ? `${params.type} has no field ${field}, and records can't grow new fields.`
+        : `${params.type} has no field ${field}. check the spelling.`,
     );
   },
 

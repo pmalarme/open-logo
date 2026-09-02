@@ -181,15 +181,20 @@ export function resolveRecordField(
     return undefined;
   }
 
+  // Field names are identifiers, so access folds case (`spec/grammar.md:13`): `.Missing` and
+  // `.MISSING` name the same absent field — one condition, one diagnostic identity
+  // (`spec/error-model.md:254-259`). Report the folded field name (its case-insensitive resolution
+  // identity), matching `@openlogo/runtime`'s `unknownField` so the static and runtime halves agree
+  // whatever the source casing (issue #1005). `type` is already canonical (the declared spelling).
   const params: Record<string, unknown> = access.write
-    ? { type: access.type, field: access.field, write: true }
-    : { type: access.type, field: access.field };
+    ? { type: access.type, field, write: true }
+    : { type: access.type, field };
 
   return {
     code: "ol-unknown-field",
     source_span: access.span,
     params,
-    message: messageForField(access.type, access.field, access.write),
+    message: messageForField(access.type, field, access.write),
     stage: "semantic",
     severity: "error",
   };
