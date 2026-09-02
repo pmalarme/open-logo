@@ -21,6 +21,10 @@ import {
   yieldToEventLoop,
 } from "@openlogo/runtime";
 import { parse } from "@openlogo/parser";
+// `runWait` is package-internal (not on `@openlogo/runtime`'s public surface), and the
+// charge-before-advance ordering it owns is observable nowhere else — see the ordering test below.
+// Reached through the `../dist/<module>.js` idiom this package already uses for internals.
+import { runWait } from "../dist/interaction.js";
 
 const doc = "wait.logo";
 
@@ -582,12 +586,18 @@ test("#953: the rule is exactly one instruction per tick — `wait n` completes 
   }
 });
 
-test("#953: a cut-short pause keeps its partial trace, stops the clock at the last affordable tick, and emits no primitive", () => {
+test("#953: a cut-short pause keeps its partial trace, stops the TIMELINE at the last affordable tick, and emits no primitive", () => {
   // `ol-limit` preserves the partial trace rather than discarding it — the established behavior
   // (`tests/conformance/core-language/execution/forever-instruction-budget-limit.expected.json`).
-  // The trailing `primitive` is NOT emitted, because the pause did not complete, and the clock stops
-  // where the budget did: at a budget of 5 the statement takes 1 and four ticks are affordable, so
-  // the timeline records exactly four boundaries and the fifth tick is never advanced to.
+  // The trailing `primitive` is NOT emitted, because the pause did not complete, and the timeline
+  // stops where the budget did: at a budget of 5 the statement takes 1 and four ticks are
+  // affordable, so exactly four boundaries are recorded and the fifth tick is never reached.
+  //
+  // Named "timeline", not "clock", deliberately: the clock's own stop point is NOT observable
+  // through `execute()`, so this test cannot pin it. The charge-before-advance ORDERING that keeps
+  // the clock and the timeline agreeing is pinned separately, by the direct `runWait` test below —
+  // a review-gate mutation (move the charge after `advanceTickClock`) survived this test and the
+  // whole suite, because the timeline push sits after the charge under either ordering.
   const tickTimeline = [];
   const halted = execute("wait 5", doc, { instructionBudget: 5, tickTimeline });
   assert.equal(halted.diagnostics[0].code, "ol-limit");
@@ -611,6 +621,48 @@ test("#953: a cut-short pause keeps its partial trace, stops the clock at the la
   assert.equal(clean.length, 5);
 });
 
+test("#953: the charge is taken BEFORE the clock advances, so an unaffordable tick is never advanced to", () => {
+  // The ordering claim `runWait`'s doc comment makes, pinned rather than merely asserted.
+  //
+  // A review-gate mutation that moved `charge()` to after `advanceTickClock` survived the entire
+  // Definition of Done — 4792 unit tests, 941 conformance fixtures, every example — because the one
+  // thing it changes is `tickClock.tick` after the halt, and `execute()` exposes no way to read it:
+  // the timeline push sits after the charge under both orderings, so it cannot discriminate. That
+  // makes this the only place the ordering can be observed, which is why it reaches past the public
+  // API to `runWait` itself — the `../dist/<module>.js` idiom this package already uses for
+  // internals (`execution-budget.test.mjs` -> `../dist/execute-internal.js`,
+  // `not-a-place-text.test.mjs` -> `../dist/not-a-place-text.js`). Node resolves it to the same
+  // module instance the package entry already loaded.
+  //
+  // Charging first, the last affordable tick is 4 and the clock stops there. Advancing first, the
+  // clock would reach 5 — a tick the run could not pay for — leaving it one ahead of both the
+  // timeline and the trace, which is exactly the disagreement the doc comment promises never happens.
+  const clock = createTickClock();
+  const events = [];
+  const tickTimeline = [];
+  let charges = 0;
+  const interrupted = runWait(
+    clock,
+    events,
+    5,
+    { document: doc, start: [1, 1], end: [1, 7] },
+    () => false,
+    () => {
+      charges += 1;
+      return charges > 4;
+    },
+    tickTimeline,
+  );
+  assert.equal(interrupted, true, "the fifth charge must abort the pause");
+  assert.equal(
+    clock.tick,
+    4,
+    "the clock must not advance to an unaffordable tick",
+  );
+  assert.equal(tickTimeline.length, 4);
+  assert.deepEqual(events, [], "an aborted pause emits no trailing primitive");
+});
+
 test("#953: `wait 0` advances no tick and is therefore charged nothing extra", () => {
   // The charge is taken per tick ADVANCED, and `wait 0` advances none — its spec-mandated yield is
   // not a tick. A budget of 1 covers the statement and nothing else, so a `wait 0` that took a tick
@@ -625,11 +677,53 @@ test("#953: `wait 0` advances no tick and is therefore charged nothing extra", (
   );
 });
 
-test("#953: cancellation still wins over the budget at a tick", () => {
+test("#953: cancellation still wins over the budget AT A TICK, not merely at the statement gate", () => {
   // `checkExecutionLimits` checks the abort FIRST and does not charge for it, so an aborted run
   // paused in a `wait` reports `cancelled` — not `instruction-budget` — even with budget to spare.
-  const result = execute("wait 5", doc, {
-    instructionBudget: 100,
+  //
+  // The signal must FLIP rather than start aborted. Review-gate finding: a pre-aborted signal halts
+  // at `executeStatements`' own statement gate BEFORE `runWait` is ever entered, so it proves
+  // nothing about the tick charge — the test reads as covering this path while covering a different
+  // one. This getter is false for the two statement-level gates the program reaches first and true
+  // from the third read on, which is inside `chargeTick`; the run therefore starts, enters the
+  // pause, and is cancelled by the tick charge specifically.
+  let reads = 0;
+  const signal = {
+    get aborted() {
+      reads += 1;
+      return reads > 2;
+    },
+  };
+  const tickTimeline = [];
+  const result = execute("print 1\nwait 50", doc, {
+    instructionBudget: 1000,
+    signal,
+    tickTimeline,
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  // ...and it really was cancelled inside the pause: the first statement ran, and the pause was cut
+  // far short of its 50 ticks with budget left over (1000 was never approached).
+  assert.equal(
+    result.events.filter((event) => event.kind === "print").length,
+    1,
+  );
+  assert.ok(
+    tickTimeline.length < 50,
+    "the pause must have been cut short rather than completing",
+  );
+});
+
+test("#953: `wait 0` still reaches the dispatcher's own cancellation poll, which the tick charge cannot mask", () => {
+  // The companion to the test above, and the reason both are needed. `chargeTick` now polls the
+  // abort before `dispatchDueHandlers` does, so on any tick-advancing pause the charge observes
+  // cancellation first and the dispatcher's own poll is no longer uniquely exercised there.
+  // `wait 0` advances no tick and therefore invokes NO charge callback at all, so the only thing
+  // that can observe the abort inside the pause is `dispatchDueHandlers`. Deleting either poll
+  // leaves the other test passing; this is the arm that keeps the dispatcher's poll load-bearing.
+  const result = execute("wait 0", doc, {
+    instructionBudget: 1000,
     signal: { aborted: true },
   });
   assert.equal(result.diagnostics.length, 1);
