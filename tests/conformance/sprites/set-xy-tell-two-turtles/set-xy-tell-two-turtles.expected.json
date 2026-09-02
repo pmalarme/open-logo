@@ -1,0 +1,158 @@
+{
+  "description": "issue #792: `tell [ :a :b ]` then a single `set_xy 50 25` applies once per addressed turtle, emitting one `move`+`draw-segment` pair per turtle carrying its own `turtle_id` (1 then 2) — `set_xy` moves to an absolute point leaving heading untouched, so no `turn` fires (spec/commands.md's `set_xy` entry). Each turtle moves from its `(0,0)` heading-`0` origin to `(50,25)`. The events are stamped because the addressed set is now explicit (a `tell` has run). Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }` (issue #766, spec/rendering.md:193). Closes the `set_xy` execution-coverage gap the Sprites Epic Gate recorded (issue #792): `set_xy` shares the `runPerTurtleCommand` loop and its position-command dispatch predicate with `home`, but had no Sprites-addressed execution fixture of its own.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": { "statement_kind": "ProfileStatement" }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "from": [0, 0], "to": [50, 25], "heading": 0 },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [50, 25],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": { "from": [0, 0], "to": [50, 25], "heading": 0 },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/set-xy-tell-two-turtles/set-xy-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [50, 25],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}

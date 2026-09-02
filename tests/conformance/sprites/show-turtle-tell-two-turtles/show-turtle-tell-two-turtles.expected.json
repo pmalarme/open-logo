@@ -1,0 +1,158 @@
+{
+  "description": "issue #792: `tell [ :a :b ]` then `hide_turtle` and `show_turtle` each apply once per addressed turtle, emitting one `visibility-change` per turtle carrying its own `turtle_id` (1 then 2). `hide_turtle` fans out first (true->false for turtles 1 and 2) so that `show_turtle` has an observable effect — `show_turtle` on an already-visible turtle is a no-op that emits nothing (spec/rendering.md's avatar-visibility idempotence), so this fixture first hides both turtles, then `show_turtle` fans out (false->true for turtles 1 and 2). The events are stamped because the addressed set is now explicit (a `tell` has run). Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }` (issue #766, spec/rendering.md:193). Closes the `show_turtle` execution-coverage gap the Sprites Epic Gate recorded (issue #792): `show_turtle` previously appeared only in a `check: true` fixture (`shape-checks-clean`) and was never executed under Sprites addressing.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": { "statement_kind": "ProfileStatement" }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": { "from": true, "to": false },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": { "from": true, "to": false },
+      "turtle_id": 2
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 10,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": { "from": false, "to": true },
+      "turtle_id": 1
+    },
+    {
+      "seq": 11,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "sprites/show-turtle-tell-two-turtles/show-turtle-tell-two-turtles",
+        "start": [5, 1],
+        "end": [5, 12]
+      },
+      "payload": { "from": false, "to": true },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}
