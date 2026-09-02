@@ -53,8 +53,9 @@ import type { TurtleWorldState } from "./world-state.js";
  * `y 0` and `y 0.001`, while `0` and `0.0004`, twenty times further apart, render identically. A
  * listener is notified only when the *whole* rendered text changes, so a collapsed position is
  * silent only while every other field, the current-instruction clause included, is also unchanged:
- * `repeat 4 / forward 0.0001 / end repeat` produces 3 announcements where the same program with
- * `forward 80` produces 7, ending at a real `y` of 0.0004 announced as `y 0`.
+ * `repeat 4 / forward 0.0001 / end repeat` produces 3 region texts — the initial one plus 2
+ * changes — where the same program with `forward 80` produces 7, ending at a real `y` of 0.0004
+ * announced as `y 0`.
  *
  * A scale-aware formatter — snapping only values within some residue band of zero, then rounding
  * — could keep `0.0004` while still collapsing `1.4210854715202004e-14`, so this is a chosen trade
@@ -164,7 +165,10 @@ function formatDescribedWidth(width: number): string {
  * - The marker is words rather than an ellipsis or brackets. A screen reader's punctuation
  *   verbosity is a user setting we cannot exercise in CI, so this is a conservative choice rather
  *   than a measured one; what *is* measured is the shape of the string — it never contains a
- *   newline and reproduces no line but the head.
+ *   newline and reproduces no line but the head. The words are also chosen from outside the
+ *   language: `plus`, `more` and `lines` are absent from `spec/built-in-names.json`, where `and`
+ *   and `or` are present — a marker that is itself a built-in would sit against quoted learner
+ *   source and blur the same boundary the comma exists to mark.
  * - The comma before `plus` is load-bearing, and its justification is a property of the string: it
  *   marks where the learner's own source text ends and this function's generated count begins.
  *   Without it, 11 of the 53 distinct block announcements the runnable examples produce match

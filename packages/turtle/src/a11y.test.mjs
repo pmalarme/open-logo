@@ -643,8 +643,8 @@ test("describeTurtleState renders two positions in the same rounding bucket iden
   // times further apart, render the same. A scale-aware snap could have kept `0.0004`; it is not
   // built because across the runnable examples all 192 non-zero per-turtle movements are at least
   // 0.2571255761402784, none below one bucket width. Measured end to end: `repeat 4 /
-  // forward 0.0001 / end repeat` yields 3 region announcements where the same program with
-  // `forward 80` yields 7.
+  // forward 0.0001 / end repeat` yields 3 region texts — the initial one plus 2 changes — where
+  // the same program with `forward 80` yields 7.
   assert.equal(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,
