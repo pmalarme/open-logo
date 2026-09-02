@@ -41,7 +41,7 @@
  * (`spec/grammar.md:378`): `category` (may a program **declare** this name?) and `tokenClass` (how is
  * this word **painted**?). `category` is compared against the implementation in both directions;
  * `tokenClass` is measured declaration-first and compared back over the enumerable name sources
- * only. ADR-0025 names each mechanism and what it does not reach — "both directions" over-describes
+ * only. ADR-0026 names each mechanism and what it does not reach — "both directions" over-describes
  * the paint axis, and this file must not restate it.
  *
  * `tokenClass` replaces a content fingerprint over `spec/tooling.md`'s `keyword` token-class row
@@ -1733,7 +1733,7 @@ export function tokenClassFindings(manifest, api) {
  * absent (issue #959 review rounds 2-4). **The limit, measured rather than assumed:** the sweep
  * varies eleven profiles into 17 distinct sets, which realise all four valuations of every pair —
  * so all **220** distinct two-literal conjunctions are caught, 0 escape. A rule needing one profile
- * present and **two** absent mostly escapes: 99 of 495 are caught, **396 escape**. ADR-0025
+ * present and **two** absent mostly escapes: 99 of 495 are caught, **396 escape**. ADR-0026
  * records it.
  */
 export function profileGatingFindings(api, entry) {

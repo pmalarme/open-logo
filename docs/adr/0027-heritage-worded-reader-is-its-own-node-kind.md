@@ -1,4 +1,4 @@
-# 26. The Heritage worded reader is its own AST node kind
+# 27. The Heritage worded reader is its own AST node kind
 
 - Status: Accepted
 - Date: 2026-08-28
@@ -156,7 +156,7 @@ from the AST's shape rules merely because it is a spelling.
    leave [ADR-0024](0024-ast-traversal-kind-dispatch-is-compiler-enforced.md) — which cites
    ADR-0006 as "the AST is a cross-cutting contract" — pointing at a superseded record.
 
-4. **ADR-0006 receives exactly one edit:** `refined by ADR-0026` appended to its `Related:` line,
+4. **ADR-0006 receives exactly one edit:** `refined by ADR-0027` appended to its `Related:` line,
    the only edit [ADR-0000](0000-record-architecture-decisions.md) and `AGENTS.md` §7 permit an
    Accepted ADR. Its body is untouched — including the false sentence, which stays as written,
    because an Accepted ADR is decision *history* and rewriting it would destroy the evidence that

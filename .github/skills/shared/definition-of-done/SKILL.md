@@ -59,7 +59,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    the keyword list on purpose, `spec/grammar.md:378`), moved out of the row and into the list as a
    per-name `tokenClass` (issue #959): the gate re-paints every name through the shipped
    `highlight()` and compares, so a **declared** class that is wrong can no longer be green. The
-   reverse direction covers the name sources `highlight()` reads, not arbitrary output — ADR-0025
+   reverse direction covers the name sources `highlight()` reads, not arbitrary output — ADR-0026
    states the limits. Adding or
    removing a **primitive**
    is therefore a deliberate **two-file** change — the registry and the list — and CI is red until
