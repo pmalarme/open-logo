@@ -1,0 +1,32 @@
+{
+  "description": "issue #953, the second half of the rule #1034 made normative: \"Charging a tick does not create an additional step or `instruction` event\" (spec/interaction-events.md, `### wait <n>`). Charging each tick against the execution budget could plausibly have been implemented by emitting a per-tick `instruction` event -- that is what every other charged unit in the language that a learner can step through does -- and this fixture is what forbids it. A 300-tick pause folds to exactly TWO events: the statement's own `instruction`, and the trailing `primitive` the completed pause emits. Under a per-tick `instruction` the recorded stream would carry 301 of them and this exact-diff fixture fails. 300 is the tick count spec/examples/10-game.logo itself holds open with, so the case pinned here is the canonical one rather than a contrived scale. Why it matters to a learner, and not merely to the trace: a step is defined as \"the span from one `instruction` event to the next\" (spec/execution-model.md#trace-and-event-registry), so `instruction` events ARE the stepper's units -- had charging created them, pressing Next step on `wait 300` would have cost 300 presses instead of one, and the studio's step control would have become unusable on the spec's own game example. The budget has never counted `instruction` events (a `repeat` pass is charged without emitting one), so charging a tick without emitting one introduces no new divergence between what the budget counts and what the stepper steps. The count is asserted CONSTANT in n by packages/runtime/src/interaction-wait.test.mjs across n = 0, 1, 2, 300, 5000 and 200000, with `repeat n` as the discriminating control there (it emits n + 1); a conformance fixture can only pin one n, so the two are complements and neither alone is sufficient.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-emits-no-per-tick-instruction",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-emits-no-per-tick-instruction",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

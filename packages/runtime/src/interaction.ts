@@ -34,14 +34,17 @@
  *
  * ## Why a `wait` tick costs an instruction
  *
- * That same per-tick step is also the seam the **execution budget** hangs off (issue #953). Because
- * the pause is a loop over learner-supplied `n`, it is unbounded work by construction — the shape
- * `spec/execution-model.md`'s [Execution safety](../../../spec/execution-model.md#execution-safety)
- * says is "safe only because it is cancellable **and** budgeted". Cancellation was built (the
- * per-tick `signal.aborted` poll in `dispatchDueHandlers`); the budget was not, so the whole pause
- * was one charged statement regardless of `n` and `wait` was the one form in the language that had
- * only half the pair. {@link runWait} therefore charges one instruction per tick it is about to
- * advance to, through {@link TickCharge}. See that type for the full rationale.
+ * That same per-tick step is also the seam the **execution budget** hangs off (issue #953, licensed
+ * by #1034: "Each tick a `wait` advances costs one instruction against the execution budget…").
+ * Because the pause is a loop over learner-supplied `n`, it is unbounded work by construction — the
+ * shape `spec/execution-model.md`'s
+ * [Execution safety](../../../spec/execution-model.md#execution-safety) says is "safe only because
+ * it is cancellable **and** budgeted". Cancellation was built (the per-tick `signal.aborted` poll in
+ * `dispatchDueHandlers`); the budget was not, so the whole pause was one charged statement
+ * regardless of `n` and `wait` was the one form in the language that had only half the pair.
+ * {@link runWait} therefore charges one instruction per tick it is about to advance to, through
+ * {@link TickCharge}. See that type for the full rationale, including why the charge creates no
+ * additional step or `instruction` event.
  *
  * ## Why `input` has no event-loop checkpoint at all
  *
@@ -166,24 +169,43 @@ export type TickDispatch = (tick: number) => boolean;
  *
  * ## Why a `wait` tick is a charged instruction
  *
- * `spec/execution-model.md`'s [Execution safety](../../../spec/execution-model.md#execution-safety)
- * is the whole safety argument for every unbounded form the language has: "`forever` is therefore
- * safe only because it is cancellable and budgeted." A `wait` tick is unbounded work by exactly the
- * same construction — `wait <n>` takes an arbitrary learner-supplied `n`, and each of those ticks
- * advances the clock, polls cancellation, enqueues host input, and claims all four handler buckets
+ * Because `spec/interaction-events.md`'s `### wait <n>` now says so, normatively (issue #1034):
+ * "Each tick a `wait` advances costs one instruction against the execution budget
+ * ([execution safety](../../../spec/execution-model.md#execution-safety)), so a long enough `wait`
+ * exhausts the budget and raises `ol-limit`, exactly as `forever` does, **even when no handler is
+ * registered**. Charging a tick does not create an additional step or `instruction` event."
+ * `ol-limit` is on `wait`'s own **Errors** list accordingly.
+ *
+ * That sentence is the licence; the reasoning that earned it is recorded here because it is what a
+ * future reader needs in order to change any of this safely. `spec/execution-model.md`'s
+ * [Execution safety](../../../spec/execution-model.md#execution-safety) is the whole safety argument
+ * for every unbounded form the language has: "`forever` is therefore safe only because it is
+ * cancellable and budgeted." A `wait` tick is unbounded work by exactly the same construction —
+ * `wait <n>` takes an arbitrary learner-supplied `n`, and each of those ticks advances the clock,
+ * polls cancellation, enqueues host input, and claims all four handler buckets
  * (`execute-internal.ts`'s `dispatchDueHandlers`). That is the same per-pass work a `forever` pass
  * does, so it earns the same answer: **one tick costs one instruction.** Before #953 the entire
  * pause was a single charged statement no matter how many ticks it ran, which made `wait` the one
  * form in the language that was cancellable but *not* budgeted — half of the pair the spec says
- * safety comes from.
+ * safety comes from. Measured on the saga tip before the fix, at the default budget of 1,000,000:
+ * `wait 999999999` blocked the execution thread for 413 seconds and raised no diagnostic at all.
  *
- * The precedent is `spec/interaction-events.md`'s own handler rule, which already reasons in exactly
- * this shape: "Each handler invocation is itself an instruction and counts against the same
- * execution budget as any other instruction … While the program holds the run open — with `forever`,
- * or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`,
- * exactly as `forever` does." That sentence only holds when the *holding open* is itself paid for:
- * a `wait` with no handlers registered accumulates no invocations, so before #953 nothing bounded
- * it at all.
+ * The handler rule at `spec/interaction-events.md`'s "Time, ticks, and handlers" reasons in the same
+ * shape — "Each handler invocation is itself an instruction and counts against the same execution
+ * budget as any other instruction … While the program holds the run open — with `forever`, or a
+ * long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`" — but
+ * it is **not** the licence for this, and reading it as one was the review-gate finding that sent
+ * #953 for a maintainer ruling. Its subject is the *accumulating invocations*: it catches a long
+ * `wait` only by way of handler charging, which was already true before #953, and says nothing
+ * about the handler-free case. The handler-free case is precisely the one that froze the tab, which
+ * is why #1034's "even when no handler is registered" is the clause that closes it.
+ *
+ * The second half of that sentence — no additional step or `instruction` event — is pinned by
+ * `tests/conformance/interaction-events/wait/wait-emits-no-per-tick-instruction` at one tick count
+ * and by `interaction-wait.test.mjs` as constant in `n`. It is load-bearing for the learner, not
+ * merely for the trace: a step is "the span from one `instruction` event to the next"
+ * (`spec/execution-model.md`'s trace-and-event registry), so a per-tick `instruction` would have
+ * made a single **Next step** press on `spec/examples/10-game.logo`'s `wait 300` cost 300 presses.
  *
  * Modelled as a plain `boolean`, like {@link TickDispatch}, so this module stays free of the
  * evaluator's control-flow types; the caller in `execute-internal.ts` stashes the real `ExecSignal`

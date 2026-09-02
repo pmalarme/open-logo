@@ -842,3 +842,39 @@ test("#953: the idiomatic 'register handlers then hold the run open' program is 
     "every 30 must still fire ten times across 300 ticks",
   );
 });
+
+test("#953/#1034: charging a tick creates no additional step or `instruction` event, at any n", () => {
+  // The second half of the sentence #1034 made normative (`spec/interaction-events.md`,
+  // `### wait <n>`): "Charging a tick does not create an additional step or `instruction` event."
+  //
+  // Its companion fixture (`tests/conformance/interaction-events/wait/
+  // wait-emits-no-per-tick-instruction`) pins ONE n exactly. The property the sentence states is
+  // stronger — the count must not grow with n at all — and a conformance fixture cannot express
+  // "for any n", so this is the half that lives here. An implementation emitting a per-tick
+  // `instruction` passes at no n; one that emitted it only past some threshold would pass the
+  // fixture and fail here.
+  //
+  // "Step" is not a separate thing to measure: `spec/execution-model.md`'s trace-and-event registry
+  // defines a step as "the span from one `instruction` event to the next", so the `instruction`
+  // count IS the step count. That is also why this is learner-visible rather than merely tidy —
+  // had charging created steps, `wait 300` would take 300 presses of the studio's Next step.
+  const instructionCount = (source) =>
+    execute(source, doc).events.filter((event) => event.kind === "instruction")
+      .length;
+
+  for (const n of [0, 1, 2, 300, 5000, 200000]) {
+    assert.equal(
+      instructionCount(`wait ${n}`),
+      1,
+      `wait ${n} must emit exactly one instruction event — its own statement`,
+    );
+  }
+
+  // The discriminating control, without which the assertion above is satisfied by a runtime that
+  // emits no `instruction` events at all: a charged unit the learner CAN step through emits one per
+  // pass, and its count does scale with n. So "1, constant" is a property of `wait` specifically,
+  // not an artefact of how this test counts.
+  for (const n of [2, 10, 300]) {
+    assert.equal(instructionCount(`repeat ${n} [ forward 1 ]`), n + 1);
+  }
+});
