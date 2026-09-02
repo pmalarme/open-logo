@@ -860,7 +860,8 @@ no DOM here to regress.
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
   single-source-of-truth contract, once again).
-- **Non-visual turtle state (#229, extended in #410 to include the current source instruction)** —
+- **Non-visual turtle state (#229, extended in #410 to include the current source instruction,
+  and in #778 to fix how both halves are *spoken*)** —
   `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
   region over the shared store's `turtleWorld` slot (the same one #218 paints from and #228 pushes
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
@@ -871,13 +872,29 @@ no DOM here to regress.
   snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
   name the set that is addressed again while still reporting the change the block made)
   plus, when available,
-  a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
+  a trailing "current instruction `<instruction>`" clause — `spec/rendering.md`'s Non-visual
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility
   state. `run-controller.ts` maps each pushed turtle snapshot to the `source_span` of the most
   recently consumed `"instruction"` trace event (`state.currentInstructionSourceSpan`), and this
-  module slices that exact span out of `state.source` — the learner's own spelling, verbatim, never
+  module slices that exact span out of `state.source` — the learner's own spelling, never
   reformatted. The clause is omitted entirely (not a placeholder) before any run/step has happened,
-  or after `reset()`. Unlike the announcer's growing log, `getText()` always returns the *current*
+  or after `reset()`.
+
+  **#778 — what a screen reader actually hears.** A span covering a *block* used to be spliced into
+  the live region line by line, so the whole body was re-read on every tick and instructions that
+  were not current were announced as if they were; and the un-rounded turtle position reached the
+  text verbatim, as `x 1.4210854715202004e-14` or `x 80.00000000000001`. Measured across the
+  runnable `spec/examples`, 163 of 1423 region texts spliced a block and 1018 carried float noise
+  in `x`, `y` or `heading`. Both are now settled in `@openlogo/turtle`, which owns the wording:
+  a multi-line slice is reduced by `summarizeSourceInstruction` to its head line plus a count
+  (`current instruction ask :leader [ plus 7 more lines`), and every number is rounded for speech
+  to three decimals and printed without trailing zeros (`x 0`, `x 80`, `heading 154.286`). Studio
+  still writes no description logic — it only decides *which* text to hand over. A single-line
+  instruction and a whole-numbered position are byte-identical to before, `spec/rendering.md:193`'s
+  worked example included, and nothing here touches the turtle state, the event stream, or an
+  exporter: `print xcor` still reports the exact value.
+
+  Unlike the announcer's growing log, `getText()` always returns the *current*
   description (available immediately, even before any run), and `subscribeText(listener)` notifies
   every listener with the new text whenever `turtleWorld`/`currentInstructionSourceSpan` changes —
   so the region reads in lockstep with the Canvas view as a program runs, and multiple consumers

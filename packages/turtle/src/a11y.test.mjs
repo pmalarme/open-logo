@@ -537,3 +537,167 @@ test("describeTurtleWorldState is deterministic for the same addressed world", (
     OL.describeTurtleWorldState(world),
   );
 });
+
+// --- #778: presentation of numbers and of multi-line instructions in a spoken description ---
+//
+// Both defects were re-derived on the saga tip before this fix, by driving every runnable
+// `spec/examples/*.logo` through the studio live region: 917/1423 region texts carried a raw-float
+// `x`, 950/1423 a `y`, 311/1423 a `heading`, and 163/1423 spliced a whole multi-line block.
+// These tests assert the announcement TEXT, not merely that a description was produced.
+
+test("describeTurtleState rounds float-noise coordinates to a speakable number (#778)", () => {
+  // The issue's verbatim example: a closed square lands a hair off the origin.
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [1.4210854715202004e-14, -1.4695761589768237e-14],
+    }),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  // ...and the other verbatim example, accumulated error just above a whole number.
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [80.00000000000001, 0],
+    }),
+    "turtle at x 80 y 0 heading 0 degrees pen down color black width 1",
+  );
+});
+
+test("describeTurtleState keeps three decimals of a genuinely fractional coordinate (#778)", () => {
+  // Rounding must not flatten a real diagonal to a whole number: 60·sqrt(2) is really 84.853.
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [84.8528137423857, -84.8528137423857],
+    }),
+    "turtle at x 84.853 y -84.853 heading 0 degrees pen down color black width 1",
+  );
+});
+
+test("describeTurtleState never speaks a negative zero (#778)", () => {
+  // `(-0.0004).toFixed(3)` is "-0.000"; spoken as "-0" it would name a coordinate no learner
+  // recognizes, and the sign is pure float noise at that magnitude.
+  const text = OL.describeTurtleState({
+    ...OL.INITIAL_TURTLE_STATE,
+    position: [-0.0004, -1e-14],
+  });
+  assert.equal(
+    text,
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  assert.doesNotMatch(text, /-0/);
+});
+
+test("describeTurtleState rounds a float-noise heading and width too (#778)", () => {
+  // The issue named only x/y; the sweep found 311/1423 texts with a noisy `heading` as well
+  // (a 7-pointed star turns 1080/7 = 154.28571428571428 degrees).
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      heading: 154.28571428571428,
+      width: 2.0000000000000004,
+    }),
+    "turtle at x 0 y 0 heading 154.286 degrees pen down color black width 2",
+  );
+});
+
+test("describeTurtleState speaks a heading that rounds up to a full turn as 0 (#778)", () => {
+  // `spec/rendering.md:67` and `spec/execution-model.md:619` normalize headings into [0,360), so
+  // `heading 360 degrees` names a value the model never holds. Reachable, not hypothetical:
+  // `right 359.9999` and `repeat 3 / right 119.99999999 / end repeat` both reach it, with no
+  // diagnostics, on a plain Turtle & Rendering program.
+  assert.equal(
+    OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, heading: 359.9999 }),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      heading: 359.99999997000003,
+    }),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  // The neighbouring value must still be spoken as itself, not swallowed by the wrap.
+  assert.match(
+    OL.describeTurtleState({ ...OL.INITIAL_TURTLE_STATE, heading: 359.9 }),
+    /heading 359\.9 degrees/,
+  );
+});
+
+test("summarizeSourceInstruction returns a single-line instruction unchanged but trimmed (#778)", () => {
+  assert.equal(OL.summarizeSourceInstruction("forward 100"), "forward 100");
+  assert.equal(OL.summarizeSourceInstruction("  forward 100  "), "forward 100");
+});
+
+test("summarizeSourceInstruction reduces a block to its head line plus a line count (#778)", () => {
+  assert.equal(
+    OL.summarizeSourceInstruction(
+      "repeat 4\n  forward 80\n  right 90\nend repeat",
+    ),
+    "repeat 4 plus 3 more lines",
+  );
+  // Singular for exactly one elided line — a learner hears grammar, not a template.
+  assert.equal(
+    OL.summarizeSourceInstruction("repeat 4\n  forward 80"),
+    "repeat 4 plus 1 more line",
+  );
+  // Blank lines inside the span are counted: the phrase describes the source, not a subset of it.
+  assert.equal(
+    OL.summarizeSourceInstruction("repeat 4\n\n  forward 80"),
+    "repeat 4 plus 2 more lines",
+  );
+});
+
+test("summarizeSourceInstruction never returns a newline or any line but the head (#778)", () => {
+  const summary = OL.summarizeSourceInstruction(
+    'ask :leader [\n  set_shape "turtle"\n  set_color "blue"\n]',
+  );
+  assert.equal(summary, "ask :leader [ plus 3 more lines");
+  assert.doesNotMatch(summary, /\n/);
+  assert.doesNotMatch(summary, /set_shape|set_color/);
+});
+
+test("summarizeSourceInstruction has nothing to say when the head line is empty (#778)", () => {
+  // Only a span pointing outside the current source reaches this; the caller then omits the
+  // clause rather than speaking a bare label.
+  assert.equal(OL.summarizeSourceInstruction("\n\n"), "");
+  assert.equal(OL.summarizeSourceInstruction(""), "");
+  assert.equal(OL.summarizeSourceInstruction("   "), "");
+});
+
+test("describeTurtleState summarizes a multi-line currentInstruction option (#778)", () => {
+  assert.equal(
+    OL.describeTurtleState(OL.INITIAL_TURTLE_STATE, {
+      currentInstruction: "repeat 4\n  forward 80\nend repeat",
+    }),
+    'turtle at x 0 y 0 heading 0 degrees pen down color black width 1 instruction "repeat 4 plus 2 more lines"',
+  );
+});
+
+test("describeTurtleFocusCue rounds its coordinates too (#778)", () => {
+  assert.equal(
+    OL.describeTurtleFocusCue([1.4210854715202004e-14, 80.00000000000001]).text,
+    "turtle focus at x 0 y 80",
+  );
+});
+
+test("describeCurrentStepCue summarizes a multi-line instruction (#778)", () => {
+  // `ColorIndependentCue.text` is documented as sufficient on its own, so it is an accessible
+  // label; a newline inside one is never useful.
+  const cue = OL.describeCurrentStepCue("repeat 4\n  forward 80\nend repeat");
+  assert.equal(cue.text, "current step: repeat 4 plus 2 more lines");
+  assert.doesNotMatch(cue.text, /\n/);
+});
+
+test("the #778 presentation rules leave spec/rendering.md's worked example byte-identical", () => {
+  // The compatibility property the whole change is built around (`spec/rendering.md:193`).
+  assert.equal(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [100, 0],
+      heading: 90,
+    }),
+    "turtle at x 100 y 0 heading 90 degrees pen down color black width 1",
+  );
+});

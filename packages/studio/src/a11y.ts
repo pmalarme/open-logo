@@ -106,11 +106,24 @@
  * studio cannot import parser internals) and appends it as a trailing clause — omitted entirely,
  * never a placeholder, while the span is `null` (program-start/`reset()`, or before the first
  * `run()`/`step()`).
+ *
+ * #778 fixes what that clause did with a span covering a **block**: it spliced every line of the
+ * block into the `status`/`aria-live="polite"` region, so a screen reader re-read the whole body on
+ * each tick and heard instructions that were not current announced as if they were. The slice is
+ * now reduced to its head line plus a count of what was left out, by `@openlogo/turtle`'s
+ * `summarizeSourceInstruction` — studio decides which text to hand over, `@openlogo/turtle` owns
+ * how it is worded, exactly as for the position/heading half. The same issue rounds the numbers in
+ * that half for speech, also in `@openlogo/turtle`. A single-line instruction is unchanged, byte
+ * for byte, and so is a whole-numbered position — `spec/rendering.md:193`'s worked example
+ * included.
  */
 
 import type { SourceSpan } from "@openlogo/core";
 import type { TurtleWorldState } from "@openlogo/turtle";
-import { describeTurtleWorldState } from "@openlogo/turtle";
+import {
+  describeTurtleWorldState,
+  summarizeSourceInstruction,
+} from "@openlogo/turtle";
 import type {
   StudioState,
   StudioStateStore,
@@ -436,6 +449,16 @@ function extractSourceSpanText(source: string, span: SourceSpan): string {
  * Builds the non-visual turtle-state text's optional trailing clause naming the current source
  * instruction (`spec/rendering.md`'s Non-visual state descriptions minimum, #410) — an empty
  * string, never a placeholder, when `span` is `null` (nothing has executed yet).
+ *
+ * #778: the sliced text is reduced to one speakable line by `@openlogo/turtle`'s
+ * {@link summarizeSourceInstruction} before it is spoken, so a span covering a block contributes
+ * `current instruction ask :leader [ plus 4 more lines` rather than splicing the block's every
+ * line into a live region that re-reads on each tick. The summarizer lives in `@openlogo/turtle`
+ * with the rest of the description wording (and the reasoning behind it) — this module still
+ * writes no description logic of its own; it only decides *which* text to hand over, by slicing
+ * the span out of the source it alone holds. When the summary is empty there is nothing to say,
+ * so the clause is omitted entirely — the same "omitted, never a placeholder" rule the `null` span
+ * already follows.
  */
 function describeCurrentInstruction(
   source: string,
@@ -444,7 +467,13 @@ function describeCurrentInstruction(
   if (span === null) {
     return "";
   }
-  return ` current instruction ${extractSourceSpanText(source, span)}`;
+  const instruction = summarizeSourceInstruction(
+    extractSourceSpanText(source, span),
+  );
+  if (instruction === "") {
+    return "";
+  }
+  return ` current instruction ${instruction}`;
 }
 
 /** The full non-visual turtle-state text: `describeTurtleWorldState`'s wording — which names the

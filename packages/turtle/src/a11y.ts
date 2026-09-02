@@ -6,11 +6,122 @@
  * operability and screen-reader wiring (focus order, live regions, accessible names) is a host
  * UI concern layered on top of these primitives (Studio's job, tracked separately) — this
  * package only supplies the render-agnostic content that wiring needs to expose.
+ *
+ * Issue #778 settled the two **presentation** questions this text had been answering by accident,
+ * both of them audible on every tick of a live region: every number is rounded for speech by
+ * {@link formatDescribedNumber}, and a multi-line instruction is reduced to a speakable line by
+ * {@link summarizeSourceInstruction}. Both are text-only; nothing they touch reaches the turtle
+ * state, the event stream, the scene, or an exporter.
  */
 
 import type { Point, TurtleId } from "@openlogo/core";
 import { INITIAL_TURTLE_STATE, type TurtleState } from "./state.js";
 import type { TurtleWorldState } from "./world-state.js";
+
+/**
+ * Decimal places a number is rounded to before it appears in a spoken description (issue #778).
+ *
+ * Why this exists at all: turtle positions and headings are IEEE-754 doubles produced by
+ * `d·sin θ`/`d·cos θ`, so a closed square lands on `x 1.4210854715202004e-14` rather than `x 0`,
+ * and a 7-pointed star turns to `heading 154.28571428571428`. Read verbatim into a live region
+ * (`spec/rendering.md`'s Non-visual state descriptions), that is what an assistive-technology user
+ * hears on **every** tick — measured on this tree, 917/1423 of the region texts produced by the
+ * runnable `spec/examples` carried such an `x`, 950/1423 a `y`, and 311/1423 a `heading`.
+ *
+ * Why 3: `svg.ts`'s `COORDINATE_PRECISION` already fixes 3 decimal places as this package's
+ * documented, stable precision for serialized numbers — the precision `spec/rendering.md`'s Export
+ * determinism section requires be documented. Reusing that number keeps one numeric convention in
+ * the package instead of inventing a second. The two are deliberately **not** the same constant:
+ * `svg.ts` formats viewport-mapped device coordinates for a file, this formats world coordinates
+ * for speech, so the values are not equal and neither should follow the other if it changes.
+ *
+ * This is presentation only. {@link TurtleState.position} and `heading`, the trace events, the
+ * scene, and every exporter are untouched — the program's own `print xcor` still reports the exact
+ * value through `@openlogo/runtime`'s `formatNumber` (`docs/learn-how-its-built/
+ * extra-why-coordinates-show-decimals.md` teaches learners exactly that), which is a different
+ * package this rounding cannot reach.
+ */
+const DESCRIBED_NUMBER_PRECISION = 3;
+
+/**
+ * Renders a number for a spoken description: rounded to {@link DESCRIBED_NUMBER_PRECISION} places,
+ * then printed **without trailing zeros**, so a whole value stays whole (`100`, never `100.000`)
+ * and `spec/rendering.md:193`'s worked example — `turtle at x 100 y 0 heading 90 degrees pen down
+ * color black width 1` — remains byte-identical. That no-trailing-zeros rule is the same one the
+ * language itself uses for `print` (`spec/execution-model.md:19,498-500`, implemented as
+ * `@openlogo/runtime`'s `formatNumber`), reimplemented here rather than imported because
+ * `@openlogo/turtle` must not depend on `@openlogo/runtime`.
+ *
+ * A magnitude at or above `1e21` still renders in exponent form, because `toFixed` itself switches
+ * to exponent notation there. No program that draws on a canvas reaches such a coordinate, so this
+ * is left as the honest rendering of a genuinely huge number rather than special-cased.
+ */
+function formatDescribedNumber(value: number): string {
+  // `Number(...)` drops the trailing zeros `toFixed` pads with, and normalizes the `-0` that
+  // rounding a tiny negative (`-1.47e-14`) produces, so it is spoken as `0` and not `-0`.
+  return `${Number(value.toFixed(DESCRIBED_NUMBER_PRECISION))}`;
+}
+
+/**
+ * Renders a heading for a spoken description. Identical to {@link formatDescribedNumber} except
+ * that a heading which *rounds up* to a full turn is spoken as `0`, because
+ * `spec/rendering.md:67` and `spec/execution-model.md:619` both normalize headings into `[0,360)`
+ * — `heading 360 degrees` names a value the model never holds.
+ *
+ * This is reachable, not defensive: measured on this tree, `right 359.9999` and
+ * `repeat 3 / right 119.99999999 / end repeat` are both diagnostic-free Turtle & Rendering
+ * programs whose live region announced `heading 360 degrees` with the plain formatter. Rounding
+ * can only ever reach `360` and never exceed it, since the value it rounds is already below `360`.
+ */
+function formatDescribedHeading(heading: number): string {
+  const rounded = Number(heading.toFixed(DESCRIBED_NUMBER_PRECISION));
+  return `${rounded === 360 ? 0 : rounded}`;
+}
+
+/**
+ * Reduces an already-sliced source instruction to a single line safe to speak (issue #778).
+ *
+ * `spec/rendering.md` asks the state description for the "current source instruction when available
+ * from `source-span`". When that span covers a block, the sliced text is the **whole** block, and
+ * splicing it verbatim into a live region is wrong twice over: it re-reads the entire body on every
+ * tick, and it presents instructions that are *not* current as if they were — driving
+ * `spec/examples/09-sprites.logo` announces `current instruction ask :leader [ / set_shape
+ * "turtle" / …` while the instruction that actually just ran is the `ask` head alone. Measured on
+ * this tree, the runnable examples produce 56 distinct multi-line instruction heads, including
+ * every handler form (`every 30 [`, `on_key "left" [`, `on_click [`).
+ *
+ * So the head line is spoken and the rest is replaced by a count: `ask :leader [ plus 4 more
+ * lines`. The head line is the instruction the learner can act on; the count keeps the region
+ * honest about having shortened something, which a bare first line would not. A single-line
+ * instruction is returned trimmed and otherwise untouched, so every existing announcement is
+ * byte-identical.
+ *
+ * The marker is made of **words**, with no ellipsis or brackets: a screen reader's punctuation
+ * verbosity is a user setting, and commonly omits punctuation entirely, so a `…` or `(…)` marker
+ * may or may not be spoken. There is no screen reader in CI to measure that against, so this picks
+ * the form whose meaning does not depend on the setting at all. What *is* measured here is the
+ * shape of the string: it never contains a newline, and it names no line other than the head.
+ *
+ * The count is of the span's remaining lines, blank ones included — it describes the source, not
+ * the non-blank subset of it. An instruction whose head line is empty has nothing to name, so it
+ * returns `""` and the caller omits the clause rather than speaking a bare label; only a span
+ * pointing outside the current source can reach that.
+ */
+export function summarizeSourceInstruction(instructionText: string): string {
+  const firstNewlineIndex = instructionText.indexOf("\n");
+  if (firstNewlineIndex === -1) {
+    return instructionText.trim();
+  }
+  const headLine = instructionText.slice(0, firstNewlineIndex).trim();
+  if (headLine === "") {
+    return "";
+  }
+  const remainingLineCount = instructionText
+    .slice(firstNewlineIndex + 1)
+    .split("\n").length;
+  const lineNoun = remainingLineCount === 1 ? "line" : "lines";
+  return `${headLine} plus ${remainingLineCount} more ${lineNoun}`;
+}
 
 /**
  * Optional context for {@link describeTurtleState} beyond the turtle state itself.
@@ -21,7 +132,9 @@ export interface TurtleStateDescriptionOptions {
    * has no access to the original source string (only `source_span` positions travel with trace
    * events) — the caller (which does hold the source) slices the text using the `instruction`
    * event's `source_span` and passes it in here. Omit when no instruction is currently active
-   * (e.g. before the first step, or after the stream is exhausted).
+   * (e.g. before the first step, or after the stream is exhausted). A multi-line slice is reduced
+   * to one speakable line by {@link summarizeSourceInstruction} (#778), so a caller passes the
+   * slice exactly as cut and never has to shorten it first.
    */
   readonly currentInstruction?: string;
 }
@@ -39,15 +152,17 @@ function describeState(
 ): string {
   const [x, y] = state.position;
   const parts = [
-    `${subject} at x ${x} y ${y} heading ${state.heading} degrees`,
+    `${subject} at x ${formatDescribedNumber(x)} y ${formatDescribedNumber(y)} heading ${formatDescribedHeading(state.heading)} degrees`,
     `pen ${state.penDown ? "down" : "up"}`,
-    `color ${state.color} width ${state.width}`,
+    `color ${state.color} width ${formatDescribedNumber(state.width)}`,
   ];
   if (!state.visible) {
     parts.push("hidden");
   }
   if (options.currentInstruction !== undefined) {
-    parts.push(`instruction "${options.currentInstruction}"`);
+    parts.push(
+      `instruction "${summarizeSourceInstruction(options.currentInstruction)}"`,
+    );
   }
   return parts.join(" ");
 }
@@ -281,7 +396,7 @@ export function describeCurrentStepCue(
 ): ColorIndependentCue {
   return {
     kind: "current-step",
-    text: `current step: ${sourceInstruction}`,
+    text: `current step: ${summarizeSourceInstruction(sourceInstruction)}`,
     icon: "\u25B6", // "▶"
     linePattern: "solid",
   };
@@ -309,7 +424,7 @@ export function describeTurtleFocusCue(position: Point): ColorIndependentCue {
   const [x, y] = position;
   return {
     kind: "turtle-focus",
-    text: `turtle focus at x ${x} y ${y}`,
+    text: `turtle focus at x ${formatDescribedNumber(x)} y ${formatDescribedNumber(y)}`,
     icon: "\u25CE", // "◎"
     position,
   };
