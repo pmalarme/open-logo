@@ -32,6 +32,20 @@
  * `wait` keeps firing due handlers while it pauses. A
  * `wait` written as a blocking sleep could not do that.
  *
+ * ## Why a `wait` tick costs an instruction
+ *
+ * That same per-tick step is also the seam the **execution budget** hangs off (issue #953, licensed
+ * by #1034: "Each tick a `wait` advances costs one instruction against the execution budget…").
+ * Because the pause is a loop over learner-supplied `n`, it is unbounded work by construction — the
+ * shape `spec/execution-model.md`'s
+ * [Execution safety](../../../spec/execution-model.md#execution-safety) says is "safe only because
+ * it is cancellable **and** budgeted". Cancellation was built (the per-tick `signal.aborted` poll in
+ * `dispatchDueHandlers`); the budget was not, so the whole pause was one charged statement
+ * regardless of `n` and `wait` was the one form in the language that had only half the pair.
+ * {@link runWait} therefore charges one instruction per tick it is about to advance to, through
+ * {@link TickCharge}. See that type for the full rationale, including why the charge creates no
+ * additional step or `instruction` event.
+ *
  * ## Why `input` has no event-loop checkpoint at all
  *
  * `input` (issue #681) is the exact mirror image. `spec/interaction-events.md:108-111`: "`input` is
@@ -147,6 +161,65 @@ export function advanceTickClock(clock: TickClock): void {
 export type TickDispatch = (tick: number) => boolean;
 
 /**
+ * The per-tick **budget** callback {@link runWait} invokes before it advances the clock (issue
+ * #953). Charges the tick about to elapse one instruction against the run's execution budget and
+ * returns `true` when the run may not afford it — the same "check before you run another pass"
+ * protocol {@link TickDispatch} uses for a halting handler, so the `wait` MUST abort its remaining
+ * ticks and let that outcome propagate.
+ *
+ * ## Why a `wait` tick is a charged instruction
+ *
+ * Because `spec/interaction-events.md`'s `### wait <n>` now says so, normatively (issue #1034):
+ * "Each tick a `wait` advances costs one instruction against the execution budget
+ * ([execution safety](../../../spec/execution-model.md#execution-safety)), so a long enough `wait`
+ * exhausts the budget and raises `ol-limit`, exactly as `forever` does, **even when no handler is
+ * registered**. Charging a tick does not create an additional step or `instruction` event."
+ * `ol-limit` is on `wait`'s own **Errors** list accordingly.
+ *
+ * That sentence is the licence; the reasoning that earned it is recorded here because it is what a
+ * future reader needs in order to change any of this safely. `spec/execution-model.md`'s
+ * [Execution safety](../../../spec/execution-model.md#execution-safety) is the whole safety argument
+ * for every unbounded form the language has: "`forever` is therefore safe only because it is
+ * cancellable and budgeted." A `wait` tick is unbounded work by exactly the same construction —
+ * `wait <n>` takes an arbitrary learner-supplied `n`, and each of those ticks advances the clock,
+ * polls cancellation, enqueues host input, and claims all four handler buckets
+ * (`execute-internal.ts`'s `dispatchDueHandlers`). That is the same per-pass work a `forever` pass
+ * does, so it earns the same answer: **one tick costs one instruction.** Before #953 the entire
+ * pause was a single charged statement no matter how many ticks it ran, which made `wait` the one
+ * form in the language that was cancellable but *not* budgeted — half of the pair the spec says
+ * safety comes from. Measured on the saga tip before the fix, at the default budget of 1,000,000:
+ * `wait 999999999` blocked the execution thread for 413 seconds and raised no diagnostic at all.
+ *
+ * The handler rule at `spec/interaction-events.md`'s "Time, ticks, and handlers" reasons in the same
+ * shape — "Each handler invocation is itself an instruction and counts against the same execution
+ * budget as any other instruction … While the program holds the run open — with `forever`, or a
+ * long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`" — but
+ * it is **not** the licence for this, and reading it as one was the review-gate finding that sent
+ * #953 for a maintainer ruling. Its subject is the *accumulating invocations*: it catches a long
+ * `wait` only by way of handler charging, which was already true before #953, and says nothing
+ * about the handler-free case. The handler-free case is precisely the one that froze the tab, which
+ * is why #1034's "even when no handler is registered" is the clause that closes it.
+ *
+ * The second half of that sentence — no additional step or `instruction` event — is pinned by
+ * `tests/conformance/interaction-events/wait/wait-emits-no-per-tick-instruction` at one tick count
+ * and by `interaction-wait.test.mjs` out to n = 200,000. The fixture states the rule; the test
+ * supplies the reach, and that division is structural rather than stylistic — the largest `wait`
+ * literal in the whole conformance corpus is that fixture's own 300, so no fixture can catch an
+ * implementation that emits per-tick only past a larger threshold. It is load-bearing for the
+ * learner, not merely for the trace: a step is "the span from one `instruction` event to the next"
+ * (`spec/execution-model.md`'s trace-and-event registry), so a per-tick `instruction` would have
+ * made a single **Next step** press on `spec/examples/10-game.logo`'s `wait 300` cost 301 —
+ * measured under that mutation, not estimated.
+ *
+ * Modelled as a plain `boolean`, like {@link TickDispatch}, so this module stays free of the
+ * evaluator's control-flow types; the caller in `execute-internal.ts` stashes the real `ExecSignal`
+ * and reads it back after {@link runWait} returns. **Required, not optional** — a defaulted "free"
+ * charge would silently reopen the hole for any future caller, the same reason
+ * `resolvePositiveFiniteLimit` refuses to let a caller disable the budget.
+ */
+export type TickCharge = () => boolean;
+
+/**
  * Yield to the renderer and event loop at a single logical checkpoint, delivering any handlers due
  * on `clock`'s current tick through `dispatch` (issues #682–#686). This is the dispatch seam the
  * Interaction & Events track hangs handler delivery off: I1 (#680) left it a no-op; I4 (#683) makes
@@ -249,6 +322,17 @@ function emitInteractionPrimitive(
  * not a plain no-op), so a `wait 0` can dispatch pending handlers too (and, if one of them halts,
  * abort before the primitive). The primitive event is emitted exactly once, after the loop, on any
  * clean pause regardless of `count`.
+ *
+ * Each tick the pause is *about to* advance through is first charged one instruction against the
+ * run's execution budget through `charge` (issue #953, {@link TickCharge}) — so the number of ticks
+ * a program can advance is bounded by the budget exactly as a `forever`'s passes are, and a
+ * `wait 999999999` raises `ol-limit` instead of occupying the thread. The charge is taken **before**
+ * {@link advanceTickClock}, so an unaffordable tick never advances the clock and never records a
+ * timeline boundary: the clock, the timeline, and the trace all stop together at the last tick the
+ * run could actually pay for, and the partial trace up to that cutoff is preserved rather than
+ * discarded (the established `ol-limit` behavior — see
+ * `tests/conformance/core-language/execution/forever-instruction-budget-limit.expected.json`).
+ * `wait 0` advances no tick and so takes no charge beyond the one its own statement already paid.
  */
 export function runWait(
   tickClock: TickClock,
@@ -256,6 +340,7 @@ export function runWait(
   count: number,
   source_span: SourceSpan,
   dispatch: TickDispatch,
+  charge: TickCharge,
   tickTimeline?: TickBoundary[],
 ): boolean {
   if (count === 0) {
@@ -274,6 +359,12 @@ export function runWait(
     }
   }
   for (let elapsed = 0; elapsed < count; elapsed += 1) {
+    // #953 — charge the tick BEFORE advancing to it, mirroring every other looping form's
+    // "check before you run another pass". A tick the run cannot afford is never advanced to, so
+    // the clock, the `tickTimeline` and the trace all stop together at the last affordable tick.
+    if (charge()) {
+      return true;
+    }
     advanceTickClock(tickClock);
     // #985 — the one place the clock moves is the one place the timeline is recorded. Written
     // BEFORE dispatch, so a handler firing on this tick is attributed to the tick it ran on rather

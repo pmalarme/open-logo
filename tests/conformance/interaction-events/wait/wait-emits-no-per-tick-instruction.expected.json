@@ -1,0 +1,32 @@
+{
+  "description": "issue #953, the second half of the rule #1034 made normative: \"Charging a tick does not create an additional step or `instruction` event\" (spec/interaction-events.md, `### wait <n>`). Charging each tick against the execution budget could plausibly have been implemented by emitting a per-tick `instruction` event -- that is what every other charged unit in the language that a learner can step through does -- and this fixture is what STATES the rule. It is not the only thing that would notice an unconditional per-tick emission: wait-basic already folds `wait 2` to two events, and measured, 46 fixtures fail under that mutation. What this one adds is scale and intent -- 300 ticks folding to exactly TWO events, the statement's own `instruction` plus the trailing `primitive` the completed pause emits, where a per-tick emission would record 301. 300 is the tick count spec/examples/10-game.logo itself holds open with, so the case pinned here is the canonical one rather than a contrived scale. Why it matters to a learner, and not merely to the trace: a step is defined as \"the span from one `instruction` event to the next\" (spec/execution-model.md#trace-and-event-registry), so `instruction` events ARE the stepper's units -- under that mutation, pressing Next step on `wait 300` would have cost 301 presses instead of one, and the studio's step control would have become unusable on the spec's own game example. The budget has never counted `instruction` events (a `repeat` pass is charged without emitting one; measured, `repeat 300 [ ]` and `repeat 5000 [ ]` each emit exactly one), so charging a tick without emitting one introduces no new divergence between what the budget counts and what the stepper steps. A conformance fixture can only pin one n, and an implementation emitting per-tick only PAST some threshold passes every fixture below it -- measured at a threshold of 1000, all 942 fixtures including this one still pass, and one unit test of 4796 fails. That blindness is structural rather than incidental: the largest `wait` literal anywhere in tests/conformance/**/*.logo is this fixture's own 300, across the 61 fixtures that invoke `wait` (63 contain the token; two are `define wait` negative cases that never call it), so no fixture can catch a threshold at or above 300 however many are added at that scale. Reach out to n = 200,000 is therefore supplied by packages/runtime/src/interaction-wait.test.mjs, which samples n = 0, 1, 2, 300, 5000 and 200000 with `repeat n` as the instrument's positive control; the two are complements and neither alone is sufficient.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-emits-no-per-tick-instruction",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-emits-no-per-tick-instruction",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

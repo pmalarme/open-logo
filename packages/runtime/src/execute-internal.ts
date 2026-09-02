@@ -2273,6 +2273,13 @@ const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
  * `undefined` for {@link executeStatements} to `continue` on success (including the "left
  * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
  *
+ * Issue #953 adds the third outcome: the pause can now halt with `ol-limit` of its own accord. Each
+ * tick the pause advances to is charged one instruction against the execution budget through
+ * {@link checkExecutionLimits}, so `wait <n>` costs `n` instructions on top of the one its own
+ * statement already pays, and a `wait` large enough to exhaust the budget stops at the last tick it
+ * could afford instead of occupying the thread for arbitrary wall-time. See `interaction.ts`'s
+ * `TickCharge` for why a tick is an instruction; `wait 0` advances no tick and is unchanged.
+ *
  * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
  * {@link executeTurtleMoveCall}: `executeStatements` recurses once per procedure call, so this
  * argument-gating logic stays out of its body.
@@ -2326,34 +2333,54 @@ function executeWaitCall(
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
   // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
   // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
-  // named events due at this tick into the pending queues. The callback stashes any halting
-  // `ExecSignal` a handler produces (`interaction.ts`'s dispatch is a plain boolean to stay free of
-  // the evaluator's control-flow types), returning `true` to abort the remaining ticks; we read the
-  // stashed signal back after `runWait` returns and propagate it. This is what makes registered
+  // named events due at this tick into the pending queues. This is what makes registered
   // `every`/`on_key`/`on_click` handlers "still fire" while a `wait` pause elapses, only the
   // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:113-118`).
-  let dispatchSignal: ExecSignal | undefined;
+  //
+  // Both per-tick callbacks below share ONE `interruption` stash: `runWait` reports only "keep
+  // pausing" or "abort" (`interaction.ts`'s callbacks are plain booleans to stay free of the
+  // evaluator's control-flow types), so whichever of them halts, the real `ExecSignal` is read back
+  // here after `runWait` returns and propagated. They are named rather than written inline so the
+  // charge sits beside the drain it is paired with — see `main-line-boundary-pairing.test.mjs`.
+  let interruption: ExecSignal | undefined;
+  // Issue #953 — one charged instruction per tick the pause is about to advance to.
+  // `checkExecutionLimits` is THE single execution-safety gate every looping form passes before
+  // running another pass, and a `wait` tick is now one of those passes, so it goes through that gate
+  // rather than a budget-only variant of its own: one mechanism, one `ol-limit` shape, and no second
+  // way for a tick to be counted — or missed. Rationale for charging at all: `interaction.ts`'s
+  // `TickCharge`.
+  const chargeTick = (): boolean => {
+    const diagnostic = checkExecutionLimits(environment, waitCall.source_span);
+    if (diagnostic === undefined) {
+      return false;
+    }
+    interruption = halt(diagnostic);
+    return true;
+  };
+  // The paired main-line boundary for that charge: `dispatchDueHandlers` runs on the very tick just
+  // charged and drains the queued `every` occurrences (`claimDueEveryHandlers` claims exactly the
+  // `queued && !running && !claimed` set `claimQueuedEveryHandlers` does, plus the newly due), which
+  // is what `executeMainLine` means by "the end-of-tick drain in dispatchDueHandlers covers the
+  // occurrences that were queued while a `wait` was still advancing the clock".
+  const dispatchTick = (tick: number): boolean => {
+    const signal = dispatchDueHandlers(tick, environment, waitCall.source_span);
+    if (signal.kind === "normal") {
+      return false;
+    }
+    interruption = signal;
+    return true;
+  };
   const interrupted = runWait(
     environment.tickClock,
     environment.events,
     ticks.value,
     waitCall.source_span,
-    (tick) => {
-      const signal = dispatchDueHandlers(
-        tick,
-        environment,
-        waitCall.source_span,
-      );
-      if (signal.kind !== "normal") {
-        dispatchSignal = signal;
-        return true;
-      }
-      return false;
-    },
+    dispatchTick,
+    chargeTick,
     environment.tickTimeline,
   );
-  if (interrupted && dispatchSignal) {
-    return dispatchSignal;
+  if (interrupted && interruption) {
+    return interruption;
   }
   return undefined;
 }
@@ -4486,7 +4513,7 @@ type ProcedureOutcome =
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
  * raises `ol-limit` at the callee span instead of recursing further, so an unbounded recursive
  * procedure degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack
- * size exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check
+ * size exceeded` (`spec/execution-model.md#execution-safety`). A depth marker is pushed once the check
  * passes and popped in a `finally` covering the rest of this function, so it is removed on every
  * exit path — a clean return, a `stop`, or a diagnostic partway through argument/default
  * evaluation or the body itself. `recursionDepthLimit` defaults to
@@ -5412,7 +5439,7 @@ function executeStatements(
 /**
  * Default instruction-execution budget and procedure-call recursion-depth limit applied by
  * {@link createExecutionEnvironment} when a real `execute()` call's {@link ExecuteOptions} does
- * not override them (issue #102, `spec/execution-model.md:551-557`). `DEFAULT_RECURSION_DEPTH_LIMIT`
+ * not override them (issue #102, `spec/execution-model.md#execution-safety`). `DEFAULT_RECURSION_DEPTH_LIMIT`
  * is the exact value this file previously hardcoded as `MAX_PROCEDURE_CALL_DEPTH` — only its name
  * and configurability changed, not the default behavior, so existing recursion-limit tests need
  * no update. `DEFAULT_INSTRUCTION_BUDGET` is generous enough that any ordinary, terminating
@@ -5527,8 +5554,9 @@ export function resolveEffectiveRecursionDepthLimit(
  * sharing a seed reproduce each other exactly (given deterministic host collaborators — see
  * `index.ts`'s `randomSeed` bullet).
  *
- * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
- * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
+ * Issue #102: `options` supplies the three execution-safety gates
+ * `spec/execution-model.md#execution-safety` requires — `instructionBudget`/`recursionDepthLimit`
+ * fall back to
  * {@link DEFAULT_INSTRUCTION_BUDGET}/{@link DEFAULT_RECURSION_DEPTH_LIMIT} when omitted OR when
  * supplied but not a usable finite positive limit (see {@link resolvePositiveFiniteLimit} — a
  * caller cannot disable the safety gate by passing `Infinity`/`NaN`/a non-positive number);

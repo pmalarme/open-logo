@@ -21,6 +21,10 @@ import {
   yieldToEventLoop,
 } from "@openlogo/runtime";
 import { parse } from "@openlogo/parser";
+// `runWait` is package-internal (not on `@openlogo/runtime`'s public surface), and the
+// charge-before-advance ordering it owns is observable nowhere else — see the ordering test below.
+// Reached through the `../dist/<module>.js` idiom this package already uses for internals.
+import { runWait } from "../dist/interaction.js";
 
 const doc = "wait.logo";
 
@@ -535,4 +539,359 @@ test("#985: the timeline is deterministic — same source, seed and input schedu
   }
 
   assert.equal(play(), play());
+});
+
+// --- #953: a `wait` tick is a charged instruction ----------------------------------------------
+//
+// Before #953 the whole pause was ONE charged statement no matter how many ticks it ran, so `wait`
+// was the only form in the language that was cancellable but not budgeted — half of the pair
+// `spec/execution-model.md`'s Execution safety says safety comes from ("`forever` is therefore safe
+// only because it is cancellable AND budgeted"). Measured on the saga tip before the fix, at the
+// default budget: `wait 5000000` ran 2.0 s and produced two events and no diagnostic, `wait 999999999`
+// blocked the execution thread for 413 s, and a bare `wait N` completed cleanly for every N up to
+// 200,000,000 (the search was stopped there; no gate existed at all, so the true ceiling was
+// unbounded).
+
+test("#953: a wait larger than the budget raises ol-limit, and an ordinary wait at the SAME budget does not", () => {
+  // The paired control is the point: `ol-limit` on its own is satisfied by any budget too small for
+  // anything, so the same budget must let a smaller `wait` through.
+  const halted = execute("wait 5", doc, { instructionBudget: 5 });
+  assert.equal(halted.diagnostics.length, 1);
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(halted.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 5,
+  });
+  // The diagnostic points at the paused instruction, not at whatever ran before it.
+  assert.deepEqual(halted.diagnostics[0].source_span.start, [1, 1]);
+
+  const ordinary = execute("wait 2", doc, { instructionBudget: 5 });
+  assert.deepEqual(ordinary.diagnostics, []);
+  assert.equal(effectEvents(ordinary).length, 1);
+});
+
+test("#953: the rule is exactly one instruction per tick — `wait n` completes iff n < budget", () => {
+  // Stated as the boundary rather than as a magnitude: the statement itself costs 1 and each tick
+  // costs 1, so `wait n` needs n + 1. Both sides of the boundary are asserted, so a charge that
+  // silently became 2-per-tick or 0-per-tick fails here rather than in a distant integration test.
+  for (const n of [1, 2, 5, 20]) {
+    assert.equal(
+      execute(`wait ${n}`, doc, { instructionBudget: n }).diagnostics.length,
+      1,
+      `wait ${n} must not be affordable at a budget of ${n}`,
+    );
+    assert.deepEqual(
+      execute(`wait ${n}`, doc, { instructionBudget: n + 1 }).diagnostics,
+      [],
+      `wait ${n} must be affordable at a budget of ${n + 1}`,
+    );
+  }
+});
+
+test("#953: a cut-short pause keeps its partial trace, stops the TIMELINE at the last affordable tick, and emits no primitive", () => {
+  // `ol-limit` preserves the partial trace rather than discarding it — the established behavior
+  // (`tests/conformance/core-language/execution/forever-instruction-budget-limit.expected.json`).
+  // The trailing `primitive` is NOT emitted, because the pause did not complete, and the timeline
+  // stops where the budget did: at a budget of 5 the statement takes 1 and four ticks are
+  // affordable, so exactly four boundaries are recorded and the fifth tick is never reached.
+  //
+  // Named "timeline", not "clock", deliberately: the clock's own stop point is NOT observable
+  // through `execute()`, so this test cannot pin it. The charge-before-advance ORDERING that keeps
+  // the clock and the timeline agreeing is pinned separately, by the direct `runWait` test below —
+  // a review-gate mutation (move the charge after `advanceTickClock`) survived this test and the
+  // whole suite, because the timeline push sits after the charge under either ordering.
+  const tickTimeline = [];
+  const halted = execute("wait 5", doc, { instructionBudget: 5, tickTimeline });
+  assert.equal(halted.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(
+    halted.events.map((event) => event.kind),
+    ["instruction"],
+  );
+  assert.equal(tickTimeline.length, 4);
+  assert.equal(tickTimeline[tickTimeline.length - 1].tick, 4);
+  // ...against the same program one unit richer, which completes and DOES emit the primitive.
+  const clean = [];
+  const completed = execute("wait 5", doc, {
+    instructionBudget: 6,
+    tickTimeline: clean,
+  });
+  assert.deepEqual(completed.diagnostics, []);
+  assert.deepEqual(
+    completed.events.map((event) => event.kind),
+    ["instruction", "primitive"],
+  );
+  assert.equal(clean.length, 5);
+});
+
+test("#953: the charge is taken BEFORE the clock advances, so an unaffordable tick is never advanced to", () => {
+  // The ordering claim `runWait`'s doc comment makes, pinned rather than merely asserted.
+  //
+  // A review-gate mutation that moved `charge()` to after `advanceTickClock` survived the entire
+  // Definition of Done — 4792 unit tests, 941 conformance fixtures, every example — because the one
+  // thing it changes is `tickClock.tick` after the halt, and `execute()` exposes no way to read it:
+  // the timeline push sits after the charge under both orderings, so it cannot discriminate. That
+  // makes this the only place the ordering can be observed, which is why it reaches past the public
+  // API to `runWait` itself — the `../dist/<module>.js` idiom this package already uses for
+  // internals (`execution-budget.test.mjs` -> `../dist/execute-internal.js`,
+  // `not-a-place-text.test.mjs` -> `../dist/not-a-place-text.js`). Node resolves it to the same
+  // module instance the package entry already loaded.
+  //
+  // Charging first, the last affordable tick is 4 and the clock stops there. Advancing first, the
+  // clock would reach 5 — a tick the run could not pay for — leaving it one ahead of both the
+  // timeline and the trace, which is exactly the disagreement the doc comment promises never happens.
+  const clock = createTickClock();
+  const events = [];
+  const tickTimeline = [];
+  let charges = 0;
+  const interrupted = runWait(
+    clock,
+    events,
+    5,
+    { document: doc, start: [1, 1], end: [1, 7] },
+    () => false,
+    () => {
+      charges += 1;
+      return charges > 4;
+    },
+    tickTimeline,
+  );
+  assert.equal(interrupted, true, "the fifth charge must abort the pause");
+  assert.equal(
+    clock.tick,
+    4,
+    "the clock must not advance to an unaffordable tick",
+  );
+  assert.equal(tickTimeline.length, 4);
+  assert.deepEqual(events, [], "an aborted pause emits no trailing primitive");
+});
+
+test("#953: `wait 0` advances no tick and is therefore charged nothing extra", () => {
+  // The charge is taken per tick ADVANCED, and `wait 0` advances none — its spec-mandated yield is
+  // not a tick. A budget of 1 covers the statement and nothing else, so a `wait 0` that took a tick
+  // charge would halt here.
+  const tickTimeline = [];
+  const result = execute("wait 0", doc, { instructionBudget: 1, tickTimeline });
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(tickTimeline.length, 0);
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "primitive"],
+  );
+});
+
+test("#953: cancellation WINS over budget exhaustion at a tick, not merely at the statement gate", () => {
+  // Two separate claims, and the budget is what separates them.
+  //
+  // `checkExecutionLimits` checks the abort FIRST and does not charge for it, so when a tick is
+  // both unaffordable AND cancelled the diagnostic must be `cancelled`, not `instruction-budget`.
+  // Review-gate finding, round 3: with a generous budget the two never compete, so the test proved
+  // only that cancellation is observed inside `chargeTick` — not that it takes priority. The budget
+  // is therefore 2, which `print 1` and the `wait` statement consume exactly; the pause's first
+  // tick is then unaffordable at the same moment the signal flips. Measured: `cancelled` with the
+  // signal, `instruction-budget` without it, at that same budget of 2.
+  //
+  // The signal must also FLIP rather than start aborted: a pre-aborted signal is consumed by
+  // `executeStatements`' statement gate and the run halts before `runWait` is entered, so the
+  // program emits no events at all. False for the two statement gates, true from the third read on,
+  // which is inside `chargeTick`.
+  let reads = 0;
+  const tickTimeline = [];
+  const result = execute("print 1\nwait 50", doc, {
+    instructionBudget: 2,
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads > 2;
+      },
+    },
+    tickTimeline,
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  // The halt was the TICK CHARGE, not the `wait`'s own statement gate — and this is the assertion
+  // that says so. Review-gate finding, round 4: every other assertion here is satisfied by BOTH
+  // halts, so "not merely at the statement gate" rested entirely on the hand-placed `reads > 2`
+  // threshold with nothing behind it. Measured: cancelling at the statement gate instead yields
+  // `["instruction", "print"]` — the `wait`'s own `instruction` event is never emitted, because
+  // `executeStatements` gates before it pushes. This PR itself ADDS a poll site, which is exactly
+  // the kind of change that shifts the read count and would have silently degraded this into a
+  // statement-gate test that still passed.
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "print", "instruction"],
+  );
+  // NOT the discriminator: at budget 2 the first tick is unaffordable either way, so this holds
+  // under cancellation and exhaustion alike. It is here to pin the pause's extent, not its cause.
+  assert.equal(tickTimeline.length, 0);
+  // ...and at that very budget, without the signal, the same tick is refused for the OTHER reason.
+  // This is what makes it a priority test rather than a reachability test. The control's OWN
+  // timeline is what pins the budget at 2: measured 0 ticks at 2, 1 at 3, 2 at 4 — so a later
+  // "give it some headroom" edit moves exhaustion off the first tick and fails loudly here instead
+  // of quietly reverting this to the non-competing shape round 3 rejected.
+  const exhaustedTimeline = [];
+  const exhausted = execute("print 1\nwait 50", doc, {
+    instructionBudget: 2,
+    tickTimeline: exhaustedTimeline,
+  });
+  assert.deepEqual(exhausted.diagnostics[0].params, {
+    limit: "instruction-budget",
+    value: 2,
+  });
+  assert.equal(
+    exhaustedTimeline.length,
+    0,
+    "budget 2 must be the budget at which exhaustion also lands on the first tick",
+  );
+});
+
+test("#953: `wait 0` isolates the dispatcher's own cancellation poll, which no tick charge can mask", () => {
+  // The companion to the test above, and the reason both are needed. `chargeTick` polls the abort
+  // before `dispatchDueHandlers` does, so on any tick-ADVANCING pause the charge observes
+  // cancellation first and the dispatcher's poll is never the deciding one there. `wait 0` advances
+  // no tick and therefore invokes NO charge callback at all, so inside that pause only
+  // `dispatchDueHandlers` can observe the abort.
+  //
+  // The signal must FLIP here too, for exactly the reason the sibling above does: a pre-aborted
+  // signal is consumed by `executeStatements`' statement gate and the run halts before `runWait` is
+  // entered, so the program emits NO events and the dispatcher is never reached — the very defect
+  // this pair exists to fix, reintroduced in the test written to fix it. Review-gate finding,
+  // round 2, measured: pre-aborted reads the signal exactly once and yields `events: []`.
+  //
+  // False on read 1 (the statement gate), true from read 2 (the `wait 0` yield's dispatch).
+  // Measured discriminator: with the dispatcher's poll present this halts `cancelled` with the
+  // `wait`'s own `instruction` event and NO trailing `primitive`; with that poll deleted the pause
+  // completes and the program is CLEAN with two events. So deleting it fails this test.
+  let reads = 0;
+  const tickTimeline = [];
+  const result = execute("wait 0", doc, {
+    instructionBudget: 1000,
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads > 1;
+      },
+    },
+    tickTimeline,
+  });
+  assert.equal(result.diagnostics.length, 1);
+  assert.equal(result.diagnostics[0].code, "ol-limit");
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  // The statement ran (so the halt was not the statement gate) and the pause did NOT complete
+  // (so the abort was observed inside it).
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
+  assert.equal(tickTimeline.length, 0, "`wait 0` advances no tick");
+});
+
+test("#953: the tick charge observes cancellation BEFORE the clock advances, which the dispatcher's poll cannot do", () => {
+  // The third arm. The two tests above pin the pair JOINTLY and the dispatcher's poll INDIVIDUALLY;
+  // this one pins the charge's own abort observation individually, so that deleting either poll
+  // alone is caught rather than only deleting both. Review-gate finding, round 2: measured before
+  // this test existed, removing either poll on its own left the whole Definition of Done green —
+  // 4794 tests and 941 fixtures — because the suite required at least one and pinned neither.
+  //
+  // The discriminator is WHERE in the tick the abort is seen. `checkExecutionLimits` checks the
+  // abort first and does not charge for it, and `chargeTick` runs before `advanceTickClock`, so a
+  // signal flipping on the first read inside the pause halts with ZERO ticks advanced. Were the
+  // charge not to observe the abort, the dispatcher would see it only AFTER the advance and exactly
+  // one tick would be recorded. Measured: 0 boundaries here, 1 without the charge's poll.
+  let reads = 0;
+  const tickTimeline = [];
+  const result = execute("wait 5", doc, {
+    instructionBudget: 1000,
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads >= 2;
+      },
+    },
+    tickTimeline,
+  });
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  assert.equal(
+    tickTimeline.length,
+    0,
+    "the charge must refuse the tick before the clock advances to it",
+  );
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
+});
+
+test("#953: the idiomatic 'register handlers then hold the run open' program is unaffected", () => {
+  // AC2. `spec/interaction-events.md` names this shape explicitly — "This is what lets a program
+  // register its handlers and then hold itself open with a long `wait` while those handlers drive
+  // the animation" — and `spec/examples/10-game.logo` is exactly it, holding open with `wait 300`.
+  // At the default budget the whole program is three orders of magnitude inside the new ceiling, so
+  // it runs clean and its handler still fires on every interval.
+  const source = [
+    'on_key "left" [ left 15 ]',
+    "on_click [ print 1 ]",
+    "every 30 [ forward 1 ]",
+    "wait 300",
+  ].join("\n");
+  const result = execute(source, doc);
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(
+    result.events.filter((event) => event.kind === "move").length,
+    10,
+    "every 30 must still fire ten times across 300 ticks",
+  );
+});
+
+test("#953/#1034: charging a tick creates no additional step or `instruction` event, and does not begin to as n grows", () => {
+  // The second half of the sentence #1034 made normative (`spec/interaction-events.md`,
+  // `### wait <n>`): "Charging a tick does not create an additional step or `instruction` event."
+  //
+  // An UNCONDITIONAL per-tick emission was never unguarded — `wait 2` above already asserts a
+  // two-event stream, this test's companion fixture pins `wait 300`, and 46 fixtures fail under it.
+  // Small n was already covered. What this test adds is **reach**: it extends detection to
+  // n = 200,000, which is what catches a THRESHOLD implementation — one that emits per-tick only
+  // past some count, and so passes every witness whose n is below that count.
+  //
+  // That blindness is structural, not incidental: the largest `wait` literal anywhere in
+  // `tests/conformance/**/*.logo` is this slice's own 300, across the 61 fixtures that invoke
+  // `wait` (63 contain the token; two are `define wait` negative cases that never call it). So
+  // the corpus cannot catch a threshold at or above 300 at all, no matter how many fixtures are
+  // added at that scale. Measured by the reviewing QA at a threshold of 1000 and reproduced here:
+  // all 942 conformance fixtures pass, all five pre-existing witnesses pass, and this test alone
+  // fails, of 4796 — on `wait 5000`.
+  //
+  // The reach is finite and this test claims nothing beyond it: a threshold inside the sampled
+  // 0–200,000 span is caught, one above it is not.
+  //
+  // `wait 0` is the boundary case rather than a witness for per-tick emission — it advances no tick,
+  // so no per-tick rule can act on it. It pins that a pause which charges nothing still emits
+  // exactly the one `instruction` event its own statement owes.
+  //
+  // "Step" is not a separate thing to measure: `spec/execution-model.md`'s trace-and-event registry
+  // defines a step as "the span from one `instruction` event to the next", so the `instruction`
+  // count IS the step count. That is also why this is learner-visible rather than merely tidy —
+  // under an unconditional per-tick emission `wait 300` measures 301 instruction events, so a
+  // learner stepping through `spec/examples/10-game.logo` would face 301 presses instead of one.
+  const instructionCount = (source) =>
+    execute(source, doc).events.filter((event) => event.kind === "instruction")
+      .length;
+
+  for (const n of [0, 1, 2, 300, 5000, 200000]) {
+    assert.equal(
+      instructionCount(`wait ${n}`),
+      1,
+      `wait ${n} must emit exactly one instruction event — its own statement`,
+    );
+  }
+
+  // The positive control for the instrument. It is NOT what rejects a runtime emitting no
+  // `instruction` events at all — the assertion above already does that, since such a runtime makes
+  // `instructionCount` return 0 and `assert.equal(0, 1)` throws. What it proves is that the counting
+  // works and that a charged unit the learner CAN step through does scale with n, so "1, constant"
+  // is a property of `wait` rather than an artefact of how this test counts. A "0 findings" result
+  // from an enumerator is a broken instrument until a positive control passes.
+  for (const n of [2, 10, 300]) {
+    assert.equal(instructionCount(`repeat ${n} [ forward 1 ]`), n + 1);
+  }
 });

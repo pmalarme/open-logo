@@ -50,6 +50,14 @@ const BOUNDARY_MARKERS = [
   "mainLineBoundary.fn",
   "runIterationBoundary(",
   "comprehensionBoundaryDiagnostic(",
+  // The `wait` tick's boundary (issue #953, which made a tick a charged instruction and so brought
+  // a fourth container under the rule). `dispatchDueHandlers` runs on the very tick just charged and
+  // claims exactly the `queued && !running && !claimed` set `mainLineBoundary.fn` claims, plus the
+  // newly due — `claimDueEveryHandlers` is a SUPERSET of `claimQueuedEveryHandlers`, not a different
+  // mechanism — which is what `executeMainLine`'s own doc comment already calls "the end-of-tick
+  // drain in dispatchDueHandlers". Added as a fourth marker rather than by widening WINDOW: the
+  // charge and this drain are written adjacently in `executeWaitCall`, so the window did its job.
+  "dispatchDueHandlers(",
 ];
 
 /**
@@ -237,6 +245,36 @@ test("the detector rejects a charge site paired only by a TRAILING comment", () 
   assert.equal(unpairedChargeSites(pairedOnlyByTrailingProse).length, 1);
 });
 
+// The `wait` tick site (issue #953) is the fourth boundary marker, so it gets the same
+// accept-then-reject pair every other marker has. Without the rejection half, adding a marker to
+// `BOUNDARY_MARKERS` could pair a site with a string nothing ever calls and this file would not
+// notice — a marker nobody has seen reject anything is not evidence.
+const WAIT_TICK_SHAPE = [
+  "  const chargeTick = () => {",
+  "    const diagnostic = checkExecutionLimits(environment, waitCall.source_span);",
+  "    if (diagnostic === undefined) {",
+  "      return false;",
+  "    }",
+  "    interruption = halt(diagnostic);",
+  "    return true;",
+  "  };",
+  "  const dispatchTick = (tick) => {",
+  "    const signal = dispatchDueHandlers(tick, environment, waitCall.source_span);",
+  "    return signal.kind !== 'normal';",
+  "  };",
+];
+
+test("the detector accepts a wait-tick charge paired by its end-of-tick drain", () => {
+  assert.deepEqual(unpairedChargeSites(WAIT_TICK_SHAPE), []);
+});
+
+test("the detector rejects a wait-tick charge whose end-of-tick drain was removed", () => {
+  const withoutDrain = WAIT_TICK_SHAPE.filter(
+    (line) => !line.includes("dispatchDueHandlers("),
+  );
+  assert.equal(unpairedChargeSites(withoutDrain).length, 1);
+});
+
 test("the detector ignores the definition of checkExecutionLimits itself", () => {
   assert.deepEqual(
     unpairedChargeSites([
@@ -267,11 +305,13 @@ test("every execution-budget charge site is paired with a main-line boundary", (
   // Guard the guard: if the charge sites stop being found at all, the assertion above passes
   // vacuously and this test silently stops protecting anything. The bound is the CURRENT derived
   // total, not a loose floor — a loose floor would not notice three sites disappearing. Raise it
-  // when a charge site is legitimately added; never lower it to make a deletion pass.
+  // when a charge site is legitimately added; never lower it to make a deletion pass. Raised from
+  // 10 to 11 by issue #953, which made a `wait` tick a charged instruction (`executeWaitCall`'s
+  // `chargeTick`, paired with the `dispatchDueHandlers` drain on the same tick).
   assert.equal(
     total,
-    10,
-    `expected the 10 derived charge sites across ${SOURCES.join(", ")}, found ${total}`,
+    11,
+    `expected the 11 derived charge sites across ${SOURCES.join(", ")}, found ${total}`,
   );
 });
 

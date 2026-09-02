@@ -1,9 +1,9 @@
 {
-  "description": "the control twin of every-nested-registration-budgeted: a single non-accumulating every with the same empty body over the same 12 ticks completes cleanly on the same instruction budget, so that fixture's ol-limit is caused by the accumulation and not merely by a budget too small for any program",
+  "description": "the control twin of every-nested-registration-budgeted: a single non-accumulating every with the same empty body over the same 12 ticks completes cleanly on the same instruction budget, so that fixture's ol-limit is caused by the accumulation and not merely by a budget too small for any program. THE TWO FIXTURES MUST MOVE TOGETHER: this one is clean and byte-identical at every budget from 18 upward, so its 26 is pinned only by its twin. What pins the twin is not that its stream changes at every step -- measured, it does not, since budgets 20-22 all fold to 15 events with ol-limit at [2,1] and 23-24 to 15 events at [1,1] -- but that the stream the twin RECORDS, 19 events with ol-limit at [1,11], occurs at budget 26 ALONE within the shared valid band of 18-27 (13 events at 18, 20 at 27, and clean from 28). So the twin pins 26 uniquely while this one merely has to agree, and 'tightening' this one to its own minimum of 18 would leave both fixtures passing while the pair silently stopped being a same-budget pair, which is the entire discrimination. 26 was re-derived from 14 by issue #953, which made each wait tick a charged instruction and so added the 12 of `wait 12` to both twins",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "executeOptions": {
-    "instructionBudget": 14
+    "instructionBudget": 26
   },
   "events": [
     {
