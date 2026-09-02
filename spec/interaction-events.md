@@ -255,14 +255,14 @@ on_click [
 - **Kind:** command
 - **Args:** tick count
 - **Result:** none
-- **Errors:** `ol-type`, `ol-range`
+- **Errors:** `ol-type`, `ol-range`, `ol-limit`
 - **Concept:** time and animation pacing
 
 `wait` pauses the current program for `n` ticks. `n` MUST be a non-negative
 whole number: a non-whole count raises `ol-type`, and a negative count raises
 `ol-range`. `wait 0` yields to the renderer and event loop without adding a visible
 delay. Turtle and geometry documents may reference `wait` for animation, but
-this document owns its definition.
+this document owns its definition. Each tick a `wait` advances is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)), so a long enough `wait` exhausts the budget and raises `ol-limit`, exactly as `forever` does; this holds for a `wait` on its own, with no handler registered, as much as for one whose accumulating handler invocations spend the budget alongside it.
 
 ```logo
 repeat 36
@@ -376,7 +376,7 @@ Interaction handlers and sound commands use the diagnostic shape defined in
 |---|---|---|
 | `ol-type` | `input`, `when`, `every`, `on_key`, `wait`, sound commands | an argument has the wrong type |
 | `ol-range` | `every`, `wait`, `note`, `play`, `rest`, `set_tempo` | a number is outside the allowed range |
-| `ol-limit` | handler execution | an instruction budget or cancellation limit was reached; each handler invocation counts as one instruction |
+| `ol-limit` | handler execution, `wait` | an instruction budget or cancellation limit was reached; each handler invocation, and each tick a `wait` advances, counts as one instruction |
 
 Cancellation MUST be available while a program is waiting for input, waiting for
 ticks, running handlers, or playing sound. Cancellation stops future handler
