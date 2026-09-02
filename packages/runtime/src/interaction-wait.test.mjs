@@ -709,19 +709,40 @@ test("#953: cancellation WINS over budget exhaustion at a tick, not merely at th
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
-  // ...the first statement really ran, so the halt was not the statement gate...
-  assert.equal(
-    result.events.filter((event) => event.kind === "print").length,
-    1,
+  // The halt was the TICK CHARGE, not the `wait`'s own statement gate — and this is the assertion
+  // that says so. Review-gate finding, round 4: every other assertion here is satisfied by BOTH
+  // halts, so "not merely at the statement gate" rested entirely on the hand-placed `reads > 2`
+  // threshold with nothing behind it. Measured: cancelling at the statement gate instead yields
+  // `["instruction", "print"]` — the `wait`'s own `instruction` event is never emitted, because
+  // `executeStatements` gates before it pushes. This PR itself ADDS a poll site, which is exactly
+  // the kind of change that shifts the read count and would have silently degraded this into a
+  // statement-gate test that still passed.
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "print", "instruction"],
   );
+  // NOT the discriminator: at budget 2 the first tick is unaffordable either way, so this holds
+  // under cancellation and exhaustion alike. It is here to pin the pause's extent, not its cause.
   assert.equal(tickTimeline.length, 0);
   // ...and at that very budget, without the signal, the same tick is refused for the OTHER reason.
-  // This is what makes it a priority test rather than a reachability test.
-  const exhausted = execute("print 1\nwait 50", doc, { instructionBudget: 2 });
+  // This is what makes it a priority test rather than a reachability test. The control's OWN
+  // timeline is what pins the budget at 2: measured 0 ticks at 2, 1 at 3, 2 at 4 — so a later
+  // "give it some headroom" edit moves exhaustion off the first tick and fails loudly here instead
+  // of quietly reverting this to the non-competing shape round 3 rejected.
+  const exhaustedTimeline = [];
+  const exhausted = execute("print 1\nwait 50", doc, {
+    instructionBudget: 2,
+    tickTimeline: exhaustedTimeline,
+  });
   assert.deepEqual(exhausted.diagnostics[0].params, {
     limit: "instruction-budget",
     value: 2,
   });
+  assert.equal(
+    exhaustedTimeline.length,
+    0,
+    "budget 2 must be the budget at which exhaustion also lands on the first tick",
+  );
 });
 
 test("#953: `wait 0` isolates the dispatcher's own cancellation poll, which no tick charge can mask", () => {
