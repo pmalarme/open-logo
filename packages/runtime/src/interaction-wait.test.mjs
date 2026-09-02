@@ -547,8 +547,10 @@ test("#985: the timeline is deterministic — same source, seed and input schedu
 // was the only form in the language that was cancellable but not budgeted — half of the pair
 // `spec/execution-model.md`'s Execution safety says safety comes from ("`forever` is therefore safe
 // only because it is cancellable AND budgeted"). Measured on the saga tip before the fix, at the
-// default budget: `wait 5000000` ran 2.0 s and produced two events and no diagnostic, while a bare
-// `wait N` completed cleanly for every N up to 20,000,000 — there was no gate at all.
+// default budget: `wait 5000000` ran 2.0 s and produced two events and no diagnostic, `wait 999999999`
+// blocked the execution thread for 413 s, and a bare `wait N` completed cleanly for every N up to
+// 200,000,000 (the search was stopped there; no gate existed at all, so the true ceiling was
+// unbounded).
 
 test("#953: a wait larger than the budget raises ol-limit, and an ordinary wait at the SAME budget does not", () => {
   // The paired control is the point: `ol-limit` on its own is satisfied by any budget too small for
@@ -715,20 +717,81 @@ test("#953: cancellation still wins over the budget AT A TICK, not merely at the
   );
 });
 
-test("#953: `wait 0` still reaches the dispatcher's own cancellation poll, which the tick charge cannot mask", () => {
-  // The companion to the test above, and the reason both are needed. `chargeTick` now polls the
-  // abort before `dispatchDueHandlers` does, so on any tick-advancing pause the charge observes
-  // cancellation first and the dispatcher's own poll is no longer uniquely exercised there.
-  // `wait 0` advances no tick and therefore invokes NO charge callback at all, so the only thing
-  // that can observe the abort inside the pause is `dispatchDueHandlers`. Deleting either poll
-  // leaves the other test passing; this is the arm that keeps the dispatcher's poll load-bearing.
+test("#953: `wait 0` isolates the dispatcher's own cancellation poll, which no tick charge can mask", () => {
+  // The companion to the test above, and the reason both are needed. `chargeTick` polls the abort
+  // before `dispatchDueHandlers` does, so on any tick-ADVANCING pause the charge observes
+  // cancellation first and the dispatcher's poll is never the deciding one there. `wait 0` advances
+  // no tick and therefore invokes NO charge callback at all, so inside that pause only
+  // `dispatchDueHandlers` can observe the abort.
+  //
+  // The signal must FLIP here too, for exactly the reason the sibling above does: a pre-aborted
+  // signal is consumed by `executeStatements`' statement gate and the run halts before `runWait` is
+  // entered, so the program emits NO events and the dispatcher is never reached — the very defect
+  // this pair exists to fix, reintroduced in the test written to fix it. Review-gate finding,
+  // round 2, measured: pre-aborted reads the signal exactly once and yields `events: []`.
+  //
+  // False on read 1 (the statement gate), true from read 2 (the `wait 0` yield's dispatch).
+  // Measured discriminator: with the dispatcher's poll present this halts `cancelled` with the
+  // `wait`'s own `instruction` event and NO trailing `primitive`; with that poll deleted the pause
+  // completes and the program is CLEAN with two events. So deleting it fails this test.
+  let reads = 0;
+  const tickTimeline = [];
   const result = execute("wait 0", doc, {
     instructionBudget: 1000,
-    signal: { aborted: true },
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads > 1;
+      },
+    },
+    tickTimeline,
   });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-limit");
   assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  // The statement ran (so the halt was not the statement gate) and the pause did NOT complete
+  // (so the abort was observed inside it).
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
+  assert.equal(tickTimeline.length, 0, "`wait 0` advances no tick");
+});
+
+test("#953: the tick charge observes cancellation BEFORE the clock advances, which the dispatcher's poll cannot do", () => {
+  // The third arm. The two tests above pin the pair JOINTLY and the dispatcher's poll INDIVIDUALLY;
+  // this one pins the charge's own abort observation individually, so that deleting either poll
+  // alone is caught rather than only deleting both. Review-gate finding, round 2: measured before
+  // this test existed, removing either poll on its own left the whole Definition of Done green —
+  // 4794 tests and 941 fixtures — because the suite required at least one and pinned neither.
+  //
+  // The discriminator is WHERE in the tick the abort is seen. `checkExecutionLimits` checks the
+  // abort first and does not charge for it, and `chargeTick` runs before `advanceTickClock`, so a
+  // signal flipping on the first read inside the pause halts with ZERO ticks advanced. Were the
+  // charge not to observe the abort, the dispatcher would see it only AFTER the advance and exactly
+  // one tick would be recorded. Measured: 0 boundaries here, 1 without the charge's poll.
+  let reads = 0;
+  const tickTimeline = [];
+  const result = execute("wait 5", doc, {
+    instructionBudget: 1000,
+    signal: {
+      get aborted() {
+        reads += 1;
+        return reads >= 2;
+      },
+    },
+    tickTimeline,
+  });
+  assert.deepEqual(result.diagnostics[0].params, { limit: "cancelled" });
+  assert.equal(
+    tickTimeline.length,
+    0,
+    "the charge must refuse the tick before the clock advances to it",
+  );
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+  );
 });
 
 test("#953: the idiomatic 'register handlers then hold the run open' program is unaffected", () => {
