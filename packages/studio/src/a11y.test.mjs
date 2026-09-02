@@ -739,7 +739,7 @@ test("the state text of a Turtle & Rendering program never names a turtle (byte-
   );
 });
 
-test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state, and includes the current source instruction (#410)", () => {
+test("createTurtleStateRegion composes with the real run controller end to end, reporting the canvas turtle state and the current source instruction (#410)", () => {
   const state = OL.createStudioState();
   const shell = OL.createAppShell(state);
   const editor = OL.createEditorController(state);
@@ -767,7 +767,7 @@ test("createTurtleStateRegion omits the current-instruction clause entirely befo
   assert.doesNotMatch(region.getText(), /current instruction/);
 });
 
-test("createTurtleStateRegion appends the current instruction's exact source text per step (#410)", () => {
+test("createTurtleStateRegion appends the current instruction's source text per step, summarized (#410, #778)", () => {
   const state = OL.createStudioState();
   const shell = OL.createAppShell(state);
   const editor = OL.createEditorController(state);

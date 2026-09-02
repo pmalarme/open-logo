@@ -623,10 +623,12 @@ test("describeTurtleState never speaks a positive width as 0, and still removes 
 });
 
 test("summarizeSourceInstruction's comma stops the count reading as arithmetic (#778)", () => {
-  // The measurable property the comma exists for: without it the rendered text contains
-  // `3 plus 2`, itself a well-formed OpenLogo arithmetic expression, inside a description of the
-  // learner's own guard. 11 of the 53 distinct block announcements the runnable examples produce
-  // hit this; with the comma, 0 do.
+  // The measurable property the comma exists for: without it the rendered text runs the guard's
+  // own `3` straight into the count as `3 plus 2`, so a description of the learner's comparison
+  // reads in English as arithmetic performed on it. The collision is in the reading, not the
+  // grammar — `plus` is not OpenLogo at all (`print 3 plus 2` raises `ol-bad-token`; `print 3 + 2`
+  // prints `5`). 11 of the 53 distinct block announcements the runnable examples produce hit this;
+  // with the comma, 0 do.
   const summary = OL.summarizeSourceInstruction(
     "if :sides < 3\n  forward 1\nend if",
   );
@@ -636,11 +638,14 @@ test("summarizeSourceInstruction's comma stops the count reading as arithmetic (
   assert.match("if :sides < 3 plus 2 more lines", /\d+\s+plus\s+\d+/);
 });
 
-test("describeTurtleState speaks a movement below the rounding threshold as no change (#778)", () => {
-  // The accepted cost of rounding, pinned so it stays a decision rather than a surprise: any rule
-  // that kept `0.0004` would also keep `1.4210854715202004e-14`, which is the defect being fixed.
-  // Measured end to end: `repeat 4 / forward 0.0001 / end repeat` yields 3 region announcements
-  // where the same program with `forward 80` yields 7.
+test("describeTurtleState renders two positions in the same rounding bucket identically (#778)", () => {
+  // The accepted cost of rounding, pinned so it stays a decision rather than a surprise. The
+  // effect is bucket-relative, not magnitude-relative: `0.00049` and `0.00051` differ by only
+  // 0.00002 and still render differently, while `0` and `0.0004` render the same. A scale-aware
+  // snap could have kept `0.0004`; it is not built because across the runnable examples all 192
+  // non-zero per-turtle movements are at least 0.2571255761402784 and none falls in
+  // [1e-6, 0.0005). Measured end to end: `repeat 4 / forward 0.0001 / end repeat` yields 3 region
+  // announcements where the same program with `forward 80` yields 7.
   assert.equal(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,
@@ -648,11 +653,18 @@ test("describeTurtleState speaks a movement below the rounding threshold as no c
     }),
     OL.describeTurtleState(OL.INITIAL_TURTLE_STATE),
   );
-  // ...and the first value above the threshold is still spoken.
+  // ...and two values a hair apart across a bucket boundary are still told apart.
   assert.match(
     OL.describeTurtleState({
       ...OL.INITIAL_TURTLE_STATE,
-      position: [0, 0.0005],
+      position: [0, 0.00049],
+    }),
+    /y 0 /,
+  );
+  assert.match(
+    OL.describeTurtleState({
+      ...OL.INITIAL_TURTLE_STATE,
+      position: [0, 0.00051],
     }),
     /y 0\.001 /,
   );

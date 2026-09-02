@@ -73,11 +73,10 @@
  * module never writes its own position/heading description logic. Unlike
  * {@link createA11yAnnouncer}'s
  * discrete announcement log (deliberately sparse, so screen readers aren't spammed on every
- * keystroke), this is a single, continuously-current piece of text a screen reader can read at
- * any time and that is recomputed on every store update as a program runs. It tracks the Canvas
- * view at the precision it speaks: since #778 rounds `x`/`y`/`heading` for speech, two ticks whose
- * positions differ by less than the rounding threshold render the same text and so notify no
- * listener.
+ * keystroke), this is a single, continuously-current piece of text a `status` live region can
+ * expose at any time, and that is recomputed on every store update as a program runs. It tracks the
+ * Canvas view at the precision it speaks: since #778 rounds `x`/`y`/`heading` for speech, two ticks
+ * whose positions round to the same value render the same text and so notify no listener.
  *
  * #749 made that region read the per-turtle `turtleWorld` rather than a single merged turtle
  * state: with several turtles the text now names **which** turtle it is describing, as
@@ -532,9 +531,9 @@ export interface TurtleStateRegion {
  * when the color is already `"black"` — a reference check alone would re-notify identical text on
  * every such no-op tick during a long animation. Comparing the rendered text (like
  * `diagnosticsKey` does for diagnostics, above) is what suppresses those repeats. Since #778 that
- * comparison is made on the *rounded* text, so it also suppresses a tick whose position differs
- * from the last by less than the rounding threshold: the region reports every change it can
- * express at the precision it speaks, not every change the world underwent. Unlike
+ * comparison is made on the *rounded* text, so it also suppresses a tick whose position rounds to
+ * the same value as the last: the region reports every change it can express at the precision it
+ * speaks, not every change the world underwent. Unlike
  * {@link createA11yAnnouncer}, the initial state's text *is* available immediately via
  * {@link TurtleStateRegion.getText} (there is always a "current" turtle state to describe, even
  * before any run) — only {@link TurtleStateRegion.subscribeText} listeners are limited to changes

@@ -47,24 +47,27 @@ import type { TurtleWorldState } from "./world-state.js";
  * was filed about, `1.4210854715202004e-14`, as `1.421085472e-14` — still an exponent — and
  * `84.8528137423857` as `84.85281374`, still eight decimals to speak.
  *
- * **The threshold is a deliberate trade, and it is audible.** Rounding to 3 places means a change
- * smaller than 0.0005 units is spoken as no change at all: `repeat 4 / forward 0.0001 / end repeat`
- * produces 3 announcements where the same program with `forward 80` produces 7, and ends at a real
- * `y` of 0.0004 announced as `y 0`. A scale-aware formatter — snapping only values within some
- * residue band of zero, then rounding — could keep `0.0004` while still collapsing
- * `1.4210854715202004e-14`, so this is a chosen trade and not a forced one. It is not built here
- * because it needs a second threshold to tune and no measured program needs it: across the 13
- * runnable examples the smallest non-zero distance between two announced positions is
- * 2.0097183471152322e-14, i.e. pure residue, with nothing in between. The behaviour is pinned by a
+ * **The threshold is a deliberate trade.** Rounding to 3 places means two positions that round to
+ * the same value render the same text and so notify no listener — the effect is bucket-relative,
+ * not magnitude-relative, so `0.00049` and `0.00051` differ by 0.00002 yet render `y 0` and
+ * `y 0.001`, while `repeat 4 / forward 0.0001 / end repeat` produces 3 announcements where the
+ * same program with `forward 80` produces 7, ending at a real `y` of 0.0004 announced as `y 0`.
+ * A scale-aware formatter — snapping only values within some residue band of zero, then rounding
+ * — could keep `0.0004` while still collapsing `1.4210854715202004e-14`, so this is a chosen trade
+ * and not a forced one. It is not built here because it needs a second threshold to tune and no
+ * measured program needs it: taking, for each runnable example and each turtle, the distance
+ * between that same turtle's position at consecutive announcements, all 192 non-zero movements are
+ * at least 0.2571255761402784 (the smallest, in `12-fractal.logo`) and **none** falls in
+ * `[1e-6, 0.0005)`, the band the threshold could wrongly collapse. The behaviour is pinned by a
  * test so it stays a decision rather than a surprise.
  *
  * This is presentation only: it is reached from this module alone (nothing in `state.ts`,
  * `world-state.ts`, `scene.ts`, `canvas.ts`, `svg.ts`, `png.ts`, `animation.ts` or `overlay.ts`
  * imports this file), so turtle state, the trace events, the retained scene and every exporter are
  * untouched. The region and the program's own `print xcor` therefore now differ deliberately —
- * `x 0` here, `1.421085472e-14` there — because each abbreviates for its own audience: `print`
- * renders the value in the language's canonical form for a program to read, this renders it for a
- * person to hear.
+ * `x 0` here, `1.421085472e-14` there — because each abbreviates for its own surface: `print`
+ * renders the value in the language's canonical form into the output pane, this renders it into
+ * the state description.
  */
 const DESCRIBED_NUMBER_PRECISION = 3;
 
@@ -147,28 +150,30 @@ function formatDescribedWidth(width: number): string {
  * `12-fractal.logo`'s `if :depth == 0` block 46 times.
  *
  * So the head line is spoken and the rest is replaced by a count: `ask :leader [, plus 7 more
- * lines`. The head line is the instruction the learner can act on; the count keeps the region
- * honest about having shortened something, which a bare first line would not. A single-line
- * instruction is returned with only surrounding whitespace trimmed, so every announcement the
- * runnable examples produce for one is unchanged.
+ * lines`. The head line is the one the span begins at; the count records that something was left
+ * out, which a bare first line would not. A single-line instruction is returned with only
+ * surrounding whitespace trimmed, so every announcement the runnable examples produce for one is
+ * unchanged.
  *
  * Two wording decisions, both `@turtle-engine` + `@learner-experience`:
  *
- * - The marker is made of **words** rather than an ellipsis or brackets, so that it carries its
- *   meaning without depending on whether a screen reader is configured to speak punctuation. We
- *   have no screen reader in CI, so this is a conservative choice, not a measured one; what *is*
- *   measured is the shape of the string — it never contains a newline and names no line but the
- *   head.
- * - The comma before `plus` is load-bearing, and its justification is a property of the string,
- *   not of any reader. Without it, 11 of the 53 distinct block announcements the runnable examples
- *   produce match `/\d+\s+plus\s+\d+/` — `if :sides < 3 plus 2 more lines` contains `3 plus 2`,
- *   which is itself a well-formed OpenLogo arithmetic expression sitting inside a description of
- *   the learner's own guard. With the comma, 0 of 53 match. A test asserts exactly that.
+ * - The marker is words rather than an ellipsis or brackets. A screen reader's punctuation
+ *   verbosity is a user setting we cannot exercise in CI, so this is a conservative choice rather
+ *   than a measured one; what *is* measured is the shape of the string — it never contains a
+ *   newline and reproduces no line but the head.
+ * - The comma before `plus` is load-bearing, and its justification is a property of the string.
+ *   Without it, 11 of the 53 distinct block announcements the runnable examples produce match
+ *   `/\d+\s+plus\s+\d+/`: `if :sides < 3 plus 2 more lines` runs the guard's own `3` straight into
+ *   the count, so a description of the learner's comparison reads in English as arithmetic
+ *   performed on it. The collision is in the reading, not the grammar — `plus` is not OpenLogo at
+ *   all (`print 3 plus 2` raises `ol-bad-token`; `print 3 + 2` prints `5`), which is why a marker
+ *   word was safe to choose in the first place. With the comma, 0 of 53 match. A test asserts both
+ *   directions on one such announcement.
  *
  * The count is of the span's remaining lines, blank ones included — it describes the source, not
  * the non-blank subset of it. An instruction whose head line is empty has nothing to name, so it
  * returns `""` and every caller — {@link describeState}, {@link describeCurrentStepCue}, and
- * studio's own clause — drops the label rather than speaking an empty one. Studio reaches that
+ * studio's own clause — drops the label rather than emitting an empty one. Studio reaches that
  * only through a span pointing outside the current source; a direct caller of this package's
  * public API can pass such a string outright.
  */
@@ -242,8 +247,8 @@ function describeState(
  * `spec/rendering.md#non-visual-state-descriptions`: position, heading, pen up/down, pen color
  * and width, always; visibility and the current source instruction are appended only when they
  * add information (hidden, or an instruction is available and has something to name) — this keeps
- * the common case
- * byte-identical to the spec's own worked example. For a visible turtle at world `(100, 0)`,
+ * the common case byte-identical to the spec's own worked example. For a visible turtle at world
+ * `(100, 0)`,
  * heading `90`, pen down, color `"black"`, width `1`, and no known current instruction, this
  * produces exactly `"turtle at x 100 y 0 heading 90 degrees pen down color black width 1"`,
  * matching `spec/rendering.md`'s example text verbatim.

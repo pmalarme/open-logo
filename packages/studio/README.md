@@ -903,9 +903,9 @@ no DOM here to regress.
   Unlike the announcer's growing log, `getText()` always returns the *current*
   description (available immediately, even before any run), and `subscribeText(listener)` notifies
   every listener only when the rendered text changes. That already suppressed a no-op tick, and
-  since #778 it also suppresses a tick whose position differs from the last by less than the
-  rounding threshold (`forward 0.0001`): the region reports every change it can express at the
-  precision it speaks, and multiple consumers never desync.
+  since #778 it also suppresses a tick whose position rounds to the same value as the last
+  (`forward 0.0001`): the region reports every change it can express at the precision it speaks,
+  and multiple consumers never desync.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
   cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
