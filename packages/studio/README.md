@@ -582,7 +582,8 @@ Two consequences, both deliberate:
   number of presses at the program's tick count, so `wait 5` accepted five and then went silent —
   an artifact of the counter rather than a decision.
 
-  **Delivery does close when the program is genuinely ended (#1039).** An earlier version of this
+  **Delivery closes for a program whose clock offers no further yield (#1039).** An earlier version
+  of this
   bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
   handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
   `:381-384` says cancellation stops delivery, it does **not** say cancellation is the only way a run
@@ -602,10 +603,13 @@ Two consequences, both deliberate:
   `runWait` is the only place the runtime yields — once per tick it advances to, and once at the
   current tick for `wait 0`. #985's tick timeline records every advancing yield, so its last boundary
   is the program's last one; the `wait 0` yield records none, so the run's own trace (`wait`'s
-  `primitive` event) carries that case. The test is then that last yield against the tick the
-  delivery would be clamped to — the drawn floor and the answered-read floor. Playback enters only as
-  that floor, and the floor is *compared against the clock*, which is why the immediate scheduler
-  does not defeat it: a fully-drawn `wait 300` program has floor `300` and last yield `300`.
+  `primitive` event) carries that case. Those two are not interchangeable: a run that never waited
+  and a run whose only wait was `wait 0` have **byte-identical empty timelines** and opposite
+  dispatch behaviour, and only the primitive tells them apart. The test is then that last yield
+  against the tick the delivery would be clamped to — the drawn floor and the answered-read floor.
+  Playback enters only as that floor, and the floor is *compared against the clock*, which is why the
+  immediate scheduler does not defeat it: a fully-drawn `wait 300` program has floor `300` and last
+  yield `300`.
 
   Measured under `IMMEDIATE_SCHEDULER`, three presses each:
 
@@ -617,14 +621,36 @@ Two consequences, both deliberate:
 
   The boolean an ended program returns is therefore unchanged — the runtime never had a checkpoint to
   dispatch into — but the studio no longer replays the whole program to discover that, and a chain
-  whose `input` consumed its last tick is refused up front instead of losing the press silently. Two
-  things are deliberately **outside** the gate: Stop's `when "stop"` notification, which is the
+  whose `input` finished on the program's last tick is refused up front instead of losing the press
+  silently.
+
+  **"Ended" here means the clock offers no further yield**, which is narrower than `:198-204`'s "the
+  run closes once the main line has finished". Three shapes fall in the gap, all measured identical
+  at `492cdff7` — this predicate neither causes nor fixes them, and refusing them would contradict
+  the ruling's "if there is a `wait` the program is not ended":
+
+  | program | presses | replays |
+  |---|---|---|
+  | `wait 1 / on_key …` — the only yield precedes the registration | `[false, false, false]` | 3 |
+  | `on_key … / wait 1 / print "after"` — `["after"]` becomes `["turned","turned","turned","after"]` | `[true, true, true]` | 3 |
+  | `on_key … / wait 3 / forward 10` — main line finished, still live | `[true, true, true]` | 3 |
+
+  A bare `forever` (no `wait` inside) is the mirror case: it never yields, so it is refused — the
+  runtime's `dispatchDueHandlers` has exactly one call site, inside `runWait`, so no press could ever
+  have fired there. Its boolean is unchanged from `492cdff7`; only its three wasted replays are gone.
+  All four shapes are pinned by tests so a later maintainer ruling has something to flip.
+
+  Two things are deliberately **outside** the gate: Stop's `when "stop"` notification, which is the
   program's own pre-termination hook rather than input arriving at a live program, and any delivery
-  arriving while an attempt is still in flight, whose chain timeline still describes the previous
-  settlement and so cannot say how far the program goes. The first of those is a scope choice no test
-  pins — folding the term into the shared gate leaves all 620 studio tests green — while the second
-  is pinned by six, `#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it
-  waited` among them, which observes `["A","C","B"]` instead of `["A","C","turned","B"]` without it.
+  arriving while an attempt is still in flight — `attemptPending` is host state, not liveness (it
+  also covers a finished execution whose settlement is still in transport), so the conservative
+  answer is to schedule and let `reclampUndeliveredTail` re-judge against the fresh settlement. Both
+  halves of that boundary are now pinned: folding the term into the bare `acceptsHostInput`, which
+  the drain loop calls, fails `#976: a delivery racing resolveRead is EVENTUALLY replayed`; folding
+  it into `acceptsHostInputFor`, which only reaches Stop, left the suite green until
+  `#952 (QA finding 1)` gained a replay-count assertion. Dropping the `attemptPending` guard fails
+  two tests, `#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it waited`
+  observing `["A","C","B"]` instead of `["A","C","turned","B"]`.
 - **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
   be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
   replay settles, so every delivery lands on the program's final tick, and the runtime claims pending
