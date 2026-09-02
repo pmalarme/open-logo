@@ -326,11 +326,12 @@
  * Two consequences of scheduling against the real clock, both recorded in
  * `packages/studio/README.md`:
  * - a program is responsive for as many inputs as the learner gives it, because the old counter's
- *   cap at the program's tick count was an artifact. Delivery nonetheless **closes when the program
- *   is genuinely ended** (`spec/interaction-events.md:198-204`), which #1039's maintainer ruling
- *   settled: *"If the program is ended it should refuse it. If there is a `wait` the program is not
- *   ended — it is still running."* {@link createRunController}'s `programIsStillRunning` is that
- *   test, and its doc records why neither `runStatus` nor `animation.status` could be.
+ *   cap at the program's tick count was an artifact. Delivery nonetheless **closes for a program
+ *   whose clock offers no further yield** (`spec/interaction-events.md:198-204`), which #1039's
+ *   maintainer ruling settled: *"If the program is ended it should refuse it. If there is a `wait`
+ *   the program is not ended — it is still running."* {@link createRunController}'s
+ *   `programIsStillRunning` is that test; its doc records why neither `runStatus` nor
+ *   `animation.status` could be, and — measured — which shapes it deliberately still accepts.
  * - under this synchronous replay host a handler registered **by** a handler cannot be reached,
  *   because a completed replay has one tick to deliver into and the runtime claims pending keys
  *   against the handlers existing when that tick's dispatch begins. It fails visibly (the inner
@@ -753,13 +754,21 @@ function hasRegisteredHandler(
  * `wait` **after** a pause completes cleanly, so the run's own trace is the record that the program
  * handed control back to the host at least once.
  *
- * Consulted only when the tick timeline is empty, which is exactly the `wait 0` case: `wait 0`
- * "yields to the renderer and event loop without adding a visible delay"
- * (`spec/interaction-events.md`'s `wait <n>`) — it dispatches tick-0 input but advances no tick, so
- * it records no {@link TickBoundary} and is invisible to {@link tickAtEventIndex}. Measured on
- * `on_key "left" [ print "turned" ] / wait 0`: three presses report `true` and print `"turned"`
- * three times, while the same program without the `wait 0` reports `false` three times and prints
- * nothing. Reading the timeline alone would have turned the first of those into the second.
+ * Consulted only when the tick timeline is empty. That is **not** the same thing as "the program ran
+ * a `wait 0`": a run that never waited at all has an empty timeline too, and the two are
+ * byte-identical there. The `wait` primitive is the only trace signal that separates them. Measured
+ * on the runtime's own `dist`, presses scheduled at tick 0:
+ *
+ * | program | timeline | `wait` primitives | handler ran |
+ * |---|---|---|---|
+ * | `on_key … / wait 0` | `[]` | 1 | **yes** |
+ * | `on_key …` | `[]` | 0 | no |
+ *
+ * `wait 0` "yields to the renderer and event loop without adding a visible delay"
+ * (`spec/interaction-events.md`'s `wait <n>`) — `runWait`'s `count === 0` arm dispatches but never
+ * reaches `advanceTickClock`, so it records no {@link TickBoundary} and `tickAtEventIndex` reports
+ * `0` for it exactly as it does for a program with no `wait`. Reading the timeline alone would turn
+ * the first row into the second.
  */
 function hasCompletedWait(events: readonly TraceEvent[]): boolean {
   return emitsPrimitiveNamed(events, "wait");
@@ -1594,8 +1603,8 @@ export function createRunController(
    * both read **playback**, and under the default `IMMEDIATE_SCHEDULER` playback drains inside
    * `run()`, so both read `"done"` for a program sitting in a `wait`. Measured here as a mutation
    * arm: replacing this body with `animation?.getSnapshot().status !== "done"` — the predicate
-   * review proposed — fails **40 of the 620** studio tests, AC2's among them, while AC1's and AC3's
-   * still pass. It refuses everywhere except a paced host, which is the opposite defect.
+   * review proposed — fails **41 of the 622** studio tests, AC2's among them, while AC1's and
+   * AC3's still pass.
    *
    * This reads the program's **clock** instead. Playback enters only as the floor, and the floor is
    * *compared against the clock*: a fully-drawn `wait 300` program has `floor === 300` and
@@ -1610,20 +1619,47 @@ export function createRunController(
    * scheduled and replayed before it could be found to be unreachable; it is now refused up front,
    * with the same `false` and the same untouched output.
    *
+   * ## What it does NOT close — measured, not assumed
+   * "Ended" here means **the program's clock offers no further yield**. That is narrower than
+   * `spec/interaction-events.md:198-204`'s "the run closes when the main line has finished", and a
+   * program that waited and *then* finished still reads live. Three presses each, immediate
+   * scheduler, each row identical at the merge-base `492cdff7` — so this predicate neither causes
+   * nor fixes any of them:
+   *
+   * | program | presses | replays | note |
+   * |---|---|---|---|
+   * | `wait 1 / on_key …` | `[false,false,false]` | 3 | the only yield precedes the registration |
+   * | `on_key … / wait 1 / print "after"` | `[true,true,true]` | 3 | `["after"]` becomes `["turned","turned","turned","after"]` |
+   * | `on_key … / wait 3 / forward 10` | `[true,true,true]` | 3 | main line finished; still live |
+   *
+   * The middle row inserts handler output ahead of a line the learner had already read. It is real,
+   * it is unchanged by this slice, and refusing it would contradict the ruling this predicate
+   * implements — *"if there is a `wait` the program is not ended"*. `rubber-duck` holds that this
+   * means #1039 is not fully met and the semantics need a maintainer decision; that question is open
+   * with `@orchestrator`. The shapes are pinned by
+   * `#1039: the shapes this predicate deliberately still accepts` so a ruling has a test to flip
+   * rather than prose to re-litigate.
+   *
    * An attempt still in flight is the one case it cannot judge; see the guard at the top of the body.
    */
   function programIsStillRunning(): boolean {
     if (attemptPending) {
       // An execution is in flight, so the chain's timeline still describes the PREVIOUS settlement
-      // and cannot say how far this program goes — an answered read routinely extends it. "An
-      // attempt is running" is itself the answer, and `drainDeliveredInput` already defers such a
-      // delivery rather than refusing it, for the reason #952 review finding 2 records: refusing
-      // makes the recorded schedule depend on settlement pacing and drops the key, where
-      // `spec/interaction-events.md:91-93` requires the most recent key/click state to be preserved.
+      // and cannot say how far this program goes — an answered read routinely extends it.
       //
-      // Measured without this line: `#976 AC2: a DEFERRED delivery is re-clamped past a read that
-      // finished while it waited` observes `["A","C","B"]` instead of `["A","C","turned","B"]` —
-      // the press dropped outright, silently — and five more tests fail with it.
+      // `attemptPending` is **host state, not program liveness**: review demonstrated that it also
+      // covers an execution which has already finished and whose settlement is merely still in
+      // transport. So this is not "the program is running"; it is "the studio does not yet know",
+      // and the conservative answer is to let the delivery be SCHEDULED. `drainDeliveredInput`
+      // already defers such a delivery rather than refusing it, for the reason #952 review finding 2
+      // records: refusing makes the recorded schedule depend on settlement pacing and drops the key,
+      // where `spec/interaction-events.md:91-93` requires the most recent key/click state to be
+      // preserved. `reclampUndeliveredTail` then re-judges its tick against the fresh settlement.
+      //
+      // Measured without this line, exactly two tests fail: `#976 AC2: a DEFERRED delivery is
+      // re-clamped past a read that finished while it waited` observes `["A","C","B"]` instead of
+      // `["A","C","turned","B"]` — the press dropped outright, silently — and `#976: a delivery
+      // racing resolveRead is EVENTUALLY replayed, with the answer retained`.
       return true;
     }
     const lastYieldedTick = lastTickTheRunYieldedAt();
@@ -1723,9 +1759,9 @@ export function createRunController(
 
   /**
    * The gate a **learner's** key or click must pass (#1039): everything
-   * {@link acceptsHostInputFor} requires, plus {@link programIsStillRunning} — a program that has
-   * genuinely ended refuses input rather than re-executing itself to discover it can do nothing
-   * with it.
+   * {@link acceptsHostInputFor} requires, plus {@link programIsStillRunning} — a program whose clock
+   * offers no further yield refuses input rather than re-executing itself to discover it can do
+   * nothing with it. See that predicate's doc for what "no further yield" does and does not cover.
    *
    * Deliberately **narrow**: it gates the two learner-facing deliveries only, not
    * {@link acceptsHostInput}, which also gates `drainDeliveredInput`'s loop and Stop's `when "stop"`
@@ -1733,10 +1769,17 @@ export function createRunController(
    * (`spec/interaction-events.md:152-156`) rather than input arriving at a live program, and the
    * drain loop must stay free to replay an occurrence already accepted.
    *
-   * Measured rather than assumed: folding the term into {@link acceptsHostInputFor} instead leaves
-   * all 620 studio tests green, so **nothing pins this boundary**. It is a scope choice, and its one
-   * observable cost today is that a Stop on a program whose clock never ticked still pays for the
-   * replay `#952 (QA finding 1)` records. Widening it is a separate decision, not this slice's.
+   * Both halves of that boundary are measured, and they do not behave alike:
+   *
+   * | folding the term into… | reaches | result |
+   * |---|---|---|
+   * | `acceptsHostInputFor` | Stop only | 1 fail — `#952 (QA finding 1)` |
+   * | the bare `acceptsHostInput` | the drain loop **and** Stop | 2 fail — that one plus `#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answer retained` |
+   *
+   * The drain-loop half was already pinned by that `#976` test. The Stop half was pinned by
+   * **nothing** until `#952 (QA finding 1)` gained a replay-count assertion, because the only
+   * observable that differs there is whether the notification replay happens at all — the output is
+   * `[]` either way, so no output-based test could discriminate.
    */
   function acceptsLearnerInputFor(registration: string): boolean {
     return acceptsHostInputFor(registration) && programIsStillRunning();

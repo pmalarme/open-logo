@@ -2659,7 +2659,7 @@ test("#1039 AC2: a program pausing in a `wait` is NOT ended — its handler runs
   // is `"done"` here the instant `run()` returns — asserted below — and a gate on playback reads the
   // same, because the immediate scheduler drains the whole stream inside `run()`. Measured: swapping
   // `programIsStillRunning`'s body for `animation?.getSnapshot().status !== "done"`, the predicate
-  // review proposed in #1027, fails 40 of the 620 studio tests and **this** test is one of them.
+  // review proposed in #1027, fails 41 of the 622 studio tests and **this** test is one of them.
   // No `scheduler` option is passed on purpose: this is the default, and the path such a gate would
   // have broken.
   const store = OL.createStudioState({
@@ -2702,9 +2702,13 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
   // previous explanation — that the immediate scheduler's `false` came from `ol-limit` landing at an
   // earlier tick than the press was scheduled at. It does not: measured, the press is scheduled at
   // tick 19 and the replay REACHES tick 19. The gate accepts under both schedulers and both cost one
-  // replay; what differs is the delivery floor, which the immediate scheduler pins to the final,
-  // budget-exhausted tick because everything is already drawn, while a paced host has drawn nothing
-  // and schedules at tick 0 with budget to spare.
+  // replay, so neither `false` is a refusal.
+  //
+  // The replacement cause is isolated by an arm rather than argued: forcing
+  // `currentDeliveryFloorTick()` to return `0` flips the immediate arm to `true` with output
+  // `["turned"]`, leaving the paced arm unchanged. The floor is what pins the press to the final,
+  // budget-exhausted tick when everything is already drawn; a paced host has drawn nothing, so the
+  // press schedules at tick 0 with budget to spare.
   //
   // The immediate arm's outcome is also **non-monotonic in the budget** — measured `true` at 40,
   // `false` at 60, `true` at 100, `false` at 200, `true` at 1000, `false` at 5000 — so it is a knife
@@ -2775,6 +2779,21 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
   });
 
   controller.run();
+
+  // Press BEFORE draining playback, and again after. Round 2 review built a mutant that survived a
+  // drain-only version of this test — `if (lastYieldedTick === null) return
+  // animation?.getSnapshot().status !== "done"` left all 622 green, because once playback is fully
+  // drawn `status` is `"done"` and the mutant agrees with the real predicate. Mid-playback it does
+  // not: the mutant reads "still running" and pays an execution. Measured under it, pressing here:
+  // `deliverKey` false, **1** extra execution, 2 playback steps still queued.
+  const beforeDrain = recorder.requests.length;
+  assert.equal(controller.deliverKey("left"), false, "refused mid-playback");
+  assert.equal(
+    recorder.requests.length,
+    beforeDrain,
+    "a `forever` with no yield cannot deliver at ANY point in playback — including while the picture is still being drawn",
+  );
+
   paced.drain();
   const afterRun = recorder.requests.length;
 
@@ -2900,6 +2919,7 @@ test("#1039: the shapes this predicate deliberately still accepts", () => {
       presses,
       replays: recorder.requests.length - before,
       output: store.getState().output,
+      diagnostics: store.getState().diagnostics,
     };
   }
 
@@ -2923,7 +2943,12 @@ test("#1039: the shapes this predicate deliberately still accepts", () => {
   assert.deepEqual(
     rewritten.output,
     ["turned", "turned", "turned", "after"],
-    'history is rewritten — "after" is no longer first, and no diagnostic says so',
+    'history is rewritten — "after" is no longer first',
+  );
+  assert.deepEqual(
+    rewritten.diagnostics,
+    [],
+    "and nothing reports it — the silence is the reason this shape is worth pinning rather than describing",
   );
 
   // 3. The main line has finished, which `:198-204` calls the run closing — but the clock yielded,

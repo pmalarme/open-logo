@@ -595,7 +595,7 @@ Two consequences, both deliberate:
   `animation.status` is `"done"` once `cursor >= events.length`; under the default
   `IMMEDIATE_SCHEDULER` playback drains inside `run()`, so **both read `"done"` for a program sitting
   in a `wait`**. Measured as a mutation arm: gating on `animation?.getSnapshot().status !== "done"`
-  fails **40 of the 620** studio tests, the `wait 300` case among them, because it refuses everywhere
+  fails **41 of the 622** studio tests, the `wait 300` case among them, because it refuses everywhere
   except a paced host. Both read *playback*; the ruling is about the *program*.
 
   So `run-controller.ts`'s `programIsStillRunning` asks a different question: **has this program got
@@ -649,8 +649,9 @@ Two consequences, both deliberate:
   the drain loop calls, fails `#976: a delivery racing resolveRead is EVENTUALLY replayed`; folding
   it into `acceptsHostInputFor`, which only reaches Stop, left the suite green until
   `#952 (QA finding 1)` gained a replay-count assertion. Dropping the `attemptPending` guard fails
-  two tests, `#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it waited`
-  observing `["A","C","B"]` instead of `["A","C","turned","B"]`.
+  exactly two tests: `#976 AC2: a DEFERRED delivery is re-clamped past a read that finished while it
+  waited`, which observes `["A","C","B"]` instead of `["A","C","turned","B"]`, and `#976: a delivery
+  racing resolveRead is EVENTUALLY replayed, with the answer retained`.
 - **Known limitation — under the synchronous replay host a handler registered *by* a handler cannot
   be reached.** With the default `IMMEDIATE_SCHEDULER` the animation is fully drawn the moment a
   replay settles, so every delivery lands on the program's final tick, and the runtime claims pending
