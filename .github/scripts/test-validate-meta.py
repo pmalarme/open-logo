@@ -70,7 +70,8 @@ for label, content, should_pass in CASES:
 #: Every npm Definition-of-Done gate, written out independently of package.json.
 ALL_GATES = [
     "build", "typecheck", "lint", "format:check", "test",
-    "conformance", "examples", "built-in-names", "spec-citations", "coverage",
+    "conformance", "examples", "built-in-names", "spec-citations", "adr-numbering",
+    "coverage",
 ]
 
 #: The Python metadata gates, written out INDEPENDENTLY of how validate-meta.py derives them.

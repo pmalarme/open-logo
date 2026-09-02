@@ -1,4 +1,4 @@
-# 21. Documentation examples are gated, with an out-of-tree expectations manifest
+# 22. Documentation examples are gated, with an out-of-tree expectations manifest
 
 - Status: Accepted
 - Date: 2026-08-22

@@ -164,9 +164,10 @@ npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
 npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
-These ten scripts are the CI-enforced Definition of Done; see
+The scripts listed above are the CI-enforced Definition of Done; see
 [`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
@@ -261,6 +262,17 @@ keyed by a hash of the citing line, the citation, the entry's own `why`, **and t
 tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
 be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
 `UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
+
+`npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
+that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own
+`# N.` heading, every markdown link or written-out `docs/adr/NNNN-….md` path resolves **from where it
+is written** (so a wrong `../` depth fails), and a link labelled `ADR-NNNN` really resolves to that
+ADR. Nothing checked any of this, which is how two Accepted ADRs both came to carry `0025` (#1036).
+**Read the coverage statement it prints.** It scans tracked files *plus* untracked, non-ignored ones,
+so a file you have not `git add`ed yet is still checked — but it reads **one tree**, so two branches
+can each claim the same next-free number and only the second merge goes red; and it cannot judge a
+bare `ADR-NNNN` in prose, which names no path. Verify the next free number in-tree before writing an
+ADR, and again before you commit. See [ADR-0030](docs/adr/0030-adr-numbering-is-gated.md).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel
