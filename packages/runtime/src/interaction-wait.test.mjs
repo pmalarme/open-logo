@@ -854,7 +854,8 @@ test("#953/#1034: charging a tick creates no additional step or `instruction` ev
   // past some count, and so passes every witness whose n is below that count.
   //
   // That blindness is structural, not incidental: the largest `wait` literal anywhere in
-  // `tests/conformance/**/*.logo` is this slice's own 300, across 63 fixtures that use `wait`. So
+  // `tests/conformance/**/*.logo` is this slice's own 300, across the 61 fixtures that invoke
+  // `wait` (63 contain the token; two are `define wait` negative cases that never call it). So
   // the corpus cannot catch a threshold at or above 300 at all, no matter how many fixtures are
   // added at that scale. Measured by the reviewing QA at a threshold of 1000 and reproduced here:
   // all 942 conformance fixtures pass, all five pre-existing witnesses pass, and this test alone
