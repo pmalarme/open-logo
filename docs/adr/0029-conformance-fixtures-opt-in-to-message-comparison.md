@@ -21,10 +21,12 @@ than an edit.
 **What the exclusion actually produced.** Measured at `9f738989`, the commit immediately preceding
 the merge of #1026: **306** of **632** expected diagnostics, spread across **193** of **934**
 `tests/conformance/**/*.expected.json` files, carried a `message` field that no code path read.
-(Probe: parse every `*.expected.json` at that tree, count `Object.hasOwn(diagnostic, "message")`, and
-count the fixtures setting `compareMessages` — the second count is **0**, because the flag first
-appears in `scripts/harness/index.mjs` at `4ad13363`, which is why ADR-0010's sentence was accurate
-on its own date.)
+(Probe: parse every `*.expected.json` at that tree and count
+`Object.hasOwn(diagnostic, "message")`.) ADR-0010's sentence was accurate on its own date, and the
+direct evidence is its own commit rather than the later arrival of the flag: at `1abbf732`, which
+added ADR-0010, `compare()` built each diagnostic through a projection that omits `message` outright,
+under the comment *"Exclude "message" from comparison (prose may change under
+localization/rewording)."*
 
 That the corpus could not detect a change to the wording is not inferred from the code's shape; it
 is measurable at the current tree. With the message comparison forced off in `compare()` and the
@@ -36,10 +38,13 @@ exists to detect. Not one ordinary fixture notices. (Measured at `492cdff7`.)
 **What was missing was the ADR, specifically.** The decision was not undocumented: the fixture
 format documentation in `tests/conformance/README.md` states the opt-in, both rejected directions,
 the per-diagnostic grain and the "opt in only where the spec fixes the words" rule for fixture
-authors, and tests enforce all of it. What did not exist was any **ADR-level** record — searching
-`docs/adr/` for the contract finds ADR-0010's sentence and nothing else — so the architecture
-history said the opposite of the code, and the decision that replaced it (taken in #1025/#1026, its
-last hole closed by #1028/#1029) had no entry in the decision log.
+authors. The loader enforces the structural half of that mechanically — the relationships between
+the flag, a `message` and the fixture's polarity — while *which* codes deserve an opt-in stays an
+authoring policy no harness can check, since nothing in the fixture format tells it whether the spec
+fixes a given code's wording. What did not exist was any **ADR-level** record — searching `docs/adr/`
+for the contract finds ADR-0010's sentence and nothing else — so the architecture history said the
+opposite of the code, and the decision that replaced it (taken in #1025/#1026, its last hole closed
+by #1028/#1029) had no entry in the decision log.
 
 ## Decision
 
@@ -144,16 +149,25 @@ forward (`AGENTS.md`; [ADR-0000](0000-record-architecture-decisions.md)).
   `492cdff7`, by both counts.
 - **A fixture author opts in only where the spec fixes the words**, and the fixture format
   documentation in `tests/conformance/README.md` is where that rule is stated for authors.
-- **This ADR cites `spec/` by section anchor and quotation rather than by line, deliberately** — and
-  the reasoning is a judgement about two separately observed failure modes, not one observed
-  incident, so both are stated as what they are. First, a defect inside an Accepted ADR cannot be
-  repaired in place: `scripts/spec-citations-exceptions.json` carries a **permanent** entry for
-  `docs/adr/0007-conformance-harness.md` whose own `why` gives immutability as the reason it can
-  never be deleted — though the defect there is a status claim, not a citation. Second, line
-  citations in prose do rot: the same manifest carries `stale-citation` entries for
-  `docs/design-notes/0003-…` whose `spec/commands.md` line numbers now land on blank space — though a
-  design note is not an ADR and is freely editable. The compound case, a rotted line citation inside
-  an immutable ADR, has **not** been observed here; this ADR simply declines to be the first.
+- **This ADR cites `spec/` by section anchor and quotation rather than by line, deliberately**, and
+  the evidence is two observed cases plus one limit of the amendment rules — stated separately,
+  because each carries a different part of the argument. First, **line citations in immutable prose
+  do rot, and that is observed here rather than predicted.** ADR-0010's `error-model.md:193-194`
+  pointed at exactly the text it claims when ADR-0010 was added at `1abbf732` (those lines then read
+  *"…the same `ol-*` code and structured params for the same condition. Tests and editor tools SHOULD
+  assert codes and params, not English text."*); at `492cdff7` they hold a blank and the
+  `## Did-you-mean` heading. The same manifest records the pattern in a sibling record:
+  `scripts/spec-citations-exceptions.json` carries `stale-citation` entries for
+  `docs/design-notes/0003-…`, whose `spec/commands.md` line numbers now land on blank space — and
+  that document is a Language Design Record, not an ADR, but `docs/design-notes/0000-…` makes LDRs
+  "immutable once Accepted" under the same convention, so it is not the freely-repairable case it
+  might look like. Second, **a defect inside such a record is hard to repair in place**: `AGENTS.md`
+  excepts "typo/link fixes", so a re-pointed citation is arguably permitted, but the repository's
+  operative practice is the stronger signal — the manifest's permanent entry for
+  `docs/adr/0007-conformance-harness.md` reads the rule as *not* permitting the edit and calls itself
+  permanent by design, and that entry is a status claim rather than a citation. What has **not** been
+  observed in `docs/adr/` is the full compound: a rotted line citation there that also fails CI.
+  ADR-0010's escapes only by the accident described next. This ADR declines to rely on that accident.
 - **Two independent blind spots keep ADR-0010's own stale citation invisible, and only the second is
   the one people expect.** ADR-0010 cites `error-model.md:193-194` for "identity is `code` +
   `params`"; those lines now hold a blank and the `## Did-you-mean` heading, while the statement
