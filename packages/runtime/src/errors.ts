@@ -785,13 +785,23 @@ export const runtimeDiag = {
    * frame. Distinct from the semantic-stage rule of the same code the checker will raise for
    * source it can prove unbound ahead of time (issue #113) — this is the runtime's own guard for
    * the same defect, since `execute()` never runs `check()`.
+   *
+   * Variable resolution is case-insensitive (`lookupVar` folds the name to lowercase before
+   * probing every frame), so `:SomeVar` and `:somevar` name the *same* absent binding — one
+   * condition. The diagnostic's identity must reflect that single condition: `spec/error-model.md`
+   * makes a diagnostic's identity its `code` **plus `params`**, and both the checker's
+   * `ol-undefined-var` (issue #113) and this runtime guard must agree on it whatever the source
+   * casing. The checker keys `params.name` on the *folded* name (the resolution identity); this
+   * folds identically so the two stages report one name for one condition (issue #1005). The
+   * learner message uses the same folded spelling so message and param never disagree.
    */
   undefinedVar(source_span: SourceSpan, name: string): Diagnostic {
+    const resolvedName = name.toLowerCase();
     return runtimeError(
       "ol-undefined-var",
       source_span,
-      { name },
-      `:${name} has no value yet — try assigning it with :${name} = ... first.`,
+      { name: resolvedName },
+      `:${resolvedName} has no value yet — try assigning it with :${resolvedName} = ... first.`,
     );
   },
 
