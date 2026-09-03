@@ -1,5 +1,5 @@
 {
-  "description": "map produces a fresh list of the body value per element, in order (spec/execution-model.md:418-419,874-890). Issue #105.",
+  "description": "map produces a fresh list of the body value per element, in order (spec/execution-model.md:418-419,973-989). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
