@@ -76,7 +76,18 @@ Handlers are registered during program execution. Registering a handler does not
 run its block immediately unless the triggering event is already being delivered
 by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
-block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
+block-result rule. A handler block captures the variable bindings visible at its
+registration site **by reference**, not by snapshot value — including a
+procedure call's parameters and locals, if the handler is registered inside a
+procedure call — and if that call has since returned, the call's frame remains
+alive for as long as any handler registered inside it may still fire (see
+[Variables, scoping, and procedures](execution-model.md#variables-scoping-and-procedures)).
+`return`, `output`, `op`, and `stop` inside a handler block follow their ordinary
+rule regardless: a handler invocation is never dynamically "inside" the
+procedure call that registered it, so `return`/`output`/`op` outside any
+procedure raises `ol-return-outside-proc` and `stop` outside any procedure raises
+`ol-stop-outside-proc`, whether or not that registering call is still on the
+stack. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary

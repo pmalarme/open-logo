@@ -1,5 +1,5 @@
 {
-  "description": "issue #686 (slice I7): two `every 1` handlers registered in order both come due on the same tick and fire in REGISTRATION order (print 1 before print 2), every tick the `wait 2` pause advances through - a deterministic, reproducible sequence proving same-tick dispatch orders multiple handlers of one kind by registration (spec/interaction-events.md:84-89, 'due `every` events in registration order'). Headless: no host input, so only the tick-driven `every` kind fires; the stream carries no tick or timing in any payload.",
+  "description": "issue #686 (slice I7): two `every 1` handlers registered in order both come due on the same tick and fire in REGISTRATION order (print 1 before print 2), every tick the `wait 2` pause advances through - a deterministic, reproducible sequence proving same-tick dispatch orders multiple handlers of one kind by registration (spec/interaction-events.md:95-100, 'due `every` events in registration order'). Headless: no host input, so only the tick-driven `every` kind fires; the stream carries no tick or timing in any payload.",
   "profiles": ["core-language", "interaction-events"],
   "execute": true,
   "events": [

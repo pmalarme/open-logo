@@ -454,8 +454,8 @@ export interface ReturnInComprehensionParams {
 /**
  * Params for an `ol-type` raised by a worded `is`-predicate's or a prefix `?`-predicate's operand
  * (`spec/execution-model.md:158-166`): `is empty`/`empty?` accepts a list, dict, or word
- * (`spec/commands.md:671`), `is member of`/`member?` accepts a list or dict as the collection
- * (`spec/commands.md:689`), and the prefix `is_a? value type` form's dynamically evaluated `type`
+ * (`spec/commands.md:706`), `is member of`/`member?` accepts a list or dict as the collection
+ * (`spec/commands.md:724`), and the prefix `is_a? value type` form's dynamically evaluated `type`
  * argument must itself be a word. Same shape as {@link OrderingTypeErrorParams}/
  * {@link PlaceTypeErrorParams} — `operation` names the offending predicate for the message.
  */
@@ -540,7 +540,7 @@ export interface NonPositiveWidthParams {
 
 /**
  * Params for an `ol-range` raised by `set_tempo` (issue #689) when its argument is a number but not
- * positive and finite (`spec/interaction-events.md:289` — "one positive number"; the default tempo
+ * positive and finite (`spec/interaction-events.md:300` — "one positive number"; the default tempo
  * is `120`). Only reached once {@link requireNumber} has already confirmed the argument is a number
  * at all (a non-number raises `ol-type` first, mirroring {@link NonPositiveWidthParams}'s
  * `set_width` order). `value` is rendered as `String(value)` for the same JSON-safety reason as
@@ -1077,7 +1077,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-repcount-outside-repeat`: `repcount` was used outside any enclosing `repeat`
-   * (`spec/commands.md:792`). Registry stage is `semantic`, but raised here at `stage: "runtime"`
+   * (`spec/commands.md:827`). Registry stage is `semantic`, but raised here at `stage: "runtime"`
    * — same convention as `ol-not-a-place`/`ol-undefined-var` — since `execute()` never runs
    * `check()`. Params are `none` per the registry.
    */
@@ -1540,7 +1540,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range` (issue #689) — `set_tempo`'s argument is a number but not positive and finite
-   * (`spec/interaction-events.md:289`: "one positive number"). Only reached once
+   * (`spec/interaction-events.md:300`: "one positive number"). Only reached once
    * {@link requireNumber} has already confirmed the value is a number. See
    * {@link NonPositiveTempoParams}.
    */

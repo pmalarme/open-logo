@@ -2,8 +2,9 @@
 // the grammar's four declaration slots (spec/grammar.md:382,386 — maintainer ruling #833), so it
 // registers nothing callable and never raises `ol-reserved-word`; `keyword-binding-forms.test.mjs`
 // pins that. This file confirms the merged parser's exact AST shape for both local-statement forms
-// defined by spec/grammar.md:155
-// (`local-statement ::= "local" name | "(" "local" name { name } ")"`) — a `Local` node whose
+// defined by spec/grammar.md:156
+// (`local-statement ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"`) — a
+// `Local` node whose
 // `names` are `SpannedName`s, not colon-places or `VarRef`s — plus documents, as known-gap unit
 // tests (not conformance fixtures, since the M1 harness is parse-only), that: (a) an initializer
 // form `local x = 1` is not supported — the parser stops after the bare name and reports

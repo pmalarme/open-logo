@@ -235,7 +235,7 @@ test("the word is quoted back in the learner's own spelling, and matching is cas
 });
 
 test("a profile word is rejected as a parenthesized-call callee too, in either position", () => {
-  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:215`), and
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:217`), and
   // `spec/grammar.md:390` matches a keyword as `callable-name` "only where the C3 primitive matrix
   // also gives that word a callable form" — which none of the six Kind-S words has. (`tell` DOES,
   // which is why it is exempt; see its own test above.) The Core control `( key 1 )` is already a

@@ -66,7 +66,7 @@ const PRIMITIVE_TABLES = [
   spritesPrimitiveArity,
 ];
 
-/** Every Heritage alias spelling; `spec/grammar.md:359` makes an alias a built-in name too. */
+/** Every Heritage alias spelling; `spec/grammar.md:361` makes an alias a built-in name too. */
 const HERITAGE_ALIASES = new Set(heritageAliasNames());
 
 /**

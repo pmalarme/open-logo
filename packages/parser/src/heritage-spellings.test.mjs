@@ -4,7 +4,7 @@
 //   1. PARSING — `to … end` lowers to the same `ProcedureDef` node as `define … end` (discriminated
 //      by `keyword: "to"`), and `output`/`op` lower to the same `Return` node as `return`
 //      (discriminated by `keyword`). Heritage adds no new grammar shape, only alternate spellings
-//      (spec/conformance.md#heritage, spec/grammar.md:146,150).
+//      (spec/conformance.md#heritage, spec/grammar.md:148,152).
 //
 //   2. THE FORM-HEAD PROFILE GATE — the net-new checker rule (`checker-heritage-form.ts`) that
 //      closes the silent-regression trap from issue #151: with the Heritage profile INACTIVE, each
@@ -93,7 +93,7 @@ test("a `to` opener that begins an inline block body registers arity, matching n
 });
 
 test("a `to` procedure closes with `end` or `end define`, never `end to`", () => {
-  // spec/grammar.md:149 — `define-end ::= "end" [ "define" ]` is shared by both spellings.
+  // spec/grammar.md:150 — `define-end ::= "end" [ "define" ]` is shared by both spellings.
   parseClean("to greet\n  print 1\nend define\n");
   const { diagnostics } = OL.parse("to greet\n  print 1\nend to\n", doc);
   assert.ok(diagnostics.length > 0, "`end to` is not a valid procedure close");

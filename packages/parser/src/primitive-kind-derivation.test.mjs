@@ -10,7 +10,7 @@ import * as OL from "@openlogo/parser";
  * "the commands", and `@openlogo/runtime`'s `evaluate.ts` carried a verbatim second copy. Both
  * halves were wrong in both directions at once — `:x = map n in [1 2 3] [ forward :n ]` was silent
  * in `check()` AND in `execute()` where `print` raised `ol-no-value`, while
- * `repeat 4 [ forward 100 right 90 ]` — `spec/grammar.md:271` and `:294`, the specification's own
+ * `repeat 4 [ forward 100 right 90 ]` — `spec/grammar.md:273` and `:296`, the specification's own
  * instruction-block example — earned `ol-style-useless-value` with the style layer on.
  *
  * The fix makes each primitive's **Kind** a mandatory column of its registration row in
@@ -444,7 +444,7 @@ test("challenge is classified a command even though it has no checker visibility
 });
 
 test("the spec's own instruction-block example is style-clean (issue #932)", () => {
-  // `repeat 4 [ forward 100 right 90 ]` is `spec/grammar.md:271` and `:294`.
+  // `repeat 4 [ forward 100 right 90 ]` is `spec/grammar.md:273` and `:296`.
   const profiles = ["core-language", "turtle-rendering", "heritage"];
   assert.deepEqual(
     checkCodes("repeat 4 [ forward 100 right 90 ]", profiles, true),

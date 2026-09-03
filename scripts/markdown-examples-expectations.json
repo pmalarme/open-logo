@@ -184,6 +184,27 @@
       "kind": "non-terminating",
       "why": "The C3 example for `forever`, whose own 'Possible errors' line is `ol-limit`. It runs until the budget stops it, by definition.",
       "codes": ["ol-limit"]
+    },
+    {
+      "fingerprint": "e07261051022fca2",
+      "excerpt": "define grow :n",
+      "kind": "implementation-behind",
+      "why": "Issue #821's sealed-boundary/lifetime ruling defines `global name = value` normatively, but the parser/runtime slice that implements it (#824) has not landed yet: the parser reports `ol-unknown-command` for `global` and the subsequent reads/writes cascade into `ol-bad-token`/`ol-not-enough-inputs`/`ol-undefined-var`. The spec text is correct; the implementation has not caught up.",
+      "issue": "#824",
+      "codes": [
+        "ol-bad-token",
+        "ol-not-enough-inputs",
+        "ol-undefined-var",
+        "ol-unknown-command"
+      ]
+    },
+    {
+      "fingerprint": "2774f72aed5da4eb",
+      "excerpt": "global count = 0",
+      "kind": "implementation-behind",
+      "why": "Same staged spec-then-code gap as this document's `local`/`global` example above: issue #821 rules `global name = value` normatively, but #824 (the parser/runtime slice) has not landed, so `global` still raises `ol-unknown-command` and the dependent lines cascade into `ol-bad-token`/`ol-not-enough-inputs`.",
+      "issue": "#824",
+      "codes": ["ol-bad-token", "ol-not-enough-inputs", "ol-unknown-command"]
     }
   ],
   "spec/data-structures.md": [

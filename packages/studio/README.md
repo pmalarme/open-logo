@@ -183,7 +183,7 @@ shapes with an **attempt chain**.
   `InputPromptHost`: the run controller `present()`s one outstanding question through it, and the
   learner ends it with `submit(answer)` or `cancel()`. `cancel()` *is* the runtime reader's own
   `undefined` — the read ends unanswered, which cancels the run
-  (`spec/interaction-events.md:110-111`). `dismiss()` is the third path: Stop/Reset withdraw a
+  (`spec/interaction-events.md:132-133`). `dismiss()` is the third path: Stop/Reset withdraw a
   question without answering it, so the responder is dropped rather than called.
   `mapInputPromptRequestToView` is the one place the visible/hidden + label decisions are made, so
   `web/main.ts` stays a branch-free wiring layer.
@@ -295,7 +295,7 @@ appends to live, so the stream is readable **during** execution rather than only
 returns. Rely on its contents, not on identity: for a program that runs it is the same array
 `ExecuteResult.events` reports, but a call returning before an execution environment exists — a
 parse failure, say — never reaches the sink and reports its own separate empty array.
-`spec/interaction-events.md:108-110` explicitly permits continuing to render
+`spec/interaction-events.md:130-132` explicitly permits continuing to render
 already-emitted events while `input` waits, and this is the seam that makes that allowance reachable.
 
 **A settlement carries reduced output, not just events.** Structured clone drops class prototypes: an
@@ -345,7 +345,7 @@ parsed and executed, never that any of its interaction did anything.
 installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
 
 - `deliverKey(keyWord)` — one key press, as the lowercase word
-  `spec/interaction-events.md:221-225` defines.
+  `spec/interaction-events.md:243-247` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
 `deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** — read
@@ -470,9 +470,9 @@ announcing it would file a run-log entry per keystroke.
   (measured: `step()` then `run()` leaves `runStatus` at `"running"` and refuses delivery). That
   fails safe — it refuses, never intercepts;
 - the program actually registered a handler of that kind, according to its own `primitive` trace
-  event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
+  event (`spec/interaction-events.md:142-144`), so a non-interactive program is never re-executed by
   a stray keystroke;
-- **no `input` question is outstanding right now.** `spec/interaction-events.md:108-111` blocks
+- **no `input` question is outstanding right now.** `spec/interaction-events.md:130-133` blocks
   handlers *until the read finishes*, and this is exactly that — a transient block, matching the
   spec's "until". Until #976 the studio was stricter: a chain that had *ever* asked a question
   refused delivery for the rest of its life, because a delivery was then scheduled at a synthetic
@@ -489,7 +489,7 @@ announcing it would file a run-log entry per keystroke.
 | --- | --- | --- |
 | `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
 | `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes |
-| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:108-111`: a delivery must not land at or before a read it should have followed | yes, 1 test |
+| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:130-133`: a delivery must not land at or before a read it should have followed | yes, 1 test |
 
 **The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
 an occurrence appended **re-entrantly during** `drainDeliveredInput`'s loop — the re-clamp runs once
@@ -517,7 +517,7 @@ re-derive them — that enumeration is what caught the bug below:
 Deleting the schedule-time copy without adding the second call was
 a regression review caught: `stop()` does not drain, so its `when "stop"` notification kept tick 0,
 was consumed during a leading `wait` before the handler had registered, and the pre-termination
-notification `spec/interaction-events.md:152-156` requires was lost with no diagnostic. One function
+notification `spec/interaction-events.md:174-178` requires was lost with no diagnostic. One function
 called twice rather than a floor duplicated at each site, because duplication is exactly the
 redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests.
 
@@ -570,7 +570,7 @@ one and costs 2. An ordinary drawing step spends no tick and costs exactly 1, so
 the Interaction profile paces exactly as it did before.
 
 The step is priced **before** it runs, from `TurtleAnimationController.nextStepEndIndex()`, not
-after. That matters for `spec/interaction-events.md:116-118` — "hold itself open with a long `wait`
+after. That matters for `spec/interaction-events.md:138-140` — "hold itself open with a long `wait`
 while those handlers drive the animation" — because that is a *trailing* `wait`, and a trailing step
 has no successor to charge: pricing backwards left `wait 20` and `wait 1` both at 1010. Asking the
 animation controller rather than re-deriving the step boundary keeps #1022's single definition
@@ -583,7 +583,7 @@ Two consequences, both deliberate:
   an artifact of the counter rather than a decision.
 
   **Delivery closes for a program whose clock offers no further yield (#1039).** An earlier version
-  of this bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
+  of this bullet argued from `spec/interaction-events.md:403-406` that *cancellation* is what "stops future
   handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
   `:381-384` says cancellation stops delivery, it does **not** say cancellation is the only way a run
   closes — and `:198-200` says plainly that once the main line has finished "the run closes". The
@@ -691,7 +691,7 @@ that read is withdrawn rather than left answerable over a `"stopped"` run.
 
 ### Supported key words
 
-`spec/interaction-events.md:224-225` asks implementations to document theirs.
+`spec/interaction-events.md:246-247` asks implementations to document theirs.
 `src/key-words.ts`'s `normalizeKeyWord` maps a browser `KeyboardEvent.key` onto:
 
 | Key | Word |

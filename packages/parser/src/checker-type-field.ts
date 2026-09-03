@@ -19,11 +19,11 @@
  * `struct` declaration, formally part of the **Data** profile (`spec/data-structures.md`).
  * {@link unknownFieldRule} wires the *statically knowable* slice: a `.field` **read** whose base is
  * a direct struct-constructor call — `(point 0 0).z` — has a type the checker knows exactly, so an
- * unknown field is reported at `check()` time (`spec/tooling.md:193`: a tool SHOULD report a
- * statically knowable use of an otherwise-runtime code; `:186` lists `ol-unknown-field` in the
+ * unknown field is reported at `check()` time (`spec/tooling.md:195`: a tool SHOULD report a
+ * statically knowable use of an otherwise-runtime code; `:187` lists `ol-unknown-field` in the
  * checker table). It deliberately does **not** touch a `:p.field` access: statically resolving that
  * needs `:p`'s struct type, which in turn needs tracking a variable's type across assignments —
- * exactly the speculative inference `spec/tooling.md:196-200` forbids when a value is only known
+ * exactly the speculative inference `spec/tooling.md:197-201` forbids when a value is only known
  * dynamically. The runtime (`@openlogo/runtime`) therefore stays the authoritative source of
  * `ol-unknown-field` for the variable-base case: it validates every field read/write against the
  * record's actual declared fields at execution time (issue #329), reusing this module's

@@ -264,7 +264,7 @@ export interface Environment {
   readonly instructionCount: { count: number };
   /**
    * The main line's statement-boundary hook (maintainer ruling #984,
-   * `spec/interaction-events.md:189-204`). While set, {@link executeStatements} runs it before each
+   * `spec/interaction-events.md:200-215`). While set, {@link executeStatements} runs it before each
    * statement, giving a queued `every` occurrence the chance to run that the ruling requires: "run it
    * once the handler is free" for as long as the main line has not finished.
    *
@@ -400,7 +400,7 @@ export interface Environment {
    * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
    * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
    * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
-   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * take and the read ends the only other way `spec/interaction-events.md:121-122` allows — as a
    * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
    * observable in any event payload: the `primitive` event a read emits carries only the name
    * `input`, never the prompt or the submitted text.
@@ -422,7 +422,7 @@ export interface Environment {
    * `responses` the single JSON-expressible convention the #657 ruling asked for.
    *
    * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
-   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * `spec/interaction-events.md:119-122`'s "MUST NOT run new OpenLogo instructions or event handler
    * blocks" holds by construction: there is no suspension point at which anything else could run.
    */
   readonly hostReader?: HostInputReader;
@@ -2654,7 +2654,7 @@ function evaluateNot(
  * (`packages/parser/src/parser.ts`'s `parseParenthesized` gathers every operand up to it) and the
  * static checker never arity-checks a grammar operator callee (`checker-arity.ts`), so `(and)`
  * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
- * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
+ * boolean` (`spec/commands.md:601,620`) — two operands minimum — so fewer than two would
  * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
  * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
  */
@@ -3249,7 +3249,7 @@ function recordEqual(
 
 /**
  * Lexicographic comparison of two words by Unicode code point
- * (`spec/execution-model.md:509`). `Array.from` iterates by code point (not UTF-16 code unit),
+ * (`spec/execution-model.md:712-713`). `Array.from` iterates by code point (not UTF-16 code unit),
  * so astral characters sort by their true scalar value. Returns a negative number, `0`, or a
  * positive number when `a` sorts before, equal to, or after `b`.
  */
@@ -4756,7 +4756,7 @@ function evaluateTurtles(
 
 /**
  * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
- * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * `spec/interaction-events.md:137-148`): a Kind-R reporter taking one prompt that displays the
  * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
  * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
  * `spec/conformance.md:167-169`).
@@ -4825,7 +4825,7 @@ function evaluateInput(
 
 /**
  * Perform the read itself: display `promptText` to the host and wait for the one value the learner
- * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * enters (`spec/interaction-events.md:145`). Reports the submitted text, or `undefined` when the
  * read cannot be answered at all.
  *
  * Two hosts, one meaning. A caller that supplied a live reader
@@ -4836,7 +4836,7 @@ function evaluateInput(
  * reader wins when both are present: a run with a real host must never quietly prefer a stale
  * script.
  *
- * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md:119-122`'s "MUST
  * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
  * not by a check, but by there being no suspension point at which anything else could be scheduled.
  * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
@@ -5290,7 +5290,7 @@ function comprehensionDuplicateBinder(
 /**
  * Run the main line's statement-boundary hook at a comprehension iteration and report a halting
  * diagnostic, or `undefined` to continue (maintainer ruling #984,
- * `spec/interaction-events.md:189-204`).
+ * `spec/interaction-events.md:200-215`).
  *
  * A comprehension body is an **expression**, so it never reaches `executeStatements` and never sees
  * that function's per-statement boundary — yet each iteration is main-line progress exactly as a

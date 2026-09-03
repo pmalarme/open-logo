@@ -757,7 +757,7 @@ test("debug distinguishes the main turtle from another turtle, naming it turtle 
 });
 
 test("debug names turtles with the same `turtle #<id>` tag a turtle value prints as", () => {
-  // `spec/turtles-and-sprites.md:13` / `spec/execution-model.md:540`: a turtle's printed form is
+  // `spec/turtles-and-sprites.md:13` / `spec/execution-model.md:675`: a turtle's printed form is
   // `turtle #<id>`. `debug` uses the same tag so a learner can line its clauses up against what
   // `print who` just showed them, rather than having to translate between two spellings. The tag
   // is taken from the runtime's own `printedForm`, so the two cannot drift apart silently.

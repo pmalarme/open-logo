@@ -1,5 +1,5 @@
 {
-  "description": "A colon-place is INVALID after `set` (spec/grammar.md:104 requires a bare-place): `set :x` fails immediately because the token after `set` must be a bare name, not `:x`, reporting a single ol-bad-token at the colon-place token.",
+  "description": "A colon-place is INVALID after `set` (spec/grammar.md:107 requires a bare-place): `set :x` fails immediately because the token after `set` must be a bare name, not `:x`, reporting a single ol-bad-token at the colon-place token.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

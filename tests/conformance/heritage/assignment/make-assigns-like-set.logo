@@ -1,4 +1,4 @@
-# The Heritage assignment spelling (spec/grammar.md:105 make-assignment ::= "make" word-literal
+# The Heritage assignment spelling (spec/grammar.md:108 make-assignment ::= "make" word-literal
 # expression; spec/conformance.md:270 — an alternate spelling only, no new semantics). `make`
 # binds `count` exactly as `set count to 7`/`:count = 7` would, so the later `:count` read returns
 # the value it stored (mutate nearest binding, else create global — spec/execution-model.md:318).

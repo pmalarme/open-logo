@@ -2,7 +2,7 @@
 // trace/event stream *while* a run is suspended inside `hostInput.read`, rather than only when
 // `execute()` returns.
 //
-// It exists to make a normative allowance reachable. `spec/interaction-events.md:108-110`: "While
+// It exists to make a normative allowance reachable. `spec/interaction-events.md:130-132`: "While
 // `input` is waiting, the implementation MAY continue rendering already-emitted trace events, but
 // it MUST NOT run new OpenLogo instructions or event handler blocks until the read finishes or the
 // program is cancelled." The reader is called with the prompt and nothing else, so before this

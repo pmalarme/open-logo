@@ -53,7 +53,7 @@
  * handler is registered, a delivered handler emits the block-head `instruction` event, and `wait`
  * emits its `primitive` after the pause completes; the normative same-tick delivery order
  * `when` -> `on_key` -> `on_click` -> due `every`, each in registration order
- * (`spec/interaction-events.md:84-89`), is pinned both across kinds and — as of this slice — WITHIN
+ * (`spec/interaction-events.md:106-111`), is pinned both across kinds and — as of this slice — WITHIN
  * each of the four kinds at a shared drain point; the six forms are gated behind the
  * `interaction-events` profile in the checker both ways; and the Interaction conformance fixtures are
  * green in the full DAG, including the `ol-type`/`ol-range` negatives for `every`/`wait`, the

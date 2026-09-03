@@ -748,7 +748,7 @@ test("#1021: the lookahead does not swallow a parenthesized call", () => {
 // #1021 fixed the branch by asking one question — *does an infix operator follow the head?* — and
 // this comment claimed "the grammar makes that lookahead total". It is not: an infix operator is not
 // the only thing the grammar lets follow a complete `primary`. A **postfix segment** does too
-// (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`), and the
+// (`spec/grammar.md:194`, `postfix-expression ::= primary { selector | "." identifier }`), and the
 // branch was blind to both of its spellings, so the parenthesized and bare readings disagreed.
 //
 // Measured at `f3066730`, before the fix, with the `origin`/`pair` prelude below:

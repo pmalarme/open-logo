@@ -159,7 +159,7 @@ test("a `throw` inside an ask block surfaces its ol-user-error", () => {
 test("#748: ask with a turtle listed twice addresses it once — the block's command applies once, and the previous set is still restored", () => {
   // `ask` builds its scoped set through the same `turtleIdsFor` as `tell`, so `ask [ :a :a ]`
   // addresses :a ONCE (spec/turtles-and-sprites.md:44's "addressed set" + :113's "once for each
-  // addressed turtle"; turtle `==` is "Same turtle identity", spec/execution-model.md:540). One move
+  // addressed turtle"; turtle `==` is "Same turtle identity", spec/execution-model.md:675). One move
   // for :a inside the block, then the trailing `forward 20` for the restored default main turtle.
   const result = execute(
     ":a = new_turtle\nask [ :a :a ] [ forward 10 ]\nforward 20",

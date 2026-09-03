@@ -1,4 +1,4 @@
-// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:126-137`,
+// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:148-159`,
 // `spec/conformance.md:167-169`). `input` is the Interaction & Events profile's Kind-R reporter:
 // it displays a prompt, waits for the learner to enter one value, and reports a **number** when the
 // submitted text parses as an OpenLogo number literal or a **word** preserving the entered text
@@ -46,10 +46,10 @@ function printedValues(result) {
     .flatMap((event) => event.payload.values);
 }
 
-// --- `spec/interaction-events.md:136-137`: number literal → number, anything else → word ---------
+// --- `spec/interaction-events.md:158-159`: number literal → number, anything else → word ---------
 
 test("a submitted answer that parses as a number literal reports a NUMBER", () => {
-  // `spec/interaction-events.md:136-137`: "If the submitted text parses as an OpenLogo number
+  // `spec/interaction-events.md:158-159`: "If the submitted text parses as an OpenLogo number
   // literal, the reporter returns a number."
   //
   // Discriminated by TYPE, not by arithmetic. `:answer + 1` would prove nothing here: OpenLogo's `+`
@@ -157,7 +157,7 @@ test("interpretSubmittedText reports a word for anything that is not exactly one
 // --- The after-effects a read produces: the `primitive` event, and downstream events -------------
 
 test("a completed read emits exactly one catch-all `primitive` event naming input — and no new kind", () => {
-  // `spec/interaction-events.md:105-106`: "primitives without a more specific kind emit
+  // `spec/interaction-events.md:127-128`: "primitives without a more specific kind emit
   // `primitive`". #657 ruled out a new event kind, so this is the ONLY event a read itself adds.
   const result = runWithAnswers('print input "q"', ["tom"]);
   assert.deepEqual(result.diagnostics, []);
@@ -258,7 +258,7 @@ test("takeInputResponse advances one entry per call and reports exhaustion with 
 // --- The unanswered read: the spec's other ending, never an invented answer ---------------------
 
 test("a read with no scripted answer cancels the run (ol-limit) rather than inventing one", () => {
-  // `spec/interaction-events.md:110-111` gives a blocking read exactly two endings: it "finishes or
+  // `spec/interaction-events.md:132-133` gives a blocking read exactly two endings: it "finishes or
   // the program is cancelled". A headless run with no answer cannot reach the first, so it takes the
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
@@ -318,10 +318,10 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
   assert.deepEqual(printedValues(result), [true]);
 });
 
-// --- `spec/interaction-events.md:129`/`:131`: the prompt MUST be a word ---------------------------
+// --- `spec/interaction-events.md:151`/`:131`: the prompt MUST be a word ---------------------------
 
 test("a prompt that is not a word raises ol-type", () => {
-  // `spec/interaction-events.md:129`/`:131`: "**Args:** one prompt, which MUST be a `word`" /
+  // `spec/interaction-events.md:151`/`:131`: "**Args:** one prompt, which MUST be a `word`" /
   // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:375-379`)
   // classes as "an argument has the wrong type".
   //

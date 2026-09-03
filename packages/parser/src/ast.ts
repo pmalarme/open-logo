@@ -142,7 +142,7 @@ export interface DictLitNode extends NodeBase {
 
 /**
  * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
- * `spec/grammar.md:217`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
+ * `spec/grammar.md:219`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
  * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
  * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
  * narrower {@link SelectorSegment} key-term grammar.
@@ -186,7 +186,7 @@ export interface ParenCallNode extends NodeBase {
 
 /**
  * One postfix segment of a place written as `.identifier`: a literal field or key that is never
- * evaluated (`spec/grammar.md:109,256`). Its sibling {@link SelectorSegment} covers the bracketed
+ * evaluated (`spec/grammar.md:110,258`). Its sibling {@link SelectorSegment} covers the bracketed
  * `[ key-term ]` form.
  */
 export interface FieldSegment {
@@ -228,7 +228,7 @@ export interface PlaceNode extends NodeBase {
 }
 
 /**
- * A postfix read over an arbitrary expression base — `spec/grammar.md:192`'s
+ * A postfix read over an arbitrary expression base — `spec/grammar.md:194`'s
  * `postfix-expression ::= primary { selector | "." identifier }`, which permits a postfix after
  * *any* primary, not only a `:name` (that narrower, variable-rooted case stays a {@link PlaceNode}
  * so assignment targets are unaffected). Covers a selector/field read directly off a list/dict
@@ -263,7 +263,7 @@ export interface PostfixExpressionNode extends NodeBase {
  * preserves the surface spelling. `make` is a Heritage-profile *alternate spelling only* with no
  * new semantics (`spec/conformance.md:270`, `spec/execution-model.md:318`), so it lowers to the
  * exact same {@link AssignNode} shape as `set … to` — its target is the bare name carried by the
- * word literal (`spec/grammar.md:107`, `make-assignment ::= "make" word-literal expression`),
+ * word literal (`spec/grammar.md:108`, `make-assignment ::= "make" word-literal expression`),
  * grown into a zero-segment {@link PlaceNode} just like `set name to …`.
  *
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment

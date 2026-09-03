@@ -1,5 +1,5 @@
 // Unit tests for the **blocking** property of `input` (issue #681, slice I2 —
-// `spec/interaction-events.md:108-111`):
+// `spec/interaction-events.md:119-122`):
 //
 //   "`input` is the only blocking read in OpenLogo v0.1. While `input` is waiting, the
 //    implementation MAY continue rendering already-emitted trace events, but it MUST NOT run new
@@ -23,7 +23,7 @@
 //      makes this a proof rather than a vacuous "nothing happened" — without it, a program whose
 //      handler could never fire for an unrelated reason would pass just as happily. A further test
 //      shows a read leaves pending input OUTSTANDING rather than dropping it
-//      (`spec/interaction-events.md:91-93`): a later `wait` still delivers what the reads passed
+//      (`spec/interaction-events.md:102-104`): a later `wait` still delivers what the reads passed
 //      over.
 //   2. **A read does not advance the tick clock**, so no `every` handler can come due because of
 //      one — the second way handler code could otherwise sneak in.
@@ -73,7 +73,7 @@ function bothForms(buildSource, options) {
 // --- The outstanding read: observed from inside the window, through the injected reader ---------
 
 test("while a read is OUTSTANDING, no further instruction and no handler block has run", () => {
-  // The strongest form of `spec/interaction-events.md:108-111`, and the one the scripted-answer
+  // The strongest form of `spec/interaction-events.md:119-122`, and the one the scripted-answer
   // tests below structurally cannot reach: `ExecuteOptions.hostInput.read` is the live host reader,
   // and the read is outstanding for exactly the duration of that call — so the assertions INSIDE it
   // are made while the read is unresolved, which is the very window the MUST governs.
@@ -121,7 +121,7 @@ test("while a read is OUTSTANDING, no further instruction and no handler block h
 });
 
 test("the reader receives the prompt word verbatim — this is how a host shows it", () => {
-  // `spec/interaction-events.md:134`: "`input` displays the prompt and waits for the learner to
+  // `spec/interaction-events.md:145`: "`input` displays the prompt and waits for the learner to
   // enter one value." The runtime's half of "displays" is handing the host exactly the text a
   // learner sees. Since the #768 ruling the prompt is always a `word` (`:129`), so that text IS the
   // word — passed through unquoted and unrendered. The numeral word `"42"` proves it: it arrives as
@@ -185,7 +185,7 @@ test("a live reader is authoritative over the scripted queue — a real host nev
 });
 
 test("a reader's answer is classified by the same number-vs-word rule as a scripted one", () => {
-  // One meaning, two hosts: `spec/interaction-events.md:136-137` applies to whatever text the
+  // One meaning, two hosts: `spec/interaction-events.md:147-148` applies to whatever text the
   // learner submitted, however it reached the runtime.
   const result = execute(
     ':n = input "n"\nprint :n is a "number"\n:w = input "w"\nprint :w is a "number"',
@@ -217,7 +217,7 @@ test("a pending on_key handler does NOT fire across an input read, though a wait
 });
 
 test("no handler block of ANY kind runs across a read — when, on_key, and on_click alike", () => {
-  // `spec/interaction-events.md:84-89` lists four handler kinds; the MUST names "event handler
+  // `spec/interaction-events.md:95-100` lists four handler kinds; the MUST names "event handler
   // blocks" without exception, so all of them are covered, not just `on_key`. (`when "start"` is
   // delivered at registration, before the read, which is why it prints in BOTH runs — its presence
   // here proves the read does not *re-*deliver a named event either.)
@@ -324,7 +324,7 @@ test("a run made entirely of reads reaches no checkpoint at all — nothing pend
 
 test("reads leave outstanding input OUTSTANDING — a later wait still delivers what they declined to", () => {
   // The sharper form of the previous test, and the one that separates "the read did not deliver the
-  // key" from "the read quietly consumed and discarded it". `spec/interaction-events.md:91-93`
+  // key" from "the read quietly consumed and discarded it". `spec/interaction-events.md:102-104`
   // requires an implementation to "preserve the most recent key and click state needed to deliver
   // the next handler consistently", so a read must leave the pending queue exactly as it found it:
   // two reads pass over a key pending from tick 0, and the `wait 0` after them still delivers it.

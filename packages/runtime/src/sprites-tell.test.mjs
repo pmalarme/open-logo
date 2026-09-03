@@ -592,7 +592,7 @@ test("#782: an ask inside a procedure still restores the caller's addressed set 
 
 test("#748: a turtle listed twice is ONE member of the addressed set — a direct turtle command applies once (dedup by id)", () => {
   // The addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by "Same
-  // turtle identity" (spec/execution-model.md:540), and a turtle command "applies once for each
+  // turtle identity" (spec/execution-model.md:675), and a turtle command "applies once for each
   // addressed turtle" (:113). `tell [ :a :a ]` therefore addresses :a ONCE: one move to [0, 10],
   // ending there — not two moves ending at [0, 20], which is what the direct path did before #748
   // while `each` (same epic) already ran once.

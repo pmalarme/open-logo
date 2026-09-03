@@ -127,7 +127,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * (`spec/grammar.md:406`) still holds.
  *
  * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here. It is a
- * **binding** rather than data, and `spec/grammar.md:386` makes binding any name — keyword
+ * **binding** rather than data, and `spec/grammar.md:388` makes binding any name — keyword
  * included — a conforming program, so nothing rejects it at either layer; this set neither adds nor
  * removes that.
  */
@@ -206,8 +206,8 @@ const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
  * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
  * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
  * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
- * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:380`, plus the Data
- * `add … to <list>` preposition, `spec/grammar.md:115` — `:380` names the first two and the
+ * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:382`, plus the Data
+ * `add … to <list>` preposition, `spec/grammar.md:116` — `:380` names the first two and the
  * opener, not this one), so only the opener registers a callable arity. Including `[` keeps a
  * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
  * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
@@ -227,7 +227,7 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  *
  * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
  *   `:name` parameters (an optional `( :name default )` parameter does not count).
- * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:148`), which
+ * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:149`), which
  *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
  *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
@@ -264,12 +264,12 @@ function collectUserArities(
       headText === "define" ||
       (headText === "to" && atStatementStart(tokens, k))
     ) {
-      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:148`), so a
+      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:149`), so a
       // `to <name> :p …` procedure registers a callable of the same default arity — the count of
       // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
       // its arguments correctly. `to` carries FOUR roles: the Heritage procedure *opener*, plus the
-      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:380` names those three) and
-      // the Data `add … to <list>` preposition (`spec/grammar.md:115`). Only the opener begins a
+      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:382` names those three) and
+      // the Data `add … to <list>` preposition (`spec/grammar.md:116`). Only the opener begins a
       // statement; the other three appear mid-statement — so {@link atStatementStart} gates this to
       // the opener alone and never mis-registers the `<list>` name in `add 3 to colors` as a
       // procedure.
@@ -940,7 +940,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * 1. The whole two-word tail must be there, so `print value of :d` ⏎
    *    `for i in [ 1 2 ] [ print :i ]` keeps its loop as a separate statement.
    * 2. `key` must not itself be the loop's **binder**. A `binder` is a `name`
-   *    (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+   *    (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:388`), so `key` is a
    *    perfectly good binder and `for key in …`/`for key from …` satisfy condition 1 while being
    *    loops, not tails. The word after `key` settles it: `in`/`from` can only continue a loop, and
    *    neither can begin the reader's key expression, so declining on them costs no legal reading.
@@ -1510,7 +1510,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         spanToHere(primaryStart.source_span.start),
       );
     }
-    // `spec/grammar.md:192` — `postfix-expression ::= primary { selector | "." identifier }` —
+    // `spec/grammar.md:194` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
     // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
     // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
@@ -1982,7 +1982,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Could a **postfix segment** begin at `offset` — a `.field`, or a selector `[` glued to the token
-   * before it (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`)?
+   * before it (`spec/grammar.md:194`, `postfix-expression ::= primary { selector | "." identifier }`)?
    *
    * **It is a lexical question, and the answer is deliberately not a conclusion.** It reports that
    * the tokens after the head *could* continue it, not that they do: for `( round[1] )` this answers
@@ -2439,8 +2439,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseProcedureDef("define");
         case "to":
           // `to` is a keyword with three non-procedure roles: the `set … to` and `for … from … to`
-          // prepositions (`spec/grammar.md:380`) and the Data `add … to <list>` preposition
-          // (`spec/grammar.md:115`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
+          // prepositions (`spec/grammar.md:382`) and the Data `add … to <list>` preposition
+          // (`spec/grammar.md:116`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
           // else — including a `to` reached during error recovery of a malformed `set :x to 100` —
           // is not a definition, so fall through to the generic token handling that already
           // reports it, rather than mis-entering `parseProcedureDef` and cascading a spurious
@@ -2675,7 +2675,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the Heritage assignment spelling `make "name" value`
-   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:107`). `make` is a
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:108`). `make` is a
    * Heritage-profile *alternate spelling only* with no new semantics
    * (`spec/conformance.md:150-152`), so it lowers to the exact same {@link AssignNode} shape as
    * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
@@ -2726,7 +2726,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the target of a `set … to` assignment. The spec's
-   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:106) requires a
+   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:107) requires a
    * *bare* place — a `name` optionally postfixed — which is the one well-formed, assignable case.
    * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
    * `<place> = <value>` form it is recognized structurally and re-wrapped by
@@ -2894,7 +2894,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:138-139`).
+   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:139-140`).
    * Only `for … in` accepts this form — `for … from … to …` keeps its single bare-name variable.
    */
   function parseDestructuringBinder(): DestructuringBinderNode | undefined {
@@ -3013,10 +3013,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a procedure definition: Core `define name :params… <body> end`
-   * (`define-statement`, `spec/grammar.md:147`) or the Heritage alternate spelling
-   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:148`). Both share the identical
+   * (`define-statement`, `spec/grammar.md:148`) or the Heritage alternate spelling
+   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:149`). Both share the identical
    * grammar after the opener keyword and the same `define-end ::= "end" [ "define" ]` closer
-   * (`spec/grammar.md:149`, `spec/grammar.md:291` — a `to` body closes with `end` or `end define`,
+   * (`spec/grammar.md:150`, `spec/grammar.md:293` — a `to` body closes with `end` or `end define`,
    * never `end to`), so `to` reuses this whole function and every diagnostic label ("define"): the
    * only difference is the {@link ProcedureDefNode} `keyword` recorded, which the Layer-2 Heritage
    * form-head gate (issue #667) consults to reject `to` when the Heritage profile is inactive. `to`
@@ -3124,7 +3124,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a required expression, reporting the offending token when none is present. Shared by the
-   * list-mutator statements below, whose operands (`spec/grammar.md:115-119`) are all required.
+   * list-mutator statements below, whose operands (`spec/grammar.md:116-120`) are all required.
    */
   function requireExpression(): ExpressionNode | undefined {
     const expr = parseExpression();
@@ -3148,7 +3148,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return true;
   }
 
-  /** `add expression "to" expression` (`spec/grammar.md:115`, Data profile). */
+  /** `add expression "to" expression` (`spec/grammar.md:116`, Data profile). */
   function parseAdd(): StatementNode | undefined {
     const token = current();
     advance();
@@ -3251,7 +3251,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * `struct-declaration ::= "struct" declared-type-name field-list` with
-   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
+   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:159-160`, Data profile).
    * Declares a record type, its fixed fields, and a same-named constructor. The two slots differ on
    * purpose: the type name is a *declaration* slot (`declared-type-name`), so a built-in name there
    * raises `ol-reserved-word`, while the bracketed field list is not a list literal and holds bare

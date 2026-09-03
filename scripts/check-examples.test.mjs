@@ -360,7 +360,7 @@ test("detectUsedProfiles finds heritage for a short-alias call", () => {
 
 test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () => {
   // Since issue #151 `make "name" value` parses as an `Assign` node whose `form` is `"make"`
-  // (spec/grammar.md:105 make-assignment ::= "make" word-literal expression), NOT a zero-arity
+  // (spec/grammar.md:108 make-assignment ::= "make" word-literal expression), NOT a zero-arity
   // Call — so the detector recognizes it by that node form, not by a callee name.
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
@@ -380,7 +380,7 @@ test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' spellings via
 });
 
 test("detectUsedProfiles does NOT flag heritage for 'to' in its three legitimate non-Heritage roles (for-range bound, set-assignment preposition, add-to-list preposition)", () => {
-  // `to` is also a plain keyword in three grammar productions (spec/grammar.md:104, :113, :128)
+  // `to` is also a plain keyword in three grammar productions (spec/grammar.md:107, :116, :131)
   // where it appears mid-statement, never as a statement opener — so the reader never dispatches
   // `parseProcedureDef` for them and no `ProcedureDef keyword:"to"` node results, so a plain
   // example using one of them is never spuriously flagged as needing Heritage (acceptance

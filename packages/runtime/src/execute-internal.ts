@@ -227,7 +227,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
  * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
- * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
+ * (`back n` == `forward -n`, `spec/commands.md:1250`), positive for `forward`.
  *
  * Movement math is `spec/execution-model.md:545-546`'s `(x + d·sin h, y + d·cos h)`: heading `0`
  * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
@@ -386,9 +386,9 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
 
 /**
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
- * counter-clockwise, i.e. `left` — `spec/execution-model.md:537`) and emit the `turn` effect-event
- * `spec/execution-model.md:594` requires (`{from, to}`, both headings in degrees). The new heading
- * is normalized to `[0,360)` (`spec/execution-model.md:538`) — never left negative or `>= 360`.
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md:741`) and emit the `turn` effect-event
+ * `spec/execution-model.md:835` requires (`{from, to}`, both headings in degrees). The new heading
+ * is normalized to `[0,360)` (`spec/execution-model.md:742`) — never left negative or `>= 360`.
  *
  * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
  * position or drawing event follows it.
@@ -1711,7 +1711,7 @@ function executeTurtleHeadingCall(
 }
 
 /**
- * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:286-299`). Same
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:308-321`). Same
  * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
  * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
  * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
@@ -1727,7 +1727,7 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which must additionally be positive and finite
- * (`spec/interaction-events.md:289` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * (`spec/interaction-events.md:300` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
  * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
  * emits one `sound` event
@@ -1795,7 +1795,7 @@ function executeSoundSetTempoCall(
 }
 
 /**
- * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:336-351`). Same
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:358-373`). Same
  * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
  */
 function isSoundBeepCall(statement: StatementNode): boolean {
@@ -1808,7 +1808,7 @@ function isSoundBeepCall(statement: StatementNode): boolean {
 /**
  * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
  * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
- * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:344`)
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:366`)
  * — the runtime models that scheduling purely as the event emission, never as a real audio device,
  * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
  * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
@@ -1844,7 +1844,7 @@ function executeSoundBeepCall(
 }
 
 /**
- * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:301-318`). Same
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:323-340`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`note` takes a pitch word and a duration number).
  */
@@ -1968,7 +1968,7 @@ function executeSoundNoteCall(
 }
 
 /**
- * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:353-368`). Same
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:375-390`). Same
  * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
  * primitive.
  */
@@ -2050,7 +2050,7 @@ function executeSoundRestCall(
 }
 
 /**
- * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:320-334`). Same
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:342-356`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`play` takes one melody list).
  */
@@ -2065,7 +2065,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
  * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
  * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
- * MUST be even" (`spec/interaction-events.md:328-330`) — an odd length raises `ol-range`
+ * MUST be even" (`spec/interaction-events.md:350-352`) — an odd length raises `ol-range`
  * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
  * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
  * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
@@ -2075,7 +2075,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
  * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
- * `spec/interaction-events.md:294-295`) — and emits exactly one
+ * `spec/interaction-events.md:316-317`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a
@@ -2331,11 +2331,11 @@ function executeWaitCall(
     );
   }
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
-  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
+  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:106-111`) —
   // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
   // named events due at this tick into the pending queues. This is what makes registered
   // `every`/`on_key`/`on_click` handlers "still fire" while a `wait` pause elapses, only the
-  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:113-118`).
+  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:135-140`).
   //
   // Both per-tick callbacks below share ONE `interruption` stash: `runWait` reports only "keep
   // pausing" or "abort" (`interaction.ts`'s callbacks are plain booleans to stay free of the
@@ -2471,7 +2471,7 @@ function countHandlerInvocation(delivery: HandlerDelivery | undefined): void {
  * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
  * registration site — then execute the handler body, whose own effects emit the ordinary
  * after-effect events. Marks nothing: a `when` registration is **persistent** and runs "each time the
- * named event occurs, once per occurrence" (`spec/interaction-events.md:158-163`, maintainer ruling
+ * named event occurs, once per occurrence" (`spec/interaction-events.md:180-185`, maintainer ruling
  * #984), exactly like {@link invokeOnKeyHandler}/{@link invokeOnClickHandler}. Returns the body's
  * {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside the handler)
  * propagates and stops the whole run, per `spec/interaction-events.md`'s "Errors and cancellation". A
@@ -2536,7 +2536,7 @@ function invokeWhenHandler(
  *
  * Only the handler **just registered** fires, never the whole `"start"` cohort: the run's single
  * `"start"` occurrence is what each handler is catching as it registers, and handlers registered
- * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:158-163`,
+ * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:180-185`,
  * ruling #984 — a handler is never retired, so nothing filters an already-delivered one out) from
  * re-firing every earlier `"start"` handler on each new registration. Persistence is observable
  * instead when an event occurs again, which for `"start"`/`"stop"` cannot happen in v0.1 and for a
@@ -2622,7 +2622,7 @@ function executeHandlerBody(
 
 /**
  * The main-line boundary for one **loop iteration** (maintainer ruling #984,
- * `spec/interaction-events.md:189-204`), returning a halting {@link ExecSignal} or `undefined`.
+ * `spec/interaction-events.md:211-226`), returning a halting {@link ExecSignal} or `undefined`.
  *
  * `executeStatements` already offers a boundary before each statement, so a non-empty body has one
  * per unit of progress and needs nothing here — firing again per iteration would drain twice for the
@@ -2660,7 +2660,7 @@ const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
  *
  * The ids are **deduplicated by stable id, in first-occurrence order**: what `tell`/`ask` establish
  * is an addressed **set** (`spec/turtles-and-sprites.md:44` "turtle commands run for an **addressed
- * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:540`), so a turtle
+ * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:675`), so a turtle
  * listed twice is one member. A turtle command then "applies once for each addressed turtle"
  * (`spec/turtles-and-sprites.md:113`) and `each` runs "once per turtle in the current `tell` or `ask`
  * set" (`:78`) — one run per member, on **every** path (issue #748: deduplicating only inside `each`
@@ -2931,7 +2931,7 @@ function isEveryStatement(statement: StatementNode): boolean {
  * statement boundary, never at some later checkpoint the program might never supply. That is the
  * spec's required "queue that occurrence and run it once the handler is free", capped at one pending
  * invocation
- * (`spec/interaction-events.md:189-196`). Returns the body's
+ * (`spec/interaction-events.md:211-218`). Returns the body's
  * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
@@ -3173,14 +3173,14 @@ function dispatchDueHandlers(
   }
   // Drain the one-slot `every` queues ONCE, after this tick's batch. A handler is free the moment
   // its body returns, and the spec requires a queued occurrence to run "once the handler is free"
-  // (`spec/interaction-events.md:189-196`) — NOT at whatever later checkpoint the program happens to
+  // (`spec/interaction-events.md:211-218`) — NOT at whatever later checkpoint the program happens to
   // supply. Deferring it to the next tick silently drops the occurrence whenever the program's
   // `wait`s are exhausted first, which is the "drop the missed occurrence" reading ruling #984
   // rejects.
   //
   // Draining once per dispatch rather than looping until the queues are empty is the other half of
   // that ruling: "the run's lifetime is the main line's business — an `every` handler does not
-  // extend it" (`spec/interaction-events.md:198-204`). A drained invocation whose own body outruns
+  // extend it" (`spec/interaction-events.md:220-226`). A drained invocation whose own body outruns
   // the interval re-queues, and looping here would run that occurrence too, and the next,
   // manufacturing ticks the main line never asked for until the budget raised `ol-limit`. Instead
   // the re-queued occurrence waits for the next checkpoint the MAIN LINE provides. A program that
@@ -4941,7 +4941,7 @@ function executeStatements(
   environment: Environment,
 ): ExecSignal {
   for (const rawStatement of statements) {
-    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:189-204`). Runs
+    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:211-226`). Runs
     // before each statement so a queued `every` occurrence gets its "once the handler is free" turn
     // while the main line has not finished, and NOT after the last statement — that missing final
     // boundary is exactly what makes the ruling's discard-at-close observable. The hook is carried on
@@ -5657,7 +5657,7 @@ function createExecutionEnvironment(
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
-    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:108-110`
+    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:130-132`
     // permits rendering already-emitted events while `input` waits, and the reader receives only the
     // prompt, so without this seam that allowance is unreachable. It IS the array `runProgram`
     // returns; supplying it only makes the stream readable earlier. See `index.ts`.
@@ -5827,7 +5827,7 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
 
 /**
  * Run the program's top level, giving a queued `every` occurrence a chance to run **between
- * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:189-204`).
+ * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:211-226`).
  *
  * The end-of-tick drain in {@link dispatchDueHandlers} covers the occurrences that were queued while
  * a `wait` was still advancing the clock, but a drained invocation's own body can outrun the

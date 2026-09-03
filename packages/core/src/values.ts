@@ -203,7 +203,7 @@ export class OLRecord {
 /**
  * The Sprites-profile `turtle` value type (`spec/turtles-and-sprites.md:13`,
  * `spec/execution-model.md:25`): a mutable turtle identity with its own drawing state. Turtle
- * values **compare by identity, not by position or shape** (`spec/execution-model.md:540` — the
+ * values **compare by identity, not by position or shape** (`spec/execution-model.md:675` — the
  * turtle row of the `==` matrix is "Same turtle identity"), so two turtles created by `new_turtle`
  * are never `==` even when their state is identical, and a turtle equals only the same turtle.
  *
@@ -228,7 +228,7 @@ export class OLTurtle {
   /**
    * The turtle's stable, per-world serial number: assigned once at creation, never reassigned,
    * unique across the world's turtles. It **is** the turtle's identity for `==`
-   * (`spec/execution-model.md:540`) — two turtle values are the same turtle exactly when their ids
+   * (`spec/execution-model.md:675`) — two turtle values are the same turtle exactly when their ids
    * are equal — and doubles as the `turtle-id` of turtle-specific trace events and the token in the
    * deterministic printed form ({@link printedForm} renders `turtle #<id>`). Allocating ids so they
    * stay unique and stable per turtle is the `new_turtle`/world slice's responsibility (#673):

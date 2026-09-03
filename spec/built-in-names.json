@@ -700,6 +700,15 @@
       ]
     },
     {
+      "name": "global",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
       "name": "grid",
       "category": "primitive",
       "tokenClass": "primitive",

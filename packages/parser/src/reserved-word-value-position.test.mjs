@@ -129,7 +129,7 @@ test("`thing` — the one keyword that is also a Core primitive — still reads 
 test("a keyword with no expression-head role reports ol-bad-token naming it", () => {
   for (const word of OL.OL_KEYWORDS) {
     if (EXPRESSION_INITIAL.has(word) || word === "not") {
-      // `not` is consumed as the prefix operator (`spec/grammar.md:191`) before the reader reaches
+      // `not` is consumed as the prefix operator (`spec/grammar.md:193`) before the reader reaches
       // a primary, so its diagnostic names the missing operand rather than `not` itself.
       continue;
     }
@@ -159,7 +159,7 @@ test("the six silently-accepted words are rejected in the issue's own `repeat` p
 });
 
 test("no keyword except `thing`, `and`, and `or` is a parenthesized-call callee", () => {
-  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:215`). Three
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:217`). Three
   // keywords legitimately reach a `ParenCall` callee, by two different routes:
   //
   // - `thing` — the only one that passes `isCalleeName`, because it is the one keyword that is
@@ -187,7 +187,7 @@ test("no keyword except `thing`, `and`, and `or` is a parenthesized-call callee"
 });
 
 test("`( not 1 )` stays a grouped unary, never a parenthesized call", () => {
-  // `unary ::= "not" unary` (`spec/grammar.md:191`) inside a `parenthesized-expression`
+  // `unary ::= "not" unary` (`spec/grammar.md:193`) inside a `parenthesized-expression`
   // (`spec/grammar.md:213`) — parenthesising groups the unary expression, it does not make `not` a
   // `callable-name`, and unlike `and`/`or` the spec gives `not` no paren form at all
   // (`spec/commands.md:605-607`: "Signature: `not boolean`", "Kind: Reporter unary prefix").

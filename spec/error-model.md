@@ -128,6 +128,7 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+| `ol-global-outside-root` | semantic | none | `global name = value` appears inside a procedure body or a block; `global` is legal only at the root scope of the top-level program. Explain that `global` is a one-time declaration made at the top level, and that inside a procedure or block the fix is usually to declare it at the top level instead. |
 
 `ol-reserved-word` and `ol-duplicate-definition` divide one question in two, and the division is
 what makes each of them mean exactly one thing. `ol-reserved-word` says **OpenLogo owns this name**;

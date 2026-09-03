@@ -552,9 +552,9 @@ export type TutorOutputPayload =
  * This alias is therefore an open `string`, not a closed union, so a new emitter never requires
  * re-opening this contract. The current M5 emitters are the Interaction & Events forms
  * `wait`/`when`/`every`/`on_key`/`on_click` ("primitives without a more specific kind emit
- * `primitive`", `spec/interaction-events.md:105-106`; "wait emits a `primitive` event after the
+ * `primitive`", `spec/interaction-events.md:127-128`; "wait emits a `primitive` event after the
  * pause completes … event registration forms emit `primitive` events after the handler is
- * registered", `spec/interaction-events.md:120-122`), but the type deliberately does not close over
+ * registered", `spec/interaction-events.md:142-144`), but the type deliberately does not close over
  * them.
  */
 export type PrimitiveName = string;
@@ -615,7 +615,7 @@ export interface AddressingSnapshot {
  * (`spec/turtles-and-sprites.md:17`'s C3 rows), which change the addressed turtle set and have no
  * more specific event kind — exactly the case `primitive` exists for, and the same reading under
  * which the Interaction registration *forms* `when`/`every`/`on_key`/`on_click` emit `primitive`
- * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`).
+ * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:127-128`).
  * It is deliberately NOT a new registered `kind`: the registry's `kind` values are normative and
  * closed (`spec/execution-model.md:689-694`, "One registered event kind"), the only sanctioned
  * un-registered kinds are vendor-namespaced extensions (`vendor_name.event_name`) which by
@@ -660,9 +660,9 @@ type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
 
 /**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
- * `spec/interaction-events.md:286-299`): the tempo, in beats per minute, that `set_tempo` set.
+ * `spec/interaction-events.md:308-321`): the tempo, in beats per minute, that `set_tempo` set.
  * Durations elsewhere in the stream are carried in beats and interpreted at the current tempo
- * (`spec/interaction-events.md:294-295`). A positive number (`ol-range` otherwise);
+ * (`spec/interaction-events.md:316-317`). A positive number (`ol-range` otherwise);
  * the default before any `set_tempo`
  * is `120`.
  */
@@ -673,7 +673,7 @@ export interface SetTempoSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `note` (Sound profile,
- * `spec/interaction-events.md:301-318`): one pitched sound scheduled at the current tempo. `pitch`
+ * `spec/interaction-events.md:323-340`): one pitched sound scheduled at the current tempo. `pitch`
  * is a scientific-pitch-notation word with lowercase canonical spelling (e.g. `"c4"`, `"fs4"`,
  * `"bb3"`); `duration` is a positive number of beats.
  */
@@ -685,7 +685,7 @@ export interface NoteSoundPayload {
 
 /**
  * One scheduled step of a `play` melody: a pitch word accepted by `note` or the word `"rest"`, and
- * its positive beat `duration` (`spec/interaction-events.md:320-334` — the melody list is
+ * its positive beat `duration` (`spec/interaction-events.md:342-356` — the melody list is
  * pitch/duration pairs in sequence). The runtime resolves the flat, even-length melody list into
  * these ordered pairs before emitting the event.
  */
@@ -696,7 +696,7 @@ export interface MelodyStep {
 
 /**
  * Payload for a `sound` event emitted by `play` (Sound profile,
- * `spec/interaction-events.md:320-334`): the resolved melody, as an ordered list of pitch/duration
+ * `spec/interaction-events.md:342-356`): the resolved melody, as an ordered list of pitch/duration
  * {@link MelodyStep}s, scheduled in sequence at the current tempo.
  */
 export interface PlaySoundPayload {
@@ -706,7 +706,7 @@ export interface PlaySoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `beep` (Sound profile,
- * `spec/interaction-events.md:336-351`): one short, implementation-defined alert sound. It carries
+ * `spec/interaction-events.md:358-373`): one short, implementation-defined alert sound. It carries
  * no parameters — the spec pins none — so the discriminant `command` is the whole payload.
  */
 export interface BeepSoundPayload {
@@ -715,9 +715,9 @@ export interface BeepSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `rest` (Sound profile,
- * `spec/interaction-events.md:353-368`): scheduled silence of `duration` beats at the current
+ * `spec/interaction-events.md:375-390`): scheduled silence of `duration` beats at the current
  * tempo. `rest` emits a `sound` event "so replay tools can show the silent interval"
- * (`spec/interaction-events.md:362`). `duration` is a positive number.
+ * (`spec/interaction-events.md:384`). `duration` is a positive number.
  */
 export interface RestSoundPayload {
   readonly command: "rest";
@@ -728,7 +728,7 @@ export interface RestSoundPayload {
  * The `sound` event's payload — a discriminated union on `command`, one arm per Sound-profile
  * primitive ({@link SetTempoSoundPayload}, {@link NoteSoundPayload}, {@link PlaySoundPayload},
  * {@link BeepSoundPayload}, {@link RestSoundPayload}). Sound commands emit a `sound` event after
- * the sound state has been scheduled (`spec/interaction-events.md:120-121`); the payload carries
+ * the sound state has been scheduled (`spec/interaction-events.md:142-143`); the payload carries
  * only what each command deterministically schedules (pitch, duration in beats, tempo), never
  * wall-clock timing or audio frames — those are a rendering concern, not part of the deterministic,
  * headless stream.

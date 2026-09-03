@@ -1,5 +1,5 @@
 // Unit tests for the Data-profile struct declaration grammar (issue #321):
-// `spec/grammar.md:157-158`'s `struct-declaration ::= "struct" declared-type-name field-list` and
+// `spec/grammar.md:159-160`'s `struct-declaration ::= "struct" declared-type-name field-list` and
 // `field-list ::= "[" identifier { identifier } "]"`; the struct semantics those shapes carry are
 // `spec/data-structures.md:252-266`. This
 // slice is parse/AST only — the constructor call and field access/mutation are a later

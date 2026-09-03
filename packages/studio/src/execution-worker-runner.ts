@@ -3,7 +3,7 @@
  * `@openlogo/runtime`'s `execute()` off the main thread and **parks inside the `input` reader**
  * until the learner answers.
  *
- * This is where `spec/interaction-events.md:108-111` is finally honoured without reconciliation:
+ * This is where `spec/interaction-events.md:130-133` is finally honoured without reconciliation:
  * the reader is synchronous, so no OpenLogo instruction and no handler block runs until the read
  * finishes — and the wait is a genuine `Atomics.wait`, not a cancellation the studio replays past.
  *
@@ -24,7 +24,7 @@
  *   structured clone drops class prototypes and `printedForm` throws on a cloned `OLDict` — see
  *   `execution-host.ts`'s doc comment.
  *
- * `spec/interaction-events.md:108-110` explicitly permits this ("the implementation **MAY** continue
+ * `spec/interaction-events.md:130-132` explicitly permits this ("the implementation **MAY** continue
  * rendering already-emitted trace events"), and before the `observedEvents` seam that allowance was
  * unreachable.
  *

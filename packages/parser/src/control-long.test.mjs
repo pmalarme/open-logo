@@ -1,6 +1,6 @@
 // Unit tests for the Core control-form LONG (`... end`) body syntax —
 // `if <cond>`, `while <cond>`, `repeat <n>`, `for … in`/`for … from … to [by]`, `forever` —
-// per spec/grammar.md:119-129,139,142-145 (`long-control-block ::= terminator { statement
+// per spec/grammar.md:120-130,140,143-146 (`long-control-block ::= terminator { statement
 // terminator } control-end-label`; `control-end-label ::= "end" [ "if" | "while" | "repeat" |
 // "for" | "forever" ]`). These validate the already-merged parser; they do not change it. The
 // corresponding SHORT (bracketed `[ … ]`) bodies are a separate slice (issue #57,
@@ -262,7 +262,7 @@ test("bare `end` and labeled `end for` produce the same `ForRange` AST shape (ig
   );
 });
 
-test("a mismatched end label on a long block raises `ol-mismatched-end` at parse stage (per spec/grammar.md:281)", () => {
+test("a mismatched end label on a long block raises `ol-mismatched-end` at parse stage (per spec/grammar.md:146)", () => {
   const source = "repeat 3\n  print 1\nend while\n";
   const { diagnostics } = OL.parse(source, doc);
 
@@ -275,8 +275,8 @@ test("a mismatched end label on a long block raises `ol-mismatched-end` at parse
   assert.deepEqual(diag.source_span, span([3, 5], [3, 10]));
 });
 
-// Per spec/grammar.md:136-137, a `for … in` binder may be a bare `name` OR a destructuring
-// `[ :name { :name } ]` pattern (e.g. `for [:x :y] in :points`, spec/grammar.md:333-335).
+// Per spec/grammar.md:139-140, a `for … in` binder may be a bare `name` OR a destructuring
+// `[ :name { :name } ]` pattern (e.g. `for [:x :y] in :points`, spec/grammar.md:335-337).
 // Fixed in issue #91 — the destructuring form now parses into a `ForIn` node whose `binder`
 // is a `DestructuringBinder` node carrying the ordered `:name` binders.
 test("parses `for [:x :y] in <expr>` destructuring binder as a `ForIn` node", () => {

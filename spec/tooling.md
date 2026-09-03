@@ -88,7 +88,7 @@ theme maps all roles to the same bracket color.
 The Core reserved-word list is generated from the grammar, whose [keyword list](grammar.md#keywords-primitives-and-built-in-names) is normative; this is the C19 registry repeated
 here so highlighters and linters can share the same names. Membership answers one question — *may a program declare this name?* — and never how a word is painted:
 
-`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
+`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `global`, `thing`,
 `if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `key`, `value`,
 `add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `mod`, `true`, `false`,
 `is`, `between`, `strictly`, `struct`, `alias`, `import`, `export`.
@@ -181,7 +181,7 @@ profile block-heads are available.
 | Unknown command, reporter, procedure, primitive, or active-profile form | `ol-unknown-command` | Provide did-you-mean suggestions using Levenshtein distance ≤2 over visible names. |
 | Not enough inputs for a fixed-arity or selected call form | `ol-not-enough-inputs` | Include callable name, expected count, and actual count. |
 | Too many inputs outside parenthesized alternate/variadic forms | `ol-too-many-inputs` | Include callable name and explain when parentheses are required. |
-| Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. |
+| Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. Applies equally when a procedure reads a plain top-level (non-`global`) name — the sealed procedure boundary makes such a name invisible inside the procedure, indistinguishable from it never having been assigned ([execution-model.md](execution-model.md#variables-scoping-and-procedures)). |
 | Declaring a built-in name — a keyword, a primitive, or an alias spelling of one — in a declaration slot | `ol-reserved-word` | Apply at the four declaration slots only: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`; profile keywords and primitives count there whether or not their profile is claimed. Do **not** apply at `local` or any other binding form — binding a value to a built-in name is legal everywhere and MUST NOT raise this or any other diagnostic ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). A name the program itself already declared is `ol-duplicate-definition` instead. |
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
@@ -190,6 +190,7 @@ profile block-heads are available.
 | `return`, `output`, or `op` outside a procedure | `ol-return-outside-proc` | Point at the control word. |
 | `return`, `output`, `op`, or `stop` inside `map`/`filter`/`reduce` | `ol-return-in-comprehension` | Explain that comprehensions report the last expression; `stop` is a control-flow escape too, so it belongs to the same diagnostic family. |
 | Repeated `reduce` or pattern binder name | `ol-duplicate-binder` | Include the repeated binder name. |
+| `global name = value` outside the root scope | `ol-global-outside-root` | Apply whenever `global` appears inside a procedure body or a block; legal only at the top level. |
 
 Semantic tools SHOULD also report statically knowable uses of runtime C10 codes, such as
 `ol-not-boolean` for a literal non-boolean condition, `ol-type` for a literal non-number used as

@@ -337,16 +337,139 @@ terminate the outer special form.
 
 ## Variables, scoping, and procedures
 
-OpenLogo uses lexical frame scoping, not dynamic scoping. Procedure parameters
-and locals live in the procedure frame where they are declared and are invisible
-to callees unless explicitly passed as values.
+OpenLogo uses lexical frame scoping, not dynamic scoping. **A name is born where
+it is first assigned, lives until that scope ends, and a procedure's edge is
+sealed.** Everything below follows from that one sentence.
 
-Assignment by `:name = value` or `set name to value` updates the nearest
-lexically visible binding; if none exists, it creates or updates a global. The
-top-level program runs in a root frame, and a global is simply a binding in that
-root frame. `local name` declares a frame-local binding; used at the top level it
-declares the name in the root frame rather than raising an error. Reading `:name`
-is sugar for `thing "name"` and raises `ol-undefined-var` if no binding exists.
+**A procedure is a hard, total boundary.** A procedure body sees only its own
+parameters, its own `local` bindings, and `global` names — never an ordinary
+top-level (non-`global`) variable, and never a caller's or an enclosing block's
+binding. An ordinary top-level name is **invisible** to a procedure, not merely
+unwritable: reading one from inside a procedure raises `ol-undefined-var` exactly
+as if the name had never been assigned, even though it exists and is readable at
+the top level. This is stricter than the read-only outer-variable access many
+general-purpose languages allow; it is a deliberate educational choice, so that
+everything a procedure touches is named at its boundary — its parameter list plus
+whichever names it declares `global` — without reading the procedure's body. The
+callable namespace is a separate matter from the variable namespace covered here:
+a procedure may always call primitives, other user procedures, and struct
+constructors, and may recurse, regardless of variable visibility (see
+[Namespaces](grammar.md#keywords-primitives-and-built-in-names); the callable
+namespace, including any imported or aliased name, stays visible everywhere).
+
+**A block (`[ … ]`) is a lifetime boundary, not a write boundary.** A block may
+freely update any name visible from its enclosing scope — this is the
+accumulator idiom (`repeat 4 [ forward :count * 10   :count = :count + 1 ]`) and
+is how a block updates a plain top-level variable or a `global` alike (see
+[`spec/examples/10-game.logo`](examples/10-game.logo), whose `on_click` handler
+updates a plain top-level `:score` with no `global` declaration). A name **born**
+inside a block — first assigned there, with no visible binding of that name
+before the block started — dies when the block's `]` closes; reading it
+afterwards raises `ol-undefined-var`.
+
+**Fresh binding per scope entry.** Each loop iteration (`repeat`, `while`,
+`forever`, `for`) and each procedure call creates new bindings for every name
+first assigned in its body during that pass or call — including a plain
+(non-`global`) name born inside the body, a procedure's parameters, and its
+`local`s. A handler registered inside that body or call (`when`, `every`,
+`on_key`, `on_click`) captures those bindings **by reference, not by snapshot
+value**, so each registration observes the values as of when its handler later
+runs, not as of when it was registered; combined with fresh binding per
+iteration, a name assigned fresh in each pass of a loop gives each handler
+registered in a different pass its own binding rather than a value shared with
+every other pass's handler.
+
+Assignment by `:name = value` or `set name to value` updates the nearest visible
+binding — a parameter, a `local`, a `global`, or, at the top level, a plain
+root-frame binding; if the name is not currently visible, the assignment creates
+one in the **current scope**: a plain top-level binding at the root frame, or a
+procedure-local binding inside a procedure, or (per the previous paragraph) a
+block-local binding inside a block. Visibility decides which binding a write
+targets, never the order in which reads and writes appear in the body: once a
+name is visible in a scope — as a parameter, a prior `local`, or a `global` — every
+subsequent read or write in that scope targets that same binding, so
+`:count = :count + 1` after `global count = 0` both reads and writes the global,
+never a shadowing procedure-local created by the write. The top-level program
+runs in a root frame, and a `global` name is a binding in that root frame flagged
+as visible from every procedure; a plain top-level binding is an ordinary root-
+frame binding with no such flag, visible to blocks (which see the whole lexical
+chain) but not to procedures. `local name` declares a binding in the current
+scope — the enclosing block if there is one, the enclosing procedure otherwise,
+or the root frame at the top level — shadowing anything visible, including a
+`global` of the same name; declaring `local name` at the root frame when a
+`global` of that name already exists is a no-op redeclaration, because the root
+frame is where a `global` binding already lives and there is no further scope to
+shadow into. Where `local name = value` supplies an initializer, the initializer
+expression is evaluated **before** the new binding is created, in the enclosing
+scope — so `local count = :count` inside a procedure reads the enclosing
+`global count`, not the not-yet-created local, and the same expression at the
+top level or in a block reads whatever binding of `:count` was already visible
+there. Reading `:name` is sugar for `thing "name"` and raises `ol-undefined-var`
+if no binding is visible, including a name used before the statement that first
+assigns it has run — a handler that fires before its `global` declaration has
+executed observes the same `ol-undefined-var`, and a postfix place resolves its
+base the same way a plain read does, so `:people.tom = v` for an invisible
+`:people` raises `ol-undefined-var` on that base read exactly as `print :people`
+would, before any assignment to the field is attempted.
+
+**The boundary seals names, not values.** A procedure cannot see your variables —
+but a list, dict, record, or turtle you pass it is a mutable reference value
+(see "Assignable places and mutation" above), so the procedure can change what is
+*inside* the value you handed it, and the caller sees that change, with no
+`global` involved:
+
+```logo
+define f :lst
+  add 99 to :lst
+end
+:a = [1 2]
+f :a
+print :a              # → [1 2 99]   the procedure changed the caller's list
+```
+
+Rebinding the parameter itself (`:lst = [ 7 ]`) never escapes — it only replaces
+which value the procedure's own local parameter binding refers to. Mutating the
+value the parameter refers to (`add 99 to :lst`, or `:lst.field = v` through a
+record or dict parameter) always escapes, because caller and callee hold the same
+reference. This is not an exception to the sealed edge: it follows directly from
+mutable reference values (`spec/execution-model.md:37-38`) and requires no
+`global` — a procedure can affect its caller through a mutable argument alone,
+and that is intended, expected behavior, not a scoping leak.
+
+**A procedure's frame outlives its call when a handler registered inside it is
+still pending.** `when`, `every`, `on_key`, and `on_click` registered during a
+procedure call keep that call's frame — its parameters and locals — alive for as
+long as the handler may still fire, even after the procedure has returned. This
+is closure *lifetime*, not a first-class procedure value: OpenLogo v0.1 still has
+no lambda and no way to name or pass a block as a value (`:f = [ print 1 ]`
+raises `ol-undefined-var`; a block is only ever the fixed body of the special
+form that introduces it). `return` and `stop` inside a handler block are governed
+by the ordinary rule for those keywords (`ol-return-outside-proc`,
+`ol-stop-outside-proc`): a handler invocation is triggered by an event, not by a
+call to the procedure that registered it, so a handler block is never dynamically
+"inside" a procedure call for the purposes of `return`/`stop`, whether or not that
+procedure's call is still on the stack — the same rule applies uniformly, with no
+special case for a handler that happens to outlive its registering call. A nested
+`define` written inside a procedure body is, by contrast, hoisted to the program's
+global callable namespace during Phase 1 registration (see "Reader pipeline"
+above) and therefore does **not** close over its enclosing call's frame; a handler block
+written in the same position does. These are consistent with the rule — blocks
+close over their lexical environment, procedures are a sealed, hoisted, top-level
+namespace — but they are two different constructs with two different capture
+behaviors, worth stating explicitly so neither is assumed to follow the other.
+
+`repcount` (see [`repcount`](commands.md#repcount)) resolves **lexically**: it
+reports the innermost `repeat` whose body **textually** contains the read, never
+a `repeat` merely active elsewhere on the call stack. A procedure that reads
+`repcount` and is called from inside a `repeat` does not see that caller's
+iteration count — reading `repcount` with no enclosing `repeat` in the
+procedure's own body raises `ol-repcount-outside-repeat`, the same sealed-edge
+behavior rule 1 gives an ordinary variable read. This is unlike the Sprites
+`ask`/`tell`/`each` addressing model (see
+[turtles-and-sprites.md](turtles-and-sprites.md)), which is deliberately
+*dynamic* — it tracks which turtle is currently addressed, not a name binding —
+so the two are not in tension: `repcount` is a name-shaped read and is lexical;
+turtle addressing is state, not a name, and is dynamic by design.
 
 Procedures use `define name :a :b ... end` with heritage `to` as an alias.
 Optional trailing parameters use parenthesized defaults:

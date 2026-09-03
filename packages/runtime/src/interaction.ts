@@ -48,7 +48,7 @@
  *
  * ## Why `input` has no event-loop checkpoint at all
  *
- * `input` (issue #681) is the exact mirror image. `spec/interaction-events.md:108-111`: "`input` is
+ * `input` (issue #681) is the exact mirror image. `spec/interaction-events.md:130-133`: "`input` is
  * the only blocking read in OpenLogo v0.1. While `input` is waiting, the implementation MAY continue
  * rendering already-emitted trace events, but it MUST NOT run new OpenLogo instructions or event
  * handler blocks until the read finishes or the program is cancelled."
@@ -272,7 +272,7 @@ export function emitWaitPrimitive(
 
 /**
  * Emit the `primitive` event `input` produces once its read has finished
- * (`spec/interaction-events.md:105-106`: "primitives without a more specific kind emit
+ * (`spec/interaction-events.md:127-128`: "primitives without a more specific kind emit
  * `primitive`"). Emitted **after** the answer is in hand, matching the after-effect discipline the
  * whole stream follows (`:103-106`) and `wait`'s own "after the pause completes" rule. Like
  * {@link emitWaitPrimitive} the payload carries only the primitive `name` — never the prompt, the
@@ -388,7 +388,7 @@ const SUBMITTED_ANSWER_DOCUMENT = "<input>";
 
 /**
  * Turn the text a learner submitted into the value `input` reports
- * (`spec/interaction-events.md:136-137`): "If the submitted text parses as an OpenLogo number
+ * (`spec/interaction-events.md:158-159`): "If the submitted text parses as an OpenLogo number
  * literal, the reporter returns a number. Otherwise it returns a word preserving the entered text."
  *
  * "Parses as an OpenLogo number literal" is decided by **the grammar itself** — `parse()` — rather
@@ -478,7 +478,7 @@ export const STANDARD_EVENT_WORDS = Object.freeze({
  * handler to run").
  *
  * A `when` registration carries **no delivery-state flag at all**, because it is **persistent**:
- * `spec/interaction-events.md:158-163` — "A `when` registration is **persistent**, exactly like
+ * `spec/interaction-events.md:180-185` — "A `when` registration is **persistent**, exactly like
  * `every`, `on_key`, and `on_click`: its block runs **each time** the named event occurs, once per
  * occurrence. An implementation MUST NOT retire a handler after its first invocation." Maintainer
  * ruling #984 settled this; the earlier one-shot `fired` flag is gone. Both standard v0.1 event
@@ -510,12 +510,12 @@ export interface WhenHandler {
  * recurs for the whole run.
  *
  * That `+= interval` — measured from the previous interval, never from the moment an invocation
- * finished — is the spec's **fixed rate** rule (`spec/interaction-events.md:183-187`, maintainer
+ * finished — is the spec's **fixed rate** rule (`spec/interaction-events.md:205-209`, maintainer
  * ruling #984): "each successive interval arrives `n` ticks after the previous interval, on that
  * original schedule. The period is never re-measured from the moment an invocation happens to
  * finish, so a late invocation does not push the following interval back."
  *
- * The three flags implement the spec's queueing rule (`spec/interaction-events.md:189-196`): "If a
+ * The three flags implement the spec's queueing rule (`spec/interaction-events.md:211-218`): "If a
  * prior invocation is still running when the next interval arrives, the implementation MUST queue
  * that occurrence and run it once the handler is free. … The queue holds **at most one** pending
  * invocation for that `every` handler". Handler invocations "run on the same OpenLogo execution
@@ -630,7 +630,7 @@ export type HostInputEvent =
  * the stable order same-tick dispatch (#686/I7) needs and cannot reconstruct if handlers were
  * bucketed per event with no cross-event ordering. Dispatch filters by event word at delivery time
  * ({@link claimPendingEventHandlers}); there is no per-handler delivery state to filter on, because
- * a `when` registration is persistent (`spec/interaction-events.md:158-163`).
+ * a `when` registration is persistent (`spec/interaction-events.md:180-185`).
  *
  * This is the structure the file header promised the rest of the track would hang off the tick
  * clock's {@link yieldToEventLoop} seam: `when` populates it and `"start"` fires from it immediately
@@ -816,7 +816,7 @@ export function registerOnClickHandler(
  * `runWait` calls the dispatch once per tick (monotonically, never skipping a tick), the boundary is
  * reached at exactly `nextDueTick`. `nextDueTick` then advances by `interval` — measured from the
  * previous interval, never re-measured from an invocation's completion, which is the spec's fixed-rate
- * clock (`spec/interaction-events.md:183-187`). The arriving occurrence is put in the handler's
+ * clock (`spec/interaction-events.md:205-209`). The arriving occurrence is put in the handler's
  * one-slot queue (`queued`); a second arrival while that slot is full **coalesces** into it, so the
  * queue never exceeds the spec's "at most one pending invocation" (`:189-196`). Tick `0` is never an
  * arrival — a fresh handler's `nextDueTick` is always `>= interval > 0`.
@@ -859,7 +859,7 @@ export function claimDueEveryHandlers(
  * whose one-slot queue is full and which is neither `running` nor already `claimed` into a batch.
  * Unlike {@link claimDueEveryHandlers} this consults no tick: it is the drain half of the spec's
  * queueing rule, "the implementation MUST queue that occurrence and **run it once the handler is
- * free**" (`spec/interaction-events.md:189-196`, maintainer ruling #984).
+ * free**" (`spec/interaction-events.md:211-218`, maintainer ruling #984).
  *
  * A handler becomes free the moment its body returns, so the drain must not wait for a fresh
  * event-loop checkpoint. Requiring one is not a slower drain, it is a **lost** invocation: a program
@@ -871,7 +871,7 @@ export function claimDueEveryHandlers(
  * body), and `evaluate.ts`'s comprehension loops at each iteration, since a comprehension body is an
  * expression that never reaches `executeStatements`.
  *
- * Neither loops until the queue is empty, and that is ruling 4 (`spec/interaction-events.md:198-204`):
+ * Neither loops until the queue is empty, and that is ruling 4 (`spec/interaction-events.md:220-226`):
  * a handler does not extend the run's lifetime. A drained invocation whose own body overruns
  * re-queues, so looping would run that occurrence and the next, manufacturing ticks the main line
  * never asked for until the budget raised `ol-limit`. Draining once per real boundary instead gives
@@ -985,7 +985,7 @@ export function emitOnClickPrimitive(
  * directions: too eager and the ~90% of programs with no interaction lose page scrolling, too lazy
  * and a game scrolls the studio away while the learner plays it. Answering it needs one fact the
  * runtime had and dropped: **which key words currently have handlers.** The registration `primitive`
- * event carries only the primitive's *name* (`spec/interaction-events.md:120-122` — "Event
+ * event carries only the primitive's *name* (`spec/interaction-events.md:142-144` — "Event
  * registration forms emit `primitive` events after the handler is registered"), never its key word,
  * so before this a host had to re-derive the set by parsing the source and pairing declarations with
  * registration events by source position. This log is the runtime handing over what it already knew.
@@ -1163,7 +1163,7 @@ export function enqueueHostInput(
  * per pending occurrence of its event**, preserving multiplicity exactly as
  * {@link claimPendingKeyHandlers} does for a key pressed twice. That is the persistence rule: a
  * `when` block "runs **each time** the named event occurs, once per occurrence"
- * (`spec/interaction-events.md:158-163`), so an event delivered twice in one tick fires its handler
+ * (`spec/interaction-events.md:180-185`), so an event delivered twice in one tick fires its handler
  * twice. Clears the `pendingEvents` queue (these occurrences are being delivered now), returning the
  * flattened handler batch for {@link dispatchDueHandlers} to invoke. An empty queue — the normal
  * headless case, no host input — yields an empty batch, a well-defined no-op.

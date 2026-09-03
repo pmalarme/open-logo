@@ -478,7 +478,7 @@ test("set ( with an unparseable target recovers gracefully — no set-form Assig
 });
 
 // #442/F3 regression guards: the fix must NOT broaden a bare colon-place `set` target or a valid
-// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:104 wants a bare place, and
+// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:107 wants a bare place, and
 // `:x` is a colon read, not a bare name); `:x = 100` stays a clean equals-form assignment.
 test("set :x still reports exactly one parse ol-bad-token on the colon read and recovers as a VarRef (issue #442/F3 regression guard for #55)", () => {
   const { ast, diagnostics } = OL.parse("set :x\n", "unit.logo");

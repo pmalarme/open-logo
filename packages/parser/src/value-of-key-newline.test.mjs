@@ -1,6 +1,6 @@
 // Guard tests for a newline **inside** the Heritage `value of … for key …` reader (issue #962).
 //
-// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md:217`) is a
+// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md:219`) is a
 // single expression, and `spec/grammar.md:34` says newlines are insignificant inside one. The
 // reader nonetheless stopped at the newline before its required `for key` tail, so every spelling
 // below raised `ol-bad-token` — and wrapped in parentheses it raised `ol-unmatched-paren` twice
@@ -305,7 +305,7 @@ test("an incomplete reader does not swallow the `for` statement on the next line
   // nothing else would notice.
   //
   // The `key`-binder rows are the ones the two-word guard alone gets wrong: a `binder` is a `name`
-  // (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+  // (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:388`), so `key` is a
   // legal binder and `for key in …` satisfies "the tail is there" while being a loop. Only the word
   // after `key` tells them apart.
   for (const [loop, kind] of [

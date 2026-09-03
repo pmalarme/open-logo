@@ -69,7 +69,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 - **Kind:** Special form
 - **Argument types:** assignable place, value
 - **Result:** —
-- **Description:** Assigns a value to a colon-form place such as `:size`, `:nums[1]`, `:p.x`, or `:people.tom.age`. An undefined simple variable becomes global unless a lexical local exists. Writing a missing dictionary key at the final selector upserts it.
+- **Description:** Assigns a value to a colon-form place such as `:size`, `:nums[1]`, `:p.x`, or `:people.tom.age`. If the name is not currently visible, this creates one in the current scope — a plain binding at the top level, a procedure-local inside a procedure, or a block-local inside a block; if it is visible (a parameter, a prior `local`, or a `global`), the assignment updates that binding instead. Writing a missing dictionary key at the final selector upserts it.
 - **Concept:** A variable or nested place can name a changing value.
 - **Example:**
 
@@ -79,7 +79,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 :nums[1] = 9
 ```
 
-- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`; reads of intermediate missing keys may raise `ol-unknown-key`.
+- **Possible errors:** `ol-not-a-place`, `ol-unknown-field`, `ol-range`, `ol-undefined-var` (resolving a place's base, such as `:people` in `:people.tom = v`); reads of intermediate missing keys may raise `ol-unknown-key`.
 
 ### `set … to`
 
@@ -102,13 +102,13 @@ make "size" 120
 
 ### `local`
 
-- **Signature:** `local name`; `(local a b …)` for multiple names
+- **Signature:** `local name`; `local name = value`; `(local a b …)` for multiple names
 - **Aliases:** none
 - **Kind:** Special form
-- **Argument types:** name or names
+- **Argument types:** name or names, optional initializer value
 - **Result:** —
-- **Description:** Declares one or more names local to the current procedure frame.
-- **Concept:** A procedure can have private working memory.
+- **Description:** Declares one or more names local to the current scope — the enclosing block if there is one, otherwise the enclosing procedure, otherwise the root frame at the top level — shadowing anything visible there, including a `global` of the same name. With an initializer (`local name = value`), the initializer expression is evaluated in the enclosing scope **before** the new binding is created, so it can read an outer or `global` binding of the same name.
+- **Concept:** A procedure or block can have private working memory.
 - **Example:**
 
 ```logo
@@ -117,9 +117,43 @@ define grow :n
   :total = :n + 1
   return :total
 end
+
+global count = 5
+define reset
+  local count = :count      # reads the enclosing global, then shadows it
+  :count = 0
+  print :count               # → 0, the local
+end
+reset
+print :count                 # → 5, the global is unaffected
 ```
 
-- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
+- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used at the top level with no enclosing block, `local` introduces the name in the root frame; if a `global` of that name already exists there, this is a no-op redeclaration rather than an error.
+
+### `global`
+
+- **Signature:** `global name = value`
+- **Aliases:** none
+- **Kind:** Special form
+- **Argument types:** bare name (not colon-form), initializer value (required)
+- **Result:** —
+- **Description:** Declares a name in the root frame, flagged as visible from every procedure, and assigns it the initializer value. `global` is legal only at the root scope — never inside a procedure body or a block — and its initializer is required, because `global` is a declaration, not a reassignment: use `:name = value` or `set name to value` to update an already-declared `global` from wherever it is visible. A procedure that reads or writes a top-level name without first declaring it `global` at the root scope sees `ol-undefined-var`, because an ordinary (non-`global`) top-level name is invisible to procedures.
+- **Concept:** A procedure can share a single named value with the rest of the program, and with every other procedure, by declaring it explicitly at the boundary.
+- **Example:**
+
+```logo
+global count = 0
+define draw_repeat_4
+  repeat 4 [
+    forward :count * 10
+    :count = :count + 1
+  ]
+end
+draw_repeat_4
+print :count
+```
+
+- **Possible errors:** `ol-global-outside-root` when `global` appears inside a procedure or a block.
 
 ### `thing`
 
@@ -780,7 +814,7 @@ end repeat
 - **Kind:** Reporter
 - **Argument types:** none
 - **Result:** number
-- **Description:** Reports the current 1-based iteration count of the innermost enclosing `repeat`. When several `repeat` loops are nested, `repcount` refers to the nearest one.
+- **Description:** Reports the current 1-based iteration count of the innermost enclosing `repeat`. When several `repeat` loops are nested, `repcount` refers to the nearest one. Enclosure is **lexical**: it is the innermost `repeat` whose body textually contains the `repcount` call, never a `repeat` merely active elsewhere on the call stack. A procedure called from inside a `repeat` does not inherit that caller's iteration count through `repcount` — the same sealed procedure boundary that makes an outer variable invisible to a procedure (see [Variables, scoping, and procedures](execution-model.md#variables-scoping-and-procedures)).
 - **Concept:** A loop can know which turn it is on.
 - **Example:**
 
