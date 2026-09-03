@@ -1,0 +1,21 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour. It must be FLIPPED to the correct expectation when the #814 `[spec]` ruling lands and #815 implements it; the wall exists now so the fix is provably a change. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. `check()` half of the pair for the turtle form. `forward` is resolvable here because `turtle-rendering` is in this fixture's active profile set, so the only diagnostic is the real one on `wibble` — the same source under `core-language` alone would additionally flag `forward` itself, which is the false positive `profile-argument/` pins.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/turtle-command-argument-check",
+        "start": [1, 10],
+        "end": [1, 16]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

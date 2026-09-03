@@ -1,0 +1,4 @@
+define p :a :b
+  print :a
+end define
+p 50 wibble

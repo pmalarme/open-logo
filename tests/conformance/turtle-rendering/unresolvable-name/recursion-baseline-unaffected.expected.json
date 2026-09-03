@@ -1,0 +1,562 @@
+{
+  "description": "BASELINE fixture for saga #811 (issue #816 item 3's second column), the working twin of `recursion-collapses-silently-execute`: the identical program with `(:n - 1)` where the broken one has `(wibble :n)`. It asserts CORRECT behaviour and must stay green through the fix — the point of the pair is that fixing the silent discard must turn the broken column into a diagnostic while leaving this one byte-for-byte unchanged.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [1, 1],
+        "end": [9, 11]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "name": "tree",
+        "args": [3]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 3],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 3],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "args": [2]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 3],
+        "to": [0, 5],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 3],
+        "to": [0, 5],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 5],
+        "to": [0, 6],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [5, 3],
+        "end": [5, 13]
+      },
+      "payload": {
+        "from": [0, 5],
+        "to": [0, 6],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "args": [0]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [2, 3],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [3, 5],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "return",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [3, 5],
+        "end": [3, 13]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "result": 0
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 6],
+        "to": [0, 5],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 6],
+        "to": [0, 5],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "return",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "result": 0
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 5],
+        "to": [0, 3],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 5],
+        "to": [0, 3],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "return",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [6, 3],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tree",
+        "result": 0
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 3],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "from": [0, 3],
+        "to": [0, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "return",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "value": 0
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-baseline-unaffected",
+        "start": [11, 1],
+        "end": [11, 7]
+      },
+      "payload": {
+        "name": "tree",
+        "result": 0
+      }
+    }
+  ],
+  "diagnostics": []
+}

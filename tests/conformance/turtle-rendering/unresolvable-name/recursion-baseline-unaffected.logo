@@ -1,0 +1,11 @@
+define tree :n
+  if :n == 0
+    return 0
+  end if
+  forward :n
+  tree (:n - 1)
+  back :n
+  return 0
+end define
+
+tree 3

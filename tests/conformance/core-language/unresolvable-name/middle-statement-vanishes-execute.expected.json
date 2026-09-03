@@ -1,0 +1,68 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour. It must be FLIPPED to the correct expectation when the #814 `[spec]` ruling lands and #815 implements it; the wall exists now so the fix is provably a change. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. `execute()` half of the pair. The strongest single statement of the defect in the corpus: the run produces `print` events for 1 and 3 and none for the middle statement, while reporting zero diagnostics — the program silently does two thirds of what it says. The middle statement still emits its `instruction` marker, so the discard happens after the statement is entered, not before.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}
