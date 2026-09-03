@@ -1,0 +1,21 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour. It must be FLIPPED to the correct expectation when the #814 `[spec]` ruling lands and #815 implements it; the wall exists now so the fix is provably a change. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. `check()` half of the pair for saga #811's clearest reproduction: three `print` statements where only the middle one holds an unresolvable name. Exactly one diagnostic, spanning only `wibble` on line 2.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/unresolvable-name/middle-statement-vanishes-check",
+        "start": [2, 8],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

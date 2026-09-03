@@ -1,0 +1,21 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour. It must be FLIPPED to the correct expectation when the #814 `[spec]` ruling lands and #815 implements it; the wall exists now so the fix is provably a change. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. This is the `check()` half of the stage-consistency pair (#816 item 5) for saga #811's first reproduction, `print (difference 10 5)` (`difference` is a classic-Logo spelling OpenLogo does not define in any profile — measured `ol-unknown-command` under the studio's full nine-profile set too, not only under Core). Its `-execute` sibling holds the other half. This half is already CORRECT today and is expected to survive the fix unchanged.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/unresolvable-name/reporter-argument-check",
+        "start": [1, 8],
+        "end": [1, 18]
+      },
+      "params": {
+        "name": "difference"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

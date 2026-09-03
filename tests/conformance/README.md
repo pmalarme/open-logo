@@ -315,6 +315,48 @@ The runner is headless, exits non-zero on any mismatch, and reports the offendin
 readable diff. `npm run conformance` builds `@openlogo/core` first (`preconformance`), so it is
 self-contained on a fresh checkout.
 
+## Characterization fixtures: locking behaviour that is *wrong*
+
+Almost every fixture here asserts what the spec says must happen. A handful assert what the
+implementation **currently does while it is known to be wrong**, and they are labelled
+`CHARACTERIZATION FIXTURE` in the first words of their `description`. They exist for one class of
+defect: one where the program produces **no diagnostic and no crash**, so a fixture that merely runs
+the program passes against the broken build and the regression wall can only be built *before* the
+fix, never after.
+
+The current set belongs to saga #811 (a statement containing an unresolvable name is silently
+discarded) and was authored under issue #816:
+
+```text
+core-language/unresolvable-name/            interaction-events/unresolvable-name/
+turtle-rendering/unresolvable-name/         interaction-events/command-in-value-position/
+turtle-rendering/command-in-value-position/
+```
+
+Three rules keep them from becoming a trap:
+
+- **Each one names the ruling that will retire it.** A characterization `description` states that it
+  locks today's defective behaviour and must be **flipped** when the blocking `[spec]` ruling lands
+  (#814) and the runtime slice implements it (#815). A future reader must never mistake one of these
+  for a statement about the contract.
+- **Their neighbours are the opposite.** `arity-still-diagnosed/` and `profile-argument/` assert
+  **correct** behaviour that must survive the fix unchanged, and they say so. `recursion-collapses-
+  silently-execute` is paired with `recursion-baseline-unaffected` for the same reason: the fix has
+  to change one column and leave the other alone.
+- **They were proven to bite.** Every fixture in the set was perturbed and the harness confirmed to
+  report `FAIL`, because an assertion whose content is "nothing happened" is the easiest kind to
+  write vacuously.
+
+Two related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless search:
+
+- The **no-false-positive sweep** over `spec/examples/*.logo` (#816 item 7) is a property over a
+  whole corpus rather than one source paired with one expected stream, so it lives in
+  `scripts/examples-semantic-sweep.test.mjs` and runs under `npm run test`.
+- The `PLANT` fractal that #816 item 3 names is **not in this repository**, so its inherited
+  draw-segment counts are asserted nowhere. `turtle-rendering/unresolvable-name/recursion-*` covers
+  the same end-to-end shape with a small recursive tree written for the purpose, whose numbers were
+  measured from it.
+
 ## Harness self-tests
 
 Fixtures under `_harness-selftest/` carry `"expect": "mismatch"` and assert output that execution can

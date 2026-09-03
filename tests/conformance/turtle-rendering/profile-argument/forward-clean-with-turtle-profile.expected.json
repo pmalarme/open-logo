@@ -1,0 +1,7 @@
+{
+  "description": "PROFILE-ARGUMENT fixture for saga #811 (issue #816 item 6), half 2 of 2 — the same `forward 100` source as `forward-unknown-without-turtle-profile`, checked with `turtle-rendering` in the active set, asserting ZERO diagnostics. Unlike most fixtures in this slice this asserts CORRECT behaviour and must stay green through the fix.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

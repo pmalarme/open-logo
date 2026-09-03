@@ -1,0 +1,7 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour. It must be FLIPPED to the correct expectation when the #814 `[spec]` ruling lands and #815 implements it; the wall exists now so the fix is provably a change. Fault shape B — a KNOWN command used in VALUE position (issue #716, re-parented under saga #811). This is a DIFFERENT fault from shape A and the fixtures record it separately on purpose. Here `check()` is CLEAN, not merely unconsulted: `forward` resolves fine, so the checker has no rule to fire and there is no correct answer sitting unused. Both stages are silent. Saga #811's stated mechanism (\"`check()` computes the right answer and `execute()` never consults it\") is therefore true of shape A only — measured here rather than assumed. Form under test: `right <command>` — one turtle command consuming another as its angle. This is the `check()` half of the stage-consistency pair (#816 item 5) and it asserts an EMPTY diagnostics list — that emptiness is the defect being locked, and it is what makes this fault unreachable by any fix that only routes existing checker output to the run path.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
