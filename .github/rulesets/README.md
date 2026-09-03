@@ -26,6 +26,14 @@ Both rulesets require, for every PR into a protected branch:
 - **The always-reporting CI status checks** (the CI-enforced Definition of Done), by their exact
   check-name. See the list below and ADR-0031 for why three workflows are deliberately **excluded**.
 - **No force-pushes** (`non_fast_forward`) and **no branch deletion** (`deletion`).
+- **One extra approval for unattributed changes**
+  (`require_extra_approval_for_unattributed_changes`) — changes GitHub cannot attribute to a human
+  author, i.e. the ones Copilot and Actions write, need an approval that
+  `required_approving_review_count: 0` would otherwise waive. This is the mechanical half of "agents
+  do not self-merge; the implementer is never the sole attester": the in-session review gate is
+  guidance an agent runs on itself, whereas this is the gate. It does **not** fire on a
+  human-authored PR, so ordinary maintainer work is untouched. Left out of these files, the setting
+  reads as `false`, so re-applying a copy that omits it silently disarms the rule — keep it declared.
 - **Merge methods**: `main` allows **squash** (slice-title subject) **and merge-commit** (the RC
   promotion deliberately preserves a saga's slice history); `saga/*` allows **squash** (slices land by
   PR title) **and merge-commit** (the periodic `main → saga/*` pullback that keeps a saga from drifting
