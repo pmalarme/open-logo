@@ -2755,6 +2755,49 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
   assert.deepEqual(store.getState().output, ["turned"]);
 });
 
+/**
+ * The registration kinds #1039's liveness gate actually covers, **derived from
+ * `run-controller.ts` rather than hand-listed** — every literal `acceptsLearnerInputFor("…")` call
+ * site in the source.
+ *
+ * Hand-written axis lists drift, and this test has been killed twice by exactly that shape: first by
+ * sampling only two playback boundaries, then by sweeping only the `on_key` path. `@orchestrator`
+ * then asked whether a *third* axis was open, because `acceptsHostInputFor` has a third caller —
+ * `stop()`'s `when "stop"` notification at `run-controller.ts`'s `notifies`.
+ *
+ * It is not, and the measurement that settles it is a three-arm reachability proof rather than an
+ * argument. The same mutant expression, varying only which registration the extra disjunct exempts:
+ *
+ * | branch condition | reachable from `acceptsLearnerInputFor`? | suite |
+ * |---|---|---|
+ * | `registration === "on_click"` | yes | **1 fail** |
+ * | `registration === "when"` | no | 0 fail |
+ * | unconditional (control) | yes | **1 fail** |
+ *
+ * The sweep kills the mutant whenever the branch can be reached; the `"when"` variant is **inert,
+ * not surviving** — `acceptsLearnerInputFor` is never called with `"when"`, because `stop()` calls
+ * the ungated `acceptsHostInputFor` directly. That is #1039's deliberate narrow gate, and it is
+ * pinned separately by `#952 (QA finding 1)`'s replay-count assertion.
+ *
+ * Deriving the list means a fourth delivery entry point cannot be added without this failing.
+ */
+function learnerGatedRegistrationKinds() {
+  const source = readFileSync(
+    fileURLToPath(new URL("./run-controller.ts", import.meta.url)),
+    "utf8",
+  );
+  const kinds = [
+    ...source.matchAll(/acceptsLearnerInputFor\(\s*"([a-z_]+)"\s*\)/g),
+  ].map((match) => match[1]);
+  return [...new Set(kinds)].sort();
+}
+
+/** How a test delivers each gated registration kind. Keyed by the derived set above. */
+const DELIVER_BY_REGISTRATION = {
+  on_click: (controller) => controller.deliverClick(),
+  on_key: (controller) => controller.deliverKey("left"),
+};
+
 test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused — and costs nothing", () => {
   // `rubber-duck`'s round-1 blocking finding, pinned rather than argued away. AC3 says a program
   // holding itself open with `forever` accepts delivery; a `forever` with **no `wait` inside** does
@@ -2796,7 +2839,8 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
 
   controller.run();
 
-  // Walk EVERY playback boundary, and both public gated paths at each.
+  // Walk EVERY playback boundary, and EVERY gated delivery path at each — the path list derived
+  // from the source by `learnerGatedRegistrationKinds()`, not hand-written here.
   //
   // Two boundaries are not a sweep. Round-3 review killed the version that pressed only before the
   // first step and after the last, with
@@ -2810,23 +2854,27 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
   // `deliverClick` are two public entry points to one gate and have diverged before (#985: before
   // that slice `deliverClick` returned `true` the moment its gate passed, while `deliverKey` did
   // not), so a claim about "delivery" has to exercise both or it is a claim about one.
+  const registrations = learnerGatedRegistrationKinds();
+  assert.deepEqual(
+    registrations,
+    ["on_click", "on_key"],
+    "the gated delivery paths changed — extend DELIVER_BY_REGISTRATION and this program's registrations to match",
+  );
+
   let boundaries = 0;
   do {
     const before = recorder.requests.length;
-    assert.equal(
-      controller.deliverKey("left"),
-      false,
-      `boundary ${boundaries}: a bare \`forever\` can never deliver a key`,
-    );
-    assert.equal(
-      controller.deliverClick(),
-      false,
-      `boundary ${boundaries}: nor a click — the same gate, a different public entry point`,
-    );
+    for (const registration of registrations) {
+      assert.equal(
+        DELIVER_BY_REGISTRATION[registration](controller),
+        false,
+        `boundary ${boundaries}: a bare \`forever\` can never deliver ${registration}`,
+      );
+    }
     assert.equal(
       recorder.requests.length,
       before,
-      `boundary ${boundaries}: and neither must pay a replay to discover that`,
+      `boundary ${boundaries}: and none of them must pay a replay to discover that`,
     );
     boundaries += 1;
   } while (paced.step() && boundaries < 50);
