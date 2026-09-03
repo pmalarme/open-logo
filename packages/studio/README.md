@@ -639,7 +639,11 @@ Two consequences, both deliberate:
   A bare `forever` (no `wait` inside) is the mirror case: it never yields, so it is refused — the
   runtime's `dispatchDueHandlers` has exactly one call site, inside `runWait`, so no press could ever
   have fired there. Its boolean is unchanged from `492cdff7`; only its three wasted replays are gone.
-  All four shapes are pinned by tests so a later maintainer ruling has something to flip.
+
+  Each shape above is pinned by a test, except the `ol-limit`-inside-a-`wait` row, which is
+  **measured but deliberately unpinned** — closing it is a semantics decision tracked under #1050,
+  not a test gap, and `runStatus === "stopped"` plus the diagnostic is the cheap discriminator for
+  whoever takes it.
 
   Two things are deliberately **outside** the gate: Stop's `when "stop"` notification, which is the
   program's own pre-termination hook rather than input arriving at a live program, and any delivery
