@@ -3,22 +3,38 @@
 - Status: Accepted
 - Date: 2026
 - Deciders: OpenLogo maintainer (@pmalarme) + team
-- Related: LDR-0007 (binding versus registration) — that record says which names a program may
-  *declare*; this one says what happens when a program *uses* a name nothing answers to.
+- Ruling: issue #814 (maintainer-signed-off, [comment 5530622860](https://github.com/pmalarme/open-logo/issues/814#issuecomment-5530622860)),
+  under saga #811. This record is the **rationale layer** over that ruling. At the time it was
+  accepted, the normative `spec/` text had not yet been amended to state the ruling; the closing
+  section records exactly which parts, as a dated statement of fact.
+- Measurements: every present-tense statement about implementation behaviour in this record was
+  measured at commit `2a1888c1` and describes the tree as it stood when the record was accepted.
+  Read every "today" as "at `2a1888c1`". The slice that changes that behaviour is #815.
+- Waiver: `@orchestrator`, under maintainer-delegated authority for saga #811, granted an explicit
+  waiver of LDR-0000's rule that an LDR states only behaviour the spec already states — because this
+  record explains a maintainer-signed-off ruling (#814, comment 5530622860) whose normative text was
+  still in flight, tracked by #814 and a required precondition of saga #811's Saga Gate. The waiver
+  is retired when #814's normative text merges, at which point this record must be revisited to cite
+  the merged spec text.
+- Related: [LDR-0007](0007-binding-vs-registration.md) (binding versus registration) — that record
+  says which names a program may *declare*; this one says what happens when a program *uses* a name
+  nothing answers to.
 
 ## Context
 
 Before a program can mean anything, three separate questions have to be answered about it: can it be
 read (parse), do its names resolve to something the language knows (semantic), and do its values
-behave when the program runs (runtime). `spec/error-model.md:59` names exactly those three stages,
-and `spec/error-model.md:65` places the middle one "after parsing but before, or independent of,
+behave when the program runs (runtime). `spec/error-model.md`'s Stages section names exactly those
+three — `parse` at `spec/error-model.md:61`, `semantic` at `spec/error-model.md:65`, `runtime` at
+`spec/error-model.md:71` — and places the middle one "after parsing but before, or independent of,
 execution".
 
-OpenLogo had a fourth outcome that none of those three describes, and that the cross-language survey
-below finds nowhere: **nothing at all**. A statement whose callable name resolved to no procedure and
-no primitive did not stop the program, did not report a diagnostic, and did not run. It simply was
-not there. Measured at commit `2a1888c1`, driving `parse()`, `check()` and `execute()` from the
-built packages with every profile active:
+OpenLogo had a fourth outcome that none of those three describes: **nothing at all**. A statement
+whose callable name resolved to no procedure and no primitive did not stop the program, did not
+report a diagnostic, and did not run. It simply was not there. Measured at commit `2a1888c1`, driving
+`parse()`, `check()` and `execute()` from the built packages, with `check()` given every profile in
+`OL_CHECK_PROFILES` — `execute()` takes no profile set at all today, which is itself part of the
+finding:
 
 ```text
 print 1
@@ -28,7 +44,8 @@ print 3
   parse()   -> (no diagnostics)
   check()   -> ol-unknown-command  { name: "wibble" }
   execute() -> (no diagnostics)
-  effect    -> two print events. The middle statement vanished.
+  effect    -> two print events. The middle statement emitted only its `instruction`
+               start event and no effect event at all.
 ```
 
 The semantic checker had the right answer the whole time. Nothing asked it. That is the first of two
@@ -45,9 +62,10 @@ repeat forward 5 [ print 1 ]
 right forward 5
 
   for each of the three, run on its own:
+    parse()   -> (no diagnostics)
     check()   -> (no diagnostics)
     execute() -> (no diagnostics)
-    effect    -> nothing happens
+    effect    -> no effect event — only the statement's `instruction` start event
 ```
 
 Here there was no better answer sitting unconsulted: the checker had no rule for this shape at all,
@@ -56,10 +74,13 @@ line above exactly as silent as it was.
 
 There is a third thing wrong in the same neighbourhood, and it deserves to be told apart from both:
 a name that is known, correctly used, and part of a completely valid program, for which the
-evaluator simply has **no branch yet**. The checker is silent there by design — the program really
-is valid — and the gap is in the implementation, not in what the learner wrote. That has shipped
-twice: `sin`/`cos`/`tan`/`pi` (issue #323) and `reverse`/`pick`/`sort` (issue #190) all parsed clean,
-checked clean, and quietly did nothing.
+evaluator simply has **no branch yet**. The program really is valid, so the gap is in the
+implementation, not in what the learner wrote — and the checker has no way to say that. Its only
+lever is to withhold the name from its visible set, which is what
+`packages/parser/src/checker-names.ts`'s `NAMES_AWAITING_AN_EVALUATOR` does for `challenge` today, at
+the cost of reporting `ol-unknown-command`: a learner-error message for our bug. Before that lever
+was reached for, the class simply shipped silently, twice: `sin`/`cos`/`tan`/`pi` (issue #323) and
+`reverse`/`pick`/`sort` (issue #190) all parsed clean, checked clean, and quietly did nothing.
 
 A learner cannot tell these three apart from the outside, because from the outside all three look
 identical: the turtle did not move and the language said nothing. The question this record answers
@@ -71,49 +92,57 @@ for.**
 
 **OpenLogo does not run a program it cannot resolve.** The decision has two halves, one per fault,
 plus a precedence rule that decides which message a learner sees when both stages have an opinion.
-The normative wording lives in `spec/`; what follows states the shape of the decision, in the spec's
-own vocabulary, so the rationale below has something to attach to.
+The normative wording **will** live in `spec/` — its drafting is tracked by #814, and it had not
+landed when this record was accepted (see the closing section). What follows states the shape of the
+ruling, in the spec's own vocabulary, so the rationale below has something to attach to; it is
+rationale, not a substitute for the normative text.
 
 **An unresolvable name stops the run before it starts.** Executing a program runs the semantic check
 first and declines to run a program that fails it — the same way a program carrying **parse**
 diagnostics already declines to run, as the `fowad 100` transcript below shows by producing no events
-at all. Doing that for one stage and not the next was the inconsistency; there was never a reason a
-program that cannot be *read* should be refused while a program whose names cannot be *resolved* runs
-half of itself.
+at all. The inconsistency was narrower than "one stage and not the next", and worth stating exactly:
+`execute()` already declines to run for one semantic-class fault — a program that redeclares a
+built-in name reports `ol-reserved-word` and emits no events — so what was missing was not the idea
+of a pre-run gate but its application to unresolvable names. There was never a reason a program that
+cannot be *read*, or that redeclares `forward`, should be refused while a program whose names cannot
+be *resolved* runs half of itself.
 
 Three details make that rule safe rather than merely strict:
 
-- **The profile set comes from the caller, never from a default.** `spec/tooling.md:176` already
+- **The profile set comes from the caller, never from a default.** `spec/tooling.md:176-177` already
   requires the semantic layer to "use the active conformance profile set when deciding which
   primitives and profile block-heads are available", and this is where that requirement earns its
   keep: measured at `2a1888c1`, `forward 100` checks `ol-unknown-command` under `core-language`
   alone and clean once `turtle-rendering` is active. A check-before-run gate reading the wrong
   profile set would refuse to run every turtle program ever written.
-- **Style lints never block a run.** `ol-style-*` findings are `severity: warning`
+- **Style lints never block a run.** `ol-style-*` findings carry `severity=warning`
   (`spec/tooling.md:233`), and a warning "MUST NOT change program meaning"
-  (`spec/error-model.md:86`). Blocking a run on one would do exactly that.
+  (`spec/error-model.md:85-86`). Blocking a run on one would do exactly that. The gate must therefore
+  key on **severity**, not on the mere presence of a finding — a distinction the existing parse gate
+  has never had to make, because every parse diagnostic is an error.
 - **Any teaching opt-out is opt-*out*, never the default.** A host may choose to let a learner run
   an unfinished program on purpose; it may not silently restore silence for everyone.
 
 **The evaluator never ends in silent deferral.** This is a narrow companion to the rule above, not a
 duplicate of it, and it exists for the third case in the Context: the known name with no evaluator
-branch. The checker cannot catch that class by construction, since the program is valid. It gets its
-own diagnostic, distinct from `ol-unknown-command` and from `ol-undefined-var`, because it reports
-**our** bug and not the learner's — and telling a learner they misspelled something they spelled
-correctly is worse than saying nothing.
+branch. That class needs its own diagnostic, distinct from `ol-unknown-command` and from
+`ol-undefined-var`, because it reports **our** bug and not the learner's — and telling a learner they
+misspelled something they spelled correctly is worse than saying nothing. That is exactly the price
+the checker pays today when it withholds such a name to avoid the silence.
 
 **A command used where a value is required is `ol-no-output`.** No new code: the rule already exists
-and simply was not being applied to built-ins. `spec/execution-model.md:369` already states it in the
-language's own vocabulary — "A procedure that reaches `return` is usable as a reporter; a procedure
-that does not is a command. Using a command procedure where a value is required raises
+and simply was not being applied to built-ins. `spec/execution-model.md:369-371` already states it in
+the language's own vocabulary — "A procedure that reaches `return` is usable as a reporter; a
+procedure that does not is a command. Using a command procedure where a value is required raises
 `ol-no-output` at the call site" — and `spec/commands.md:15` classifies every built-in primitive on
 that same axis, where "Kind is **Command**, **Reporter**, or **Special form**." `forward` **is** a
 command. The change is one generalized word, from "command procedure" to "command", built-in or
 user-defined.
 
-Where that is caught differs by what is knowable statically. A built-in's Kind is part of its
-registration row and cannot be left unstated (`packages/parser/src/signatures.ts`, issue #932), so
-the built-in case is statically decidable and belongs to the **semantic** stage. Whether a *user*
+Where that is caught differs by what is knowable statically. A built-in **command or reporter**'s
+Kind is part of its registration row and cannot be left unstated (`packages/parser/src/signatures.ts`,
+issue #932; special forms have dedicated grammar productions rather than registry rows), so the
+built-in case is statically decidable and belongs to the **semantic** stage. Whether a *user*
 procedure reaches `return` can depend on a branch, so it is not statically decidable in general and
 stays a **runtime** diagnostic at the call site — which is where `spec/error-model.md:114` already
 puts it: "reported at the call site."
@@ -125,11 +154,14 @@ learner typo is a misspelled command *with* an argument, and it produced this, m
 ```text
 fowad 100
 
+  parse()   -> ol-bad-token        { text: "100" }
   check()   -> ol-unknown-command  { name: "fowad", suggestion: "forward" }
-  execute() -> ol-bad-token        { text: "100" }
+  execute() -> ol-bad-token        { text: "100" }   (relayed from parse)
+  effect    -> no events at all. Nothing ran.
 ```
 
-`fowad` **alone** reported correctly; the wrong message appeared only once the command had an
+`fowad` **alone** was reported correctly *by `check()`* — though a learner who pressed Run on it
+still saw nothing, because that is Fault A. The wrong message appeared only once the command had an
 argument, because an unregistered name is given arity `0` and the `100` is left over as a stray
 token. So the learner who pressed Run was handed a diagnostic pointing at the `100` — the argument
 blamed, the typo unmentioned — while the exact message the spec's own Philosophy section holds up as
@@ -143,8 +175,9 @@ the typo.
 ### Silence is the only outcome that teaches the wrong thing
 
 OpenLogo's pedagogy is constructionist, and its first move is literally to make the result visible:
-"**See it** — a movement, turn, mark, value, **or error** becomes visible"
-(`spec/educational-model.md:15`). A vanished statement is the one result that cannot be seen. The
+"See it — a movement, turn, mark, value, or error becomes visible"
+(`spec/educational-model.md:15` — an *Informative* section, but the one that states the teaching goal
+the rest of this argument serves). A vanished statement is the one result that cannot be seen. The
 learner sees a drawing with a piece missing and no reason for it, and the debugging skill the moment
 was supposed to teach — *look at what the language told you* — has nothing to attach to. Worse, the
 lesson that does land is the wrong one: that the computer sometimes just ignores you.
@@ -180,7 +213,7 @@ as a message beside the line rather than as a lost minute.
 ### Check-before-run is how a language without a compiler gets compile-time behaviour
 
 OpenLogo has no separate compilation step to hang an error on. It does have a semantic stage that
-already computes the answer, and `spec/error-model.md:76` already leans this way for the whole
+already computes the answer, and `spec/error-model.md:76-78` already leans this way for the whole
 diagnostic model: "If an implementation can detect a condition earlier without changing behavior, it
 SHOULD report the earlier stage. The `code` remains the same; the `stage` records when it was found."
 
@@ -199,7 +232,7 @@ checker cannot do: notice that the implementation itself has no answer.
 
 Two alternatives to the rule already written down were considered, and both were rejected.
 
-A **new** code was rejected because `spec/execution-model.md:369` already describes the correct
+A **new** code was rejected because `spec/execution-model.md:369-371` already describes the correct
 outcome for a command in value position, and `spec/commands.md:15` already puts built-in primitives
 on the same Command/Reporter axis that sentence turns on. Adding a second code for "the same fault,
 but the callee happens to be built in" would give learners two names for one idea and give the
@@ -243,19 +276,19 @@ something narrower than the familiar folklore, the narrower thing is what is wri
 
 ### A name that resolves to nothing
 
-Languages split into two families, and OpenLogo before this decision belonged to neither.
+Languages split into three families, and OpenLogo before this decision belonged to none of them.
 
 **Family 1 — refuse to run.** The name is resolved before anything executes, and a program that
 fails resolution produces no runnable artifact at all.
 
 | Language | What the source says | Reported as |
 |---|---|---|
-| Go | *"Every identifier in a program must be declared."* ([Go spec, Declarations and scope](https://go.dev/ref/spec#Declarations_and_scope)) | `undefined: x` |
+| Go | *"Every identifier in a program must be declared."* ([Go spec, Declarations and scope](https://go.dev/ref/spec#Declarations_and_scope)) | `undefined: x` ([`types2/typexpr.go`](https://github.com/golang/go/blob/master/src/cmd/compile/internal/types2/typexpr.go): `check.errorf(e, UndeclaredName, "undefined: %s", e.Value)`) |
 | Rust | Name resolution failure is error [E0425](https://doc.rust-lang.org/error_codes/E0425.html), whose official index text opens *"An unresolved name was used."* | a resolution error; compilation fails |
-| Java | §6.5.6.1's enumeration of how a simple expression name is resolved ends *"Otherwise, a compile-time error occurs."* ([JLS SE21 §6.5](https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html)) | `cannot find symbol` |
+| Java | §6.5.6.1's enumeration of how a simple expression name is resolved ends *"Otherwise, a compile-time error occurs."* ([JLS SE21 §6.5](https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html)) | `cannot find symbol` ([`compiler.properties`](https://github.com/openjdk/jdk/blob/master/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties), `compiler.err.cant.resolve`) |
 | C# | *"Otherwise, the simple_name is undefined and a compile-time error occurs."* ([ECMA-334 §12.8.4](https://github.com/dotnet/csharpstandard/blob/draft-v9/standard/expressions.md)) | [CS0103](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-messages/cs0103), *"The name 'x' does not exist in the current context"* |
-| Elm | The compiler rejects the module during canonicalization and emits no JavaScript ([`Reporting/Error/Canonicalize.hs`](https://github.com/elm/compiler/blob/master/compiler/src/Reporting/Error/Canonicalize.hs)) | a `NAMING ERROR` reading "I cannot find a `x` variable:" |
-| Racket (**module**) | *"At phase level 0, `(#%top . id)` is an immediate syntax error if `id` is not bound."* ([Racket Reference, `#%top`](https://docs.racket-lang.org/reference/__top.html)) | `x: unbound identifier` |
+| Elm | The compiler rejects the module at compile time, during canonicalization ([`Reporting/Error/Canonicalize.hs`](https://github.com/elm/compiler/blob/master/compiler/src/Reporting/Error/Canonicalize.hs)) | a `NAMING ERROR` reading "I cannot find a `x` variable:" |
+| Racket (**module**) | *"At phase level 0, `(#%top . id)` is an immediate syntax error if `id` is not bound."* ([Racket Reference, `#%top`](https://docs.racket-lang.org/reference/__top.html)) | `unbound identifier` ([`expander/expand/expr.rkt`](https://github.com/racket/racket/blob/master/racket/src/expander/expand/expr.rkt)) |
 
 Racket is worth stating carefully, because the popular summary overshoots: the immediate-error rule
 is scoped to a module. The same page says that *"in a top-level context, `(#%top . id)` always refers
@@ -278,7 +311,9 @@ the bad line happens for real, and the error arrives at the moment of use.
   ([ECMA-262 §6.2.5.5](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-getvalue)).
 - **Ruby** raises `NameError` for an undefined bare name and `NoMethodError` for a message the
   receiver does not implement, both when the expression is evaluated
-  ([`error.c`](https://github.com/ruby/ruby/blob/master/error.c)).
+  ([`error.c`](https://github.com/ruby/ruby/blob/master/error.c) defines the two classes; the message
+  form `undefined local variable or method 'x'` is asserted by Ruby's own specification suite,
+  [`spec/ruby/core/exception/to_s_spec.rb`](https://github.com/ruby/ruby/blob/master/spec/ruby/core/exception/to_s_spec.rb)).
 - **Smalltalk** turns an unimplemented message send into a run-time `doesNotUnderstand:` on the
   receiver ([Pharo `Object`](https://github.com/pharo-project/pharo/blob/Pharo12/src/Kernel/Object.class.st)).
   That is the safely citable part; how an unknown *variable* is handled is an image/IDE interaction
@@ -291,25 +326,37 @@ the bad line happens for real, and the error arrives at the moment of use.
   variable getter and may instead produce *"11 VAR has no value"*. The message is not guaranteed —
   but an error is.
 
-**And nobody is silent.** The weakest mainstream behaviour found is PHP's, and it is still not
-silence: since PHP 8, reading an undefined variable is a **Warning** (upgraded from a notice) and the
-expression evaluates to `null`, which the manual demonstrates with its own transcript
-(*"Warning: Undefined variable $unset_var"*,
-[Variable basics](https://www.php.net/manual/en/language.variables.basics.php);
-[PHP 8.0 backward-incompatible changes](https://www.php.net/manual/en/migration80.incompatible.php)).
-Two genuinely silent cases do exist and are worth naming rather than glossing over — PHP's array
-autovivification from an undefined variable, documented as producing no warning, and JavaScript's
-sloppy-mode assignment to an undeclared name, which creates a global because `PutValue` throws only
-when the reference is strict
-([ECMA-262 §6.2.5.6](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-putvalue)).
-Both are a *binding being created*, not an unknown name being read. On the actual question — what
-happens when a program uses a name that resolves to nothing — the field is unanimous, and OpenLogo
-was off the map: it neither refused nor raised.
+**A third family: silent, but with a value.** Two mainstream languages do let an unknown name be read
+without saying anything, and the record is stronger for naming them than for claiming unanimity.
 
-Given a choice between the two families, OpenLogo takes Family 1. The reason is the second row of the
-cost matrix above: Family 2's guarantee is "you will find out when you get there", and a learner
-whose drawing is half-finished has no way to tell "I got there and it failed" from "I never got
-there."
+- **Lua** is the clean counterexample. *"Any variable name is assumed to be global unless explicitly
+  declared as a local"*, *"any reference to a free name … is syntactically translated to `_ENV.var`"*,
+  and *"before the first assignment to a variable, its value is `nil`"*
+  ([Lua 5.4 Reference Manual §§2.2, 3.2](https://www.lua.org/manual/5.4/manual.html)). So reading a
+  name nothing ever defined yields `nil`, with no diagnostic at all.
+- **PHP** is nearly there but not quite: since PHP 8, reading an undefined variable is a **Warning**
+  (upgraded from a notice) and the expression evaluates to `null`, which the manual demonstrates with
+  its own transcript — *"Warning: Undefined variable $unset_var"*
+  ([Variable basics](https://www.php.net/manual/en/language.variables.basics.php);
+  [PHP 8.0 backward-incompatible changes](https://www.php.net/manual/en/migration80.incompatible.php)).
+  Its array autovivification from an undefined variable *is* documented as warning-free, and
+  JavaScript's sloppy-mode assignment to an undeclared name silently creates a global because
+  `PutValue` throws only when the reference is strict
+  ([ECMA-262 §6.2.5.6](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-putvalue))
+  — but both of those are a *binding being created*, not an unknown name being read.
+
+So the accurate claim is narrower than "nobody is silent", and it is the one that matters: **no
+surveyed language lets the statement itself disappear.** Lua's silence still produces a value, and
+that value goes on to do something a programmer can observe and trace. OpenLogo's old behaviour
+produced no diagnostic, no value, and no execution — the statement was simply skipped — which is a
+fourth position, and one nothing above occupies. Nor is Lua's trade available to OpenLogo even in
+principle: Lua's design buys terse scripting for programmers who know that a `nil` read is how a
+typo presents, and it is the design that makes `attempt to index a nil value` a rite of passage.
+
+Given the choice between the two families that do report, OpenLogo takes Family 1. The reason is the
+second row of the cost matrix above: Family 2's guarantee is "you will find out when you get there",
+and a learner whose drawing is half-finished has no way to tell "I got there and it failed" from
+"I never got there."
 
 ### A command used where a value is required
 
@@ -339,9 +386,11 @@ expected is an error ([E0308](https://doc.rust-lang.org/error_codes/E0308.html))
 Python here than the static/dynamic split would suggest.
 
 **Python is the cautionary tale, and it is the exact trap this decision exists to avoid.**
-`x = print("hi")` binds `None`. There is no error, no warning, and nothing in the output to notice.
-The chain is specified rather than accidental: `print` has no explicit return, and the Language
-Reference says of `None` that *"it is returned from functions that don't explicitly return anything"*
+`x = print("hi")` binds `None`. `hi` is printed exactly as expected, so nothing in what the
+programmer sees hints that `x` was bound to `None` rather than to something useful; there is no
+error and no warning. The chain is specified rather than accidental: `print` has no explicit return,
+and the Language Reference says of `None` that *"it is returned from functions that don't explicitly
+return anything"*
 ([Data model §3.2.1](https://docs.python.org/3/reference/datamodel.html)), which the tutorial
 restates as *"even functions without a `return` statement do return a value, albeit a rather boring
 one"*
@@ -349,7 +398,7 @@ one"*
 result is a wrong value flowing onward through the program with no diagnostic anywhere — the shape
 of failure ranked worst in the cost matrix above. It is a perfectly coherent choice for a language
 whose users can inspect `x` and reason about `None`; it is the wrong choice for a language whose
-users are ten.
+users have not yet met the idea that a command might report a value at all.
 
 **Classic Logo rejects it, including for built-ins** — which matters, because it means the OpenLogo
 decision restores heritage behaviour rather than inventing a rule. Berkeley Logo's error 5 is the
@@ -369,9 +418,12 @@ Read together, the two OpenLogo codes are not new ideas but old ones given stabl
 | `I don't know how to PROC` (errors 13 / 24) | `ol-unknown-command`, whose learner message at `spec/error-model.md:97` is literally *"i don't know how to {name}. did you mean {suggestion}?"* |
 | `PROC didn't output to PROC` (error 5), primitives included | `ol-no-output` (`spec/error-model.md:114`), generalized here from "command procedure" to "command" |
 
-What OpenLogo adds is the stage. Classic Logo tells you at run time, when the interpreter reaches the
-line; OpenLogo tells you before the run starts, so nothing has been drawn yet that the learner will
-have to un-see.
+What OpenLogo adds is the stage, and only where a stage can be added. Classic Logo tells you at run
+time, when the interpreter reaches the line; OpenLogo tells you before the run starts for the two
+cases that are statically decidable — an unresolvable callable name, and a **built-in** command in
+value position — so nothing has been drawn yet that the learner will have to un-see. A *user*
+procedure that fails to report a value cannot be decided statically in general, and remains an
+`ol-no-output` at the call site, at run time, exactly as classic Logo has it.
 
 ## Consequences
 
@@ -400,11 +452,13 @@ have to un-see.
   wants the sketching workflow back must opt *out* explicitly.
 - **The gate is only as good as the profile set it is given.** This decision moves the active
   profile set from a detail of the checker's configuration onto the critical path of every run: get
-  it wrong and a correct turtle program is refused. `spec/tooling.md:176` is what keeps that safe, and
-  it is now load-bearing in a way it was not before.
+  it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` is what keeps that safe,
+  and it is now load-bearing in a way it was not before. It is also work, not merely a rule to
+  honour: at `2a1888c1` `execute()` accepts no profile set at all, and `check()`'s own default is
+  Core Language alone.
 - **The semantic stage acquires a new obligation: it must not be wrong.** A false positive used to be
   a spurious squiggle in the editor; it now stops a run. That raises the cost of adding an
-  over-eager Layer 2 rule, and is the reason `spec/tooling.md:196` — "Tools MUST NOT report
+  over-eager Layer 2 rule, and is the reason `spec/tooling.md:196-197` — "Tools MUST NOT report
   speculative type errors when dynamic values are unknown" — matters more after this decision than
   before it.
 - **Two stages can now report the same underlying mistake, so precedence is permanent work.** Every
@@ -416,31 +470,56 @@ have to un-see.
 
 ## Spec references
 
-This record explains, and does not restate, the following normative text:
+This record explains, and does not restate, the following **normative** text:
 
 - `spec/error-model.md` — the [Philosophy](../../spec/error-model.md#philosophy) section
   (`spec/error-model.md:13`, and the `i don't know how to fowad. did you mean forward?` example at
-  `spec/error-model.md:20`); [Stages](../../spec/error-model.md#stages), which defines `parse`,
-  `semantic` and `runtime` (`spec/error-model.md:59`, `spec/error-model.md:65`) and the earlier-stage
-  rule (`spec/error-model.md:76`); [Severity](../../spec/error-model.md#severity)
-  (`spec/error-model.md:86`); the [normative code
+  `spec/error-model.md:20`); [Stages](../../spec/error-model.md#stages), which defines `parse`
+  (`spec/error-model.md:61`), `semantic` (`spec/error-model.md:65`) and `runtime`
+  (`spec/error-model.md:71`), and the earlier-stage rule
+  (`spec/error-model.md:76-78`); [Severity](../../spec/error-model.md#severity)
+  (`spec/error-model.md:85-86`); the [normative code
   registry](../../spec/error-model.md#normative-code-registry) rows for `ol-unknown-command`
   (`spec/error-model.md:97`), `ol-no-output` (`spec/error-model.md:114`) and `ol-no-value`
   (`spec/error-model.md:115`); and [Did-you-mean](../../spec/error-model.md#did-you-mean)
   (`spec/error-model.md:196`).
 - `spec/execution-model.md` — the reporter/command rule and `ol-no-output` at the call site
-  (`spec/execution-model.md:369`).
+  (`spec/execution-model.md:369-371`).
 - `spec/commands.md` — the primitive-entry shape whose **Kind** is Command, Reporter or Special form
   (`spec/commands.md:15`).
 - `spec/tooling.md` — [Layer 2: semantic checking](../../spec/tooling.md#layer-2-semantic-checking),
-  its active-profile-set requirement (`spec/tooling.md:176`) and its prohibition on speculative type
-  errors (`spec/tooling.md:196`); and [Layer 3: style
+  its active-profile-set requirement (`spec/tooling.md:176-177`) and its prohibition on speculative
+  type errors (`spec/tooling.md:196-197`); and [Layer 3: style
   lints](../../spec/tooling.md#layer-3-style-lints), which makes style findings warnings
   (`spec/tooling.md:233`).
 - `spec/grammar.md` — the declare-versus-bind rule (`spec/grammar.md:363`) and the prohibition on
   raising `ol-reserved-word` for a bound name at any stage (`spec/grammar.md:386`), which is why that
   code was not the answer to a *use*.
-- `spec/educational-model.md` — the constructionist "See it" step, in which an error is one of the
-  things that must become visible (`spec/educational-model.md:15`), and the deterministic,
-  diagnostic-driven baseline for `explain`/`why`/`hint`/`debug`
-  (`spec/educational-model.md:435`).
+
+One **Informative** document is cited for the pedagogy the decision serves, not for any rule:
+`spec/educational-model.md` — the constructionist "See it" step, in which an error is one of the
+things that must become visible (`spec/educational-model.md:15`), and the deterministic,
+diagnostic-driven baseline for `explain`/`why`/`hint`/`debug` (`spec/educational-model.md:435`).
+
+## The state of the spec when this record was accepted
+
+The maintainer ruling this record explains is issue #814, and the normative text moves to match it in
+a separate, maintainer-merged `spec/` PR (`spec/**` is CODEOWNERS-gated). At the time this record was
+accepted that PR had not landed, and a search of `spec/**` for the ruling's terms returned nothing.
+As a dated statement of fact, none of the following was normative text at `2a1888c1`:
+
+- **The check-before-run gate itself** — that `execute()` runs the semantic check and declines to run
+  a program that fails it. `spec/error-model.md:76-78` licenses reporting a condition at an earlier
+  stage, but says nothing about whether the program then runs.
+- **Where the gate's profile set comes from.** `spec/tooling.md:176-177` binds the semantic *layer*
+  to the active profile set; nothing yet binds the *run path* to a caller-supplied one.
+- **The evaluator net and the #358 implementation-gap class**, which has no `ol-*` code yet — which
+  is why this record names none.
+- **`ol-no-output` generalized to a built-in command.** `spec/execution-model.md:369-371` still says
+  "command **procedure**", and `spec/error-model.md:114`'s row still carries the `procedure` param
+  and the `runtime` stage alone.
+- **The style-lint carve-out and the opt-out rule**, neither of which appears in `spec/`.
+- **The de-duplication / precedence rule** between a parse diagnostic and a semantic one.
+
+#814 supersedes that state. A reader who finds the merged text should read it, not this record, as
+the contract — and this record's waiver (see the header) retires at that moment.
