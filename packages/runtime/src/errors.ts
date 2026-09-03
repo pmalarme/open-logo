@@ -785,13 +785,23 @@ export const runtimeDiag = {
    * frame. Distinct from the semantic-stage rule of the same code the checker will raise for
    * source it can prove unbound ahead of time (issue #113) — this is the runtime's own guard for
    * the same defect, since `execute()` never runs `check()`.
+   *
+   * Variable resolution is case-insensitive (`lookupVar` folds the name to lowercase before
+   * probing every frame), so `:SomeVar` and `:somevar` name the *same* absent binding — one
+   * condition. The diagnostic's identity must reflect that single condition: `spec/error-model.md`
+   * makes a diagnostic's identity its `code` **plus `params`**, and both the checker's
+   * `ol-undefined-var` (issue #113) and this runtime guard must agree on it whatever the source
+   * casing. The checker keys `params.name` on the *folded* name (the resolution identity); this
+   * folds identically so the two stages report one name for one condition (issue #1005). The
+   * learner message uses the same folded spelling so message and param never disagree.
    */
   undefinedVar(source_span: SourceSpan, name: string): Diagnostic {
+    const resolvedName = name.toLowerCase();
     return runtimeError(
       "ol-undefined-var",
       source_span,
-      { name },
-      `:${name} has no value yet — try assigning it with :${name} = ... first.`,
+      { name: resolvedName },
+      `:${resolvedName} has no value yet — try assigning it with :${resolvedName} = ... first.`,
     );
   },
 
@@ -834,21 +844,32 @@ export const runtimeDiag = {
    * runtime halves agree on identity; raised here at `stage: "runtime"` because `execute()` runs
    * `parse()` only, never `check()`, and because a variable's struct type is generally only known
    * dynamically (issue #329).
+   *
+   * Field names are identifiers, so field access folds case (`spec/grammar.md:13`,
+   * `values.ts`'s case-folded slot map): `.X`, `.x`, and `.x` all address one field, so a missing
+   * `.Missing` and `.MISSING` name the *same* absent field — one condition. As with
+   * `ol-undefined-var` (issue #1005), the diagnostic identity (`code` + `params`,
+   * `spec/error-model.md:254-259`) must reflect that single condition, so `field` is folded to its
+   * case-insensitive resolution identity here and in `resolveRecordField`, and the message uses the
+   * same folded spelling so message and param never disagree. `type` is not folded: a record's
+   * `type` is always the single declared struct-name spelling (`values.ts` stores the declared
+   * form, never the constructor call's casing), so it is already canonical.
    */
   unknownField(
     source_span: SourceSpan,
     params: { type: string; field: string; write?: boolean },
   ): Diagnostic {
+    const field = params.field.toLowerCase();
     const outParams: Record<string, unknown> = params.write
-      ? { type: params.type, field: params.field, write: true }
-      : { type: params.type, field: params.field };
+      ? { type: params.type, field, write: true }
+      : { type: params.type, field };
     return runtimeError(
       "ol-unknown-field",
       source_span,
       outParams,
       params.write
-        ? `${params.type} has no field ${params.field}, and records can't grow new fields.`
-        : `${params.type} has no field ${params.field}. check the spelling.`,
+        ? `${params.type} has no field ${field}, and records can't grow new fields.`
+        : `${params.type} has no field ${field}. check the spelling.`,
     );
   },
 

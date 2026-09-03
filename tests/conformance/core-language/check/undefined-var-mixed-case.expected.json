@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #1005): a bare mixed-case `:SomeVar` read the checker cannot resolve reports `params.name` as the case-insensitive resolution identity `somevar`, NOT the source casing. This is the twin of `core-language/execution/undefined-var-mixed-case`: both the semantic checker (here) and the runtime guard fold the name identically, so one undefined-variable condition has one diagnostic identity (`spec/error-model.md:254-259`) whatever the source casing.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-mixed-case",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": { "name": "somevar" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

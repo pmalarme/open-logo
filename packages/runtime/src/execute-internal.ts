@@ -308,7 +308,7 @@ function executeTurtleMoveCall(
   moveCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = moveCall.callee.name;
+  const callableName = canonicalCalleeName(moveCall);
   if (moveCall.args.length !== 1) {
     return halt(
       moveCall.args.length < 1
@@ -426,7 +426,7 @@ function executeTurtleTurnCall(
   turnCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = turnCall.callee.name;
+  const callableName = canonicalCalleeName(turnCall);
   if (turnCall.args.length !== 1) {
     return halt(
       turnCall.args.length < 1
@@ -538,7 +538,7 @@ function executeTurtlePenCall(
   penCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = penCall.callee.name;
+  const callableName = canonicalCalleeName(penCall);
   if (penCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -615,7 +615,7 @@ function executeTurtleVisibilityCall(
   visibilityCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = visibilityCall.callee.name;
+  const callableName = canonicalCalleeName(visibilityCall);
   if (visibilityCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -803,7 +803,7 @@ function executeTurtleClearCall(
   clearCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = clearCall.callee.name;
+  const callableName = canonicalCalleeName(clearCall);
   if (clearCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -858,7 +858,7 @@ function executeTurtleColorCall(
   colorCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = colorCall.callee.name;
+  const callableName = canonicalCalleeName(colorCall);
   if (colorCall.args.length !== 1) {
     return halt(
       colorCall.args.length < 1
@@ -943,7 +943,7 @@ function executeTurtleBackgroundCall(
   backgroundCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = backgroundCall.callee.name;
+  const callableName = canonicalCalleeName(backgroundCall);
   if (backgroundCall.args.length !== 1) {
     return halt(
       backgroundCall.args.length < 1
@@ -1024,7 +1024,7 @@ function executeTurtleWidthCall(
   widthCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = widthCall.callee.name;
+  const callableName = canonicalCalleeName(widthCall);
   if (widthCall.args.length !== 1) {
     return halt(
       widthCall.args.length < 1
@@ -1105,7 +1105,7 @@ function executeTurtleFillCall(
   fillCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = fillCall.callee.name;
+  const callableName = canonicalCalleeName(fillCall);
   if (fillCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1156,7 +1156,7 @@ function executeTurtleStampCall(
   stampCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = stampCall.callee.name;
+  const callableName = canonicalCalleeName(stampCall);
   if (stampCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1219,7 +1219,7 @@ function executeTurtleGridCall(
   gridCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = gridCall.callee.name;
+  const callableName = canonicalCalleeName(gridCall);
   if (gridCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1269,7 +1269,7 @@ function executeTurtleAxesCall(
   axesCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = axesCall.callee.name;
+  const callableName = canonicalCalleeName(axesCall);
   if (axesCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1318,7 +1318,7 @@ function executeTurtleMeasureCall(
   measureCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = measureCall.callee.name;
+  const callableName = canonicalCalleeName(measureCall);
   if (measureCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1386,7 +1386,7 @@ function executeTurtleShapeCall(
   shapeCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = shapeCall.callee.name;
+  const callableName = canonicalCalleeName(shapeCall);
   if (shapeCall.args.length !== 1) {
     return halt(
       shapeCall.args.length < 1
@@ -1544,7 +1544,7 @@ function executeTurtlePositionCall(
   positionCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = positionCall.callee.name;
+  const callableName = canonicalCalleeName(positionCall);
   const isHome = callableName.toLowerCase() === "home";
   const expectedArgs = isHome ? 0 : 2;
   if (positionCall.args.length !== expectedArgs) {
@@ -1654,7 +1654,7 @@ function executeTurtleHeadingCall(
   headingCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = headingCall.callee.name;
+  const callableName = canonicalCalleeName(headingCall);
   if (headingCall.args.length !== 1) {
     return halt(
       headingCall.args.length < 1
@@ -1744,7 +1744,7 @@ function executeSoundSetTempoCall(
   tempoCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = tempoCall.callee.name;
+  const callableName = canonicalCalleeName(tempoCall);
   if (tempoCall.args.length !== 1) {
     return halt(
       tempoCall.args.length < 1
@@ -1823,7 +1823,7 @@ function executeSoundBeepCall(
   beepCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = beepCall.callee.name;
+  const callableName = canonicalCalleeName(beepCall);
   if (beepCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1880,7 +1880,7 @@ function executeSoundNoteCall(
   noteCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = noteCall.callee.name;
+  const callableName = canonicalCalleeName(noteCall);
   if (noteCall.args.length !== 2) {
     return halt(
       noteCall.args.length < 2
@@ -1999,7 +1999,7 @@ function executeSoundRestCall(
   restCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = restCall.callee.name;
+  const callableName = canonicalCalleeName(restCall);
   if (restCall.args.length !== 1) {
     return halt(
       restCall.args.length < 1
@@ -2091,7 +2091,7 @@ function executeSoundPlayCall(
   playCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = playCall.callee.name;
+  const callableName = canonicalCalleeName(playCall);
   if (playCall.args.length !== 1) {
     return halt(
       playCall.args.length < 1
@@ -2288,7 +2288,7 @@ function executeWaitCall(
   waitCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = waitCall.callee.name;
+  const callableName = canonicalCalleeName(waitCall);
   if (waitCall.args.length !== 1) {
     return halt(
       waitCall.args.length < 1
@@ -3869,7 +3869,7 @@ function executePrintCall(
     return halt(
       runtimeDiag.notEnoughInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         0,
       ),
@@ -3930,7 +3930,7 @@ function executeShowCall(
     return halt(
       runtimeDiag.notEnoughInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         0,
       ),
@@ -3940,7 +3940,7 @@ function executeShowCall(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         statement.args.length,
       ),
@@ -4000,7 +4000,7 @@ function executeRandomizeCall(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         statement.args.length,
       ),
@@ -4173,7 +4173,7 @@ function executeEducationalMetaCommand(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         0,
         statement.args.length,
       ),
@@ -4338,6 +4338,19 @@ const NORMAL_SIGNAL: ExecSignal = { kind: "normal" };
 
 function halt(diagnostic: Diagnostic): ExecSignal {
   return { kind: "halt", diagnostic };
+}
+
+/**
+ * The canonical callable identity a primitive's arity diagnostic must carry, matching what the
+ * static checker reports (`checker-arity.ts`: `heritageActive && node.canonical ? node.canonical :
+ * lower`). OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
+ * diagnostic's identity (`spec/error-model.md:254-259`): `SHOW` and `show` are one primitive, one
+ * condition, and must report one `callable`. A Heritage alias carries its Core `canonical` on the
+ * call node (`fd` → `forward`); any primitive that actually executes has an active profile providing
+ * it, so `canonical ?? lower` is the runtime's exact analogue of the checker's rule (issue #1005).
+ */
+function canonicalCalleeName(node: CallNode | ParenCallNode): string {
+  return node.canonical ?? node.callee.name.toLowerCase();
 }
 
 /**
@@ -4571,6 +4584,11 @@ function runProcedureBody(
 ): ProcedureOutcome {
   const name = node.callee.name.toLowerCase();
   const def = environment.procedures.get(name) as ProcedureDefNode;
+  // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
+  // diagnostic's identity (`spec/error-model.md:254-259`). The static checker reports the
+  // *definition's* declared spelling (`checker-arity.ts` `params.callable`); the runtime must
+  // agree, so arity diagnostics carry `def.name.name`, not `node.callee.name` (issue #1005).
+  const declaredName = def.name.name;
   const required = def.params.filter(
     (param) => param.defaultValue === undefined,
   ).length;
@@ -4581,7 +4599,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.notEnoughInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         required,
         actual,
       ),
@@ -4592,7 +4610,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.tooManyInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         max,
         actual,
       ),
@@ -4691,12 +4709,15 @@ function callProcedureAsValue(
     return outcome;
   }
   if (outcome.result === null) {
+    // Report the definition's declared spelling, not the call site's, so `ol-no-output`'s
+    // identity is stable across case-insensitive call spellings and matches the enter/exit
+    // events (which already use `def.name.name`) — issue #1005.
+    const def = environment.procedures.get(
+      node.callee.name.toLowerCase(),
+    ) as ProcedureDefNode;
     return {
       ok: false,
-      diagnostic: runtimeDiag.noOutput(
-        node.callee.source_span,
-        node.callee.name,
-      ),
+      diagnostic: runtimeDiag.noOutput(node.callee.source_span, def.name.name),
     };
   }
   return { ok: true, value: outcome.result };
