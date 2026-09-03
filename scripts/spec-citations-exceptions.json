@@ -145,14 +145,6 @@
       "fingerprint": "b0346922db4f2e2e"
     },
     {
-      "subject": "spec/execution-model.md:538",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 537 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 539 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "db0dfcbd5cb4bc2e"
-    },
-    {
       "subject": "spec/conformance.md:129",
       "observed": "blank-region",
       "kind": "stale-citation",

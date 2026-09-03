@@ -5,19 +5,19 @@
  *
  * {@link execute} is the foundational execution entry point (issue #90): it parses a source
  * document and walks the program's top-level statements, emitting one `instruction` start event
- * per statement (`spec/execution-model.md:559-600` — the `instruction` event is the unit of
+ * per statement (`spec/execution-model.md:576-617` — the `instruction` event is the unit of
  * "one step"). Issue #93 gave Core literals and arithmetic (`+ - * / mod` plus
  * `abs sqrt int round power`) a runtime value via {@link evaluate} and added a minimal `print`
  * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized
  * variadic `(print a b …)` form (`spec/commands.md:142-158`) both evaluate every operand, in
  * order, and — once all of them evaluate cleanly — emit one `print` event carrying every value
  * (`PrintPayload.values`) right after that statement's `instruction` event. Issue #100 gives `if`
- * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md:365-369`):
+ * (with an optional `else`) and `while` their runtime meaning (`spec/execution-model.md:371-375`):
  * both require a boolean condition (`ol-not-boolean` otherwise, reusing the builder issue #95
  * added for `and`/`or`/`not`), `if` runs exactly one branch (or none, with no `else`), and `while`
  * re-evaluates its condition before every pass — including the first — running the body each time
  * the condition holds. Issue #104 gives `repeat`/`forever` their runtime meaning: `repeat`
- * validates its count TYPE then RANGE, in that order (`spec/execution-model.md:365-369`) —
+ * validates its count TYPE then RANGE, in that order (`spec/execution-model.md:371-375`) —
  * `ol-type` for a non-whole-number count, `ol-range` for a negative one, zero passes for `repeat
  * 0` — then runs its body that many times; `forever` repeats its body until cancelled or the
  * instruction budget is reached (issue #102 — see {@link ExecuteOptions}). Both thread the active

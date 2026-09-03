@@ -13,7 +13,7 @@ import { test } from "node:test";
 import { OLDict, OLTurtle } from "@openlogo/core";
 import { printedForm, snapshotValue, valuesEqual } from "@openlogo/runtime";
 
-// --- identity equality (spec/execution-model.md:675 — turtle row is "Same turtle identity") ----
+// --- identity equality (spec/execution-model.md:692 — turtle row is "Same turtle identity") ----
 
 test("a turtle equals itself under `==`", () => {
   const a = new OLTurtle(0);

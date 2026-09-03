@@ -208,7 +208,7 @@ function isSurfaceSubject(code, field) {
  *
  * The extra `print (…)` line is what reaches the three list-reporter aliases (`bf`/`bl`/`se`): the
  * current runtime does not evaluate a bare expression statement — an implementation state, not a
- * spec rule (`spec/execution-model.md:412-413` — "Used alone as a statement, its result is
+ * spec rule (`spec/execution-model.md:429-430` — "Used alone as a statement, its result is
  * *discarded* like any other unused value", i.e. evaluated and then dropped) — so the reporter is
  * placed where its value is required. The shape is deliberately robust if that changes: an
  * evaluated `(bf)` on line 1 raises the identical `ol-not-enough-inputs` with the identical

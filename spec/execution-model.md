@@ -362,7 +362,13 @@ freely update any name visible from its enclosing scope — this is the
 accumulator idiom (`repeat 4 [ forward :count * 10   :count = :count + 1 ]`) and
 is how a block updates a plain top-level variable or a `global` alike (see
 [`spec/examples/10-game.logo`](examples/10-game.logo), whose `on_click` handler
-updates a plain top-level `:score` with no `global` declaration). A name **born**
+updates a plain top-level `:score` with no `global` declaration — an event
+handler's body is registered as a lexical block at its call site, not as a
+procedure body, so the sealed procedure boundary above never applies to it: a
+handler sees, reads, and writes the whole lexical chain visible where it was
+registered, exactly as any other block would, whether that chain bottoms out at
+the root frame or inside an enclosing procedure's own locals and parameters).
+A name **born**
 inside a block — first assigned there, with no visible binding of that name
 before the block started — dies when the block's `]` closes; reading it
 afterwards raises `ol-undefined-var`.
@@ -404,7 +410,18 @@ expression is evaluated **before** the new binding is created, in the enclosing
 scope — so `local count = :count` inside a procedure reads the enclosing
 `global count`, not the not-yet-created local, and the same expression at the
 top level or in a block reads whatever binding of `:count` was already visible
-there. Reading `:name` is sugar for `thing "name"` and raises `ol-undefined-var`
+there. `global name = value` is legal only at the root scope (see "The `global`
+declaration" below), so its initializer is always evaluated **in the root
+frame**, following the same before-the-binding-exists rule as `local`: a plain
+top-level binding of that name already visible there is read by the initializer
+before the `global` binding replaces it — `global count = :count + 1` after a
+prior plain `:count = 5` reads `5`, then creates the `global` holding `6`. If the
+name is already a `global` in the root frame, declaring it `global` again is a
+no-op redeclaration exactly as `local name` is (see above): the initializer
+still runs, in the root frame where that `global` is visible, and reassigns the
+same binding rather than creating a second one — re-running `global count =
+:count + 1` against an existing `global count = 6` updates it to `7`. Reading
+`:name` is sugar for `thing "name"` and raises `ol-undefined-var`
 if no binding is visible, including a name used before the statement that first
 assigns it has run — a handler that fires before its `global` declaration has
 executed observes the same `ol-undefined-var`, and a postfix place resolves its

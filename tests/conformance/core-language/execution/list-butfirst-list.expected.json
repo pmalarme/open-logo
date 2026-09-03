@@ -1,5 +1,5 @@
 {
-  "description": "`butfirst` on a list reports a fresh list with every element but the first (spec/commands.md \"butfirst\"; spec/execution-model.md:447-482 — never mutates the input). Issue #101.",
+  "description": "`butfirst` on a list reports a fresh list with every element but the first (spec/commands.md \"butfirst\"; spec/execution-model.md:464-499 — never mutates the input). Issue #101.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
