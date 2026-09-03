@@ -2778,6 +2778,9 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
       'on_key "left" [',
       '  print "turned"',
       "]",
+      "on_click [",
+      '  print "clicked"',
+      "]",
       "forever",
       "  forward 1",
       "end forever",
@@ -2793,24 +2796,37 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
 
   controller.run();
 
-  // Walk EVERY playback boundary, not just the two ends. Round-3 review killed the previous version
-  // of this test — which pressed only before the first step and after the last — with
-  // `lastYieldedTick === null ? drawnEventCount > 0 && animation?.getSnapshot().status !== "done"`.
-  // At both ends that mutant agrees with the real predicate (nothing drawn yet, then fully drawn and
-  // `"done"`), so 622/622 stayed green; one step in it disagrees and pays an execution. An earlier
-  // revision of this comment claimed refusal "at ANY point in playback" while testing two points.
+  // Walk EVERY playback boundary, and both public gated paths at each.
+  //
+  // Two boundaries are not a sweep. Round-3 review killed the version that pressed only before the
+  // first step and after the last, with
+  // `lastYieldedTick === null ? drawnEventCount > 0 && animation?.getSnapshot().status !== "done"`:
+  // at both ends that mutant agrees with the real predicate (nothing drawn yet, then fully drawn and
+  // `"done"`), so 622/622 stayed green, while one step in it disagrees and pays an execution.
+  //
+  // One path is not the gate. Round-4 review then killed the key-only sweep with a mutant that
+  // exempted `on_click` alone — `programIsStillRunning() || (registration === "on_click" && …)` —
+  // which again left 622/622 green while a click wasted a replay mid-playback. `deliverKey` and
+  // `deliverClick` are two public entry points to one gate and have diverged before (#985: before
+  // that slice `deliverClick` returned `true` the moment its gate passed, while `deliverKey` did
+  // not), so a claim about "delivery" has to exercise both or it is a claim about one.
   let boundaries = 0;
   do {
     const before = recorder.requests.length;
     assert.equal(
       controller.deliverKey("left"),
       false,
-      `boundary ${boundaries}: a bare \`forever\` can never deliver`,
+      `boundary ${boundaries}: a bare \`forever\` can never deliver a key`,
+    );
+    assert.equal(
+      controller.deliverClick(),
+      false,
+      `boundary ${boundaries}: nor a click — the same gate, a different public entry point`,
     );
     assert.equal(
       recorder.requests.length,
       before,
-      `boundary ${boundaries}: and must not pay a replay to discover that`,
+      `boundary ${boundaries}: and neither must pay a replay to discover that`,
     );
     boundaries += 1;
   } while (paced.step() && boundaries < 50);
