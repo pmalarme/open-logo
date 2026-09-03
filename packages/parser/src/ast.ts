@@ -269,7 +269,7 @@ export interface PostfixExpressionNode extends NodeBase {
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
  * place). The parser also accepts a non-place expression here — a reporter/command call such as
  * `first :x = 5`, or a bare literal/list such as `3 = 5`/`count :nums = 3` — purely so the
- * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:213-219`)
+ * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:215-221`)
  * at `stage: "semantic"` instead of a blunt parse error. The runtime only ever sees a `Place`,
  * because `check()` rejects every non-place target first.
  */

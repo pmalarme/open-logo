@@ -1,5 +1,5 @@
 {
-  "description": "Reading an undeclared field through a mixed-case accessor `.Height` raises `ol-unknown-field` whose `params.field` is the case-insensitive resolution identity `height`, NOT the accessor casing (issue #1005). Field access folds case (`values.ts`'s slot map, `spec/grammar.md:13`), so `.Height` and `.height` name the same absent field: one condition must have one diagnostic identity (`spec/error-model.md:254-259`), and the runtime's folded `params.field` matches the checker's `resolveRecordField`. `type` stays the canonical declared spelling `point`.",
+  "description": "Reading an undeclared field through a mixed-case accessor `.Height` raises `ol-unknown-field` whose `params.field` is the case-insensitive resolution identity `height`, NOT the accessor casing (issue #1005). Field access folds case (`values.ts`'s slot map, `spec/grammar.md:13`), so `.Height` and `.height` name the same absent field: one condition must have one diagnostic identity (`spec/error-model.md:255-260`), and the runtime's folded `params.field` matches the checker's `resolveRecordField`. `type` stays the canonical declared spelling `point`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

@@ -452,7 +452,7 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   //
   // The reporter/block-head distinction this file exists to keep separate is preserved in the
   // checker's BRANCHES, but is no longer visible in the diagnostic: issue #838 removed the
-  // `namespace` param, because `spec/error-model.md:125,132-141` makes keyword-vs-primitive "an
+  // `namespace` param, because `spec/error-model.md:125,133-142` makes keyword-vs-primitive "an
   // implementation distinction the learner never has to learn". `params.name` is the surface
   // spelling the learner wrote, at that name's own span (#737).
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {

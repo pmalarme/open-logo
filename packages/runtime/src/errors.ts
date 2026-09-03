@@ -386,7 +386,7 @@ type CanonicalEscapeKeyword = "return" | "stop";
  * else.
  *
  * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
- * params (`spec/error-model.md:254-259`). Heritage is "alternate spellings only, no new semantics"
+ * params (`spec/error-model.md:255-260`). Heritage is "alternate spellings only, no new semantics"
  * (`spec/conformance.md#heritage`), so an executed `output 5` and an executed `return 5` at top
  * level are ONE condition and must carry one machine-readable identity — the surface spelling
  * belongs in the prose, never in the params. Shares the parser's registry precisely so the two
@@ -849,7 +849,7 @@ export const runtimeDiag = {
    * `values.ts`'s case-folded slot map): `.X`, `.x`, and `.x` all address one field, so a missing
    * `.Missing` and `.MISSING` name the *same* absent field — one condition. As with
    * `ol-undefined-var` (issue #1005), the diagnostic identity (`code` + `params`,
-   * `spec/error-model.md:254-259`) must reflect that single condition, so `field` is folded to its
+   * `spec/error-model.md:255-260`) must reflect that single condition, so `field` is folded to its
    * case-insensitive resolution identity here and in `resolveRecordField`, and the message uses the
    * same folded spelling so message and param never disagree. `type` is not folded: a record's
    * `type` is always the single declared struct-name spelling (`values.ts` stores the declared
@@ -1234,7 +1234,7 @@ export const runtimeDiag = {
    * which makes it an error that "MUST NOT be a silent override").
    *
    * `source_span` points at the later declaration and `params.original_span` at the earlier one:
-   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:143-146`
+   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:144-147`
    * requires supplying `original_span` rather than folding the earlier location into the prose.
    * Same code, params and spans as the parser's `checker-reserved-word.ts` (issue #839) — only
    * `stage` differs, `"runtime"` here for the same reason {@link runtimeDiag.reservedWord} gives.
@@ -1287,7 +1287,7 @@ export const runtimeDiag = {
    * Heritage registry. That is what keeps "both stages agree on identity" true: the parser
    * canonicalized this param in issue #737, so until issue #741 canonicalized this copy too the
    * same `output 5` carried `keyword: "return"` when checked and `keyword: "output"` when executed —
-   * one condition with two machine-readable identities, which `spec/error-model.md:254-259`
+   * one condition with two machine-readable identities, which `spec/error-model.md:255-260`
    * forbids. The prose message still echoes the learner's own word; that is the localization
    * boundary and is permitted.
    */

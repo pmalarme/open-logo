@@ -24,7 +24,7 @@
  * the next profile as well as this one.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
- * did-you-mean tie-break (`spec/error-model.md:210-211`: on a distance tie, "prefer Core words over
+ * did-you-mean tie-break (`spec/error-model.md:211-212`: on a distance tie, "prefer Core words over
  * optional-profile words, then full canonical names over short aliases, then lexicographic order")
  * — a tie between a Core name and an optional-profile name is reachable and MUST resolve in Core's
  * favor, not by lexicographic order alone. Program-declared names (procedures, struct constructors)
@@ -111,7 +111,7 @@ export function isOptionalProfileName(name: string): boolean {
  * {@link collectVisibleNames}'s unconditional procedure/struct walk). The did-you-mean tie-break
  * uses this to tell a user's `define fd … end` apart from the Heritage alias `fd` that happens to
  * share its spelling — a declared name must never be demoted as if it were the short alias
- * (`spec/error-model.md:210-211` orders full canonical names over *Heritage aliases*, not over a
+ * (`spec/error-model.md:211-212` orders full canonical names over *Heritage aliases*, not over a
  * learner's own procedures).
  */
 export function collectDeclaredNames(
