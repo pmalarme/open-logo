@@ -687,7 +687,7 @@ function homeTurtleForClearScreen(
   source_span: SourceSpan,
 ): void {
   // Position first, its event next, then heading and *its* event — so each payload is the
-  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:652`) and each
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:785`) and each
   // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
   // mutations up front would emit a `move` reporting a heading the turtle no longer had.
   const from: Point = [turtle.x, turtle.y];
@@ -4084,7 +4084,7 @@ function isEducationalMetaCommandCall(
  * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
  * times in a row with nothing in between) all resolving to the SAME real target, rather than
  * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
- * progression (`spec/execution-model.md:641-652`, "for the SAME target") could never observe two
+ * progression (`spec/execution-model.md:774-785`, "for the SAME target") could never observe two
  * calls sharing one target.
  */
 function findPrecedingSiblingStatement(
@@ -4272,7 +4272,7 @@ function dispatchShowRandomizeOrEducationalCommand(
  * `document` plus both endpoints, so two different spans (even in the same document) never
  * collide, and the whole-program fallback span (a distinct, wider span than any single
  * statement) gets its own independent progression, per
- * `spec/execution-model.md:641-652`'s "observable ordering ... for a given target-source-span
+ * `spec/execution-model.md:774-785`'s "observable ordering ... for a given target-source-span
  * value" requirement.
  */
 function hintTargetKey(span: SourceSpan): string {
@@ -4344,7 +4344,7 @@ function halt(diagnostic: Diagnostic): ExecSignal {
  * The canonical callable identity a primitive's arity diagnostic must carry, matching what the
  * static checker reports (`checker-arity.ts`: `heritageActive && node.canonical ? node.canonical :
  * lower`). OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
- * diagnostic's identity (`spec/error-model.md:254-259`): `SHOW` and `show` are one primitive, one
+ * diagnostic's identity (`spec/error-model.md:255-260`): `SHOW` and `show` are one primitive, one
  * condition, and must report one `callable`. A Heritage alias carries its Core `canonical` on the
  * call node (`fd` → `forward`); any primitive that actually executes has an active profile providing
  * it, so `canonical ?? lower` is the runtime's exact analogue of the checker's rule (issue #1005).
@@ -4520,7 +4520,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:775-813`).
+ * (`spec/execution-model.md:908-946`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
@@ -4585,7 +4585,7 @@ function runProcedureBody(
   const name = node.callee.name.toLowerCase();
   const def = environment.procedures.get(name) as ProcedureDefNode;
   // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
-  // diagnostic's identity (`spec/error-model.md:254-259`). The static checker reports the
+  // diagnostic's identity (`spec/error-model.md:255-260`). The static checker reports the
   // *definition's* declared spelling (`checker-arity.ts` `params.callable`); the runtime must
   // agree, so arity diagnostics carry `def.name.name`, not `node.callee.name` (issue #1005).
   const declaredName = def.name.name;
@@ -4832,7 +4832,7 @@ function callProcedureAsValue(
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,870`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1003`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
@@ -5587,7 +5587,7 @@ export function resolveEffectiveRecursionDepthLimit(
  * slice the exact assignment-target surface text out of it. Issue #332 threads `program` itself
  * onto the environment (`TutorContext.program`, and the source of `hint`'s whole-program fallback
  * span via `program.source_span`) and a fresh `hintProgress` map per run, so the Educational
- * profile's `hint` progression (`spec/execution-model.md:641-652`) starts over — every target
+ * profile's `hint` progression (`spec/execution-model.md:774-785`) starts over — every target
  * begins at `"nudge"` — for each new `execute()` call. `tutorTemplate` resolves
  * `options?.tutorTemplates` to {@link defaultTutorTemplate} when omitted, and `learnerLevel`
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the

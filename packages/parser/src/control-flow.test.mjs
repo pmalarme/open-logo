@@ -452,7 +452,7 @@ test("a comprehension body inside a `when` handler is still a comprehension boun
 // `output`/`op` are Heritage *alternate spellings* of `return` (spec/conformance.md#heritage —
 // "alternate spellings only, no new semantics"), lowered onto the same `Return` node. Diagnostic
 // identity is `code` plus structured `params`, and the same condition MUST keep the same code AND
-// the same params (spec/error-model.md:254-259), so all three spellings raise byte-identical
+// the same params (spec/error-model.md:255-260), so all three spellings raise byte-identical
 // diagnostic IDENTITIES — same `code`, same `params`, with `params.keyword` always the canonical
 // `"return"`. The whole diagnostic is not identical and is not required to be: the prose `message`
 // may echo the learner's own word, and `source_span` covers the surface control word, so it differs

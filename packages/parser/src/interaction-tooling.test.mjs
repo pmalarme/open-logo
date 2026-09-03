@@ -558,7 +558,7 @@ test("check: `wait` is a primitive, so redefining it under an active profile rai
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
   // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
   // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
-  // `spec/error-model.md:136` puts it, that is "an implementation distinction the learner never has
+  // `spec/error-model.md:137` puts it, that is "an implementation distinction the learner never has
   // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.
