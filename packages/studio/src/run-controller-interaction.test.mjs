@@ -2756,42 +2756,22 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
 });
 
 /**
- * Every call site of #1039's liveness gate, **derived from `run-controller.ts`** — the raw argument
- * text at each `acceptsLearnerInputFor(…)` call, excluding the declaration.
+ * How a test delivers each gated registration kind — the two public entry points #1039's liveness
+ * gate covers. **Hand-maintained, and deliberately so.**
  *
- * Call sites, not registration kinds. Round-6 review killed the kind-deriving version with two
- * survivors, both leaving 622/622 green:
+ * Three successive attempts to derive this list from `run-controller.ts` each left a survivor that
+ * review built and I had not predicted: a duplicate kind collapsed by `Set`, a computed argument the
+ * regex never matched, and a call through an alias. Each fix produced a narrower instrument and a
+ * claim I then had to walk back. A guarantee that is wrong in a way nobody has found yet is worse
+ * than an honest list, because it stops people looking.
  *
- * - a new public `deliverPointer()` calling `acceptsLearnerInputFor("on_click")` — the regex saw it,
- *   but `Set` collapsed the duplicate kind, so a public entry point the sweep never drives was
- *   invisible;
- * - the same call written `acceptsLearnerInputFor(registration)` — a non-literal argument the regex
- *   did not match at all, and silently skipping what it could not parse made it blind.
- *
- * So this returns raw argument text, one entry per call, and the caller asserts each is a quoted
- * literal. The rule that closes both: **fail on anything the derivation does not understand**,
- * rather than ignoring it. A derivation that silently skips an unrecognised shape returns the same
- * clean answer whether or not the shape is there — which is the whole family of defects this review
- * has been finding.
- *
- * Its sibling concern is settled separately and by measurement: `@orchestrator` asked whether the
- * `when "stop"` path is a third gated axis. It is not — `stop()` calls the ungated
- * `acceptsHostInputFor` directly, and `programIsStillRunning()` has exactly one call site. Proved by
- * three arms of one mutant expression, varying only the literal it exempts: `"on_click"`
- * (reachable) **1 fail**, `"when"` (unreachable) **0 fail**, unconditional control (reachable)
- * **1 fail**. The `"when"` variant is **inert, not surviving** — a distinction invisible in a green
- * suite and recoverable only from that control.
+ * So this list is **not enforced**. For the reader who needs the real topology: `run-controller.ts`
+ * has three `acceptsHostInputFor` call sites — `deliverKey("on_key")` and `deliverClick("on_click")`,
+ * both routed through the gated `acceptsLearnerInputFor`, and `stop()`'s `"when"`, which is ungated
+ * by design (`spec/interaction-events.md:152-156`; pinned by `#952 (QA finding 1)`'s replay count).
+ * `programIsStillRunning()` has exactly one consumer. If a fourth delivery entry point appears, add
+ * it here — nothing will remind you.
  */
-function learnerGatedRegistrationKinds() {
-  const source = readFileSync(
-    fileURLToPath(new URL("./run-controller.ts", import.meta.url)),
-    "utf8",
-  );
-  return [
-    ...source.matchAll(/(?<!function )acceptsLearnerInputFor\(([^)]*)\)/g),
-  ].map((match) => match[1].trim());
-}
-/** How a test delivers each gated registration kind. Keyed by the derived set above. */
 const DELIVER_BY_REGISTRATION = {
   on_click: (controller) => controller.deliverClick(),
   on_key: (controller) => controller.deliverKey("left"),
@@ -2838,8 +2818,8 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
 
   controller.run();
 
-  // Walk EVERY playback boundary, and EVERY gated delivery path at each — the path list derived
-  // from the source by `learnerGatedRegistrationKinds()`, not hand-written here.
+  // Walk EVERY playback boundary, and EVERY gated delivery path at each. The path list is
+  // `DELIVER_BY_REGISTRATION` — hand-maintained; see its doc for why deriving it was abandoned.
   //
   // Two boundaries are not a sweep. Round-3 review killed the version that pressed only before the
   // first step and after the last, with
@@ -2853,27 +2833,7 @@ test("#1039 AC3 (limitation): a BARE `forever` never yields, so it is refused �
   // `deliverClick` are two public entry points to one gate and have diverged before (#985: before
   // that slice `deliverClick` returned `true` the moment its gate passed, while `deliverKey` did
   // not), so a claim about "delivery" has to exercise both or it is a claim about one.
-  const callSiteArguments = learnerGatedRegistrationKinds();
-  for (const argument of callSiteArguments) {
-    assert.match(
-      argument,
-      /^"[a-z_]+"$/,
-      `a gated delivery call site passes ${argument}, which this derivation cannot read — a computed registration makes the sweep blind, so it fails rather than skipping it`,
-    );
-  }
-  const registrations = callSiteArguments.map((argument) =>
-    argument.slice(1, -1),
-  );
-  assert.equal(
-    new Set(registrations).size,
-    registrations.length,
-    `two gated call sites share a registration kind (${registrations.join(", ")}) — one of them is a public entry point this sweep never drives`,
-  );
-  assert.deepEqual(
-    [...registrations].sort(),
-    ["on_click", "on_key"],
-    "the gated delivery paths changed — extend DELIVER_BY_REGISTRATION and this program's registrations to match",
-  );
+  const registrations = Object.keys(DELIVER_BY_REGISTRATION);
 
   let boundaries = 0;
   do {
