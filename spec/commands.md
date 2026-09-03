@@ -14,7 +14,7 @@ Primitive entries use this shape:
 - **Aliases** are canonical synonyms from the primitive matrix. The full underscored name is primary when one exists. Single-token short aliases remain available where listed.
 - **Kind** is **Command**, **Reporter**, or **Special form**.
 - **Argument types** name accepted value types or syntactic slots.
-- **Result** is the reported value or `—` for commands and effect-only special forms.
+- **Result** is the reported value or `—` for commands and effect-only special forms. A Command reports nothing, so using one where a value is required raises `ol-no-output` ([execution-model.md](execution-model.md#variables-scoping-and-procedures)).
 - **Concept** names the idea the primitive teaches.
 
 All examples are lowercase and use the locked OL surface:
