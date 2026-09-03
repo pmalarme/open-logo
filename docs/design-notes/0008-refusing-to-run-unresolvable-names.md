@@ -14,8 +14,10 @@
   waiver of LDR-0000's rule that an LDR states only behaviour the spec already states — because this
   record explains a maintainer-signed-off ruling (#814, comment 5530622860) whose normative text was
   still in flight, tracked by #814 and a required precondition of saga #811's Saga Gate. The waiver
-  is retired when #814's normative text merges, at which point this record must be revisited to cite
-  the merged spec text.
+  lapses when #814's normative text merges: from that moment the merged `spec/` text is the contract
+  and this record is read as the dated rationale behind it. Per LDR-0000 this record is immutable
+  once Accepted, so if the merged text ever diverges from what is described here, the remedy is a
+  superseding LDR, not an edit to this one.
 - Related: [LDR-0007](0007-binding-vs-registration.md) (binding versus registration) — that record
   says which names a program may *declare*; this one says what happens when a program *uses* a name
   nothing answers to.
@@ -29,12 +31,13 @@ three — `parse` at `spec/error-model.md:61`, `semantic` at `spec/error-model.m
 `spec/error-model.md:71` — and places the middle one "after parsing but before, or independent of,
 execution".
 
-OpenLogo had a fourth outcome that none of those three describes: **nothing at all**. A statement
-whose callable name resolved to no procedure and no primitive did not stop the program, did not
-report a diagnostic, and did not run. It simply was not there. Measured at commit `2a1888c1`, driving
-`parse()`, `check()` and `execute()` from the built packages, with `check()` given every profile in
-`OL_CHECK_PROFILES` — `execute()` takes no profile set at all today, which is itself part of the
-finding:
+OpenLogo had a fourth outcome that none of those three describes: **nothing to see**. A statement
+whose callable name resolved to no procedure and no primitive did not stop the program and did not
+report a diagnostic; the evaluator walked over it — it emits its `instruction` start event like any
+other statement — and then produced no value and no effect. From outside, the statement might as
+well not have been written. Measured at commit `2a1888c1`, driving `parse()`, `check()` and
+`execute()` from the built packages, with `check()` given every profile in `OL_CHECK_PROFILES` —
+`execute()` takes no profile set at all today, which is itself part of the finding:
 
 ```text
 print 1
@@ -177,7 +180,8 @@ the typo.
 OpenLogo's pedagogy is constructionist, and its first move is literally to make the result visible:
 "See it — a movement, turn, mark, value, or error becomes visible"
 (`spec/educational-model.md:15` — an *Informative* section, but the one that states the teaching goal
-the rest of this argument serves). A vanished statement is the one result that cannot be seen. The
+the rest of this argument serves). A statement that leaves no trace a learner can see is the one
+result that cannot be seen. The
 learner sees a drawing with a piece missing and no reason for it, and the debugging skill the moment
 was supposed to teach — *look at what the language told you* — has nothing to attach to. Worse, the
 lesson that does land is the wrong one: that the computer sometimes just ignores you.
@@ -310,10 +314,13 @@ the bad line happens for real, and the error arrives at the moment of use.
   exception."*
   ([ECMA-262 §6.2.5.5](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-getvalue)).
 - **Ruby** raises `NameError` for an undefined bare name and `NoMethodError` for a message the
-  receiver does not implement, both when the expression is evaluated
-  ([`error.c`](https://github.com/ruby/ruby/blob/master/error.c) defines the two classes; the message
-  form `undefined local variable or method 'x'` is asserted by Ruby's own specification suite,
-  [`spec/ruby/core/exception/to_s_spec.rb`](https://github.com/ruby/ruby/blob/master/spec/ruby/core/exception/to_s_spec.rb)).
+  receiver does not implement, both when the expression is evaluated. The canonical interpreter
+  documents both: *"Raised when a given name is invalid or undefined"* and *"Raised when a method is
+  called on a receiver which doesn't have it defined and also fails to respond with
+  `method_missing`"* ([`error.c`](https://github.com/ruby/ruby/blob/master/error.c), the
+  `Document-class:` comments the published docs are generated from); the message form
+  `undefined local variable or method 'x'` is asserted by Ruby's own specification suite
+  ([`spec/ruby/core/exception/to_s_spec.rb`](https://github.com/ruby/ruby/blob/master/spec/ruby/core/exception/to_s_spec.rb)).
 - **Smalltalk** turns an unimplemented message send into a run-time `doesNotUnderstand:` on the
   receiver ([Pharo `Object`](https://github.com/pharo-project/pharo/blob/Pharo12/src/Kernel/Object.class.st)).
   That is the safely citable part; how an unknown *variable* is handled is an image/IDE interaction
@@ -326,17 +333,17 @@ the bad line happens for real, and the error arrives at the moment of use.
   variable getter and may instead produce *"11 VAR has no value"*. The message is not guaranteed —
   but an error is.
 
-**A third family: silent, but with a value.** Two mainstream languages do let an unknown name be read
-without saying anything, and the record is stronger for naming them than for claiming unanimity.
+**A third family: no error, just a value.** One mainstream language reads an unknown name in complete
+silence, and a second comes close; the record is stronger for naming them than for claiming unanimity.
 
-- **Lua** is the clean counterexample. *"Any variable name is assumed to be global unless explicitly
-  declared as a local"*, *"any reference to a free name … is syntactically translated to `_ENV.var`"*,
-  and *"before the first assignment to a variable, its value is `nil`"*
+- **Lua is the clean counterexample — genuinely silent.** *"Any variable name is assumed to be global
+  unless explicitly declared as a local"*, *"any reference to a free name … is syntactically
+  translated to `_ENV.var`"*, and *"[b]efore the first assignment to a variable, its value is `nil`"*
   ([Lua 5.4 Reference Manual §§2.2, 3.2](https://www.lua.org/manual/5.4/manual.html)). So reading a
   name nothing ever defined yields `nil`, with no diagnostic at all.
-- **PHP** is nearly there but not quite: since PHP 8, reading an undefined variable is a **Warning**
-  (upgraded from a notice) and the expression evaluates to `null`, which the manual demonstrates with
-  its own transcript — *"Warning: Undefined variable $unset_var"*
+- **PHP warns and continues — so it is not silent.** Since PHP 8, reading an undefined variable is a
+  **Warning** (upgraded from a notice) and the expression evaluates to `null`, which the manual
+  demonstrates with its own transcript — *"Warning: Undefined variable $unset_var"*
   ([Variable basics](https://www.php.net/manual/en/language.variables.basics.php);
   [PHP 8.0 backward-incompatible changes](https://www.php.net/manual/en/migration80.incompatible.php)).
   Its array autovivification from an undefined variable *is* documented as warning-free, and
@@ -346,12 +353,15 @@ without saying anything, and the record is stronger for naming them than for cla
   — but both of those are a *binding being created*, not an unknown name being read.
 
 So the accurate claim is narrower than "nobody is silent", and it is the one that matters: **no
-surveyed language lets the statement itself disappear.** Lua's silence still produces a value, and
-that value goes on to do something a programmer can observe and trace. OpenLogo's old behaviour
-produced no diagnostic, no value, and no execution — the statement was simply skipped — which is a
-fourth position, and one nothing above occupies. Nor is Lua's trade available to OpenLogo even in
-principle: Lua's design buys terse scripting for programmers who know that a `nil` read is how a
-typo presents, and it is the design that makes `attempt to index a nil value` a rite of passage.
+surveyed language lets a statement produce nothing a programmer can act on.** Lua's silence still
+evaluates the
+expression to a defined value, which the surrounding program is then written in terms of; OpenLogo's
+old behaviour produced no diagnostic and no value, and the statement contributed nothing to the run
+— a fourth position, and one nothing above occupies. Nor is Lua's trade available to OpenLogo even in
+principle: Lua's design buys terse scripting for programmers who know that a `nil` read is how a typo
+presents, and who have learned to read a downstream complaint about indexing a nil value as a report
+about a name typed wrong somewhere earlier. That inference is the whole skill a learner does not have
+yet.
 
 Given the choice between the two families that do report, OpenLogo takes Family 1. The reason is the
 second row of the cost matrix above: Family 2's guarantee is "you will find out when you get there",
@@ -368,7 +378,9 @@ compile-time declaration is `void`, then the method invocation must be a top lev
 compile-time error occurs. Such a method invocation produces no value and so must be used only in a
 situation where a value is not needed."*
 ([JLS SE21 §15.12.3](https://docs.oracle.com/javase/specs/jls/se21/html/jls-15.html)); `javac` says
-`'void' type not allowed here`.
+`'void' type not allowed here`
+([`compiler.properties`](https://github.com/openjdk/jdk/blob/master/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties),
+`compiler.err.void.not.allowed.here`).
 
 **Go rejects it too**, though by typing rather than by an explicit prohibition: a function declared
 with no results has no result type, so a call to it satisfies no context that needs a value, and the
@@ -452,10 +464,11 @@ procedure that fails to report a value cannot be decided statically in general, 
   wants the sketching workflow back must opt *out* explicitly.
 - **The gate is only as good as the profile set it is given.** This decision moves the active
   profile set from a detail of the checker's configuration onto the critical path of every run: get
-  it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` is what keeps that safe,
-  and it is now load-bearing in a way it was not before. It is also work, not merely a rule to
-  honour: at `2a1888c1` `execute()` accepts no profile set at all, and `check()`'s own default is
-  Core Language alone.
+  it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` is necessary but not
+  sufficient here — it binds the semantic *layer* to the active profile set, and nothing yet binds
+  the *run path* to a caller-supplied one; #814's text has to say where the gate's profiles come
+  from. It is also work, not merely a rule to honour: at `2a1888c1` `execute()` accepts no profile
+  set at all, and `check()`'s own default is Core Language alone.
 - **The semantic stage acquires a new obligation: it must not be wrong.** A false positive used to be
   a spurious squiggle in the editor; it now stops a run. That raises the cost of adding an
   over-eager Layer 2 rule, and is the reason `spec/tooling.md:196-197` — "Tools MUST NOT report
