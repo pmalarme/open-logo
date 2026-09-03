@@ -3,7 +3,7 @@
 These JSON files are the **reviewable, reproducible source** for the repository rulesets that gate
 `main` and `saga/*`. They make the Definition of Done and the `spec/`/saga governance surfaces
 **enforced** rather than advisory (issue #695). See
-[ADR-0021](../../docs/adr/0021-branch-protection-rulesets.md) for the rationale.
+[ADR-0031](../../docs/adr/0031-branch-protection-rulesets.md) for the rationale.
 
 > **Rulesets are repository-admin settings — only the maintainer (@pmalarme) can apply them.**
 > Nothing here is applied automatically; committing a file changes no protection. Apply with the
@@ -24,7 +24,7 @@ Both rulesets require, for every PR into a protected branch:
   no owned path, so no human approval is forced and the orchestrator's delegated merge authority is
   unaffected (`required_approving_review_count` is `0`; the code-owner rule only bites on owned paths).
 - **The always-reporting CI status checks** (the CI-enforced Definition of Done), by their exact
-  check-name. See the list below and ADR-0021 for why three workflows are deliberately **excluded**.
+  check-name. See the list below and ADR-0031 for why three workflows are deliberately **excluded**.
 - **No force-pushes** (`non_fast_forward`) and **no branch deletion** (`deletion`).
 - **Merge methods**: `main` allows **squash** (slice-title subject) **and merge-commit** (the RC
   promotion deliberately preserves a saga's slice history); `saga/*` allows **squash** (slices land by

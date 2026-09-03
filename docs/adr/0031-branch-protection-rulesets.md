@@ -1,4 +1,4 @@
-# 21. Branch-protection rulesets for `main` and `saga/*`, committed as JSON
+# 31. Branch-protection rulesets for `main` and `saga/*`, committed as JSON
 
 - Status: Accepted
 - Date: 2026-09-03
@@ -8,7 +8,9 @@
   gives teeth to [ADR-0016](0016-commit-convention-and-agent-policy.md) (commit convention + agent
   policy — "CI is the gate") and to the Definition of Done
   ([ADR-0008](0008-implementer-run-self-review.md), [ADR-0020](0020-resolve-all-review-findings.md));
-  pairs with the two-path merge convention recorded alongside issue #1064.
+  pairs with the two-path merge convention recorded alongside issue #1064; this ADR's own number was
+  chosen against the limitation ADR-0030 (the "ADR numbering is gated" record, currently on the open
+  `saga/572` branch only) documents (see the note below).
 
 ## Context
 
@@ -118,3 +120,23 @@ of their choosing — ideally validated via a dry-run first. See the ruleset REA
   maintainer may delete the old ruleset after applying the new one.
 - Applying the rulesets remains a **maintainer action** — this ADR and the committed JSON do not, and
   cannot, apply them.
+
+## Note — this ADR's number is itself an instance of the gap it governs
+
+This ADR was first authored as **0021**, derived as the next-free number on its base `main` (whose
+highest ADR is 0020). That number was genuinely free *on `main`* — but the open `saga/572` branch is
+133 commits ahead and already carries Accepted ADRs **0021–0030**, so 0021 collided with the merged
+`0021-built-in-names-list-and-ci-gate.md` and would have surfaced as a duplicate only at the Release
+Candidate merge — exactly the #1036 failure mode. It was renumbered by hand to **0031**, the next
+number free across *both* trees (verified with `git ls-tree -r --name-only be861b54 docs/adr/`).
+
+This is the precise limitation ADR-0030 (`0030-adr-numbering-is-gated.md`, on the open `saga/572`
+branch — not yet on `main`, which is why it is referenced here in prose rather than as a link) records
+about its own gate: `npm run adr-numbering` reads **one tree**, so two open branches can each take the
+number and both stay green until the second merges. A PR *about* governance thus produced a live
+instance of a documented-but-open governance gap. The mitigation until the gate reads both trees:
+**when authoring an ADR off `main` while any `saga/*` branch is open, derive the next number against
+the union of both trees**, not just your checkout — e.g.
+`git ls-tree -r --name-only origin/main <saga-tip> docs/adr/ | sort -u`. Whether the gate should be
+extended to read the saga tip is left to a separate decision (routed via @orchestrator), deliberately
+not expanded into this PR.

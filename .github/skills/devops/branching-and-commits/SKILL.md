@@ -126,7 +126,7 @@ python .github/scripts/validate-commits.py "feat(geometry): add star polygons"
 CODEOWNERS only has teeth when the branch ruleset enforces it. The rulesets on **`main`** and
 **`saga/*`** are committed as reviewable JSON under
 [`.github/rulesets/`](../../../rulesets/README.md) (`main.json`, `saga.json`) and applied by the
-maintainer; [ADR-0021](../../../../docs/adr/0021-branch-protection-rulesets.md) records the choice.
+maintainer; [ADR-0031](../../../../docs/adr/0031-branch-protection-rulesets.md) records the choice.
 They must keep these on, or the "maintainer-only, non-delegable" rule is advisory only:
 
 - **Require a pull request before merging** + **Require review from Code Owners** — this is what makes
@@ -137,7 +137,7 @@ They must keep these on, or the "maintainer-only, non-delegable" rule is advisor
 - **Block force-pushes and deletions** on `main` and `saga/*`.
 
 The **merge-method settings** follow the two-path model (see
-[ADR-0021](../../../../docs/adr/0021-branch-protection-rulesets.md)): a **slice → `saga/*`** merge is a
+[ADR-0031](../../../../docs/adr/0031-branch-protection-rulesets.md)): a **slice → `saga/*`** merge is a
 **squash** whose subject is the PR title, so the linted title is what lands and commit subjects can
 safely be advisory; a **`saga/* → main`** Release Candidate is a deliberate **merge commit** that
 preserves the saga's slice history rather than collapsing it. Repo settings therefore allow **squash
