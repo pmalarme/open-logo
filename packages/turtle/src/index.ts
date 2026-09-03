@@ -111,6 +111,7 @@ export {
   describeTurtleFocusCue,
   describeTurtleState,
   describeTurtleWorldState,
+  summarizeSourceInstruction,
 } from "./a11y.js";
 export type {
   ColorIndependentCue,

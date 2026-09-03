@@ -860,7 +860,8 @@ no DOM here to regress.
   `diagnostics.ts`. `getAnnouncements()` returns the full history; `subscribeAnnouncements(...)`
   notifies every listener with the same events, so multiple consumers never desync (the #123
   single-source-of-truth contract, once again).
-- **Non-visual turtle state (#229, extended in #410 to include the current source instruction)** —
+- **Non-visual turtle state (#229, extended in #410 to include the current source instruction,
+  and in #778 to fix how both halves are *spoken*)** —
   `createTurtleStateRegion(state)` is a single, always-current `status`/`aria-live="polite"` text
   region over the shared store's `turtleWorld` slot (the same one #218 paints from and #228 pushes
   into on every run tick/`step()`/`reset()`), built from `@openlogo/turtle`'s published
@@ -871,17 +872,41 @@ no DOM here to regress.
   snapshots #766 publishes in the trace stream, which is what lets an `ask`/`each` block's restore
   name the set that is addressed again while still reporting the change the block made)
   plus, when available,
-  a trailing "current instruction `<exact source text>`" clause — `spec/rendering.md`'s Non-visual
+  a trailing "current instruction `<instruction>`" clause — `spec/rendering.md`'s Non-visual
   state descriptions minimum requires surfacing the current instruction alongside pen/visibility
   state. `run-controller.ts` maps each pushed turtle snapshot to the `source_span` of the most
   recently consumed `"instruction"` trace event (`state.currentInstructionSourceSpan`), and this
-  module slices that exact span out of `state.source` — the learner's own spelling, verbatim, never
-  reformatted. The clause is omitted entirely (not a placeholder) before any run/step has happened,
-  or after `reset()`. Unlike the announcer's growing log, `getText()` always returns the *current*
+  module slices that exact span out of `state.source` — the learner's own spelling. The clause is
+  omitted entirely (not a placeholder) before any run/step has happened,
+  or after `reset()`.
+
+  **#778 — what the region text carries.** A span covering a *block* used to put the whole block
+  into the live region, body lines and all; and the un-rounded turtle position reached the text
+  verbatim, as `x 1.4210854715202004e-14` or `x 80.00000000000001`. Measured across the 13 runnable
+  `spec/examples` (1423 emitted region texts, control non-zero), 163 texts contained a newline —
+  52 distinct block head lines — and 1018 carried float noise in `x`, `y` or `heading`; after the
+  change all of those counts are 0 and the emitted count is still 1423. Both are settled in
+  `@openlogo/turtle`, which owns the wording: a multi-line slice is reduced by
+  `summarizeSourceInstruction` to its head line plus a count
+  (`current instruction ask :leader [, plus 7 more lines`), and `x`/`y`/`heading` are rounded for
+  speech to three decimals and printed without trailing zeros (`x 0`, `x 80`, `heading 154.286`).
+  `width` is rounded the same way but never down to `0` — `set_width 0` raises `ol-range`, so a
+  width is never legitimately zero, while `set_width 1 / 3` is spoken as `0.333` rather than
+  sixteen digits. Studio
+  still writes no description logic — it only decides *which* text to hand over. A single-line
+  instruction keeps its wording and so does a position that rounds to itself,
+  `spec/rendering.md:193`'s worked example included, and nothing here touches the turtle state, the
+  event stream, or an exporter: `print xcor` still reports the value in the language's canonical
+  form, which the region now deliberately differs from (`x 0` here, `1.421085472e-14` there) —
+  each abbreviates for its own audience.
+
+  Unlike the announcer's growing log, `getText()` always returns the *current*
   description (available immediately, even before any run), and `subscribeText(listener)` notifies
-  every listener with the new text whenever `turtleWorld`/`currentInstructionSourceSpan` changes —
-  so the region reads in lockstep with the Canvas view as a program runs, and multiple consumers
-  never desync.
+  every listener only when the rendered text changes. That already suppressed a no-op tick, and
+  since #778 it also suppresses a tick whose position lands in the same rounding bucket as the last
+  (`forward 0.0001`) — but only while every other field is unchanged too, since the comparison is
+  over the whole rendered string. The region reports every change it can express at the precision
+  it speaks, and multiple consumers never desync.
 - No shell region/mount function is added for the announcer or the turtle-state region — both are
   cross-cutting services over the existing store, not panes with their own mount lifecycle.
 
