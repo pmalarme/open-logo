@@ -1,0 +1,22 @@
+{
+  "description": "Measured on this tree: a newline after a control header (`repeat 3`) selects the long `… end` body form, so the `[` on the next line is not parsed as the short-form body. 1 statement; `ol-missing-end` at parse stage. The `[` on line 2 is parsed as a list literal, not as the body.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-missing-end",
+      "source_span": {
+        "document": "core-language/delimitation/structural-repeat-split",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": {
+        "opener": "repeat",
+        "hint": "wrap the body in [ ] or close it with end."
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

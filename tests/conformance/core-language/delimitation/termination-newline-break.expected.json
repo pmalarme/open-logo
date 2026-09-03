@@ -1,0 +1,36 @@
+{
+  "description": "Measured on this tree: a newline after `print` separates it from `abs 3`. 2 statements; `print` with 0 inputs raises `ol-not-enough-inputs` at runtime. Already regression-pinned at `packages/parser/src/newline-continuations-and-delimiters.test.mjs:275`; this conformance fixture makes it stack-neutral.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/termination-newline-break",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/delimitation/termination-newline-break",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "callable": "print",
+        "expected": 1,
+        "actual": 0
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

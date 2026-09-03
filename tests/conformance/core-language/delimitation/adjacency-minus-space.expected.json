@@ -1,0 +1,32 @@
+{
+  "description": "Measured on this tree: `- 5` with a space lexes as an infix subtraction operator and continues the previous line. 1 statement printing 5, no diagnostics. Compare with `adjacency-minus-nospace`: the two programs differ by one space and produce different statement counts, both silently (finding F4 in epic #1070).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/adjacency-minus-space",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/adjacency-minus-space",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "values": [5]
+      }
+    }
+  ],
+  "diagnostics": []
+}

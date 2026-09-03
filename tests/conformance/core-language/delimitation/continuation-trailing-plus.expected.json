@@ -1,0 +1,32 @@
+{
+  "description": "Measured on this tree: a trailing `+` at the end of a line continues the expression onto the next line. 1 statement printing 3, no diagnostics.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-trailing-plus",
+        "start": [1, 1],
+        "end": [2, 2]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-trailing-plus",
+        "start": [1, 1],
+        "end": [2, 2]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}
