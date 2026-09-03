@@ -65,17 +65,17 @@ and missing or mismatched `end` labels.
 `semantic` diagnostics come from understanding the program after parsing but before, or
 independent of, execution. They include unknown commands, wrong arity, declaring a
 built-in name, duplicate definitions, unknown struct type declarations or constructors,
-invalid `return` placement, duplicate binders, and statically non-value-producing
-comprehension bodies.
+invalid `return` placement, duplicate binders, statically non-value-producing
+comprehension bodies, and a built-in command used where a value is required.
 
 `runtime` diagnostics come from evaluating values and state. They include type and range
 errors, division by zero, reading undefined variables, reading missing dictionary keys,
-unknown record fields discovered through values, limits, a program-raised `throw`, and a
-reporter call that reaches the end without returning a value.
+unknown record fields discovered through values, limits, a program-raised `throw`, a
+reporter call that reaches the end without returning a value, and a registered callable this implementation cannot evaluate.
 
 If an implementation can detect a condition earlier without changing behavior, it SHOULD
 report the earlier stage. The `code` remains the same; the `stage` records when it was
-found.
+found. Which of the three stages reach a caller who *runs* a program, rather than one who checks it, is settled by [execution-model.md](execution-model.md#checking-before-execution): all of them do, because a program that fails the check does not run.
 
 ## Severity
 
@@ -94,7 +94,7 @@ codes only outside the `ol-*` namespace.
 
 | Code | Usual stage | Required params | Meaning and learner-message guidance |
 |---|---|---|---|
-| `ol-unknown-command` | semantic | `name`, optional `suggestion` | A command, reporter, special form, procedure, or constructor name is not known. If a suggestion exists, say `i don't know how to {name}. did you mean {suggestion}?`; otherwise name the unknown word and suggest checking spelling or defining it. |
+| `ol-unknown-command` | semantic | `name`, optional `suggestion` | A command, reporter, special form, procedure, or constructor name is not known. If a suggestion exists, say `i don't know how to {name}. did you mean {suggestion}?`; otherwise name the unknown word and suggest checking spelling or defining it. An unknown name has unknown arity, so a token whose **only** fault is that it follows one MUST NOT carry a diagnostic of its own; a token with an independent lexical or structural fault is still reported on its own account (see [execution-model.md](execution-model.md#one-fault-one-diagnostic)). |
 | `ol-not-enough-inputs` | semantic | `callable`, `expected`, `actual` | A call or constructor received too few required inputs. Say what the callable still needs. |
 | `ol-too-many-inputs` | semantic | `callable`, `expected`, `actual` | A fixed-arity call received extra inputs. If a variadic parenthesized form exists, mention wrapping the call in `( … )`. |
 | `ol-type` | runtime | `expected`, `actual`, optional `value`, optional `operation` | A value has the wrong type for an operation, including list indexing with a non-number key or ordering non-orderable values. The message MUST name the expected learner concept, such as number, word, list, dict, record, or boolean. |
@@ -107,11 +107,11 @@ codes only outside the `ol-*` namespace.
 | `ol-mismatched-end` | parse | `expected`, `actual` | An `end` label is orphaned or does not match its opener; includes an `else` with no still-open `if`. |
 | `ol-unclosed-comment` | parse | `opened_at` | A `/* … */` comment reached end of file before `*/`. |
 | `ol-unclosed-string` | parse | `opened_at` | A single-line `"…"` word reached end of line or end of file, or a triple-quoted `"""…"""` word reached end of file, before its closing quote. |
-| `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens, **or** the parser encountered a token that is itself a valid OpenLogo token but is not permitted at the current grammar position **and no more-specific parse diagnostic** (`ol-unmatched-bracket`, `ol-unmatched-brace`, `ol-unmatched-paren`, `ol-missing-end`, `ol-mismatched-end`, etc.) **applies** — for example, a `{` opening a nested, self-balanced literal at either position of a `dict-entry` (`spec/grammar.md`) where the grammar instead requires a `dict-key`, or a `:` (see the malformed-dict-entry examples below the registry). `text` names the offending token in every case. The message SHOULD point at the unexpected text and mention the closest legal form when clear. |
+| `ol-bad-token` | parse | `text` | The lexer found characters that are not valid OpenLogo tokens, **or** the parser encountered a token that is itself a valid OpenLogo token but is not permitted at the current grammar position **and no more-specific parse diagnostic** (`ol-unmatched-bracket`, `ol-unmatched-brace`, `ol-unmatched-paren`, `ol-missing-end`, `ol-mismatched-end`, etc.) **applies** — for example, a `{` opening a nested, self-balanced literal at either position of a `dict-entry` (`spec/grammar.md`) where the grammar instead requires a `dict-key`, or a `:` (see the malformed-dict-entry examples below the registry). `text` names the offending token in every case. The message SHOULD point at the unexpected text and mention the closest legal form when clear. A token whose **only** fault is that it follows a callable name nothing in the program resolves is **not** a bad token, and that call reports `ol-unknown-command` instead; a token that is independently wrong there — an invalid token, or an unmatched delimiter — is still reported as it always would be (see [execution-model.md](execution-model.md#one-fault-one-diagnostic)). |
 | `ol-div-zero` | runtime | `operation` | `/` or `mod` attempted to divide by zero. OpenLogo reports this instead of producing infinity or NaN. |
 | `ol-neg-sqrt` | runtime | `value` | `sqrt` received a negative number. |
 | `ol-tan-undefined` | runtime | `value` | `tan` received an angle whose tangent is undefined — an odd multiple of 90° (for example 90, 270, or -90). OpenLogo reports this instead of producing a huge finite value, infinity, or NaN. |
-| `ol-no-output` | runtime | `procedure` | A procedure was used as a reporter but reached the end without `return`, `output`, or `op`. The error is reported at the call site. |
+| `ol-no-output` | semantic or runtime | `procedure` | A **command** was used where a value is required: a built-in command from the [C3 matrix](commands.md), or a procedure that reached the end without `return`, `output`, or `op`. The error is reported at the call site, and `procedure` names the callee — the built-in's canonical spelling, or the procedure's declared spelling. The stage follows how the fault becomes known: a built-in's Kind is fixed by the matrix, so it is decided statically and reported at `semantic`; a procedure's depends on the path taken through its body, so it is reported at `runtime`. The param keeps the spelling `procedure` for the reason `ol-reserved-word` keeps its code spelling — params are diagnostic identity, and renaming one breaks every tool and fixture that matches on it. |
 | `ol-no-value` | semantic | `form` | A `map`, `filter`, or `reduce` body produced no final value. This is for a comprehension body with no value-producing final expression. |
 | `ol-return-outside-proc` | semantic | `keyword` | `return`, `output`, or `op` appears outside any procedure. |
 | `ol-return-in-comprehension` | semantic | `keyword`, `form` | `return`, `output`, `op`, or `stop` appears inside a `map`, `filter`, or `reduce` body. A comprehension is a value context, so these control-flow escapes — not only the reporter forms — are illegal there; comprehensions report by their last expression instead. |
@@ -128,6 +128,7 @@ codes only outside the `ol-*` namespace.
 | `ol-unknown-field` | runtime | `type`, `field`, optional `write` | A record has no such field. This includes writing an unknown struct field; records are fixed-field values. |
 | `ol-unknown-key` | runtime | `key` | A required dictionary key is absent on read, or an intermediate dictionary key is absent in a nested access chain. Writing a missing final dictionary key upserts and MUST NOT raise this error. |
 | `ol-not-a-place` | semantic | optional `text` | The target of `=` or `set … to` is not assignable. Reporters such as `first`, `count`, and `keys` are not places. |
+| `ol-not-implemented` | runtime | `name` | A callable this specification defines, and this implementation registered — so the program parses and checks clean — has no evaluation behind it. It reports the **implementation's** gap, not a mistake in the program, and MUST stay distinct from `ol-unknown-command` (the name is unknown) and `ol-undefined-var` (the variable is unbound) for exactly that reason. Say so plainly and without blame: `i know the word {name}, but i can't run it yet. that is my gap, not your mistake.` Emitting it for a primitive of a profile the implementation **claims** is a conformance failure of that profile ([conformance.md](conformance.md#conformance-claims)); the code exists so the gap is visible, never so that it is permitted. It is the terminal diagnostic required by [execution-model.md](execution-model.md#evaluation-terminates-in-a-value-an-effect-or-a-diagnostic). |
 
 `ol-reserved-word` and `ol-duplicate-definition` divide one question in two, and the division is
 what makes each of them mean exactly one thing. `ol-reserved-word` says **OpenLogo owns this name**;
