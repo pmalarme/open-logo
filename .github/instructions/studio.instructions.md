@@ -54,8 +54,10 @@ face depends on what your oracle reads:
   default — `#985/#976: a click DELIVERED before its handler registers reports zero invocations`
   delivers one click before registration and observes `false`, then after `drain()` a *second* click
   returns `true` as the non-zero control. Adapt that helper's pattern from
-  `run-controller-interaction.test.mjs` — **there is no shared module**. It models neither
-  cancellation nor stopping at an arbitrary boundary, so adapt rather than assume.
+  `run-controller-interaction.test.mjs` — **there is no shared module**. It does not model
+  cancellation (its canceller is a no-op), but it *does* single-step: `step()` runs one queued
+  callback, added by #1039 when a two-ended test proved defeatable by a mutant that agrees with the
+  predicate at both ends and disagrees in between.
 - **An oracle that reads tick ordering can be defeated by fixture slack, under any scheduler.** A
   program with ticks to spare after the event you order against lets a clamped and an unclamped
   delivery land on different-but-both-valid ticks with identical observable order. Measured on the

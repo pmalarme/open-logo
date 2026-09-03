@@ -583,8 +583,7 @@ Two consequences, both deliberate:
   an artifact of the counter rather than a decision.
 
   **Delivery closes for a program whose clock offers no further yield (#1039).** An earlier version
-  of this
-  bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
+  of this bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
   handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
   `:381-384` says cancellation stops delivery, it does **not** say cancellation is the only way a run
   closes — and `:198-200` says plainly that once the main line has finished "the run closes". The
@@ -625,15 +624,17 @@ Two consequences, both deliberate:
   silently.
 
   **"Ended" here means the clock offers no further yield**, which is narrower than `:198-204`'s "the
-  run closes once the main line has finished". Three shapes fall in the gap, all measured identical
-  at `492cdff7` — this predicate neither causes nor fixes them, and refusing them would contradict
-  the ruling's "if there is a `wait` the program is not ended":
+  run closes once the main line has finished". The shapes that fall in the gap are enumerated here
+  rather than counted — an earlier revision said "three" and `@interpreter` then measured a fourth.
+  All are measured identical at `492cdff7`, so this predicate neither causes nor fixes them, and
+  refusing them would contradict the ruling's "if there is a `wait` the program is not ended":
 
   | program | presses | replays |
   |---|---|---|
   | `wait 1 / on_key …` — the only yield precedes the registration | `[false, false, false]` | 3 |
   | `on_key … / wait 1 / print "after"` — `["after"]` becomes `["turned","turned","turned","after"]` | `[true, true, true]` | 3 |
   | `on_key … / wait 3 / forward 10` — main line finished, still live | `[true, true, true]` | 3 |
+  | `on_key … / wait 50` at budget 12 — killed by `ol-limit` *inside* the wait, `runStatus` `"stopped"` | `[false, false, false]` | 3 |
 
   A bare `forever` (no `wait` inside) is the mirror case: it never yields, so it is refused — the
   runtime's `dispatchDueHandlers` has exactly one call site, inside `runWait`, so no press could ever

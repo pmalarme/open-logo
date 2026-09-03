@@ -1191,8 +1191,8 @@ test('#952 (QA finding 1): a `when "stop"` program whose clock never ticks recei
   // whether or not the replay happens, so neither existing assertion could discriminate. It is the
   // ONE observable that separates #1039's narrow gate (liveness on `deliverKey`/`deliverClick` only)
   // from folding liveness into `acceptsHostInputFor`, which `@interpreter` measured leaves the whole
-  // 620-test suite green. With this line that fold costs a failure, so the scope decision is a
-  // pinned contract rather than a comment.
+  // suite green — 620 tests when it was measured, before this slice added two. With this line that
+  // fold costs a failure, so the scope decision is a pinned contract rather than a comment.
   const store = OL.createStudioState({
     source: [
       'when "stop" [',
@@ -2756,29 +2756,30 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
 });
 
 /**
- * How a test delivers each gated registration kind — the two learner-facing entry points #1039's
+ * How a test delivers each gated registration kind — the learner-facing entry points #1039's
  * liveness gate covers. **Hand-maintained, and deliberately so.**
  *
- * Three successive attempts to derive this list from `run-controller.ts` each left a survivor that
- * review built and I had not predicted: a duplicate kind collapsed by `Set`, a computed argument the
- * regex never matched, and a call through an alias. A fourth — a method inlining
- * `acceptsHostInputFor(…) && programIsStillRunning()` instead of calling the helper — I found
- * myself. Each fix produced a narrower instrument and a claim I then had to walk back, so the claim
- * was dropped rather than narrowed a fourth time.
+ * Two source-derived implementations preceded it, and between them left four shapes alive:
+ * `4ca0486a` matched literal arguments and deduplicated them, so a duplicate kind and a computed
+ * argument both slipped through; `2d328cb7` read raw argument text, so a call through an alias and a
+ * method inlining `acceptsHostInputFor(…) && programIsStillRunning()` both slipped through.
+ * `a9255d77` deleted the derivation. Each fix produced a narrower instrument and a claim that had to
+ * be walked back, so the claim was dropped rather than narrowed again.
  *
- * So this list is **not enforced**. The topology it stands in for, counted in the source:
+ * So this list is **not enforced**. The topology it stands in for, enumerated rather than counted —
+ * a list cannot disagree with its own total, and a new entry point leaves it *incomplete* rather
+ * than making a number *wrong*:
  *
- * - `acceptsHostInputFor` has **two** call sites — one inside `acceptsLearnerInputFor`, and `stop()`
- *   passing `"when"`, which is ungated by design (`spec/interaction-events.md:152-156`; pinned by
+ * - `acceptsHostInputFor` is called from `acceptsLearnerInputFor`, and from `stop()` passing
+ *   `"when"`, which is ungated by design (`spec/interaction-events.md:152-156`; pinned by
  *   `#952 (QA finding 1)`'s replay count).
- * - `acceptsLearnerInputFor` has **two** call sites, and they are this map's two entries: `deliverKey`
- *   passing `"on_key"` and `deliverClick` passing `"on_click"`. Those registration words are what the
- *   gate receives, not what the public methods take — `deliverKey`'s own argument is a learner key
+ * - `acceptsLearnerInputFor` is called from `deliverKey`, passing `"on_key"`, and from
+ *   `deliverClick`, passing `"on_click"` — this map's entries. Those registration words are what the
+ *   gate receives, not what the public methods take: `deliverKey`'s own argument is a learner key
  *   such as `"left"`.
- * - `programIsStillRunning()` has exactly **one** consumer, `acceptsLearnerInputFor`.
+ * - `programIsStillRunning()` is consumed by `acceptsLearnerInputFor`.
  *
- * A **third** learner delivery entry point therefore needs a third entry here, and nothing will
- * remind you.
+ * A further learner delivery entry point needs a further entry here, and nothing will remind you.
  */
 const DELIVER_BY_REGISTRATION = {
   on_click: (controller) => controller.deliverClick(),
@@ -2959,8 +2960,17 @@ test("#1039: the shapes this predicate deliberately still accepts", () => {
   // `rubber-duck`'s round-1 blocking finding 1 and `@interpreter`'s non-blocking 6, pinned rather
   // than described. "Ended" here means **the program's clock offers no further yield**, which is
   // narrower than `spec/interaction-events.md:198-204`'s "the run closes once the main line has
-  // finished". Three shapes fall in the gap, and the middle one rewrites history the learner has
-  // already read.
+  // finished". The shapes that fall in the gap are enumerated below rather than counted — a count
+  // was stated as three and `@interpreter` then measured a fourth.
+  //
+  // The three pinned here are the ones this test drives; the second rewrites history the learner has
+  // already read. A fourth, **not** pinned: a run terminated by `ol-limit` *inside* a `wait` also
+  // reads live — measured `on_key … / wait 50` at budget 12, `wait 500` at budget 60, and
+  // `forever [ wait 1 ]` at budget 60, each `[false,false,false]` with **3** replays and
+  // `runStatus === "stopped"`, against a bare-`forever` control at **0** replays. That is the case
+  // where the studio has the least ambiguous evidence the run is over, and it is reported to
+  // `@orchestrator` alongside the others rather than pinned here, because closing it is a semantics
+  // decision (#1050), not a test gap.
   //
   // Every row was measured identical at the base commit `492cdff7`, so this slice neither causes
   // nor fixes any of them. Refusing them would contradict the ruling it implements — *"if there is a
