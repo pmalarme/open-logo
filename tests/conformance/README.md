@@ -320,9 +320,12 @@ self-contained on a fresh checkout.
 Almost every fixture here asserts what the spec says must happen. A handful assert what the
 implementation **currently does while it is known to be wrong**, and they are labelled
 `CHARACTERIZATION FIXTURE` in the first words of their `description`. They exist for one class of
-defect: one where the program produces **no diagnostic and no crash**, so a fixture that merely runs
-the program passes against the broken build and the regression wall can only be built *before* the
-fix, never after.
+defect: one where the program produces **no diagnostic and no crash**. A fixture that merely runs
+such a program passes against the broken build, so the correct expectation cannot be written until
+the fix exists — which makes capturing the wrong one *first* the cheapest way to get a wall that is
+already standing when the fix arrives. (It is not the only way: a correct expectation added
+alongside the fix and mutation-tested by reverting it is also a real wall. Characterization simply
+does not have to wait for a ruling.)
 
 The current set belongs to saga #811 (a statement containing an unresolvable name is silently
 discarded) and was authored under issue #816:
@@ -333,19 +336,31 @@ turtle-rendering/unresolvable-name/         interaction-events/command-in-value-
 turtle-rendering/command-in-value-position/
 ```
 
-Three rules keep them from becoming a trap:
+Those directories are not uniformly characterization — read each `description`'s opening word.
+`turtle-rendering/unresolvable-name/` also holds `recursion-baseline-unaffected`, a `BASELINE`
+fixture asserting correct behaviour, and every shape-A `-check` fixture opens
+`STAGE-CONSISTENCY BASELINE` because the diagnostic it asserts is already the right one.
 
-- **Each one names the ruling that will retire it.** A characterization `description` states that it
-  locks today's defective behaviour and must be **flipped** when the blocking `[spec]` ruling lands
-  (#814) and the runtime slice implements it (#815). A future reader must never mistake one of these
-  for a statement about the contract.
+Three rules keep the characterization fixtures from becoming a trap:
+
+- **Each one names the ruling that will retire it, and promises only what it can.** An `execute()`
+  characterization fixture states that it locks today's defective behaviour and must be **flipped**
+  when the blocking `[spec]` ruling lands (#814) and the runtime slice implements it (#815). A
+  `check()` fixture makes a *different* promise, because #814 has not chosen a contract yet: a
+  shape-A one is already correct and expected to survive unchanged, while a shape-B one records
+  that `check()` is silent and says explicitly that a checker-routed fix must make it gain a
+  diagnostic whereas an evaluator-side fix leaves it as written. A future reader must never mistake
+  any of them for a statement about the contract.
 - **Their neighbours are the opposite.** `arity-still-diagnosed/` and `profile-argument/` assert
-  **correct** behaviour that must survive the fix unchanged, and they say so. `recursion-collapses-
-  silently-execute` is paired with `recursion-baseline-unaffected` for the same reason: the fix has
-  to change one column and leave the other alone.
-- **They were proven to bite.** Every fixture in the set was perturbed and the harness confirmed to
-  report `FAIL`, because an assertion whose content is "nothing happened" is the easiest kind to
-  write vacuously.
+  **correct** behaviour that must survive the fix unchanged, and all four say so.
+  `recursion-collapses-silently-execute` is paired with `recursion-baseline-unaffected` for the same
+  reason: the fix has to change one column and leave the other alone.
+- **They were proven to bite**, because an assertion whose content is "nothing happened" is the
+  easiest kind to write vacuously. Every `.expected.json` this slice added was perturbed — a fixture
+  expecting no diagnostic was given one, a fixture expecting one had it removed — the mutation was
+  confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was confirmed to
+  report `FAIL` for that fixture before the file was restored. Two independent non-author reviewers
+  re-ran their own mutations over the same set and reached the same result.
 
 Two related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless search:
 

@@ -1,0 +1,21 @@
+{
+  "description": "STAGE-CONSISTENCY BASELINE for saga #811 (issue #816 item 5): the `check()` half of a pair whose `-execute` sibling is a CHARACTERIZATION fixture. This half is ALREADY CORRECT today and is expected to survive the fix UNCHANGED — it is precisely the answer the run path never consults, which is the whole of saga #811's shape-A mechanism. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. Form under test: `repeat <unresolvable> [ … ]` — the loop body never runs, so `print 1` produces nothing. Its shape-B twin — the same form with a KNOWN command in the same position — is `repeat-count-check` under `command-in-value-position/`, and asserts the opposite: an empty diagnostics list.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/unresolvable-name/repeat-count-check",
+        "start": [1, 8],
+        "end": [1, 14]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
