@@ -1,0 +1,3 @@
+print input "first?"
+print input "second?"
+print input "third?"

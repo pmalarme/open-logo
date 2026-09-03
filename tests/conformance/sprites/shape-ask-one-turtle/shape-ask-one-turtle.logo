@@ -1,0 +1,2 @@
+:bee = new_turtle
+ask :bee [ set_shape "triangle" set_color "yellow" forward 60 ]

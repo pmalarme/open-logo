@@ -1,0 +1,19 @@
+{
+  "description": "issue #844: the CHECK-mode half of the checker/runtime agreement for `axes`'s arity (spec/geometry-module.md's `## axes` — Kind C, arity 0). Its execute-mode twin is geometry/overlays/axes-too-many-inputs.",
+  "profiles": ["core-language", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "geometry/check/arity-paren-axes-too-many",
+        "start": [1, 2],
+        "end": [1, 6]
+      },
+      "params": { "callable": "axes", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

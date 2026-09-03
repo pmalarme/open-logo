@@ -1,11 +1,11 @@
 {
-  "description": "A second `struct` declaring an already-declared type name raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): the type name registers a constructor in the callable namespace, so `struct point` declared twice collides (`namespace: \"struct\"`).",
+  "description": "A second `struct` declaring an already-declared type name raises `ol-duplicate-definition` at phase-1 registration, carrying BOTH spans: `source_span` at the later declaration (line 2) and `params.original_span` at the earlier one (line 1), so the message can name the line the learner already used (`spec/error-model.md:126,143-146`). Ruling #833 rule 6 gives redefining YOUR OWN name its own code, leaving `ol-reserved-word` with exactly one meaning. The field lists deliberately DIFFER (`[ x y ]` vs `[ a b ]`) so this fixture cannot pass under a rule that only notices two identical declarations. `check()` reports the identical code, params and spans for this program.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],
   "diagnostics": [
     {
-      "code": "ol-reserved-word",
+      "code": "ol-duplicate-definition",
       "source_span": {
         "document": "data/struct-runtime/struct-reserved-word-duplicate",
         "start": [2, 8],
@@ -13,9 +13,12 @@
       },
       "params": {
         "name": "point",
-        "namespace": "struct"
+        "original_span": {
+          "document": "data/struct-runtime/struct-reserved-word-duplicate",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
       },
-      "message": "point is already a struct, so it can't be redefined here.",
       "stage": "runtime",
       "severity": "error"
     }

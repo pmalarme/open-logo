@@ -17,13 +17,13 @@ Every merge to `main` must pass the same gates. This skill is how you wire and e
 
 | Gate | Runs | When |
 |---|---|---|
-| meta | markdown links, YAML lint (issue forms, labels, workflows), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
+| meta | markdown links, YAML lint (issue forms, labels, workflows), label taxonomy ↔ commit-scope mirror, **DoD gate wiring** (every gate actually invoked in `ci.yml`, no gate fail-open or `if:`-skippable), spec-example presence, gh-aw `.md`/`.lock.yml` pairing (orphan guard, scoped to compilable sources) | always |
 | **workflows-compile** | pinned `gh-aw compile` on every agentic-workflow source, fails if recompiling changes any committed (or adds any uncommitted) `.lock.yml` (issue #597) | PRs (and pushes to `main`) touching `.github/workflows/**`, `.github/aw/**`, or the pairing-guard scripts |
 | build + type-check | `tsc -b` across project references (TS7, strict) | when `package.json` exists |
 | lint + format | Biome (lint) + Prettier (format) + OpenLogo style-lint | when `package.json` exists |
 | unit | package unit tests | when `package.json` exists |
 | **conformance** | stack-neutral `tests/conformance/` fixtures, **by profile along the DAG** | when fixtures exist |
-| integration + examples | vertical-slice integration + every `spec/examples/*.logo` still runs | when `package.json` exists |
+| integration + examples | vertical-slice integration + every `spec/examples/*.logo` **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850) still runs | when `package.json` exists |
 
 ### gh-aw compile-drift gate (issue #597)
 
@@ -93,29 +93,19 @@ a hand-edited or stale lock file.
 
 ## Rules
 
-- **Guard code jobs** so the pipeline is green before any toolchain exists and activates
-  automatically once it lands. Detect the manifest in the always-on `meta` job (after checkout) and
-  gate code jobs on its output — **not** on `hashFiles()` in a job-level `if`, which evaluates before
-  checkout and is unreliable:
+- **Do not guard code jobs any more.** The pipeline once carried a `has_toolchain` output on the
+  always-on `meta` job so it could be green before any toolchain existed, and gated the code jobs on
+  it. `package.json` landed in M0, so that condition can no longer be false — a guard for a case
+  that cannot happen is **dead code in a gate**, i.e. an unenforced claim about an impossible state,
+  and it was also a live bypass: setting `has_toolchain=false` skipped every code gate while
+  `validate-meta.py` stayed green. It was deleted, and `PERMITTED_JOB_CONDITIONS` is now **empty**
+  — a job that runs a Definition-of-Done gate carries **no** job-level `if:` at all. Path-scoped
+  jobs that run no gate command (`studio-visual`, `codeql`) may still be conditional.
 
-  ```yaml
-  jobs:
-    meta:
-      outputs:
-        has_toolchain: ${{ steps.detect.outputs.has_toolchain }}
-      steps:
-        - uses: actions/checkout@v4
-        - id: detect
-          run: |
-            if [ -f package.json ]; then
-              echo "has_toolchain=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "has_toolchain=false" >> "$GITHUB_OUTPUT"
-            fi
-    build:
-      needs: meta
-      if: ${{ needs.meta.outputs.has_toolchain == 'true' }}
-  ```
+  If you ever do need a computed condition, derive it in the always-on `meta` job **after checkout**
+  and never from `hashFiles()` in a job-level `if`, which evaluates before checkout and is
+  unreliable. Pin the value the condition reads, not just its text: review skipped every code gate
+  with `has_toolchain: ${{ 'false' }}` while the whitelisted condition string was untouched.
 - **No `--if-present`.** Once the toolchain lands, each DoD script (`build`, `typecheck`, `lint`,
   `format:check`, `test`, `conformance`, `examples`) MUST exist — call them plainly so a missing gate
   is a real failure, not a silent pass.
@@ -134,10 +124,16 @@ a hand-edited or stale lock file.
 2. Trigger on `pull_request` and `push` to `main`; set `permissions:` to least privilege.
 3. Make the new gate a **required check** (repo settings / branch protection) once it is stable.
 4. Keep the meta job always-on so docs/label/workflow drift is caught even pre-toolchain.
-
 ## Checklist
 - [ ] Each DoD item maps to a CI gate; names are clear.
-- [ ] Code jobs gated on the `meta` job's `has_toolchain` output; meta job always runs.
+- [ ] Every gate step is a **single-line `run:` scalar equal to the approved command** — quoting and
+      a trailing `#` comment are fine, a block scalar (`run: |`, `|-`, `>`, `>-`) is not, and there
+      is no custom `shell:` and no step-level `if:`. A block scalar holding the command **does**
+      run it; it is unsupported because the two independent readers do not agree on it, and one
+      spelling both accept is worth more than either tolerance.
+- [ ] Gate jobs carry **no** job-level `if:` (`PERMITTED_JOB_CONDITIONS` is empty) and depend only on
+      `PERMITTED_GATE_JOB_NEEDS` — GitHub skips a job whose dependency was skipped; the meta job
+      always runs and has no `needs:` of its own.
 - [ ] No `--if-present` — every DoD script is called plainly so a missing gate fails.
 - [ ] Conformance runs by profile along the DAG.
 - [ ] Actions pinned; permissions least-privilege; no bypass of review.

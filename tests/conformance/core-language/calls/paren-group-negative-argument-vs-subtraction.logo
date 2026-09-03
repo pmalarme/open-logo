@@ -1,0 +1,17 @@
+# Issue #1021 — the discriminating pair for `-`, the one binary operator whose two meanings share a
+# character. Both spellings LEX identically, as `op(-)` followed by `number(1)`; token kind
+# therefore cannot separate them and ADJACENCY does, exactly as grammar.md:60
+# (`number ::= [ "-" ] digit …`) and grammar.md:230 ("A leading `-` on a numeral is part of a
+# negative literal, not a unary operator") require.
+#
+# So glued `-1` is a negative ARGUMENT and keeps its parenthesized call, while spaced `- 1`
+# continues the expression and makes the group a parenthesized expression. Nothing consults arity to
+# tell them apart, which is what keeps the reader profile-blind — and it is why `-` needed no
+# exception carved around it while the other nine operators were fixed. Executed because the two
+# readings both parse clean: only the VALUES distinguish them, so a parse-only fixture would pass
+# just as happily if the two were swapped.
+define six
+  return 6
+end
+print (round -1)
+print (six - 1)

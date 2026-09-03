@@ -1,0 +1,35 @@
+{
+  "description": "issue #775 (review gate, QA finding B2): `wait \"-1\"` -- the RANGE arm of `wait`'s tick count reached through a WORD. `spec/interaction-events.md`'s `### wait <n>` requires a non-negative whole number and raises `ol-range` on a negative one; `spec/execution-model.md:33-34` makes \"words that parse as numbers are accepted where a number is expected\" a normative CORE rule, so `\"-1\"` MUST reach that `ol-range` exactly as the literal `-1` does (pinned by the sibling `wait-negative`). Nothing covered the composition of those two rules: every RANGE fixture passed a number literal, so an implementation that trusted the type check to have already handled words -- guarding the range only when the argument was literally a number -- would let `wait \"-1\"` SUCCEED silently, emitting the trailing `primitive` event as though a pause had run. For a pause primitive that is an invisible wrong result rather than an error, and it survived a fully green run until this fixture existed (found by mutation). Note `params.value` is the COERCED number `-1`, not the word `\"-1\"` -- the opposite of the `ol-type` arm (`wait-non-whole-word`), and deliberately so: `ol-range` is a question about magnitude, which only exists after coercion, while `ol-type` is a question about what the learner actually wrote. As with every other failed `wait` validation the `primitive` event is NOT emitted, only the instruction event precedes the diagnostic, and the span covers just the argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-word",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative-word",
+        "start": [1, 6],
+        "end": [1, 10]
+      },
+      "params": {
+        "operation": "wait",
+        "value": -1
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

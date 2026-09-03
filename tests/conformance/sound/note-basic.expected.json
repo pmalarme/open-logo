@@ -1,0 +1,28 @@
+{
+  "description": "issue #690: `note` (Sound profile, arity 2) schedules one pitched sound at the current tempo and emits exactly one `sound` event with payload {command:\"note\", pitch, duration}. Duration is in beats, never wall-clock (spec/execution-model.md's headless trace stream), and the runtime models sound as scheduling + event emission, never a real audio device, so this event is emitted unconditionally even in a muted environment (spec/interaction-events.md's `note` section). The `sound` event follows the instruction event (\"Sound commands emit `sound` events after sound state has been scheduled\").",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/note-basic",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "command": "note", "pitch": "c4", "duration": 1 }
+    }
+  ],
+  "diagnostics": []
+}

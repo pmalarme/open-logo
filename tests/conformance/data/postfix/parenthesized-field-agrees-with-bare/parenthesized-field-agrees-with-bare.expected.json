@@ -1,0 +1,196 @@
+{
+  "description": "Issue #1025 Part B (decline B2 from #1021): `( foo.bar )` reading as a `parenthesized-call` with a stray `.` -- `.` is not infix, so the pre-existing one-token lookahead never saw it -- is FIXED rather than recorded as a limitation. Before the fix `print ( origin.x )` raised `ol-bad-token` at parse while the bare `print origin.x` parsed clean; here both read the struct field and print 7, so this asserts the READ agrees, not merely that both spellings are quiet. The `.field` half of the postfix lookahead deliberately needs NO adjacency, matching `collectPostfixSegments`, so `( origin . x )` agrees too; that spelling and the newline one (`spec/grammar.md:34` makes newlines insignificant inside one group) are pinned as unit tests in `packages/parser/src/multiline-expressions.test.mjs`. The returned record carries the reserved `__type` opt-in, so the fixture pins the struct type and not just the field values.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [5, 7],
+        "end": [5, 13]
+      },
+      "payload": {
+        "name": "origin",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [3, 3],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "return",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [3, 3],
+        "end": [3, 19]
+      },
+      "payload": {
+        "value": {
+          "__type": "point",
+          "x": 7,
+          "y": 9
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [5, 7],
+        "end": [5, 13]
+      },
+      "payload": {
+        "name": "origin",
+        "result": {
+          "__type": "point",
+          "x": 7,
+          "y": 9
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [6, 9],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "origin",
+        "args": []
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [3, 3],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "return",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [3, 3],
+        "end": [3, 19]
+      },
+      "payload": {
+        "value": {
+          "__type": "point",
+          "x": 7,
+          "y": 9
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [6, 9],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "origin",
+        "result": {
+          "__type": "point",
+          "x": 7,
+          "y": 9
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "data/postfix/parenthesized-field-agrees-with-bare/parenthesized-field-agrees-with-bare",
+        "start": [6, 1],
+        "end": [6, 17]
+      },
+      "payload": {
+        "values": [7]
+      }
+    }
+  ],
+  "diagnostics": []
+}

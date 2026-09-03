@@ -1,0 +1,12 @@
+# A parenthesized group tolerates a newline anywhere inside it (`spec/grammar.md:34`) — after the
+# `(`, mid-expression, and at any nesting depth — and its `)` still matches, so none of these
+# raise the phantom `ol-unmatched-paren` cascade of issue #933.
+print (1 +
+  2)
+print (
+  1 + 2
+)
+print (1 + (2 *
+  3))
+print [ (1 +
+  2) ]

@@ -1,0 +1,61 @@
+{
+  "description": "Heritage `value of … for key` given a KEY that is neither word nor number raises the byte-identical Core `ol-type` the `:ages[:k]` selector raises — `expected: \"word or number\"`, `operation: \"index\"`, message \"index needs a word or number, but got a list.\" This is the reader's third failure mode, and the one the container-type fixtures cannot reach: it turns on the KEY, not the operand, so its Core twin is the RUNTIME-key selector `:ages[:k]` rather than the dotted `:ages.tom` the container-type fixtures twin (a dotted key is a parse-time identifier, so it has no runtime-key failure mode to be a twin of). The key is bound to `:k` on both sides so the two spellings supply the SAME evaluated value: an inline `:ages[[ 1 2 ]]` does not parse, and `:ages[true]` means the literal word \"true\" (`spec/grammar.md:256`) while `for key true` evaluates a boolean. Added with issue #784 to close the last condition of this reader that had unit coverage but no stack-neutral proof. NO Heritage spelling in any payload (issue #670). The span points at the reader's `:k` key sub-expression (localization-only difference — `spec/localization.md`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-bad-key-type-like-core",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-bad-key-type-like-core",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-bad-key-type-like-core",
+        "start": [3, 1],
+        "end": [3, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-bad-key-type-like-core",
+        "start": [3, 30],
+        "end": [3, 32]
+      },
+      "params": {
+        "expected": "word or number",
+        "actual": "list",
+        "value": [1, 2],
+        "operation": "index"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

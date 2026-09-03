@@ -23,7 +23,7 @@ The **Interaction & Events** profile contains:
 
 | Form | Kind | Args | Result | Required by |
 |---|---:|---|---|---|
-| `input <prompt>` | R | prompt | word or number | Interaction & Events |
+| `input <prompt-word>` | R | prompt-word | word or number | Interaction & Events |
 | `when <event-word> <block>` | S | event-word, block | — | Interaction & Events |
 | `every <n> <block>` | S | number, block | — | Interaction & Events |
 | `on_key <key-word> <block>` | S | key-word, block | — | Interaction & Events |
@@ -41,16 +41,16 @@ The **Sound** profile contains:
 | `set_tempo <beats-per-minute>` | C | number | — | Sound |
 
 `when`, `every`, `on_key`, and `on_click` are profile block-heads. They are
-reserved **only within the Interaction & Events profile**. An implementation
-that does not declare this profile does not reserve those words except through a
-vendor extension or an imported alias. Sound command names are ordinary
-primitive names when the Sound profile is present.
+reserved **unconditionally**: every implementation reserves them whether or not it claims this profile,
+because a profile decides whether such a word *works*, never whether a program may declare it
+([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). Declaring one at `define`, the heritage `to`,
+`struct`, or the first operand of `alias` raises `ol-reserved-word`; binding a value to one is always legal. `input` and `wait` are ordinary primitives rather than block-heads, as are the Sound command names; all of them are built-in names on the same unconditional terms, and their profile decides only whether they work.
 
 ## Profile grammar
 
 When the Interaction & Events profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
 
-```logo
+```ebnf
 interaction-statement ::= when-statement | every-statement
                         | on-key-statement | on-click-statement
 when-statement        ::= "when" expression event-block-tail
@@ -76,7 +76,7 @@ Handlers are registered during program execution. Registering a handler does not
 run its block immediately unless the triggering event is already being delivered
 by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
-block-result rule.
+block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary
@@ -123,12 +123,12 @@ emit `primitive` events after the handler is registered.
 
 ## Interaction primitives
 
-### `input <prompt>`
+### `input <prompt-word>`
 
 - **Kind:** reporter
-- **Args:** one prompt value, normally a word
+- **Args:** one prompt, which MUST be a `word`
 - **Result:** a word or number
-- **Errors:** `ol-type` if the prompt cannot be displayed as learner text
+- **Errors:** `ol-type` if the prompt is not a `word`
 - **Concept:** explicit human input
 
 `input` displays the prompt and waits for the learner to enter one value. It is
@@ -155,6 +155,13 @@ interactive run and `"stop"` for a requested stop notification before
 termination. Implementations MAY add vendor events with a dotted vendor prefix,
 such as `"acme.shake"`.
 
+A `when` registration is **persistent**, exactly like `every`, `on_key`, and
+`on_click`: its block runs **each time** the named event occurs, once per
+occurrence. An implementation MUST NOT retire a handler after its first
+invocation. Both standard v0.1 event words occur once per run, so persistent and
+one-shot delivery are indistinguishable for `"start"` and `"stop"`; the rule is
+observable for vendor events, which may occur any number of times.
+
 ```logo
 when "start" [
   print "ready"
@@ -172,9 +179,29 @@ when "start" [
 `every` registers a block to run every `n` ticks. `n` MUST be a positive whole
 number: a non-whole count raises `ol-type`, and a zero or negative count raises
 `ol-range`.
-The first run occurs after `n` ticks have elapsed. If a prior invocation is
-still running when the next interval arrives, the implementation queues at most
-one pending invocation for that `every` handler to prevent unbounded buildup.
+
+The first run occurs after `n` ticks have elapsed. The interval clock then runs
+at a **fixed rate**: each successive interval arrives `n` ticks after the
+previous interval, on that original schedule. The period is never re-measured
+from the moment an invocation happens to finish, so a late invocation does not
+push the following interval back.
+
+If a prior invocation is still running when the next interval arrives, the
+implementation MUST queue that occurrence and run it once the handler is free.
+Queueing is required, not optional. The queue holds **at most one** pending
+invocation for that `every` handler: while an occurrence is already queued,
+further intervals that arrive coalesce into it rather than accumulating, which
+is what prevents unbounded buildup. A handler that takes longer than its own
+interval therefore degrades to running back to back and can never build up an
+unbounded backlog.
+
+A handler does not extend the run's lifetime; that is the main line's business.
+Once the main line has finished and any already-started handler body has
+completed, the run closes and any occurrence still queued but not yet started is
+discarded. A program that wants its handlers to keep running says so explicitly,
+with `forever` or a long `wait` — and then a handler that keeps overrunning its
+interval keeps running back to back, bounded like any other non-terminating
+program by the execution budget.
 
 ```logo
 every 30 [
@@ -228,14 +255,14 @@ on_click [
 - **Kind:** command
 - **Args:** tick count
 - **Result:** none
-- **Errors:** `ol-type`, `ol-range`
+- **Errors:** `ol-type`, `ol-range`, `ol-limit`
 - **Concept:** time and animation pacing
 
 `wait` pauses the current program for `n` ticks. `n` MUST be a non-negative
 whole number: a non-whole count raises `ol-type`, and a negative count raises
 `ol-range`. `wait 0` yields to the renderer and event loop without adding a visible
 delay. Turtle and geometry documents may reference `wait` for animation, but
-this document owns its definition.
+this document owns its definition. Each tick a `wait` advances costs one instruction against the execution budget ([execution safety](execution-model.md#execution-safety)), so a long enough `wait` exhausts the budget and raises `ol-limit`, exactly as `forever` does, even when no handler is registered. Charging a tick does not create an additional step or `instruction` event.
 
 ```logo
 repeat 36
@@ -349,7 +376,7 @@ Interaction handlers and sound commands use the diagnostic shape defined in
 |---|---|---|
 | `ol-type` | `input`, `when`, `every`, `on_key`, `wait`, sound commands | an argument has the wrong type |
 | `ol-range` | `every`, `wait`, `note`, `play`, `rest`, `set_tempo` | a number is outside the allowed range |
-| `ol-limit` | handler execution | an instruction budget or cancellation limit was reached |
+| `ol-limit` | handler execution, `wait`, cancellation | an instruction budget or cancellation limit was reached; each handler invocation costs one instruction against that budget, and so does each tick a `wait` advances |
 
 Cancellation MUST be available while a program is waiting for input, waiting for
 ticks, running handlers, or playing sound. Cancellation stops future handler

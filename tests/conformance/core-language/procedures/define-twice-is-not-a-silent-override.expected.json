@@ -1,0 +1,26 @@
+{
+  "description": "Issue #839 AC1: `define foo` twice is an ERROR, not a silent override. Phase-1 registration raises `ol-duplicate-definition` carrying BOTH spans — `source_span` at the later declaration, `params.original_span` at the earlier one (`spec/error-model.md:126,143-146`) — and `spec/execution-model.md:86-88` makes it \"MUST NOT be a silent override\". The two bodies print DIFFERENT values on purpose, so the fixture discriminates between all three candidate rules — last-wins prints `222`, first-wins prints `111`, and only the ruling's rule produces the empty event stream asserted here. The `foo` call on line 7 is likewise deliberate: it proves nothing runs at all, rather than merely that the definitions were rejected. Core Language only, because phase-1 registration is unconditional — no profile decides whether a program may declare a name.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "core-language/procedures/define-twice-is-not-a-silent-override",
+        "start": [4, 8],
+        "end": [4, 11]
+      },
+      "params": {
+        "name": "foo",
+        "original_span": {
+          "document": "core-language/procedures/define-twice-is-not-a-silent-override",
+          "start": [1, 8],
+          "end": [1, 11]
+        }
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

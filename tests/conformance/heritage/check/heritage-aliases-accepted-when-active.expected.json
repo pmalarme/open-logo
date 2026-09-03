@@ -1,0 +1,7 @@
+{
+  "description": "Heritage short command aliases profile gate (issue #668, slice H3): with the Heritage profile ACTIVE, the same ten command aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` that Core rejects are all accepted silently (no diagnostics). Heritage is 'alternate spellings only' (spec/conformance.md#heritage). The aliases are made visible by the `heritage` profile alone, never by the turtle profile, because the checker gates the alias SPELLINGS (not their canonical turtle targets) on `heritage`. So only `core-language`, `data`, and `heritage` are active here, and the zero-diagnostic result proves that CHECKER gating -- `data` is present only to stay uniform with the other Heritage fixtures and admits nothing here, which `packages/parser/src/heritage-aliases.test.mjs` isolates by re-checking the same ten aliases under `[\"core-language\", \"heritage\"]` alone. It does not speak to the profile DAG: issue #860 added Heritage's normative Turtle & Rendering edge (`PROFILE_DEPS.heritage = [\"core-language\", \"data\", \"turtle-rendering\"]`) because a claimant owing `fd` must own `forward` — a conformance-claim requirement, not a visibility gate. A fixture's `profiles` array is an ACTIVE set passed to `check()`, not a dependency-closed conformance claim, which is why it does not track the DAG edge.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

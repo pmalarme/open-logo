@@ -1,8 +1,8 @@
 /**
  * The lesson-content contract — the single source of truth for a `Lesson` that the studio
  * lesson pane (`@openlogo/studio`, issue #127) reads. It is intentionally **data-only**: no
- * lesson authoring API, no runtime execution, no AI. Those are separate later slices; this
- * slice only fixes the shape so no consumer invents a competing lesson format.
+ * lesson authoring API, no runtime execution, no AI — the shape is fixed here so no consumer
+ * invents a competing lesson format.
  *
  * The shape follows [`spec/educational-model.md`](../../../spec/educational-model.md), which
  * describes a lesson as teaching one **objective** linked to a learner level, showing one or

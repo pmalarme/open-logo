@@ -1,12 +1,19 @@
-// Unit tests for the contextual keywords `empty`, `member`, `of`, and `a` in DECLARATION positions
-// (issue #65), per spec/grammar.md:230,352-369. The existing corpus already proves these four words
+// Unit tests for the contextual keywords `empty`, `member`, `of`, and `a` in name positions
+// (issue #65), per spec/grammar.md:234,380. The existing corpus already proves these four words
 // in their predicate-keyword role (is-predicate-forms/-contexts) and as a var read / call name /
 // assignment target at the parse layer (is-predicate-contextual-keywords, is-predicates.test.mjs).
-// This file targets what that leaves untested: the four words used where a RESERVED word would raise
-// `ol-reserved-word` (issue #113) — as a `define` procedure name, a `for` binder, and a `local` name
-// — proving the parser accepts them as ordinary names there (exact AST kinds/spans), plus the
-// checker staying silent on those declarations, and the reader disambiguating the SAME word by
+// This file targets what that leaves untested: the four words used in a `define` DECLARATION slot —
+// where a built-in name raises `ol-reserved-word` (spec/grammar.md:382) — and in the `for` binder
+// and `local` BINDING positions, proving the parser accepts them as ordinary names in all three
+// (exact AST kinds/spans), the checker stays silent, and the reader disambiguates the SAME word by
 // grammatical position (variable vs. predicate keyword) within one program.
+//
+// The `define` row is the load-bearing one: spec/grammar.md:380 says these four are "structural by
+// position only" and "not built-in names", "and because the positions that make them structural are
+// positions no declaration can occupy, taking one of these names cannot make a definition
+// unreachable: `define of` is legal". The binder and `local` rows are bindings, which under
+// maintainer ruling #833 accept ANY name (spec/grammar.md:386) — so they no longer distinguish these
+// four from a keyword, and are kept as parse-shape coverage rather than as evidence of the carve-out.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its public
 // `parse` and `check` surface. Asserts identity (AST kinds/names/spans, diagnostic codes) only.

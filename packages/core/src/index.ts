@@ -30,6 +30,10 @@ export { makeSpan } from "./spans.js";
 export type { Position, SourceSpan } from "./spans.js";
 
 export {
+  builtInNameMessage,
+  builtInNameOwnershipSentence,
+} from "./diagnostic-messages.js";
+export {
   isDiagnosticCode,
   OL_DIAGNOSTIC_CODES,
   OL_STYLE_DIAGNOSTIC_CODES,
@@ -43,8 +47,14 @@ export type {
   StyleDiagnosticCode,
 } from "./diagnostics.js";
 
-export { isEventKind, OL_EVENT_KINDS } from "./events.js";
+export {
+  isEventKind,
+  isTurtleSpecificEventKind,
+  OL_EVENT_KINDS,
+  OL_TURTLE_SPECIFIC_EVENT_KINDS,
+} from "./events.js";
 export type {
+  AddressingSnapshot,
   AxesOverlayPayload,
   BackgroundChangePayload,
   ClearPayload,
@@ -53,6 +63,9 @@ export type {
   EventKind,
   FillPayload,
   GridOverlayPayload,
+  HandlerFiring,
+  HandlerKind,
+  InstructionPayload,
   MeasureOverlayPayload,
   MovePayload,
   OverlayPayload,
@@ -82,7 +95,17 @@ export type {
   WhyProgramTutorOutputPayload,
   DebugDiagnosticTutorOutputPayload,
   DebugProgramTutorOutputPayload,
+  PrimitiveName,
+  PrimitivePayload,
+  SetTempoSoundPayload,
+  NoteSoundPayload,
+  MelodyStep,
+  PlaySoundPayload,
+  BeepSoundPayload,
+  RestSoundPayload,
+  SoundPayload,
+  SpawnTurtlePayload,
 } from "./events.js";
 
-export { OLDict, OLRecord, typeNameOf } from "./values.js";
+export { OLDict, OLRecord, OLTurtle, typeNameOf } from "./values.js";
 export type { OLDictKey, OLTypeName, OLValue } from "./values.js";

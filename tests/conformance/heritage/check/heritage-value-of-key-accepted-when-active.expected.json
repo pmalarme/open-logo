@@ -1,0 +1,7 @@
+{
+  "description": "Heritage form profile gate (issue #670, slice H5): with the Heritage profile ACTIVE, the same `value of … for key` reader that Core rejects is accepted silently (no diagnostics). Heritage is 'alternate spellings only' (`spec/conformance.md:146`) and depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active here.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

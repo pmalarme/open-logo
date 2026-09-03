@@ -1,0 +1,152 @@
+{
+  "description": "Parenthesized grouping (issue #1021), the no-regression direction: the one-token lookahead that makes `(pi == pi)` an expression must not swallow a genuine `parenthesized-call` (grammar.md:215). `(and true false)` and `(or true false)` keep their variadic logic calls because those words are the HEAD here, so the lookahead must look past the head; `(pi)` keeps its zero-argument call because `)` is no operator; and the ordinary `(round 1)`, `(word \"a\" \"b\")` and variadic `(print 1 2 3)` forms are untouched. Executed so the fixture proves they are still CALLS, which a parse-only fixture could not distinguish from a clean misreading.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [10, 1],
+        "end": [10, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [10, 1],
+        "end": [10, 23]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [11, 1],
+        "end": [11, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [11, 1],
+        "end": [11, 22]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [12, 1],
+        "end": [12, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [12, 1],
+        "end": [12, 11]
+      },
+      "payload": {
+        "values": [3.141592653589793]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [13, 1],
+        "end": [13, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [13, 1],
+        "end": [13, 16]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [14, 1],
+        "end": [14, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [14, 1],
+        "end": [14, 21]
+      },
+      "payload": {
+        "values": ["ab"]
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [15, 1],
+        "end": [15, 14]
+      },
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-call-head-lookahead-traps",
+        "start": [15, 1],
+        "end": [15, 14]
+      },
+      "payload": {
+        "values": [1, 2, 3]
+      }
+    }
+  ],
+  "diagnostics": []
+}

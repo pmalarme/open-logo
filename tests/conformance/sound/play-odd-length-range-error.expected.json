@@ -1,0 +1,34 @@
+{
+  "description": "issue #691: the melody list is pitch/duration pairs, so \"The list length MUST be even\" (spec/interaction-events.md:328-330); an odd-length list raises `ol-range` (the `play` entry lists `ol-range`) with params {operation:\"play\", value, length} (spec/error-model.md:100 requires operation + value). No `sound` event is emitted. The instruction event is still emitted before the diagnostic halts the statement.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-odd-length-range-error",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "sound/play-odd-length-range-error",
+        "start": [1, 6],
+        "end": [1, 19]
+      },
+      "params": {
+        "operation": "play",
+        "value": 3,
+        "length": 3
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

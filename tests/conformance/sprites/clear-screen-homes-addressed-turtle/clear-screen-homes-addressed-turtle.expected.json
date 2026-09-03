@@ -1,0 +1,164 @@
+{
+  "description": "issue #677 (SP5) + issue #847 + issue #738: `clear_screen` clears the one shared drawing surface exactly once (not once per addressed turtle), and homes every addressed turtle — here just :a, so this is the case where the pre-#738 \"home the current turtle\" behaviour and the ruled \"home every addressed turtle\" behaviour agree, which makes it the regression guard for that change. The homing is **observable** — `move`/`turn` for the homing, with NO `draw-segment` even though the pen is down, because the same instruction goes on to clear the drawing (spec/rendering.md:36 describes what a pen-down move contributes to the RETAINED SCENE, and :150's \"Clear operations\" row fixes `clear_screen`'s contribution at *cleared*; escalated to the maintainer as issue #858). Under `tell [ :a ]` the homing pair carries the homed turtle's `turtle_id` (1) so a per-turtle state reducer homes exactly :a — the turtle the runtime actually homed — not the main turtle. The `clear` carries no `turtle_id` even though exactly one turtle is addressed: spec/turtles-and-sprites.md:113 makes that unconditional — \"A `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific and carries no turtle identity\" — and consumers \"MUST NOT read a `clear` event as an instruction to move a turtle\", so the identity lives on the movement events alone. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "from": 0,
+        "to": 0
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "clear",
+      "source_span": {
+        "document": "sprites/clear-screen-homes-addressed-turtle/clear-screen-homes-addressed-turtle",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "mode": "clear_screen"
+      }
+    }
+  ],
+  "diagnostics": []
+}

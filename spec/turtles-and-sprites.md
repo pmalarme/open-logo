@@ -41,9 +41,9 @@ print :friend
 
 ## Addressing model
 
-At any moment, turtle commands run for an **addressed set**. In a program without the Sprites profile, the addressed set contains the single default turtle. In this profile, `tell`, `ask`, and `each` control that set.
+At any moment, turtle commands run for an **addressed set**. In a program without the Sprites profile, the addressed set contains the single default turtle. In this profile, `tell`, `ask`, and `each` control that set. One rule governs all three: `tell` changes who is addressed and the change stays, while `ask` and `each` restore whatever was addressed before them when their block ends, regardless of what happened inside.
 
-`tell <turtle|turtle-list>` is a command that changes the current addressed set for subsequent turtle commands. Its input is either one turtle value or a list whose items are turtle values.
+`tell <turtle|turtle-list>` is a command that changes the current addressed set for subsequent turtle commands. Its input is either one turtle value or a list whose items are turtle values. The change persists until the next `tell` or until an enclosing `ask` or `each` block ends. The addressed set is **world state**, in the same category as a turtle's position, heading, pen state, color, and visibility — it is not a variable binding. A procedure that runs `tell` therefore leaves the addressed set changed for its caller, exactly as a procedure that runs `forward` leaves the turtle moved and one that runs `pen_up` leaves the pen up. This is consistent with, not an exception to, the scoping rules in [execution-model.md](execution-model.md#variables-scoping-and-procedures): a procedure boundary seals **variables**, and changing the world is what procedures are for. `ask` and `each` are the only forms that scope the addressed set.
 
 ```logo
 :a = new_turtle
@@ -55,7 +55,7 @@ right 90
 
 After the `tell`, `forward` and `right` apply to both `:a` and `:b`. A later `tell :a` narrows the addressed set to one turtle.
 
-`ask <turtle|turtle-list> <block>` is a special form that temporarily runs a block for the given turtle or turtle list. The previous addressed set is restored after the block finishes. The block follows the normal OpenLogo block forms and the block-result rule: it is a list of instructions run for effects and reports no value.
+`ask <turtle|turtle-list> <block>` is a special form that temporarily runs a block for the given turtle or turtle list. The previous addressed set is restored after the block finishes. Restoration happens on **every** exit path — normal completion, `stop`, `return`, and a diagnostic raised inside the block, including `throw` — and regardless of what the block did: a `tell` inside the block, or inside a procedure the block calls, takes effect for the rest of the block and is discarded with the `ask` scope. Restoring is what distinguishes `ask` from `tell`; without it, `ask :b <block>` would mean the same as `tell :b`. The block follows the normal OpenLogo block forms and the block-result rule: it is a list of instructions run for effects and reports no value.
 
 ```logo
 :t = new_turtle
@@ -75,7 +75,7 @@ ask :t
 end ask
 ```
 
-`each <block>` runs its block once per turtle in the current `tell` or `ask` set. During each run, `who` reports the turtle for that iteration, and Turtle commands affect only that turtle unless the program changes the addressed set again. In long form an `each` block closes with `end` or `end each`.
+`each <block>` runs its block once per turtle in the current `tell` or `ask` set. During each run, `who` reports the turtle for that iteration, and Turtle commands affect only that turtle unless the program changes the addressed set again; such a change applies to the rest of that iteration only, because the next iteration addresses its own turtle. `each` fixes the turtles it will visit before its first iteration, so a `tell` inside the block never changes which turtles `each` iterates. Like `ask`, `each` restores the addressed set that was active before it, on **every** exit path — normal completion, `stop`, `return`, and a diagnostic raised inside the block, including `throw` — and regardless of what the block did. In long form an `each` block closes with `end` or `end each`.
 
 ```logo
 :a = new_turtle
@@ -108,9 +108,9 @@ Per-turtle state uses the Turtle commands from [commands.md](commands.md). The m
 - `xcor`, `ycor`, `heading`, `pos`, `towards`, and `distance` read from the current turtle.
 - `pen_up`, `pen_down`, `set_color`, `set_width`, `fill`, and `stamp` use the current turtle's pen and shape state.
 - `show_turtle`, `hide_turtle`, and `set_shape` update the current turtle's avatar state.
-- `clear_screen` and `clean` affect the shared drawing surface as defined by the Turtle & Rendering profile.
+- `clear_screen` and `clean` affect the shared drawing surface as defined by the Turtle & Rendering profile. There is one surface, so it is cleared once however many turtles are addressed. `clear_screen` also sends **every** addressed turtle home — position `(0,0)`, heading `0`, with pen state, color, width, and visibility preserved — while `clean` clears the surface and moves no turtle.
 
-When multiple turtles are addressed by `tell`, a turtle command applies once for each addressed turtle. Implementations MUST produce trace events with the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain which turtle moved or changed.
+When multiple turtles are addressed by `tell`, a turtle command applies once for each addressed turtle. Implementations MUST produce trace events with the appropriate turtle identity so animation, stepping, `why`, and `debug` can explain which turtle moved or changed. Clearing the shared drawing surface is the one effect that is not multiplied over the addressed set: `clean` and `clear_screen` clear the single surface once. `clear_screen`'s homing is **not** an exception — it is ordinary per-turtle movement and applies once for each addressed turtle, so the result never depends on the order the turtles were listed in: `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles. Every addressed turtle's return home MUST therefore be observable in the trace stream as a per-turtle effect carrying that turtle's identity. This requirement belongs to the Sprites profile and applies wherever the addressed set in force was established explicitly by `tell`, `ask`, or `each`. Where no explicit addressing is in force — as after an `ask` or `each` block has restored a set that was not itself established explicitly — the single default turtle's behavior is as the Turtle & Rendering profile defines it. A `clear` event describes the shared surface rather than any turtle, so it is not turtle-specific and carries no turtle identity, under the `turtle-id` rule in [execution-model.md](execution-model.md#trace-and-event-registry). Where that homing requirement applies, consumers MUST NOT read a `clear` event as an instruction to move a turtle: a turtle's position and heading change only through the events that report that turtle's movement.
 
 ## Shapes and sprites
 
@@ -119,13 +119,13 @@ A **sprite** is a visible turtle with a shape. `set_shape` is owned by the Turtl
 ```logo
 :bee = new_turtle
 ask :bee [
-  set_shape "bee"
+  set_shape "arrow"
   set_color "yellow"
   forward 60
 ]
 ```
 
-The word names an implementation-provided or user-provided shape. Renderers SHOULD provide a small default shape set and MUST document the words they accept. Shape changes emit the `shape-change` trace event from [execution-model.md](execution-model.md). `stamp` draws the current shape onto the shared drawing surface.
+The word names a shape the implementation provides. The portable shape words, the requirement that an implementation publish a complete description of the shape words its `set_shape` accepts, and the status of user-provided shapes are defined once by [rendering.md](rendering.md#turtle-avatar-and-shapes); the Sprites profile adds no shape words of its own. Shape changes emit the `shape-change` trace event from [execution-model.md](execution-model.md). `stamp` draws the current shape onto the shared drawing surface.
 
 Shapes do not change the identity of a turtle. A turtle remains the same value after `set_shape`, after movement, and after pen changes.
 
@@ -151,13 +151,13 @@ Sprite `ask` addresses turtles. User input is the `input` reporter in the [Inter
 
 ## Reserved words in this profile
 
-`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are reserved only within the Sprites profile. They are not part of the Core reserved-word list in [grammar.md](grammar.md). When the Sprites profile is active, programs MUST NOT redefine them as variables, procedures, or struct constructors; doing so raises `ol-reserved-word`.
+`ask` and `each` are profile block-heads, and `tell` is a profile command that switches the addressed set without taking a block; all three are **built-in names unconditionally**, reserved in every implementation whether or not it claims the Sprites profile ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). They are not part of the Core reserved-word list in [grammar.md](grammar.md), and this profile gates their *behavior* rather than their *name*: what it decides is whether these words work, never whether a program may declare them. Declaring one at a declaration slot — `define`, the heritage `to`, `struct`, or the first operand of `alias` — raises `ol-reserved-word`. Binding a value to one is legal everywhere and MUST NOT raise a diagnostic, so `:tell = 1` and `set ask to 2` are conforming programs.
 
 ## Profile grammar
 
 When the Sprites profile is active, the Core `statement` production (see [grammar.md](grammar.md#profile-grammar-extensions)) gains these forms. They reuse the Core `expression`, `bracket-block`, `statement`, and `terminator` productions.
 
-```logo
+```ebnf
 sprites-statement   ::= tell-statement | ask-statement | each-statement
 tell-statement      ::= "tell" expression
 ask-statement       ::= "ask" expression sprites-block-tail
@@ -176,6 +176,6 @@ An implementation MUST report learner-facing diagnostics using the shape defined
 - a non-turtle input to `tell` or `ask` raises `ol-type`;
 - a list passed to `tell` or `ask` that contains a non-turtle value raises `ol-type`;
 - `each` outside an active addressed set still uses the current addressed set, which is the default turtle set at top level;
-- redefining `tell`, `ask`, or `each` while the profile is active raises `ol-reserved-word`.
+- declaring `tell`, `ask`, or `each` at a declaration slot — `define`, the heritage `to`, `struct`, or the first operand of `alias` — raises `ol-reserved-word` whether or not the profile is claimed; binding a value to one of those names never does.
 
 Messages should explain the intended mental model, for example: `tell needs a turtle or a list of turtles to choose who moves.`

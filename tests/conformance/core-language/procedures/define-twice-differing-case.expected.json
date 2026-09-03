@@ -1,0 +1,26 @@
+{
+  "description": "Issue #839 AC1, with CASE as the discriminating variable: `define tally` then `define TALLY`. OpenLogo identifiers are case-insensitive with a lowercase canonical, so these are one name and the second declaration is a duplicate — a case-SENSITIVE registration would accept the program and print `2`. Two further properties are pinned that an all-lowercase fixture cannot see: `params.name` carries the SURFACE spelling of the LATER declaration (`TALLY`, exactly as written, not folded), while `params.original_span` points at the earlier one, so the message can name the line the learner already used without claiming they spelled it the same way.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "core-language/procedures/define-twice-differing-case",
+        "start": [4, 8],
+        "end": [4, 13]
+      },
+      "params": {
+        "name": "TALLY",
+        "original_span": {
+          "document": "core-language/procedures/define-twice-differing-case",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

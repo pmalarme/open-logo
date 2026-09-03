@@ -1,5 +1,5 @@
 // Unit tests for procedure-call execution: scope, arity, return/stop/throw (issue #97,
-// spec/execution-model.md:316-364, 606-648). Conformance fixtures under
+// spec/execution-model.md:338-385, 775-813). Conformance fixtures under
 // tests/conformance/core-language/execution/procedure-*.expected.json cover the primary
 // event/diagnostic shapes end to end (basic call+return, optional-param defaults in both call
 // forms, both arity diagnostics, stop escaping a nested loop, return/stop outside any procedure,
@@ -27,7 +27,7 @@ test("a procedure is callable before its textual definition (whole-program hoist
   assert.deepEqual(printed, ["hi"]);
 });
 
-test("unbounded recursion raises a friendly ol-limit diagnostic instead of a host stack overflow (spec/execution-model.md:551-557)", () => {
+test("unbounded recursion raises a friendly ol-limit diagnostic instead of a host stack overflow (spec/execution-model.md#execution-safety)", () => {
   const result = execute(
     "define loop_forever\n  loop_forever\nend\nloop_forever",
     doc,
@@ -52,16 +52,33 @@ test("recursion within the depth limit still completes normally and returns the 
   assert.deepEqual(printed, [0]);
 });
 
-test("a later define of the same name wins over an earlier one (redefinition, matches the static checker)", () => {
+test("a later define of the same name is ol-duplicate-definition, not a silent override (issue #839)", () => {
+  // Was: "a later define wins over an earlier one (matches the static checker)". It never matched
+  // the checker — `check()` reported the collision while `execute()` ran the SECOND body and
+  // printed `2`, the exact silent override `spec/execution-model.md:86-88` forbids. The two bodies
+  // differ deliberately (`return 1` vs `return 2`): under the old rule this printed `2`, under a
+  // first-wins rule it would print `1`, and only the ruling's rule prints nothing at all.
   const result = execute(
     "define f\n  return 1\nend\ndefine f\n  return 2\nend\nprint f",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  const printed = result.events
-    .filter((event) => event.kind === "print")
-    .map((event) => event.payload.values[0]);
-  assert.deepEqual(printed, [2]);
+  assert.equal(result.diagnostics.length, 1);
+  const [diagnostic] = result.diagnostics;
+  assert.equal(diagnostic.code, "ol-duplicate-definition");
+  assert.deepEqual(diagnostic.params, {
+    name: "f",
+    original_span: { document: doc, start: [1, 8], end: [1, 9] },
+  });
+  assert.deepEqual(diagnostic.source_span, {
+    document: doc,
+    start: [4, 8],
+    end: [4, 9],
+  });
+  assert.deepEqual(
+    result.events,
+    [],
+    "neither body ran — asserted on the whole event stream, since filtering an empty one never calls its predicate",
+  );
 });
 
 test("a zero-param, zero-arg procedure call binds no parameters (empty-array binder loop)", () => {

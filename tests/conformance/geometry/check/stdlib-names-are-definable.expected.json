@@ -1,0 +1,7 @@
+{
+  "description": "issue #844, the other direction: the Geometry standard library — `polygon`, `circle`, `arc`, `star`, `area` and `perimeter`, all six exercised below — is derived, source-shown OpenLogo, NOT primitives (spec/conformance.md's Geometry section; team agreement §6). So even with the `geometry` profile active the checker must leave every one of those names free to `define` (no `ol-reserved-word`) and must accept each call once the learner has defined it (no `ol-unknown-command`). That matches the runtime, which registers no such primitives either: the stdlib under stdlib/geometry/*.logo is a library to be defined or imported, not something the profile pre-registers. The bodies here are deliberately minimal stand-ins — this fixture pins NAME VISIBILITY, not the stdlib's drawing semantics, which geometry/stdlib/* already covers. Together with geometry/check/overlay-names-are-callable this proves no Geometry name is blocked at `define` yet un-callable, and none is callable yet un-`define`able.",
+  "profiles": ["core-language", "turtle-rendering", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

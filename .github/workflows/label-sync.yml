@@ -2,6 +2,14 @@ name: Label sync
 
 # Reconciles repo labels with the .github/labels.yml manifest whenever it changes.
 # Idempotent create/update; does not delete labels missing from the manifest.
+#
+# The skip-delete behaviour is a decision, not an omission (issue #972): deleting a label deletes it
+# off every live issue, and GitHub does not restore those applications when it is re-created, so a
+# typo in a manifest PR would silently strip triage data at merge. Detection belongs to
+# label-drift.yml, which fails when a label in use is missing from the manifest; deleting a retired
+# label stays a deliberate, separate act. Full reasoning: validate-labels.py, "Why the sync stays
+# additive".
+#
 # The taxonomy is owned by @product-owner; the sync is owned by @devops.
 
 on:

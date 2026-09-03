@@ -1,0 +1,192 @@
+{
+  "description": "Heritage forms execute through the identical Core code path (issue #667, slice H2; `output` execution proof completed by the #672 conformance audit): `to … end` (procedure def), both return spellings `op` and `output`, and `make` (assign) produce a trace whose `statement_kind`s are the Core node kinds `ProcedureDef`/`Return`/`Assign` — NOT any Heritage-specific kind — because Heritage adds 'alternate spellings only, no new semantics' (spec/conformance.md#heritage) and the runtime is spelling-blind. `double` returns with `op` and `triple` returns with the long `output` spelling; both lower to the same `Return` node and emit an identical `return`/`procedure-exit` payload carrying only the value (no keyword spelling in any payload), proving `output` canonicalizes exactly like `op`. `:size` is assigned with `make`, and `double :size` = 20, `triple :size` = 30, exactly as the `define`/`return`/`set` spelling would.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [4, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [7, 1],
+        "end": [7, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [8, 1],
+        "end": [8, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [8, 7],
+        "end": [8, 19]
+      },
+      "payload": {
+        "name": "double",
+        "args": [10]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "return",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": {
+        "value": 20
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [8, 7],
+        "end": [8, 19]
+      },
+      "payload": {
+        "name": "double",
+        "result": 20
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [8, 1],
+        "end": [8, 19]
+      },
+      "payload": {
+        "values": [20]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [9, 7],
+        "end": [9, 19]
+      },
+      "payload": {
+        "name": "triple",
+        "args": [10]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 3],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "return",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [5, 3],
+        "end": [5, 16]
+      },
+      "payload": {
+        "value": 30
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [9, 7],
+        "end": [9, 19]
+      },
+      "payload": {
+        "name": "triple",
+        "result": 30
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-forms-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 19]
+      },
+      "payload": {
+        "values": [30]
+      }
+    }
+  ],
+  "diagnostics": []
+}

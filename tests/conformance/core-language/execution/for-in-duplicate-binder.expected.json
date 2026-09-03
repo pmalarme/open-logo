@@ -28,7 +28,6 @@
         "name": "x",
         "form": "destructuring"
       },
-      "message": "the binder x is used twice here. give each binder a different name.",
       "stage": "runtime",
       "severity": "error"
     }

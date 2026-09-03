@@ -1,0 +1,4 @@
+set_tempo 90
+beep
+wait 1
+beep

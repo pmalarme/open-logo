@@ -56,6 +56,61 @@ export const OL_EVENT_KINDS = [
 /** One registered trace-event kind. */
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
+/**
+ * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:638` is
+ * explicit: "`turtle-id` | Turtle identity; present only when the event is turtle-specific,
+ * otherwise absent", and `spec/turtles-and-sprites.md:113` scopes the identity requirement to
+ * explaining "which turtle moved or changed".
+ *
+ * These are the per-turtle effects — movement, turning, pen/width/color, the segment drawn,
+ * `fill`/`stamp` (which "use the current turtle's pen and shape state",
+ * `spec/turtles-and-sprites.md:109`), shape/visibility, and `spawn-turtle`
+ * (`spec/turtles-and-sprites.md:34`, whose envelope names the turtle just created). Every other
+ * kind describes the program or the scene rather than one turtle: `instruction`,
+ * `procedure-enter`/`procedure-exit`/`return`, `print`, `sound`, `overlay`, `background-change`,
+ * `error`, `tutor-output`, and `primitive` — including the addressing `primitive` events, whose
+ * {@link AddressingSnapshot} describes a *set* of turtles.
+ *
+ * **`clear` is deliberately not here** (issue #738). It once was, on the reading that a
+ * `clear_screen` homes the current turtle, but `spec/turtles-and-sprites.md:113` now settles the
+ * question the other way: "A `clear` event describes the shared surface rather than any turtle, so
+ * it is not turtle-specific and carries no turtle identity". `clear_screen` still homes — **every**
+ * addressed turtle, not just one — and that homing is reported by the ordinary per-turtle `move`/
+ * `turn` events, which carry the identities. One shared-surface event cannot name the N turtles a
+ * single `clear_screen` homes, so naming one of them was exactly the order-dependence :113 removes.
+ *
+ * This is a **classification**, not a licence to label: it says which kinds are turtle-specific at
+ * all, not that a producer may attribute any such event to whichever turtle is currently acting.
+ * `spawn-turtle` carries its identity authoritatively at emission, so a producer synthesizing an
+ * acting turtle's id must apply its own, narrower policy — see `@openlogo/runtime`'s
+ * `ACTING_TURTLE_STAMPABLE_KINDS`.
+ *
+ * Lives here, next to the registry it partitions, so a producer stamping envelopes and a consumer
+ * validating them share one list instead of each hard-coding its own (issue #764).
+ */
+export const OL_TURTLE_SPECIFIC_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
+  "move",
+  "turn",
+  "pen-change",
+  "width-change",
+  "color-change",
+  "draw-segment",
+  "fill",
+  "stamp",
+  "shape-change",
+  "visibility-change",
+  "spawn-turtle",
+]);
+
+/**
+ * Type guard: may an event of this `kind` carry a `turtle_id` at all?
+ * See {@link OL_TURTLE_SPECIFIC_EVENT_KINDS} — including why "may carry" is not the same question
+ * as "may be labelled with the turtle that is currently acting".
+ */
+export function isTurtleSpecificEventKind(kind: string): boolean {
+  return OL_TURTLE_SPECIFIC_EVENT_KINDS.has(kind as EventKind);
+}
+
 /** Payload for a `move` event. */
 export interface MovePayload {
   readonly from: Point;
@@ -179,9 +234,128 @@ export interface PrintPayload {
 }
 
 /**
+ * Which handler an `instruction` event is the **start of a handler block** for, carried on
+ * {@link InstructionPayload.handler} (issue #954).
+ *
+ * ## The invariant that governs what may live here
+ *
+ * **This payload carries the handler's *registration-time signature* — the block-head kind and the
+ * argument it was registered with — and MUST NOT carry occurrence or dispatch metadata: anything
+ * describing *when* or *how* a particular firing was delivered.** That is the rule separating
+ * contract information, which belongs in the normative stream, from host-facing state, which does
+ * not, and it is the reason this addition is not the mistake `@openlogo/runtime`'s `TickBoundary`
+ * warns against.
+ *
+ * The test is **what the value is about**, not where it came from:
+ *
+ * - A **tick** is occurrence metadata and fails the test. It describes *when this firing happened*,
+ *   not *what this handler is*; `spec/interaction-events.md:69-73` additionally makes it "an
+ *   implementation-defined logical frame". It stays out of band, in `@openlogo/runtime`'s
+ *   caller-supplied `ExecuteOptions.tickTimeline` sink. Do not add one here. The same exclusion
+ *   covers a delivery index, a queue depth, or a host device detail.
+ * - A **handler kind and its registered argument** are registration-time signature and pass. They
+ *   are fixed when the registration statement ran and never re-read afterwards, so every firing of
+ *   one handler reports the same values — which is what makes the field a stable description of the
+ *   handler rather than a description of one delivery.
+ *
+ * **This is a signature, deliberately not an identifier, and it does not distinguish duplicate
+ * registrations.** `repeat 3 [ on_key "space" [ … ] ]` registers three distinct handlers — the spec
+ * requires exactly that ("implementations MUST NOT collapse, deduplicate, or replace registrations")
+ * — and all three emit an identical payload *and* an identical `source_span`, so nothing in the
+ * stream tells them apart (pinned by `handler-contract.test.mjs`'s `duplicate registrations are NOT
+ * distinguishable in the stream`). That is a real limit, not an oversight: the field exists to say
+ * *which handler kind fired and on what argument*, which is what a renderer or a11y surface needs
+ * ("your space-key handler fired"). A consumer needing per-registration identity should use
+ * `ExecuteOptions.handlerRegistrations` in `@openlogo/runtime`, which enumerates registrations in
+ * order and so reports three entries for that program.
+ *
+ * Note carefully that the argument is the **evaluated** value, not the source text: `every :n [ … ]`
+ * reports the number `:n` held at registration, and `every "2"` reports the number `2` rather than
+ * the word `"2"`, because the count is validated to a whole number before the handler is recorded.
+ * Nothing here is recoverable by slicing source text at the span — which is exactly why the runtime
+ * has to report it.
+ *
+ * **No claim is made that two independent implementations emit identical values here.** An earlier
+ * wording of this invariant asserted exactly that, twice, and was false both times: a registered
+ * argument may be computed (`every (random 1 3) [ … ]`), and `spec/commands.md:353-378` promises
+ * reproducible randomness only *within* an implementation, so conformant implementations may
+ * legitimately disagree. What is claimed is narrower and true: within a run, this field reports the
+ * argument the program itself registered the handler with. That is also all a consumer needs, since
+ * the whole purpose is to tell one registered handler from another in the stream it is reading.
+ *
+ * ## Why the field exists at all
+ *
+ * `spec/interaction-events.md`'s "Trace stream integration" already makes this event *about* the
+ * handler: "The start of a handler block emits an `instruction` event for the block-head that caused
+ * the handler to run." Without this field that fact is recoverable only by **span arithmetic** — a
+ * handler firing carries the block-head keyword's span while the registration statement carries the
+ * whole statement's span, so registration and firing are otherwise identical `instruction` events
+ * with the same `statement_kind`, told apart only by width. That is an undocumented, unasserted
+ * invariant doing a contract's job, and it left a non-visual surface able to say only "`on_key`"
+ * where it should say "your space-key handler fired". The runtime knew which handler it was
+ * invoking; this field stops it dropping that fact on the floor.
+ *
+ * A **registration** never carries one: executing `on_key "space" [ … ]` is an ordinary statement,
+ * so its `instruction` event is an ordinary statement instruction. Presence of `handler` is
+ * therefore exactly the registration-versus-firing discriminator, with no span comparison at all.
+ */
+export type HandlerFiring =
+  | { readonly kind: "when"; readonly event: string }
+  | { readonly kind: "every"; readonly interval: number }
+  | { readonly kind: "on_key"; readonly key: string }
+  | { readonly kind: "on_click" };
+
+/**
+ * The four Interaction & Events block-heads that can register a handler
+ * (`spec/interaction-events.md`'s "Profiles and reservation" table). Spelled exactly as the
+ * canonical OpenLogo source keyword, so a consumer never maps between a wire name and the word the
+ * learner wrote. A closed set, unlike the open {@link PrimitiveName}: the spec's profile grammar
+ * fixes these four forms (`interaction-statement ::= when-statement | every-statement |
+ * on-key-statement | on-click-statement`), so a fifth handler kind is a spec change, not an
+ * implementation's private extension.
+ *
+ * **Derived from {@link HandlerFiring} rather than re-listing the four literals**, so the two cannot
+ * drift: a fifth arm added to `HandlerFiring` widens this automatically instead of leaving it
+ * silently wrong with nothing to fail.
+ *
+ * Exported for **consumers**, which is why it has no in-repo user yet: a host switching on which
+ * handler fired wants to name that type without reaching into `HandlerFiring["kind"]` itself. The
+ * first such consumer is the `@openlogo/studio` slice that migrates off its source-position
+ * reconstruction onto this contract (#976, sequenced immediately after this one).
+ */
+export type HandlerKind = HandlerFiring["kind"];
+
+/**
+ * Payload for the `instruction` start event (`spec/execution-model.md`'s trace and event registry —
+ * "A step is the span from one `instruction` event to the next").
+ *
+ * `statement_kind` is the AST node kind of the statement about to run. `handler` is present **only**
+ * when this event is the start of a handler block rather than an ordinary statement
+ * (`spec/interaction-events.md`'s "Trace stream integration"), naming which of the four
+ * Interaction & Events block-heads fired and its registered argument — see {@link HandlerFiring} for
+ * the invariant governing what may be added here.
+ *
+ * The field is **optional in the same sense as {@link PrimitivePayload.addressing}**: it is absent
+ * wherever it has nothing to say, so a Core program — which cannot register a handler at all — emits
+ * a stream that is byte-identical to the one it emitted before this field existed, and a
+ * handler-unaware consumer keeps reading `statement_kind` and simply ignores an extra key.
+ *
+ * That is a claim about **absence**, and it is deliberately not the stronger claim that no consumer
+ * had to change: a consumer comparing payloads by **exact equality** does see a new key wherever a
+ * handler fires, and 43 conformance fixtures were updated for precisely that reason. Neither
+ * `statement_kind` nor `handler` is enumerated by `spec/execution-model.md`, which lists payload
+ * shapes by example rather than closing them; this repo's corpus pins both by exact equality as the
+ * contract its own consumers rely on.
+ */
+export interface InstructionPayload {
+  readonly statement_kind: string;
+  readonly handler?: HandlerFiring;
+}
+
+/**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
- * default applied when the caller omitted them (`spec/execution-model.md:606-648`'s worked
+ * default applied when the caller omitted them (`spec/execution-model.md:775-813`'s worked
  * recursive-call trace, e.g. `{name:"countdown", args:[2]}`).
  */
 export interface ProcedureEnterPayload {
@@ -191,9 +365,9 @@ export interface ProcedureEnterPayload {
 
 /**
  * Payload for a `procedure-exit` event: the callee's canonical name and its result
- * (`spec/execution-model.md:606-648`, e.g. `{name:"countdown", result:0}`). `result` is `null`
+ * (`spec/execution-model.md:775-813`, e.g. `{name:"countdown", result:0}`). `result` is `null`
  * when the invocation is a command — it finished (or `stop`ped) without reaching `return`
- * (`spec/execution-model.md:346-349`) — rather than `0`/`false`/an empty list, which are
+ * (`spec/execution-model.md:368-374`) — rather than `0`/`false`/an empty list, which are
  * themselves ordinary result values.
  */
 export interface ProcedureExitPayload {
@@ -203,7 +377,7 @@ export interface ProcedureExitPayload {
 
 /**
  * Payload for a `return` event: the value supplied to `return`/`output`/`op`
- * (`spec/execution-model.md:606-648`, e.g. `{value:0}`). Emitted only when a procedure actually
+ * (`spec/execution-model.md:775-813`, e.g. `{value:0}`). Emitted only when a procedure actually
  * reaches a `return`; a command invocation (falls through, or `stop`s) never emits one.
  */
 export interface ReturnPayload {
@@ -214,7 +388,7 @@ export interface ReturnPayload {
  * Payload for an `overlay` event emitted by `grid` (Geometry profile,
  * `spec/geometry-module.md:268-278`): creates/refreshes the persistent grid guide-line overlay.
  * `spacing` is the world-unit distance between adjacent guide lines (default `20`,
- * `spec/geometry-module.md:272`/`spec/rendering.md:133`). Never changes turtle position,
+ * `spec/geometry-module.md:272`/`spec/rendering.md:135`). Never changes turtle position,
  * heading, pen, color, or width, and survives `clean` (the overlay reducer has no `clear` case —
  * see `@openlogo/turtle`'s `overlay.ts`).
  */
@@ -252,7 +426,7 @@ export interface MeasureOverlayPayload {
  * The `overlay` event's payload — a discriminated union on `overlay`, one arm per Geometry-profile
  * overlay primitive ({@link GridOverlayPayload}, {@link AxesOverlayPayload},
  * {@link MeasureOverlayPayload}). See `spec/geometry-module.md:268-308` and
- * `spec/rendering.md:129-139` ("Grid, axes, and measure overlays").
+ * `spec/rendering.md:131-141` ("Grid, axes, and measure overlays").
  */
 export type OverlayPayload =
   GridOverlayPayload | AxesOverlayPayload | MeasureOverlayPayload;
@@ -297,7 +471,7 @@ export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
  *   never carry a diagnostic code without also carrying that diagnostic's own source span). The
  *   type system enforces this presence pairing via separate diagnostic/non-diagnostic arms
  *   below; it does NOT enforce that the span's *value* equals the diagnostic's own span — that
- *   equality is a residual runtime invariant left to later slices.
+ *   equality is a residual runtime invariant, not a type-level one.
  */
 export interface TutorOutputSegments {
   readonly segments: readonly [string, ...string[]];
@@ -371,13 +545,234 @@ export type TutorOutputPayload =
   | DebugTutorOutputPayload;
 
 /**
+ * The name of a primitive that emits a `primitive` event. `primitive` is the **generic catch-all**
+ * effect kind — "the generic catch-all for a primitive without a more specific event"
+ * (`spec/execution-model.md:703`) — so it is profile-neutral and the set of emitters is
+ * **open-ended**: any current or future primitive that lacks a more specific event kind emits one.
+ * This alias is therefore an open `string`, not a closed union, so a new emitter never requires
+ * re-opening this contract. The current M5 emitters are the Interaction & Events forms
+ * `wait`/`when`/`every`/`on_key`/`on_click` ("primitives without a more specific kind emit
+ * `primitive`", `spec/interaction-events.md:105-106`; "wait emits a `primitive` event after the
+ * pause completes … event registration forms emit `primitive` events after the handler is
+ * registered", `spec/interaction-events.md:120-122`), but the type deliberately does not close over
+ * them.
+ */
+export type PrimitiveName = string;
+
+/**
+ * The **addressed turtle set** in effect at the instant an addressing `primitive` event is emitted
+ * (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model"). This is what makes
+ * `spec/rendering.md:193` — "Implementations with multiple turtles MUST identify the active turtle
+ * or addressed turtle set" — reachable from the stream at all: every per-turtle effect event carries
+ * only the *acting* turtle's `turtle_id`, which after an `ask`/`each` block restores
+ * (`spec/turtles-and-sprites.md:58`) is neither the active turtle nor the addressed set (issue #766).
+ *
+ * - {@link addressed_turtle_ids} is the whole set a subsequent turtle command applies to, once for
+ *   each (`spec/turtles-and-sprites.md:113`), deduplicated and in first-occurrence order — the same
+ *   order `each` iterates. It MAY be empty (`tell [ ]` addresses no turtle).
+ * - {@link current_turtle_id} is **the addressed set's first member** — the turtle `who` reports
+ *   between commands (`spec/turtles-and-sprites.md:26`) — and `null` exactly when the set is empty.
+ *   It is derived from the set itself rather than from any separate pointer, so the two halves of
+ *   this payload can never contradict each other. `null` is deliberate: the spec defines no current
+ *   turtle for an empty addressed set, so an implementation's own fallback there (this one keeps
+ *   reporting the main turtle from `who`) MUST NOT become binding on every implementation through a
+ *   conformance fixture — the event claims nothing instead, and a consumer picks its own display
+ *   fallback.
+ *
+ * Note what `current_turtle_id` deliberately does **not** track: while a single command runs for a
+ * multi-turtle addressed set, `who` momentarily reports each addressed turtle in turn, so that a
+ * reporter evaluated in that command's argument sees the turtle actually running it
+ * (`spec/turtles-and-sprites.md:113`). That transient pointer is *not* a change of the addressed set,
+ * and the stream expresses it where it belongs — on each effect event's own `turtle_id` — rather than
+ * by rewriting the addressed-set snapshot. An addressing event emitted inside that window (from an
+ * addressing form reached through the argument) therefore reports the set's first member, which can
+ * differ from what a `print who` on the next line inside that same argument would report.
+ *
+ * The snapshot is **absolute, not a delta**: a consumer folds it by assignment, never by inferring
+ * which transition produced it, so entering an `ask` scope, narrowing per `each` iteration, and
+ * restoring the previous set on the way out all reduce through one rule.
+ *
+ * The set lives in the payload rather than the envelope's `turtle_id`, which is normatively
+ * "present only when the event is turtle-specific" (`spec/execution-model.md:638`): addressing
+ * concerns a *set* of turtles, so an addressing event is never turtle-specific and MUST NOT be
+ * stamped with one turtle's id.
+ */
+export interface AddressingSnapshot {
+  readonly addressed_turtle_ids: readonly TurtleId[];
+  readonly current_turtle_id: TurtleId | null;
+}
+
+/**
+ * Payload for a `primitive` event: the canonical {@link PrimitiveName} of the primitive whose
+ * effect the event records. `primitive` is the generic catch-all effect kind for a primitive
+ * without a more specific event (`spec/execution-model.md:703`) — profile-neutral, not scoped to
+ * any one profile — and `name` is what lets replay/debug tools tell those primitives apart. The
+ * event is emitted after the effect it describes (after a `wait` pause completes, or after a handler
+ * is registered), so no timing or tick data lives in the payload — the stream carries no timing or
+ * frames.
+ *
+ * `addressing` is present only on the Sprites addressing primitives `tell`, `ask`, and `each`
+ * (`spec/turtles-and-sprites.md:17`'s C3 rows), which change the addressed turtle set and have no
+ * more specific event kind — exactly the case `primitive` exists for, and the same reading under
+ * which the Interaction registration *forms* `when`/`every`/`on_key`/`on_click` emit `primitive`
+ * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`).
+ * It is deliberately NOT a new registered `kind`: the registry's `kind` values are normative and
+ * closed (`spec/execution-model.md:689-694`, "One registered event kind"), the only sanctioned
+ * un-registered kinds are vendor-namespaced extensions (`vendor_name.event_name`) which by
+ * definition may not be recorded as portable conformance behavior, and reusing the catch-all keeps
+ * every existing consumer correct with no change — an addressing-unaware renderer simply sees one
+ * more inert `primitive` event. A non-addressing primitive carries `{ name }` alone, so no existing
+ * emitter, fixture, or consumer of `primitive` changes, and a Core/Turtle & Rendering program — which
+ * cannot run `tell`/`ask`/`each` at all — emits no addressing event and stays byte-identical.
+ */
+export interface PrimitivePayload {
+  readonly name: PrimitiveName;
+  readonly addressing?: AddressingSnapshot;
+}
+
+/**
+ * Compile-time regression guard for the finding that `primitive` is the profile-neutral generic
+ * catch-all (`spec/execution-model.md:703`): its `name` must stay an OPEN type so a future primitive
+ * from any profile is representable without re-opening this contract. `AssertAssignable<T, V>`
+ * requires `V extends T`, so this alias only compiles while the non-interaction literal
+ * `"some_future_primitive"` is assignable to `PrimitiveName`; if `PrimitiveName` is ever narrowed
+ * back to a closed union of interaction names, `tsc -b` fails here — a regression the name-only
+ * runtime `.mjs` test cannot catch. Purely type-level: fully erased at emit, so it adds no runtime
+ * code to cover.
+ */
+type AssertAssignable<T, V extends T> = V;
+type _PrimitiveNameStaysOpen = AssertAssignable<
+  PrimitiveName,
+  "some_future_primitive"
+>;
+
+/**
+ * Compile-time regression guard that {@link PrimitivePayload.addressing} stays OPTIONAL: the
+ * addressing snapshot belongs to the three Sprites addressing primitives only, so a name-only
+ * payload — what `wait` and every event-registration form emit — must remain assignable. If
+ * `addressing` is ever made required, `tsc -b` fails here rather than silently forcing an
+ * addressing-free primitive to invent an addressed set. Purely type-level: fully erased at emit.
+ */
+type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
+  PrimitivePayload,
+  { readonly name: "wait" }
+>;
+
+/**
+ * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
+ * `spec/interaction-events.md:286-299`): the tempo, in beats per minute, that `set_tempo` set.
+ * Durations elsewhere in the stream are carried in beats and interpreted at the current tempo
+ * (`spec/interaction-events.md:294-295`). A positive number (`ol-range` otherwise);
+ * the default before any `set_tempo`
+ * is `120`.
+ */
+export interface SetTempoSoundPayload {
+  readonly command: "set_tempo";
+  readonly beats_per_minute: number;
+}
+
+/**
+ * Payload for a `sound` event emitted by `note` (Sound profile,
+ * `spec/interaction-events.md:301-318`): one pitched sound scheduled at the current tempo. `pitch`
+ * is a scientific-pitch-notation word with lowercase canonical spelling (e.g. `"c4"`, `"fs4"`,
+ * `"bb3"`); `duration` is a positive number of beats.
+ */
+export interface NoteSoundPayload {
+  readonly command: "note";
+  readonly pitch: string;
+  readonly duration: number;
+}
+
+/**
+ * One scheduled step of a `play` melody: a pitch word accepted by `note` or the word `"rest"`, and
+ * its positive beat `duration` (`spec/interaction-events.md:320-334` — the melody list is
+ * pitch/duration pairs in sequence). The runtime resolves the flat, even-length melody list into
+ * these ordered pairs before emitting the event.
+ */
+export interface MelodyStep {
+  readonly pitch: string;
+  readonly duration: number;
+}
+
+/**
+ * Payload for a `sound` event emitted by `play` (Sound profile,
+ * `spec/interaction-events.md:320-334`): the resolved melody, as an ordered list of pitch/duration
+ * {@link MelodyStep}s, scheduled in sequence at the current tempo.
+ */
+export interface PlaySoundPayload {
+  readonly command: "play";
+  readonly melody: readonly MelodyStep[];
+}
+
+/**
+ * Payload for a `sound` event emitted by `beep` (Sound profile,
+ * `spec/interaction-events.md:336-351`): one short, implementation-defined alert sound. It carries
+ * no parameters — the spec pins none — so the discriminant `command` is the whole payload.
+ */
+export interface BeepSoundPayload {
+  readonly command: "beep";
+}
+
+/**
+ * Payload for a `sound` event emitted by `rest` (Sound profile,
+ * `spec/interaction-events.md:353-368`): scheduled silence of `duration` beats at the current
+ * tempo. `rest` emits a `sound` event "so replay tools can show the silent interval"
+ * (`spec/interaction-events.md:362`). `duration` is a positive number.
+ */
+export interface RestSoundPayload {
+  readonly command: "rest";
+  readonly duration: number;
+}
+
+/**
+ * The `sound` event's payload — a discriminated union on `command`, one arm per Sound-profile
+ * primitive ({@link SetTempoSoundPayload}, {@link NoteSoundPayload}, {@link PlaySoundPayload},
+ * {@link BeepSoundPayload}, {@link RestSoundPayload}). Sound commands emit a `sound` event after
+ * the sound state has been scheduled (`spec/interaction-events.md:120-121`); the payload carries
+ * only what each command deterministically schedules (pitch, duration in beats, tempo), never
+ * wall-clock timing or audio frames — those are a rendering concern, not part of the deterministic,
+ * headless stream.
+ */
+export type SoundPayload =
+  | SetTempoSoundPayload
+  | NoteSoundPayload
+  | PlaySoundPayload
+  | BeepSoundPayload
+  | RestSoundPayload;
+
+/**
+ * Payload for a `spawn-turtle` event (Sprites profile,
+ * `spec/turtles-and-sprites.md:32-34`): emitted immediately after `new_turtle` creates a fresh
+ * turtle. The payload MUST identify the new turtle and SHOULD include its initial visible state for
+ * renderers and debuggers, so it carries the {@link TurtleId} plus the full default turtle state a
+ * new turtle starts with (`spec/turtles-and-sprites.md:32`): origin at the canvas center (`[0, 0]`),
+ * heading `0` degrees (up), pen down, color `"black"`, width `1`, visible, and the implementation's
+ * default turtle `shape`. The envelope's optional `turtle-id` addresses which turtle an event
+ * concerns; this payload's `turtle_id` is the identity of the turtle being reported, so it is
+ * present unconditionally.
+ */
+export interface SpawnTurtlePayload {
+  readonly turtle_id: TurtleId;
+  readonly position: Point;
+  readonly heading: number;
+  readonly pen: PenState;
+  readonly color: string;
+  readonly width: number;
+  readonly visible: boolean;
+  readonly shape: string;
+}
+
+/**
  * The trace-event envelope. `payload` is kind-specific typed data — the payload interfaces
  * above cover every Turtle & Rendering kind (`move`, `turn`, `pen-change`, `width-change`,
  * `color-change`, `background-change`, `draw-segment`, `fill`, `stamp`, `shape-change`,
  * `visibility-change`, `clear`), `print`/`procedure-enter`/`procedure-exit`/`return`,
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
- * profile, via {@link OverlayPayload}); other kinds (e.g. `sound`, `spawn-turtle`, `primitive`,
- * `error`) refine their payload with their feature slice.
+ * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}) and
+ * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}); and `primitive`, the
+ * profile-neutral generic catch-all (`spec/execution-model.md:703`, via {@link PrimitivePayload} —
+ * which also carries the Sprites {@link AddressingSnapshot} for `tell`/`ask`/`each`);
+ * other kinds (e.g. `error`) refine their payload with their feature slice.
  */
 export interface TraceEvent<P = unknown> {
   /** Monotonic sequence number, ordering the stream. */

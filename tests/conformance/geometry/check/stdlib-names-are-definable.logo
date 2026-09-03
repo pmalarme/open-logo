@@ -1,0 +1,33 @@
+define polygon :sides :size
+  repeat :sides
+    forward :size
+    right 360 / :sides
+  end repeat
+end
+define circle :radius
+  polygon 36 :radius
+end
+define arc :angle :radius
+  repeat :angle
+    forward :radius
+    right 1
+  end repeat
+end
+define star :points :size
+  repeat :points
+    forward :size
+    right 144
+  end repeat
+end
+define area :shape
+  return 0
+end
+define perimeter :shape
+  return 0
+end
+polygon 5 100
+circle 20
+arc 90 10
+star 5 50
+print area [ 1 2 ]
+print perimeter [ 1 2 ]

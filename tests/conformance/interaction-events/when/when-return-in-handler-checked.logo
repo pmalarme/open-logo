@@ -1,0 +1,3 @@
+define setup
+  when "start" [ return 7 ]
+end

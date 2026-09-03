@@ -37,7 +37,8 @@ Run against the epic and **all** its native sub-issue children:
 5. **Cross-cutting contracts stable** — AST / events / diagnostics / token-classes the epic introduced
    or changed are final and consumed consistently by every dependent package.
 6. **Docs, highlighting, and examples complete** — reference docs, syntax highlighting, and runnable
-   `spec/examples/*.logo` cover the capability; no doc/spec drift.
+   `spec/examples/*.logo` cover the capability; every OpenLogo program in the prose is fenced
+   ` ```logo ` so `npm run examples` actually checks it (issue #850); no doc/spec drift.
 7. **No unresolved architecture questions** — anything deferred is filed as a follow-up issue under the
    right saga, not left implicit.
 8. **Specialist review + rubber-duck review recorded at capability level** — at least the domain

@@ -31,7 +31,7 @@ possible, and they disagree on this exact example:
 - **Emission-time:** evaluate every argument first (running every side effect, in order), then take
   one snapshot of the whole assembled payload immediately before the event is emitted. Every value
   in the payload reflects program state as of that single instant — after `mutate` has already run.
-  Result: `[1, 2] 0`.
+  Result: `[1 2] 0`.
 - **Evaluation-time:** freeze each argument's contribution to the payload the instant that argument
   is individually evaluated, before any later sibling argument runs. `:l` would be captured as
   `[1]`, before `mutate`'s `add 2 to :l` has had a chance to run. Result: `[1] 0`.
@@ -79,19 +79,19 @@ instruction's* evaluation has finished, and not a moment later." Two contrasting
 boundary precise:
 
 ```logo
-:x = [1, 2, 3]
+:x = [1 2 3]
 print :x
-:x[0] = 99
+:x[1] = 99
 ```
 
-Here, `print :x` is one instruction; `:x[0] = 99` is a separate, later instruction. The snapshot for
+Here, `print :x` is one instruction; `:x[1] = 99` is a separate, later instruction. The snapshot for
 `print`'s event is taken when instruction 2 (`print :x`) finishes evaluating — before instruction 3
 runs at all. The later mutation on line 3 has no effect on the payload already emitted by line 2:
 the `print` event's payload is `{values: [[1, 2, 3]]}`, permanently, regardless of what line 3 later
 does to `:x`.
 
 ```logo
-:x = [1, 2, 3]
+:x = [1 2 3]
 define mutateAndTag
   add 99 to :x
   return "tagged"

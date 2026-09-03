@@ -1,0 +1,3 @@
+every 1 [ print 1 ]
+every 1 [ print 2 ]
+wait 2

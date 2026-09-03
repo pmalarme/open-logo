@@ -1,0 +1,8 @@
+:a = new_turtle
+:b = new_turtle
+define nudge
+  ask :a [ right 1 ]
+  return 3
+end
+tell [ :a :b ]
+forward nudge

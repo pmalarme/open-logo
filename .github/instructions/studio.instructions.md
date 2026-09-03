@@ -42,3 +42,30 @@ presentation and interaction, never language logic.
 - Every control is keyboard-operable and screen-reader-labeled; honor reduced-motion.
 - Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
   [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).
+
+## Testing: two different things hide a timing defect
+
+The immediate scheduler is the default (`run-controller.ts`'s `options?.scheduler ?? IMMEDIATE_SCHEDULER`).
+It drains playback inside `run()`, so `drawnEventCount` is always the whole stream. Which hazard you
+face depends on what your oracle reads:
+
+- **An oracle that reads playback progress needs a paced scheduler.** Anything about a
+  *partially-drawn* picture, or delivery before playback settles, is unobservable under the immediate
+  default — `#985/#976: a click DELIVERED before its handler registers reports zero invocations`
+  delivers one click before registration and observes `false`, then after `drain()` a *second* click
+  returns `true` as the non-zero control. Adapt that helper's pattern from
+  `run-controller-interaction.test.mjs` — **there is no shared module**. It does not model
+  cancellation (its canceller is a no-op), but it *does* single-step: `step()` runs one queued
+  callback, added by #1039 when a two-ended test proved defeatable by a mutant that agrees with the
+  predicate at both ends and disagrees in between.
+- **An oracle that reads tick ordering can be defeated by fixture slack, under any scheduler.** A
+  program with ticks to spare after the event you order against lets a clamped and an unclamped
+  delivery land on different-but-both-valid ticks with identical observable order. Measured on the
+  `#976` answered-read sweep, same immediate scheduler in both arms: `askThenOnKeySource` with no
+  trailing wait dies under a `readFloor = 0` mutant (leads 1/2/3/5 violate, lead 0 insensitive),
+  while the `wait 5` variant stays green. `trailingWaitTicks` defaults to `0` for this reason — pass
+  it only when a test genuinely needs slack.
+- **A surviving mutant proves only that the test does not discriminate.** Fixture slack is one
+  diagnosis; the others are that the mutation never reached the built artifact, that it hit the wrong
+  guard, or that the assertion is weak. Confirm the mutation landed in `dist/` before reading
+  anything into a green suite.

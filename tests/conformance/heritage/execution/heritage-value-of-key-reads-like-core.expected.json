@@ -1,0 +1,58 @@
+{
+  "description": "Heritage `value of … for key` reads a dict through the IDENTICAL Core code path (issue #670, slice H5): line 2's Heritage reader `value of :ages for key \"tom\"` and line 3's Core selector `:ages[\"tom\"]` both print 8 through the same `Call` → `print` events, with byte-identical `print` payloads and NO `value of` / Heritage spelling anywhere in any payload — because Heritage is 'alternate spellings only, no new semantics' (`spec/conformance.md:146`) and the runtime lowers the reader onto the same dict-read as `:d[:k]` (`spec/data-structures.md:183-195`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reads-like-core",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reads-like-core",
+        "start": [2, 1],
+        "end": [2, 35]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reads-like-core",
+        "start": [2, 1],
+        "end": [2, 35]
+      },
+      "payload": { "values": [8] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reads-like-core",
+        "start": [3, 1],
+        "end": [3, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reads-like-core",
+        "start": [3, 1],
+        "end": [3, 19]
+      },
+      "payload": { "values": [8] }
+    }
+  ],
+  "diagnostics": []
+}

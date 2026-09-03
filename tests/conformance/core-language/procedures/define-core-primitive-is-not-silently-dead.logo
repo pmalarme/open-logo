@@ -1,0 +1,4 @@
+define first :xs
+  return 999
+end
+print first [10 20 30]

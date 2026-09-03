@@ -29,7 +29,6 @@
         "expected": 0,
         "actual": 1
       },
-      "message": "pos takes 0 inputs, but got 1.",
       "stage": "runtime",
       "severity": "error"
     }

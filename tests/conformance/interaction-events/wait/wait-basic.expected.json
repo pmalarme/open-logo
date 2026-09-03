@@ -1,0 +1,32 @@
+{
+  "description": "issue #680 (Interaction & Events, slice I1): `wait 2` pauses the current top-level instruction stream for 2 ticks and emits a single `primitive` event carrying only `name: \"wait\"` AFTER the pause completes (spec/interaction-events.md's `### wait <n>` and \"Trace stream integration\": \"wait emits a `primitive` event after the pause completes\"). The tick clock is headless execution state, so no tick count or timing leaks into the payload (spec/execution-model.md's trace-and-event registry). The `primitive` catch-all kind is registered by C5 (#694); M5 adds no new event kind.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-basic",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-basic",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

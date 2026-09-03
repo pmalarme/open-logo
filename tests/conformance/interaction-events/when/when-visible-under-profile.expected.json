@@ -1,0 +1,7 @@
+{
+  "description": "issue #682 (slice I3), the parser half of the two-halves requirement: with `interaction-events` active, `when` is a VISIBLE name, so the semantic checker's `unknownCommandRule` accepts it and the program checks clean. C2 (#664) registered `when` as a profile block-head form so it PARSES, but the live `unknownCommandRule` gate walks a `ProfileStatement`'s head keyword against `collectVisibleNames` and would reject any form not also registered as a visible name — so this slice adds `when` to `collectVisibleNames`'s per-profile `interaction-events` extension point. This fixture proves the checker accepts `when` under the profile; its sibling `when-rejected-core-only` proves it is still rejected without the profile.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

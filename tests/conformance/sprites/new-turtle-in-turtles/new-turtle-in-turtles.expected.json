@@ -1,0 +1,64 @@
+{
+  "description": "issue #673: a turtle obtained from `new_turtle` is the same turtle (id-based `==`, C3) as the last element of `turtles`, proving `turtles` reports the already-existing turtles rather than fresh unrelated ones. This is the SP1-reachable identity assertion: when it was written SP1 had no `tell`, so the `tell :friend` / `who == :friend` form was deferred to SP2. SP2 has since landed it — that form is now covered by the sibling fixture tell-who-identity — and this fixture remains the `turtles`-based equivalent, proving identity through the reporter rather than through addressing. With a single spawned turtle it does not assert the order of multiple `new_turtle`s within `turtles`.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/new-turtle-in-turtles/new-turtle-in-turtles",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

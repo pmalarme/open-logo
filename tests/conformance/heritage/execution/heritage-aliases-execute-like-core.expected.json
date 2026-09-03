@@ -1,0 +1,520 @@
+{
+  "description": "Heritage short command aliases execute through the identical Core code path (issue #668, slice H3; execution proof for lt completed by the #672 conformance audit): the ten aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` are 'alternate spellings only — no new semantics' (spec/conformance.md#heritage), so this program's full event stream is byte-identical (payloads included) to the same program written with the Core names `forward`/`back`/`left`/`right`/`pen_up`/`pen_down`/`show_turtle`/`hide_turtle`/`clear_screen`/`print`. Both turn aliases are exercised: `rt` and `lt` run back-to-back inside the `spin` procedure body, and their `turn` events carry only the resulting headings (90 then 60) with no alias spelling in any payload — proving lt canonicalizes to `left` exactly as the other nine aliases canonicalize to their Core names. The remaining aliases are exercised in awkward positions the reader must still canonicalize: nested inside a `[ … ]` repeat body (`pu`/`fd`/`pd`/`bk`) and inside a procedure body (`rt`/`lt`/`fd` in `spin`), not just at top level. Every `move`/`turn`/`pen-change`/`visibility-change`/`clear`/`print` payload, and the `procedure-enter`/`procedure-exit` names, carry the canonical Core name because the runtime normalizes the alias to its `canonical` at a single dispatch chokepoint before any executor or event runs. The runtime is profile-blind (the reader records `canonical` unconditionally), so `data`/`heritage` need not be listed for execution — but they are, to document that these spellings are the Heritage profile's.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [1, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 1],
+        "end": [6, 31]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 12],
+        "end": [6, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 12],
+        "end": [6, 14]
+      },
+      "payload": {
+        "from": "down",
+        "to": "up"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 15],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 15],
+        "end": [6, 20]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 21],
+        "end": [6, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 21],
+        "end": [6, 23]
+      },
+      "payload": {
+        "from": "up",
+        "to": "down"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 12],
+        "end": [6, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 12],
+        "end": [6, 14]
+      },
+      "payload": {
+        "from": "down",
+        "to": "up"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 15],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 15],
+        "end": [6, 20]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 21],
+        "end": [6, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "pen-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 21],
+        "end": [6, 23]
+      },
+      "payload": {
+        "from": "up",
+        "to": "down"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [6, 24],
+        "end": [6, 29]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [7, 1],
+        "end": [7, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [7, 1],
+        "end": [7, 3]
+      },
+      "payload": {
+        "from": true,
+        "to": true
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [8, 1],
+        "end": [8, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "visibility-change",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [8, 1],
+        "end": [8, 3]
+      },
+      "payload": {
+        "from": true,
+        "to": false
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "turn",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "from": 0,
+        "to": 0
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "clear",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [9, 1],
+        "end": [9, 3]
+      },
+      "payload": {
+        "mode": "clear_screen"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "name": "spin",
+        "args": [40]
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "turn",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [2, 3],
+        "end": [2, 8]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [3, 3],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "turn",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [3, 3],
+        "end": [3, 8]
+      },
+      "payload": {
+        "from": 90,
+        "to": 60
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [4, 3],
+        "end": [4, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "move",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [4, 3],
+        "end": [4, 8]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [34.64101615137754, 20.000000000000004],
+        "heading": 60
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [4, 3],
+        "end": [4, 8]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [34.64101615137754, 20.000000000000004],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [10, 1],
+        "end": [10, 8]
+      },
+      "payload": {
+        "name": "spin",
+        "result": null
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [11, 1],
+        "end": [11, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-aliases-execute-like-core",
+        "start": [11, 1],
+        "end": [11, 5]
+      },
+      "payload": {
+        "values": [7]
+      }
+    }
+  ],
+  "diagnostics": []
+}

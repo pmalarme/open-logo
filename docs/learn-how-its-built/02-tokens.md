@@ -8,7 +8,7 @@ letter; you read it word by word. OpenLogo doesn't read your program character b
 
 Take our series' example:
 
-```
+```logo
 repeat 4 [ forward 100 right 90 ]
 ```
 

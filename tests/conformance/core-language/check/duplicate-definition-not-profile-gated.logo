@@ -1,0 +1,9 @@
+struct point [ x y ]
+struct point [ a b ]
+define helper
+  print 1
+end
+struct helper [ x ]
+define helper
+  print 2
+end

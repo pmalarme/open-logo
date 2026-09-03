@@ -1,0 +1,37 @@
+{
+  "description": "a chain of three everys reports exactly TWO findings, one per adjacent pair, never three. Each every is visited as an outer in its own right, so collection stops at each registration instead of walking through it; descending through one made the outermost visit report the deepest link as well, so a single defect was reported twice. The spans are the two INNER registrations - the every 5 at column 11 and the every 7 at column 21 - and the outermost every 3, which nothing registers, is not a finding of its own. Intervals 3/5/7 are distinct so no unrelated ol-style-magic-number finding is produced",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-nested-handler",
+      "source_span": {
+        "document": "interaction-events/style/nested-handler-chain-reports-each-link-once",
+        "start": [1, 11],
+        "end": [1, 44]
+      },
+      "params": {
+        "outer": "every",
+        "inner": "every"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-nested-handler",
+      "source_span": {
+        "document": "interaction-events/style/nested-handler-chain-reports-each-link-once",
+        "start": [1, 21],
+        "end": [1, 42]
+      },
+      "params": {
+        "outer": "every",
+        "inner": "every"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

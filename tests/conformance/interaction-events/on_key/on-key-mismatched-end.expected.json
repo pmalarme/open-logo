@@ -1,0 +1,22 @@
+{
+  "description": "issue #684 (slice I5): the multiline `on_key ... end on_key` form requires its closing label to match the block-head; closing an `on_key` block with `end when` is rejected at PARSE stage with `ol-mismatched-end` (spec/interaction-events.md's event-end grammar; spec/error-model.md's `ol-mismatched-end`; the `END_LABELS` registration C2 (#664) added for `on_key`). Because the parse fails, `execute()` bails before running anything, so no events are emitted. The diagnostic's span covers the wrong label word and its params carry the expected (`on_key`) vs actual (`when`) labels, with a did-you-mean pointing back at `on_key`.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-mismatched-end",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-mismatched-end",
+        "start": [3, 5],
+        "end": [3, 9]
+      },
+      "params": {
+        "expected": "on_key",
+        "actual": "when"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

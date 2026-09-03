@@ -28,7 +28,6 @@
         "operation": "set_background",
         "value": "reddish"
       },
-      "message": "set_background needs a color word, an [r g b] list, or a \"#rrggbb\" hex word, but got reddish.",
       "stage": "runtime",
       "severity": "error"
     }

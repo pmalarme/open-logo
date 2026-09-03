@@ -1,0 +1,86 @@
+{
+  "description": "issue #864: the Core-only half of the value-position rule, and the byte-identical twin of `block-heads-not-values`. A profile word has no structural role while its profile is inactive (`spec/tooling.md:30`'s \"while their profile is active\"), so in VALUE position a Core-only program sees four names nothing in THIS program declares, which is `ol-unknown-command` (`spec/tooling.md:181`), not the wrong-position `ol-bad-token` its twin reports for the very same bytes. That contrast is the whole point of the pair: it pins issue #864's rule as PROFILE-GATED rather than a blanket rejection, which is what keeps `ol-bad-token` scoped to a word the ACTIVE profile gives a structural role. The DECLARATION axis is the opposite and is pinned by the pair `block-heads-reserved-under-core-only` / `block-heads-reserved-under-profile`: a Core-only `define every` raises `ol-reserved-word` (`spec/grammar.md:408`). This fixture asserts a NAME-visibility outcome, not a declaration one, and the two must not be conflated. This is a check-mode fixture: it proves static legality only and does not execute.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [1, 8],
+        "end": [1, 12]
+      },
+      "params": {
+        "name": "when"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [2, 8],
+        "end": [2, 13]
+      },
+      "params": {
+        "name": "every"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [3, 8],
+        "end": [3, 14]
+      },
+      "params": {
+        "name": "on_key"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [4, 8],
+        "end": [4, 16]
+      },
+      "params": {
+        "name": "on_click"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [5, 7],
+        "end": [5, 11]
+      },
+      "params": {
+        "name": "when"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/block-heads-ordinary-names-core-only/block-heads-ordinary-names-core-only",
+        "start": [6, 6],
+        "end": [6, 11]
+      },
+      "params": {
+        "name": "every"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

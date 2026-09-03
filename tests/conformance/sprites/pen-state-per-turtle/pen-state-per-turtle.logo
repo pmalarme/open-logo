@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ pen_up ]
+tell [ :a :b ]
+forward 10

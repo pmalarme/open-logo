@@ -1,0 +1,4 @@
+to forward :n
+  print 999
+end
+forward 10

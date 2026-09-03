@@ -1,0 +1,121 @@
+{
+  "description": "issue #681 (slice I2): scripted answers are a FIFO queue consumed IN ORDER, one per `input` call, and each is classified independently by the number-vs-word rule (`spec/interaction-events.md:136-137`). Three reads take `1`, `two`, `3` in that order and print the number 1, the word `two`, and the number 3 — so a run that reused one answer, consumed them in reverse, or classified the whole queue by its first entry fails. Each read emits its own `primitive` event named `input` after it completes, interleaved with the surrounding `instruction`/`print` events in program order: reads do not batch.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "responses": ["1", "two", "3"]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [1, 7],
+        "end": [1, 21]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [2, 7],
+        "end": [2, 22]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [2, 1],
+        "end": [2, 22]
+      },
+      "payload": {
+        "values": ["two"]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [3, 7],
+        "end": [3, 21]
+      },
+      "payload": {
+        "name": "input"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/input/input-responses-consumed-in-order",
+        "start": [3, 1],
+        "end": [3, 21]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}

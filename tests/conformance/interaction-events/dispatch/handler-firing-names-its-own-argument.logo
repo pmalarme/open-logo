@@ -1,0 +1,5 @@
+on_key "space" [ print 1 ]
+on_key "enter" [ print 2 ]
+every 2 [ print 3 ]
+every 3 [ print 4 ]
+wait 3

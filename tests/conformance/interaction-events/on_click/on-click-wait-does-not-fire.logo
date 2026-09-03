@@ -1,0 +1,3 @@
+on_click [ print "moved" ]
+wait 10
+print "after"

@@ -1,0 +1,137 @@
+{
+  "description": "issue #673 (cross-slice coexistence): the Sprites turtle world lives on the same `Environment` as #680's tick clock and #689's sound scheduler, so all three subsystems must run in one program without interfering. `set_tempo 120` then `new_turtle` then `wait 1` then `beep` then `print who == first turtles` emits, in order, a `sound` event, a `spawn-turtle` event (turtle id 1, full initial visible state), a `primitive` event for `wait` after its pause, a second `sound` event, and a `print` of `true` -- proving the turtle world coexists with (not merely compiles alongside) the tick clock and sound scheduler, and that turtle identity (`who == first turtles`, id-based per C3) still holds after the intervening wait/sound activity. The broader integration suite belongs to the terminal slices (#679).",
+  "profiles": ["sprites", "interaction-events", "sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "command": "set_tempo",
+        "beats_per_minute": 120
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [2, 11],
+        "end": [2, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "sound",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "command": "beep"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [5, 1],
+        "end": [5, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/turtle-world-coexists/turtle-world-coexists",
+        "start": [5, 1],
+        "end": [5, 27]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

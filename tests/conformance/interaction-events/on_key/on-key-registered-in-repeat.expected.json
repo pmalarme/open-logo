@@ -1,0 +1,68 @@
+{
+  "description": "issue #684 (slice I5): `on_key` registered inside a `repeat` body registers one handler per iteration — proving the block-head works in an awkward nested position, not only at top level. Each iteration emits the handler's `instruction`+`primitive` pair carrying the nested block-head's span (seq 1-2 then 3-4, under the outer `repeat` instruction at seq 0). No key is delivered when the run supplies no host input, so no body fires; registration order is preserved across iterations for #686/I7.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-in-repeat",
+        "start": [1, 1],
+        "end": [1, 38]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 36]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 36]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 36]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-in-repeat",
+        "start": [1, 12],
+        "end": [1, 36]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    }
+  ],
+  "diagnostics": []
+}

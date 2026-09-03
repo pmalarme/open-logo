@@ -1,0 +1,4 @@
+print bf [1 2 3]
+print bl [1 2 3]
+print se "a" "b"
+print bf bl [10 20 30 40]

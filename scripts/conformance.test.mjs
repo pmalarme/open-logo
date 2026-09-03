@@ -11,6 +11,8 @@ import { once } from "node:events";
 import { text } from "node:stream/consumers";
 import { OLDict, OLRecord } from "@openlogo/core";
 import {
+  PROFILE_DEPS,
+  EXPECTED_SUFFIX,
   closureOf,
   deepEqual,
   produce,
@@ -25,7 +27,9 @@ import {
   safeStringify,
   itemsMatch,
   parseArgs,
+  profileGateErrors,
   runHarness,
+  validateExecuteOptions,
 } from "./harness/index.mjs";
 
 // Each self-test gets its own fresh, uniquely-named OS temp directory (fs.mkdtempSync) — never a
@@ -450,43 +454,74 @@ test("compare returns not matched with diff report", () => {
   assert.ok(result.report.includes("diagnostic mismatch"));
 });
 
-test("compare ignores diagnostic message field (prose not identity)", () => {
-  // Per spec/error-model.md:193-194, diagnostic identity = code+params, not prose
-  const expected = {
-    events: [],
-    diagnostics: [
-      {
-        code: "ol-test",
-        source_span: { document: "test", start: [1, 1], end: [1, 2] },
-        params: { foo: "bar" },
-        stage: "parse",
-        severity: "error",
-        message: "Expected prose A",
-      },
-    ],
-  };
-  const actual = {
-    events: [],
-    diagnostics: [
-      {
-        code: "ol-test",
-        source_span: { document: "test", start: [1, 1], end: [1, 2] },
-        params: { foo: "bar" },
-        stage: "parse",
-        severity: "error",
-        message: "Actual prose B (different)",
-      },
-    ],
-  };
-  const result = compare(expected, actual);
+test("compare() compares a diagnostic message when — and only when — the fixture opted in with compareMessages, so a wrong learner sentence fails (issue #1025)", () => {
+  // The opt-in is the explicit per-fixture `"compareMessages": true`, NOT the presence of a
+  // `message` key: the corpus carried 306 messages written while the documented behaviour was
+  // "message is not compared", and reading those as consent would have frozen ~275 English
+  // sentences that spec/error-model.md:261-263 positively permits an implementation to reword.
+  // spec/error-model.md:254-259 stays the default — identity is code+params. :125 is the case this
+  // exists for: it prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT
+  // inside it, and #751 and #871 both shipped a message violating that while the corpus stayed
+  // green, because compare() dropped `message` unconditionally.
+  const diagnostic = (message) => ({
+    code: "ol-reserved-word",
+    source_span: { document: "test", start: [1, 8], end: [1, 15] },
+    params: { name: "forward" },
+    stage: "semantic",
+    severity: "error",
+    message,
+  });
+  const right = "forward is already part of OpenLogo. choose another name.";
+  const wrong =
+    "forward is already a reserved primitive, so it can't be redefined here.";
+
+  const agreeing = compare(
+    { compareMessages: true, events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(right)] },
+  );
   assert.ok(
-    result.matched,
-    "Diagnostics differing only in message should match",
+    agreeing.matched,
+    "an opted-in fixture whose message is right must still pass",
+  );
+
+  const diverging = compare(
+    { compareMessages: true, events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(wrong)] },
+  );
+  assert.ok(
+    !diverging.matched,
+    "an opted-in fixture must fail when the producer's message is wrong",
+  );
+  assert.ok(diverging.report.includes("diagnostic mismatch"));
+  assert.ok(
+    diverging.report.includes("reserved primitive"),
+    "the report must name the offending prose so the failure is actionable",
+  );
+
+  // The control that makes the two assertions above mean something: the SAME wrong message, with
+  // the flag absent, matches. So it is the opt-in doing the work, not some other field.
+  const notOptedIn = compare(
+    { events: [], diagnostics: [diagnostic(right)] },
+    { events: [], diagnostics: [diagnostic(wrong)] },
+  );
+  assert.ok(
+    notOptedIn.matched,
+    "without compareMessages the localization boundary is preserved",
   );
 });
 
-test("compare matches diagnostic without message field", () => {
-  // Fixtures may omit message (canonical format per conformance-fixture skill)
+test("compare() ignores a diagnostic message the expected side did not ask for, keeping the localization boundary for every fixture that has not opted in", () => {
+  // The arm no fixture can express: a fixture asserting "prose is NOT compared" would have to
+  // record the prose it is not asserting — and loadFixture now rejects a `message` without the
+  // flag outright, so this shape only exists in-memory. Every diagnostic `produce()` returns
+  // carries a message (validateDiagnostics makes that a hard requirement), so this is the shape of
+  // the corpus diagnostics that deliberately stay on identity alone — the majority of them.
+  // HOW MANY is deliberately not written here. This sentence used to say "the 326 corpus
+  // diagnostics", a hand-written count nothing re-checked: it described the design of #1025's
+  // review round 1, which round 2 reversed, and it was already stale when #1026 shipped. The split
+  // is derived from the corpus by `the corpus is majority identity-only` below instead, which is
+  // also what makes "the majority" a checked claim rather than another number in prose
+  // (issue #1028). `tests/conformance/README.md` declines to state a count for the same reason.
   const expected = {
     events: [],
     diagnostics: [
@@ -496,7 +531,7 @@ test("compare matches diagnostic without message field", () => {
         params: {},
         stage: "parse",
         severity: "error",
-        // no message field
+        // no message field: this fixture asserts identity only
       },
     ],
   };
@@ -509,7 +544,7 @@ test("compare matches diagnostic without message field", () => {
         params: {},
         stage: "parse",
         severity: "error",
-        message: "This message is ignored",
+        message: "any prose at all, in any language",
       },
     ],
   };
@@ -518,6 +553,87 @@ test("compare matches diagnostic without message field", () => {
     result.matched,
     "Expected without message should match actual with message",
   );
+});
+
+test("the corpus is majority identity-only, and the split is derived here rather than written into a comment (issue #1028)", () => {
+  // What replaces the stale 326 above. A count in prose is an assertion nothing re-checks, so this
+  // one is computed from the real corpus every run, through the harness's own loader — the census
+  // therefore counts exactly what the harness counts. `loadFixture` now makes a `message` and the
+  // `compareMessages` opt-in imply each other in both directions, so "carries a message" and "is
+  // compared on prose" are the same set, and no third state can hide between them.
+  let identityOnly = 0;
+  let compared = 0;
+  for (const fixture of discoverFixtures()) {
+    const loaded = loadFixture(fixture);
+    assert.equal(loaded.error, undefined, `${fixture.name}: ${loaded.error}`);
+    for (const diagnostic of loaded.expected.diagnostics) {
+      if (Object.hasOwn(diagnostic, "message")) {
+        compared += 1;
+      } else {
+        identityOnly += 1;
+      }
+    }
+  }
+
+  assert.ok(
+    compared > 0,
+    "no corpus diagnostic asserts its prose — the opt-in would be a mechanism nothing exercises",
+  );
+  assert.ok(
+    identityOnly > compared,
+    `identity-only (${identityOnly}) is no longer the majority over compared (${compared}). That is not forbidden by anything — the spec fixes no corpus ratio — but the characterization just above this test describes identity-only as the majority shape, so one of the two now needs updating`,
+  );
+});
+
+test("compare() keeps the per-diagnostic grain inside an opted-in fixture: a sibling with no message is still identity-only (issue #1025)", () => {
+  // `compareMessages` is per fixture, as the issue required, but within one fixture only the
+  // diagnostics that actually carry a message are asserted on prose — so a fixture may pin the one
+  // sentence the spec fixes and leave its siblings free to be reworded.
+  const span = { document: "test", start: [1, 1], end: [1, 2] };
+  const pinned = {
+    code: "ol-reserved-word",
+    source_span: span,
+    params: { name: "forward" },
+    stage: "semantic",
+    severity: "error",
+    message: "forward is already part of OpenLogo. choose another name.",
+  };
+  const loose = {
+    code: "ol-test",
+    source_span: span,
+    params: {},
+    stage: "parse",
+    severity: "error",
+  };
+  const result = compare(
+    { compareMessages: true, events: [], diagnostics: [pinned, loose] },
+    {
+      events: [],
+      diagnostics: [pinned, { ...loose, message: "reworded freely" }],
+    },
+  );
+  assert.ok(result.matched);
+});
+
+test("compare() projects a surplus actual diagnostic that has no expected counterpart to consult, and still reports it as surplus (issue #1025)", () => {
+  // The index-aligned opt-in has to answer "what does actual[1] compare, when expected[1] does not
+  // exist?". It compares identity only — there is no expectation to have opted in — and the extra
+  // diagnostic is reported as surplus either way. Pinned because the alternative, reading a
+  // `message` off `undefined`, throws.
+  const shared = {
+    code: "ol-test",
+    source_span: { document: "test", start: [1, 1], end: [1, 2] },
+    params: {},
+    stage: "parse",
+    severity: "error",
+    message: "first",
+  };
+  const result = compare(
+    { compareMessages: true, events: [], diagnostics: [shared] },
+    { events: [], diagnostics: [shared, { ...shared, message: "second" }] },
+  );
+  assert.ok(!result.matched, "a surplus actual diagnostic must be reported");
+  assert.ok(result.report.includes("(missing)"));
 });
 
 // --- Graph fixtures: $id/$ref reference-identity extension (issue #495 fixture-format
@@ -1231,7 +1347,7 @@ test("loadFixture rejects malformed fixture schema", () => {
           params: {},
           stage: "parse",
           severity: "error",
-          // message is optional per spec/error-model.md:193-194
+          // message is optional in a FIXTURE: the harness compares identity, not prose
         },
       ],
     }),
@@ -1354,6 +1470,379 @@ test("loadFixture reads an explicit execute: true opt-in", () => {
   });
 
   assert.equal(loaded.expected.execute, true);
+});
+
+// --- issue #1025: the `compareMessages` opt-in, and why both directions are errors --------------
+
+/** Write a throwaway fixture pair under TEMP_ROOT and load it. */
+function loadTempFixture(name, spec, source = "") {
+  mkdirSync(join(TEMP_ROOT, name), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, name, `${name}.logo`), source);
+  writeFileSync(
+    join(TEMP_ROOT, name, `${name}.expected.json`),
+    JSON.stringify(spec),
+  );
+  return loadFixture({
+    name: `${name}/${name}.expected.json`,
+    expectedPath: join(TEMP_ROOT, name, `${name}.expected.json`),
+    logoPath: join(TEMP_ROOT, name, `${name}.logo`),
+  });
+}
+
+/** A minimal well-formed expected diagnostic, plus whatever `extra` keys a test needs. */
+function tempDiagnostic(extra = {}) {
+  return {
+    code: "ol-bad-token",
+    source_span: { document: "t", start: [1, 1], end: [1, 2] },
+    params: {},
+    stage: "parse",
+    severity: "error",
+    ...extra,
+  };
+}
+
+test("loadFixture rejects a `message` on a fixture that did not set compareMessages, so nothing can be present-but-ignored again (issue #1025)", () => {
+  // This is AC-A3 turned from a one-time cleanup into a structural property. Before #1025 the
+  // corpus carried 306 message fields that the harness silently dropped — data that reads as
+  // evidence and is not. Deleting them once would have fixed the corpus and not the hole.
+  const loaded = loadTempFixture("message-without-optin", {
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "asserted by nothing" })],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("compareMessages"));
+  assert.ok(loaded.error.includes("delete the message"));
+});
+
+test("loadFixture rejects compareMessages: true when no expected diagnostic carries a message (issue #1025)", () => {
+  // The other direction: an opt-in that asserts nothing is a fixture-author mistake, not a no-op —
+  // the same reason `executeOptions` without `"execute": true` is rejected rather than ignored.
+  const loaded = loadTempFixture("optin-without-message", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic()],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes("no expected diagnostic carries"));
+});
+
+test('loadFixture rejects a non-string or empty message, so neither `null` nor `""` can opt in and then fail at compare time (@testing R2-F3 / R3-F2 on issue #1025)', () => {
+  // `Object.hasOwn` decides the per-diagnostic opt-in, so `"message": null` would otherwise count
+  // as opting in and fail later against a diff instead of naming the fixture's own mistake. `""`
+  // goes the same way for the same reason: `validateDiagnostics` makes every produced message
+  // truthy, so an empty expectation can never match.
+  for (const [index, message] of [null, "", 42, true, ["a"]].entries()) {
+    const loaded = loadTempFixture(`bad-message-${index}`, {
+      profiles: ["core-language"],
+      compareMessages: true,
+      diagnostics: [tempDiagnostic({ message })],
+      events: [],
+    });
+
+    assert.ok(
+      loaded.error,
+      `message ${JSON.stringify(message)} must be rejected`,
+    );
+    assert.ok(loaded.error.includes('non-string or empty "message"'));
+  }
+});
+
+test("loadFixture rejects a non-boolean compareMessages field", () => {
+  const loaded = loadTempFixture("bad-compare-messages", {
+    profiles: ["core-language"],
+    compareMessages: "yes",
+    events: [],
+    diagnostics: [],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('"compareMessages" must be a boolean'));
+});
+
+test("loadFixture accepts a fixture that opts in and carries a message, defaulting the flag to false otherwise", () => {
+  const optedIn = loadTempFixture("with-compare-messages", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "asserted on purpose" })],
+  });
+  assert.equal(optedIn.expected.compareMessages, true);
+
+  const plain = loadTempFixture("without-compare-messages", {
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [tempDiagnostic()],
+  });
+  assert.equal(plain.expected.compareMessages, false);
+});
+
+test("loadFixture rejects an unknown key on an expected diagnostic, so a misspelled `message` cannot assert nothing (@testing F1 on issue #1025)", () => {
+  // Now that `message` is load-bearing, `mesage`/`Message`/`msg` would buy exactly the defect
+  // #1025 exists to kill, one level down: a field that reads as evidence and is silently dropped.
+  // Same allow-list reflex as validateExecuteOptions and ALLOWED_HOST_INPUT_KEYS.
+  const loaded = loadTempFixture("typo-message-key", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [
+      tempDiagnostic({ message: "real", mesage: "TOTALLY WRONG PROSE" }),
+    ],
+  });
+
+  assert.ok(loaded.error);
+  assert.ok(loaded.error.includes('unknown key "mesage"'));
+
+  // The control: the correctly-spelled key on the same fixture loads clean, so the rejection is
+  // about the spelling and not about the fixture shape.
+  const control = loadTempFixture("typo-message-key-control", {
+    profiles: ["core-language"],
+    compareMessages: true,
+    events: [],
+    diagnostics: [tempDiagnostic({ message: "real" })],
+  });
+  assert.equal(control.error, undefined);
+});
+
+// --- issue #1028: `expect: "mismatch"` may not neutralise the opt-in ---------------------------
+
+/**
+ * The one source these probes use, and the reason they isolate MESSAGE comparison rather than
+ * anything else: under `"check": true` it produces exactly one `ol-reserved-word` diagnostic, whose
+ * every field except the prose is pinned identically by {@link wrongMessageOptedInSpec}. It is the
+ * source `_harness-selftest/detects-message-mismatch` itself uses.
+ */
+const RESERVED_WORD_SOURCE = "define forward :n\n  print :n\nend\n";
+
+/**
+ * A fixture that opts into message comparison and is wrong in EXACTLY ONE way: its expected
+ * `ol-reserved-word` sentence is the wording issues #751/#871 shipped, which
+ * `spec/error-model.md:125` forbids (it leaks the word *primitive* at a learner). Identity — code,
+ * span, params, stage, severity — matches what `check()` really produces, so the only thing that
+ * can make the streams disagree is the message.
+ *
+ * Under `expect: "match"` that is a failure naming the offending prose. Under `expect: "mismatch"`
+ * the inverted verdict turned it into a PASS: the hole #1028 closes.
+ *
+ * `document` is the fixture's own name minus the suffix, which is what the harness passes the
+ * parser — so two fixtures with the same name under different roots are byte-identical apart from
+ * the one field under test.
+ */
+function wrongMessageOptedInSpec(expectPolarity, document) {
+  return {
+    description: "issue #1028 probe fixture",
+    expect: expectPolarity,
+    compareMessages: true,
+    check: true,
+    profiles: ["core-language"],
+    events: [],
+    diagnostics: [
+      {
+        code: "ol-reserved-word",
+        source_span: { document, start: [1, 8], end: [1, 15] },
+        params: { name: "forward" },
+        message:
+          "forward is already a reserved primitive, so it can't be redefined here.",
+        stage: "semantic",
+        severity: "error",
+      },
+    ],
+  };
+}
+
+/**
+ * Write one fixture pair at `name` — a `/`-separated fixture path relative to `root`, so a test can
+ * place a fixture INSIDE `_harness-selftest/`, which `loadTempFixture` above cannot express — and
+ * return the descriptor `loadFixture`/`runHarness` would see for it. Returning the descriptor is
+ * what lets the polarity twins below carry the SAME name under different roots, so nothing but
+ * `expect` differs between them.
+ */
+function placeFixture(root, name, spec, source = RESERVED_WORD_SOURCE) {
+  const segments = name.split("/");
+  const stem = segments.at(-1);
+  const directory = join(root, ...segments);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, `${stem}.logo`), source);
+  writeFileSync(join(directory, `${stem}.expected.json`), JSON.stringify(spec));
+  return {
+    name: `${name}/${stem}${EXPECTED_SUFFIX}`,
+    expectedPath: join(directory, `${stem}${EXPECTED_SUFFIX}`),
+    logoPath: join(directory, `${stem}.logo`),
+  };
+}
+
+/**
+ * The fixture name both polarity twins carry, and the `document` the harness therefore hands the
+ * parser for them (`<name>/<stem>`, the fixture name minus its suffix). Defined once because the
+ * isolation block in the run-level test has to reconstruct the same `document` to call `produce()`
+ * directly — two literals that must agree is one literal too many.
+ */
+const POLARITY_PROBE_NAME = "polarity-probe";
+const POLARITY_PROBE_DOCUMENT = `${POLARITY_PROBE_NAME}/${POLARITY_PROBE_NAME}`;
+
+/** Both twins, written under sibling roots with one identical fixture name and path. */
+function placePolarityTwin(polarity, name = POLARITY_PROBE_NAME) {
+  const root = join(TEMP_ROOT, `arm-${polarity}`);
+  return {
+    root,
+    fixture: placeFixture(
+      root,
+      name,
+      wrongMessageOptedInSpec(polarity, `${name}/${name}`),
+    ),
+  };
+}
+
+/**
+ * Run the harness over one root and return its exit code together with everything it printed.
+ * Both arms of the #1028 control now exit 1, so the exit code alone cannot tell "rejected as a
+ * fixture error" apart from "ran and mismatched" — the output is what makes the pair meaningful.
+ */
+function runHarnessCapturingOutput(options) {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (...args) => lines.push(args.join(" "));
+  try {
+    return { exitCode: runHarness(options), output: lines.join("\n") };
+  } finally {
+    console.log = originalLog;
+  }
+}
+
+test('loadFixture rejects `expect: "mismatch"` on a fixture that opted into message comparison, naming both fields (issue #1028)', () => {
+  // Measured on `4ad13363`: such a fixture — identical to what `check()` produces except for one
+  // wrong sentence — reported `1 passed, 0 failed`, while the twin differing only in polarity
+  // failed on that sentence. The third way to hold a `message` that is not guaranteed to assert
+  // anything, and the one #1025's two directions left open.
+  const neutralised = loadFixture(placePolarityTwin("mismatch").fixture);
+
+  assert.ok(neutralised.error);
+  assert.ok(neutralised.error.includes('"compareMessages": true'));
+  assert.ok(neutralised.error.includes('"expect": "mismatch"'));
+
+  // The control: the twin differing in NOTHING but polarity — same fixture name, same document,
+  // same bytes otherwise, under a sibling root — loads clean. So the rejection is about the
+  // combination and not about anything else in the fixture.
+  const control = loadFixture(placePolarityTwin("match").fixture);
+  assert.equal(control.error, undefined);
+  assert.equal(control.expected.compareMessages, true);
+  assert.equal(control.expected.expect, "match");
+});
+
+test('runHarness fails a fixture combining compareMessages with expect: "mismatch", where it used to pass — with the expect: "match" twin as the positive control (issue #1028)', () => {
+  // Reproduces the measurement taken on `4ad13363`, where these two arms exited 0 and 1 — the
+  // mismatch arm passing on the very disagreement its opt-in was supposed to fail on, the match arm
+  // failing on that prose. Inverted polarity is satisfied by any disagreement at all, so an opted-in
+  // fixture's verdict is no longer guaranteed to rest on the message it opted in to pin.
+  //
+  // The control is what makes the first arm mean anything: without it, a harness broken for every
+  // fixture would satisfy the new rejection just as well as a working one. Each arm gets its own
+  // root so its exit code is attributable to its own single fixture, and both fixtures are named
+  // identically so `expect` is the only difference between them.
+  const neutralisedTwin = placePolarityTwin("mismatch");
+  const neutralised = runHarnessCapturingOutput({ root: neutralisedTwin.root });
+
+  assert.equal(
+    neutralised.exitCode,
+    1,
+    "the fixture that used to pass by inverting its own assertion must now fail",
+  );
+  assert.match(neutralised.output, /0 passed, 1 failed/);
+  assert.ok(neutralised.output.includes('"compareMessages": true'));
+  assert.ok(neutralised.output.includes('"expect": "mismatch"'));
+
+  // The positive control: the twin under `expect: "match"` runs and fails on the MESSAGE alone —
+  // every other field agrees with what `check()` produced, so this is the comparison the opt-in
+  // exists for, firing. That is what the mismatch arm was cancelling.
+  const control = runHarnessCapturingOutput({
+    root: placePolarityTwin("match").root,
+  });
+
+  assert.equal(control.exitCode, 1);
+  assert.ok(control.output.includes("diagnostic mismatch"));
+
+  // …and the reason is isolated MECHANICALLY rather than read off the report: `diffStream` prints
+  // the whole expected diagnostic for a mismatch in ANY field, so finding the offending prose in
+  // the output would not by itself prove the prose was the cause. Running the same expected stream
+  // against the same produced one with message comparison switched OFF matches, so identity, span,
+  // stage, severity and events all agree — leaving the sentence as the only possible difference.
+  const document = POLARITY_PROBE_DOCUMENT;
+  const produced = produce(
+    RESERVED_WORD_SOURCE,
+    document,
+    false,
+    true,
+    ["core-language"],
+    false,
+    undefined,
+  );
+  const specification = wrongMessageOptedInSpec("match", document);
+  assert.ok(
+    compare({ ...specification, compareMessages: false }, produced).matched,
+    "with prose excluded the two streams must agree, or the control is failing on something other than the message",
+  );
+  assert.ok(
+    !compare(specification, produced).matched,
+    "with prose included they must disagree — that difference is the whole subject of the opt-in",
+  );
+});
+
+test("runHarness still runs `_harness-selftest/detects-message-mismatch`, the one fixture that needs the combination to prove the comparison fires (issue #1028)", () => {
+  // The exemption is not a courtesy: this self-test demonstrates a DETECTION, and a detection can
+  // only be demonstrated by expecting it.
+  const root = join(TEMP_ROOT, "arm-allowed-selftest");
+  const name = "_harness-selftest/detects-message-mismatch";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
+  );
+  const selfTest = runHarnessCapturingOutput({ root });
+
+  assert.equal(selfTest.exitCode, 0);
+  assert.ok(selfTest.output.includes("self-test: mismatch correctly detected"));
+});
+
+test("runHarness rejects ANOTHER self-test that combines the two fields, because being a self-test does not imply needing them (issue #1028)", () => {
+  // The exemption is one named fixture, not the whole `_harness-selftest/` tree, and this is why:
+  // `tests/conformance/README.md` already tells fixture authors "do not combine `expect:
+  // "mismatch"` with a `message` anywhere else", because a self-test that exists to prove some
+  // OTHER mismatch is detected would be able to pass on prose while its real subject regressed.
+  // A prefix-wide exemption would have enforced something looser than the documented rule.
+  const root = join(TEMP_ROOT, "arm-other-selftest");
+  const name = "_harness-selftest/detects-execution-mismatch";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
+  );
+  const other = runHarnessCapturingOutput({ root });
+
+  assert.equal(other.exitCode, 1);
+  assert.ok(other.output.includes('"compareMessages": true'));
+  assert.ok(other.output.includes('"expect": "mismatch"'));
+});
+
+test("runHarness rejects a SECOND fixture sited inside the allowed self-test's own directory, because the exemption is one fixture and not a directory (issue #1028)", () => {
+  // The allowlist is a complete fixture name compared by equality, not a prefix. A directory test
+  // would let anything sited beside `detects-message-mismatch` inherit its exemption, which is not
+  // what "one fixture" means — and a neighbour is the easiest place to put such a fixture by
+  // accident, since it is the one directory where the combination is known to be legal.
+  const root = join(TEMP_ROOT, "arm-selftest-neighbour");
+  const name = "_harness-selftest/detects-message-mismatch/a-neighbour";
+  placeFixture(
+    root,
+    name,
+    wrongMessageOptedInSpec("mismatch", `${name}/${name.split("/").at(-1)}`),
+  );
+  const neighbour = runHarnessCapturingOutput({ root });
+
+  assert.equal(neighbour.exitCode, 1);
+  assert.ok(neighbour.output.includes('"compareMessages": true'));
+  assert.ok(neighbour.output.includes('"expect": "mismatch"'));
 });
 
 test("loadFixture rejects a non-boolean execute field", () => {
@@ -1922,6 +2411,411 @@ test("loadFixture rejects an executeOptions.signal missing a boolean aborted", (
   );
 });
 
+test("loadFixture reads an executeOptions.hostInput schedule of keys, clicks, and events", () => {
+  mkdirSync(join(TEMP_ROOT, "good-host-input"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "good-host-input", "good-host-input.logo"), "");
+  writeFileSync(
+    join(TEMP_ROOT, "good-host-input", "good-host-input.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language", "interaction-events"],
+      execute: true,
+      executeOptions: {
+        hostInput: {
+          events: [
+            { tick: 1, kind: "key", key: "x" },
+            { tick: 2, kind: "click" },
+            { tick: 3, kind: "event", event: "go" },
+          ],
+        },
+      },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "good-host-input/good-host-input.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "good-host-input",
+      "good-host-input.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "good-host-input", "good-host-input.logo"),
+  });
+
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput.events, [
+    { tick: 1, kind: "key", key: "x" },
+    { tick: 2, kind: "click" },
+    { tick: 3, kind: "event", event: "go" },
+  ]);
+});
+
+test("loadFixture accepts a hostInput object that omits events (nothing to deliver)", () => {
+  // A `hostInput` object with no `events` key is valid — it simply delivers nothing, the same as
+  // omitting `hostInput` entirely. This is the shape an `input` fixture uses when it supplies only
+  // scripted `responses` (issue #681, #657 ruling) and no tick-scheduled events.
+  const loaded = loadHostInputFixture("host-input-no-events", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: {} },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput, {});
+});
+
+/**
+ * Write a single-fixture directory whose `.expected.json` is `spec`, load it, and return the
+ * `loadFixture` result — the shared shape for the executeOptions.hostInput rejection self-tests
+ * below (issue #686, slice I7). Each asserts a specific malformed schedule is rejected at load time
+ * rather than silently ignored by `execute()`, the typo-masking hole the harness closes.
+ */
+function loadHostInputFixture(name, spec) {
+  mkdirSync(join(TEMP_ROOT, name), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, name, `${name}.logo`), "");
+  writeFileSync(
+    join(TEMP_ROOT, name, `${name}.expected.json`),
+    JSON.stringify(spec),
+  );
+  return loadFixture({
+    name: `${name}/${name}.expected.json`,
+    expectedPath: join(TEMP_ROOT, name, `${name}.expected.json`),
+    logoPath: join(TEMP_ROOT, name, `${name}.logo`),
+  });
+}
+
+test("loadFixture rejects an unknown executeOptions key (closes the typo-masking hole for every future key)", () => {
+  const loaded = loadHostInputFixture("unknown-execute-option", {
+    profiles: ["core-language"],
+    execute: true,
+    // A typo of `hostInput`: it would load clean and be silently ignored by execute() without this.
+    executeOptions: { hostInputs: [] },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInputs" is not a JSON-expressible ExecuteOptions key',
+    ),
+  );
+});
+
+test("loadFixture rejects the function-typed tutorTemplates key (no JSON fixture can supply it)", () => {
+  const loaded = loadHostInputFixture("tutor-templates-rejected", {
+    profiles: ["core-language"],
+    execute: true,
+    // `tutorTemplates` is a function on ExecuteOptions — deliberately not JSON-expressible, so a
+    // fixture naming it is a mistake and must be rejected, not silently forwarded as `undefined`.
+    executeOptions: { tutorTemplates: [] },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.tutorTemplates" is not a JSON-expressible ExecuteOptions key',
+    ),
+  );
+});
+
+test("loadFixture accepts a string executeOptions.learnerLevel but rejects a non-string", () => {
+  const good = loadHostInputFixture("learner-level-good", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { learnerLevel: "3" },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(good.error, undefined);
+  assert.equal(good.expected.executeOptions.learnerLevel, "3");
+
+  const bad = loadHostInputFixture("learner-level-bad", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { learnerLevel: 3 },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(bad.error);
+  assert.ok(
+    bad.error.includes('"executeOptions.learnerLevel" must be a string'),
+  );
+});
+
+test("loadFixture rejects a non-object executeOptions.hostInput", () => {
+  const loaded = loadHostInputFixture("host-input-not-object", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: "nope" },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes('"executeOptions.hostInput" must be an object'),
+  );
+});
+
+test("loadFixture rejects an array executeOptions.hostInput (the old bare-array shape)", () => {
+  // The pre-#657 shape was a bare array; after the reshape `hostInput` is an object, so an array
+  // must be rejected rather than silently loaded — a fixture written to the old shape fails loudly.
+  const loaded = loadHostInputFixture("host-input-bare-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: [{ tick: 1, kind: "click" }] },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes('"executeOptions.hostInput" must be an object'),
+  );
+});
+
+test("loadFixture rejects an unknown key inside executeOptions.hostInput", () => {
+  // A typo of `events` or `responses` must be rejected, naming the allowed keys, so a sub-key typo
+  // cannot mask a delivery — or an answer — that never happens.
+  const loaded = loadHostInputFixture("host-input-unknown-key", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { evetns: [] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.evetns" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
+test("loadFixture rejects a near-miss of `responses` rather than silently dropping the answers", () => {
+  // The specific typo this slice introduces the risk of: `response` (singular) would load clean, be
+  // ignored by execute(), and turn every `input` read into an unanswered one — a fixture that looks
+  // like proof of the reader while proving only the cancellation path.
+  const loaded = loadHostInputFixture("host-input-responses-typo", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { response: ["tom"] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.response" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
+test("loadFixture rejects the function-typed hostInput.read key (no JSON fixture can supply a live reader)", () => {
+  // Issue #681's live host reader is a function, exactly like `tutorTemplates` on `executeOptions`
+  // itself. Rejecting it by name is what keeps `responses` the ONE fixture convention the #657
+  // ruling fixed: a fixture cannot half-express an interactive host and quietly prove nothing.
+  const loaded = loadHostInputFixture("host-input-read-rejected", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { read: "not-a-function-in-json" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.read" is not a known hostInput key (known keys: events, responses)',
+    ),
+  );
+});
+
+test("loadFixture reads an executeOptions.hostInput.responses queue of scripted input answers", () => {
+  // The #657 ruling's one convention: `responses` sits beside `events` on the same `hostInput`
+  // object (issue #681). Order is the FIFO each `input` call consumes.
+  const loaded = loadHostInputFixture("host-input-responses", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: { hostInput: { responses: ["tom", "42"] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput.responses, [
+    "tom",
+    "42",
+  ]);
+});
+
+test("loadFixture accepts events and responses together on one hostInput object", () => {
+  const loaded = loadHostInputFixture("host-input-both", {
+    profiles: ["core-language", "interaction-events"],
+    execute: true,
+    executeOptions: {
+      hostInput: {
+        events: [{ tick: 1, kind: "click" }],
+        responses: ["tom"],
+      },
+    },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions.hostInput, {
+    events: [{ tick: 1, kind: "click" }],
+    responses: ["tom"],
+  });
+});
+
+test("loadFixture rejects a non-array executeOptions.hostInput.responses", () => {
+  const loaded = loadHostInputFixture("host-input-responses-not-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { responses: "tom" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.responses" must be an array',
+    ),
+  );
+});
+
+test("loadFixture rejects a non-string entry in executeOptions.hostInput.responses", () => {
+  // The bare JSON number `42` is the tempting mistake: it would look like proof of the number branch
+  // while skipping the very parse (`spec/interaction-events.md:136-137`) that branch is about. An
+  // answer is the raw TEXT the learner typed, so it must be written `"42"`.
+  const loaded = loadHostInputFixture("host-input-responses-not-string", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { responses: ["tom", 42] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.responses[1]" must be a string',
+    ),
+  );
+});
+
+test("loadFixture rejects a non-array executeOptions.hostInput.events", () => {
+  const loaded = loadHostInputFixture("host-input-events-not-array", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: "nope" } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes('"executeOptions.hostInput.events" must be an array'),
+  );
+});
+
+test("loadFixture rejects a hostInput entry that is not an object", () => {
+  const loaded = loadHostInputFixture("host-input-entry-not-object", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: [42] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]" must be an object',
+    ),
+  );
+});
+
+test("loadFixture rejects a hostInput entry with a non-numeric tick", () => {
+  const loaded = loadHostInputFixture("host-input-bad-tick", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: [{ tick: "1", kind: "click" }] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]".tick must be a finite number',
+    ),
+  );
+});
+
+test("loadFixture rejects a hostInput entry with an unrecognized kind", () => {
+  const loaded = loadHostInputFixture("host-input-bad-kind", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "scroll" }] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]".kind must be "key", "click", or "event"',
+    ),
+  );
+});
+
+test("loadFixture rejects a key hostInput entry missing its string key", () => {
+  const loaded = loadHostInputFixture("host-input-key-missing", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "key" }] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]".key must be a string when kind is "key"',
+    ),
+  );
+});
+
+test("loadFixture rejects an event hostInput entry missing its string event", () => {
+  const loaded = loadHostInputFixture("host-input-event-missing", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: { hostInput: { events: [{ tick: 1, kind: "event" }] } },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]".event must be a string when kind is "event"',
+    ),
+  );
+});
+
+test("loadFixture rejects a hostInput entry with an unexpected extra field for its kind", () => {
+  const loaded = loadHostInputFixture("host-input-extra-field", {
+    profiles: ["core-language"],
+    execute: true,
+    // A `click` carrying a stray `key` — a typo that would otherwise mask an unintended delivery.
+    executeOptions: {
+      hostInput: { events: [{ tick: 1, kind: "click", key: "x" }] },
+    },
+    events: [],
+    diagnostics: [],
+  });
+  assert.ok(loaded.error);
+  assert.ok(
+    loaded.error.includes(
+      '"executeOptions.hostInput.events[0]" has an unexpected field "key" for kind "click"',
+    ),
+  );
+});
+
 test("produce forwards executeOptions to @openlogo/runtime's execute() so ol-limit can be triggered deterministically", () => {
   const result = produce(
     'forever [ print "x" ]',
@@ -1938,6 +2832,42 @@ test("produce forwards executeOptions to @openlogo/runtime's execute() so ol-lim
     limit: "instruction-budget",
     value: 3,
   });
+});
+
+test("produce forwards executeOptions.hostInput to execute() so a headless fixture can deliver input", () => {
+  const result = produce(
+    'on_key "x" [ print 1 ]\nwait 1',
+    "test-doc",
+    true,
+    false,
+    ["core-language", "interaction-events"],
+    false,
+    { hostInput: { events: [{ tick: 1, kind: "key", key: "x" }] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.equal(printed.length, 1);
+  assert.deepEqual(printed[0].payload.values, [1]);
+});
+
+test("produce forwards executeOptions.hostInput.responses to execute() so a headless fixture can answer a read", () => {
+  // The other half of the same seam (issue #681): scripted answers reach `execute()` verbatim, so a
+  // fixture's `input` read reports the value `spec/interaction-events.md:136-137` prescribes.
+  const result = produce(
+    'print input "q"',
+    "test-doc",
+    true,
+    false,
+    ["core-language", "interaction-events"],
+    false,
+    { hostInput: { responses: ["42"] } },
+  );
+  assert.deepEqual(result.diagnostics, []);
+  const printed = result.events.filter((event) => event.kind === "print");
+  assert.equal(printed.length, 1);
+  // `"42"` parses as a number literal, so the read reports the NUMBER 42 — proof the answer really
+  // travelled through and was classified, not merely echoed.
+  assert.deepEqual(printed[0].payload.values, [42]);
 });
 
 test("loadFixture handles missing .expected.json file", () => {
@@ -2195,6 +3125,103 @@ test("runHarness handles self-test that wrongly matches", () => {
   assert.equal(exitCode, 1); // Should fail because self-test matched
 });
 
+// --- M5 profile-DAG registration (issue #666) ---------------------------------------------
+// This slice (C4 of epic #658, saga #572) wires the four M5 profiles into the conformance
+// harness's PROFILE_DEPS so per-profile fixtures and spec/examples run along the DAG as each
+// terminal epic lands. These tests lock the registration to the NORMATIVE dependency edges in
+// spec/conformance.md's profile DAG (the spec, not the issue summary, is authoritative), and
+// prove that an empty M5 fixture set keeps the suite green.
+
+test("PROFILE_DEPS registers heritage with core-language + data + turtle-rendering (spec DAG)", () => {
+  // spec/conformance.md#heritage + the DAG: Heritage is alternate spellings only and depends on
+  // Core Language, on Data (its `value of … for key` reader operates on dicts), AND on Turtle &
+  // Rendering (issue #860): nine of its thirteen alias spellings — fd/bk/lt/rt/pu/pd/st/ht/cs —
+  // spell Turtle & Rendering primitives, so owing those aliases means owning what they spell.
+  assert.deepEqual(PROFILE_DEPS.heritage, [
+    "core-language",
+    "data",
+    "turtle-rendering",
+  ]);
+  const closure = closureOf("heritage");
+  assert.ok(closure.has("heritage"));
+  assert.ok(closure.has("core-language"));
+  assert.ok(closure.has("data"));
+  assert.ok(closure.has("turtle-rendering"));
+  assert.equal(closure.size, 4);
+});
+
+test("PROFILE_DEPS registers sprites with turtle-rendering (spec DAG)", () => {
+  // spec/conformance.md#sprites: Sprites depends on Turtle & Rendering (which depends on Core).
+  assert.deepEqual(PROFILE_DEPS.sprites, ["turtle-rendering"]);
+  const closure = closureOf("sprites");
+  assert.ok(closure.has("sprites"));
+  assert.ok(closure.has("turtle-rendering"));
+  assert.ok(closure.has("core-language"));
+  assert.equal(closure.size, 3);
+});
+
+test("PROFILE_DEPS registers interaction-events as a Core-only optional profile (spec DAG)", () => {
+  // spec/conformance.md#interaction--events: a separate optional profile depending only on Core.
+  assert.deepEqual(PROFILE_DEPS["interaction-events"], ["core-language"]);
+  const closure = closureOf("interaction-events");
+  assert.ok(closure.has("interaction-events"));
+  assert.ok(closure.has("core-language"));
+  assert.equal(closure.size, 2);
+});
+
+test("PROFILE_DEPS registers sound as a separate Core-only optional profile (spec DAG)", () => {
+  // spec/conformance.md#sound: a separate optional profile depending only on Core. It may SHARE
+  // the event stream with Interaction & Events but carries no dependency edge to it.
+  assert.deepEqual(PROFILE_DEPS.sound, ["core-language"]);
+  const closure = closureOf("sound");
+  assert.ok(closure.has("sound"));
+  assert.ok(closure.has("core-language"));
+  assert.ok(!closure.has("interaction-events"));
+  assert.equal(closure.size, 2);
+});
+
+test("closureOf accepts every M5 profile (they are enumerable along the DAG)", () => {
+  // Guards against a future edit dropping one from PROFILE_DEPS: closureOf throws on any profile
+  // not in the DAG, so this is a live registration assertion, not a tautology.
+  for (const profile of [
+    "heritage",
+    "sprites",
+    "interaction-events",
+    "sound",
+  ]) {
+    assert.doesNotThrow(() => closureOf(profile));
+  }
+});
+
+test("an empty M5 profile fixture set keeps the harness green", () => {
+  // Acceptance criterion: with no M5 fixtures present, the suite stays green. Scaffold the four M5
+  // profile directories with only their README (as this slice ships), no .logo/.expected.json
+  // pair, and confirm the harness reports success (exit 0) rather than failing on an empty set.
+  for (const profile of [
+    "heritage",
+    "sprites",
+    "interaction-events",
+    "sound",
+  ]) {
+    mkdirSync(join(TEMP_ROOT, profile), { recursive: true });
+    writeFileSync(
+      join(TEMP_ROOT, profile, "README.md"),
+      `# ${profile} fixtures (scaffolding, no fixtures yet)\n`,
+    );
+  }
+  assert.equal(runHarness({ root: TEMP_ROOT }), 0);
+});
+
+test("a profile-filtered M5 run with no fixtures is green (exit 0)", () => {
+  // The examples/fixtures run along the DAG per profile as each epic lands. Selecting an M5 profile
+  // before any of its fixtures exist must not fail: discoverFixtures finds nothing, so runHarness
+  // returns 0. (A README in the profile dir is ignored by discovery — only .logo/.expected.json
+  // pairs are fixtures.)
+  mkdirSync(join(TEMP_ROOT, "heritage"), { recursive: true });
+  writeFileSync(join(TEMP_ROOT, "heritage", "README.md"), "# heritage\n");
+  assert.equal(runHarness({ root: TEMP_ROOT, profile: "heritage" }), 0);
+});
+
 test("runHarness handles normal fixture failure", () => {
   // Create a normal fixture that will fail on a genuine comparison mismatch
   // (not an off-contract schema error — the diagnostic below is schema-valid).
@@ -2443,4 +3470,266 @@ test("runHarness reports a mismatch for an opted-in check fixture with wrong dia
 
   const exitCode = runHarness({ root: TEMP_ROOT });
   assert.equal(exitCode, 1);
+});
+
+// --- issue #865: executeOptions.randomSeed ------------------------------------------------------
+// `randomSeed` is a JSON-expressible ExecuteOptions key, so the allow-list must admit it — a
+// fixture whose program uses `random` is otherwise unusable, which is the harness limitation #865
+// names. These three tests pin acceptance, type rejection, and that the value reaches execute().
+
+test("loadFixture reads an executeOptions.randomSeed (issue #865)", () => {
+  mkdirSync(join(TEMP_ROOT, "with-random-seed"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "with-random-seed", "with-random-seed.logo"),
+    "print random 100",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "with-random-seed", "with-random-seed.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { randomSeed: 123 },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "with-random-seed/with-random-seed.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "with-random-seed",
+      "with-random-seed.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "with-random-seed", "with-random-seed.logo"),
+  });
+
+  assert.equal(loaded.error, undefined);
+  assert.deepEqual(loaded.expected.executeOptions, { randomSeed: 123 });
+});
+
+test("loadFixture rejects a non-numeric executeOptions.randomSeed (issue #865)", () => {
+  mkdirSync(join(TEMP_ROOT, "bad-random-seed"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.logo"),
+    "print 1",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      executeOptions: { randomSeed: "123" },
+      events: [],
+      diagnostics: [],
+    }),
+  );
+
+  const loaded = loadFixture({
+    name: "bad-random-seed/bad-random-seed.expected.json",
+    expectedPath: join(
+      TEMP_ROOT,
+      "bad-random-seed",
+      "bad-random-seed.expected.json",
+    ),
+    logoPath: join(TEMP_ROOT, "bad-random-seed", "bad-random-seed.logo"),
+  });
+
+  assert.equal(loaded.error, '"executeOptions.randomSeed" must be a number');
+});
+
+test("a fixture's executeOptions.randomSeed actually reaches execute() (issue #865)", () => {
+  // Not just "it loads": the seed must be FORWARDED through the harness's own produce(), so the
+  // same program under two different fixture seeds must produce two different draws — and 123 must
+  // reproduce the sequence `packages/runtime/src/random-randomize.test.mjs` already pins for
+  // `(randomize 123)`, which is what proves it is the real seeding path and not a coincidence.
+  const drawnFor = (randomSeed) =>
+    produce("print random 100", "fixture.logo", true, false, [], false, {
+      randomSeed,
+    }).events.filter((event) => event.kind === "print")[0].payload.values[0];
+
+  assert.equal(drawnFor(123), 78);
+  assert.equal(drawnFor(123), 78);
+  assert.notEqual(drawnFor(4242), 78);
+});
+
+// --- Declared-profile gate for executed fixtures (issue #790) -------------------------------------
+//
+// A fixture's `profiles` array used to SELECT the fixture without ever GATING it: for an
+// `"execute": true` fixture it never reached `execute()` at all, so a fixture whose source used
+// Sprites forms passed with "sprites" deleted from its array. Measured on the parent commit, the
+// real corpus had 8 such fixtures (all in core-language/execution/, all executing `:nums[i]` — Data
+// by spec/conformance.md:269 — while declaring Core only), and none of them failed anything.
+
+test("profileGateErrors fails an executed fixture whose source uses an undeclared profile", () => {
+  const errors = profileGateErrors(
+    { profiles: ["core-language"], execute: true, check: false },
+    "tell [ :a ]",
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /source uses profile sprites/);
+  assert.match(errors[0], /does not declare/);
+});
+
+test("profileGateErrors names every undeclared profile, not just the first", () => {
+  const errors = profileGateErrors(
+    { profiles: ["core-language"], execute: true, check: false },
+    'print value of :d for key "k"',
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /source uses profiles data, heritage/);
+});
+
+test("profileGateErrors passes an executed fixture that declares what it uses", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["sprites"], execute: true, check: false },
+      "tell [ :a ]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors expands the declared set to its dependency closure", () => {
+  // Sprites depends on Turtle & Rendering which depends on Core, and Geometry pulls in Data — so
+  // declaring "geometry" alone already covers a source that reads a list by index.
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["geometry"], execute: true, check: false },
+      ":xs = [1 2]\nprint :xs[1]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors leaves parse-only fixtures alone (postfix-read grammar is unconditional Core syntax, spec/conformance.md:120)", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["core-language"], execute: false, check: false },
+      ":xs = [1 2]\nprint :xs[1]",
+    ),
+    [],
+  );
+});
+
+test("profileGateErrors leaves check-mode fixtures alone — check() already gates them on the ACTIVE profile set, and the corpus's negative fixtures name an inactive profile's forms on purpose", () => {
+  assert.deepEqual(
+    profileGateErrors(
+      { profiles: ["core-language"], execute: true, check: true },
+      "tell [ :a ]",
+    ),
+    [],
+  );
+});
+
+test("runHarness fails an executed fixture that under-declares its profiles", () => {
+  mkdirSync(join(TEMP_ROOT, "under-declared"), { recursive: true });
+  // The source MUST use an undeclared profile, and the fixture MUST otherwise pass, or this test
+  // is not load-bearing: with a source like `print 1` the exit code would come from the empty
+  // expected stream and deleting the profileGateErrors() call from runHarness would leave the test
+  // green. `expect: "mismatch"` makes the deliberately-empty expected stream the *passing* outcome,
+  // so the only thing that can fail this fixture is the profile gate itself.
+  writeFileSync(
+    join(TEMP_ROOT, "under-declared", "under-declared.logo"),
+    ":xs = [1 2]\nclear :xs",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "under-declared", "under-declared.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language"],
+      execute: true,
+      expect: "mismatch",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  assert.equal(runHarness({ root: TEMP_ROOT }), 1);
+});
+
+test("...and the identical fixture passes once `data` is declared — so the exit code above is the gate, not the comparison", () => {
+  mkdirSync(join(TEMP_ROOT, "declared-pair"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "declared-pair", "declared-pair.logo"),
+    ":xs = [1 2]\nclear :xs",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "declared-pair", "declared-pair.expected.json"),
+    JSON.stringify({
+      profiles: ["core-language", "data"],
+      execute: true,
+      expect: "mismatch",
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  assert.equal(runHarness({ root: TEMP_ROOT }), 0);
+});
+
+test("runHarness reports the profile-gate violation only after the fixture's profile names are known-good, so closureOf never sees an unregistered one", () => {
+  mkdirSync(join(TEMP_ROOT, "bogus-profile"), { recursive: true });
+  writeFileSync(
+    join(TEMP_ROOT, "bogus-profile", "bogus-profile.logo"),
+    "tell [ :a ]",
+  );
+  writeFileSync(
+    join(TEMP_ROOT, "bogus-profile", "bogus-profile.expected.json"),
+    JSON.stringify({
+      profiles: ["not-a-real-profile"],
+      execute: true,
+      events: [],
+      diagnostics: [],
+    }),
+  );
+  // Fails for the unknown profile rather than throwing out of closureOf.
+  assert.equal(runHarness({ root: TEMP_ROOT }), 1);
+});
+
+// --- validateExecuteOptions (shared by the conformance harness and the examples gate) -------------
+
+test("validateExecuteOptions accepts a well-formed options object", () => {
+  assert.equal(
+    validateExecuteOptions({
+      randomSeed: 7,
+      hostInput: { events: [{ tick: 1, kind: "click" }] },
+    }),
+    null,
+  );
+});
+
+test("validateExecuteOptions rejects a non-object", () => {
+  assert.match(validateExecuteOptions([]), /must be an object/);
+});
+
+test("validateExecuteOptions rejects an unknown key", () => {
+  assert.match(
+    validateExecuteOptions({ hostinput: {} }),
+    /is not a JSON-expressible ExecuteOptions key/,
+  );
+});
+
+test("validateExecuteOptions type-checks every known key", () => {
+  assert.match(
+    validateExecuteOptions({ instructionBudget: "10" }),
+    /instructionBudget" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ recursionDepthLimit: "10" }),
+    /recursionDepthLimit" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ signal: { aborted: "yes" } }),
+    /signal" must be an object with a boolean "aborted"/,
+  );
+  assert.match(
+    validateExecuteOptions({ learnerLevel: 3 }),
+    /learnerLevel" must be a string/,
+  );
+  assert.match(
+    validateExecuteOptions({ randomSeed: "7" }),
+    /randomSeed" must be a number/,
+  );
+  assert.match(
+    validateExecuteOptions({ hostInput: { events: "nope" } }),
+    /hostInput.events" must be an array/,
+  );
 });

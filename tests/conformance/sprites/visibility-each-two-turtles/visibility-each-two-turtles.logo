@@ -1,0 +1,7 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+each [
+  set_shape "circle"
+  hide_turtle
+]

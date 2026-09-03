@@ -1,0 +1,56 @@
+{
+  "description": "issue #684 (slice I5): registering `on_key` twice for the same key registers BOTH handlers, in registration order, with no error — the spec defines no diagnostic for a duplicate key registration. Each registration emits its own `instruction`+`primitive` pair (seq 0-1 then 2-3). Keeping the two handlers insertion-ordered in their own list is what lets the same-tick delivery order (#686/I7) hold across handler kinds.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-twice",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-twice",
+        "start": [1, 1],
+        "end": [1, 31]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-twice",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-twice",
+        "start": [2, 1],
+        "end": [2, 31]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,372 @@
+{
+  "description": "issue #782: `spec/turtles-and-sprites.md:46` — `tell` \"changes the current addressed set for subsequent turtle commands\" — with no scoping language attached to it. `ask` is the form the spec explicitly scopes (`:58`, \"The previous addressed set is restored after the block finishes\"), and `each` (`:78`) narrows to one turtle per iteration within the current `tell`/`ask` set. A procedure body is neither, so a callee's `tell :b` PERSISTS after `go` returns and the caller's reporters MUST observe it: `who` reports :b (turtle 2, `:26`) and `ycor` reports :b's own y — 20, never the caller's :a at y 10 (`:105`, the movement reporters are evaluated for the current turtle). Note the absence of any addressing `primitive` after `procedure-exit`: returning from a procedure restores nothing, which is exactly what makes this reading observable in the trace. Before the fix the runtime cached the current turtle's state per `Environment`; a procedure call shallow-copies that object, so a callee's `tell` reached the shared pointer `who` reads but not the caller's copy of the cache the position reporters read, and the impossible pair `turtle #2` at `y 10` was printed silently with no diagnostic.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [4, 1],
+        "end": [4, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [5, 1],
+        "end": [5, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [7, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [7, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [8, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [11, 1],
+        "end": [11, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [11, 1],
+        "end": [11, 3]
+      },
+      "payload": {
+        "name": "go",
+        "args": []
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [9, 3],
+        "end": [9, 10]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [9, 3],
+        "end": [9, 10]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [11, 1],
+        "end": [11, 3]
+      },
+      "payload": {
+        "name": "go",
+        "result": null
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [12, 1],
+        "end": [12, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [12, 1],
+        "end": [12, 10]
+      },
+      "payload": {
+        "values": [
+          {
+            "id": 2
+          }
+        ]
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [13, 1],
+        "end": [13, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-in-procedure-persists/tell-in-procedure-persists",
+        "start": [13, 1],
+        "end": [13, 11]
+      },
+      "payload": {
+        "values": [20]
+      }
+    }
+  ],
+  "diagnostics": []
+}

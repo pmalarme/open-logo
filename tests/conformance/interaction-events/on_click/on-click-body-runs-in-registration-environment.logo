@@ -1,0 +1,5 @@
+define setup :v
+  on_click [ print :v ]
+end
+setup 7
+wait 3

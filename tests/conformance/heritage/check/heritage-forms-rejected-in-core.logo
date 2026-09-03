@@ -1,0 +1,5 @@
+make "x" 1
+to f :n
+  output :n
+  op :n
+end

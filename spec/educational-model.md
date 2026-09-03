@@ -206,7 +206,7 @@ end
 
 **Learner question:** “What math is the turtle discovering?”
 
-Level 6 connects turtle motion to angles, distance, symmetry, approximation, and measurement. Geometry commands are part of a derived standard library whose source is visible in [geometry-module.md](geometry-module.md). The educational path still starts from `repeat`, then packages the idea.
+Level 6 connects turtle motion to angles, distance, symmetry, approximation, and measurement. Most geometry commands are part of a derived standard library whose source is visible in [geometry-module.md](geometry-module.md); the `grid`, `axes`, and `measure` overlays are the exception and are renderer-backed. The educational path still starts from `repeat`, then packages the idea.
 
 Core ideas:
 
@@ -409,7 +409,7 @@ end for
 | Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
 | Procedures | `define … end`, `local`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
-| Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, `grid`, `axes`, `measure` | 6 | Shapes are visible math, not hidden primitives. |
+| Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, plus the renderer-backed `grid`, `axes`, and `measure` overlays | 6 | Shapes are visible math, not hidden primitives; the three overlays are renderer-backed aids. |
 | Turtle placement and marking | `set_xy`, `stamp` | 6 | Coordinates and stamps support diagrams and games. |
 | Number tools | `mod`, `abs`, `int`, `round` | 6 | Arithmetic helpers measure and adjust motion. |
 | Lists | `[ ]`, `list`, `:l[i]`, `add … to`, `remove … from`, `count`, `member?` / worded `… is member of` | 7a | Ordered memory supports paths, scores, and steps. |

@@ -1,0 +1,22 @@
+{
+  "description": "a mismatched `end` label on the multiline block form is ol-mismatched-end",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-mismatched-end",
+      "source_span": {
+        "document": "interaction-events/every/every-mismatched-end",
+        "start": [3, 5],
+        "end": [3, 9]
+      },
+      "params": {
+        "expected": "every",
+        "actual": "when"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

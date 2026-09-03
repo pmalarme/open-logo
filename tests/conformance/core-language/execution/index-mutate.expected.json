@@ -1,6 +1,6 @@
 {
   "description": "`:nums[2] = 99` writes through a 1-based list-index place in place, so the later `print :nums` observes the mutation (issue #94).",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

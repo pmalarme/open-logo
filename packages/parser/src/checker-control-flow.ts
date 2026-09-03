@@ -21,7 +21,7 @@
  *   (`spec/tooling.md:220-228`). A `return`/`stop` final statement is *not* double-reported here —
  *   it is already the more specific `ol-return-in-comprehension`.
  * - `ol-duplicate-binder` — a binder name repeated where names must be distinct: a `reduce`
- *   accumulator equal to its item binder (`spec/execution-model.md:404,741`), or a repeated name in
+ *   accumulator equal to its item binder (`spec/execution-model.md:426,910`), or a repeated name in
  *   a destructuring pattern — `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …`
  *   comprehension (issue #440) — (`spec/error-model.md:116`, `spec/tooling.md:191`).
  *
@@ -29,6 +29,18 @@
  * a procedure body, and the form of the nearest enclosing comprehension body — so an escape is
  * judged by where it *lexically* sits. Diagnostic identity is `code` + `params`; messages are warm
  * lowercase Logo prose and never part of the contract.
+ *
+ * ## `params.keyword` is CANONICAL, the message is the learner's own word (issue #737)
+ *
+ * The two `keyword`-carrying codes above are raised by all three surface spellings of one
+ * construct — Core `return` and the Heritage spellings `output`/`op`, which the reader lowers onto
+ * the same {@link ReturnNode}. Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`) and the same condition MUST keep the same code AND the same
+ * structured params (`spec/error-model.md:254-259`), so `params.keyword` is always the canonical
+ * Core word — `output 5` and `return 5` at top level are byte-identical diagnostics apart from
+ * prose. Echoing the surface spelling in the *message* is the localization boundary and is
+ * permitted. The canonicalization is by construction, not by convention: see
+ * {@link CanonicalEscapeKeyword} and {@link canonicalEscapeKeyword}.
  */
 
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
@@ -46,9 +58,26 @@ import type {
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+import {
+  canonicalOfHeritageFormHead,
+  interactionEventsBlockHeadNames,
+  isActiveProfileCommandName,
+} from "./signatures.js";
 
 /** The three comprehension forms, the `form` param value for the comprehension-scoped codes. */
 type ComprehensionForm = ComprehensionNode["form"];
+
+/**
+ * The event-handler block-head keywords whose block body is a **fresh control-flow boundary** — a
+ * handler block is not a procedure body and not a comprehension body, so a `return`/`stop` inside it
+ * is outside any procedure (`ol-return-outside-proc`/`ol-stop-outside-proc`) exactly as the runtime
+ * reclassifies it at the handler boundary (issue #682, slice I3). Derived from the parser's single
+ * source of truth ({@link interactionEventsBlockHeadNames}) so it grows with `every`/`on_key`/
+ * `on_click` (#683–#685) without this rule hardcoding a second copy. Case-insensitive lookup.
+ */
+const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
+  interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
+);
 
 /** The lexical context an escape/comprehension is judged in as the walk descends. */
 interface Context {
@@ -59,27 +88,11 @@ interface Context {
 }
 
 /**
- * The Core primitives whose kind is **Command** (`spec/commands.md`): they perform an effect and
- * report no value, so a comprehension body ending in one produces nothing. Every other Core
- * primitive is a Reporter, and the infix operators (`+ - * / mod == …`) parse as {@link CallNode}s
- * with the operator as callee and always report a value. Turtle and later-profile commands are not
- * registered in the parser, so — per "tools MUST NOT report speculative errors" — a call whose
- * callee is not a *known* Core command is treated as value-producing.
- *
- * Exported so `checker-style.ts`'s `ol-style-useless-value` rule (issue #115) reuses the exact
- * same command-vs-reporter classification instead of drifting from a second copy.
+ * AST node kinds that are always value-producing expressions in the Core grammar. Consumed by
+ * {@link producesValue} below, which is what `checker-style.ts`'s `ol-style-useless-value` rule
+ * (issue #115) imports so the two codes share one classification.
  */
-export const CORE_COMMANDS: ReadonlySet<string> = new Set([
-  "print",
-  "show",
-  "randomize",
-]);
-
-/**
- * AST node kinds that are always value-producing expressions in the Core grammar. Exported for
- * the same reason as {@link CORE_COMMANDS} — shared with `checker-style.ts`.
- */
-export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "NumberLit",
   "WordLit",
   "BooleanLit",
@@ -92,29 +105,27 @@ export const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
   "Comprehension",
 ]);
 
-/** Is `name` a known Core command under the active `profiles`? */
-export function isCoreCommandName(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  return (
-    profiles.includes("core-language") && CORE_COMMANDS.has(name.toLowerCase())
-  );
-}
-
 /**
  * Does this statement statically produce a value the surrounding block-result rule can use?
  * Shared by `ol-no-value` (this module, error) and `ol-style-useless-value`
  * (`checker-style.ts`, warning) — the two codes judge the same question, one inside a
  * comprehension body (a value is *required*), the other inside a control body (a value is
  * *unwanted*).
+ *
+ * A call produces a value unless the callee is a primitive the active profiles register as a
+ * **Command** ({@link isActiveProfileCommandName}, issue #932) — every profile's kinds, derived
+ * from the one registry that also carries their arities, so a primitive added to a profile is
+ * classified here without an edit. A callee no active profile registers (a user procedure, a
+ * misspelling, a primitive of an inactive profile) is treated as value-producing: its kind is not
+ * statically known, and "Tools MUST NOT report speculative type errors when dynamic values are
+ * unknown" (`spec/tooling.md:196-197`).
  */
 export function producesValue(
   node: StatementNode,
   profiles: readonly CheckProfile[],
 ): boolean {
   if (node.kind === "Call" || node.kind === "ParenCall") {
-    return !isCoreCommandName(node.callee.name, profiles);
+    return !isActiveProfileCommandName(node.callee.name, profiles);
   }
   return VALUE_PRODUCING_KINDS.has(node.kind);
 }
@@ -227,6 +238,90 @@ function comprehensionBinderDiagnostics(
 }
 
 /**
+ * The **canonical Core** control word an escape is reported under. Deliberately narrower than
+ * {@link ReturnNode.keyword} (`"return" | "output" | "op"`): the Heritage spellings are excluded
+ * *by type*, so a diagnostic factory that declares a parameter of this type cannot be handed a
+ * surface spelling — `params: { keyword: node.keyword }` stops compiling. That is the structural
+ * guard for this rule (issue #737); the prose message still echoes what the learner typed.
+ *
+ * Its reach is exactly the two factories below, because `Diagnostic.params` is
+ * `Record<string, unknown>` and cannot be typed per code: a NEW diagnostic site written inline here
+ * rather than routed through a factory would still compile. The complete guard for the class is
+ * therefore the registry-driven `heritage-canonical-diagnostic-params.test.mjs`, which checks
+ * emitted params for every Heritage spelling the parser knows; this type is what stops the two
+ * known sites from silently regressing.
+ */
+type CanonicalEscapeKeyword = "return" | "stop";
+
+/**
+ * The canonical Core control word for an escape, resolved through the Heritage registry rather
+ * than a local literal: `output`/`op` resolve to `return` via
+ * {@link canonicalOfHeritageFormHead}, `return` is already canonical, and a `stop` — which has no
+ * Heritage spelling — is `"stop"`.
+ *
+ * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
+ * params (`spec/error-model.md:254-259`). Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`), so `output 5` and `return 5` at top level are ONE condition and
+ * must carry one machine-readable identity — the surface spelling belongs in the prose, never in
+ * the params. This mirrors H5 (#670)'s `operation` and H4 (#733)'s `callable`, both of which are
+ * canonical by construction through a shared helper for exactly this reason.
+ */
+function canonicalEscapeKeyword(
+  node: ReturnNode | StopNode,
+): CanonicalEscapeKeyword {
+  if (node.kind === "Stop") {
+    return "stop";
+  }
+  return node.keyword === "return"
+    ? "return"
+    : canonicalOfHeritageFormHead(node.keyword);
+}
+
+/** The control word exactly as the learner wrote it — prose only, never a diagnostic param. */
+function surfaceEscapeKeyword(node: ReturnNode | StopNode): string {
+  return node.kind === "Stop" ? "stop" : node.keyword;
+}
+
+/**
+ * Build an `ol-return-in-comprehension`. `keyword` is typed {@link CanonicalEscapeKeyword} so only
+ * a canonical spelling can reach `params`; `surface` is the learner's own word, used for prose.
+ */
+function returnInComprehensionDiagnostic(
+  node: ReturnNode | StopNode,
+  keyword: CanonicalEscapeKeyword,
+  surface: string,
+  form: ComprehensionForm,
+): Diagnostic {
+  return {
+    code: "ol-return-in-comprehension",
+    source_span: controlWordSpan(node),
+    params: { keyword, form },
+    message: `${surface} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
+    stage: "semantic",
+    severity: "error",
+  };
+}
+
+/**
+ * Build an `ol-return-outside-proc`. As above, `keyword` only accepts a canonical spelling — here
+ * always `"return"`, since a `stop` outside a procedure is the separate `ol-stop-outside-proc`.
+ */
+function returnOutsideProcDiagnostic(
+  node: ReturnNode,
+  keyword: CanonicalEscapeKeyword,
+  surface: string,
+): Diagnostic {
+  return {
+    code: "ol-return-outside-proc",
+    source_span: controlWordSpan(node),
+    params: { keyword },
+    message: `${surface} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
+    stage: "semantic",
+    severity: "error",
+  };
+}
+
+/**
  * The diagnostic a `return`/`stop` raises given its lexical context, or `undefined` when it is
  * validly placed (inside a procedure and not inside a comprehension). A comprehension context wins
  * over the outside-a-procedure check, so a nested escape is always the comprehension code.
@@ -235,17 +330,15 @@ function escapeDiagnostic(
   node: ReturnNode | StopNode,
   context: Context,
 ): Diagnostic | undefined {
-  const keyword = node.kind === "Stop" ? "stop" : node.keyword;
+  const keyword = canonicalEscapeKeyword(node);
+  const surface = surfaceEscapeKeyword(node);
   if (context.comprehensionForm !== undefined) {
-    const form = context.comprehensionForm;
-    return {
-      code: "ol-return-in-comprehension",
-      source_span: controlWordSpan(node),
-      params: { keyword, form },
-      message: `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
-      stage: "semantic",
-      severity: "error",
-    };
+    return returnInComprehensionDiagnostic(
+      node,
+      keyword,
+      surface,
+      context.comprehensionForm,
+    );
   }
   if (context.inProcedure) {
     return undefined;
@@ -261,14 +354,7 @@ function escapeDiagnostic(
       severity: "error",
     };
   }
-  return {
-    code: "ol-return-outside-proc",
-    source_span: controlWordSpan(node),
-    params: { keyword: node.keyword },
-    message: `${node.keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
-    stage: "semantic",
-    severity: "error",
-  };
+  return returnOutsideProcDiagnostic(node, keyword, surface);
 }
 
 /**
@@ -360,6 +446,31 @@ export function controlFlowRule(
         const diag = escapeDiagnostic(node, context);
         if (diag !== undefined) {
           diagnostics.push(diag);
+        }
+        return;
+      }
+      case "ProfileStatement": {
+        // An event-handler block (`when [ … ]`, later `every`/`on_key`/`on_click`) is a fresh
+        // control-flow boundary: its body is neither a procedure body nor a comprehension body, so a
+        // `return`/`stop` inside it is outside any procedure — matching the runtime, which
+        // reclassifies an escaping handler signal at the handler boundary (#682). The head arguments
+        // are still ordinary expressions in the enclosing context. A non-handler ProfileStatement (or
+        // one with no block) walks its children in the enclosing context unchanged.
+        if (
+          node.body !== undefined &&
+          HANDLER_BLOCK_HEADS.has(node.keyword.name.toLowerCase())
+        ) {
+          for (const arg of node.args) {
+            visit(arg, context);
+          }
+          visit(node.body, {
+            inProcedure: false,
+            comprehensionForm: undefined,
+          });
+          return;
+        }
+        for (const child of childrenOf(node)) {
+          visit(child, context);
         }
         return;
       }

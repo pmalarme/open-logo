@@ -1,0 +1,7 @@
+{
+  "description": "issue #692 (S4 tooling): with the `sound` profile active, a whole Sound program that uses all five commands (`set_tempo`, `note`, `rest`, `play`, `beep`) in awkward positions - a procedure body, inside a `[ ... ]` instruction block, and inside `repeat` - passes the Layer-2 checker with no diagnostics. This is the profile-active positive of the recognition contract (`spec/tooling.md:175-176`); its Core-only negative is `sound-program-without-sound-profile`. It also guards against the M4 audit finding F3 - a profile that shipped with no `\"check\": true` clean fixture, leaving checker recognition gaps green.",
+  "profiles": ["core-language", "sound"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

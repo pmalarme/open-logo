@@ -1,0 +1,56 @@
+{
+  "description": "issue #684 (slice I5): registration is not invocation, and a key press is host input — a headless batch `execute()` run has no keyboard, so an `on_key \"space\" [ ... ]` handler is registered (emitting the `instruction`+`primitive` pair, seq 0-1) but never fires. This mirrors I3's `when \"stop\"` narrowing: the following `print \"mid\"` runs (seq 2-3) and that is the whole event stream — `\"moved\"` is never printed. This slice deliberately did NOT synthesize a synthetic key-injection API to make the handler fire. Description reconciled by #688 (terminal slice): that later host slice HAS since landed — #686/I7 added `ExecuteOptions.hostInput`, so a key scheduled at a tick DOES fire its handler (see the sibling `on-key-handlers-fire-in-registration-order`). What this fixture pins is therefore narrower and still exactly true: with NO host input supplied, the pending-key queue is empty, so registration alone never fires the body. Locking that narrowing here makes it falsifiable rather than silently omitted.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 33]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 33]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": ["mid"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

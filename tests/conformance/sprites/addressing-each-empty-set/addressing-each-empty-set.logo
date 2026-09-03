@@ -1,0 +1,3 @@
+:a = new_turtle
+tell [ ]
+each [ forward 99 ]

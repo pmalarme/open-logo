@@ -29,7 +29,6 @@
         "expected": 2,
         "actual": 1
       },
-      "message": "distance needs 2 inputs, but got 1.",
       "stage": "runtime",
       "severity": "error"
     }

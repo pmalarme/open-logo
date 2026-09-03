@@ -1,0 +1,12 @@
+# The other half of `spec/grammar.md:34`: a newline still ends a statement when no expression is
+# pending, and consecutive newlines are a single separator. A `-` glued to a numeral is a negative
+# `number` literal (`spec/grammar.md:60`), so it opens a new statement instead of continuing the
+# line above — the guard that keeps issue #933's fix from swallowing the statement after it.
+print 1
+print 2
+
+
+print 3
+-5
+print [4
+-6]

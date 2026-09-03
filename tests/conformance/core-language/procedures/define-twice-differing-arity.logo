@@ -1,0 +1,7 @@
+define scale :a
+  print :a
+end
+define scale :a :b
+  print :b
+end
+scale 1 2

@@ -1,0 +1,5 @@
+# A genuinely unmatched `(` still raises `ol-unmatched-paren`, exactly once, even when the
+# expression inside it spans lines. Issue #933 removed the phantom cascade on *matched* parens
+# without removing the diagnostic that reports a real one.
+print (1 + (2 *
+  3)

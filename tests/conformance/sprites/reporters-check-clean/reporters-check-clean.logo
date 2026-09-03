@@ -1,0 +1,4 @@
+:leader = who
+:friend = new_turtle
+tell turtles
+print turtles

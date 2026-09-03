@@ -1,0 +1,3 @@
+print new_turtle
+print who
+print turtles

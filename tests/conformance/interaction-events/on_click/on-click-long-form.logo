@@ -1,0 +1,4 @@
+on_click
+  print "moved"
+end on_click
+print "mid"

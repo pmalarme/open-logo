@@ -1,0 +1,4 @@
+:when = 1
+set every to 2
+for on_key in [1 2] [ print 1 ]
+local on_click

@@ -1,4 +1,4 @@
-define ask
+define job
 hint
 end
-ask
+job

@@ -1,0 +1,64 @@
+{
+  "description": "Heritage form-head profile gate (issue #667, slice H2): with the Heritage profile INACTIVE (Core only), each of the four Heritage assignment/procedure/return spellings — `make`, `to`, `output`, `op` — is rejected with `ol-unknown-command`, its did-you-mean pointing at the Core spelling to use instead (`set`/`define`/`return`). This closes the #151 silent-regression trap: `make` parsed in Core but nothing rejected it (M5 saga audit #696).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-forms-rejected-in-core",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {
+        "name": "make",
+        "suggestion": "set"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-forms-rejected-in-core",
+        "start": [2, 1],
+        "end": [2, 3]
+      },
+      "params": {
+        "name": "to",
+        "suggestion": "define"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-forms-rejected-in-core",
+        "start": [3, 3],
+        "end": [3, 9]
+      },
+      "params": {
+        "name": "output",
+        "suggestion": "return"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-forms-rejected-in-core",
+        "start": [4, 3],
+        "end": [4, 5]
+      },
+      "params": {
+        "name": "op",
+        "suggestion": "return"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
