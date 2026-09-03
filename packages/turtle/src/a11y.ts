@@ -165,10 +165,10 @@ function formatDescribedWidth(width: number): string {
  * - The marker is words rather than an ellipsis or brackets. A screen reader's punctuation
  *   verbosity is a user setting we cannot exercise in CI, so this is a conservative choice rather
  *   than a measured one; what *is* measured is the shape of the string — it never contains a
- *   newline and reproduces no line but the head. The words are also chosen from outside the
- *   language: `plus`, `more` and `lines` are absent from `spec/built-in-names.json`, where `and`
- *   and `or` are present — a marker that is itself a built-in would sit against quoted learner
- *   source and blur the same boundary the comma exists to mark.
+ *   newline and reproduces no line but the head. The generated suffix also contains no built-in
+ *   name: `plus`, `more`, `line` and `lines` — the four words it can emit — are all absent from
+ *   `spec/built-in-names.json`, where `and` and `or` are present, so changing a marker word means
+ *   re-checking that list.
  * - The comma before `plus` is load-bearing, and its justification is a property of the string: it
  *   marks where the learner's own source text ends and this function's generated count begins.
  *   Without it, 11 of the 53 distinct block announcements the runnable examples produce match
