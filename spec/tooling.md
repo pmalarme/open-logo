@@ -174,7 +174,7 @@ Finding: `code=ol-bad-token`, `stage=parse`, `severity=error`, `params={ text: "
 
 The semantic layer runs after the alias/import pre-pass, procedure and struct registration, and
 grammar parsing. It MUST use the active conformance profile set when deciding which primitives and
-profile block-heads are available.
+profile block-heads are available; when it runs as the gate before a run ([execution-model.md](execution-model.md#checking-before-execution)) that set MUST be the run's own, because checking under a narrower set reports `ol-unknown-command` for primitives the run would have executed.
 
 | Condition | Code | Required behavior |
 |---|---|---|
@@ -190,6 +190,8 @@ profile block-heads are available.
 | `return`, `output`, or `op` outside a procedure | `ol-return-outside-proc` | Point at the control word. |
 | `return`, `output`, `op`, or `stop` inside `map`/`filter`/`reduce` | `ol-return-in-comprehension` | Explain that comprehensions report the last expression; `stop` is a control-flow escape too, so it belongs to the same diagnostic family. |
 | Repeated `reduce` or pattern binder name | `ol-duplicate-binder` | Include the repeated binder name. |
+| Built-in command used where a value is required | `ol-no-output` | The Kind of a built-in is fixed by the [C3 matrix](commands.md), so a Command in value position — `wait forward 5`, `repeat forward 5 [ … ]`, `right forward 5` — is statically decidable and MUST be reported here. Point at the call site and put the built-in's canonical spelling in `procedure`. A *user* procedure's Kind can depend on the branch taken through its body, so that case stays a `runtime` diagnostic ([error-model.md](error-model.md)). |
+| Callable name not known, with arguments after it | `ol-unknown-command` | Report the unknown callee alone. An unresolvable name has unknown arity, so the tokens after it MUST NOT also be reported as `ol-bad-token`: `fowad 100` reports `{ name: "fowad", suggestion: "forward" }` and nothing else ([execution-model.md](execution-model.md#one-fault-one-diagnostic)). |
 
 Semantic tools SHOULD also report statically knowable uses of runtime C10 codes, such as
 `ol-not-boolean` for a literal non-boolean condition, `ol-type` for a literal non-number used as
@@ -231,7 +233,7 @@ Finding: `code=ol-no-value`, `stage=semantic`, `severity=error`, `params={ form:
 ## Layer 3: style lints
 
 Style lints are warnings. They reuse the C10 diagnostic shape with `severity=warning`, `stage=semantic`,
-and an `ol-style-*` code. The source of each rule is [style-guide.md](style-guide.md); the codes below
+and an `ol-style-*` code. Because they are warnings they MUST NOT stop a program from running, even when the run is gated on the checker ([execution-model.md](execution-model.md#checking-before-execution)). The source of each rule is [style-guide.md](style-guide.md); the codes below
 are the normative registry for v0.1. A conforming linter MAY allow users to disable style rules, but
 it MUST keep the code identity stable when the rule is enabled.
 
