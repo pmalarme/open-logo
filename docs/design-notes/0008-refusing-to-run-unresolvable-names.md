@@ -181,10 +181,10 @@ OpenLogo's pedagogy is constructionist, and its first move is literally to make 
 "See it — a movement, turn, mark, value, or error becomes visible"
 (`spec/educational-model.md:15` — an *Informative* section, but the one that states the teaching goal
 the rest of this argument serves). A statement that leaves no trace a learner can see is the one
-result that cannot be seen. The
-learner sees a drawing with a piece missing and no reason for it, and the debugging skill the moment
-was supposed to teach — *look at what the language told you* — has nothing to attach to. Worse, the
-lesson that does land is the wrong one: that the computer sometimes just ignores you.
+result that cannot be seen. The learner sees a drawing with a piece missing and no reason for it, and
+the debugging skill the moment was supposed to teach — *look at what the language told you* — has
+nothing to attach to. Worse, the lesson that does land is the wrong one: that the computer sometimes
+just ignores you.
 
 Every other design in this area is defensible. A language may report an unknown name early, or
 report it late; both are teachable, and reasonable languages do each. What no design defends is
@@ -354,14 +354,13 @@ silence, and a second comes close; the record is stronger for naming them than f
 
 So the accurate claim is narrower than "nobody is silent", and it is the one that matters: **no
 surveyed language lets a statement produce nothing a programmer can act on.** Lua's silence still
-evaluates the
-expression to a defined value, which the surrounding program is then written in terms of; OpenLogo's
-old behaviour produced no diagnostic and no value, and the statement contributed nothing to the run
-— a fourth position, and one nothing above occupies. Nor is Lua's trade available to OpenLogo even in
-principle: Lua's design buys terse scripting for programmers who know that a `nil` read is how a typo
-presents, and who have learned to read a downstream complaint about indexing a nil value as a report
-about a name typed wrong somewhere earlier. That inference is the whole skill a learner does not have
-yet.
+evaluates the expression to a defined value, which the surrounding program is then written in terms
+of; OpenLogo's old behaviour produced no diagnostic, no value and no effect, so the statement
+contributed nothing the rest of the program could use — a fourth position, and one nothing above
+occupies. Nor is Lua's trade available to OpenLogo even in principle: Lua's design buys terse
+scripting for programmers who know that a `nil` read is how a typo presents, and who have learned to
+read a downstream complaint about indexing a nil value as a report about a name typed wrong somewhere
+earlier. That inference is the whole skill a learner does not have yet.
 
 Given the choice between the two families that do report, OpenLogo takes Family 1. The reason is the
 second row of the cost matrix above: Family 2's guarantee is "you will find out when you get there",
