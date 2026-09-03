@@ -2756,21 +2756,29 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
 });
 
 /**
- * How a test delivers each gated registration kind — the two public entry points #1039's liveness
- * gate covers. **Hand-maintained, and deliberately so.**
+ * How a test delivers each gated registration kind — the two learner-facing entry points #1039's
+ * liveness gate covers. **Hand-maintained, and deliberately so.**
  *
  * Three successive attempts to derive this list from `run-controller.ts` each left a survivor that
  * review built and I had not predicted: a duplicate kind collapsed by `Set`, a computed argument the
- * regex never matched, and a call through an alias. Each fix produced a narrower instrument and a
- * claim I then had to walk back. A guarantee that is wrong in a way nobody has found yet is worse
- * than an honest list, because it stops people looking.
+ * regex never matched, and a call through an alias. A fourth — a method inlining
+ * `acceptsHostInputFor(…) && programIsStillRunning()` instead of calling the helper — I found
+ * myself. Each fix produced a narrower instrument and a claim I then had to walk back, so the claim
+ * was dropped rather than narrowed a fourth time.
  *
- * So this list is **not enforced**. For the reader who needs the real topology: `run-controller.ts`
- * has three `acceptsHostInputFor` call sites — `deliverKey("on_key")` and `deliverClick("on_click")`,
- * both routed through the gated `acceptsLearnerInputFor`, and `stop()`'s `"when"`, which is ungated
- * by design (`spec/interaction-events.md:152-156`; pinned by `#952 (QA finding 1)`'s replay count).
- * `programIsStillRunning()` has exactly one consumer. If a fourth delivery entry point appears, add
- * it here — nothing will remind you.
+ * So this list is **not enforced**. The topology it stands in for, counted in the source:
+ *
+ * - `acceptsHostInputFor` has **two** call sites — one inside `acceptsLearnerInputFor`, and `stop()`
+ *   passing `"when"`, which is ungated by design (`spec/interaction-events.md:152-156`; pinned by
+ *   `#952 (QA finding 1)`'s replay count).
+ * - `acceptsLearnerInputFor` has **two** call sites, and they are this map's two entries: `deliverKey`
+ *   passing `"on_key"` and `deliverClick` passing `"on_click"`. Those registration words are what the
+ *   gate receives, not what the public methods take — `deliverKey`'s own argument is a learner key
+ *   such as `"left"`.
+ * - `programIsStillRunning()` has exactly **one** consumer, `acceptsLearnerInputFor`.
+ *
+ * A **third** learner delivery entry point therefore needs a third entry here, and nothing will
+ * remind you.
  */
 const DELIVER_BY_REGISTRATION = {
   on_click: (controller) => controller.deliverClick(),
