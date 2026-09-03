@@ -15,7 +15,7 @@
 /.github/ISSUE_TEMPLATE/spec.yml        @pmalarme
 
 # Governance config itself (ownership + merge convention) stays maintainer-owned.
-/.github/CODEOWNERS                      @pmalarme
+/.github/CODEOWNERS                     @pmalarme
 
 # The protections' own definitions are maintainer-owned, or a ruleset applied from these files
 # could be weakened by an unowned edit — a fail-OPEN hole (vs. weakening a CI workflow, which is
