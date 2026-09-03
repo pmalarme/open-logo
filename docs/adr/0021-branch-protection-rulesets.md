@@ -45,10 +45,12 @@ sibling `README.md` documents apply/update/dry-run and the required-check reason
 are the source of truth; the applied ruleset is derived from them, so a change to protection is a
 reviewable diff.
 
-**2. `main` and `saga/*` get the same protections, with one deliberate merge-method difference.**
-Both require: a PR before merging with **code-owner review**, the always-reporting CI checks, and
-**block force-push + deletion**. Crucially both set `required_approving_review_count: 0` **with**
-`require_code_owner_review: true`. That combination is the whole design:
+**2. `main` and `saga/*` get the same protections.** Both require: a PR before merging with
+**code-owner review**, the always-reporting CI checks, and **block force-push + deletion**; both allow
+squash and merge-commit. The only differences are operational, not protective: `saga/*` sets
+`do_not_enforce_on_create: true` so a saga branch can be created lazily (decision 3). Crucially both
+set `required_approving_review_count: 0` **with** `require_code_owner_review: true`. That combination
+is the whole design:
 
 - An ordinary slice touches **no** CODEOWNERS-owned path, so it needs **no human approval** — the
   orchestrator's delegated merge authority and the in-session review gate (agent sub-agents, not
