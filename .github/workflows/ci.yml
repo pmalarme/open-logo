@@ -222,6 +222,14 @@ jobs:
       # of them (#846 shifted 665). Like built-in-names it needs no build and runs in seconds, so it
       # shares this job rather than taking its own.
       - run: npm run -s spec-citations
+      # Issue #1042: ADR numbers must be unique, each filename must agree with its own `# N.`
+      # heading, and every markdown link or written-out path naming an ADR must resolve — plus a
+      # link labelled ADR-NNNN must resolve to that record. Nothing checked any of this, which is
+      # how two Accepted ADRs came to be created four days apart both carrying 0025, with the
+      # duplicate standing for nearly three days (#1036), and how a heading/filename mismatch and
+      # two broken skill links sat in the tree until this gate landed. Needs no build and runs in
+      # seconds, so it shares this job.
+      - run: npm run -s adr-numbering
       # TODO(@devops + @testing): add integration and a11y/pedagogy gates as those
       # suites land (DoD sections 5-9); wire them here so they block merge.
 

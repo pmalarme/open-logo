@@ -28,10 +28,10 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    (`shared/conformance-fixture`).
 6. **Runnable examples still run** — `npm run examples` covers both halves: `spec/examples/*.logo`
    files **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850,
-   [ADR-0022](../../../docs/adr/0022-documentation-example-gate.md)). Fence OpenLogo source in prose
-   as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed, with a
-   rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes are
-   asserted; never add an entry to silence a real defect — record it as `known-broken` with its
+   [ADR-0022](../../../../docs/adr/0022-documentation-example-gate.md)). Fence OpenLogo source in
+   prose as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed,
+   with a rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes
+   are asserted; never add an entry to silence a real defect — record it as `known-broken` with its
    tracking issue and route it to its owner. An example that registers a handler **needing host
    delivery** (`on_key`, `on_click`, or a `when` for any event other than an exact-case `"start"`) **must** declare
    a deterministic host-input schedule in
@@ -51,7 +51,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    pointer at what produces it (see "Derived counts in prose" below). **A change to any built-in
    name is machine-gated**: `npm run built-in-names` asserts `spec/built-in-names.json` — the
    authoritative list of every keyword and primitive, aliases included
-   ([ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against
+   ([ADR-0021](../../../../docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against
    `@openlogo/parser`'s registries in **both** directions, and reaches the three hand-maintained
    prose lists that nothing used to check. Two of them are **compared**: `spec/grammar.md`'s
    normative keyword block, against the list, and `spec/tooling.md`'s C19 mirror, against that
@@ -190,6 +190,7 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
 - [ ] `npm run built-in-names` green (any keyword/primitive change is a two-file change: registry + `spec/built-in-names.json`)
+- [ ] `npm run adr-numbering` green (adding or renaming an ADR: number unique, `# N.` heading agrees, every reference resolves)
 - [ ] docs + spec cross-links updated
 - [ ] every count and `file:line` citation re-derived against the current tree (or replaced by a pointer)
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
