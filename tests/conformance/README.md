@@ -359,8 +359,9 @@ Three rules keep the characterization fixtures from becoming a trap:
   easiest kind to write vacuously. Every `.expected.json` this slice added was perturbed — a fixture
   expecting no diagnostic was given one, a fixture expecting one had it removed — the mutation was
   confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was confirmed to
-  report `FAIL` for that fixture before the file was restored. Two independent non-author reviewers
-  re-ran their own mutations over the same set and reached the same result.
+  report `FAIL` for that fixture before the file was restored. That set is not a frozen list — it is
+  whatever `git diff --diff-filter=A <base> -- tests/conformance` names — so the procedure is
+  reproducible rather than a count that drifts.
 
 Two related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless search:
 
