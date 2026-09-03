@@ -1,0 +1,4 @@
+# check-side twin of the primitive-arity case-fold identity fixture: the static checker
+# reports the SAME canonical `right` for a mixed-case call `RIGHT` as the runtime does, so the
+# two stages share one diagnostic identity (spec/error-model.md:254-259; issue #1005).
+RIGHT

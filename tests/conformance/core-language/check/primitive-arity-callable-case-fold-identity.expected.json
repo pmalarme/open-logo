@@ -1,0 +1,23 @@
+{
+  "description": "Check-side twin: the static checker reports params.callable `right` (the primitive's canonical identity) for a mixed-case call `RIGHT`, matching the runtime execute()-side fixture, so both stages share one diagnostic identity for one condition (spec/error-model.md:254-259). Issue #1005.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/check/primitive-arity-callable-case-fold-identity",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "params": {
+        "callable": "right",
+        "expected": 1,
+        "actual": 0
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

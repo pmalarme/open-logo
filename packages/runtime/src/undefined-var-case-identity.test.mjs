@@ -321,3 +321,92 @@ test("case-insensitive callable resolution control: a declared procedure called 
   ).diagnostics;
   assert.deepEqual(resolved, []);
 });
+
+// The field-resolution paired control: a field that DOES resolve in another case is clean, so the
+// folded `ol-unknown-field` identities above are genuine resolution, not blanket noise. Declared
+// `x`, read as `.X`.
+test("case-insensitive field resolution control: a struct field read in another case is clean", () => {
+  const resolved = execute(
+    "struct point [ x y ]\n:p = point 1 2\nprint :p.X",
+    "field-control.logo",
+  ).diagnostics;
+  assert.deepEqual(resolved, []);
+});
+
+// --- primitive callable identity: arity of built-ins (issue #1005, criterion 4) -----------------
+//
+// A built-in primitive is a case-insensitive callable too, but unlike a user procedure it has no
+// "declared spelling" — its canonical identity is the profile's own name for it, which the runtime
+// carries as `node.canonical` (a Heritage alias like `RT` canonicalises to `right`) and otherwise
+// lowercases. That is exactly what the checker reports (`checker-arity.ts`:
+// `heritageActive && node.canonical ? node.canonical : lower`). Before the fix the runtime's ~26
+// primitive arity sites echoed the *call site's* casing, so `RIGHT` / `right` / `(PEN_UP 1)` diverged
+// across `check()` and `execute()`. This section pins stage-agreement on the canonical identity for a
+// spread of profiles: a Core zero/one-arg primitive, a renderer-backed one, a sound one, and a
+// Heritage alias (whose canonical is a *different* string, so it also proves the alias folds).
+const primitiveArityCases = [
+  { source: "RIGHT", code: "ol-not-enough-inputs", callable: "right" },
+  {
+    source: "SET_HEADING",
+    code: "ol-not-enough-inputs",
+    callable: "set_heading",
+  },
+  { source: "(PEN_UP 1)", code: "ol-too-many-inputs", callable: "pen_up" },
+  {
+    source: "(HIDE_TURTLE 1)",
+    code: "ol-too-many-inputs",
+    callable: "hide_turtle",
+  },
+];
+
+for (const { source, code, callable } of primitiveArityCases) {
+  test(`primitive ${code} callable identity agrees across stages — ${source}`, () => {
+    const { ast, diagnostics: parseDiagnostics } = parse(source, "prim.logo");
+    assert.deepEqual(
+      parseDiagnostics,
+      [],
+      `unexpected parse diagnostics for: ${source}`,
+    );
+    const profiles = { profiles: ["core-language", "turtle-rendering"] };
+    const checkerMatches = check(ast, profiles).diagnostics.filter(
+      (d) => d.code === code,
+    );
+    const runtimeMatches = execute(
+      source,
+      "prim.logo",
+      profiles,
+    ).diagnostics.filter((d) => d.code === code);
+    assert.equal(
+      checkerMatches.length,
+      1,
+      `expected one checker ${code} for: ${source}`,
+    );
+    assert.equal(
+      runtimeMatches.length,
+      1,
+      `expected one runtime ${code} for: ${source}`,
+    );
+    assert.deepEqual(runtimeMatches[0].params, checkerMatches[0].params);
+    assert.equal(runtimeMatches[0].params.callable, callable);
+  });
+}
+
+// A Heritage alias whose canonical differs from its surface spelling: `PU` → `pen_up`. Both stages
+// must report the canonical `pen_up`, never the alias's own casing.
+test("primitive ol-too-many-inputs folds a Heritage alias to its canonical — (PU 1)", () => {
+  const source = "(PU 1)";
+  const profiles = {
+    profiles: ["core-language", "turtle-rendering", "heritage"],
+  };
+  const { ast } = parse(source, "prim.logo");
+  const checkerMatch = check(ast, profiles).diagnostics.find(
+    (d) => d.code === "ol-too-many-inputs",
+  );
+  const runtimeMatch = execute(source, "prim.logo", profiles).diagnostics.find(
+    (d) => d.code === "ol-too-many-inputs",
+  );
+  assert.ok(checkerMatch, "expected a checker ol-too-many-inputs for (PU 1)");
+  assert.ok(runtimeMatch, "expected a runtime ol-too-many-inputs for (PU 1)");
+  assert.deepEqual(runtimeMatch.params, checkerMatch.params);
+  assert.equal(runtimeMatch.params.callable, "pen_up");
+});

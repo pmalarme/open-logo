@@ -1,0 +1,9 @@
+# A built-in primitive called with a DIFFERENT case than its canonical name still raises
+# `ol-not-enough-inputs`, and `params.callable` is the primitive's CANONICAL identity (`right`),
+# never the call site's casing (`RIGHT`). Unlike a user procedure a primitive has no declared
+# spelling, so its identity is the profile's own name for it — lowercased here, or the Core
+# `canonical` for a Heritage alias — which is exactly what the static checker reports
+# (checker-arity.ts). OpenLogo identifiers are case-insensitive, so the call spelling can never be
+# the diagnostic's identity, and both `check()` and `execute()` must agree on it
+# (spec/error-model.md:254-259; issue #1005).
+RIGHT
