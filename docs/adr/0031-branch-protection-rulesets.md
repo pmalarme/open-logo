@@ -111,6 +111,17 @@ of their choosing — ideally validated via a dry-run first. See the ruleset REA
   cannot merge; a `spec/**` change cannot merge without the maintainer.
 - **Protection changes are reviewable diffs.** The next change to required checks or rules is a PR
   against `.github/rulesets/*.json`, not an untracked settings-UI edit.
+- **The protections' own definitions are maintainer-owned.** `.github/CODEOWNERS` pins
+  `.github/rulesets/` and `.github/agent-policy.md` to @pmalarme (added in this PR under explicit
+  maintainer direction), so that once the rulesets are applied *from* these files an unowned edit
+  cannot silently weaken them. This is deliberately narrow: it does **not** extend to
+  `.github/workflows/` or `.github/skills/`, which are agent working surfaces that
+  `required_approving_review_count: 0` is meant to keep out of the maintainer's routine loop
+  (e.g. #1061/#1064 edit skills). The dividing principle is the **failure mode**, not the path:
+  weakening a CI workflow is **fail-safe** — the ruleset pins check *names*, so deleting a job means
+  the check never reports and the merge blocks forever — whereas weakening `rulesets/*.json` is
+  **fail-open**, silently reducing protection with nothing to notice. Only the fail-open surfaces are
+  pinned. (Broader CODEOWNERS coverage is tracked as its own saga, out of scope here.)
 - **The RC promotion flow is preserved.** merge-commit stays enabled on `main`; the self-scoping
   code-owner rule does not block routine slices on `saga/*`.
 - **The required-check list must track CI job names.** If a CI job is renamed or a new always-running
