@@ -23,9 +23,12 @@ It is a separate concern from `syntax-highlighting`.
 2. **Layer 2 — semantic checking** (`stage=semantic`, after alias/import pre-pass + procedure/struct
    registration, using the **active profile set**): `ol-unknown-command` (with did-you-mean,
    Levenshtein ≤2), `ol-not-enough-inputs`/`-too-many-inputs`, `ol-undefined-var`, `ol-reserved-word`,
-   `ol-unknown-type`/`-field`, `ol-not-a-place`, `ol-no-value`, `ol-return-outside-proc`/
+   `ol-unknown-type`/`-field`, `ol-not-a-place`, `ol-no-value`, `ol-no-output` (a **built-in** command
+   used where a value is required — a user procedure's stays `runtime`), `ol-return-outside-proc`/
    `-in-comprehension`, `ol-duplicate-binder`. Also report *statically knowable* runtime codes
-   (`ol-type`, `ol-range`, `ol-not-boolean`) — but never speculate on unknown dynamic values.
+   (`ol-type`, `ol-range`, `ol-not-boolean`) — but never speculate on unknown dynamic values. This
+   list is illustrative; `spec/tooling.md`'s Layer 2 table is the registry, and it is the one to
+   implement from.
 3. **Layer 3 — style lints** (`severity=warning`, `ol-style-*`): `ol-style-full-name`,
    `ol-style-equality-confusion`, `ol-style-magic-number`, `ol-style-hidden-abstraction`, etc., sourced
    from `spec/style-guide.md`. May be user-disabled; code identity stays stable when enabled.
@@ -37,6 +40,12 @@ It is a separate concern from `syntax-highlighting`.
 - **Never invent a non-style code** when a C10 code applies; vendor rules are namespaced
   (`vendor.ol-*`) and never required for conformance.
 - **Profile-aware:** a name unknown in the active profiles is `ol-unknown-command`, not a hard crash.
+- **The checker gates a run.** Layers 1 and 2 run before Phase 2 of the reader pipeline, and an
+  `error`-severity finding stops the program before any instruction executes (`spec/execution-model.md`,
+  *Checking before execution*). Decide by **severity**, never by whether the diagnostic list is
+  non-empty — Layer 3 warnings share that list, and a style opinion must never withhold a drawing.
+  The profile set is the **run's**, supplied by whoever starts it; a Core-Language-only default would
+  reject `forward 100`.
 - **LSP parity:** `publishDiagnostics` and `codeAction` (e.g. `fd`→`forward`, add missing `end`,
   `=`→`==` in a condition) MUST preserve the same codes/spans/params a batch checker produces.
 
