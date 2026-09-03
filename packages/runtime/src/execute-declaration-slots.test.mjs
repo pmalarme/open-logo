@@ -2,7 +2,7 @@
 // (rules 3 and 6) at phase-1 registration (`spec/execution-model.md:82-89`).
 //
 // A declaration slot (`define`/`to`, `struct`) asks one question — *is this name already taken, and
-// by whom?* — and `spec/error-model.md:132-141` splits the answer in two so each code means exactly
+// by whom?* — and `spec/error-model.md:133-142` splits the answer in two so each code means exactly
 // one thing: `ol-reserved-word` (OpenLogo owns this name) and `ol-duplicate-definition` (something
 // in the program already declares it, with `params.original_span` naming where).
 //

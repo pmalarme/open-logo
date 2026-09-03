@@ -1,6 +1,6 @@
 // Guard for issue #1005: the case-folded-identifier diagnostic-identity guarantee. Two diagnostics
 // name conditions keyed on case-insensitive identifiers, so the SAME condition must earn the SAME
-// `params` whatever the source casing — `spec/error-model.md:254-259` makes identity `code` + `params`
+// `params` whatever the source casing — `spec/error-model.md:255-260` makes identity `code` + `params`
 // and tells tools to assert params, not English message text:
 //
 //   * `ol-undefined-var` — variable resolution folds case (`lookupVar`), so `:SomeVar` and `:somevar`

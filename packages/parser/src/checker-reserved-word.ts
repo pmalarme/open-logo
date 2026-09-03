@@ -78,7 +78,7 @@
  * ## Issue #838: one question, two codes, and 44 more names
  *
  * A declaration slot asks exactly one question — *is this name already taken, and by whom?* — and
- * `spec/error-model.md:132-141` splits the answer in two so that each code means exactly one thing:
+ * `spec/error-model.md:133-142` splits the answer in two so that each code means exactly one thing:
  *
  * - **`ol-reserved-word` — OpenLogo owns this name.** `params: { name }` and nothing else. The
  *   `namespace` param is **gone** (`spec/error-model.md:125`), and with it the ungrammatical
@@ -152,7 +152,7 @@ function reservedWordDiagnostic(spannedName: SpannedName): Diagnostic {
 
 /**
  * `ol-duplicate-definition` at the later declaration, carrying the earlier one's span in
- * `params.original_span` (`spec/error-model.md:126,143-146`). Both spans are required identity, not
+ * `params.original_span` (`spec/error-model.md:126,144-147`). Both spans are required identity, not
  * message decoration: `original_span` is "an ordinary `params` entry with the same shape as
  * `source_span`", and an implementation "MUST supply it rather than folding the earlier location
  * into the message text" — which is also what lets an editor offer *jump to the first definition*

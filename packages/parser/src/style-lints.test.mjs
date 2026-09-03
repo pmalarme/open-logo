@@ -404,7 +404,7 @@ function nameCaseNames(source, profiles = ALL_PROFILES) {
 test("ol-style-name-case: every silent row of issue #854's reported table now warns", () => {
   // The defect table verbatim. The first three rows already warned before #854 and must keep
   // warning (a widening must not trade one gap for another); the last four were silent, which is
-  // the bug: `spec/tooling.md:241` requires that "built-ins should be shown lowercase", and
+  // the bug: `spec/tooling.md:243` requires that "built-ins should be shown lowercase", and
   // `forward` is the first command a learner ever types.
   const cases = [
     ["TO f\nreturn 1\nend", ["TO"]],
@@ -1098,8 +1098,8 @@ test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly tha
 // instruction budget (PR #910) -- already makes the program safe, so these are warnings that never
 // change program meaning. Message wording is asserted HERE and not in a conformance fixture, and
 // not because the harness cannot compare it: a fixture opts in with `"compareMessages": true`
-// (issue #1025). This wording deliberately does not opt in. `spec/error-model.md:256-259` makes
-// identity `code` plus `params` and asks tests to assert those, and `:261-263` positively permits a
+// (issue #1025). This wording deliberately does not opt in. `spec/error-model.md:257-260` makes
+// identity `code` plus `params` and asks tests to assert those, and `:262-264` positively permits a
 // template author to reorder, inflect, or soften prose -- so freezing a style lint's English in a
 // stack-neutral fixture would oblige every conforming implementation to emit it verbatim. The
 // opt-in is for the messages the spec fixes itself; a unit test is where ours belong.

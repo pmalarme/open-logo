@@ -265,10 +265,10 @@ test("a read with no scripted answer cancels the run (ol-limit) rather than inve
   //
   // It reaches that ending through the SHARED cancellation diagnostic. What the spec fixes is the
   // machine-readable half: identity is `code` plus `params` and prose is presentation
-  // (`spec/error-model.md:254-259`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
+  // (`spec/error-model.md:255-260`), so `ol-limit` / `{ limit: "cancelled" }` MUST be the same here
   // as for an externally cancelled run — which is asserted directly against that run below, rather
   // than inferred. The message equality is a STRONGER, NON-NORMATIVE regression guard:
-  // `spec/error-model.md:261-264` lets a localized build reword this message, and equal prose does
+  // `spec/error-model.md:262-265` lets a localized build reword this message, and equal prose does
   // not by itself prove a single builder — two builders could emit the same words. It is asserted
   // because diverging wording is the cheapest early signal that a lookalike builder appeared. The
   // span is what localises the diagnostic to the waiting read.

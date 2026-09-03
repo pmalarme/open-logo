@@ -18,7 +18,7 @@ function checkSource(source, profiles = ["core-language"]) {
   return OL.check(ast, { profiles }).diagnostics;
 }
 
-test("the spec worked example `print first` raises ol-not-enough-inputs (spec/tooling.md:207-212)", () => {
+test("the spec worked example `print first` raises ol-not-enough-inputs (spec/tooling.md:209-214)", () => {
   const diagnostics = checkSource("print first");
   assert.equal(diagnostics.length, 1);
   const [finding] = diagnostics;
