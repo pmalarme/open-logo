@@ -1,0 +1,36 @@
+{
+  "description": "Measured on this tree: a blank line (two consecutive newlines) between `print` and `abs 3` behaves identically to a single newline — 2 statements, `ol-not-enough-inputs`. Pins that consecutive newlines collapse into a single separator.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/termination-blank-line-break",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/delimitation/termination-blank-line-break",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "callable": "print",
+        "expected": 1,
+        "actual": 0
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
