@@ -360,8 +360,9 @@ Three rules keep the characterization fixtures from becoming a trap:
   expecting no diagnostic was given one, a fixture expecting one had it removed — the mutation was
   confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was confirmed to
   report `FAIL` for that fixture before the file was restored. That set is not a frozen list — it is
-  whatever `git diff --diff-filter=A <base> -- tests/conformance` names — so the procedure is
-  reproducible rather than a count that drifts.
+  whatever `git diff --name-only --diff-filter=A <base> -- 'tests/conformance/**/*.expected.json'`
+  enumerates — so the procedure is reproducible, and widens by itself when a fixture is added,
+  rather than resting on a count that drifts.
 
 Two related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless search:
 
