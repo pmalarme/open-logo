@@ -27,8 +27,8 @@ be classified as keywords, variables, operators, or delimiters.
 
 | Token class | Normative scope |
 |---|---|
-| `keyword` | Structural words recognized by the reader: the reserved words listed in [Reserved words](#reserved-words-for-tooling), plus profile block-heads when their profile is active. |
-| `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `setcolor`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
+| `keyword` | The words the reader itself gives a grammatical role to. This class is **declared as data, not enumerated here**: it is exactly the names [`built-in-names.json`](built-in-names.json) records with a `keyword` token class, together with the contextual words named below, and CI re-paints each of those declared names through a conforming highlighter and compares. The word-spelled operators `and`, `mod`, `not`, and `or` are the only built-in names whose token class differs from their category: they are **not** in this class — they are `operator` below. The contextual words `empty`, `member`, `of`, and `a` take this class only in the structural positions described under [Reserved words](#reserved-words-for-tooling), and are ordinary names elsewhere. So `local empty` is not a keyword, and none of those words is a reserved word. Profile words — a profile's block-heads and its mode-switch commands — take this class while their profile is active, and `primitive` while it is not. Every other word in this class is painted wherever it appears, including the positions where the grammar admits one as an ordinary name (`local end`, `for end from 1 to 3`, `export end`, `:p.end`). A bare key in `{ key: value }` or `:dict[key]` is `dict-key` on grammatical grounds alone and needs no symbol discovery; [Disambiguating identifiers](#disambiguating-identifiers) is what demotes a token to `procedure-name`, `type-name`, or `field-name` once parsing or symbol discovery resolves it. This class is **not derived from** the reserved list — it omits the word-spelled operators, adds the contextual words, and adds the profile words — so reserved-list membership never decides how a token is painted ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). |
+| `primitive` | Built-in commands, reporters, and aliases from the C3 primitive matrix, including full names such as `forward`, one-word aliases such as `setcolor`, short aliases such as `fd`, heritage command aliases such as `pr`, and profile primitives when enabled. Where the declaration or another row of this table assigns a word a different class — the token class each name carries in [`built-in-names.json`](built-in-names.json), the word-spelled operators under `operator`, and the profile words while their profile is active — that assignment wins, so a word never carries two classes. This is also the grammar-safe **fallback** for a bare name no other row claims, so a highlighter with no semantic information still emits a class: a contextual word outside the structural positions above (`local empty`), a profile word whose profile is inactive, and a name the implementation does not know at all (`fowad`) are all `primitive`. The fallback asserts only that the token sits in name position; it is not a claim of matrix membership, and tools MUST NOT infer one from it. Structural special-form heads are `keyword` unless they are being documented as callable entries. |
 | `number` | Numeric literals, including negative literals when the lexer rules classify the leading `-` as part of the number. |
 | `word/string` | Closed double-quoted word literals such as `"tom"`, `"#ff0000"`, and `"hello world"`, plus triple-quoted `"""..."""` multi-line word literals; escapes `\"` and `\\` remain inside the same token. |
 | `:variable` | A colon-prefixed variable read or colon-form assignable place head, such as `:count`, `:nums[1]`, or `:people.tom.age`. The `:` and identifier SHOULD be styled as one semantic unit. |
@@ -85,22 +85,23 @@ theme maps all roles to the same bracket color.
 
 ## Reserved words for tooling
 
-The Core reserved-word list is generated from the grammar. This is the C19 registry repeated here so
-highlighters and linters can share the same names:
+The Core reserved-word list is generated from the grammar, whose [keyword list](grammar.md#keywords-primitives-and-built-in-names) is normative; this is the C19 registry repeated
+here so highlighters and linters can share the same names. Membership answers one question — *may a program declare this name?* — and never how a word is painted:
 
 `define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
 `if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `key`, `value`,
-`add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `is`, `between`,
-`strictly`, `true`, `false`, `struct`, `alias`, `import`, `export`.
+`add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `mod`, `true`, `false`,
+`is`, `between`, `strictly`, `struct`, `alias`, `import`, `export`.
 
 `to` is contextual: it is both the heritage procedure opener and the slot word in `set ... to` and
 `for ... from ... to`. The words `empty`, `member`, `of`, and `a` are contextual keywords: a
-highlighter marks them as `keyword` only inside an `is`-predicate and as ordinary names elsewhere.
+highlighter marks them as `keyword` only inside an `is`-predicate or the heritage
+`value of … for key` reader, and as ordinary names elsewhere.
 (`is`, `between`, and `strictly` are globally reserved and appear in the list above.) Profile forms are
-reserved only when their profile is active: the `ask` and `each` block-heads and the `tell` command
-for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for Interaction.
-Reserved words may be aliased by `alias`, but they MUST NOT be redefined as variables, procedures,
-or struct type names; such redefinitions produce `ol-reserved-word`.
+reserved **unconditionally**, whether or not their profile is claimed: the `ask` and `each` block-heads
+and the `tell` command for Sprites; the `when`, `every`, `on_key`, and `on_click` block-heads for
+Interaction. A profile decides whether such a word *works*, never whether a program may declare it.
+Declaring a reserved word is what is blocked; binding a value to one is free — see [Layer 2](#layer-2-semantic-checking).
 
 ## Editor grammar guidance
 
@@ -181,7 +182,7 @@ profile block-heads are available.
 | Not enough inputs for a fixed-arity or selected call form | `ol-not-enough-inputs` | Include callable name, expected count, and actual count. |
 | Too many inputs outside parenthesized alternate/variadic forms | `ol-too-many-inputs` | Include callable name and explain when parentheses are required. |
 | Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. |
-| Redefining a reserved word, primitive, existing procedure, existing type constructor, or existing alias | `ol-reserved-word` | Apply to `define`, `to`, `struct`, `local`, and `alias` registrations as appropriate. |
+| Declaring a built-in name — a keyword, a primitive, or an alias spelling of one — in a declaration slot | `ol-reserved-word` | Apply at the four declaration slots only: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`; profile keywords and primitives count there whether or not their profile is claimed. Do **not** apply at `local` or any other binding form — binding a value to a built-in name is legal everywhere and MUST NOT raise this or any other diagnostic ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). A name the program itself already declared is `ol-duplicate-definition` instead. |
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
 | Assignment or `set` target is not an assignable place | `ol-not-a-place` | Reject reporter calls, literals, computed values, and parenthesized expressions as targets. |
@@ -249,6 +250,7 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-equality-confusion` | A standalone comparison statement such as `:x == :y` whose boolean result is discarded, which usually means an assignment `=` was intended. `=` inside a condition is a parse error, not a style warning. |
 | `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with matching `end <form>` where long blocks are used. |
 | `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept that the surrounding lesson expects the learner to build from `repeat`. |
+| `ol-style-nested-handler` | An `every` handler whose block lexically contains another handler registration, which accumulates handlers without bound: each firing can add one more. Handlers registered inside `on_key`/`on_click` blocks are not flagged, because a key press or click is bounded by the user. The check is lexical, so a registration reached only through a procedure call is not reported. |
 
 Example style diagnostics:
 

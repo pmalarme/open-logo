@@ -365,3 +365,111 @@ test("exportTurtleSvg's includeOverlays:false omits overlay markup even when ove
   const noOverlay = OL.exportTurtleSvg(scene, state, VIEWPORT, {});
   assert.equal(excluded, noOverlay);
 });
+
+// --- per-turtle avatars in export (#749) ------------------------------------------------------
+
+/** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order), with the last one
+ * last-acted — the shape a Sprites program's event stream folds to. */
+function turtleWorld(states) {
+  return {
+    turtles: new Map(states),
+    lastActedTurtleId: states[states.length - 1][0],
+  };
+}
+
+test("exportTurtleSvg given a world holding only the main turtle is byte-identical to passing that state", () => {
+  const scene = {
+    background: "white",
+    items: [
+      {
+        kind: "segment",
+        segment: { from: [0, 0], to: [0, 100], color: "red", width: 3 },
+      },
+    ],
+  };
+  const state = {
+    position: [0, 100],
+    heading: 90,
+    penDown: true,
+    color: "red",
+    width: 3,
+    shape: "arrow",
+    visible: true,
+  };
+  assert.equal(
+    OL.exportTurtleSvg(
+      scene,
+      turtleWorld([[OL.MAIN_TURTLE_ID, state]]),
+      VIEWPORT,
+    ),
+    OL.exportTurtleSvg(scene, state, VIEWPORT),
+  );
+});
+
+test("exportTurtleSvg serializes one avatar per visible turtle, each with its own color and shape (#749)", () => {
+  // Two turtles with divergent color AND visibility: folding them into one state serialized a
+  // single avatar wearing whichever attributes came last. Per turtle, the visible one is drawn in
+  // its own color and the hidden one is omitted (`spec/rendering.md:14`: the avatar is included
+  // "only when the turtle is visible at export time").
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, heading: 0 };
+  const svg = OL.exportTurtleSvg(
+    scene,
+    turtleWorld([
+      [
+        1,
+        {
+          ...base,
+          position: [0, 0],
+          color: "green",
+          shape: "triangle",
+          visible: true,
+        },
+      ],
+      [
+        2,
+        {
+          ...base,
+          position: [50, 0],
+          color: "blue",
+          shape: "arrow",
+          visible: false,
+        },
+      ],
+    ]),
+    VIEWPORT,
+  );
+  assert.equal(
+    [...svg.matchAll(/fill="green"/g)].length,
+    1,
+    "the visible turtle's avatar is serialized in its own color",
+  );
+  assert.equal(
+    svg.includes('fill="blue"'),
+    false,
+    "the hidden turtle contributes no avatar",
+  );
+  assert.equal(
+    svg.includes("translate(250.000 150.000)"),
+    false,
+    "no avatar is placed at the hidden turtle's position",
+  );
+});
+
+test("exportTurtleSvg serializes two visible turtles as two avatars in creation order", () => {
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, heading: 0, visible: true };
+  const svg = OL.exportTurtleSvg(
+    scene,
+    turtleWorld([
+      [1, { ...base, position: [-50, 0], color: "green", shape: "triangle" }],
+      [2, { ...base, position: [50, 0], color: "blue", shape: "triangle" }],
+    ]),
+    VIEWPORT,
+  );
+  const avatarTransforms = [
+    ...svg.matchAll(/transform="translate\(([^)]*)\)/g),
+  ].map((match) => match[1]);
+  assert.deepEqual(avatarTransforms, ["150.000 150.000", "250.000 150.000"]);
+  assert.ok(svg.indexOf('fill="green"') < svg.indexOf('fill="blue"'));
+});

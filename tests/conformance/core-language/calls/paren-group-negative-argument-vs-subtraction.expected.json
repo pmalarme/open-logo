@@ -1,0 +1,118 @@
+{
+  "description": "Parenthesized grouping (issue #1021): the discriminating pair for `-`, whose two meanings share a character and LEX identically as `op(-)` then `number(1)`. Adjacency separates them per grammar.md:60,230 — glued `-1` is a negative ARGUMENT, so `(round -1)` stays a parenthesized call and prints -1; spaced `- 1` continues the expression, so `(six - 1)` is a parenthesized expression and prints 5. No arity is consulted, which is what keeps the reader profile-blind. Executed because both readings parse clean: only the values distinguish them.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [13, 1],
+        "end": [15, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [16, 1],
+        "end": [16, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [16, 1],
+        "end": [16, 17]
+      },
+      "payload": {
+        "values": [-1]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [17, 1],
+        "end": [17, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [17, 8],
+        "end": [17, 11]
+      },
+      "payload": {
+        "name": "six",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [14, 3],
+        "end": [14, 11]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [14, 3],
+        "end": [14, 11]
+      },
+      "payload": {
+        "value": 6
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [17, 8],
+        "end": [17, 11]
+      },
+      "payload": {
+        "name": "six",
+        "result": 6
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-negative-argument-vs-subtraction",
+        "start": [17, 1],
+        "end": [17, 15]
+      },
+      "payload": {
+        "values": [5]
+      }
+    }
+  ],
+  "diagnostics": []
+}

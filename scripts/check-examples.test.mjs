@@ -5,20 +5,31 @@
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import {
+  EXAMPLES_DIR,
+  HOST_INPUT_PATH,
   IMPLEMENTED_PROFILES,
   MANIFEST_PATH,
   classifyExample,
-  detectUsedProfiles,
   isRunnable,
+  loadHostInputManifest,
   loadManifest,
   parseArgs,
+  registersHostHandlers,
   runExamplesGate,
+  validateHostInputEntry,
 } from "./examples-gate.mjs";
+import { detectUsedProfiles } from "./profile-detection.mjs";
 
 // Each test gets its own fresh, uniquely-named OS temp directory — never a shared or repo-tracked
 // fixture path (same convention scripts/conformance.test.mjs uses, issue #140).
@@ -91,15 +102,27 @@ test("loadManifest parses the real repo manifest and covers every real example",
   );
 });
 
-test("parseArgs reads --dir and --manifest overrides", () => {
+test("parseArgs reads --dir, --manifest and --host-input overrides", () => {
   assert.deepEqual(
-    parseArgs(["--dir=tmp/examples", "--manifest=tmp/profiles.json"]),
-    { dir: "tmp/examples", manifestPath: "tmp/profiles.json" },
+    parseArgs([
+      "--dir=tmp/examples",
+      "--manifest=tmp/profiles.json",
+      "--host-input=tmp/host-input.json",
+    ]),
+    {
+      dir: "tmp/examples",
+      manifestPath: "tmp/profiles.json",
+      hostInputPath: "tmp/host-input.json",
+    },
   );
 });
 
 test("parseArgs returns undefined overrides when no flags are given", () => {
-  assert.deepEqual(parseArgs([]), { dir: undefined, manifestPath: undefined });
+  assert.deepEqual(parseArgs([]), {
+    dir: undefined,
+    manifestPath: undefined,
+    hostInputPath: undefined,
+  });
 });
 
 // --- detectUsedProfiles unit tests (issue #519, finding G8) -------------------------------
@@ -336,16 +359,18 @@ test("detectUsedProfiles finds heritage for a short-alias call", () => {
 });
 
 test("detectUsedProfiles finds heritage for the 'make' assignment spelling", () => {
-  // `make` has no dedicated AST node (it's not a registered-arity primitive), but it still
-  // parses as an ordinary zero-arity Call, so its callee name alone is enough to detect it.
+  // Since issue #151 `make "name" value` parses as an `Assign` node whose `form` is `"make"`
+  // (spec/grammar.md:105 make-assignment ::= "make" word-literal expression), NOT a zero-arity
+  // Call — so the detector recognizes it by that node form, not by a callee name.
   assert.deepEqual(detectUsedProfiles('make "x" 1\n'), ["heritage"]);
 });
 
-test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved words (fifth review round)", () => {
-  // Fifth review round (rubber-duck-v10): to/output/op have NO Call/ParenCall — or any other —
-  // AST production at all (packages/parser/src/parser.ts's NON_PRIMARY_NAMES), so an example
-  // using them always produces an ol-bad-token diagnostic naming the exact reserved word; that
-  // diagnostic, not any AST node, is what RESERVED_WORD_PROFILES scans for.
+test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' spellings via their AST nodes", () => {
+  // As of issue #667 (slice H2) `to`/`output`/`op` parse into real AST nodes — `ProcedureDef`
+  // with `keyword: "to"` and `Return` with `keyword: "output"/"op"` — NOT the `ol-bad-token`
+  // diagnostic they produced before, so detectUsedProfiles recognizes them from those node shapes
+  // in its walk (see #701: this detector keys on AST shape, so a form gaining a production moves
+  // its detection off the vanished diagnostic and onto the node).
   assert.deepEqual(
     detectUsedProfiles("to draw_tick :size\nforward :size\nend\n"),
     ["heritage"],
@@ -355,10 +380,11 @@ test("detectUsedProfiles finds heritage for the 'to'/'output'/'op' reserved word
 });
 
 test("detectUsedProfiles does NOT flag heritage for 'to' in its three legitimate non-Heritage roles (for-range bound, set-assignment preposition, add-to-list preposition)", () => {
-  // `to` is also a plain keyword in three grammar productions that consume it with zero
-  // diagnostics (spec/grammar.md:104, :113, :128) — the reserved-word scan must not conflate
-  // those with the Heritage `to … end` procedure-definition spelling, or a plain example using
-  // one of them would be spuriously flagged as needing Heritage (breaking acceptance criterion 3).
+  // `to` is also a plain keyword in three grammar productions (spec/grammar.md:104, :113, :128)
+  // where it appears mid-statement, never as a statement opener — so the reader never dispatches
+  // `parseProcedureDef` for them and no `ProcedureDef keyword:"to"` node results, so a plain
+  // example using one of them is never spuriously flagged as needing Heritage (acceptance
+  // criterion 3).
   assert.deepEqual(detectUsedProfiles("for i from 1 to 5 [ print :i ]\n"), []);
   assert.deepEqual(detectUsedProfiles("local x\nset x to 5\nprint :x\n"), []);
   // `add … to …` is itself a Data-profile construct (rubber-duck-v11 review), so this must
@@ -977,12 +1003,106 @@ test("runExamplesGate defaults exercise the real spec/examples/ corpus and manif
   assert.equal(result.ran + result.skipped, 13);
 });
 
-test("runExamplesGate skips every example that needs a not-yet-implemented profile in the real corpus", () => {
+test("runExamplesGate leaves NO example skipped in the real corpus now that all four M5 profiles are claimed", () => {
+  const result = runExamplesGate();
+  // Every example that used to SKIP has left the list one terminal slice at a time:
+  // `11-music.logo` (sound, #693), `09-sprites.logo` (sprites, #679), `05-procedures.logo`
+  // (heritage, #672) and finally `10-game.logo` (interaction-events, #688) — so the real corpus
+  // now has zero skips. This is the STRONGER form of the old per-profile SKIP assertion, not a
+  // weaker one: it fails if any claimed profile is ever un-claimed (its example would SKIP again)
+  // and equally if a future example is added that needs a profile not yet in IMPLEMENTED_PROFILES.
+  // The SKIP mechanism itself stays covered by the synthetic `implementedProfiles`-override tests
+  // above, which can still exercise it without depending on an unclaimed real profile.
+  assert.equal(
+    result.skipped,
+    0,
+    "no real example may SKIP once every profile its manifest declares is implemented",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP ")),
+    "no SKIP notice may remain in the real corpus report",
+  );
+  assert.equal(result.ran, 13);
+  assert.equal(result.failed, 0);
+  assert.equal(result.ok, true);
+});
+
+test("runExamplesGate: 10-game.logo RUNS and PASSES now that #688 claims interaction-events (the observable proof of the claim)", () => {
+  // This is the whole point of the Interaction & Events terminal slice — and of saga #572's last
+  // profile claim: claiming `interaction-events` in IMPLEMENTED_PROFILES must flip 10-game.logo
+  // from SKIP to a real PASS. The example registers three `on_key` handlers, an `on_click` handler
+  // that mutates `:score`, and an `every 30` timer body that repositions and stamps, then holds the
+  // program open with `wait 300` — so a green PASS proves the whole registration + tick-clock
+  // surface executes end to end with zero error-severity diagnostics, not merely that the names
+  // parse. If this ever regressed to SKIP, the claim would be premature (a false conformance claim,
+  // M4 finding F9); if it FAILed, Interaction & Events would not be conformant.
+  //
+  // Since issue #955 the example additionally runs with a host-input schedule, so the PASS line
+  // carries the "(with host input)" marker and the claim proved here is strictly stronger: not just
+  // that the handlers register and the program executes cleanly, but that they FIRE.
   const result = runExamplesGate();
   assert.ok(
-    result.lines.some((line) =>
-      line.startsWith("SKIP 05-procedures.logo (requires heritage"),
-    ),
+    result.lines.some((line) => line === "PASS 10-game.logo (with host input)"),
+    "10-game.logo must RUN and PASS (not SKIP) once interaction-events is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 10-game.logo")),
+    "10-game.logo must no longer be skipped",
+  );
+});
+
+test("runExamplesGate: 05-procedures.logo RUNS and PASSES now that #672 claims heritage (the observable proof of the claim)", () => {
+  // This is the whole point of the Heritage terminal slice: claiming `heritage` in
+  // IMPLEMENTED_PROFILES must flip 05-procedures.logo from SKIP to a real PASS. It uses the
+  // Heritage `to … end` procedure form (`draw_tick`) alongside Core `define`/`return`, and
+  // requires only `heritage` (not `data`) — now implemented — so the example executes with zero
+  // error-severity diagnostics. If this ever regressed to SKIP, the claim would be premature (a
+  // false conformance claim, M4 finding F9); if it FAILed, Heritage would not be conformant. A
+  // green PASS here is the earned proof.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 05-procedures.logo"),
+    "05-procedures.logo must RUN and PASS (not SKIP) once heritage is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 05-procedures.logo")),
+    "05-procedures.logo must no longer be skipped",
+  );
+});
+
+test("runExamplesGate: 11-music.logo RUNS and PASSES now that #693 claims sound (the observable proof of the claim)", () => {
+  // This is the whole point of the Sound terminal slice: claiming `sound` in IMPLEMENTED_PROFILES
+  // must flip 11-music.logo from SKIP to a real PASS. It requires both `sound` and `data`
+  // (the `:durations[:i]` list-index), and both are now implemented — so the example executes
+  // with zero error-severity diagnostics. If this ever regressed to SKIP, the claim would be
+  // premature (a false conformance claim, M4 finding F9); if it FAILed, Sound would not be
+  // conformant. A green PASS here is the earned proof.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 11-music.logo"),
+    "11-music.logo must RUN and PASS (not SKIP) once sound is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 11-music.logo")),
+    "11-music.logo must no longer be skipped",
+  );
+});
+
+test("runExamplesGate: 09-sprites.logo RUNS and PASSES now that #679 claims sprites (the observable proof of the claim)", () => {
+  // This is the whole point of the Sprites terminal slice: claiming `sprites` in
+  // IMPLEMENTED_PROFILES must flip 09-sprites.logo from SKIP to a real PASS. The example exercises
+  // `new_turtle`, a turtle list, both `ask` blocks, `tell`, and `each [ stamp ]` — so a green PASS
+  // proves the whole addressed-set surface executes end to end with zero error-severity
+  // diagnostics. If this ever regressed to SKIP, the claim would be premature (a false conformance
+  // claim, M4 finding F9); if it FAILed, Sprites would not be conformant.
+  const result = runExamplesGate();
+  assert.ok(
+    result.lines.some((line) => line === "PASS 09-sprites.logo"),
+    "09-sprites.logo must RUN and PASS (not SKIP) once sprites is claimed",
+  );
+  assert.ok(
+    !result.lines.some((line) => line.startsWith("SKIP 09-sprites.logo")),
+    "09-sprites.logo must no longer be skipped",
   );
 });
 
@@ -1026,4 +1146,561 @@ test("the check-examples.mjs CLI exits 0 when every example passes or is skipped
 
   assert.equal(child.status, 0);
   assert.match(child.stdout, /PASS good\.logo/);
+});
+
+// --- M5 profile skip / no-masking (issue #666) --------------------------------------------
+// This slice's examples-gate scaffolding must SKIP (with a visible notice) any example that needs
+// a profile not yet claimed in IMPLEMENTED_PROFILES. All four M5 profiles are now claimed by their
+// terminal slices — `sound` #693 (so 11-music.logo runs), `sprites` #679 (09-sprites.logo),
+// `heritage` #672 (05-procedures.logo), and `interaction-events` #688 (10-game.logo) — which
+// completes M5 and empties the M5 excluded set.
+// The visible-SKIP behavior is exercised by the synthetic `implementedProfiles`-override tests
+// above (which no longer depend on a real unclaimed profile), the "leaves NO example skipped in the
+// real corpus" test asserts the real-gate consequence, and the no-masking guard (a genuinely
+// failing example still fails loudly) is covered by the existing "catches masking of the Heritage
+// 'to … end' reserved word" / "masked-alias" tests. We therefore keep this slice's addition to a
+// single load-light invariant to avoid re-rolling the known cross-process coverage-merge artifact
+// (issue #417) on examples-gate.mjs's hot classifyExample path — see the PR body's coverage note.
+
+test("IMPLEMENTED_PROFILES claims all four M5 profiles and still excludes every profile whose terminal slice has not landed", () => {
+  for (const [profile, slice] of [
+    ["sound", "#693"],
+    ["sprites", "#679"],
+    ["heritage", "#672"],
+    ["interaction-events", "#688"],
+  ]) {
+    assert.ok(
+      IMPLEMENTED_PROFILES.includes(profile),
+      `${profile} is claimed by its terminal slice ${slice}, so its example runs rather than SKIPs`,
+    );
+  }
+  // #688 empties the M5 excluded set, but this guard does NOT retire — an assertion that guards
+  // nothing is how the next premature claim slips through. It moves to the profiles whose terminal
+  // slices have not landed, so the tripwire keeps naming a real, currently-false claim. These are
+  // the same three the sibling F9 guard in packages/core/src/host-metadata.test.mjs holds back;
+  // both must move together, and `IMPLEMENTED_PROFILES` must never run ahead of SUPPORTED_PROFILES.
+  const unclaimedProfiles = ["modules", "localization", "tutor-ai"];
+  assert.ok(
+    unclaimedProfiles.length > 0,
+    "the F9 tripwire must always guard at least one unclaimed profile; if the DAG is ever fully claimed, replace this with an exact-set assertion rather than deleting it",
+  );
+  for (const profile of unclaimedProfiles) {
+    assert.ok(
+      !IMPLEMENTED_PROFILES.includes(profile),
+      `${profile} must NOT be in IMPLEMENTED_PROFILES until its terminal slice claims it`,
+    );
+  }
+});
+
+// --- Host-input schedules (issue #955) -----------------------------------------------------------
+//
+// Executing every example with an EMPTY host made this gate structurally blind to every
+// host-dependent feature the language has. Measured on the parent commit, spec/examples/10-game.logo
+// produced 131 events and ZERO prints with no host, 149 events and prints 1, 2 when a host delivered
+// keys and clicks — and classifyExample() reported "pass" either way, while the file itself states
+// "expected output: each click prints the updated :score." (spec/examples/10-game.logo:41).
+
+const CLICK_TWICE = {
+  executeOptions: {
+    hostInput: {
+      events: [
+        { tick: 1, kind: "click" },
+        { tick: 2, kind: "click" },
+      ],
+    },
+  },
+  expect: { prints: [{ values: [1] }, { values: [2] }] },
+};
+
+const COUNTING_CLICKS = `:score = 0
+on_click [
+  :score = :score + 1
+  print :score
+]
+wait 10
+`;
+
+test("classifyExample with no host-input entry runs with an empty host, exactly as before", () => {
+  assert.deepEqual(classifyExample(COUNTING_CLICKS, "clicks.logo"), {
+    status: "pass",
+  });
+});
+
+test("classifyExample drives the run from a host-input entry and passes when the declared output appears", () => {
+  assert.deepEqual(
+    classifyExample(COUNTING_CLICKS, "clicks.logo", CLICK_TWICE),
+    { status: "pass" },
+  );
+});
+
+test("classifyExample FAILS when a handler produces nothing — the whole point: the same program passes with an empty host", () => {
+  // An empty schedule delivers no click, so the entry's declared prints never happen. This is the
+  // mutation check for issue #955: a gate that cannot fail when a handler does not fire asserts
+  // nothing at all.
+  const inert = {
+    executeOptions: { hostInput: { events: [] } },
+    expect: { prints: [{ values: [1] }, { values: [2] }] },
+  };
+  const result = classifyExample(COUNTING_CLICKS, "clicks.logo", inert);
+  assert.equal(result.status, "fail");
+  assert.match(result.reason, /expected prints .* but got \[\]/);
+  // ...while the very same source, with no entry, still passes. That gap is the defect.
+  assert.deepEqual(classifyExample(COUNTING_CLICKS, "clicks.logo"), {
+    status: "pass",
+  });
+});
+
+test("classifyExample asserts exact event counts for contracts a print cannot express", () => {
+  const source = `on_key "up" [ forward 10 ]\nwait 10\n`;
+  const entry = {
+    executeOptions: {
+      hostInput: { events: [{ tick: 1, kind: "key", key: "up" }] },
+    },
+    expect: { eventCounts: { "draw-segment": 1 } },
+  };
+  assert.deepEqual(classifyExample(source, "key.logo", entry), {
+    status: "pass",
+  });
+  const undelivered = {
+    executeOptions: { hostInput: { events: [] } },
+    expect: { eventCounts: { "draw-segment": 1 } },
+  };
+  const result = classifyExample(source, "key.logo", undelivered);
+  assert.equal(result.status, "fail");
+  assert.match(result.reason, /expected 1 "draw-segment" event\(s\) but got 0/);
+});
+
+test("classifyExample reports an execution error ahead of any expectation mismatch", () => {
+  const entry = {
+    executeOptions: { hostInput: { events: [] } },
+    expect: { prints: [{ values: [1] }] },
+  };
+  const result = classifyExample(
+    "print :undefined_name\n",
+    "broken.logo",
+    entry,
+  );
+  assert.equal(result.status, "fail");
+  assert.match(result.reason, /^ol-/);
+});
+
+test("validateHostInputEntry accepts a well-formed entry", () => {
+  assert.equal(validateHostInputEntry("x.logo", CLICK_TWICE), null);
+});
+
+test("validateHostInputEntry accepts an optional description", () => {
+  assert.equal(
+    validateHostInputEntry("x.logo", { description: "why", ...CLICK_TWICE }),
+    null,
+  );
+});
+
+test("validateHostInputEntry rejects a non-object entry", () => {
+  assert.match(validateHostInputEntry("x.logo", []), /must be an object/);
+});
+
+test("validateHostInputEntry rejects an unknown entry key", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", { ...CLICK_TWICE, expects: {} }),
+    /"expects" is not a known host-input entry key/,
+  );
+});
+
+test("validateHostInputEntry requires executeOptions", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", { expect: { prints: [] } }),
+    /must declare "executeOptions"/,
+  );
+});
+
+test("validateHostInputEntry delegates executeOptions to the conformance harness's own validator, so a typo cannot load clean and be silently ignored", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { hostinput: {} },
+      expect: { prints: [] },
+    }),
+    /is not a JSON-expressible ExecuteOptions key/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { hostInput: { events: [{ kind: "click" }] } },
+      expect: { prints: [] },
+    }),
+    /tick must be a finite number/,
+  );
+});
+
+const ONE_CLICK_OPTIONS = {
+  hostInput: { events: [{ tick: 1, kind: "click" }] },
+};
+
+test("validateHostInputEntry rejects an entry whose schedule delivers nothing", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { randomSeed: 1 },
+      expect: { prints: [{ values: [1] }] },
+    }),
+    /must deliver at least one event/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { hostInput: { events: [] } },
+      expect: { prints: [{ values: [1] }] },
+    }),
+    /must deliver at least one event/,
+  );
+});
+
+test("validateHostInputEntry requires an expect object", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", { executeOptions: ONE_CLICK_OPTIONS }),
+    /must declare an "expect" object/,
+  );
+});
+
+test("validateHostInputEntry rejects an unknown expect key", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { printed: [] },
+    }),
+    /"expect.printed" is not a known key/,
+  );
+});
+
+test("validateHostInputEntry type-checks the expect fields", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { prints: {} },
+    }),
+    /"expect.prints" must be an array/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: [] },
+    }),
+    /"expect.eventCounts" must be an object/,
+  );
+});
+
+test("validateHostInputEntry rejects an eventCounts key that is not in the @openlogo/core registry — a misspelled kind would assert 0 forever", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { draw_segment: 1 } },
+    }),
+    /is not an event kind in the @openlogo\/core registry/,
+  );
+  assert.equal(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { "draw-segment": 1 } },
+    }),
+    null,
+  );
+});
+
+test("validateHostInputEntry rejects a non-integer or negative event count", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { print: 1.5 } },
+    }),
+    /must be a non-negative integer/,
+  );
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: ONE_CLICK_OPTIONS,
+      expect: { eventCounts: { print: -1 } },
+    }),
+    /must be a non-negative integer/,
+  );
+});
+
+test("validateHostInputEntry rejects an entry that schedules input but asserts nothing — including an EMPTY prints array or eventCounts object, which satisfy 'declared' while asserting zero things", () => {
+  for (const expect of [{}, { prints: [] }, { eventCounts: {} }]) {
+    assert.match(
+      validateHostInputEntry("x.logo", {
+        executeOptions: ONE_CLICK_OPTIONS,
+        expect,
+      }),
+      /must assert something/,
+      `expected ${JSON.stringify(expect)} to be rejected`,
+    );
+  }
+});
+
+test("validateHostInputEntry rejects an entry that schedules input but asserts nothing", () => {
+  assert.match(
+    validateHostInputEntry("x.logo", {
+      executeOptions: { hostInput: { events: [{ tick: 1, kind: "click" }] } },
+      expect: {},
+    }),
+    /must assert something/,
+  );
+});
+
+test("runExamplesGate runs a listed example with its schedule and reports the with-input count", () => {
+  writeExample("clicks.logo", COUNTING_CLICKS);
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "clicks.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    hostInputManifest: { "clicks.logo": CLICK_TWICE },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.ran, 1);
+  assert.equal(result.ranWithInput, 1);
+  assert.ok(result.lines.includes("PASS clicks.logo (with host input)"));
+  assert.match(
+    result.lines.at(-1),
+    /ran 1 \(1 with a host input schedule, 0 with an empty host\)/,
+  );
+});
+
+test("runExamplesGate leaves an unlisted example running with an empty host", () => {
+  writeExample("plain.logo", "forward 10\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "plain.logo": ["core-language", "turtle-rendering"] },
+    hostInputManifest: {},
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.ranWithInput, 0);
+  assert.ok(result.lines.includes("PASS plain.logo"));
+  assert.match(
+    result.lines.at(-1),
+    /ran 1 \(0 with a host input schedule, 1 with an empty host\)/,
+  );
+});
+
+test("runExamplesGate fails a listed example whose declared output does not appear", () => {
+  writeExample("clicks.logo", COUNTING_CLICKS);
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "clicks.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    hostInputManifest: {
+      "clicks.logo": {
+        // One click delivered, two prints expected — a real schedule whose declared output does
+        // not appear, rather than a schedule that delivers nothing (which validation now rejects).
+        executeOptions: { hostInput: { events: [{ tick: 1, kind: "click" }] } },
+        expect: { prints: [{ values: [1] }, { values: [2] }] },
+      },
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failed, 1);
+  assert.match(result.lines[0], /^FAIL clicks.logo: expected prints/);
+});
+
+test("runExamplesGate fails a malformed host-input entry instead of silently ignoring it", () => {
+  writeExample("clicks.logo", COUNTING_CLICKS);
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "clicks.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    hostInputManifest: {
+      "clicks.logo": { executeOptions: ONE_CLICK_OPTIONS, expect: {} },
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.ran, 0);
+  assert.match(result.lines[0], /^FAIL clicks.logo: .*must assert something/);
+});
+
+test("runExamplesGate FAILS an example that registers a handler needing host delivery but has no entry — so a deleted or misspelled entry cannot silently return it to an empty host", () => {
+  writeExample("clicks.logo", COUNTING_CLICKS);
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "clicks.logo": [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ],
+    },
+    hostInputManifest: { "clicks-typo.logo": CLICK_TWICE },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failed, 1);
+  assert.match(
+    result.lines[0],
+    /^FAIL clicks.logo: registers a handler that needs host delivery .* but has no entry/,
+  );
+});
+
+test("runExamplesGate leaves a handler-free example alone: no entry required", () => {
+  writeExample("plain.logo", "forward 10\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "plain.logo": ["core-language", "turtle-rendering"] },
+    hostInputManifest: {},
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.ranWithInput, 0);
+});
+
+test("registersHostHandlers keys on 'needs delivery', not on 'is an interaction form'", () => {
+  assert.equal(registersHostHandlers("on_click [ print 1 ]"), true);
+  assert.equal(registersHostHandlers('on_key "a" [ print 1 ]'), true);
+  // Measured under an EMPTY host, each source followed by `wait 100`: `when "stop"` prints 0 (and 1
+  // once a host delivers `stop`), so it needs a schedule; `when "start"` prints 1 because the
+  // runtime delivers it internally; `every 10` prints 10 off its own tick clock — and that 10
+  // belongs to the `wait`, not to `every` (2 under `wait 20`, 0 with no wait at all). Round 2
+  // wrongly required schedules for all four heads; round 3 wrongly excluded all of `when`,
+  // reopening the hole. The boundary is delivery, not head shape: `when` has two behaviours, so it
+  // was never classifiable as a head.
+  assert.equal(registersHostHandlers('when "stop" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "acme.shake" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "start" [ print 1 ]'), false);
+  // Word values preserve case and the runtime matches the delivered word exactly, so `"START"` is
+  // NOT the internally-delivered `"start"`: measured, it prints 0 under an empty host and 1 only
+  // when a host delivers `START`. Round 4 case-folded here and this assertion pinned the wrong
+  // answer — the third time in this slice a test asserted the behaviour it should have caught.
+  assert.equal(registersHostHandlers('when "START" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers('when "Start" [ print 1 ]'), true);
+  assert.equal(registersHostHandlers("every 10 [ print 1 ]"), false);
+  assert.equal(registersHostHandlers("forward 10"), false);
+  // `wait` and `input` are in the interaction table but lower to `Call`, not `ProfileStatement`,
+  // and neither needs a delivered event to do its job.
+  assert.equal(registersHostHandlers("wait 10"), false);
+  assert.equal(registersHostHandlers('print input "name"'), false);
+  // A dynamic event word cannot be classified statically, so it is treated as needing a schedule —
+  // the conservative direction for a gate that exists to stop handlers going unasserted.
+  assert.equal(registersHostHandlers("when :chosen [ print 1 ]"), true);
+});
+
+test("an example whose only interaction fires without a host needs no schedule", () => {
+  writeExample(
+    "timer.logo",
+    'every 5 [ forward 1 ]\nwhen "start" [ print 1 ]\nwait 20\n',
+  );
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: {
+      "timer.logo": ["core-language", "turtle-rendering", "interaction-events"],
+    },
+    hostInputManifest: {},
+  });
+  assert.equal(result.ok, true, result.lines.join("\n"));
+  assert.equal(result.ranWithInput, 0);
+});
+
+test('a `when "stop"` example needs a schedule, and passes once it has one — the false negative round 3 found', () => {
+  const manifest = {
+    "stopper.logo": ["core-language", "turtle-rendering", "interaction-events"],
+  };
+  writeExample("stopper.logo", 'when "stop" [ print 1 ]\nwait 10\n');
+  const withoutEntry = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest,
+    hostInputManifest: {},
+  });
+  assert.equal(withoutEntry.ok, false);
+  assert.match(
+    withoutEntry.lines[0],
+    /^FAIL stopper.logo: registers a handler that needs host delivery/,
+  );
+
+  const withEntry = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest,
+    hostInputManifest: {
+      "stopper.logo": {
+        executeOptions: {
+          hostInput: { events: [{ tick: 1, kind: "event", event: "stop" }] },
+        },
+        expect: { prints: [{ values: [1] }] },
+      },
+    },
+  });
+  assert.equal(withEntry.ok, true, withEntry.lines.join("\n"));
+  assert.equal(withEntry.ranWithInput, 1);
+});
+
+test("runExamplesGate reports a malformed entry even for an example it will SKIP — entry checks are hoisted above the skip for the same anti-masking reason the under-declaration check is", () => {
+  writeExample("later.logo", "challenge\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "later.logo": ["core-language", "tutor-ai"] },
+    hostInputManifest: {
+      "later.logo": { executeOptions: ONE_CLICK_OPTIONS, expect: {} },
+    },
+    implementedProfiles: ["core-language"],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, 0);
+  assert.match(result.lines[0], /^FAIL later.logo: .*must assert something/);
+});
+
+test("runExamplesGate still SKIPs an example needing an unimplemented profile when its entry is absent and it registers no handlers", () => {
+  writeExample("later.logo", "challenge\n");
+  const result = runExamplesGate({
+    dir: TEMP_DIR,
+    manifest: { "later.logo": ["core-language", "tutor-ai"] },
+    hostInputManifest: {},
+    implementedProfiles: ["core-language"],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.ranWithInput, 0);
+});
+
+// --- The real manifests describe the real corpus -------------------------------------------------
+
+test("loadHostInputManifest reads the real manifest and drops its _comment key", () => {
+  const entries = loadHostInputManifest();
+  assert.ok(!("_comment" in entries));
+  assert.ok(Object.keys(entries).length > 0);
+});
+
+test("every scripts/examples-host-input.json entry names a real example and is well-formed", () => {
+  const examples = new Set(
+    readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith(".logo")),
+  );
+  for (const [file, entry] of Object.entries(loadHostInputManifest())) {
+    assert.ok(
+      examples.has(file),
+      `${HOST_INPUT_PATH} names ${file}, which is not in ${EXAMPLES_DIR} — its assertions would silently stop running`,
+    );
+    assert.equal(validateHostInputEntry(file, entry), null);
+  }
+});
+
+test("10-game.logo's interaction contract is actually asserted, and fails without the schedule", () => {
+  // The regression this whole mechanism exists to prevent. With the entry's schedule the example
+  // passes; with the schedule emptied — a handler that cannot fire, which is what #952 was in the
+  // studio — the very same expectations fail.
+  const source = readFileSync(join(EXAMPLES_DIR, "10-game.logo"), "utf8");
+  const entry = loadHostInputManifest()["10-game.logo"];
+  assert.deepEqual(classifyExample(source, "10-game.logo", entry), {
+    status: "pass",
+  });
+  const inert = {
+    ...entry,
+    executeOptions: { ...entry.executeOptions, hostInput: { events: [] } },
+  };
+  const result = classifyExample(source, "10-game.logo", inert);
+  assert.equal(result.status, "fail");
+  assert.match(result.reason, /expected prints/);
+  assert.match(result.reason, /expected 3 "turn" event\(s\) but got 1/);
+  assert.match(result.reason, /expected 1 "draw-segment" event\(s\) but got 0/);
 });

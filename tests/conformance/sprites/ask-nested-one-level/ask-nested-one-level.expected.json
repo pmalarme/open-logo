@@ -1,0 +1,246 @@
+{
+  "description": "issue #675 (SP3): nested `ask` restores exactly one level. The inner `ask :b` addresses turtle 2 for its block, then the outer `ask :a` set is restored so the outer `forward 5` moves turtle 1, not turtle 2. Every change of the addressed set — here from `ask` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 1],
+        "end": [3, 43]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 1],
+        "end": [3, 43]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 10],
+        "end": [3, 31]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 10],
+        "end": [3, 31]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 19],
+        "end": [3, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 19],
+        "end": [3, 29]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 19],
+        "end": [3, 29]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 10],
+        "end": [3, 31]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 32],
+        "end": [3, 41]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 32],
+        "end": [3, 41]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 5],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 14,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 32],
+        "end": [3, 41]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 5],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-nested-one-level/ask-nested-one-level",
+        "start": [3, 1],
+        "end": [3, 43]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    }
+  ],
+  "diagnostics": []
+}

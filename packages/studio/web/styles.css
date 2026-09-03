@@ -500,6 +500,20 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   background: var(--ol-button-reset);
 }
 
+/* #952 — `on_click`'s "equivalent accessible action" (spec/interaction-events.md:241-242): a real
+   button beside the canvas it activates, so the drawing surface is reachable without a pointer.
+   Styled like the run controls but outside their toolbar, since it belongs to the turtle pane. */
+#canvas-activate-button {
+  background: var(--ol-button-reset);
+  color: var(--ol-surface);
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* #310 — the turtle-speed slider control, inline with Run/Stop/Reset in the same toolbar. */
 .speed-control {
   display: inline-flex;
@@ -527,6 +541,73 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
 :focus-visible {
   outline: 3px solid var(--ol-orange);
   outline-offset: 2px;
+}
+
+/* #769 — the `input` prompt dialog. A native `<dialog>` opened with `showModal()`, so the browser
+   owns the focus scope, focus restoration, and Escape; this rule set is purely the studio's own
+   surface/spacing/palette applied to it. It is only ever painted while a program is actually
+   waiting on a read — a closed `<dialog>` renders nothing, which is why the studio's layout
+   baselines are unchanged by this slice. */
+#input-prompt {
+  border: 1px solid var(--ol-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  min-width: min(24rem, 90vw);
+  max-width: min(34rem, 90vw);
+  background: var(--ol-surface);
+  color: var(--ol-navy);
+  box-shadow: 0 8px 32px rgb(28 36 48 / 25%);
+}
+
+#input-prompt::backdrop {
+  background: rgb(28 36 48 / 45%);
+}
+
+#input-prompt-message {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  /* The learner's own prompt text, set via textContent — it may be any length, and long or
+     unbroken words must wrap rather than force the dialog wider than the viewport. */
+  overflow-wrap: anywhere;
+}
+
+#input-prompt-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+#input-prompt-field {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  background: var(--ol-background);
+}
+
+.input-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.input-prompt-actions button {
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ol-surface);
+  background: var(--ol-button-start);
+}
+
+#input-prompt-cancel {
+  background: var(--ol-button-reset);
 }
 
 #turtle-canvas {

@@ -34,9 +34,9 @@ end
 | File | Purpose |
 |---|---|
 | [README.md](README.md) | This hub: overview, navigation, glossary, references, license, and contribution pointers. |
-| [conformance.md](conformance.md) | Profiles, feature mapping, dependency DAG, feature detection, versioning, and normative/informative status. |
+| [conformance.md](conformance.md) | Profiles, feature mapping, dependency DAG, feature detection, versioning, and normative/informative status. Also the normative home of the optional **Heritage** profile ([Heritage](conformance.md#heritage)), which has no separate document. |
 | [vision.md](vision.md) | Educational philosophy, audience, principles, anti-goals, and open-source ethos. |
-| [grammar.md](grammar.md) | Lexis, EBNF, precedence, block forms, places, postfix access, and reserved words. |
+| [grammar.md](grammar.md) | Lexis, EBNF, precedence, block forms, places, postfix access, keywords, and built-in names. |
 | [commands.md](commands.md) | Core, word/list, and turtle primitive reference using the canonical signatures. |
 | [execution-model.md](execution-model.md) | Values, reader/evaluator, scoping, state, equality, safety, control flow, trace events, and mutation semantics. |
 | [educational-model.md](educational-model.md) | Learning levels, concept-to-command map, and deterministic `explain`, `why`, `hint`, and `debug` behavior. |

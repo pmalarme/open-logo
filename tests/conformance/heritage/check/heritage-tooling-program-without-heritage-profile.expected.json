@@ -1,0 +1,175 @@
+{
+  "description": "issue #671 (H6 tooling): the Core-only negative of `heritage-tooling-program-checks-clean`. Checked with the MINIMAL profile set (pure `core-language`, no Data) so a pass proves each Heritage spelling is unknown without relying on any other profile. The profile-blind reader groups every Heritage spelling's arguments by registered arity regardless of profile (spec/tooling.md), so this parses cleanly; but without the Heritage profile the Layer-2 checker rejects every one of the four shapes at its own span - the short command aliases `fd`/`rt`/`pu`/`pd`/`st`/`ht`, the list-reporter aliases `bf`/`se` (in expression position), the form-heads `to`/`make`/`output`, and the `value of … for key` reader head `value`. The alias/form-head rejections carry a Core did-you-mean where one is within edit distance; the reader head carries none (its Core equivalent is the `[]`/`.` selector syntax, not a word). Diagnostics are ordered as the checker emits them: the visible-name (unknown-command) pass over the aliases first, then the Heritage form-head/reader gate. The user procedure `describe` and its parameter `:d`/`:count` stay known.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [3, 14],
+        "end": [3, 16]
+      },
+      "params": {
+        "name": "fd",
+        "suggestion": "add"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [3, 20],
+        "end": [3, 22]
+      },
+      "params": {
+        "name": "rt",
+        "suggestion": "at"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [4, 3],
+        "end": [4, 5]
+      },
+      "params": {
+        "name": "pu",
+        "suggestion": "pi"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [5, 3],
+        "end": [5, 5]
+      },
+      "params": {
+        "name": "pd",
+        "suggestion": "pi"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [6, 3],
+        "end": [6, 5]
+      },
+      "params": {
+        "name": "st",
+        "suggestion": "at"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [7, 3],
+        "end": [7, 5]
+      },
+      "params": {
+        "name": "ht",
+        "suggestion": "at"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [8, 9],
+        "end": [8, 11]
+      },
+      "params": {
+        "name": "bf",
+        "suggestion": "by"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [9, 9],
+        "end": [9, 11]
+      },
+      "params": {
+        "name": "se",
+        "suggestion": "set"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [1, 1],
+        "end": [1, 3]
+      },
+      "params": {
+        "name": "to",
+        "suggestion": "define"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [2, 3],
+        "end": [2, 7]
+      },
+      "params": {
+        "name": "make",
+        "suggestion": "set"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [10, 9],
+        "end": [10, 14]
+      },
+      "params": {
+        "name": "value"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "heritage/check/heritage-tooling-program-without-heritage-profile",
+        "start": [11, 3],
+        "end": [11, 9]
+      },
+      "params": {
+        "name": "output",
+        "suggestion": "return"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

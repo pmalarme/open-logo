@@ -1,0 +1,5 @@
+set_tempo 120
+:friend = new_turtle
+wait 1
+beep
+print who == first turtles

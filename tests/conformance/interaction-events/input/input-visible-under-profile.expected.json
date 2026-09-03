@@ -1,0 +1,7 @@
+{
+  "description": "issue #681 (slice I2), the tooling half of the slice: with `interaction-events` active, a program that USES `input` checks clean. Both halves of a name's registration land in this slice — the reader/checker arity entry (`packages/parser/src/signatures.ts`) and the runtime evaluator — so a program that checks clean is a program the runtime can actually execute. The tooling slice (#687) deliberately left `input` out for exactly that reason: registering a known callee with no evaluator behind it would let a program check clean and then fail at runtime. `input` is nested inside a procedure body rather than sitting at top level, so a registration that only handled a top-level occurrence cannot pass. This is a check-mode fixture: it proves static NAME VISIBILITY and arity only — the execution fixtures beside it cover the read itself.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

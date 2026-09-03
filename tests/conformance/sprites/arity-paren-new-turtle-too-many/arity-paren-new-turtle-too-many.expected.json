@@ -1,0 +1,19 @@
+{
+  "description": "issue #874: `new_turtle` is a Kind-R reporter taking 0 inputs (`spec/turtles-and-sprites.md:21`), so `(new_turtle 1 2)` reports `actual: 2` against `expected: 0`. Supplying TWO inputs rather than one is deliberate — it pins that the finding carries the real argument count rather than a hardcoded `1`, which a fixture that only ever over-supplies by one cannot distinguish. Check-only for the same reason as arity-paren-who-too-many: the runtime's call-time check does not yet reject an over-supplied zero-arity reporter.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "sprites/arity-paren-new-turtle-too-many/arity-paren-new-turtle-too-many",
+        "start": [1, 2],
+        "end": [1, 12]
+      },
+      "params": { "callable": "new_turtle", "expected": 0, "actual": 2 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

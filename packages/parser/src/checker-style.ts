@@ -1,6 +1,6 @@
 /**
  * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 13-code `ol-style-*`
- * family `spec/tooling.md:237-251` registers, sourced from `spec/style-guide.md`). Every finding
+ * family `spec/tooling.md:238-252` registers, sourced from `spec/style-guide.md`). Every finding
  * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
  * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
  *
@@ -17,9 +17,9 @@
  *   control-body, warning-severity analog of `checker-control-flow.ts`'s `ol-no-value`
  *   (comprehension-body, error-severity) — both reuse the exact same
  *   {@link producesValue}/command-vs-reporter classification from that module so the two never
- *   drift apart. Reproduces the spec's own worked example verbatim
- *   (`spec/tooling.md:254-262`): `repeat 4 [ :side * 2 ]` → `ol-style-useless-value
- *   { form: "repeat" }`.
+ *   drift apart. Reproduces the spec's own worked example — the `… end repeat` block form at
+ *   `spec/tooling.md:255-264`, written here in its equivalent bracket form:
+ *   `repeat 4 [ :side * 2 ]` → `ol-style-useless-value { form: "repeat" }`.
  * - `ol-style-equality-confusion` — a standalone top-level comparison statement (a
  *   `ComparisonChain` containing at least one `==`/`!=`, or a `Call`/`ParenCall` whose callee is
  *   `==`/`!=`) whose boolean result is discarded — usually a slip where the learner meant to
@@ -33,31 +33,29 @@
  * - `ol-style-name-case` — a user identifier (variable, place base/field, procedure name,
  *   parameter, loop/comprehension binder) that is not lowercase snake_case with an optional
  *   trailing `?`/`!` (`spec/style-guide.md` "Names use `snake_case`"), checked against
- *   `^[a-z][a-z0-9_]*[?!]?$`. The same code also covers "Keywords are lowercase" in full:
- *   - A `Call`/`ParenCall` callee is checked *only* when its lowercased spelling is a known Core
- *     primitive/command (e.g. `PRINT`), so `PRINT 1` is flagged but a user-defined procedure call
- *     is left alone (see `checkNamesIn`'s `Call`/`ParenCall` case for why). Word-spelled operators
- *     (`mod`/`and`/`or`/`not`) are excluded from that check — the parser normalizes their callee
- *     spelling to canonical lowercase regardless of source casing, so a non-lowercase source
- *     spelling never survives into the AST to check (see `CORE_CALLEE_NAMES`'s doc comment).
- *   - A bare structural keyword that opens a control form, a procedure definition, `return`/
- *     `stop`/`throw`, or a `map`/`filter`/`reduce` comprehension is also checked, e.g.
- *     `REPEAT 4 [ ... ]` is flagged with `params: { name: "REPEAT" }` (see
- *     {@link checkKeywordCasing}). Unlike a primitive callee, no `ast.ts` node carries a field for
- *     its own keyword's *literal* source spelling (`ReturnNode.keyword` and
+ *   `^[a-z][a-z0-9_]*[?!]?$`. The same code also covers "Keywords are lowercase", for every
+ *   keyword or primitive that has a span of its own to judge:
+ *   - A `Call`/`ParenCall` callee is checked *only* when it is a **built-in name**
+ *     ({@link isBuiltInName}), so `PRINT 1` and `FORWARD 100` are flagged but a user-defined
+ *     procedure call is left alone (see `checkNamesIn`'s `Call`/`ParenCall` case for why).
+ *   - A statement whose own span opens with a built-in name written in some other case is flagged
+ *     too, e.g. `REPEAT 4 [ ... ]` with `params: { name: "REPEAT" }` (see
+ *     {@link keywordCasingDiagnostic}). Unlike a primitive callee, no `ast.ts` node carries a field
+ *     for its own keyword's *literal* source spelling (`ReturnNode.keyword` and
  *     `ComprehensionNode.form` both store only the canonical lowercase spelling the parser
  *     normalizes to), so this check can only run when `check()`'s caller supplies the original
  *     `source` text (the conformance harness and every real production caller do) — see
- *     {@link checkKeywordCasing}'s own doc comment for the source-unavailable fallback. `local` is
- *     deliberately excluded — its node span starts at the opening paren, not the keyword, in the
- *     `(local name …)` surface form, so a single span-start slice cannot safely tell that form
- *     apart from bare `local name` (see {@link STRUCTURAL_KEYWORD}'s doc comment) — deferred to
- *     the #169 follow-up. The trailing closing keyword (`end repeat`, `end if`, …) is **not**
- *     checked either: `ast.ts`'s `BlockNode` records only the body statements, not the closing
- *     keyword's own span, so there is nothing to slice `source` against for it; that narrower
- *     sub-case is likewise deferred to the #169 follow-up. Struct/field type names have no Core
- *     AST node yet (Data profile), so they are out of scope for the same reason
- *     `checker-reserved-word.ts` documents.
+ *     {@link keywordCasingDiagnostic}'s own doc comment for the source-unavailable fallback.
+ *   - A keyword with **no span of its own** is out of scope and deferred to the #115 follow-up:
+ *     `else` (no `else` span on `IfNode`), a block's closing `end repeat`/`end if` (`ast.ts`'s
+ *     `BlockNode` records only the body statements), and the worded reader's `of`/`for`/`key`
+ *     (only its head `value` is spanned). Struct/field type names have no Core AST node yet (Data
+ *     profile), so they are out of scope for the same reason `checker-reserved-word.ts` documents.
+ *
+ *     Both checked halves consult the **registries** rather than a list of names or of node kinds
+ *     (issue #854, epic #900: *no component enumerates built-in names by hand*) — see
+ *     {@link isBuiltInName} for the three sources and {@link leadingWordAt} for why reading a whole
+ *     word out of the source is what removes the node-kind table.
  * - `ol-style-magic-number` — a numeric literal, outside a small safe/idiomatic set
  *   (`spec/style-guide.md`'s own list: `0`, `1`, `2`, `4`, `90`, `120`, `360`), that occurs two or
  *   more times as a bare literal anywhere in the program ("Repeated unexplained numeric literals
@@ -97,7 +95,7 @@
  *   the helper's own body must not inherit its caller's depth. See {@link collectDeepNesting}.
  * - `ol-style-block-indentation` — a multi-line `Block` (same one-line exemption as above) with
  *   two or more direct statements whose start *columns* disagree ("Indent the contents of `[ ]`
- *   and long `… end` blocks consistently", `spec/tooling.md:243` — the word is "consistently", not
+ *   and long `… end` blocks consistently", `spec/tooling.md:244` — the word is "consistently", not
  *   a specific width, so this rule is deliberately a **consistency** check among sibling
  *   statements, never an absolute-indent-width check, to stay conservative and avoid flagging a
  *   uniformly (if unusually) indented block). The majority column among the block's direct
@@ -107,7 +105,7 @@
  *   `forever`/`for … in`/`for … from … to` body only — never a comprehension body, which the
  *   grammar restricts to `[ … ]` alone, and never a `define … end` procedure body, which has no
  *   bracket form at all) that spans more than one physical line ("Suggest a `… end` block when a
- *   bracketed `[ ]` control body spans multiple lines", `spec/tooling.md:244`). `ast.ts`'s
+ *   bracketed `[ ]` control body spans multiple lines", `spec/tooling.md:245`). `ast.ts`'s
  *   `BlockNode` does not record its own surface delimiter, but {@link isBracketBlock} recovers it
  *   reliably from spans alone — see its doc comment for the exact parser invariant this exploits.
  *   See {@link preferBlockRule}.
@@ -135,6 +133,7 @@ import type {
   AnyNode,
   BlockNode,
   ExpressionNode,
+  NodeKind,
   NumberLitNode,
   ProgramNode,
   ReturnNode,
@@ -143,8 +142,8 @@ import type {
 } from "./ast.js";
 import { childrenOf, walk } from "./ast.js";
 import type { CheckProfile, CheckRule } from "./check.js";
-import { CORE_COMMANDS, producesValue } from "./checker-control-flow.js";
-import { corePrimitiveNames } from "./signatures.js";
+import { isBuiltInName } from "./built-in-names.js";
+import { producesValue } from "./checker-control-flow.js";
 
 /** The `form` param {@link uselessValueRule} reports for each control-block kind it judges. */
 const CONTROL_FORM: Readonly<
@@ -317,17 +316,29 @@ export function equalityConfusionRule(
 const NAME_CASE_PATTERN = /^[a-z][a-z0-9_]*[?!]?$/;
 
 /**
- * Every canonical Core primitive/command spelling this rule checks callee casing against. The
- * word-spelled operators (`mod`/`and`/`or`/`not`) are deliberately excluded: the parser matches
- * them case-insensitively but always *normalizes* the callee's stored spelling to its canonical
- * lowercase form (see `parser.ts`'s `parseMultiplicative`/`parseAnd`/`parseOr`/`parseUnary`), so a
- * source `MOD`/`AND` never survives into the AST for this rule to see — unlike a `Call` built by
- * `parseFixedCall`, which keeps the literal token spelling (`sname(token.text, token)`).
+ * The casing lint's built-in-name question is **the shared predicate**, not a local composition.
+ *
+ * It used to be one: `isKeyword` + `primitiveArity` + `heritageSurfaceSpellings`, with a comment
+ * conceding that it agreed with `built-in-names.ts` as "a fact about the registry, not a property
+ * either module guarantees", and deferring the narrowing to a corpus sweep that closed without
+ * doing it. Measured before the collapse (issue #965): the two agreed on all **148** names of the
+ * complete registry universe, but **13** of them — `bf bk bl cs fd ht lt pd pr pu rt se st` — were
+ * true on one side through alias resolution and on the other through the surface-spelling registry.
+ * Names that coincide through different legs are not names that correspond, and nothing compared
+ * them, so the agreement was an unenforced assertion inside the epic that forbids them.
+ *
+ * `built-in-names.ts` now consults the surface-spelling registry itself, which was this rule's only
+ * substantive extra source, so there is nothing left for a second composition to carry. Everything
+ * the deleted block documented still holds and is documented there: the derivation is registry
+ * consultations rather than a list (issue #854), and its bound was tested in flight when issue #838
+ * registered `TUTOR_PRIMITIVE_ARITY` and this rule began covering `challenge` with no edit at all.
+ *
+ * Membership is **profile-independent on purpose** — see {@link nameCaseRule} for why. It is also
+ * independent of what the program *declares*: `spec/grammar.md:363` is "a program may not declare
+ * a built-in name", so `define print … end` is an `ol-reserved-word` error rather than a shadowing
+ * that could make `PRINT`'s casing stop mattering. A call to a name that is in no registry — an
+ * ordinary user procedure — is left alone by construction, with no exemption needed.
  */
-const CORE_CALLEE_NAMES: ReadonlySet<string> = new Set([
-  ...corePrimitiveNames(),
-  ...CORE_COMMANDS,
-]);
 
 /** Build an `ol-style-name-case` at `name`'s own span. */
 function nameCaseDiagnostic(name: SpannedName): Diagnostic {
@@ -349,60 +360,51 @@ function checkNameCase(name: SpannedName, diagnostics: Diagnostic[]): void {
 }
 
 /**
- * Canonical opening-keyword spelling for every node kind whose own keyword casing
- * `ol-style-name-case` checks (`spec/style-guide.md` "Keywords are lowercase"). `ForIn` and
- * `ForRange` share the same `"for"` keyword, since the grammar branches on what follows `for`,
- * not on a different opening word (`spec/grammar.md`'s `for-in`/`for-range` productions).
- *
- * `Comprehension` is not a static entry here: `map`/`filter`/`reduce` share one node kind, and its
- * keyword is picked at lookup time from the node's own `form` field instead (see
- * {@link structuralKeywordFor}) — `form` is itself always the lowercased spelling (`parser.ts`'s
- * `parseComprehension(token, lower)` passes the already-`toLowerCase()`d text as `form`), so it is
- * exactly the canonical spelling to compare `source` against, never a stand-in for the literal one.
- *
- * `Local` is deliberately excluded: its node span starts at the `local` keyword token for the bare
- * `local name` form (`parseLocal`), but at the *opening paren* for `(local name …)`
- * (`parseParenLocal`'s `spanToHere(open.source_span.start)`, where `open` is the `(` token) — the
- * AST does not record which surface form was used, so a single span-start slice cannot
- * distinguish them without risking a false read on the paren form. That narrower sub-case is
- * deferred to the #115 follow-up rather than guessed at.
+ * An identifier-shaped word, anchored at the start of the text it is matched against — the shape
+ * `tokens.ts` lexes a name/keyword as, plus the optional trailing `?`/`!`
+ * {@link NAME_CASE_PATTERN} allows, so a predicate name is read as ONE word rather than a stem.
+ * Deliberately case-insensitive in the leading class: this pattern exists to read the learner's
+ * *literal* casing back out of the source, so it must match `REPEAT` and `Repeat` as readily as
+ * `repeat`.
  */
-const STRUCTURAL_KEYWORD: Readonly<Record<string, string>> = {
-  If: "if",
-  While: "while",
-  Repeat: "repeat",
-  Forever: "forever",
-  ForIn: "for",
-  ForRange: "for",
-  ProcedureDef: "define",
-  Return: "return",
-  Stop: "stop",
-  Throw: "throw",
-};
+const LEADING_WORD_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*[?!]?/;
 
 /**
- * Look up the canonical keyword casing `ol-style-name-case` should check `node`'s own span
- * against, if any. Every kind in {@link STRUCTURAL_KEYWORD} is a direct lookup; `Comprehension` is
- * the one dynamic case, keyed off its own `form` (`map`/`filter`/`reduce`) since all three share
- * one node kind and each carries its own keyword's length.
+ * The identifier-shaped word `lines` begins with at 1-based `[line, column]` position `start`, or
+ * `undefined` when no word starts exactly there.
+ *
+ * `undefined` is the load-bearing case, and it is what lets this rule be derived instead of
+ * enumerated. A node's span starts at its opening token, but that token is only *sometimes* a
+ * word: `(local name …)` starts at the `(`, `:x = 1` at the `:`, `[ … ]` at the `[`. The previous
+ * implementation sliced a FIXED number of characters and compared them against a per-node-kind
+ * canonical, so it had to keep a hand-written table of node kinds it dared to slice at — and
+ * `Local` had to be excluded by hand, because `(loca` would have been reported verbatim as a
+ * mis-cased keyword. Reading a whole word and asking a registry whether it *is* a built-in inverts
+ * that: a non-word start simply yields no candidate, so the false read the exclusion guarded
+ * against is now structurally impossible rather than hand-avoided.
+ *
+ * `start`'s line is always within `lines`' own range, since it comes from a node the same source
+ * was just parsed into — `noUncheckedIndexedAccess` cannot correlate that invariant with an
+ * indexed access, so this documents it instead of adding an unreachable fallback that would fail
+ * the 100% branch-coverage gate (the same pattern `checker-not-a-place.ts`'s `renderPlace` uses).
  */
-function structuralKeywordFor(node: AnyNode): string | undefined {
-  if (node.kind === "Comprehension") {
-    return node.form;
-  }
-  return STRUCTURAL_KEYWORD[node.kind];
+function leadingWordAt(
+  lines: readonly string[],
+  start: Position,
+): string | undefined {
+  const [line, column] = start;
+  const lineText = lines[line - 1] as string;
+  return LEADING_WORD_PATTERN.exec(lineText.slice(column - 1))?.[0];
 }
 
 /**
  * Slice `length` characters out of `source` starting at 1-based `[line, column]` position
- * `start`. A control node's own span always starts at its opening keyword token (confirmed for
- * every {@link STRUCTURAL_KEYWORD} kind in `parser.ts`: e.g. `parseRepeat`'s
- * `spanToHere(token.source_span.start)`), and a keyword token never itself contains a newline, so
- * the slice never crosses a line boundary. `start`'s line is always within `source`'s own line
- * range, since it comes from a node the same `source` was just parsed into —
- * `noUncheckedIndexedAccess` cannot correlate that invariant with an indexed access, so this
- * documents it instead of adding an unreachable fallback that would fail the 100%
- * branch-coverage gate (the same pattern `checker-not-a-place.ts`'s `renderPlace` uses).
+ * `start`. Its one caller, {@link isBracketBlock}, reads a single delimiter character back out of
+ * the source at a span end. `start`'s line is always within `source`'s own line range, since it
+ * comes from a node the same `source` was just parsed into — `noUncheckedIndexedAccess` cannot
+ * correlate that invariant with an indexed access, so this documents it instead of adding an
+ * unreachable fallback that would fail the 100% branch-coverage gate (the same pattern
+ * `checker-not-a-place.ts`'s `renderPlace` uses).
  */
 function sliceKeyword(source: string, start: Position, length: number): string {
   const [line, column] = start;
@@ -411,43 +413,88 @@ function sliceKeyword(source: string, start: Position, length: number): string {
 }
 
 /**
- * Push an `ol-style-name-case` when `node` is a structural keyword written with non-lowercase
- * casing (e.g. `REPEAT 4 [ ... ]`, `RETURN :x`, `MAP :n in :xs [ :n * 2 ]`). Unlike a primitive
- * `Call` callee — whose `SpannedName` is a plain AST field — no `ast.ts` control-flow/statement
- * node kind (`RepeatNode`, `IfNode`, `ReturnNode`, …) records its own keyword's literal source
- * spelling (`ReturnNode.keyword` and `ComprehensionNode.form` both store only the *canonical*
- * lowercase spelling the parser normalizes to — the same normalization `CORE_CALLEE_NAMES`'s doc
- * comment describes for word operators — never the literal source casing), so this check can only
- * run by slicing the original `source` text at the node's own span start. When no `source` is
- * supplied (a caller that only has a `ProgramNode`, with no source text at hand), this check is
- * silently skipped — there is no AST-only fallback for a keyword's literal spelling, unlike
- * `checker-not-a-place.ts`'s `renderNode` fallback for reconstructible expression text.
+ * Node kinds whose own span start is **not** a name-in-that-position, so the word found there must
+ * not be judged as a built-in spelling. This is emphatically **not** a list of built-in names — it
+ * is two statements about the grammar, each with its own reason, and neither drifts when a
+ * primitive or keyword is added:
+ *
+ * - `WordLit` — a bare word literal is **data**. The dictionary-literal and selector productions
+ *   let a key be written bare (`{ print: 1 }`, `:d[print]`), and `spec/grammar.md:386` makes that
+ *   explicit: a keyword is free in every binding position, a dictionary key included. A learner
+ *   writing `{ PRINT: 1 }` has named a key, not miscased the `print` primitive, so reporting it as
+ *   a built-in would be a false positive — and an inconsistent one, since `{ Alpha: 1 }` is rightly
+ *   left alone. Quoted word literals never reach this anyway: their span starts at the `"`, which
+ *   begins no word.
+ * - `Local` — a deliberate, still-open exemption, NOT a casualty of the derivation. Its node span
+ *   starts at the `local` token for bare `local name` but at the *opening paren* for
+ *   `(local name …)` (`parseParenLocal`'s `spanToHere(open.source_span.start)`), and the AST does
+ *   not record which surface form was written — so judging one form and silently not the other
+ *   would be an inconsistency a learner cannot predict. Issue #854 states in as many words that
+ *   `LOCAL` being silent is not part of that bug; widening it belongs to the #115 follow-up, where
+ *   the surface-form question is decided once. (Reading a whole word rather than a fixed-length
+ *   slice does remove the *false read* the old exclusion also guarded against — `(loca` reported
+ *   verbatim as a keyword — so this entry now carries only the consistency reason.)
+ *
+ * `BooleanLit` is deliberately absent: `true`/`false` are keywords, so `print TRUE` is a
+ * keyword-casing slip exactly as `REPEAT` is, not data.
+ *
+ * {@link nameCaseRule} applies this against the *position* a node starts at rather than against the
+ * node itself, because a `Program`/`Block` parent shares its first statement's span start and would
+ * otherwise report the exact word the exemption exists to protect.
  */
-function checkKeywordCasing(
+const NON_KEYWORD_SPAN_START_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+  "WordLit",
+  "Local",
+]);
+
+/**
+ * The `ol-style-name-case` finding for the built-in name `node`'s own span *opens with*, when that
+ * word is written with non-lowercase casing (`REPEAT 4 [ … ]`, `MAKE "x" 1`, `TO f`, `OUTPUT 5`,
+ * `WHEN :ready [ … ]`, `VALUE of :d for key "a"`) — otherwise `undefined`.
+ *
+ * No `ast.ts` node kind records its own keyword's literal source *casing*: the fields that exist
+ * (`ReturnNode.keyword`, `ProcedureDefNode.keyword`, `ComprehensionNode.form`) store the
+ * already-lowercased spelling the parser normalizes to — *which* spelling was written, never *how*
+ * it was cased. So the learner's casing can only come from the original source text, which is why
+ * {@link nameCaseRule} skips this check entirely when no `source` was supplied.
+ *
+ * What changed in issue #854 is *which question the slice asks*. It used to ask "does this node
+ * kind have a canonical keyword, and does a fixed-length slice at its span start differ from it?",
+ * which needed a hand-written table of node kinds — a table that never listed `Assign` or
+ * `ValueOfKey`, leaving `MAKE` and the worded reader permanently silent. It now asks "is the word
+ * this node opens with a built-in name ({@link isBuiltInName}), and did the learner write it in
+ * some other case?" — a question the registries answer for *every* keyword-headed node kind at
+ * once, including the `Add`/`Remove`/`Insert`/`Clear`/`StructDef` heads no table ever reached, and
+ * one that a future node kind gets for free. {@link NON_KEYWORD_SPAN_START_KINDS} carves out the
+ * two positions where the span-start word is not a name being *used*.
+ *
+ * Judging **casing only** is unchanged: choosing a Heritage spelling over its Core twin is a
+ * profile choice, not a style violation, and no `ol-style-*` code in the registry expresses that
+ * opinion — so `to`/`output`/`op`/`make` written lowercase are clean here exactly as
+ * `define`/`return`/`set` are, while `TO`/`OUTPUT`/`OP`/`MAKE` are flagged exactly as
+ * `DEFINE`/`RETURN`/`SET` are.
+ */
+function keywordCasingDiagnostic(
   node: AnyNode,
-  source: string,
-  diagnostics: Diagnostic[],
-): void {
-  const keyword = structuralKeywordFor(node);
-  if (keyword === undefined) {
-    return;
-  }
+  lines: readonly string[],
+): Diagnostic | undefined {
   const { start, document } = node.source_span;
-  const text = sliceKeyword(source, start, keyword.length);
-  if (text === keyword) {
-    return;
+  const word = leadingWordAt(lines, start);
+  if (
+    word === undefined ||
+    word === word.toLowerCase() ||
+    !isBuiltInName(word)
+  ) {
+    return undefined;
   }
-  diagnostics.push({
+  return {
     code: "ol-style-name-case",
-    source_span: makeSpan(document, start, [
-      start[0],
-      start[1] + keyword.length,
-    ]),
-    params: { name: text },
-    message: `${text} should be lowercase, like a learner would read it aloud.`,
+    source_span: makeSpan(document, start, [start[0], start[1] + word.length]),
+    params: { name: word },
+    message: `${word} should be lowercase, like a learner would read it aloud.`,
     stage: "semantic",
     severity: "warning",
-  });
+  };
 }
 
 /**
@@ -511,13 +558,30 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
       return;
     case "Call":
     case "ParenCall":
-      // `spec/style-guide.md` "Keywords are lowercase" also covers *primitive* casing (its own
-      // linter-check note names `ol-style-name-case`, not `ol-style-full-name`, which is about
-      // alias-vs-full-name choice, never case). Only check when the callee's lowercased spelling
-      // is a *known* Core primitive/command — a user procedure call is left alone, since telling
-      // a mistyped user name from a deliberately different one needs the same registries
-      // `ol-unknown-command` consults, deferred to the #115 follow-up.
-      if (CORE_CALLEE_NAMES.has(node.callee.name.toLowerCase())) {
+      // `spec/style-guide.md` "Keywords are lowercase" also covers *primitive* casing — its own
+      // linter-check note reads "warns when canonical keywords or primitive names are written with
+      // other casing", and names `ol-style-name-case`, not `ol-style-full-name`, which is about
+      // alias-vs-full-name choice, never case. Only check when the callee is a *built-in* name
+      // ({@link isBuiltInName}) — a user procedure call is left alone by construction, since an
+      // ordinary user name is in no registry. Telling a *mistyped* user name from a deliberately
+      // different one needs the same registries `ol-unknown-command` consults, and stays deferred
+      // to the #115 follow-up.
+      //
+      // The word-spelled operators (`mod`/`and`/`or`/`not`) are built-in names and so are in the
+      // set, but can never produce a finding *on this path*: the parser matches them
+      // case-insensitively and always *normalizes* the callee's stored spelling to canonical
+      // lowercase (`parser.ts`'s `parseMultiplicative`/`parseAnd`/`parseOr`/`parseUnary`), so a
+      // source `MOD`/`AND` never survives into the AST for this rule to see — unlike a `Call`
+      // built by `parseFixedCall`, which keeps the literal token spelling
+      // (`sname(token.text, token)`). Excluding them would be a hand-kept exception guarding
+      // nothing, which is exactly what issue #854 removed.
+      //
+      // Read that narrowly: it is a statement about the CALLEE path, not about the operators. A
+      // *prefix* operator's node span starts at the operator word itself, so `print NOT true` is
+      // still caught by {@link keywordCasingDiagnostic}, while an *infix* operator's span starts
+      // at its left operand, so `5 MOD 2` is not. That asymmetry follows from spans rather than
+      // from any judgement about the operators, and it is pinned by a test.
+      if (isBuiltInName(node.callee.name)) {
         checkNameCase(node.callee, diagnostics);
       }
       return;
@@ -539,27 +603,108 @@ function checkNamesIn(node: AnyNode, diagnostics: Diagnostic[]): void {
 }
 
 /**
- * `ol-style-name-case` (issue #115): every user identifier occurrence — variable reads, place
- * bases/fields, procedure names, parameters, `local` names, and loop/comprehension binders —
- * that is not lowercase snake_case (`^[a-z][a-z0-9_]*[?!]?$`), plus a known Core primitive/
- * command callee written with non-lowercase casing, plus (when `source` is supplied) a
- * structural keyword (`if`/`while`/`repeat`/`forever`/`for`/`define`/`return`/`stop`/`throw`/
- * `map`/`filter`/`reduce`) written with non-lowercase casing — see {@link checkKeywordCasing}'s
- * doc comment for why `source` is required for that last case only, and
- * {@link STRUCTURAL_KEYWORD}'s doc comment for why `local` is not in that list.
+ * A span's start, as the key {@link nameCaseRule} de-duplicates and exempts on. Two
+ * `ol-style-name-case` findings that start at the same position are always about the same run of
+ * source characters, so at most one of them may be reported.
+ *
+ * The document is part of the key even though one `ProgramNode` is one document today: keying on
+ * `line:column` alone would silently start dropping findings the moment a program spanned more
+ * than one, and a de-duplicator that fails by *discarding* is the wrong failure direction.
+ *
+ * **No test guards the document component, and that is stated here rather than assumed.** A
+ * multi-document `ProgramNode` is not constructible through this package's public API — `parse()`
+ * takes one document — so there is no way to write a failing case for it today, and a mutation
+ * that drops `span.document` from this key goes green. It is defence for a shape the AST does not
+ * yet have; a slice that introduces multi-document programs owns writing the test that makes it
+ * fail closed.
+ */
+function positionKey(span: Diagnostic["source_span"]): string {
+  const [line, column] = span.start;
+  return `${span.document}:${line}:${column}`;
+}
+
+/**
+ * `ol-style-name-case` (issue #115, widened by issue #854): every user identifier occurrence —
+ * variable reads, place bases/fields, procedure names, parameters, `local` names, and
+ * loop/comprehension binders — that is not lowercase snake_case (`^[a-z][a-z0-9_]*[?!]?$`), plus
+ * every **built-in name** ({@link isBuiltInName}) written with some other casing, whether it
+ * reaches this rule as a `Call`/`ParenCall` callee or (when `source` is supplied) as the word a
+ * statement's own span opens with — see {@link keywordCasingDiagnostic} for why the second case
+ * needs the source text, and {@link NON_KEYWORD_SPAN_START_KINDS} for the two positions it skips.
+ *
+ * `spec/tooling.md:241` states the rule in two halves, and this is the second one: "User
+ * identifiers should be lowercase snake_case with optional `?` or `!`; **built-ins should be shown
+ * lowercase**." Issue #854 is what made that half true of built-ins generally rather than of one
+ * hand-written sample of them: `PRINT` warned while `FORWARD` — the first command a learner ever
+ * types — `FD`, `MAKE`, `HOME`, `PLAY`, and the worded `VALUE of … for key` reader did not.
+ *
+ * Coverage is a node's **own span start**, not every keyword inside it, so some sub-cases remain
+ * open for the #115 follow-up and this rule does not claim them: a *trailing* or *interior*
+ * keyword has no span of its own in the AST to slice `source` against. `ELSE` (no `else` span on
+ * `IfNode`), a closing `end repeat`/`end if` (`BlockNode` records only body statements), and the
+ * worded reader's `OF`/`FOR`/`KEY` (only the head `value` is spanned) are therefore still silent.
+ *
+ * **`_profiles` stays unused on purpose, and that is the fix, not a leftover.** A built-in name's
+ * *identity* is profile-independent: `spec/grammar.md:408` rules that profile words are built-in
+ * names unconditionally, because "a program cannot declare which profiles it requires … so a name
+ * that could be declared in one implementation but not in another would be invisible and
+ * unpredictable to a learner", and "what a profile decides is whether a name *works*, never
+ * whether a program may declare it". Casing is a question about the name, not about whether it
+ * runs — so `FORWARD 100` earns the same nudge under any profile set, and a Core-only caller does
+ * not quietly lose the coverage it has today. Whether `forward` is *available* is
+ * `ol-unknown-command`'s (profile-gated) job, and it is unaffected by this warning.
+ *
+ * Findings are de-duplicated by start position, keeping the identifier finding when both halves
+ * land on the same word. Two nodes legitimately share a span start — a `Program`/`Block` starts at
+ * its first statement, and a bare `Call` starts at its own callee — so without this a single
+ * `PRINT "hi"` would report twice.
  */
 export function nameCaseRule(
   program: ProgramNode,
   _profiles: readonly CheckProfile[],
   source?: string,
 ): readonly Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
+  // Split once per rule run, not once per node: every node is a keyword-casing candidate now.
+  const lines = source === undefined ? undefined : source.split("\n");
+  const byPosition = new Map<
+    string,
+    { readonly diagnostic: Diagnostic; readonly fromKeyword: boolean }
+  >();
+  const exemptPositions = new Set<string>();
   walk(program, (node) => {
-    checkNamesIn(node, diagnostics);
-    if (source !== undefined) {
-      checkKeywordCasing(node, source, diagnostics);
+    const nodeKey = positionKey(node.source_span);
+    if (NON_KEYWORD_SPAN_START_KINDS.has(node.kind)) {
+      exemptPositions.add(nodeKey);
+    }
+    if (lines !== undefined) {
+      const keywordFinding = keywordCasingDiagnostic(node, lines);
+      if (keywordFinding !== undefined && !byPosition.has(nodeKey)) {
+        byPosition.set(nodeKey, {
+          diagnostic: keywordFinding,
+          fromKeyword: true,
+        });
+      }
+    }
+    const identifierFindings: Diagnostic[] = [];
+    checkNamesIn(node, identifierFindings);
+    for (const finding of identifierFindings) {
+      // Overwrites a keyword finding at the same position while keeping its report order (a `Map`
+      // re-`set` does not move an existing key), so a callee keeps its identifier wording.
+      byPosition.set(positionKey(finding.source_span), {
+        diagnostic: finding,
+        fromKeyword: false,
+      });
     }
   });
+  const diagnostics: Diagnostic[] = [];
+  for (const [key, entry] of byPosition) {
+    // An exempt position drops only its KEYWORD finding: an identifier finding there is a separate
+    // judgement (`local badName`'s own name) the exemption never covered.
+    if (entry.fromKeyword && exemptPositions.has(key)) {
+      continue;
+    }
+    diagnostics.push(entry.diagnostic);
+  }
   return diagnostics;
 }
 
@@ -911,7 +1056,7 @@ function blockIndentationDiagnostic(
 /**
  * `ol-style-block-indentation` (issue #169): a multi-line `Block` (the same one-line exemption as
  * {@link oneCommandPerLineRule}) whose direct statements' start columns disagree
- * (`spec/tooling.md:243` says blocks should be indented "consistently", not to a specific width,
+ * (`spec/tooling.md:244` says blocks should be indented "consistently", not to a specific width,
  * so this is deliberately a consistency check among the block's own direct statements rather than
  * an absolute-width check — a uniformly, if unusually, indented block is never flagged). The
  * *majority* column among the block's direct statements is the baseline (ties break toward
@@ -1019,7 +1164,7 @@ function checkPreferBlock(
 /**
  * `ol-style-prefer-block` (issue #169): a bracket-form control body — `if`/`while`/`repeat`/
  * `forever`/`for … in`/`for … from … to` only, matching {@link uselessValueRule}'s own six-kind
- * switch — that spans more than one physical line (`spec/tooling.md:244`). A comprehension body
+ * switch — that spans more than one physical line (`spec/tooling.md:245`). A comprehension body
  * is out of scope: the grammar restricts it to `[ … ]` alone (it is "the only body form the
  * block-result rule lets return a value", per `spec/style-guide.md`), so it can never be
  * rewritten as `… end`. A `define … end` procedure body is likewise out of scope: it has no
@@ -1063,6 +1208,165 @@ export function preferBlockRule(
 }
 
 /**
+ * The handler block-head keywords the Interaction & Events profile defines
+ * (`spec/interaction-events.md`'s "Profile grammar"), lowercased for comparison — OpenLogo
+ * identifiers are case-insensitive. Split into the two roles {@link nestedHandlerRule} needs.
+ *
+ * `REPEATING_HANDLER_HEADS` is the **outer** set: handlers that fire again and again **on the tick
+ * clock**, so a registration inside one runs once per firing with nothing but elapsed time driving
+ * it. Only `every` qualifies. The other three all repeat — `when` is persistent since maintainer
+ * ruling #984 (`spec/interaction-events.md:158-163`), exactly as `on_key` and `on_click` always
+ * were — but each of them repeats only as often as something **outside the program** makes it
+ * repeat: a key press, a click, or a host delivering a named event. That is the ruling's control
+ * case, and it is why the outer set is keyed on the tick clock rather than on repetition alone.
+ * Treating `when` as an outer would flag `when "start" [ every 10 [ shoot ] ]`, which registers
+ * exactly one handler — `"start"` occurs once per run (`spec/interaction-events.md:152-156`) — and
+ * is the ordinary way a learner opens a game.
+ *
+ * `HANDLER_HEADS` is the **inner** set: every registration form, not merely the repeating ones,
+ * because what accumulates does not depend on whether the registered handler itself repeats.
+ * Measured: `every 2 [ on_key "x" [ print 1 ] ]` over 12 ticks answers a SINGLE key press with
+ * **five** firings against a baseline of one, because five `on_key` handlers had piled up by then —
+ * and that count grows with runtime. `on_key` is not a repeating handler, yet the hazard is exactly
+ * the one #828 exists to catch.
+ */
+const REPEATING_HANDLER_HEADS: ReadonlySet<string> = new Set(["every"]);
+
+/** Every Interaction & Events registration form — the inner set (see {@link REPEATING_HANDLER_HEADS}). */
+const HANDLER_HEADS: ReadonlySet<string> = new Set([
+  "every",
+  "when",
+  "on_key",
+  "on_click",
+]);
+
+/** The head keyword of `node` lowercased, or `undefined` when `node` is not a profile block-head. */
+function handlerHeadName(node: AnyNode): string | undefined {
+  return node.kind === "ProfileStatement"
+    ? node.keyword.name.toLowerCase()
+    : undefined;
+}
+
+/** Build an `ol-style-nested-handler` at the inner registration's own span. */
+function nestedHandlerDiagnostic(
+  node: AnyNode,
+  outer: string,
+  inner: string,
+): Diagnostic {
+  return {
+    code: "ol-style-nested-handler",
+    source_span: node.source_span,
+    params: { outer, inner },
+    message: `${outer} runs again and again, so this ${inner} can add another handler each time. register it once, outside the ${outer}.`,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * Collect the handler registrations `body` performs, **stopping at each registration rather than
+ * descending through it**.
+ *
+ * Stopping is what keeps one finding per defect. The caller runs this for *every* `every` in the
+ * program, so a chain like `every 3 [ every 5 [ every 7 [ … ] ] ]` is covered by three separate
+ * visits: the outer reports `every 5`, and `every 5`'s own visit reports `every 7`. Descending
+ * through a registration instead made the outer visit report `every 7` as well, so the deepest
+ * link was reported twice for a single defect (the review-gate finding that produced this
+ * comment).
+ *
+ * The same stop is independently required for `on_key`/`on_click`, and there for a semantic reason
+ * rather than a bookkeeping one: in `every 3 [ on_key "x" [ every 10 [ … ] ] ]` the `on_key`
+ * registration is what accumulates, one per tick, while the `every 10` inside it is guarded by a key
+ * press and only misbehaves because the outer already did. Fix the outer and it disappears — and
+ * because `on_key` is not itself an outer, nothing re-reports its contents later.
+ *
+ * Descent is otherwise unrestricted, so a registration buried in a `repeat` or an `if` inside the
+ * handler body is still found.
+ */
+function collectNestedRegistrations(
+  body: BlockNode,
+  out: { node: AnyNode; head: string }[],
+): void {
+  const visit = (node: AnyNode): void => {
+    const head = handlerHeadName(node);
+    if (head !== undefined && HANDLER_HEADS.has(head)) {
+      out.push({ node, head });
+      return;
+    }
+    for (const child of childrenOf(node)) {
+      visit(child);
+    }
+  };
+  for (const statement of body.body) {
+    visit(statement);
+  }
+}
+
+/**
+ * `ol-style-nested-handler` (issue #828): an `every` handler whose block registers another handler.
+ *
+ * This is the **teaching half** of the #828 ruling. Its other half — charging each handler firing
+ * against the instruction budget — already makes the program *safe*, so a learner who never reads
+ * this warning is still protected: the accumulation exhausts the budget and raises `ol-limit`
+ * exactly as a runaway `forever` does. The lint exists so a learner finds out *why* before being
+ * bitten, which is why it is a `warning` that never changes program meaning.
+ *
+ * Only runs when the `interaction-events` profile is active — the block-heads it looks for do not
+ * exist otherwise, and a rule must consult the active profile set rather than assume every optional
+ * profile is on (`spec/tooling.md`'s Layer-2/Layer-3 visibility rule).
+ *
+ * The finding is reported at the **inner** registration's span, not the outer handler's: that is the
+ * line the learner would move out of the block, and it keeps one finding per accumulating
+ * registration when a body registers several.
+ *
+ * ## Two limitations, both deliberate, both safe by construction
+ *
+ * **The check is purely lexical.** A registration reached only through a procedure call —
+ * `define setup ; on_key "x" [ … ] ; end` invoked from `every 3 [ setup ]` — is NOT flagged. Making
+ * it so would mean interprocedural analysis with call-cycle protection inside a *style* linter,
+ * which is a large lift for an advisory warning. It is safe to omit because the two halves of the
+ * #828 ruling are not redundant: the runtime charges every handler firing against the instruction
+ * budget, so the interprocedural case still terminates with `ol-limit`. **Safety never depends on
+ * this lint** — only the explanation does. The normative row in `spec/tooling.md` says "lexically"
+ * for exactly this reason, so the limitation is specified rather than accidental.
+ *
+ * **No reachability analysis.** `every 3 [ if false [ on_key "x" [ … ] ] ]` is flagged even though
+ * the registration can never run. That matches the rest of this family — `ol-style-useless-value`
+ * flags `if false [ repeat 4 [ :side * 2 ] ]` the same way — and declining to constant-fold keeps a
+ * style linter from growing an evaluator. The message says the registration **can** add a handler
+ * each time rather than that it does, which is accurate for a conditional registration whether or
+ * not the condition is decidable.
+ */
+export function nestedHandlerRule(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): readonly Diagnostic[] {
+  if (!profiles.includes("interaction-events")) {
+    return [];
+  }
+  const diagnostics: Diagnostic[] = [];
+  walk(program, (node) => {
+    const head = handlerHeadName(node);
+    if (
+      head === undefined ||
+      !REPEATING_HANDLER_HEADS.has(head) ||
+      node.kind !== "ProfileStatement" ||
+      node.body === undefined
+    ) {
+      return;
+    }
+    const registrations: { node: AnyNode; head: string }[] = [];
+    collectNestedRegistrations(node.body, registrations);
+    for (const registration of registrations) {
+      diagnostics.push(
+        nestedHandlerDiagnostic(registration.node, head, registration.head),
+      );
+    }
+  });
+  return diagnostics;
+}
+
+/**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
  * `options.style === true`. Order is the order findings are reported in; a later #169 slice
  * appends its rule(s) here the same way {@link RULES} in `check.ts` grows for Layer-2.
@@ -1077,4 +1381,5 @@ export const STYLE_RULES: readonly CheckRule[] = [
   deepNestingRule,
   blockIndentationRule,
   preferBlockRule,
+  nestedHandlerRule,
 ];

@@ -1,0 +1,68 @@
+{
+  "description": "issue #844: the EXECUTE-mode twin of geometry/check/overlay-names-are-callable's parenthesized form. `(grid)`/`(axes)`/`(measure)` supply exactly zero inputs through the parenthesized call form, so each dispatches identically to its bare form and emits one `overlay` event — the same payloads geometry/overlays/overlays-survive-clean pins for the bare form from the same home turtle state (`measure` therefore carries `position:[0,0]`/`heading:0`; geometry/overlays/measure-basic pins a moved turtle instead, so its payload differs by design). This proves ParenCall dispatch, not just Call, reaches the overlay primitives, and that a zero-argument parenthesized call is accepted at runtime exactly as the checker accepts it.",
+  "profiles": ["geometry"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 1,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "overlay": "grid", "spacing": 20 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 3,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": { "overlay": "axes" }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": { "statement_kind": "ParenCall" }
+    },
+    {
+      "seq": 5,
+      "kind": "overlay",
+      "source_span": {
+        "document": "geometry/overlays/paren-zero-argument",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": { "overlay": "measure", "position": [0, 0], "heading": 0 }
+    }
+  ],
+  "diagnostics": []
+}

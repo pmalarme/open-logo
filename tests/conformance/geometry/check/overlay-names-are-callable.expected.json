@@ -1,0 +1,7 @@
+{
+  "description": "issue #844 (the reported symptom, refuted and pinned): with the `geometry` profile active the static checker considers `grid`/`axes`/`measure` callable — it raises NO `ol-unknown-command` — which is the same verdict the runtime gives, since geometry/overlays/overlays-survive-clean executes these exact bare lines and emits one `overlay` event each. The parenthesized zero-argument form is included deliberately: it is the call form the arity gate inspects, so this fixture also pins that supplying exactly 0 inputs there stays clean (a wrong `min` in GEOMETRY_PRIMITIVE_ARITY would surface here as `ol-not-enough-inputs`). Its execute-mode twin is geometry/overlays/paren-zero-argument. Together they pin that the checker never reserves a name (`ol-reserved-word` on `define grid`, geometry/check/reserved-word-define-axes) that the runtime cannot then execute.",
+  "profiles": ["core-language", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

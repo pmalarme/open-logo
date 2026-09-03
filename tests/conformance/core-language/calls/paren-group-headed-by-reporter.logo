@@ -1,0 +1,28 @@
+# Issue #1021 (and #709's literal acceptance criterion): a parenthesized group whose FIRST token is
+# a zero-arity reporter is a `parenthesized-expression` (grammar.md:213), not a `parenthesized-call`
+# (grammar.md:215) — `==` is not an `expression`, so the call production has no derivation here at
+# all, and the reader must not commit to one on the head token alone.
+#
+# `pi` is the head throughout because it is the exact shape #709/#1021 reported: a zero-arity Core
+# reporter, whose arity this deliberately profile-blind reader never consults. Every binary operator
+# of grammar.md:181-190 is swept, `-` included. Executed rather than parse-only on purpose —
+# "parses clean" would not prove the group MEANS what it says, and a silent misreading is worse than
+# a diagnostic. Each value below is what the same line yields with the parentheses removed, because
+# grouping an expression more explicitly must never be what breaks a learner's program.
+define yes
+  return true
+end
+print (pi == pi)
+print (pi != pi)
+print (pi + 0)
+print (pi - pi)
+print (pi * 0)
+print (pi / pi)
+print (pi > 3)
+print (pi < 4)
+print (pi >= 3)
+print (pi <= 4)
+print (pi mod pi)
+print (pi is a "number")
+print (yes and false)
+print (yes or true)

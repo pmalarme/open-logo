@@ -1,0 +1,37 @@
+{
+  "description": "issue #775: `wait \"1.5\"` -- a WORD that parses as a number but not a whole one. This is the third arm of `wait`'s `ol-type` tick-count check, sitting between `wait-non-whole` (the number `1.5`) and `wait-non-number-type-error` (the word `\"soon\"`, which does not parse as a number at all), and it is the arm that pins WHICH value the diagnostic names. Its `every` twin is `every/every-non-whole-word`. `spec/execution-model.md:33-34` makes \"words that parse as numbers are accepted where a number is expected\" a normative CORE rule, so the word is coerced far enough to be judged non-whole -- but the value the learner actually wrote is a word, so `params.actual` is `word` and `params.value` is the string `\"1.5\"`, NOT `number`/`1.5`. That is what `repeat \"2.5\"` reports for the identical situation, so the whole-number forms agree. Before #775 `executeWaitCall` type-checked with `requireNumber`, which pre-coerced the word and left the wholeness check reporting `actual: \"number\", value: 1.5` -- an implementation could therefore lose the fact that a word was passed and still pass the corpus, because no fixture covered this arm. As with every other failed `wait` validation the `primitive` event is NOT emitted (the pause never runs), only the instruction event precedes the diagnostic, and the span covers just the argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-whole-word",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-whole-word",
+        "start": [1, 6],
+        "end": [1, 11]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "word",
+        "value": "1.5",
+        "operation": "wait"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

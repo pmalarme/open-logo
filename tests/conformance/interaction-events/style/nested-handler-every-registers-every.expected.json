@@ -1,0 +1,23 @@
+{
+  "description": "ol-style-nested-handler (issue #828): the canonical accumulation shape. The outer every fires again and again on the tick clock, so the inner every registers one more handler on every firing and the firing rate grows without bound - the issue's own measurement of the equal-interval form is 6 firings over 12 ticks against 4 for a single every 3, and the runtime fixtures every-nested-registration-not-collapsed and every-single-registration-baseline pin those exact counts. This is the TEACHING half of the #828 ruling; the runtime half (charging each firing against the instruction budget) already makes the program safe, so this is a warning that never changes program meaning. The finding sits on the INNER registration - the line a learner would move out of the block - and params carry outer/inner so a tool can name both roles. The two intervals differ (3 and 5) purely to isolate this rule: the issue's literal every 3 [ every 3 ] repeats the numeral 3 and would add two unrelated ol-style-magic-number findings, coupling this fixture to a rule it is not testing",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-nested-handler",
+      "source_span": {
+        "document": "interaction-events/style/nested-handler-every-registers-every",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "params": {
+        "outer": "every",
+        "inner": "every"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

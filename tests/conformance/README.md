@@ -33,7 +33,43 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
 - **Events and diagnostics both use `source_span` (underscore)** — one field-name convention
   throughout the fixture contract, matching the `TraceEvent`/`Diagnostic` envelopes in
   `@openlogo/core`. `kind` values come from the `@openlogo/core` event registry.
-- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity`.
+- **`description` is never validated.** The harness reads it and compares nothing, so a wrong
+  description passes every check and misleads every later reader — and descriptions in this corpus
+  are cited by later slices as settled fact. Measure what you assert, be hardest on prose justifying
+  why a fixture is *absent*, and prefer pointing at the spec section or harness function that
+  settles a claim over paraphrasing it. Its one-time neighbour in this list, a diagnostic `message`,
+  is no longer unchecked (see below); **unknown top-level keys still are** — any such key is
+  silently dropped rather than rejected, so an assertion written in an invented field asserts
+  nothing. (Keys *inside* an expected diagnostic are now rejected by name.) See
+  `.github/skills/shared/conformance-fixture/SKILL.md`.
+- **Diagnostics** use `code`, `source_span` (underscore), `params`, `stage`, `severity` — all
+  required and always compared — plus an optional `message`. **Any other key is rejected by name**,
+  so a misspelled `mesage` fails the fixture instead of loading clean and asserting nothing.
+- **`compareMessages` (optional, default `false`)** is the per-fixture opt-in that makes an expected
+  diagnostic's `message` load-bearing (issue #1025). Both directions are fixture errors, which is
+  what makes "present but ignored" impossible rather than merely cleaned up once:
+  - a `message` **without** the flag is rejected — it would be compared against nothing;
+  - the flag **without** any `message` is rejected — it asserts nothing, the same way
+    `executeOptions` without `"execute": true` does.
+
+  Inside an opted-in fixture the grain is per diagnostic: only those that carry a `message` have
+  their prose asserted, so a fixture can pin one sentence and leave its siblings free.
+
+  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md:254-259`
+  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `:261-263`
+  positively permits a template author to "reorder, inflect, or soften" a message, so most learner
+  wording is presentation a conforming implementation may change. Freezing it would make this corpus
+  resist a change the spec allows. `ol-reserved-word` is the case this exists for: `:125` prescribes
+  the sentence *and* makes *keyword*, *primitive* and *alias* a MUST NOT inside it — a MUST NOT no
+  harness can enforce without reading the text, and one that shipped violated twice (#751, #871)
+  while the corpus stayed green. Today the only fixtures that opt in are the built-in-name ones
+  (every live `message` in the corpus is an `ol-reserved-word`), plus the harness self-test below.
+  Deliberately no count here: a number in prose is an assertion no gate re-checks, and this one was
+  already stale once.
+
+  `_harness-selftest/detects-message-mismatch` pins that the opt-in actually bites. **Do not combine
+  `expect: "mismatch"` with a `message` anywhere else**: a self-test that exists to prove some
+  *other* mismatch is detected would then be able to pass on prose while its real subject regresses.
 - **`execute` (optional, default `false`)** opts a fixture into execution. When `false` (or
   absent), `produce()` stays parse-only — it calls `@openlogo/parser`'s `parse()` and always
   returns `events: []`, exactly as the existing parse-focused corpus expects (many of those
@@ -48,27 +84,102 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   exclusive per fixture; `check` takes precedence if both are set. Diagnostics from `check()` use
   `stage: "semantic"` (or `"parse"`/`ol-style-*` where applicable), same C10 shape as everywhere
   else.
+- **`style` (optional, default `false`)** opts a `check` fixture into `check()`'s Layer-3 style
+  lints (`ol-style-*`, issue #115) by passing `{ style: true }`. It is only meaningful alongside
+  `"check": true`; every other check fixture stays Layer-2-only, so adding style rules never
+  regresses the existing check corpus.
 - **`executeOptions` (optional, object)** — only valid alongside `"execute": true` when `"check"`
   is not also `true` (since `check` takes precedence and short-circuits before `execute()` ever
-  runs, see above) — is
-  forwarded verbatim as `@openlogo/runtime`'s `execute()` third argument (`ExecuteOptions`:
-  `instructionBudget`, `recursionDepthLimit`, `signal`). It exists so a fixture can deterministically
-  trigger the execution-safety gates (`ol-limit`, `spec/execution-model.md:551-557`) with a small,
-  hand-reviewable budget/depth instead of the large production defaults (1,000,000
-  instructions / 500 call frames), which would make an exact-diff fixture impractically large.
-  `signal`, when present, must be a plain `{ "aborted": boolean }` object — the only shape JSON can
-  express and the only shape `execute()` needs (it just reads `signal.aborted`); a fixture can
-  therefore only assert the already-cancelled-before-start case, not cancellation mid-run.
-  Setting `executeOptions` without `"execute": true`, or alongside `"check": true`, is rejected —
-  either would otherwise silently do nothing (parse-only fixtures never call `execute()`, and
-  `check:true` fixtures never reach the `execute()` branch either), masking a fixture-author typo.
-  See
-  `tests/conformance/core-language/execution/forever-instruction-budget-limit.expected.json`,
-  `recursion-depth-limit.expected.json`, and `cancelled-before-start.expected.json` for examples.
+  runs, see above) — is forwarded verbatim as `@openlogo/runtime`'s `execute()` third argument
+  (`ExecuteOptions`). The harness allow-lists the **JSON-expressible** keys and rejects anything
+  else by name, so a typo (`hostinput`, a stray `budget`) fails the fixture instead of loading
+  clean and being silently ignored by `execute()`. Setting `executeOptions` without
+  `"execute": true`, or alongside `"check": true`, is rejected for the same reason — either would
+  otherwise silently do nothing (parse-only fixtures never call `execute()`, and `check:true`
+  fixtures never reach the `execute()` branch either), masking a fixture-author typo. The
+  allow-listed keys are:
+  - **`instructionBudget`** / **`recursionDepthLimit`** (numbers) let a fixture deterministically
+    trigger the execution-safety gates (`ol-limit`, `spec/execution-model.md`'s "Execution safety")
+    with a small, hand-reviewable cap instead of the production defaults
+    (`DEFAULT_INSTRUCTION_BUDGET` / `DEFAULT_RECURSION_DEPTH_LIMIT`, exported from
+    `@openlogo/runtime`), which would make an exact-diff fixture impractically large. See
+    `core-language/execution/forever-instruction-budget-limit.expected.json` and
+    `recursion-depth-limit.expected.json`.
+  - **`signal`** must be a plain `{ "aborted": boolean }` object — the only shape JSON can express
+    and the only shape `execute()` needs (it just reads `signal.aborted`); a fixture can therefore
+    only assert the already-cancelled-before-start case, not cancellation mid-run. See
+    `core-language/execution/cancelled-before-start.expected.json`.
+  - **`learnerLevel`** (string) is the learner's active curriculum level from
+    `spec/educational-model.md`'s level table, threaded onto every `TutorContext.level` the run
+    builds for the Educational meta-commands. `execute()` substitutes its default
+    (`DEFAULT_LEARNER_LEVEL`) only when the option is **omitted**, so a value outside the level set
+    is forwarded as written rather than corrected — the harness checks the type, not the vocabulary.
+  - **`hostInput`** (object) is the host side of a headless run. It carries **two independent
+    fields that are different mechanisms**, so read them separately:
+    - **`hostInput.responses`** (array of strings) — the scripted answers this run's `input` reads
+      consume. A **FIFO queue drawn from in order by every `input` call**, wherever it occurs (top
+      level, a procedure body, a loop, a handler block). Each entry is the **raw text a learner
+      would have typed**, which `input` then classifies per `spec/interaction-events.md`'s
+      number-vs-word rule — so write `"42"`, not `42`; the harness rejects a bare JSON number
+      precisely because it would look like proof of the number branch while skipping the parse that
+      branch is about. With no answer left, a read takes the only other ending the spec allows and
+      the program is cancelled with `ol-limit`. See `interaction-events/input/`.
+    - **`hostInput.events`** (array) — a **tick-scheduled** list of the key presses, clicks, and
+      named events a host would have delivered, so `on_key`/`on_click`/`when` handlers can be proven
+      to fire, and to fire in the normative same-tick order. Each entry is a plain object with a
+      finite numeric `tick` and a discriminated `kind`: `{ "tick": n, "kind": "key", "key": "x" }`,
+      `{ "tick": n, "kind": "click" }`, or `{ "tick": n, "kind": "event", "event": "go" }`. No other
+      field is permitted on an entry and unknown `kind`s are rejected, so a per-entry typo cannot
+      mask a delivery that never happens. Entries may be listed in any order (they are stably sorted
+      by `tick`). See `interaction-events/dispatch/` and
+      `interaction-events/README.md`.
+
+    Like `signal`, both fields can only express a **static** script fixed before the run starts, not
+    input that reacts to what the program has done — that stays a unit-test concern.
+  - **`randomSeed`** (number, issue #865) pins the seed the run's shared `random`/`randomize`
+    generator starts from, in place of `execute()`'s own `Date.now()` fallback — so a fixture whose
+    program uses `random` has a stable expected event stream at all, instead of being unusable. An
+    explicit `(randomize seed)` in the program still takes precedence over it, since this is a host
+    default rather than an override. Note what one fixture still cannot express: the property
+    `randomSeed` creates is that two runs sharing a seed *agree*, and a fixture is one source to one
+    expected stream, so cross-run determinism stays a unit-test concern
+    (`packages/runtime/src/random-randomize.test.mjs`).
+  - **Function-valued options are rejected as unknown keys**, with the offending key named in the
+    error, rather than silently dropped: JSON cannot express a function, so
+    `executeOptions.tutorTemplates` (the injectable Educational template) and `hostInput.read` (the
+    live `input` reader) are fixture-author mistakes. Do not try to write them; use
+    `hostInput.responses` for scripted answers and cover the reactive seams with unit tests in
+    `packages/runtime/src/`.
 - Keep results **deterministic**: assert semantic events and final state, never timing or frames.
 
-The harness validates every `kind`, `code`, and `profiles` tag against the `@openlogo/core`
-registries, so a fixture can never assert an off-contract shape.
+### `profiles` gates an executed fixture, it does not merely select it
+
+`profiles` is the fixture's **active conformance profile set**. It decides whether the fixture runs
+under a given `--profile` pass — and, for an `"execute": true` fixture, it is also **enforced**
+(issue #790). The harness statically detects which optional profiles the source actually uses
+(`scripts/profile-detection.mjs`, the same detector the examples gate applies to
+`spec/examples/*.logo`) and fails the fixture as off-contract when the declared set — expanded to its
+dependency closure, so `"geometry"` already covers `"data"` — does not cover them.
+
+It used to only select: `profiles` never reached `execute()`, so a fixture whose source used Sprites
+forms passed with `"sprites"` deleted from its array, and the declaration was documentation rather
+than enforcement. Correcting that surfaced 8 fixtures under `core-language/execution/` that executed
+`:nums[i]` while claiming Core alone — Data by `spec/conformance.md:269`, "only Data-claiming
+implementations execute the list case".
+
+The gate applies to **executed** fixtures only, and the two exclusions are deliberate:
+
+- **`check` fixtures are already gated for real** — `produce()` passes `profiles` into `check()`,
+  which resolves primitives through the active set. Those fixtures deliberately name an *inactive*
+  profile's forms (`heritage/check/heritage-forms-rejected-in-core` and its siblings exist precisely
+  to prove the rejection), so a static under-declaration gate would fail correct fixtures.
+- **Parse-only fixtures have no profile semantics to gate** — `spec/conformance.md:120` states that
+  the postfix-read grammar a list index uses "is unconditional Core syntax", so a Core-only fixture
+  that merely *parses* `:nums[2]` is right as written.
+
+The harness validates every `kind` and `code` against the `@openlogo/core` registries, and every
+`profiles` tag against its own `PROFILE_DEPS` table (transcribed from `spec/conformance.md`'s DAG),
+so a fixture can never assert an off-contract shape.
 
 ## Graph fixtures: asserting reference identity and cycles (`$id` / `$ref`)
 

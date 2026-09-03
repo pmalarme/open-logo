@@ -3,7 +3,7 @@
 You already met these two in the big picture, but let's zoom all the way in. Once the parser has
 built the tree (the **AST**) for our square:
 
-```
+```logo
 repeat 4 [ forward 100 right 90 ]
 ```
 

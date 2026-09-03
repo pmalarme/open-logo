@@ -1,0 +1,25 @@
+{
+  "_comment": "Owned by @testing (issue #955), NOT spec/ (spec/ is maintainer-owned per AGENTS.md, so this gate must never add tags or headers to the .logo files themselves). Maps a spec/examples/*.logo filename to the deterministic host-input schedule scripts/examples-gate.mjs executes it with, plus the output that run MUST produce. Without an entry an example runs with an EMPTY host, which is how `npm run examples` certified 10-game.logo green while every on_key/on_click handler in it was unreachable. Be exact about the scope: this gate drives @openlogo/runtime's execute(), so it could never have caught #952 (a studio host-forwarding defect, asserted by packages/studio's own tests) — what it failed to assert is the language-level contract that makes the file's own stated output testable at all. An entry is not optional for an example that registers a handler needing host delivery: runExamplesGate FAILS any example whose source contains an on_key or on_click head, or a `when` for any event other than \"start\", and is not listed here — so the requirement comes from the corpus and a deleted or misspelled entry cannot quietly relax the gate. `every` and an exact-case `when \"start\"` are excluded, measured rather than assumed: under an empty host with `wait 100`, `every 10 [ print 1 ]` prints 10 (2 under `wait 20`, 0 with no wait at all — the count belongs to the wait, not to `every`) and `when \"start\"` prints 1, while `on_click`, `when \"stop\"` and `when \"START\"` print 0. `executeOptions` is forwarded verbatim to @openlogo/runtime's execute() and is validated by the conformance harness's own validateExecuteOptions, so it uses the same declarative { tick, kind } hostInput shape a conformance fixture does, and must deliver at least one event; randomSeed pins any `random` the program calls so the run is reproducible. `expect.prints` compares the ordered `print` event payloads exactly; `expect.eventCounts` asserts exact totals for event kinds a print cannot express, and its keys are checked against @openlogo/core's event-kind registry so a misspelled kind cannot assert 0 forever. An entry MUST assert at least one thing — scheduling input while asserting nothing would leave the example exactly as blind, only busier-looking. The gate's summary line reports both counts so the blind fraction stays visible.",
+  "10-game.logo": {
+    "description": "spec/examples/10-game.logo:41 states its own contract in prose — 'expected output: each click prints the updated :score.' — and with an empty host that output is unreachable, so the gate used to certify the file green while asserting nothing about its interaction. The schedule delivers one press of each key the program binds plus two clicks. `prints` is the file's stated contract verbatim, and it is exact and ordered, so it pins the on_click handler precisely. The two event counts cover the key handlers, which print nothing. Measured with this seed: an empty host yields turn 1 and draw-segment 0; only-left and only-right each yield turn 2; only-up yields draw-segment 1; the `every 30` timer fires 10 times in EVERY run and contributes neither. So draw-segment 1 is attributable to on_key \"up\" alone. Note the limit of an aggregate count, stated rather than glossed: turn 3 proves two key-driven turns happened beyond the program's own single turn, but because `left` and `right` both emit `turn` it does not by itself distinguish 'left and right each fired once' from 'one of them fired twice'. Separating them would need payload- or span-level assertions, which this sidecar deliberately does not have; what it does prove is that turning handlers fire at all, which is exactly what an empty host could not.",
+    "executeOptions": {
+      "randomSeed": 20260828,
+      "hostInput": {
+        "events": [
+          { "tick": 1, "kind": "key", "key": "left" },
+          { "tick": 2, "kind": "key", "key": "right" },
+          { "tick": 3, "kind": "key", "key": "up" },
+          { "tick": 4, "kind": "click" },
+          { "tick": 5, "kind": "click" }
+        ]
+      }
+    },
+    "expect": {
+      "prints": [{ "values": [1] }, { "values": [2] }],
+      "eventCounts": {
+        "turn": 3,
+        "draw-segment": 1
+      }
+    }
+  }
+}

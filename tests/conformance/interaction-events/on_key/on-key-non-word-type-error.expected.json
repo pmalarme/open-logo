@@ -1,0 +1,36 @@
+{
+  "description": "issue #684 (slice I5): `on_key`'s key argument must be a word; a non-word (here the number `5`) is rejected with `ol-type` (spec/interaction-events.md's `### on_key <key-word> <block>`: \"Errors: `ol-type`\"; spec/error-model.md's `ol-type`), exactly as `when` validates its event word. The registration `instruction` event is emitted first (seq 0), then the type check fails BEFORE the handler is registered — so the `primitive` event is NOT emitted and no handler runs. The diagnostic's span covers the offending key argument, and its params carry the `on_key` operation plus expected/actual type words.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-non-word-type-error",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-non-word-type-error",
+        "start": [1, 8],
+        "end": [1, 9]
+      },
+      "params": {
+        "operation": "on_key",
+        "expected": "word",
+        "actual": "number"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

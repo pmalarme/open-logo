@@ -1,0 +1,35 @@
+{
+  "description": "ol-style-nested-handler is gated on the interaction-events profile, and this pins that gate STACK-NEUTRALLY rather than only in a unit test. Core-only, every is not a visible block-head at all, so the program yields ol-unknown-command for each every and no style finding whatsoever - a rule must consult the active profile set rather than assume every optional profile is on. Follows the convention of set-tempo-without-sound-profile, explain-without-educational-profile, and the other *-without-*-profile siblings; by that convention this one lives under core-language/ rather than beside the interaction-events/style fixtures it complements",
+  "profiles": ["core-language"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/style/nested-handler-without-interaction-profile",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "name": "every"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/style/nested-handler-without-interaction-profile",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "params": {
+        "name": "every"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

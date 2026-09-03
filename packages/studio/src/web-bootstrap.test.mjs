@@ -15,6 +15,8 @@ const {
   ANNOUNCER_POLITE_ELEMENT_ID,
   ANNOUNCER_ASSERTIVE_ELEMENT_ID,
   selectAnnouncerElementId,
+  selectExecutionHost,
+  supportsBlockingExecutionHost,
 } = OL;
 
 test("DEFAULT_RUN_PROGRAM is the canonical acceptance square", () => {
@@ -305,4 +307,70 @@ test("selectAnnouncerElementId routes an assertive announcement to the assertive
     selectAnnouncerElementId("assertive"),
     ANNOUNCER_ASSERTIVE_ELEMENT_ID,
   );
+});
+
+test("supportsBlockingExecutionHost needs BOTH cross-origin isolation and a SharedArrayBuffer", () => {
+  // Isolation is the POLICY that makes shared memory available; the constructor's presence is the
+  // FACT. Treating the pair as one capability is what keeps #876's fallback honest rather than
+  // throwing at run time.
+  assert.equal(
+    supportsBlockingExecutionHost({
+      crossOriginIsolated: true,
+      hasSharedArrayBuffer: true,
+    }),
+    true,
+  );
+  assert.equal(
+    supportsBlockingExecutionHost({
+      crossOriginIsolated: false,
+      hasSharedArrayBuffer: true,
+    }),
+    false,
+  );
+  assert.equal(
+    supportsBlockingExecutionHost({
+      crossOriginIsolated: true,
+      hasSharedArrayBuffer: false,
+    }),
+    false,
+  );
+  assert.equal(
+    supportsBlockingExecutionHost({
+      crossOriginIsolated: false,
+      hasSharedArrayBuffer: false,
+    }),
+    false,
+  );
+});
+
+test("selectExecutionHost builds the blocking host only on a cross-origin isolated page", () => {
+  // A sentinel rather than a stub host: `selectExecutionHost` only ever forwards what the factory
+  // returns, so identity is the whole contract.
+  const blockingHost = Object.freeze({ kind: "blocking-execution-host" });
+  let built = 0;
+  const build = () => {
+    built += 1;
+    return blockingHost;
+  };
+
+  assert.equal(
+    selectExecutionHost(
+      { crossOriginIsolated: true, hasSharedArrayBuffer: true },
+      build,
+    ),
+    blockingHost,
+  );
+  assert.equal(built, 1);
+
+  // `undefined` leaves `createRunController` on its default in-process host — #769's replay, which
+  // stays as the degraded mode rather than being deleted. The factory is not called at all, so a
+  // page without shared memory never constructs a Worker it could not use.
+  assert.equal(
+    selectExecutionHost(
+      { crossOriginIsolated: false, hasSharedArrayBuffer: true },
+      build,
+    ),
+    undefined,
+  );
+  assert.equal(built, 1);
 });

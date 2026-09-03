@@ -11,8 +11,9 @@
         "start": [1, 1],
         "end": [1, 8]
       },
-      "params": { "name": "explain" },
-      "message": "i don't know how to explain. check the spelling, or define it with 'define'.",
+      "params": {
+        "name": "explain"
+      },
       "stage": "semantic",
       "severity": "error"
     }

@@ -1,0 +1,1729 @@
+{
+  "specVersion": "0.1.0",
+  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. It carries TWO independent axes per name and neither determines the other (spec/grammar.md:378): `category` answers may a program DECLARE this name?, and `tokenClass` answers how is this word PAINTED? -- see `tokenClass` below, which spec/tooling.md's normative token-class model owns and this file enumerates. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is. A note must be present and non-blank after trimming, and two further mechanical checks apply to its CONTENT -- no control character in any string value of this file, and no note naming an accessor the file declares. Nothing verifies the rest of what a note says. In particular the no-restatement rule below is stated in full and only partly enforced: the no-counts half is deliberately NOT checked, because checking it needs a list of counting words, which is itself the second list this file exists to remove. The rule: a note must never restate data this file already carries, because a restatement is a second list. This applies to `note` only -- `invariants`, `profiles.about`, `tokenClass` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
+  "invariants": {
+    "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
+    "precedence": "A name reachable from two registries is filed ONCE. Precedence is TWO-LEVEL and the order matters: first by CATEGORY, `keyword` beating `primitive` regardless of where the tags sit -- which is what files `thing` as a keyword though `core-primitive` also holds it; then, among registries of the SAME category, by the key order of `registries` below -- which is what files `to` under core-language rather than heritage, since `reserved` precedes `heritage-form-head`. Reordering `registries` therefore never changes a keyword/primitive verdict, only which same-category tag supplies the `profile`. Its `profile` follows the precedence-winning registry. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
+    "bothDirections": "The gate compares structured entries, not a flat name set: every name here must be in the implementation and every name in the implementation must be here, with `category`, `profile` and `registries` all checked. Each registry names TWO accessors because the two directions need different shapes -- a `lookup` (is this name here?) and an `enumerate` (what does this hold?). The *PrimitiveArity functions are lookups only, so their tags enumerate through `profilePrimitiveNames` instead. Those two views derive from ONE table, so they cannot disagree about membership; what the gate's agreement check really catches there is case-normalisation mismatch, because the lookup lowercases its argument and the enumerator does not.",
+    "accessorStatus": "`present` means the accessor MUST resolve as a public export of @openlogo/parser; a missing one is drift. `declared` means decided but not yet created: the gate accepts its absence and FAILS if it ever resolves, because at that moment it should have become `present`. Status attaches per accessor, not per tag, because a tag can be split. At 0.1.0 every accessor is `present`.",
+    "derivedEnumeration": "The nine profile-keyed primitive tags enumerate through ONE accessor, `profilePrimitiveNames`, called with the tag's own profile. Nine hand-written per-profile enumerators would each be a claim about a registry, maintained by hand, beside the registry -- the shape this whole file exists to remove. The derived form also lets the gate sweep OL_CHECK_PROFILES directly, so a TENTH profile that gains a primitive table is covered with no edit to this file at all."
+  },
+  "registries": {
+    "reserved": {
+      "category": "keyword",
+      "profile": "core-language",
+      "note": "ADR-0021 named this table before issue #837 renamed the vocabulary from reserved words to keywords. The tag name is ADR-0021's closed vocabulary and deliberately does not track the accessor it points at, so a further rename moves the accessor and leaves the tag alone.",
+      "lookup": {
+        "accessor": "OL_KEYWORDS",
+        "kind": "array",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "OL_KEYWORDS",
+        "kind": "array",
+        "status": "present"
+      }
+    },
+    "profile-reserved": {
+      "category": "keyword",
+      "note": "The same ADR-0021 rename applies here. Keyed by profile rather than flat, because the words do not all share one profile: it therefore supplies each entry's profile directly and declares none of its own at tag level.",
+      "lookup": {
+        "accessor": "OL_PROFILE_KEYWORDS",
+        "kind": "record",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "OL_PROFILE_KEYWORDS",
+        "kind": "record",
+        "status": "present"
+      }
+    },
+    "core-primitive": {
+      "category": "primitive",
+      "profile": "core-language",
+      "lookup": {
+        "accessor": "corePrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "Why the lookup and the enumerate cannot disagree about membership: both read the same table. What differs between them is case normalisation, which is what the agreement check actually catches."
+    },
+    "turtle-primitive": {
+      "category": "primitive",
+      "profile": "turtle-rendering",
+      "canonicalAccessor": "canonicalOfTurtleAlias",
+      "aliasEnumerator": "turtleAliasNames",
+      "lookup": {
+        "accessor": "turtlePrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "Why these need alias-edge metadata although they are ordinary members: each one-word spelling is registered in the arity table alongside its canonical, so membership alone cannot say which spelling is the canonical and which is the alias. That is what this tag's alias accessors carry."
+    },
+    "data-primitive": {
+      "category": "primitive",
+      "profile": "data",
+      "lookup": {
+        "accessor": "dataPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "No exception worth recording. The tag exists so that this profile's table is compared like every other, rather than being known only to the implementation."
+    },
+    "educational-primitive": {
+      "category": "primitive",
+      "profile": "educational",
+      "note": "Why this table needs no exception: the AI coaching command has a registry of its own rather than being carved out of this one.",
+      "lookup": {
+        "accessor": "educationalPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      }
+    },
+    "geometry-primitive": {
+      "category": "primitive",
+      "profile": "geometry",
+      "note": "Why this table is far smaller than its profile: the derived standard library is OpenLogo source, listed under `excluded` and never here.",
+      "lookup": {
+        "accessor": "geometryPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      }
+    },
+    "interaction-primitive": {
+      "category": "primitive",
+      "profile": "interaction-events",
+      "lookup": {
+        "accessor": "interactionPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "Why this table holds fewer names than its profile does: the profile's words are keywords, held by the profile-keyed keyword registry, and only callable primitives are filed here."
+    },
+    "sound-primitive": {
+      "category": "primitive",
+      "profile": "sound",
+      "lookup": {
+        "accessor": "soundPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "No exception worth recording. The tag exists so that this profile's table is compared like every other, rather than being known only to the implementation."
+    },
+    "sprites-primitive": {
+      "category": "primitive",
+      "profile": "sprites",
+      "lookup": {
+        "accessor": "spritesPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      },
+      "note": "Why this table holds fewer names than its profile does: the profile's words are keywords, held by the profile-keyed keyword registry, and only callable primitives are filed here."
+    },
+    "tutor-primitive": {
+      "category": "primitive",
+      "profile": "tutor-ai",
+      "note": "ADR-0021 recorded each of this tag's accessors as `declared` -- decided but not yet created -- and named issue #841 as the slice that would create them. The tree reached them by a better route (issues #838 and #874): a derived accessor over the whole profile-keyed registry, rather than a hand-written enumerator per profile. The ADR is a dated record of the decision, not of the code.",
+      "lookup": {
+        "accessor": "tutorPrimitiveArity",
+        "kind": "arity",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "profilePrimitiveNames",
+        "kind": "profile-enumerator",
+        "status": "present"
+      }
+    },
+    "heritage-alias": {
+      "category": "primitive",
+      "profile": "heritage",
+      "note": "Why `category` cannot be derived from arity-table membership here: the short spellings are in no primitive arity table at all, only their canonicals are, so they are registered solely under this tag.",
+      "canonicalAccessor": "canonicalOfHeritageAlias",
+      "aliasEnumerator": "heritageAliasNames",
+      "lookup": {
+        "accessor": "heritageAliasNames",
+        "kind": "enumerator",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "heritageAliasNames",
+        "kind": "enumerator",
+        "status": "present"
+      }
+    },
+    "heritage-form-head": {
+      "category": "keyword",
+      "profile": "heritage",
+      "note": "Why these carry no `aliasOf`: they are grammar form heads, not name-for-name substitutions. They are keywords elsewhere too, so they lose precedence on the same-category key order rather than on category.",
+      "lookup": {
+        "accessor": "heritageFormHeadNames",
+        "kind": "enumerator",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "heritageFormHeadNames",
+        "kind": "enumerator",
+        "status": "present"
+      }
+    },
+    "heritage-worded-form-head": {
+      "category": "keyword",
+      "profile": "heritage",
+      "note": "Why this carries no `aliasOf`: a worded form is a grammar spelling, not an alias edge, so it has no single target to name.",
+      "lookup": {
+        "accessor": "heritageWordedFormHeads",
+        "kind": "enumerator",
+        "status": "present"
+      },
+      "enumerate": {
+        "accessor": "heritageWordedFormHeads",
+        "kind": "enumerator",
+        "status": "present"
+      }
+    }
+  },
+  "profiles": {
+    "about": "The profile inventory, tying three surfaces together. The NORMATIVE inventory is spec/conformance.md's own profile sections (ADR-0021 §3 clause 2), the implementation's is OL_CHECK_PROFILES, and this map is what makes them comparable. It is data rather than derived because the two spellings do not correspond mechanically -- `Interaction & Events` and `Tutor (AI)` do not become `interaction-events` and `tutor-ai` by any rule a reader could reconstruct -- so a guessed transformation would be a hand-maintained claim wearing an algorithm's clothes. Gated in BOTH directions: a profile added to spec/conformance.md with no checker id fails, and a checker id with no section fails.",
+    "ids": {
+      "core-language": "Core Language",
+      "turtle-rendering": "Turtle & Rendering",
+      "geometry": "Geometry",
+      "data": "Data",
+      "heritage": "Heritage",
+      "sprites": "Sprites",
+      "interaction-events": "Interaction & Events",
+      "sound": "Sound",
+      "modules": "Modules",
+      "localization": "Localization",
+      "educational": "Educational",
+      "tutor-ai": "Tutor (AI)"
+    }
+  },
+  "profilesWithoutPrimitives": {
+    "modules": "The Modules profile's surface is the Core keywords `import` and `export` plus module resolution; it introduces no primitive of its own (spec/conformance.md's Modules section). ADR-0021 §5 additionally forbids a loaded library's procedures from ever entering this list -- they register through the ordinary phase-1 procedure table, so colliding with one raises ol-duplicate-definition, not ol-reserved-word.",
+    "localization": "Localization ships `alias` keyword packs -- alternate spellings declared in OpenLogo source -- rather than primitives (spec/conformance.md's Localization section). An alias spelling a program declares is a program name, not a built-in one."
+  },
+  "tokenClass": {
+    "about": "How a conforming highlighter PAINTS each built-in name: spec/tooling.md's normative token-class model, declared here as data rather than enumerated in prose. This is a SECOND AXIS, INDEPENDENT of `category` above, and neither determines the other (spec/grammar.md:378). `category` answers may a program DECLARE this name?; `tokenClass` answers how is this word PAINTED? They disagree wherever the language spells an operator as a word: `and`, `mod`, `not` and `or` are category keyword and tokenClass operator. Their profile semantics differ too -- `category` is unconditional (spec/grammar.md:408), while `tokenClass` is the class WHILE THE ENTRY'S OWN PROFILE IS ACTIVE, so a non-core name painted keyword here is primitive when that profile is inactive (spec/tooling.md:31), and the gate probes the entry's OWN profile rather than only the two endpoints. What issue #855 refuted was DERIVING this class from data that already existed -- a positional rule, and the keyword list minus the operators. DECLARING it as new data was never attempted; cannot be derived from the existing lists and cannot be written down are different claims, and issue #959 separated them. Every value here is re-painted through @openlogo/parser's shipped highlight() and compared; the reverse direction set-compares the name SOURCES highlight() classifies from, which is narrower than comparing against arbitrary highlighter output. docs/adr/0026-token-class-declared-and-gated.md states each mechanism and what it does not reach; in particular nothing verifies what this paragraph itself says.",
+    "classVocabulary": "A tokenClass is one of spec/tooling.md's normative token classes, and the gate requires membership in the implementation's own OL_TOKEN_CLASSES rather than a list restated here. Only three of them can be the class of a NAME: keyword, primitive, and operator. The other twelve classify punctuation, literals, comments, or a spelling that symbol discovery has resolved to a program's own procedure, type, or field -- none of which a built-in name is.",
+    "positionIndependence": "Every name below carries ONE class because every name below is painted the same wherever it appears, including the positions where the grammar admits it as an ordinary name (spec/grammar.md:386): `local end`, `for end from 1 to 3`, `for end in [ 1 2 ]`, `export end`, `set end to 1`, `:p.end`. That is a measured claim, not an assumption: the gate re-paints every name in each of those positions, requires EVERY position to yield a token -- a position that paints nothing proves nothing and must not be hidden by the others -- and fails if any two disagree. A word whose class DOES depend on position cannot be a row here at all; see `contextual` below.",
+    "contextual": {
+      "about": "The four words that are painted keyword BY POSITION and are ordinary names everywhere else, so no single class above can express them. They are not built-in names at all (spec/grammar.md:378) and so are absent from `names`; their DECLARATION axis is the matching `excluded` carve-out with reason contextual-keyword, and the gate requires this set and that one to name the same words with the same positions, in both directions. Each position carries a probe the gate both PARSES -- it must build that position's own AST form, so a probe cannot be labelled with a position it does not occupy -- and PAINTS. FOUR sides pin the set: its own declared non-emptiness, the carve-outs, spec/tooling.md's Reserved words for tooling sentence, and spec/grammar.md:380. Emptying one side fails against the others; emptying every side at once fails against non-emptiness, which is the one check no pairwise comparison could make.",
+      "class": "keyword",
+      "elsewhereClass": "primitive",
+      "words": [
+        {
+          "name": "empty",
+          "positions": {
+            "is-predicate": ":x is empty"
+          },
+          "elsewhereProbes": [
+            "local empty",
+            "print empty"
+          ]
+        },
+        {
+          "name": "member",
+          "positions": {
+            "is-predicate": "2 is member of :nums"
+          },
+          "elsewhereProbes": [
+            "local member",
+            "print member"
+          ]
+        },
+        {
+          "name": "of",
+          "positions": {
+            "is-predicate": "2 is member of :nums",
+            "value-of-reader": "value of :d for key \"a\""
+          },
+          "elsewhereProbes": [
+            "local of",
+            "print of"
+          ]
+        },
+        {
+          "name": "a",
+          "positions": {
+            "is-predicate": ":p is a \"point\""
+          },
+          "elsewhereProbes": [
+            "local a",
+            "print a"
+          ]
+        }
+      ]
+    }
+  },
+  "names": [
+    {
+      "name": "abs",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "add",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "alias",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "and",
+      "category": "keyword",
+      "tokenClass": "operator",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "ask",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "sprites",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "at",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "axes",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "geometry",
+      "registries": [
+        "geometry-primitive"
+      ]
+    },
+    {
+      "name": "back",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "beep",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sound",
+      "registries": [
+        "sound-primitive"
+      ]
+    },
+    {
+      "name": "between",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "bf",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "butfirst"
+    },
+    {
+      "name": "bk",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "back"
+    },
+    {
+      "name": "bl",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "butlast"
+    },
+    {
+      "name": "butfirst",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "butlast",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "by",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "challenge",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "tutor-ai",
+      "registries": [
+        "tutor-primitive"
+      ]
+    },
+    {
+      "name": "clean",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "clear",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "clear_screen",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "cos",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "count",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "cs",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "clear_screen"
+    },
+    {
+      "name": "debug",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "educational",
+      "registries": [
+        "educational-primitive"
+      ]
+    },
+    {
+      "name": "define",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "dict",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "distance",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "each",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "sprites",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "else",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "empty?",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "end",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "every",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "interaction-events",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "explain",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "educational",
+      "registries": [
+        "educational-primitive"
+      ]
+    },
+    {
+      "name": "export",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "false",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "fd",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "forward"
+    },
+    {
+      "name": "fill",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "filter",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "first",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "for",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "forever",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "forward",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "fput",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "from",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "grid",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "geometry",
+      "registries": [
+        "geometry-primitive"
+      ]
+    },
+    {
+      "name": "heading",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "hide_turtle",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "hint",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "educational",
+      "registries": [
+        "educational-primitive"
+      ]
+    },
+    {
+      "name": "home",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "ht",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "hide_turtle"
+    },
+    {
+      "name": "if",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "import",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "in",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "input",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "interaction-events",
+      "registries": [
+        "interaction-primitive"
+      ]
+    },
+    {
+      "name": "insert",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "int",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "is",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "is_a?",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "key",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "keys",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "last",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "left",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "list",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "local",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "lowercase",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "lput",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "lt",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "left"
+    },
+    {
+      "name": "make",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "heritage-form-head"
+      ]
+    },
+    {
+      "name": "map",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "measure",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "geometry",
+      "registries": [
+        "geometry-primitive"
+      ]
+    },
+    {
+      "name": "member?",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "mod",
+      "category": "keyword",
+      "tokenClass": "operator",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "new_turtle",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sprites",
+      "registries": [
+        "sprites-primitive"
+      ]
+    },
+    {
+      "name": "not",
+      "category": "keyword",
+      "tokenClass": "operator",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "note",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sound",
+      "registries": [
+        "sound-primitive"
+      ]
+    },
+    {
+      "name": "on_click",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "interaction-events",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "on_key",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "interaction-events",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "op",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "heritage-form-head"
+      ]
+    },
+    {
+      "name": "or",
+      "category": "keyword",
+      "tokenClass": "operator",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "output",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "heritage-form-head"
+      ]
+    },
+    {
+      "name": "pd",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "pen_down"
+    },
+    {
+      "name": "pen_down",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "pen_up",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "pi",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "pick",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "play",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sound",
+      "registries": [
+        "sound-primitive"
+      ]
+    },
+    {
+      "name": "pos",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "power",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "pr",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "print"
+    },
+    {
+      "name": "print",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "pu",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "pen_up"
+    },
+    {
+      "name": "random",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "randomize",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "reduce",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "remove",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "repcount",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "repeat",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "rest",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sound",
+      "registries": [
+        "sound-primitive"
+      ]
+    },
+    {
+      "name": "return",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "reverse",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "right",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "round",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "rt",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "right"
+    },
+    {
+      "name": "se",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "sentence"
+    },
+    {
+      "name": "sentence",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "set",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "set_background",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "set_color",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "set_heading",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "set_shape",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "set_tempo",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sound",
+      "registries": [
+        "sound-primitive"
+      ]
+    },
+    {
+      "name": "set_width",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "set_xy",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "setbg",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ],
+      "aliasOf": "set_background"
+    },
+    {
+      "name": "setcolor",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ],
+      "aliasOf": "set_color"
+    },
+    {
+      "name": "seth",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ],
+      "aliasOf": "set_heading"
+    },
+    {
+      "name": "setwidth",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ],
+      "aliasOf": "set_width"
+    },
+    {
+      "name": "setxy",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ],
+      "aliasOf": "set_xy"
+    },
+    {
+      "name": "show",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "show_turtle",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "sin",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "sort",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "sqrt",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "st",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "heritage",
+      "registries": [
+        "heritage-alias"
+      ],
+      "aliasOf": "show_turtle"
+    },
+    {
+      "name": "stamp",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "stop",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "strictly",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "struct",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "tan",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "tell",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "sprites",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "thing",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "throw",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "to",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "heritage-form-head"
+      ]
+    },
+    {
+      "name": "towards",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "true",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "turtles",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sprites",
+      "registries": [
+        "sprites-primitive"
+      ]
+    },
+    {
+      "name": "type_of",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "uppercase",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "value",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved",
+        "heritage-worded-form-head"
+      ]
+    },
+    {
+      "name": "values",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "data",
+      "registries": [
+        "data-primitive"
+      ]
+    },
+    {
+      "name": "wait",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "interaction-events",
+      "registries": [
+        "interaction-primitive"
+      ]
+    },
+    {
+      "name": "when",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "interaction-events",
+      "registries": [
+        "profile-reserved"
+      ]
+    },
+    {
+      "name": "while",
+      "category": "keyword",
+      "tokenClass": "keyword",
+      "profile": "core-language",
+      "registries": [
+        "reserved"
+      ]
+    },
+    {
+      "name": "who",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "sprites",
+      "registries": [
+        "sprites-primitive"
+      ]
+    },
+    {
+      "name": "why",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "educational",
+      "registries": [
+        "educational-primitive"
+      ]
+    },
+    {
+      "name": "word",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "core-language",
+      "registries": [
+        "core-primitive"
+      ]
+    },
+    {
+      "name": "xcor",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    },
+    {
+      "name": "ycor",
+      "category": "primitive",
+      "tokenClass": "primitive",
+      "profile": "turtle-rendering",
+      "registries": [
+        "turtle-primitive"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "name": "arc",
+      "reason": "library",
+      "source": "stdlib/geometry/arc.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "area",
+      "reason": "library",
+      "source": "stdlib/geometry/area.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "circle",
+      "reason": "library",
+      "source": "stdlib/geometry/circle.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "perimeter",
+      "reason": "library",
+      "source": "stdlib/geometry/perimeter.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "polygon",
+      "reason": "library",
+      "source": "stdlib/geometry/polygon.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "star",
+      "reason": "library",
+      "source": "stdlib/geometry/star.logo",
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+    },
+    {
+      "name": "a",
+      "reason": "contextual-keyword",
+      "positions": [
+        "is-predicate"
+      ],
+      "rationale": "Structural by position only (spec/grammar.md:380). `define a` is legal and `:p is a \"point\"` still reads as the predicate afterwards, because no declaration can occupy the position that makes the word structural."
+    },
+    {
+      "name": "empty",
+      "reason": "contextual-keyword",
+      "positions": [
+        "is-predicate"
+      ],
+      "rationale": "Structural by position only (spec/grammar.md:380). `define empty` is legal and `:x is empty` still reads as the predicate afterwards."
+    },
+    {
+      "name": "member",
+      "reason": "contextual-keyword",
+      "positions": [
+        "is-predicate"
+      ],
+      "rationale": "Structural by position only (spec/grammar.md:380). `define member` is legal and `2 is member of :nums` still reads as the predicate afterwards. Distinct from the Core reporter `member?`, which IS a built-in name."
+    },
+    {
+      "name": "of",
+      "reason": "contextual-keyword",
+      "positions": [
+        "is-predicate",
+        "value-of-reader"
+      ],
+      "rationale": "Structural in two positions and a built-in name in neither (spec/grammar.md:380). `define of` is legal and `value of :d for key \"a\"` still reports the key's value afterwards. `positions` records where the grammar makes the word structural, which is an independent axis from how the word is painted (LDR-0007); the paint is declared separately under `tokenClass.contextual`, and the gate requires the two to record the same positions so neither can drift from the other."
+    }
+  ]
+}

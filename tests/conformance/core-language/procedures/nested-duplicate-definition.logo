@@ -1,0 +1,9 @@
+define dup
+  print 1
+end
+define outer
+  define dup
+    print 2
+  end
+end
+outer

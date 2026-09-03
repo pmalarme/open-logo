@@ -441,9 +441,7 @@ test("createUpdateListener's returned callback forwards a real local edit to han
 /** A minimal stub `HighlightProvider`: one `ol-tok-word` token per non-space run. */
 function wordHighlighter(source) {
   const tokens = [];
-  const re = /\S+/g;
-  let match;
-  while ((match = re.exec(source)) !== null) {
+  for (const match of source.matchAll(/\S+/g)) {
     tokens.push({
       text: match[0],
       class: "ol-tok-word",

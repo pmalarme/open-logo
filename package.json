@@ -25,7 +25,12 @@
     "coverage": "node scripts/coverage.mjs",
     "preconformance": "npm run -s build",
     "conformance": "node scripts/conformance.mjs",
-    "examples": "node scripts/check-examples.mjs",
+    "prebuilt-in-names": "npm run -s build",
+    "built-in-names": "node scripts/check-built-in-names.mjs",
+    "spec-citations": "node scripts/check-spec-citations.mjs",
+    "adr-numbering": "node scripts/check-adr-numbering.mjs",
+    "preexamples": "npm run -s build",
+    "examples": "node scripts/check-examples.mjs && node scripts/check-markdown-examples.mjs",
     "clean": "tsc -b --clean"
   },
   "devDependencies": {

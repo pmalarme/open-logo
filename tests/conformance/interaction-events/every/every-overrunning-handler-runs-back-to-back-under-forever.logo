@@ -1,0 +1,2 @@
+every 2 [ print "a" wait 3 ]
+forever [ wait 1 ]

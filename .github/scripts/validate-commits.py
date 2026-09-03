@@ -46,8 +46,13 @@ PROFILES = {
     "core", "turtle-rendering", "data", "geometry", "heritage", "sprites",
     "interaction", "sound", "modules", "localization", "educational", "tutor-ai",
 }
-# AREAS mirror `area:*` labels (minus `core`, which is a profile scope above).
-AREAS = {"grammar", "highlighter", "checker", "runtime", "rendering", "studio", "edu", "ci", "docs"}
+# AREAS mirror `area:*` labels (minus `core`, which is a profile scope above). The mirror is not a
+# claim in a comment: `.github/scripts/validate-labels.py` re-derives it from .github/labels.yml on
+# every PR and fails when the two drift (issue #972).
+AREAS = {
+    "parser", "grammar", "highlighter", "checker", "diagnostics", "runtime", "rendering",
+    "studio", "edu", "ci", "tooling", "testing", "docs",
+}
 # Governance + infra scopes (no `area:*` label).
 INFRA = {"spec", "deps", "release", "repo", "meta"}
 SCOPES = PROFILES | AREAS | INFRA

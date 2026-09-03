@@ -1,0 +1,6 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ set_color "red" ]
+ask :b [ set_color "blue" ]
+tell [ :a :b ]
+fill

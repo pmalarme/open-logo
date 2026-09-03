@@ -1,6 +1,6 @@
 {
   "description": "`[1 2][1]` (issue #407/F7): a postfix index selector reads directly off a list-literal primary, not just a `:var`-rooted place — `print` sees the resulting `1`, proving the parser no longer requires the base to be a variable read.",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

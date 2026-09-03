@@ -1,0 +1,2 @@
+on_key "space" [ print "one" ]
+on_key "space" [ print "two" ]

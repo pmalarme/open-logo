@@ -1,6 +1,6 @@
 {
   "description": "`:nums[5]` indexes past the end of a 3-element list, raising `ol-range` (issue #94); execution halts before the `print` event is emitted.",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

@@ -194,20 +194,38 @@ test("a spaced comprehension body is never treated as a selector on the collecti
   assert.equal(ast.body[0].kind, "Comprehension");
 });
 
-test("an empty selector :nums[] reports an unmatched bracket at the missing key", () => {
+test("an empty selector :nums[] reports the missing key, not a phantom unmatched bracket", () => {
+  // `spec/error-model.md:165-169` MUST NOT: the `[` and `]` here are correctly matched in the
+  // source, so the defect is the missing `key-term` between them and `ol-bad-token` alone is
+  // authoritative. This used to report `ol-unmatched-bracket` against a `]` one character from its
+  // own `[` (issue #947).
   const { diagnostics } = OL.parse("print :nums[]", doc);
-  assert.ok(diagnostics.some((d) => d.code === "ol-unmatched-bracket"));
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+  assert.equal(diagnostics[0].params.text, "]");
 });
 
 test("an unterminated selector :nums[1 reports an unmatched bracket", () => {
+  // The other direction, and the reason the test above is not simply a suppression: here the `[`
+  // genuinely has no `]`, so the unmatched-delimiter diagnostic is correct and must survive.
   const { ast, diagnostics } = OL.parse(":nums[1", doc);
   assert.equal(ast.body[0].kind, "Place");
-  assert.ok(diagnostics.some((d) => d.code === "ol-unmatched-bracket"));
+  assert.equal(
+    diagnostics.filter((d) => d.code === "ol-unmatched-bracket").length,
+    1,
+  );
 });
 
-test("a selector missing its close :nums[1 2] reports an unmatched bracket", () => {
+test("a selector missing its key-term :nums[1 2] reports the offending token", () => {
+  // Balanced brackets again: `1 2` is not a `key-term`, and that is what is wrong.
   const { diagnostics } = OL.parse("print :nums[1 2]", doc);
-  assert.ok(diagnostics.some((d) => d.code === "ol-unmatched-bracket"));
+  assert.equal(
+    diagnostics.filter((d) => d.code === "ol-unmatched-bracket").length,
+    0,
+  );
+  assert.ok(diagnostics.every((d) => d.code === "ol-bad-token"));
 });
 
 test("check() walks selector key expressions in a mixed chain without diagnostics", () => {

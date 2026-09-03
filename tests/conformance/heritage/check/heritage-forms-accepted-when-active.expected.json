@@ -1,0 +1,7 @@
+{
+  "description": "Heritage form-head profile gate (issue #667, slice H2): with the Heritage profile ACTIVE, the same four spellings — `make`, `to`, `output`, `op` — that Core rejects are all accepted silently (no diagnostics). Heritage is 'alternate spellings only' (spec/conformance.md#heritage), and it depends on Data, so both `data` and `heritage` are active here.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

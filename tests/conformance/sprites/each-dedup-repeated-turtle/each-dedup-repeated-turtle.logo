@@ -1,0 +1,5 @@
+:a = new_turtle
+tell [ :a :a ]
+each [
+  forward 40
+]

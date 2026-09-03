@@ -1,0 +1,30 @@
+{
+  "description": "issue #689: `set_tempo` needs a positive tempo; a non-positive value (here 0) raises `ol-range` at runtime (spec/error-model.md) and emits no `sound` event - the tempo state is left unchanged. A negative or non-finite value is folded into the same guard. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-range-error",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "sound/set-tempo-range-error",
+        "start": [1, 11],
+        "end": [1, 12]
+      },
+      "params": { "operation": "set_tempo", "value": "0" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

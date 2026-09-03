@@ -1,0 +1,47 @@
+{
+  "description": "The declaration-slot rule returns its findings in SOURCE ORDER across both declaration slots, not just within one. `define repeat` (line 7), `struct if` (line 10), and `define while` (line 11) interleave `ProcedureDef` and `StructDef`, and the three findings must appear in that order. Source order rests on the walk's pre-order alone. One walk emits BOTH `ol-reserved-word` and `ol-duplicate-definition`, so source order also has to hold ACROSS the two codes -- which it does by construction, and which splitting the rule in two would have broken by grouping findings per code. `\"check\": true` -- nothing is executed and no events are produced.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "data/check/declaration-slots-source-order",
+        "start": [7, 8],
+        "end": [7, 14]
+      },
+      "params": {
+        "name": "repeat"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "data/check/declaration-slots-source-order",
+        "start": [10, 8],
+        "end": [10, 10]
+      },
+      "params": {
+        "name": "if"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "data/check/declaration-slots-source-order",
+        "start": [11, 8],
+        "end": [11, 13]
+      },
+      "params": {
+        "name": "while"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

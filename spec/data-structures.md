@@ -156,7 +156,7 @@ Dictionary literals use bare keys, a colon, no commas, and may span lines:
 :empty_scores = dict
 ```
 
-Bare keys are literal keys, not variable reads. Keys preserve case and are compared using OpenLogo equality. Reserved words are legal dictionary keys because they are data.
+Bare keys are literal keys, not variable reads. Keys preserve case and are compared using OpenLogo equality. Built-in names are legal dictionary keys because they are data.
 
 A dict-key position accepts only a bare identifier or a number literal —
 `dict-key ::= identifier | number` in [grammar.md](grammar.md) — never a general
@@ -244,13 +244,13 @@ Only the final selector upserts. A missing intermediate container in a chain rai
 
 ```logo
 :people = dict
-
 # error: the intermediate key tom is missing
 :people.tom.age = 8
+```
 
-:people.tom = {
-  age: 8
-}
+```logo
+:people = dict
+:people.tom = { age: 8 }
 
 # ok: final key height is added inside the existing tom dictionary
 :people.tom.height = 120
@@ -301,7 +301,7 @@ print :p.x
 :p.x = 10
 ```
 
-The bracketed field list is not a list literal. It contains bare field names and performs no evaluation. The type name registers a constructor in the callable namespace, so it must not collide with a primitive or procedure. A collision raises `ol-reserved-word`.
+The bracketed field list is not a list literal. It contains bare field names and performs no evaluation. Field names are bindings, not declarations, so any name is legal there, including a keyword or a primitive. The type name is a declaration: it registers a constructor in the callable namespace, so a built-in name raises `ol-reserved-word` and a name the program already declares raises `ol-duplicate-definition`. See [grammar.md](grammar.md#keywords-primitives-and-built-in-names).
 
 Records are typed by their struct type and have fixed fields. Reading or writing an unknown field raises `ol-unknown-field`.
 
@@ -320,7 +320,7 @@ print is_a? :p "person"
 
 | Primitive | Kind | Args | Result | Errors | Semantics |
 |---|---:|---|---|---|---|
-| `struct` | S | type name, field-list | declares type and constructor | `ol-reserved-word` | registers the record type in phase 1 |
+| `struct` | S | type name, field-list | declares type and constructor | `ol-reserved-word`, `ol-duplicate-definition` | registers the record type in phase 1 |
 | `<type>` constructor | R | field values | record | `ol-not-enough-inputs`, `ol-too-many-inputs` | constructs a mutable record with arity equal to the field count |
 | `:record.field` | R/place | — | field value | `ol-unknown-field` | reads or writes a fixed field |
 | `type_of` | R | record | word | — | reports the record type name |
@@ -471,7 +471,8 @@ A comprehension body that has no value-producing final expression raises `ol-no-
 | unknown record field on read or write | `ol-unknown-field` |
 | assigning to a non-place | `ol-not-a-place` |
 | bad dictionary key type | `ol-type` |
-| `struct` type name collides with existing callable | `ol-reserved-word` |
+| `struct` type name is a built-in name | `ol-reserved-word` |
+| `struct` type name is already declared by the program | `ol-duplicate-definition` |
 | record constructor arity too small or too large | `ol-not-enough-inputs`, `ol-too-many-inputs` |
 | comprehension final body has no value | `ol-no-value` |
 | `filter` body is not boolean | `ol-not-boolean` |

@@ -1,0 +1,101 @@
+/**
+ * Browser key → OpenLogo key word normalization (#952) for `on_key`
+ * (`spec/interaction-events.md:221-225`).
+ *
+ * `on_key`'s entry says key words "are lowercase words such as `"space"`, `"enter"`, `"left"`,
+ * `"right"`, `"up"`, `"down"`, or a single printable character word such as `"a"`", and then makes
+ * two SHOULDs of it: an implementation "SHOULD document their supported key words and SHOULD
+ * normalize physical keyboard input to those lowercase words **for accessibility**". This module is
+ * both halves — the studio's documented key-word vocabulary, and the one tested place that maps a
+ * `KeyboardEvent.key` onto it.
+ *
+ * ## Why normalization is an accessibility requirement, not a convenience
+ * A learner writes `on_key "left"`. The browser reports `"ArrowLeft"`. Matching raw browser names
+ * would make the program depend on a vocabulary no OpenLogo document defines, that differs across
+ * platforms and input methods, and that a learner has no way to discover from the spec — so the
+ * lowercase word IS the accessible surface, and the raw name never reaches an OpenLogo program.
+ *
+ * ## The vocabulary
+ * - The four arrows, normalized to the spec's own examples: `left`, `right`, `up`, `down`. The
+ *   pre-standard `"Left"`/`"Right"`/`"Up"`/`"Down"` spellings older engines report need no entry —
+ *   lowercasing them already lands on the same word.
+ * - The named non-printing keys a beginner program reaches for: `space`, `enter`, `escape`, `tab`,
+ *   `backspace`, `delete`, `home`, `end`, `page_up`, `page_down`. The two-word names use OpenLogo's
+ *   own underscored spelling (`pen_up`, `set_xy`), so the whole vocabulary reads like the language.
+ * - Any **single printable character**, lowercased: `"A"` and `"a"` both become `"a"`, so
+ *   `on_key "a"` fires whether or not Shift or Caps Lock is down. A learner who writes a lowercase
+ *   word — the only spelling the spec offers — gets the key they named.
+ * - Everything else the browser can report (function keys, media keys, IME keys) is lowercased
+ *   verbatim, so `F1` is reachable as `"f1"` without this module having to enumerate every key a
+ *   platform might grow.
+ *
+ * ## What is deliberately NOT a key press
+ * A **modifier held on its own** ({@link MODIFIER_KEY_NAMES}) reports `null`, and so do the two
+ * placeholder values a browser uses when it has no key to report (`"Unidentified"`, and `"Dead"`
+ * for a dead key mid-composition). Tabbing to the canvas with Shift held, or typing an accented
+ * character, must not spend a delivery on a key nobody pressed — see `run-controller.ts`'s
+ * `deliverKey` for why every delivery costs a tick.
+ */
+
+/**
+ * The browser key names ({@link https://www.w3.org/TR/uievents-key/ UI Events `key` values}) this
+ * studio renames, and the OpenLogo key word each becomes. Only keys whose browser name is *not*
+ * simply its own lowercase form need an entry here: everything else falls through to
+ * {@link normalizeKeyWord}'s lowercasing.
+ */
+export const KEY_WORD_BY_BROWSER_KEY: Readonly<Record<string, string>> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "up",
+  ArrowDown: "down",
+  " ": "space",
+  Spacebar: "space",
+  PageUp: "page_up",
+  PageDown: "page_down",
+  Del: "delete",
+  Esc: "escape",
+};
+
+/**
+ * The keys that are only ever *held with* another key, plus the two placeholders a browser reports
+ * when it has no key to name. A `keydown` for one of these is not a key press an OpenLogo program
+ * can act on, so {@link normalizeKeyWord} reports `null` rather than inventing a key word.
+ */
+export const MODIFIER_KEY_NAMES: readonly string[] = [
+  "Alt",
+  "AltGraph",
+  "CapsLock",
+  "Control",
+  "Dead",
+  "Fn",
+  "FnLock",
+  "Hyper",
+  "Meta",
+  "NumLock",
+  "OS",
+  "ScrollLock",
+  "Shift",
+  "Super",
+  "Symbol",
+  "SymbolLock",
+  "Unidentified",
+];
+
+/**
+ * The OpenLogo key word a browser's `KeyboardEvent.key` names, or `null` when the press is not one
+ * an OpenLogo program can act on (a bare modifier, or a browser placeholder — see
+ * {@link MODIFIER_KEY_NAMES}).
+ *
+ * The empty string is `null` too: it is not a key any program could name, and it would otherwise
+ * become the word `""`, which no `on_key` can ever match.
+ */
+export function normalizeKeyWord(key: string): string | null {
+  if (key === "" || MODIFIER_KEY_NAMES.includes(key)) {
+    return null;
+  }
+  const renamed = KEY_WORD_BY_BROWSER_KEY[key];
+  if (renamed !== undefined) {
+    return renamed;
+  }
+  return key.toLowerCase();
+}

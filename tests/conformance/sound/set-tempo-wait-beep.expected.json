@@ -1,0 +1,88 @@
+{
+  "description": "Cross-slice integration (issues #689 Sound + #680 Interaction & Events, saga #572 M5): a single program running `set_tempo`, `beep`, `wait`, and `beep` together proves the two profiles share one deterministic, headless execution event stream (spec/conformance.md#sound: Sound \"may share the execution event stream with Interaction & Events\"). Each statement emits its `instruction` event first, then its effect event in program order: `sound` AFTER sound state is scheduled (spec/interaction-events.md#trace-stream-integration) and `primitive` (name: wait) AFTER the pause completes (spec/interaction-events.md's `### wait <n>`). No tick count, tempo-read, or wall-clock timing leaks into any payload (headless; spec/execution-model.md's trace-and-event registry). This fixture guards the rebase resolution that placed both the sound scheduler and the tick clock on one `Environment`, confirming they coexist rather than merely existing side by side. M5 adds no new event kind: `sound` and the `primitive` catch-all are both registered by C5 (#694).",
+  "profiles": ["sound", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "command": "set_tempo", "beats_per_minute": 90 }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 3,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": { "command": "beep" }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": { "name": "wait" }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 7,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/set-tempo-wait-beep",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": { "command": "beep" }
+    }
+  ],
+  "diagnostics": []
+}

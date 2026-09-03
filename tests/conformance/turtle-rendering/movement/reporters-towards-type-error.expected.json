@@ -30,7 +30,6 @@
         "value": "a",
         "operation": "towards"
       },
-      "message": "towards needs a number, but got a word.",
       "stage": "runtime",
       "severity": "error"
     }

@@ -1,0 +1,540 @@
+{
+  "description": "Issues #979 and #980, the execution half. Two readers did not honour `spec/grammar.md:34`'s \"within a single expression ... newlines are insignificant\": the `value`/`of` interception of the Heritage `value of ... for key ...` reader (#979), and the `.field` postfix (#980). Measured against the built parser at `ca653709`, before the fix: `print value` + newline + `of :d for key :k` raised `ol-bad-token` four times, and `print ( :d` + newline + `.a )` raised `ol-unmatched-paren` TWICE on parentheses that are correctly matched. The companion check fixture proves these spellings are no longer DIAGNOSED; this one proves they MEAN what their one-line spellings mean, which no diagnostic can show. That distinction is load-bearing here, and the defect's shape differed by container -- measured at `0277d5ff`, not inferred. In a LIST, a dict entry value, or at the top level it DROPPED the `.field` and left a bare variable read, a SMALLER tree rather than a malformed one, which is the shape no diagnostic describes. In a PARENTHESIZED group the field survived and only the two phantom `ol-unmatched-paren` were wrong, because `parseParenthesized` skips newlines after its inner expression so the `.` was already current. Every row was diagnosed at that tip, so none of these programs ran: this fixture's value is that they run and agree NOW, not that they silently misbehaved before. Every spelling below is therefore followed by its one-line twin and the two `print` payloads of a pair are identical; the exact trees are compared directly in `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. The `instruction` spans deliberately differ within a pair, since the newline spelling really does span more source lines, so what is asserted here is identity of the VALUES. The axes are varied on purpose rather than sampled -- container (bare, paren, list, dict), newline position, all-slots-at-once, and keyword CASE -- because PR #916 pinned a reader in one container without varying the newline and #962 slipped through it. `execute()` runs `parse()` and never `check()`, so the runtime holds its own copy of these rules. The final `print 1` / `print 2` stay two instructions and two prints, pinning that a newline still terminates a statement -- the risk any newline-skipping fix carries. The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [13, 1],
+        "end": [13, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [14, 1],
+        "end": [14, 9]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [15, 1],
+        "end": [15, 30]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [18, 1],
+        "end": [19, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [18, 1],
+        "end": [19, 17]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [20, 1],
+        "end": [20, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [20, 1],
+        "end": [20, 29]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [23, 1],
+        "end": [24, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [23, 1],
+        "end": [24, 17]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [25, 1],
+        "end": [25, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [25, 1],
+        "end": [25, 30]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [28, 1],
+        "end": [29, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [28, 1],
+        "end": [29, 19]
+      },
+      "payload": {
+        "values": [
+          {
+            "a": 7
+          }
+        ]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [30, 1],
+        "end": [30, 36]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [30, 1],
+        "end": [30, 36]
+      },
+      "payload": {
+        "values": [
+          {
+            "a": 7
+          }
+        ]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [34, 1],
+        "end": [35, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [34, 1],
+        "end": [35, 17]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [36, 1],
+        "end": [36, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [36, 1],
+        "end": [36, 29]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [39, 1],
+        "end": [44, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [39, 1],
+        "end": [44, 3]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [45, 1],
+        "end": [45, 29]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [45, 1],
+        "end": [45, 29]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [51, 1],
+        "end": [52, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [51, 1],
+        "end": [52, 3]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [53, 1],
+        "end": [53, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [53, 1],
+        "end": [53, 14]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [56, 1],
+        "end": [57, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [56, 1],
+        "end": [57, 5]
+      },
+      "payload": {
+        "values": [[7]]
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [58, 1],
+        "end": [58, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [58, 1],
+        "end": [58, 16]
+      },
+      "payload": {
+        "values": [[7]]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [60, 1],
+        "end": [61, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [60, 1],
+        "end": [61, 5]
+      },
+      "payload": {
+        "values": [
+          {
+            "x": 7
+          }
+        ]
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [62, 1],
+        "end": [62, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [62, 1],
+        "end": [62, 19]
+      },
+      "payload": {
+        "values": [
+          {
+            "x": 7
+          }
+        ]
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [65, 1],
+        "end": [67, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [65, 1],
+        "end": [67, 3]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [68, 1],
+        "end": [68, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [68, 1],
+        "end": [68, 26]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [71, 1],
+        "end": [71, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [71, 1],
+        "end": [71, 8]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [72, 1],
+        "end": [72, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/newline-inside-an-expression-keeps-its-meaning",
+        "start": [72, 1],
+        "end": [72, 8]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

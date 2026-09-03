@@ -6,7 +6,8 @@
 - Related: [`docs/architecture.md`](../architecture.md) §4 (the four seams); ADR-0001
   (TypeScript 7 monorepo); the `interpreter/ast-design`, `shared/diagnostics`,
   `turtle-engine/turtle-event-contract`, and `language-designer/syntax-highlighting` skills;
-  issue #7
+  issue #7; refined by [ADR-0027](0027-heritage-worded-reader-is-its-own-node-kind.md) (the
+  Heritage worded reader `value of … for key` *is* its own node kind)
 
 ## Context
 

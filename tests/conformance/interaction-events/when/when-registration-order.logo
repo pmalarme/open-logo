@@ -1,0 +1,2 @@
+when "start" [ print "a" ]
+when "start" [ print "b" ]

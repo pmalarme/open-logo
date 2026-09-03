@@ -30,22 +30,30 @@
  * generic dispatcher, since each has its own arity and error semantics (e.g. only `sqrt` raises
  * `ol-neg-sqrt`, only `/`/`mod` raise `ol-div-zero`).
  *
- * Issue #104 adds {@link requireWholeNumber} (shared by `repeat`'s count validation in
- * `index.ts`) and the `repcount` reporter (`spec/commands.md:775-792`): a 0-arg call that reports
- * the nearest-enclosing `repeat`'s current 1-based turn, or raises `ol-repcount-outside-repeat`
- * when there is none. The active turn stack lives on {@link Environment} (`repeatTurns`, nearest
- * loop last) so nested `repeat`s and the statements they run both see the same mutable stack that
- * `index.ts`'s `executeStatements` pushes/pops around each pass.
+ * Issue #104 adds {@link requireWholeNumber} and the `repcount` reporter
+ * (`spec/commands.md:776-793`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
+ * 1-based turn, or raises `ol-repcount-outside-repeat` when there is none. The active turn stack
+ * lives on {@link Environment} (`repeatTurns`, nearest loop last) so nested `repeat`s and the
+ * statements they run both see the same mutable stack that `executeStatements` pushes/pops around
+ * each pass.
  */
 
 import type {
   Diagnostic,
   OLValue,
   SourceSpan,
+  SpawnTurtlePayload,
   TraceEvent,
+  TurtleId,
   TutorHintStage,
 } from "@openlogo/core";
-import { makeSpan, OLDict, OLRecord, typeNameOf } from "@openlogo/core";
+import {
+  makeSpan,
+  OLDict,
+  OLRecord,
+  OLTurtle,
+  typeNameOf,
+} from "@openlogo/core";
 import type { OLDictKey } from "@openlogo/core";
 import type {
   AddNode,
@@ -73,7 +81,9 @@ import type {
   ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
+import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
 import {
@@ -81,10 +91,25 @@ import {
   nextRandomInt,
 } from "./random-number-generator.js";
 import type { RandomNumberGeneratorState } from "./random-number-generator.js";
+import { createTickClock } from "./interaction.js";
+import type { TickBoundary, TickClock } from "./interaction.js";
+import type { HandlerDelivery, HandlerRegistration } from "./interaction.js";
+import { createEventHandlerRegistry } from "./interaction.js";
+import type { EventHandlerRegistry } from "./interaction.js";
+import type { HostInputEvent } from "./interaction.js";
+import type { HostInputReader } from "./index.js";
+import {
+  emitInputPrimitive,
+  interpretSubmittedText,
+  takeInputResponse,
+} from "./interaction.js";
+import { createSoundState } from "./sound-state.js";
+import type { SoundState } from "./sound-state.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorTemplateFn } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
+import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
 
 /** The outcome of evaluating one expression: a value, or the diagnostic that stopped it. */
 export type EvalResult =
@@ -134,7 +159,7 @@ export type StructRegistry = ReadonlyMap<string, StructDefNode>;
 
 /**
  * Minimal structural shape of the standard `AbortSignal` this package's cancellation gate needs
- * (issue #102, `spec/execution-model.md:551-557`) — just the boolean `aborted` flag it polls.
+ * (issue #102, `spec/execution-model.md#execution-safety`) — just the boolean `aborted` flag it polls.
  * Defined locally instead of referencing the global `AbortSignal` type because this package's
  * `tsconfig` targets `lib: ["es2023"]` with no DOM types (it runs in both Node and the browser).
  *
@@ -160,10 +185,8 @@ export interface CancellationSignal {
 /**
  * The evaluator's binding model: a nearest-first stack of frames, root last, plus the active
  * `repeat` turn stack `repcount` reads (issue #104). `repeatTurns` is a mutable array — nearest
- * (innermost) enclosing `repeat` last — that `index.ts`'s `executeStatements` pushes the current
- * 1-based turn onto before running a `repeat` pass and pops after; the array reference itself
- * never changes, so it is threaded unchanged through every recursive `executeStatements`/
- * `evaluate` call the same way `frames` is.
+ * (innermost) enclosing `repeat` last — that `executeStatements` pushes the current 1-based turn
+ * onto before running a `repeat` pass and pops after.
  *
  * Issue #97 adds the whole-program {@link ProcedureRegistry} (`procedures`), the shared,
  * mutable trace-event sink (`events`) every emitting site now pushes onto directly instead of
@@ -177,18 +200,17 @@ export interface CancellationSignal {
  * adds `callDepth`, a mutable stack `runProcedure` pushes onto before running a callee's body and
  * pops after (mirroring `repeatTurns`'s push/pop-around-a-pass shape): its length is the current
  * procedure-call nesting depth, checked against a fixed ceiling before every call so unbounded
- * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md:551-557`) instead of
+ * recursion raises a friendly `ol-limit` diagnostic (`spec/execution-model.md#execution-safety`) instead of
  * overflowing the host's own call stack.
  *
- * Issue #102 adds the other two execution-safety gates `spec/execution-model.md:551-557`
+ * Issue #102 adds the other two execution-safety gates `spec/execution-model.md#execution-safety`
  * requires alongside recursion depth: a configurable instruction-execution budget
  * (`instructionBudget`, checked against the running `instructionCount` box) and external
  * cancellation (`signal`, an `AbortSignal`). `recursionDepthLimit` promotes the previously
  * hardcoded procedure-call depth ceiling to a configurable field of the same shape.
  * `instructionCount` is a single mutable `{ count }` box (not a plain field) for the same reason
- * `repeatTurns`/`callDepth` are arrays rather than reassigned fields: recursive calls receive the
- * very same `Environment` object, so a plain field would be indistinguishable from a fresh one —
- * only a shared mutable container survives being incremented from many nested call frames at
+ * `callDepth` is an array rather than a reassigned field: only a shared mutable
+ * container survives being mutated from many nested call frames at
  * once. {@link checkExecutionLimits} is the single gate every looping/recursive execution path
  * calls before it may run another pass or statement.
  *
@@ -205,7 +227,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`turtle`,
+ * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -224,10 +246,58 @@ export interface Environment {
   readonly foreverIterationLimit?: number;
   readonly callDepth: number[];
   readonly recursionDepthLimit: number;
+  /**
+   * The source span of the most recently entered procedure call, recorded by {@link runProcedure}
+   * just before it recurses. This is a pre-allocated mutable holder (a single object reused for
+   * the whole run) rather than a growing stack, so updating it on the recursion-depth-checked call
+   * path costs no per-frame allocation — the same stack-frame-size discipline the surrounding
+   * doc comments describe. Its sole consumer is `runProgram`'s escaped-`RangeError` guard
+   * (issue #726): if the host's native call stack overflows *before* the interpreter's own
+   * {@link recursionDepthLimit} counter trips (possible on a host whose stack is smaller than the
+   * one the clamp ceiling assumes — a browser tab, a `--stack-size`-reduced Node), the raw
+   * `RangeError` is caught and converted into an `ol-limit`/`recursion-depth` diagnostic carrying
+   * this span, so a learner never sees a bare host stack trace. `null` until the first procedure
+   * call, in which case the guard falls back to the whole-program span.
+   */
+  readonly lastCallSpan: { span: SourceSpan | null };
   readonly instructionBudget: number;
   readonly instructionCount: { count: number };
+  /**
+   * The main line's statement-boundary hook (maintainer ruling #984,
+   * `spec/interaction-events.md:189-204`). While set, {@link executeStatements} runs it before each
+   * statement, giving a queued `every` occurrence the chance to run that the ruling requires: "run it
+   * once the handler is free" for as long as the main line has not finished.
+   *
+   * A shared mutable box — like {@link instructionCount} and `addressing` — rather than a plain
+   * field, because a child environment is built by spreading the parent (`{...environment, frames}`),
+   * so the box reference propagates automatically into procedure bodies and control-form bodies.
+   * That is what makes the boundary reach the whole **main line** rather than only its top-level
+   * statement list: a `repeat` body or a procedure called from the main line is still the main line,
+   * and the run has not closed while either is executing.
+   *
+   * Handler bodies are the exception, and they suppress it by clearing `fn` for the duration of the
+   * body: a handler invocation must not open a boundary inside itself, or a drained occurrence could
+   * re-enter its own handler. `undefined` therefore means "not on the main line" — during a handler
+   * body, and for the whole of a headless run that never registers one.
+   */
+  readonly mainLineBoundary: { fn: (() => ExecSignal | undefined) | undefined };
   readonly signal?: CancellationSignal;
-  readonly turtle: TurtleState;
+  /**
+   * The per-run turtle-identity allocator and live-turtle registry ({@link TurtleWorld}). Like
+   * {@link addressing}/{@link randomNumberGenerator}, a single shared mutable object rather than a
+   * reassigned field, so a `new_turtle` allocation made anywhere in the program (inside a
+   * procedure, loop, or comprehension) is observed by every later
+   * `new_turtle`/`turtles` in the run. It has exactly two readers: `new_turtle`, which
+   * allocates an id through it, and `turtles`, which enumerates it (issue #673).
+   */
+  readonly turtleWorld: TurtleWorld;
+  /**
+   * The Sprites addressing model (issue #674, `spec/turtles-and-sprites.md`'s "Addressing model"):
+   * the per-turtle drawing states plus the current **addressed set** that `tell` controls. A single
+   * shared mutable object, like {@link turtleWorld}, so a `tell` (or a `new_turtle` allocation)
+   * made anywhere in the program is observed program-wide. See {@link TurtleAddressing}.
+   */
+  readonly addressing: TurtleAddressing;
   readonly source?: string;
   readonly hintProgress: Map<string, TutorHintStage>;
   /**
@@ -250,21 +320,121 @@ export interface Environment {
   ) => EvalResult;
   /**
    * The shared, mutable `random`/`randomize` generator state (issue #287,
-   * `random-number-generator.ts`). A box like `instructionCount`/`turtle` rather than a plain
+   * `random-number-generator.ts`). A box like `instructionCount`/`addressing` rather than a plain
    * value, so a `randomize` reseed (or a `random` draw) made from anywhere in the program —
-   * including deep inside a procedure call or loop body sharing this same `Environment` — is
+   * including deep inside a procedure call or loop body — is
    * observed by every later draw in the same run.
    */
   readonly randomNumberGenerator: RandomNumberGeneratorState;
+  /**
+   * The Interaction & Events tick clock (issue #680, `spec/interaction-events.md`, §Time, ticks,
+   * and handlers) — a mutable box (like {@link Environment.instructionCount}/{@link Environment.addressing}) holding the
+   * current logical tick, shared by every recursive `executeStatements`/`evaluate` call
+   * so a `wait`'s tick advance is observed program-wide. Headless execution
+   * state: it appears in no trace-event payload (`interaction.ts`'s header). Timed
+   * handlers (`every <n>`) read it; #682–#686 deliver due handlers as it advances.
+   */
+  readonly tickClock: TickClock;
+  /**
+   * The caller-supplied **tick timeline** sink (issue #985), or `undefined` when no host asked for
+   * one — in which case nothing is recorded and this costs a run exactly one optional-call check per
+   * elapsed tick. See {@link TickBoundary} for why it is out of band rather than a trace payload.
+   */
+  readonly tickTimeline: TickBoundary[] | undefined;
+  /**
+   * The caller-supplied **handler-registration log** sink (issue #975), or `undefined` when no host
+   * asked for one — in which case nothing is recorded and this costs a run one optional-call check
+   * per handler registration. See {@link HandlerRegistration} for what a host asks it, and for why
+   * "which handlers are registered *now*" is the honest contract.
+   */
+  readonly handlerRegistrations: HandlerRegistration[] | undefined;
+  /**
+   * The caller-supplied **delivery report** sink (issue #975), or `undefined` when no host asked for
+   * one — in which case no {@link HandlerDelivery} record is allocated at all. See
+   * {@link HandlerDelivery} for exactly what its `invocations` counts.
+   */
+  readonly handlerDeliveries: HandlerDelivery[] | undefined;
+  /**
+   * The shared, mutable Sound-profile scheduling state (issue #689, `sound-state.ts`) — currently
+   * the tempo `set_tempo` sets. A box like
+   * `instructionCount`/`addressing`/`randomNumberGenerator` rather than a plain value, so a `set_tempo`
+   * made from anywhere in the program — including deep inside a procedure call or loop body —
+   * updates the one state the run carries.
+   */
+  readonly sound: SoundState;
+  /**
+   * The Interaction & Events event-handler registry (issue #682, `interaction.ts`) — every `when`
+   * handler registered so far, in registration order. Like {@link Environment.tickClock}/`sound`, a
+   * shared mutable box so a `when` registered from anywhere in the program (including inside a
+   * procedure or loop body) is observed by the `"start"`/`"stop"`
+   * dispatch. Headless execution state: it never appears in an event payload — the handler blocks it
+   * holds emit the ordinary `instruction`/effect events when they run, nothing more. `every`/
+   * `on_key`/`on_click` (#683–#685) extend it; same-tick dispatch order + cancellation is #686/I7.
+   */
+  readonly eventHandlers: EventHandlerRegistry;
+  /**
+   * The tick-scheduled host input this run delivers (issue #686, slice I7 —
+   * `ExecuteOptions.hostInput`, see `index.ts`). Each {@link HostInputEvent} is a key press, click,
+   * or named event a host would have delivered at a given tick; `dispatchDueHandlers` moves the ones
+   * scheduled at or before the current tick into the registry's pending queues at each
+   * {@link yieldToEventLoop} checkpoint and drains them in the spec's same-tick order. Sorted by
+   * non-decreasing `tick` by `createExecutionEnvironment` so a single forward cursor
+   * ({@link Environment.hostInputConsumed}) suffices. Empty (frozen `[]`) for every normal headless
+   * run, so no key/click/named event ever fires unless a caller supplied one — the I5/I6 never-fires
+   * behavior, now reached because nothing was pending. Headless execution *input*, never observable
+   * in any event payload.
+   */
+  readonly hostInput: readonly HostInputEvent[];
+  /**
+   * How many entries of {@link Environment.hostInput} have already been moved into the pending queues
+   * by an earlier tick's checkpoint (issue #686, slice I7). A mutable box (like `instructionCount`)
+   * so the forward cursor `enqueueHostInput` advances is shared across every recursive
+   * `executeStatements`/`evaluate` call against this environment — including a re-entrant `wait`
+   * inside a handler body — and each host-input entry is therefore enqueued exactly once even though
+   * the checkpoint is revisited every tick.
+   */
+  readonly hostInputConsumed: { count: number };
+  /**
+   * The scripted answers this run's `input` reads consume, in order (issue #681, slice I2 —
+   * `ExecuteOptions.hostInput.responses`, see `index.ts`, per the maintainer's #657 ruling that
+   * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
+   * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
+   * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
+   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
+   * observable in any event payload: the `primitive` event a read emits carries only the name
+   * `input`, never the prompt or the submitted text.
+   */
+  readonly hostResponses: readonly string[];
+  /**
+   * How many entries of {@link Environment.hostResponses} earlier `input` reads have already taken
+   * (issue #681). A mutable box (like `hostInputConsumed`) so the forward cursor is shared across
+   * every recursive `executeStatements`/`evaluate` call against this environment — a read inside a
+   * procedure, a loop body, or an event handler block draws from the same queue as a top-level one,
+   * and no answer is ever handed out twice.
+   */
+  readonly hostResponsesConsumed: { count: number };
+  /**
+   * The host's live `input` reader, when the caller supplied one (issue #681 —
+   * `ExecuteOptions.hostInput.read`, see `index.ts`). Authoritative over
+   * {@link Environment.hostResponses}: a run with a real host does not consult the scripted queue at
+   * all. `undefined` for every fixture and every ordinary headless run, which is what makes
+   * `responses` the single JSON-expressible convention the #657 ruling asked for.
+   *
+   * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
+   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * blocks" holds by construction: there is no suspension point at which anything else could run.
+   */
+  readonly hostReader?: HostInputReader;
 }
 
 /**
  * The turtle's mutable runtime state — position, heading, and the pen/rendering attributes a
  * `draw-segment` event captures at the moment it is emitted (`spec/rendering.md`'s "Line
  * segments" section: "each segment captures the pen color and pen width active when the segment
- * is created"). A single mutable object (like {@link Environment.repeatTurns}/`callDepth`) rather
- * than reassigned `Environment` fields, since every recursive `executeStatements`/`evaluate` call
- * shares the very same `Environment` and must observe the same turtle. Issue #200 (`forward`/
+ * is created"). A single mutable object (like {@link Environment.callDepth}) rather
+ * than reassigned `Environment` fields, so every recursive call observes the same
+ * turtle. Issue #200 (`forward`/
  * `back`) only ever reads `heading`/`penDown`/`color`/`width` and writes `x`/`y`; pen mutability
  * (`pen_up`/`pen_down`, issue #206), turning (issue #201), color/width (issues #208/#209), and
  * visibility (`show_turtle`/`hide_turtle`, issue #207) each add their own statement handling that
@@ -306,6 +476,103 @@ export function createDefaultTurtleState(): TurtleState {
   };
 }
 
+/**
+ * The Sprites addressing model (issue #674, `spec/turtles-and-sprites.md`'s "Addressing model"):
+ * every live turtle's per-turtle drawing state plus the current **addressed set**. Held once per
+ * run on {@link Environment.addressing}.
+ *
+ * - {@link states} maps every live turtle id to its own {@link TurtleState}. It is seeded with just
+ *   the main turtle ({@link MAIN_TURTLE_ID}) — the default turtle every non-Sprites program draws
+ *   with — and `new_turtle` adds one fresh default state per
+ *   spawn (`spec/turtles-and-sprites.md:32`). This is what makes turtle state *per turtle*: two
+ *   turtles no longer share one mutable object.
+ * - {@link ids} is the current addressed set: the turtles a subsequent turtle command applies to,
+ *   once for each (`spec/turtles-and-sprites.md:113`). It defaults to the single main turtle
+ *   (`spec/turtles-and-sprites.md:44` "In a program without the Sprites profile, the addressed set
+ *   contains the single default turtle") and `tell` replaces it.
+ * - {@link currentId} is the single "current turtle" — the one `who` reports and whose per-turtle
+ *   state the movement reporters (`xcor`/`ycor`/`heading`/`pos`) read. It is always the first
+ *   addressed turtle, or the main turtle when the addressed set is empty ({@link MAIN_TURTLE_ID}).
+ *   It is the **one and only** record of which turtle is current: `who` reads it directly, and the
+ *   state reporters and every turtle command reach that turtle's state through it
+ *   ({@link currentTurtleState}). Nothing caches the resolved state on the {@link Environment}, so
+ *   `who` and the state reporters cannot describe different turtles — not after a nested `tell`
+ *   during a command's argument evaluation, and not after a `tell` inside a procedure body
+ *   (issue #782: a per-`Environment` cache used to survive `runProcedure`'s shallow copy and go
+ *   stale the moment a callee re-aimed the shared pointer).
+ * - {@link explicit} records whether `tell` has run yet. Before any `tell`, the addressed set is the
+ *   implicit default main turtle and per-turtle events carry NO `turtle-id` (preserving every
+ *   Core/Turtle & Rendering fixture, whose main-turtle `move`/`turn`/… events have no `turtle-id`);
+ *   once `tell` establishes an explicit addressed set, per-turtle events carry the acting turtle's
+ *   `turtle-id` so animation/stepping/`why`/`debug` can attribute them (`spec/turtles-and-sprites.md:113`).
+ */
+export interface TurtleAddressing {
+  readonly states: Map<TurtleId, TurtleState>;
+  ids: TurtleId[];
+  currentId: TurtleId;
+  explicit: boolean;
+}
+
+/**
+ * A fresh {@link TurtleAddressing} seeded with the single main turtle: its state is `mainState`,
+ * the addressed set is just the main turtle, the current turtle is the main turtle, and
+ * addressing is still implicit (no `tell` has run). Exported so both {@link createEnvironment} and
+ * `execute-internal.ts`'s `createExecutionEnvironment` build identical addressing state.
+ */
+export function createTurtleAddressing(
+  mainState: TurtleState,
+): TurtleAddressing {
+  return {
+    states: new Map<TurtleId, TurtleState>([[MAIN_TURTLE_ID, mainState]]),
+    ids: [MAIN_TURTLE_ID],
+    currentId: MAIN_TURTLE_ID,
+    explicit: false,
+  };
+}
+
+/**
+ * The per-turtle {@link TurtleState} for `id` in `addressing`. Every id that can reach this — the
+ * main turtle ({@link MAIN_TURTLE_ID}, seeded by {@link createTurtleAddressing}) and every turtle
+ * `new_turtle` spawns (which registers its state the same turn) — always has a registered state, so
+ * a miss is an internal invariant violation, not a user error: it throws rather than inventing a
+ * turtle. Centralizing the lookup keeps `tell`'s re-pointing and the per-turtle command loop free of
+ * a defensive `undefined` branch that real source can never take.
+ */
+export function turtleStateFor(
+  addressing: TurtleAddressing,
+  id: TurtleId,
+): TurtleState {
+  const state = addressing.states.get(id);
+  if (state === undefined) {
+    throw new Error(`turtleStateFor: no registered state for turtle id ${id}`);
+  }
+  return state;
+}
+
+/**
+ * The **current turtle**'s mutable drawing state — the one a turtle command reads and writes, and
+ * the one the movement reporters (`xcor`/`ycor`/`heading`/`pos`) report
+ * (`spec/turtles-and-sprites.md:105` "The movement reporters and commands are evaluated for the
+ * current turtle"). At top level, before any `tell`, that is the single default main turtle
+ * ({@link MAIN_TURTLE_ID}); a `tell` re-aims {@link TurtleAddressing.currentId} at the first
+ * addressed turtle and this resolves to that turtle's own state.
+ *
+ * **Derived, never cached** (issue #782). The state is looked up from `addressing` at each use, so
+ * `who` (which reads `addressing.currentId` directly) and the state reporters read the *same*
+ * source and cannot disagree by construction. The previous design kept a resolved
+ * `Environment.turtle` pointer alongside `currentId` and wrote both together; because
+ * `runProcedure` shallow-copies the `Environment` (`{...environment, frames: […]}`), a `tell` in a
+ * callee updated only the callee's copy of that pointer while `currentId` — living on the shared
+ * `addressing` object — was updated for everyone. After the call returned, `who` reported the
+ * callee's turtle and `ycor` reported the caller's: an impossible pair, emitted silently, that
+ * self-healed on the next turtle command. Deleting the second copy removes the class of bug rather
+ * than one instance of it — there is nothing left to keep in step.
+ */
+export function currentTurtleState(environment: Environment): TurtleState {
+  const { addressing } = environment;
+  return turtleStateFor(addressing, addressing.currentId);
+}
+
 /** The empty registry shared by every environment that has no user procedures to call. */
 const EMPTY_PROCEDURES: ProcedureRegistry = new Map();
 
@@ -326,18 +593,32 @@ const EMPTY_STRUCTS: StructRegistry = new Map();
  * is the only place real, finite production defaults are applied (issue #102).
  */
 export function createEnvironment(): Environment {
+  const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
+    mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
     events: [],
     callDepth: [],
     recursionDepthLimit: Number.POSITIVE_INFINITY,
+    lastCallSpan: { span: null },
     instructionBudget: Number.POSITIVE_INFINITY,
     instructionCount: { count: 0 },
-    turtle: createDefaultTurtleState(),
+    turtleWorld: new TurtleWorld(),
+    addressing: createTurtleAddressing(mainTurtleState),
     randomNumberGenerator: createRandomNumberGeneratorState(),
+    tickClock: createTickClock(),
+    tickTimeline: undefined,
+    handlerRegistrations: undefined,
+    handlerDeliveries: undefined,
+    sound: createSoundState(),
+    eventHandlers: createEventHandlerRegistry(),
+    hostInput: [],
+    hostInputConsumed: { count: 0 },
+    hostResponses: [],
+    hostResponsesConsumed: { count: 0 },
     // No real parsed program backs this bare environment, so `program` is a placeholder empty
     // `Program` node — safe because none of this package's own expression-only unit tests
     // exercise the Educational meta-commands (`execute-internal.ts`'s
@@ -361,7 +642,7 @@ export function createEnvironment(): Environment {
 
 /**
  * The single execution-safety gate every looping/recursive execution path must pass before
- * running another pass or statement (`spec/execution-model.md:551-557`): external cancellation
+ * running another pass or statement (`spec/execution-model.md#execution-safety`): external cancellation
  * first, then the instruction-count budget. Returns the `ol-limit` diagnostic to halt with, or
  * `undefined` when it is safe to proceed — the caller is responsible for turning that into
  * whatever "stop now" outcome its own control-flow shape uses (`execute-internal.ts`'s `halt()`
@@ -371,9 +652,13 @@ export function createEnvironment(): Environment {
  * loop pass (`While`/`Forever`/`Repeat`/`ForIn`/`ForRange` in `execute-internal.ts`, plus
  * `evaluateComprehension`'s per-element pass here) — not just the former — because a loop whose
  * body is empty (`while true [ ]`, `forever [ ]`) never enters `executeStatements`' per-statement
- * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Every call
- * increments `environment.instructionCount`, so budget/cancellation responsiveness does not depend on
- * how many statements a particular pass happens to contain.
+ * loop at all, and would otherwise spin forever, uninstrumented and uncancellable. Since issue #953
+ * it is also called once per tick a `wait` pause advances to (`executeWaitCall`'s `chargeTick`),
+ * for the same reason one more time: a `wait <n>` loops over a learner-supplied `n` and so is
+ * unbounded work by construction, and before that charge it was the one form in the language that
+ * was cancellable but not budgeted. Every call increments `environment.instructionCount`, so
+ * budget/cancellation responsiveness does not depend on how many statements a particular pass
+ * happens to contain — or on how long a pause happens to be.
  */
 export function checkExecutionLimits(
   environment: Environment,
@@ -388,6 +673,83 @@ export function checkExecutionLimits(
       source_span,
       environment.instructionBudget,
     );
+  }
+  return undefined;
+}
+
+/**
+ * The budget gate every handler invocation passes BEFORE emitting its block-head `instruction`
+ * event (issue #686, slice I7; issue #828): **charges the firing one instruction**, then returns a
+ * halting {@link Diagnostic} — a `cancelled` when the run has been aborted, an
+ * `ol-limit(instruction-budget)` when the firing itself, or the body's own first statement, could
+ * not be afforded — or `undefined` to proceed.
+ *
+ * ## Why a handler firing is itself a charged instruction (issue #828)
+ *
+ * This probe used to be deliberately **non**-consuming, on the reasoning that a handler costs only
+ * its body's statements. That left a hole with no lower bound: a repeating handler that registers
+ * another repeating handler — `every 3 [ every 3 [ … ] ]` — accumulates one more live handler per
+ * outer firing, so the firing rate grows quadratically in the number of ticks, and when the inner
+ * body is **empty** the entire accumulation costs *nothing*. Measured at saga tip `fc4371d` before
+ * this change: `every 3 [ every 3 [ ] ]` over a `wait 40` produced 121 events and **no** `ol-limit`
+ * at an instruction budget of 20, 40, 80, or 200 alike. Unbounded work, invisible to the budget.
+ *
+ * The maintainer-delegated ruling on #828 is that handler firings **are** instructions and count
+ * against the ordinary budget, rather than that construct getting a mechanism of its own. The
+ * precedent is already in the spec: `spec/execution-model.md#execution-safety` — "Implementations must
+ * support cancellation. They should enforce configurable instruction budgets … **`forever` is
+ * therefore safe only because it is cancellable and budgeted.**" A repeating handler registering a
+ * repeating handler is the same shape — unbounded by construction, made safe by being budgeted — so
+ * it gets the same answer. Charging here, at the single entry every `invoke*Handler` shares, is what
+ * makes the accumulation terminate: with each firing charged, the quadratic growth burns the budget
+ * and trips the ordinary `ol-limit` instead of running away silently. Registrations are never
+ * collapsed, deduped, or replaced — each stays a distinct handler. That is collapse-freedom ONLY.
+ * Registration captures the live lexical environment; it neither snapshots values nor creates fresh
+ * bindings. So two registrations made in genuinely different environments do keep them
+ * (`define setup :v ; every 3 [ print :v ] ; end` called as `setup 7` then `setup 8` prints `7 8`),
+ * while two registrations sharing ONE binding both read it live at firing time
+ * (`:n = 10 ; every 3 [ print :n ] ; :n = 20 ; every 3 [ print :n ]` prints `20 20`). What is missing
+ * is fresh per-iteration bindings, which is why a loop body still reuses one binding
+ * (issue #821's E-A prints `30 30 30`). That is #821's separate ruling and is NOT repaired here;
+ * #828 only guarantees the collapse-freedom that repair will build on is not taken away.
+ *
+ * ## Why the halt predicate has two arms
+ *
+ * After the charge, the firing is unaffordable exactly when `count > budget` — the same
+ * `count++ ; count > budget` shape {@link checkExecutionLimits} uses, so a handler firing is
+ * budgeted identically to a statement or a loop pass.
+ *
+ * The extra `bodyHasStatements && count === budget` arm predicts what the body's *own* first
+ * per-statement gate will do. {@link executeStatements} runs its first statement only after
+ * `count++ ; count > budget` passes, i.e. only while `count < budget` on entry — so a non-empty
+ * handler entered at `count === budget` would emit its block-head and then halt before running a
+ * single statement, leaving an orphan "started but produced nothing" trace. An **empty** body has no
+ * statement gate, so it is delivered whenever its own firing fits.
+ *
+ * The **abort check is NOT gated on `bodyHasStatements`**, is checked first, and does not charge: a
+ * cancelled run must stop future handler *delivery* of every kind, including an empty handler,
+ * before its block-head is emitted. This matters because the realistic deployment (see
+ * {@link CancellationSignal}) runs `execute()` in a Web Worker with an `Atomics`-backed `aborted`
+ * getter the main thread can flip *between* this probe and the body's first-statement gate — so
+ * unlike the budget boundary, an aborted signal observed here is not redundant with
+ * {@link checkExecutionLimits}: without this branch a handler cancelled at its dispatch boundary (or
+ * any empty handler, which never reaches a body gate) would emit an orphan block-head after
+ * cancellation. This is the review-gate finding that reversed an earlier "abort is unreachable
+ * here" decline.
+ */
+export function chargeHandlerFiring(
+  environment: Environment,
+  source_span: SourceSpan,
+  bodyHasStatements: boolean,
+): Diagnostic | undefined {
+  if (environment.signal?.aborted) {
+    return runtimeDiag.cancelled(source_span);
+  }
+  environment.instructionCount.count++;
+  const charged = environment.instructionCount.count;
+  const budget = environment.instructionBudget;
+  if (charged > budget || (bodyHasStatements && charged === budget)) {
+    return runtimeDiag.instructionLimit(source_span, budget);
   }
   return undefined;
 }
@@ -574,19 +936,12 @@ function asNumber(value: OLValue): number | undefined {
   return undefined;
 }
 
-/**
- * The outcome of coercing an {@link OLValue} to a number (exported: `index.ts`'s `Repeat`
- * handling calls {@link requireWholeNumber}, whose result carries this shape).
- */
 export type NumberOrDiagnostic =
   | { readonly ok: true; readonly value: number }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
  * Require `value` to be a number (with word-that-reads-as-a-number coercion), or `ol-type`.
- * Exported so `execute-internal.ts`'s `ForRange` handling (issue #103) can reuse it for `from`/
- * `to`/`by`, which — unlike `repeat`'s count — are not restricted to whole numbers
- * (`spec/execution-model.md:370-375`).
  */
 export function requireNumber(
   value: OLValue,
@@ -609,11 +964,8 @@ export function requireNumber(
 }
 
 /**
- * Require `value` to be a whole number (with the same word-that-reads-as-a-number coercion as
- * {@link requireNumber}), or `ol-type` — the TYPE half of `repeat`'s count validation
- * (`spec/execution-model.md:367-369`), checked before the RANGE (negative) half its caller
- * performs separately. Exported so `index.ts`'s `Repeat` statement handling can reuse it without
- * duplicating the word-coercion logic.
+ * Require `value` to be a whole number, with the same word-that-reads-as-a-number coercion as
+ * {@link requireNumber}, or `ol-type`.
  */
 export function requireWholeNumber(
   value: OLValue,
@@ -720,7 +1072,8 @@ function isLogicalOperator(name: string): name is LogicalOperator {
  * `is_a?` callees join the known-callee list above. As of issue #101 the Core list reporters
  * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
  * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
- * `distance` join the known-callee list as well — pure reads of {@link Environment.turtle} that
+ * `distance` join the known-callee list as well — pure reads of the current turtle's state
+ * ({@link currentTurtleState}) that
  * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
  * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
  * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
@@ -758,7 +1111,7 @@ export function isSupportedExpression(
       return isSupportedIsPredicate(node, procedures, structs);
     case "Call":
     case "ParenCall": {
-      const name = node.callee.name.toLowerCase();
+      const name = resolveHeritageAliasName(node, procedures);
       const isKnownCallee =
         isBinaryArithmeticOperator(name) ||
         isUnaryMathBuiltin(name) ||
@@ -796,6 +1149,10 @@ export function isSupportedExpression(
         name === "distance" ||
         name === "random" ||
         name === "pi" ||
+        name === "new_turtle" ||
+        name === "who" ||
+        name === "turtles" ||
+        name === "input" ||
         procedures.has(name) ||
         structs.has(name);
       return (
@@ -832,11 +1189,12 @@ export function isSupportedExpression(
  * them through this one-argument wrapper keeps the hot `executeStatements` recursion frame narrow —
  * each call site loads only the `environment` it already holds, instead of re-materialising both
  * `environment.procedures` and `environment.structs` inline. That matters because
- * `executeStatements` recurses once per procedure call, and the 600-deep `recursionDepthLimit: 1000`
- * regression test (`execution-budget.test.mjs`) runs under `--experimental-test-coverage`, where
- * V8 leaves the frame unoptimised: every inline property temporary widens it, and enough of them
- * push that test over the native call-stack limit (see the frame-width notes on
- * {@link executeShowCall} and its siblings).
+ * `executeStatements` recurses once per procedure call, and the deep-recursion budget test of the
+ * day (see `execute-internal.ts`'s `executeTurtleMoveCall` canonical frame-width note for its
+ * numbers, then and now) runs under `--experimental-test-coverage`, where V8 leaves the frame
+ * unoptimised: every inline property temporary widens it, and enough of them push that test over
+ * the native call-stack limit (see the frame-width notes on {@link executeShowCall} and its
+ * siblings).
  */
 export function isSupportedArgument(
   node: ExpressionNode,
@@ -850,8 +1208,8 @@ export function isSupportedArgument(
 }
 
 /**
- * Is every postfix segment of `place` supported? A `.field` segment (dict-only, issue #322) is
- * always supported — its key is a parse-time literal, never evaluated. An `index` segment
+ * Is every postfix segment of `place` supported? A `.field` segment (a dict or record read, issue
+ * #322) is always supported — its key is a parse-time literal, never evaluated. An `index` segment
  * (`:l[i]`/`:d[key]`) is supported when its key expression is. Vacuously `true` for a
  * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
  */
@@ -986,10 +1344,38 @@ function evaluateDictLit(
 
 /**
  * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
- * reader, read-only and equivalent to `dictionary.key`/`dictionary[key]`
- * (`spec/data-structures.md:183-195`). `dictionary` must evaluate to a dict (`ol-type`
- * otherwise); `key` must evaluate to a word or number (`ol-type` otherwise); a missing key
- * raises `ol-unknown-key` (`spec/data-structures.md:191`).
+ * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
+ * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
+ * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
+ * rather than restating that read it calls the very same {@link resolveDictSegment} the Core
+ * `:d.key` and `:d[key]` selectors call — the reader builds no dict-read diagnostic of its own, so
+ * there is no second copy to drift out of step with Core, which is how issue #784 happened.
+ *
+ * Its Core twin is the **dotted** selector `:d.key` — specifically that selector's dict branch,
+ * since `.key` also accepts records — not `:d[key]`: passing `operation: "field"` makes a non-dict
+ * operand report `expected: "dict"` exactly as `:x.tom` does. `:d[key]`'s `expected: "list or dict"`
+ * is the wrong twin for a dict-only read and was actively self-contradictory for a list operand
+ * ("index needs a list or dict, but got a list", issue #784);
+ * `{ expected: "dict", operation: "index" }` is not a shape any Core program can produce, and
+ * `operation: "value of"` would leak the Heritage spelling into machine-readable params (blocked by
+ * issue #670). `operation: "field"` is the one choice that is both coherent for every operand type
+ * and reachable from Core. The prose therefore reads "field needs a dict…" for a `for key` spelling
+ * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
+ * prints. That identical prose is a *consequence* of reusing the Core builder rather than the
+ * requirement itself: what the spec fixes is the machine-readable half — identity is `code` plus
+ * `params` and prose is presentation (`spec/error-model.md:254-259`) — so reusing the one builder
+ * is what makes the Heritage guarantee hold where it is actually asserted.
+ *
+ * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
+ * reader rejects it, while Core's `.key` selector accepts records and reports `ol-unknown-field`.
+ * That divergence predates this reader's diagnostic fix and is mandated by the spec rather than by
+ * this code; `tests/conformance/heritage/execution/heritage-value-of-key-record-container-rejected`
+ * pins it so any change to it is a deliberate `spec/` decision.
+ *
+ * The diagnostic *span* points at the offending sub-expression (the operand for an operand-type
+ * error, the key for a key-type/missing-key error), which is the reader's analog of the single
+ * `[ … ]`/`.key` span a selector points at; a span reflecting where the learner wrote the fault is a
+ * localization concern (`spec/localization.md`), not part of the machine-readable contract.
  */
 function evaluateValueOfKey(
   node: ValueOfKeyNode,
@@ -999,35 +1385,22 @@ function evaluateValueOfKey(
   if (!dictResult.ok) {
     return dictResult;
   }
-  if (!(dictResult.value instanceof OLDict)) {
-    return fail(
-      runtimeDiag.placeType(node.dictionary.source_span, {
-        expected: "dict",
-        actual: typeNameOf(dictResult.value),
-        value: dictResult.value,
-        operation: "value of",
-      }),
-    );
-  }
   const keyResult = evaluate(node.key, environment);
   if (!keyResult.ok) {
     return keyResult;
   }
-  const key = keyResult.value;
-  if (typeof key !== "string" && typeof key !== "number") {
-    return fail(
-      runtimeDiag.placeType(node.key.source_span, {
-        expected: "word or number",
-        actual: typeNameOf(key),
-        value: key,
-        operation: "value of",
-      }),
-    );
+  const resolved = resolveDictSegment(
+    dictResult.value,
+    node.dictionary.source_span,
+    keyResult.value,
+    node.key.source_span,
+    false,
+    "field",
+  );
+  if (!resolved.ok) {
+    return fail(resolved.diagnostic);
   }
-  if (!dictResult.value.has(key)) {
-    return fail(runtimeDiag.unknownKey(node.key.source_span, { key }));
-  }
-  return ok(dictResult.value.get(key) as OLValue);
+  return ok(resolved.dict.get(resolved.key) as OLValue);
 }
 
 /**
@@ -1103,9 +1476,24 @@ type PlaceSegmentResolution =
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Resolve one postfix place segment — a dotted `.field` (dict-only, its key a parse-time
- * literal) or a bracketed `[key]` selector (a list index or a dict key, decided by `container`'s
- * actual runtime type) — against `container` (issue #322, `spec/data-structures.md:173-217`).
+ * What {@link resolveDictSegment} resolves to — the dict-shaped subset of
+ * {@link PlaceSegmentResolution}. Narrower than the full union so the Heritage reader can read
+ * `.dict`/`.key` off a successful result without re-narrowing on `kind`.
+ */
+type DictSegmentResolution =
+  | {
+      readonly ok: true;
+      readonly kind: "dict";
+      readonly dict: OLDict;
+      readonly key: OLDictKey;
+    }
+  | { readonly ok: false; readonly diagnostic: Diagnostic };
+
+/**
+ * Resolve one postfix place segment — a dotted `.field` (a dict or record read, its key a
+ * parse-time literal) or a bracketed `[key]` selector (a list index or a dict key, decided by
+ * `container`'s actual runtime type) — against `container` (issue #322,
+ * `spec/data-structures.md:173-217`).
  *
  * `allowMissingDictKey` controls only the dict branch: `false` (every read, and every
  * *intermediate* write segment) requires the key to already exist — `ol-unknown-key` otherwise,
@@ -1131,8 +1519,9 @@ function resolvePlaceSegment(
     }
     return resolveDictSegment(
       container,
-      segment,
+      segment.source_span,
       segment.name.name,
+      segment.source_span,
       allowMissingDictKey,
       "field",
     );
@@ -1179,21 +1568,11 @@ function resolvePlaceSegment(
   }
 
   if (container instanceof OLDict) {
-    if (typeof key !== "string" && typeof key !== "number") {
-      return {
-        ok: false,
-        diagnostic: runtimeDiag.placeType(segment.source_span, {
-          expected: "word or number",
-          actual: typeNameOf(key),
-          value: key,
-          operation: "index",
-        }),
-      };
-    }
     return resolveDictSegment(
       container,
-      segment,
+      segment.source_span,
       key,
+      segment.source_span,
       allowMissingDictKey,
       "index",
     );
@@ -1211,21 +1590,52 @@ function resolvePlaceSegment(
 }
 
 /**
- * Shared tail of {@link resolvePlaceSegment}'s `.field` and dict-typed `[key]` branches: reject a
- * non-dict container (`ol-type`, `expected: "dict"`), then either require the key to already
- * exist (`ol-unknown-key` otherwise) or let it pass through unresolved for the caller to upsert.
+ * **The** dict read — the single code path behind all three OpenLogo dict-read spellings: the Core
+ * `.field` selector's dict branch and the Core `[key]` selector's dict branch (both via
+ * {@link resolvePlaceSegment}) and the Heritage `value of … for key` reader
+ * ({@link evaluateValueOfKey}). Every diagnostic raised by reading a dict BY KEY is built here and
+ * nowhere else — the other dict primitives (`keys`, `values`, `remove key`) raise their own
+ * operation-specific `ol-type` — so there is no second copy for a spelling to drift out of step
+ * with, the failure mode that shipped a self-contradictory diagnostic in issue #784, where a
+ * Heritage-only helper restated this read and got its expectation wrong.
+ *
+ * That centralization moves where each kind of mistake shows up, and the two kinds are guarded
+ * differently. Changing the `operation` ARGUMENT one caller passes moves that caller alone — flip
+ * the Heritage reader's `"field"` to `"index"` and the Core dotted selector still passes `"field"`
+ * — so a Heritage/Core twin comparison catches it. A defect in the shared code BELOW moves every
+ * caller that reaches it, including both sides of such a pair, which is exactly what comparing them
+ * cannot see; that case is held by the by-value param pins in
+ * `heritage-canonical-diagnostic-params.test.mjs` and by the Core fixtures. Not every caller reaches
+ * every branch, so not every argument is observable: Core's `[key]` selector calls this only once
+ * `container` is already a dict, which puts the container-type branch out of its reach, and a
+ * `.field` key is a parse-time identifier that never fails the key-type branch.
+ *
+ * In order: `container` must be a dict (else `ol-type`, `expected: "dict"`, `operation` naming the
+ * caller's Core operation), `key` must be a word or number (else `ol-type`
+ * `expected: "word or number"`), and — unless `allowMissingDictKey` lets a write's final segment
+ * upsert — the key must already exist (else `ol-unknown-key`, `spec/data-structures.md:231,268`).
+ *
+ * The key-type check reports `operation: "index"` for every caller, because the only spellings that
+ * can reach it with a bad key take a *runtime* key: `:d[:k]` and `value of :d for key :k`, whose
+ * shared Core twin is the selector. A `.field` key is a parse-time identifier, so it is a word by
+ * construction and never fails this check.
+ *
+ * The two spans let each caller point the container-type error and the key-type/missing-key error at
+ * the right piece of its own surface syntax: a selector passes its one segment span twice, while the
+ * worded reader points at its operand and its key sub-expression respectively.
  */
 function resolveDictSegment(
   container: OLValue,
-  segment: PlaceSegment,
-  key: OLDictKey,
+  containerSpan: SourceSpan,
+  key: OLValue,
+  keySpan: SourceSpan,
   allowMissingDictKey: boolean,
   operation: "field" | "index",
-): PlaceSegmentResolution {
+): DictSegmentResolution {
   if (!(container instanceof OLDict)) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.placeType(segment.source_span, {
+      diagnostic: runtimeDiag.placeType(containerSpan, {
         expected: "dict",
         actual: typeNameOf(container),
         value: container,
@@ -1233,10 +1643,21 @@ function resolveDictSegment(
       }),
     };
   }
+  if (typeof key !== "string" && typeof key !== "number") {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.placeType(keySpan, {
+        expected: "word or number",
+        actual: typeNameOf(key),
+        value: key,
+        operation: "index",
+      }),
+    };
+  }
   if (!allowMissingDictKey && !container.has(key)) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.unknownKey(segment.source_span, { key }),
+      diagnostic: runtimeDiag.unknownKey(keySpan, { key }),
     };
   }
   return { ok: true, kind: "dict", dict: container, key };
@@ -1333,8 +1754,8 @@ function evaluateThing(
 }
 
 /**
- * `repcount` (`spec/commands.md:775-792`): reports the nearest-enclosing `repeat`'s current
- * 1-based turn — the top of {@link Environment.repeatTurns}, since `index.ts`'s `Repeat` handling
+ * `repcount` (`spec/commands.md:776-793`): reports the nearest-enclosing `repeat`'s current
+ * 1-based turn — the top of {@link Environment.repeatTurns}, since the `Repeat` handling
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
  * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
@@ -1775,11 +2196,86 @@ export function executeRemoveKey(
   return { ok: true };
 }
 
+/**
+ * Resolve a reporter/command call's dispatch name at the single expression-position chokepoint,
+ * applying the Heritage short-alias normalization for reporters exactly as
+ * `canonicalizeHeritageAliasCall` (in `execute-internal.ts`) does for statements. The reader records
+ * the Core name a Heritage alias spells on the node's `canonical` field (`fd`→`forward` for
+ * commands, `bf`→`butfirst` / `bl`→`butlast` / `se`→`sentence` for the list reporters, issue #669);
+ * every Core spelling carries no `canonical`, so this is a strict no-op for the whole existing
+ * suite and Core behaviour is bit-for-bit unchanged.
+ *
+ * Because the resolved name is what every downstream `name === …` predicate sees — both
+ * {@link evaluateCall}'s dispatch and {@link isSupportedExpression}'s known-callee guard — `bf
+ * [1 2 3]` dispatches through the exact same `evaluateButfirst` path as `butfirst [1 2 3]` and is
+ * recognised as a supported argument, so no alias spelling can ever reach a diagnostic or an event
+ * payload.
+ *
+ * A user procedure whose name is the alias's surface spelling shadows the alias when one exists in
+ * `procedures`: the chokepoint must NOT rewrite `bf` to `butfirst` and reach the built-in reporter.
+ * **Since issue #839 no `.logo` program can create that situation** — an alias spelling is a
+ * built-in name, so `define bf` raises `ol-reserved-word` at phase-1 registration. The guard is kept
+ * because `evaluate()` and `createEnvironment()` are public API: a host can assemble a `procedures`
+ * registry the source language cannot express, and `heritage-alias-chokepoint.test.mjs` drives
+ * exactly that. Its **statement**-position twin in `execute-internal.ts`'s
+ * `canonicalizeHeritageAliasCall` was removed by #839 instead, because statement execution has no
+ * equivalent public entry, so there the branch was unreachable — and unreachable code cannot meet
+ * this repository's 100% coverage gate. That asymmetry is deliberate, not an oversight.
+ *
+ * This resolves the **dispatch name** only; a call that dispatches onward to a *user procedure*
+ * must also carry the resolved name on the node itself — see {@link withResolvedCallee}, and issue
+ * #787 for what happened while it did not.
+ */
+function resolveHeritageAliasName(
+  node: ArithmeticCallNode,
+  procedures: ProcedureRegistry,
+): string {
+  const surface = node.callee.name.toLowerCase();
+  const canonical = node.canonical;
+  if (canonical === undefined || procedures.has(surface)) {
+    return surface;
+  }
+  return canonical.toLowerCase();
+}
+
+/**
+ * Rewrite `node`'s callee to the `name` {@link resolveHeritageAliasName} resolved, preserving the
+ * original `callee.source_span` (so a diagnostic still points at the alias the learner wrote) and
+ * `args` — the expression-position counterpart of `execute-internal.ts`'s
+ * `canonicalizeHeritageAliasCall`, which does exactly this for statements. A node whose callee
+ * already spells `name` — every Core-spelled call, and an alias shadowed by a same-named user
+ * procedure — is returned **unchanged**, so this is a strict no-op outside Heritage.
+ *
+ * Issue #787: without it the expression chokepoint resolved the alias for *dispatch* only and then
+ * handed the **unresolved** node to `callProcedure`, whose `runProcedureBody` re-derives the lookup
+ * key from `node.callee.name`. The two therefore disagreed, and `print fd` against a user
+ * `define forward … end` looked up `fd`, found nothing, and dereferenced `undefined` — a raw host
+ * `TypeError` escaping to the embedder instead of any `ol-*` diagnostic, which
+ * `spec/error-model.md` never permits as an outcome. The statement path had no such bug precisely
+ * because it rewrites the node before dispatching, so making this path rewrite too removes the
+ * divergence rather than papering over it: `print fd` now runs the user's `forward` and reports
+ * `ol-not-enough-inputs`/`ol-too-many-inputs` (`params.callable`) and `ol-no-output`
+ * (`params.procedure`) against it exactly as `print forward` does, each carrying the CANONICAL
+ * name. That is the rule issues #670/#733/#741 established for the params on *this* kind of path —
+ * a name identifying the callable a diagnostic is about. It is not a blanket claim about every
+ * param: `ol-reserved-word`'s `name` is deliberately the SURFACE spelling, because its subject is
+ * the registration the learner wrote at that very span (`spec/error-model.md:124`, issue #737).
+ */
+function withResolvedCallee(
+  node: ArithmeticCallNode,
+  name: string,
+): ArithmeticCallNode {
+  if (node.callee.name.toLowerCase() === name) {
+    return node;
+  }
+  return { ...node, callee: { ...node.callee, name } };
+}
+
 function evaluateCall(
   node: ArithmeticCallNode,
   environment: Environment,
 ): EvalResult {
-  const name = node.callee.name.toLowerCase();
+  const name = resolveHeritageAliasName(node, environment.procedures);
   if (isBinaryArithmeticOperator(name)) {
     return evaluateBinaryArithmetic(node, name, environment);
   }
@@ -1888,8 +2384,23 @@ function evaluateCall(
   if (name === "type_of") {
     return evaluateTypeOf(node, environment);
   }
+  if (name === "new_turtle") {
+    return evaluateNewTurtle(node, environment);
+  }
+  if (name === "who") {
+    return evaluateWho(node, environment);
+  }
+  if (name === "turtles") {
+    return evaluateTurtles(node, environment);
+  }
+  if (name === "input") {
+    return evaluateInput(node, environment);
+  }
   if (environment.procedures.has(name)) {
-    return environment.callProcedure(node, environment);
+    return environment.callProcedure(
+      withResolvedCallee(node, name),
+      environment,
+    );
   }
   if (environment.structs.has(name)) {
     return evaluateStructConstructor(
@@ -2258,6 +2769,13 @@ function primitivePrintedForm(value: OLValue): string | undefined {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  if (value instanceof OLTurtle) {
+    // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
+    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:540`): a turtle is an opaque
+    // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
+    // state, which would make `print :t` non-deterministic across movement/pen changes.
+    return `turtle #${formatNumber(value.id)}`;
+  }
   return undefined;
 }
 
@@ -2464,6 +2982,23 @@ function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
 }
 
 /**
+ * Whether `value` is a snapshot leaf — a value {@link snapshotValue} returns as-is rather than
+ * deep-copying: any primitive (`number`/`word`/`boolean`), and a `turtle`. A turtle is an object,
+ * but it is an opaque *identity* value, not an aliasable container: its own per-turtle drawing state
+ * is captured into trace events at the moment each effect is emitted, never through this
+ * value-graph copy, and its identity must be preserved so a snapshotted turtle still `==` the
+ * original (`spec/execution-model.md:540`). So a turtle is copied by keeping the same reference,
+ * exactly like a primitive — only lists/dicts/records are structurally cloned below.
+ */
+function isSnapshotLeaf(
+  value: OLValue,
+): value is number | string | boolean | OLTurtle {
+  return (
+    typeof value !== "object" || value === null || value instanceof OLTurtle
+  );
+}
+
+/**
  * Effect-event payload snapshot capture (`spec/execution-model.md`'s point-in-time-snapshot
  * rule, added alongside issue #495): produces a transitive, immutable copy of `value`'s
  * reachable value graph, as of this instant, so a later mutation through the original live
@@ -2486,7 +3021,7 @@ export function snapshotValue(
   value: OLValue,
   memo: Map<object, OLValue> = new Map(),
 ): OLValue {
-  if (typeof value !== "object" || value === null) {
+  if (isSnapshotLeaf(value)) {
     return value;
   }
   const existing = memo.get(value);
@@ -2514,7 +3049,7 @@ export function snapshotValue(
     }
     frame.index += 1;
 
-    if (typeof child !== "object" || child === null) {
+    if (isSnapshotLeaf(child)) {
       storeSnapshotChild(frame, child);
       continue;
     }
@@ -2575,6 +3110,17 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
   }
   if (a instanceof OLRecord) {
     return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
+  }
+  if (a instanceof OLTurtle) {
+    // Turtles compare by identity, never by state (`spec/execution-model.md:540`): a turtle equals
+    // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
+    // guarantee holds even if a turtle value reaches this comparison through two different routes
+    // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
+    // wrappers for the one live turtle. Comparing `id` makes that interning invariant unbreakable
+    // by construction: SP1+ cannot regress `who == :friend` by building a fresh wrapper, because
+    // two wrappers of one turtle share its id and every distinct turtle has a distinct id. A turtle
+    // never equals a list, dict, record, or any primitive (`b` is only a turtle here).
+    return b instanceof OLTurtle && a.id === b.id;
   }
   if (!Array.isArray(b)) {
     return false;
@@ -2907,8 +3453,15 @@ function evaluateComparisonChain(
  * joins as of issue #329 (the `record` value now exists — {@link OLRecord}). A record value is
  * still never *of* the generic `record` type under `is_a?` — it matches only its own struct type
  * name (`spec/data-structures.md:287`, see {@link valueMatchesIsAWord}) — but `record` is a known
- * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. Declared
- * struct type names extend this set per program (see {@link isKnownIsAWord}).
+ * type *word*, so `is_a? :p "record"` is a well-formed `false`, not `ol-unknown-type`. `turtle`
+ * joins as of issue #665 (the `turtle` value now exists — {@link OLTurtle}): it is a Sprites-profile
+ * type word, so `is_a? :t "turtle"` is a well-formed boolean (`true` for a turtle, `false` for any
+ * other value) rather than `ol-unknown-type`, matching this prefix form's runtime-evaluated
+ * type-word contract (`spec/turtles-and-sprites.md:13`). The prefix `is_a?` form recognizes the word
+ * regardless of profile because it evaluates its type argument dynamically; the *worded* `is a
+ * "turtle"` literal form's static profile gating is the semantic checker's concern, added by the
+ * Sprites parser slice. Declared struct type names extend this set per program (see
+ * {@link isKnownIsAWord}).
  */
 const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "number",
@@ -2917,6 +3470,7 @@ const CORE_IS_A_TYPE_WORDS: ReadonlySet<string> = new Set([
   "boolean",
   "dict",
   "record",
+  "turtle",
 ]);
 
 /**
@@ -3967,13 +4521,17 @@ function requireExactArgs(
 
 /**
  * `xcor`/`ycor`/`heading`/`pos` (`spec/commands.md` "xcor"/"ycor"/"heading"/"pos") and `towards`/
- * `distance` (issue #203): pure reads of {@link Environment.turtle} — no `move`/`turn`/
+ * `distance` (issue #203): pure reads of the current turtle's state
+ * ({@link currentTurtleState}) — no `move`/`turn`/
  * `draw-segment` event is ever emitted, since reading position/heading is not an effect
  * (`spec/rendering.md`'s "Line segments"/"Turning" sections only describe events for the
  * *mutating* commands `forward`/`back`/`left`/`right`/`set_xy`/`set_heading`). `heading` returns
  * `turtle.heading` as-is: the statement side (`turnTurtle`/`setHeadingTurtle` in
  * `execute-internal.ts`) already keeps it normalized to `[0,360)` on every write, so there is
  * nothing left to normalize on read.
+ *
+ * Each read resolves the current turtle through {@link TurtleAddressing.currentId}, the same field
+ * `who` reports, so these reporters and `who` always describe one turtle (issue #782).
  */
 function evaluateXcor(
   node: ArithmeticCallNode,
@@ -3983,7 +4541,7 @@ function evaluateXcor(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.x);
+  return ok(currentTurtleState(environment).x);
 }
 
 function evaluateYcor(
@@ -3994,7 +4552,7 @@ function evaluateYcor(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.y);
+  return ok(currentTurtleState(environment).y);
 }
 
 function evaluateHeadingReporter(
@@ -4005,7 +4563,7 @@ function evaluateHeadingReporter(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok(environment.turtle.heading);
+  return ok(currentTurtleState(environment).heading);
 }
 
 /** `pos` — a fresh two-item list `[x y]` of the turtle's current position. */
@@ -4017,7 +4575,8 @@ function evaluatePos(
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
-  return ok([environment.turtle.x, environment.turtle.y]);
+  const turtle = currentTurtleState(environment);
+  return ok([turtle.x, turtle.y]);
 }
 
 /**
@@ -4058,8 +4617,9 @@ function evaluateTowards(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - environment.turtle.x;
-  const dy = y.value - environment.turtle.y;
+  const turtle = currentTurtleState(environment);
+  const dx = x.value - turtle.x;
+  const dy = y.value - turtle.y;
   return ok(normalizeHeading((Math.atan2(dx, dy) * 180) / Math.PI));
 }
 
@@ -4094,9 +4654,204 @@ function evaluateDistance(
   if (!y.ok) {
     return fail(y.diagnostic);
   }
-  const dx = x.value - environment.turtle.x;
-  const dy = y.value - environment.turtle.y;
+  const turtle = currentTurtleState(environment);
+  const dx = x.value - turtle.x;
+  const dy = y.value - turtle.y;
   return ok(Math.hypot(dx, dy));
+}
+
+/**
+ * `new_turtle` (Sprites profile, `spec/turtles-and-sprites.md`'s "Turtle creation" section): a
+ * Kind-R reporter taking no inputs that creates a fresh turtle and reports it. It is the one turtle
+ * reporter with an effect: it allocates the new turtle's stable identity from the per-run
+ * {@link Environment.turtleWorld} — deterministic, unique, and stable, which the id-keyed turtle
+ * `==` depends on ({@link OLTurtle}'s doc comment) — and, "immediately after the new turtle exists"
+ * (`spec/turtles-and-sprites.md:34`), emits one `spawn-turtle` trace event. That event carries the
+ * authoritative {@link SpawnTurtlePayload}: the new turtle's `turtle_id` plus the full default
+ * turtle state a turtle starts with (`spec/turtles-and-sprites.md:32`) — origin at the canvas
+ * center `[0, 0]`, heading `0`, pen down, color `"black"`, width `1`, visible, and the default
+ * `"turtle"` shape (the same defaults {@link createDefaultTurtleState} gives the main turtle). The
+ * envelope's optional `turtle_id` also carries that id so the event addresses the turtle it
+ * concerns. Reports the turtle value ({@link OLTurtle}); a downstream `==` sees it equal to the
+ * same turtle reached through `who`/`turtles` because they share this id.
+ */
+function evaluateNewTurtle(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "new_turtle", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const id = environment.turtleWorld.spawn();
+  environment.addressing.states.set(id, createDefaultTurtleState());
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "spawn-turtle",
+    source_span: node.source_span,
+    turtle_id: id,
+    payload: {
+      turtle_id: id,
+      position: [0, 0],
+      heading: 0,
+      pen: "down",
+      color: "black",
+      width: 1,
+      visible: true,
+      shape: "turtle",
+    } satisfies SpawnTurtlePayload,
+  });
+  return ok(new OLTurtle(id));
+}
+
+/**
+ * `who` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a Kind-R
+ * reporter taking no inputs that reports "the turtle currently running turtle commands"
+ * (`spec/turtles-and-sprites.md:26`) — the current turtle, which is the first turtle of the active
+ * addressed set ({@link Environment.addressing}). At top level, before any `tell`, that set is the
+ * single default main turtle (`spec/turtles-and-sprites.md:44`), so `who` reports the main turtle
+ * ({@link MAIN_TURTLE_ID}); after `tell :friend` it reports `:friend`, which is why
+ * `tell :friend` then `who == :friend` is `true`. It reads the addressing's single
+ * {@link TurtleAddressing.currentId} — the same, and only, source of truth the movement reporters
+ * read through {@link currentTurtleState} — so `who` and `xcor`/`ycor`/`heading`/`pos` can never
+ * describe
+ * different turtles, including after a `tell` inside a procedure body (issue #782).
+ * Reporting a fresh {@link OLTurtle} wrapper for
+ * that id is safe because turtle `==` compares ids, not JS instances, so `who == who` and
+ * `who == :friend` hold across separate wrappers of the same turtle (C3, issue #665). Emits no
+ * trace event — reading the current turtle is not an effect.
+ */
+function evaluateWho(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "who", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(new OLTurtle(environment.addressing.currentId));
+}
+
+/**
+ * `turtles` (Sprites profile, `spec/turtles-and-sprites.md`'s "Addressing model" section): a
+ * Kind-R reporter taking no inputs that reports "the current list of turtles known to the world"
+ * — the main turtle followed by every turtle created with `new_turtle`, in creation order
+ * (`spec/turtles-and-sprites.md:91`). Materializes the world's live ids
+ * ({@link Environment.turtleWorld}) into a fresh `list` of {@link OLTurtle} values. Building fresh
+ * wrappers each call does not break identity: turtle `==` compares ids, so `first turtles == first
+ * turtles` and `new_turtle == last turtles` hold across separate wrappers of the same turtle —
+ * exactly the interning invariant id-based equality guarantees by construction ({@link OLTurtle}'s
+ * doc comment). Emits no trace event — enumerating turtles is not an effect.
+ */
+function evaluateTurtles(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "turtles", 0);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  return ok(environment.turtleWorld.ids().map((id) => new OLTurtle(id)));
+}
+
+/**
+ * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
+ * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
+ * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
+ * `spec/conformance.md:167-169`).
+ *
+ * Four steps, in this order:
+ *
+ *   1. **Arity** — exactly one input, guarded here because `execute()` runs `parse()` without the
+ *      static checker, exactly like every other reporter.
+ *   2. **Prompt type** — the prompt MUST be a `word`; anything else raises `ol-type` (`:129`,
+ *      `:131`). Checked inline with `typeof value !== "string"`, exactly as the profile's other two
+ *      word-typed arguments (`when`'s event, `on_key`'s key) are; see
+ *      {@link InputPromptNotWordParams} for the #768 ruling that narrowed this from #681's scalars.
+ *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
+ *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
+ *      can never finish, so it takes the only other ending `:110-111` allows and the program is
+ *      cancelled ({@link runtimeDiag.cancelled}).
+ *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
+ *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
+ *      ({@link interpretSubmittedText}).
+ *
+ * The **blocking** property (`:108-111` — while the read waits, no new OpenLogo instruction and no
+ * event handler block may run) is upheld by what this function does *not* do: it reaches no
+ * {@link yieldToEventLoop} checkpoint and never advances the tick clock, so no `when`/`on_key`/
+ * `on_click`/`every` handler can be delivered across a read, and the next instruction cannot start
+ * because evaluation has not returned. See `interaction.ts`'s header and
+ * `interaction-input-blocking.test.mjs`, which proves it differentially against `wait`.
+ */
+function evaluateInput(
+  node: ArithmeticCallNode,
+  environment: Environment,
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, "input", 1);
+  if (arityDiagnostic !== undefined) {
+    return fail(arityDiagnostic);
+  }
+  const promptNode = arg(node, 0);
+  const promptResult = evaluate(promptNode, environment);
+  if (!promptResult.ok) {
+    return promptResult;
+  }
+  if (typeof promptResult.value !== "string") {
+    return fail(
+      runtimeDiag.inputPromptNotWord(promptNode.source_span, {
+        actual: typeNameOf(promptResult.value),
+      }),
+    );
+  }
+  // A word IS the text the learner reads, so no rendering step stands between the prompt value and
+  // the host: `printedForm` prints a word verbatim, and the guard above has ruled out every value
+  // that would need rendering at all.
+  const promptText = promptResult.value;
+  const answer = readInputAnswer(promptText, environment);
+  if (answer === undefined) {
+    // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
+    // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
+    // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
+    // presentation (`spec/error-model.md:254-259`), so what a second builder would risk is a drift
+    // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
+    // "cancelled" }` identical to an externally cancelled run in any build, localized or not. The
+    // span still points at the waiting `input`, which tells a learner *where* the run stopped.
+    return fail(runtimeDiag.cancelled(node.source_span));
+  }
+  emitInputPrimitive(environment.events, node.source_span);
+  return ok(interpretSubmittedText(answer));
+}
+
+/**
+ * Perform the read itself: display `promptText` to the host and wait for the one value the learner
+ * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * read cannot be answered at all.
+ *
+ * Two hosts, one meaning. A caller that supplied a live reader
+ * ({@link ExecuteOptions.hostInput.read}) gets it called with the prompt — that call IS the
+ * outstanding read, and it is where a real host shows the prompt and collects the answer. A caller
+ * that supplied only the scripted FIFO ({@link ExecuteOptions.hostInput.responses}, the one
+ * JSON-expressible convention the #657 ruling fixed for fixtures) gets the next queued answer. The
+ * reader wins when both are present: a run with a real host must never quietly prefer a stale
+ * script.
+ *
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
+ * not by a check, but by there being no suspension point at which anything else could be scheduled.
+ * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
+ */
+function readInputAnswer(
+  promptText: string,
+  environment: Environment,
+): string | undefined {
+  if (environment.hostReader !== undefined) {
+    return environment.hostReader(promptText);
+  }
+  return takeInputResponse(
+    environment.hostResponses,
+    environment.hostResponsesConsumed,
+  );
 }
 
 /**
@@ -4205,23 +4960,12 @@ function evaluateRandom(
 // never reached: {@link isSupportedComprehensionBody} keeps such a body from being "supported" in
 // the first place, so the whole comprehension is deferred rather than partially evaluated.
 
-/** The Core primitives whose kind is Command (`spec/commands.md`) — mirrors the parser's static
- * checker's `checker-control-flow.ts` `CORE_COMMANDS` (issue #114) exactly, since `execute()`
- * never runs `check()` and this runtime copy is what actually classifies a comprehension body's
- * final statement as command-shaped (reports nothing) vs. reporter-shaped (reports a value) for
- * the block-result rule. Not re-exported by `@openlogo/parser`, so duplicated here rather than
- * imported. */
-const COMPREHENSION_COMMAND_NAMES: ReadonlySet<string> = new Set([
-  "print",
-  "show",
-  "randomize",
-]);
-
 /**
  * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
- * "value-producing" for the block-result rule — mirrors the checker's `VALUE_PRODUCING_KINDS`
- * (issue #114) exactly, minus `IsPredicate` (not yet implemented by {@link evaluate}, so never
- * reachable here — {@link isSupportedExpression} already excludes it).
+ * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
+ * (issue #114) minus `PostfixExpression` and `IsPredicate`. A body ending in either is not
+ * value-producing here, and {@link asExpressionStatement} returns `undefined` for it, so the
+ * comprehension is left un-evaluated rather than partially run.
  */
 const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
   "NumberLit",
@@ -4237,7 +4981,7 @@ const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
 /** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a statement
  * kind with no expression counterpart (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`). A
  * `Call`/`ParenCall` is always narrowed — whether it is value-producing (a reporter) or not (a
- * Core command) is a separate question {@link isValueProducingStatement} answers. */
+ * command) is a separate question {@link isValueProducingStatement} answers. */
 function asExpressionStatement(
   statement: StatementNode,
 ): ExpressionNode | undefined {
@@ -4252,16 +4996,18 @@ function asExpressionStatement(
 }
 
 /**
- * Does `statement` produce a value the surrounding block-result rule can use? Mirrors the
- * checker's `producesValue` (`checker-control-flow.ts`, issue #114) exactly: a `Call`/`ParenCall`
- * produces a value unless its callee is a known Core command (`print`/`show`/`randomize`); every
- * other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind always does.
+ * Does `statement` produce a value the surrounding block-result rule can use? Judged by the same
+ * classification the checker's `producesValue` uses (`checker-control-flow.ts`): a `Call`/
+ * `ParenCall` produces a value unless its callee is a primitive the registry declares a **Command**
+ * ({@link isPrimitiveCommandName} — `@openlogo/parser`'s profile-blind lookup over the
+ * profile-keyed registry, issue #932); every other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind
+ * always does. `execute()` never runs `check()`, so this is what classifies a comprehension body's
+ * final statement at runtime — reading the one registry both stages share rather than a second
+ * copy of its names.
  */
 function isValueProducingStatement(statement: StatementNode): boolean {
   if (statement.kind === "Call" || statement.kind === "ParenCall") {
-    return !COMPREHENSION_COMMAND_NAMES.has(
-      statement.callee.name.toLowerCase(),
-    );
+    return !isPrimitiveCommandName(statement.callee.name);
   }
   return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
 }
@@ -4270,8 +5016,8 @@ function isValueProducingStatement(statement: StatementNode): boolean {
  * Is `statement` a leading (non-final) comprehension body statement this evaluator can run?
  * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
  * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
- * supported (the assignment target/value that are not yet implemented are themselves silently
- * no-ops, per {@link executeAssign}'s own convention); any expression-shaped statement is
+ * supported (an unsupported assignment target/value is itself silently a no-op, per
+ * {@link executeAssign}'s own convention); any expression-shaped statement is
  * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
  * `For`/`Forever`/`ProcedureDef`) is not.
  */
@@ -4296,11 +5042,11 @@ function isSupportedLeadingBodyStatement(
 
 /**
  * Is `statement` a final comprehension body statement this evaluator can run? `Return`/`Stop` are
- * structurally supported (as above). A `print`/`show`/`randomize` call is also structurally
- * supported even though {@link evaluate} never gives it a value — {@link runComprehensionBody}
- * correctly turns it into `ol-no-value` (it is command-shaped, not a not-yet-implemented shape),
- * reproducing the spec's own worked example `map num in :nums [ print :num ]` → `ol-no-value`.
- * Any other expression-shaped statement is supported when {@link isSupportedExpression} says so.
+ * structurally supported (as above). A **Command** call is also structurally supported even though
+ * {@link evaluate} never gives it a value — {@link runComprehensionBody} correctly turns it into
+ * `ol-no-value` (it is command-shaped, not a not-yet-implemented shape), reproducing the spec's own
+ * worked example `map num in :nums [ print :num ]` → `ol-no-value`. Any other expression-shaped
+ * statement is supported when {@link isSupportedExpression} says so.
  */
 function isSupportedFinalBodyStatement(
   statement: StatementNode,
@@ -4312,7 +5058,7 @@ function isSupportedFinalBodyStatement(
   }
   if (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
-    COMPREHENSION_COMMAND_NAMES.has(statement.callee.name.toLowerCase())
+    isPrimitiveCommandName(statement.callee.name)
   ) {
     return statement.args.every((argument) =>
       isSupportedExpression(argument, procedures, structs),
@@ -4390,6 +5136,25 @@ function runComprehensionBody(
 
   for (let index = 0; index < statements.length - 1; index++) {
     const statement = statements[index] as StatementNode;
+    // Each leading statement of a comprehension body is a unit of main-line progress, exactly as a
+    // statement of a loop body is — but this loop evaluates them directly rather than through
+    // `executeStatements`, so they inherit neither its budget charge nor its boundary (ruling #984).
+    // Charging here is what keeps the two paired: a boundary with no charge beside it is invisible
+    // to `main-line-boundary-pairing.test.mjs`, which is how a review found that removing this
+    // boundary entirely still passed that test. It also closes a real accounting gap — before this,
+    // the assignments in `map i in :xs [ :x = … :x ]` ran free of the instruction budget while the
+    // same statements in a `repeat` body were charged.
+    const limitDiagnostic = checkExecutionLimits(
+      environment,
+      statement.source_span,
+    );
+    if (limitDiagnostic) {
+      return { kind: "halt", diagnostic: limitDiagnostic };
+    }
+    const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+    if (boundaryDiagnostic) {
+      return { kind: "halt", diagnostic: boundaryDiagnostic };
+    }
     if (statement.kind === "Return") {
       return {
         kind: "escape",
@@ -4522,6 +5287,31 @@ function comprehensionDuplicateBinder(
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
  * empty, `spec/execution-model.md:402`).
  */
+/**
+ * Run the main line's statement-boundary hook at a comprehension iteration and report a halting
+ * diagnostic, or `undefined` to continue (maintainer ruling #984,
+ * `spec/interaction-events.md:189-204`).
+ *
+ * A comprehension body is an **expression**, so it never reaches `executeStatements` and never sees
+ * that function's per-statement boundary — yet each iteration is main-line progress exactly as a
+ * `repeat` iteration is, and the run has not closed while one is running. Measured before this was
+ * added: `repeat 3` and `for … in [1 2 3]` each gave a queued `every` occurrence three chances to
+ * run, while the equivalent `map … in [1 2 3]` gave it none.
+ *
+ * Paired with the existing per-iteration {@link checkExecutionLimits} call, which is the same
+ * "one unit of main-line progress" point. The hook only ever reports `halt`: a `return`/`stop`
+ * escaping a drained handler body is converted to its diagnostic inside `invokeEveryHandler`, so
+ * there is no non-halt signal for an expression context to be unable to represent.
+ */
+function comprehensionBoundaryDiagnostic(
+  environment: Environment,
+): Diagnostic | undefined {
+  const signal = environment.mainLineBoundary.fn?.();
+  return signal !== undefined && signal.kind === "halt"
+    ? signal.diagnostic
+    : undefined;
+}
+
 function evaluateComprehension(
   node: ComprehensionNode,
   environment: Environment,
@@ -4560,6 +5350,10 @@ function evaluateComprehension(
       if (limitDiagnostic) {
         return fail(limitDiagnostic);
       }
+      const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+      if (boundaryDiagnostic) {
+        return fail(boundaryDiagnostic);
+      }
       const bound = bindElement(node.binder, element);
       if (!bound.ok) {
         return fail(bound.diagnostic);
@@ -4584,6 +5378,10 @@ function evaluateComprehension(
     const limitDiagnostic = checkExecutionLimits(environment, node.source_span);
     if (limitDiagnostic) {
       return fail(limitDiagnostic);
+    }
+    const boundaryDiagnostic = comprehensionBoundaryDiagnostic(environment);
+    if (boundaryDiagnostic) {
+      return fail(boundaryDiagnostic);
     }
     const bound = bindElement(node.binder, element);
     if (!bound.ok) {

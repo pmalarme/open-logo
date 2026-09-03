@@ -2,7 +2,7 @@
   "name": "@openlogo/edu",
   "version": "0.2.0",
   "private": true,
-  "description": "OpenLogo education: learner levels, explain/why/hint/debug, geometry stdlib, AI tutor, and curriculum.",
+  "description": "OpenLogo education: learner levels, explain/why/hint/debug, geometry stdlib, and curriculum.",
   "license": "MIT",
   "type": "module",
   "exports": {

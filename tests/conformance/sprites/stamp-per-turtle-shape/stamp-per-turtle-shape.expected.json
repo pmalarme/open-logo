@@ -1,0 +1,284 @@
+{
+  "description": "issue #677 (SP5): per-turtle shape state is isolated. :a becomes an `arrow` and :b a `circle` via scoped `ask`; a single `stamp` under `tell [ :a :b ]` then emits one `stamp` per turtle capturing THAT turtle's own current shape (arrow for id 1, circle for id 2) — proving stamp reads per-turtle shape, not one shared value (spec/turtles-and-sprites.md's \"Shapes and sprites\": `stamp` draws the current shape onto the shared surface). Every change of the addressed set — here from `ask`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 10],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 10],
+        "end": [3, 27]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "arrow"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 10],
+        "end": [4, 28]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "shape-change",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 10],
+        "end": [4, 28]
+      },
+      "payload": {
+        "from": "turtle",
+        "to": "circle"
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "stamp",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "position": [0, 0],
+        "heading": 0,
+        "shape": "arrow",
+        "color": "black"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 18,
+      "kind": "stamp",
+      "source_span": {
+        "document": "sprites/stamp-per-turtle-shape/stamp-per-turtle-shape",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "position": [0, 0],
+        "heading": 0,
+        "shape": "circle",
+        "color": "black"
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}

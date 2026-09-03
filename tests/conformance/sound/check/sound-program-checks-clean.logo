@@ -1,0 +1,7 @@
+define melody
+  set_tempo 120
+  repeat 2 [ note "c4" 1 rest 1 ]
+  play ["e4" 1]
+  beep
+end
+melody

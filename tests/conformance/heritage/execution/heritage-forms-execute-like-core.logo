@@ -1,0 +1,9 @@
+to double :n
+  op :n * 2
+end
+to triple :n
+  output :n * 3
+end
+make "size" 10
+print double :size
+print triple :size

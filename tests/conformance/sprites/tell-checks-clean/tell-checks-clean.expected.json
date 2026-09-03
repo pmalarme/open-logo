@@ -1,0 +1,7 @@
+{
+  "description": "issue #674 (SP2): with the `sprites` profile active, a `tell` statement parses AND checks clean — the checker's unknown-command rule recognizes `tell` as a visible command name because `collectVisibleNames` registers the Sprites statement form under an active `sprites` profile (the other half of the slice: a form that only parses would still be rejected `ol-unknown-command`). The `:x = 1` assignment defines `:x` so the argument is not `ol-undefined-var`.",
+  "profiles": ["sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -1,5 +1,5 @@
 // Unit tests for comprehension evaluation: map/filter/reduce (issue #105,
-// spec/execution-model.md:380-479, worked examples :695-741). Conformance fixtures under
+// spec/execution-model.md:380-479, worked examples :874-910). Conformance fixtures under
 // tests/conformance/core-language/comprehensions/*.expected.json cover the primary
 // event/diagnostic shapes end to end (the spec's own worked map/reduce traces, destructuring item
 // binders, and the headline diagnostics). These unit tests fill in what a fixture cannot: every
@@ -13,6 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import * as OL from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
@@ -83,7 +84,7 @@ test("map over an empty list produces an empty list, no diagnostic", () => {
   assert.deepEqual(printedValues(result), [[]]);
 });
 
-test("a destructuring item binder destructures each element positionally (spec/execution-model.md:443)", () => {
+test("a destructuring item binder destructures each element positionally (spec/execution-model.md:457-459)", () => {
   const result = execute(
     ":corners = [[1 2] [3 4]]\n:xs = map [:x :y] in :corners [ :x ]\nprint :xs",
     doc,
@@ -218,6 +219,27 @@ test("a `return` as a comprehension body's final statement raises ol-return-in-c
     keyword: "return",
     form: "map",
   });
+});
+
+test("the Heritage spellings `output`/`op` in a comprehension body report the CANONICAL keyword, with the learner's own word in the prose", () => {
+  // `output`/`op` are Heritage alternate spellings of `return` (`spec/conformance.md#heritage` —
+  // "alternate spellings only, no new semantics"), lowered onto the same `Return` node, so all
+  // three are ONE condition and must carry ONE machine-readable identity: `params` is byte-identical
+  // to the `return` case above (issue #741). The prose is the localization boundary and still names
+  // what the learner typed.
+  for (const spelling of ["output", "op"]) {
+    const result = execute(
+      `:out = map n in [1] [ ${spelling} :n ]\nprint :out`,
+      doc,
+    );
+    assert.equal(result.diagnostics.length, 1);
+    assert.equal(result.diagnostics[0].code, "ol-return-in-comprehension");
+    assert.deepEqual(result.diagnostics[0].params, {
+      keyword: "return",
+      form: "map",
+    });
+    assert.match(result.diagnostics[0].message, new RegExp(`^${spelling} `));
+  }
 });
 
 test("a `return` as a LEADING (non-final) comprehension body statement still raises ol-return-in-comprehension immediately", () => {
@@ -418,4 +440,74 @@ test("comprehension binders shadow an outer variable of the same name only for t
   );
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [100, [1, 2]]);
+});
+
+// --- issue #932: command-vs-reporter classification comes from the primitive registry ----------
+//
+// `evaluate.ts` used to carry a verbatim copy of the checker's three-name list
+// (`print`/`show`/`randomize`) to decide whether a comprehension body's final statement reports a
+// value. Both copies missed every non-Core command, so a body ending in `forward`/`beep`/`fd` was
+// SILENT here and in `check()` alike — agreement on the wrong answer. The classification is now
+// `@openlogo/parser`'s `isPrimitiveCommandName`, read from the same profile-keyed registry the
+// checker uses, so these tests pin the runtime half and the two stages' agreement.
+
+test("a comprehension body ending in a non-Core command raises ol-no-value (issue #932)", () => {
+  for (const body of ["forward :n", "home", "beep", "fd :n", "grid"]) {
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    assert.deepEqual(
+      result.diagnostics.map((finding) => finding.code),
+      ["ol-no-value"],
+      `expected ol-no-value for a body ending in ${body}`,
+    );
+    assert.deepEqual(result.diagnostics[0].params, { form: "map" });
+  }
+});
+
+test("a comprehension body ending in a non-Core reporter is not reported ol-no-value (issue #932)", () => {
+  for (const body of ["xcor", ":n * 2", "count [1 2]"]) {
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    assert.deepEqual(
+      result.diagnostics,
+      [],
+      `a body ending in ${body} reports a value`,
+    );
+  }
+});
+
+test("check() and execute() agree about ol-no-value for every registered primitive (issue #932)", () => {
+  // The derived sweep: it names no primitive, so it covers each profile's whole table and extends
+  // to a future profile's with no edit. Only `ol-no-value` membership is compared — a reporter fed
+  // numeric arguments may still halt with its own runtime diagnostic, which is not this subject.
+  let compared = 0;
+  for (const profile of OL.OL_CHECK_PROFILES) {
+    const profiles =
+      profile === "core-language" ? [profile] : ["core-language", profile];
+    for (const name of OL.profilePrimitiveNames(profile)) {
+      const { min } = OL.activeProfilePrimitiveArityRange(name, profiles);
+      const args = Array.from({ length: min }, (_, index) => index + 1);
+      const source = `:out = map n in [1 2 3] [ ${[name, ...args].join(" ")} ]`;
+      const { ast } = OL.parse(source, doc);
+      const statically = OL.check(ast, { profiles, source }).diagnostics.some(
+        (finding) => finding.code === "ol-no-value",
+      );
+      const dynamically = execute(source, doc).diagnostics.some(
+        (finding) => finding.code === "ol-no-value",
+      );
+      assert.equal(
+        dynamically,
+        statically,
+        `${source} — check() and execute() disagree about ol-no-value`,
+      );
+      assert.equal(
+        statically,
+        OL.isPrimitiveCommandName(name),
+        `${source} — ol-no-value must follow the registry's kind for ${name}`,
+      );
+      compared += 1;
+    }
+  }
+  assert.ok(
+    compared > 50,
+    `expected every profile's primitives to be compared, got ${compared}`,
+  );
 });

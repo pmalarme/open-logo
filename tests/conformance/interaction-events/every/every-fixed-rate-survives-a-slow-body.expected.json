@@ -1,0 +1,632 @@
+{
+  "description": "MAINTAINER RULING #984, Q3, the discriminating half: `The period is never re-measured from the moment an invocation happens to finish` (spec/interaction-events.md:183-187). Its sibling `every-fixed-rate-interval-not-re-measured` delays the handler with a FOREIGN `on_key` body, which pins fixed rate against a scheduler that disarms the handler while it runs -- but not against one that merely re-measures the period from each completion, because that fixture's `every` body is instantaneous, so `completion` and `start` fall on the same tick and no re-measurement can move anything. A QA mutation (re-arm on completion, arrival test left intact) passed it, all 919 fixtures and all 203 test files, which is how the gap was found. Here the `every` body itself is slow: `every 4` with a body that takes 2 ticks, so completion is provably later than the boundary that triggered it and the two clocks separate. Measured: NINE firings under fixed rate, where a completion-re-measured clock fires FIVE. This fixture and its sibling are both needed -- neither catches the mutation the other does.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 37,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 38,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 39,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 40,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 41,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 42,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 43,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 44,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 45,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 46,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 47,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 48,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-survives-a-slow-body",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

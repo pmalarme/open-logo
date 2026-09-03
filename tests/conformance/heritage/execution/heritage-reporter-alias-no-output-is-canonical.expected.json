@@ -1,0 +1,23 @@
+{
+  "description": "Issue #839 (maintainer ruling #833 rule 3, \"nothing shadows\"): `define forward … print 1 … end` then `print fd`. The runtime phase-1 registration guard (`spec/execution-model.md:82-89`) raises `ol-reserved-word` (`spec/error-model.md:125`) at the declaration, so the procedure never runs and the event stream is empty — which is itself the strongest evidence the halt happens at registration rather than at the reporter position. Re-legalising `define forward` reddens this and leads the next reader to #787. The evaluator-level invariant is carried in `packages/runtime/src/heritage-alias-chokepoint.test.mjs`.",
+  "compareMessages": true,
+  "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/execution/heritage-reporter-alias-no-output-is-canonical",
+        "start": [6, 8],
+        "end": [6, 15]
+      },
+      "params": {
+        "name": "forward"
+      },
+      "message": "forward is already part of OpenLogo. choose another name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

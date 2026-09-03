@@ -20,46 +20,107 @@
  * productions, not this table.
  */
 
+import type { NodeKind } from "./ast.js";
+import type { CheckProfile } from "./check.js";
+
+/**
+ * The inclusive input-count range a primitive accepts: `min` is its bare default arity (the count
+ * the reader gathers for a bare call) and `max` the most its parenthesized alternate/variadic form
+ * accepts — `Number.POSITIVE_INFINITY` for an open variadic such as `(print …)`, and equal to `min`
+ * for a strictly fixed-arity primitive.
+ */
+export interface ArityRange {
+  readonly min: number;
+  readonly max: number;
+}
+
+/**
+ * A primitive's **Kind**, as each primitive's own entry in the spec states it: a `command` performs
+ * an effect and reports no value, a `reporter` reports one (`spec/commands.md:15,17` — *"**Kind** is
+ * **Command**, **Reporter**, or **Special form**"*, and *"**Result** is the reported value or `—`
+ * for commands and effect-only special forms"*).
+ *
+ * The block-result rule judges a block by its last statement (`spec/execution-model.md:217-230`,
+ * whose closing sentence at `:228-229` is the `ol-no-value` rule itself), so this is the fact a
+ * comprehension body's `ol-no-value` (`checker-control-flow.ts`, and `@openlogo/runtime`'s
+ * `runComprehensionBody`) and a control body's `ol-style-useless-value` (`checker-style.ts`) all
+ * need about a call — three consumers, and before issue #932 two hand-written three-name lists.
+ */
+type PrimitiveKind = "command" | "reporter";
+
+/**
+ * One primitive's registration row: canonical lowercase name, {@link PrimitiveKind}, and bare
+ * default arity. Every profile's table below is built from rows of this shape, so **a primitive
+ * cannot be registered without declaring its kind**: the arity table and the command-name set are
+ * two derivations of the same rows, the command names being the subset whose kind is `command`.
+ */
+type PrimitiveRow = readonly [name: string, kind: PrimitiveKind, arity: number];
+
+/** The `name → default arity` table `rows` registers. */
+function arityTable(
+  rows: readonly PrimitiveRow[],
+): ReadonlyMap<string, number> {
+  return new Map(rows.map(([name, , arity]) => [name, arity]));
+}
+
+/** The names among `rows` whose {@link PrimitiveKind} is `command`. */
+function commandNames(rows: readonly PrimitiveRow[]): ReadonlySet<string> {
+  return new Set(
+    rows.filter(([, kind]) => kind === "command").map(([name]) => name),
+  );
+}
+
+/**
+ * Each Core primitive's kind and default arity, keyed by its canonical lowercase name. Kinds are
+ * each primitive's own **Kind** line in [`spec/commands.md`](../../../spec/commands.md):
+ * `print`/`show`/`randomize` are Commands and every other row there is a Reporter.
+ */
+const CORE_PRIMITIVES: readonly PrimitiveRow[] = [
+  // Variables and output.
+  ["thing", "reporter", 1],
+  ["print", "command", 1],
+  ["show", "command", 1],
+  // Math.
+  ["abs", "reporter", 1],
+  ["sqrt", "reporter", 1],
+  ["int", "reporter", 1],
+  ["round", "reporter", 1],
+  ["power", "reporter", 2],
+  ["random", "reporter", 1],
+  ["randomize", "command", 0],
+  ["sin", "reporter", 1],
+  ["cos", "reporter", 1],
+  ["tan", "reporter", 1],
+  ["pi", "reporter", 0],
+  // Logic and predicates.
+  ["empty?", "reporter", 1],
+  ["member?", "reporter", 2],
+  ["is_a?", "reporter", 2],
+  ["repcount", "reporter", 0],
+  // Words and lists.
+  ["word", "reporter", 2],
+  ["sentence", "reporter", 2],
+  ["first", "reporter", 1],
+  ["last", "reporter", 1],
+  ["butfirst", "reporter", 1],
+  ["butlast", "reporter", 1],
+  ["fput", "reporter", 2],
+  ["lput", "reporter", 2],
+  ["count", "reporter", 1],
+  ["uppercase", "reporter", 1],
+  ["lowercase", "reporter", 1],
+];
+
 /**
  * Default arity of each Core primitive, keyed by its canonical lowercase name. Kept module-
  * private so the table is immutable from outside — callers read it only through the pure
  * {@link corePrimitiveArity} lookup, never a mutable `Map` reference.
  */
-const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
-  // Variables and output.
-  ["thing", 1],
-  ["print", 1],
-  ["show", 1],
-  // Math.
-  ["abs", 1],
-  ["sqrt", 1],
-  ["int", 1],
-  ["round", 1],
-  ["power", 2],
-  ["random", 1],
-  ["randomize", 0],
-  ["sin", 1],
-  ["cos", 1],
-  ["tan", 1],
-  ["pi", 0],
-  // Logic and predicates.
-  ["empty?", 1],
-  ["member?", 2],
-  ["is_a?", 2],
-  ["repcount", 0],
-  // Words and lists.
-  ["word", 2],
-  ["sentence", 2],
-  ["first", 1],
-  ["last", 1],
-  ["butfirst", 1],
-  ["butlast", 1],
-  ["fput", 2],
-  ["lput", 2],
-  ["count", 1],
-  ["uppercase", 1],
-  ["lowercase", 1],
-]);
+const CORE_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(CORE_PRIMITIVES);
+
+/** Every Core primitive whose kind is `command`. See {@link CORE_PRIMITIVES}. */
+const CORE_COMMAND_NAMES: ReadonlySet<string> = commandNames(CORE_PRIMITIVES);
 
 /**
  * The default arity of a Core primitive, or `undefined` when `name` is not a known Core
@@ -70,95 +131,155 @@ export function corePrimitiveArity(name: string): number | undefined {
 }
 
 /**
- * Default arities for the **Turtle & Rendering** profile's Core-spelled primitives (issue #193),
- * derived from the Turtle movement / Pen and screen tables in
- * [`spec/commands.md`](../../../spec/commands.md). Registers the canonical underscored names plus
- * the small set of Turtle & Rendering (not Heritage) aliases the spec documents inline —
- * `setxy`/`seth` (issue #202; `spec/commands.md:1279,1296`), `setcolor`/`setbg` (issue #208;
- * `spec/commands.md:1521,1539`), and `setwidth` (issue #209; `spec/commands.md:1556`).
- * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely
- * **Heritage**-profile (M5) short spellings and stay out of this table — the Heritage profile's
- * short-alias list is closed by `spec/conformance.md:105-117`, and `setxy`/`seth`/`setcolor`/
- * `setbg`/`setwidth` are not members of it. Kept
- * as a separate table from {@link CORE_PRIMITIVE_ARITY} (rather than merged into it) because the two
- * profiles have independent visibility: the Layer-2 checker gates each on its own active profile
- * (`spec/tooling.md:175-176`), while the reader (this table's only consumer, via
- * {@link primitiveArity}) groups a bare call's arguments for *any* recognized primitive
- * regardless of profile — the profile-legality decision belongs to the checker, not the reader.
- */
-const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
-  // Turtle movement.
-  ["forward", 1],
-  ["back", 1],
-  ["left", 1],
-  ["right", 1],
-  ["home", 0],
-  ["set_xy", 2],
-  ["setxy", 2], // Turtle & Rendering alias of `set_xy` (spec/commands.md:1279), not Heritage.
-  ["set_heading", 1],
-  ["seth", 1], // Turtle & Rendering alias of `set_heading` (spec/commands.md:1296), not Heritage.
-  ["xcor", 0],
-  ["ycor", 0],
-  ["heading", 0],
-  ["pos", 0],
-  ["towards", 2],
-  ["distance", 2],
-  // Pen and screen.
-  ["show_turtle", 0],
-  ["hide_turtle", 0],
-  ["pen_up", 0],
-  ["pen_down", 0],
-  ["clear_screen", 0],
-  ["clean", 0],
-  ["set_color", 1],
-  ["setcolor", 1], // Turtle & Rendering alias of `set_color` (spec/commands.md:1521), not Heritage.
-  ["set_background", 1],
-  ["setbg", 1], // Turtle & Rendering alias of `set_background` (spec/commands.md:1539), not Heritage.
-  ["set_width", 1],
-  ["setwidth", 1], // Turtle & Rendering alias of `set_width` (spec/commands.md:1556), not Heritage.
-  ["fill", 0],
-  ["stamp", 0],
-  ["set_shape", 1],
-]);
-
-/**
- * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of
- * the Core-spelled turtle primitives registered in {@link TURTLE_PRIMITIVE_ARITY}. Matching is
- * case-insensitive.
+ * The **Turtle & Rendering** profile's primitives (issue #193), derived from the Turtle movement /
+ * Pen and screen tables in [`spec/commands.md`](../../../spec/commands.md). Each row is a canonical
+ * name, its **Kind** and arity as that primitive's own entry states them, and — for five of them —
+ * the one-word alias spelling `spec/commands.md` documents inline: `setxy`/`seth` (issue #202;
+ * `spec/commands.md:1280,1297`), `setcolor`/`setbg`
+ * (issue #208; `spec/commands.md:1522,1540`), and `setwidth` (issue #209; `spec/commands.md:1557`).
  *
- * `TURTLE_PRIMITIVE_ARITY` is this profile's single source-of-truth table. A future visibility
- * slice (issue #136) that makes turtle primitives visible to `ol-unknown-command`
- * (`checker-names.ts`) and its static arity check (`checker-arity.ts`) should add its own
- * `turtlePrimitiveNames()` / `turtlePrimitiveArityRange()` accessors reading from this same table
- * — mirroring {@link corePrimitiveNames} / {@link corePrimitiveArityRange} — rather than
- * re-deriving a separate turtle name/arity list. Wiring that visibility is intentionally deferred
- * to #136: extending `checker-arity.ts` to treat a turtle callee as statically-known *before*
- * `checker-names.ts` also treats it as visible would make `ol-unknown-command` and
- * `ol-not-enough-inputs`/`ol-too-many-inputs` both fire for the same call site, breaking the two
- * rules' documented never-double-report contract.
+ * **The alias lives on its canonical's row rather than in a table beside it.** Until issue #841 the
+ * five were independent arity entries with no recorded relationship, so nothing anywhere could
+ * answer "what is `setxy` an alias *of*?" — `canonicalOfHeritageAlias("setxy")` returns `undefined`,
+ * because they are not Heritage (`spec/conformance.md:148-157` closes that list and none of them is
+ * in it). That made the edge unverifiable: `spec/built-in-names.json` records `setxy → set_xy`, and
+ * the strongest check available against an unrecorded edge was "the target is some entry of equal
+ * arity", which accepts `setxy → distance` just as happily.
+ * [ADR-0021](../../../docs/adr/0021-built-in-names-list-and-ci-gate.md) §3 requires of #841 an
+ * enumerable canonical map *"consumed by the resolver, so it cannot drift"*.
+ *
+ * The map is enumerable. The **consumption** half is not satisfied, so this is the narrow claim:
+ * keeping the pair on one row removes the duplicate **arity** — both spellings take the same literal
+ * because the row holds only one — and nothing more.
+ * {@link turtlePrimitiveArity} reads {@link TURTLE_PRIMITIVE_ARITY} directly and never consults the
+ * canonical map, so **which canonical a spelling maps to is still two facts**: this table's alias
+ * column, and the runtime's own dispatch in `packages/runtime/src/execute-internal.ts`. Move an
+ * alias column onto a different row of equal arity and update `spec/built-in-names.json` to match,
+ * and the gate agrees while the runtime still dispatches the old way. Only a hand-written pin in
+ * this slice's own `scripts/built-in-names-gate.test.mjs` notices, and **nothing compares either
+ * fact against the runtime's dispatch**. Closing that needs a real consumer of the map, which this
+ * slice does not add; the gap is recorded on #841.
+ *
+ * It does **not** change what the five mean at a call site: they remain independent spellings bound
+ * to one primitive, with no canonicalisation in either direction, which is exactly the call-site
+ * split that makes them built-in names in the first place
+ * ([LDR-0007](../../../docs/design-notes/0007-binding-vs-registration.md)).
+ *
+ * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs` are the genuinely **Heritage**-profile (M5) short
+ * spellings and are not here. Kept as a separate table from {@link CORE_PRIMITIVE_ARITY} because
+ * the two profiles have independent visibility: the Layer-2 checker gates each on its own active
+ * profile (`spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any*
+ * recognized primitive regardless of profile — the profile-legality decision belongs to the
+ * checker, not the reader.
  */
-export function turtlePrimitiveArity(name: string): number | undefined {
-  return TURTLE_PRIMITIVE_ARITY.get(name.toLowerCase());
-}
+const TURTLE_PRIMITIVES: readonly (readonly [
+  canonical: string,
+  kind: PrimitiveKind,
+  arity: number,
+  alias?: string,
+])[] = [
+  // Turtle movement.
+  ["forward", "command", 1],
+  ["back", "command", 1],
+  ["left", "command", 1],
+  ["right", "command", 1],
+  ["home", "command", 0],
+  ["set_xy", "command", 2, "setxy"],
+  ["set_heading", "command", 1, "seth"],
+  ["xcor", "reporter", 0],
+  ["ycor", "reporter", 0],
+  ["heading", "reporter", 0],
+  ["pos", "reporter", 0],
+  ["towards", "reporter", 2],
+  ["distance", "reporter", 2],
+  // Pen and screen.
+  ["show_turtle", "command", 0],
+  ["hide_turtle", "command", 0],
+  ["pen_up", "command", 0],
+  ["pen_down", "command", 0],
+  ["clear_screen", "command", 0],
+  ["clean", "command", 0],
+  ["set_color", "command", 1, "setcolor"],
+  ["set_background", "command", 1, "setbg"],
+  ["set_width", "command", 1, "setwidth"],
+  ["fill", "command", 0],
+  ["stamp", "command", 0],
+  ["set_shape", "command", 1],
+];
 
 /**
- * Every Turtle & Rendering primitive's canonical lowercase name, sorted for deterministic
- * iteration. This is the enumerable counterpart to {@link turtlePrimitiveArity} — the checker's
- * visible-name model (`checker-names.ts`, issue #136) needs the full name *list*, gated on the
- * `turtle-rendering` profile, to make these primitives both callable without `ol-unknown-command`
- * and candidates for its did-you-mean suggestions — mirroring {@link corePrimitiveNames}'s role
- * for the Core table. Kept as a frozen array computed once so callers cannot mutate the shared
- * table.
+ * Every Turtle & Rendering spelling as a {@link PrimitiveRow} — an alias spelling repeats its
+ * canonical's kind and arity, because both come from the one row it shares.
  */
-const TURTLE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
-  [...TURTLE_PRIMITIVE_ARITY.keys()].sort(),
+const TURTLE_PRIMITIVE_ROWS: readonly PrimitiveRow[] =
+  TURTLE_PRIMITIVES.flatMap(
+    ([canonical, kind, arity, alias]): PrimitiveRow[] =>
+      alias === undefined
+        ? [[canonical, kind, arity]]
+        : [
+            [canonical, kind, arity],
+            [alias, kind, arity],
+          ],
+  );
+
+/** Every Turtle & Rendering primitive name — canonical and alias spellings alike — to its arity. */
+const TURTLE_PRIMITIVE_ARITY: ReadonlyMap<string, number> = arityTable(
+  TURTLE_PRIMITIVE_ROWS,
+);
+
+/** Every Turtle & Rendering spelling whose kind is `command`. See {@link TURTLE_PRIMITIVES}. */
+const TURTLE_COMMAND_NAMES: ReadonlySet<string> = commandNames(
+  TURTLE_PRIMITIVE_ROWS,
+);
+
+/** Each one-word alias spelling to the canonical name it is a spelling of. */
+const TURTLE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map(
+  TURTLE_PRIMITIVES.flatMap(([canonical, , , alias]): [string, string][] =>
+    alias === undefined ? [] : [[alias, canonical]],
+  ),
 );
 
 /**
- * The full list of Turtle & Rendering primitive names, in sorted order. See
- * {@link TURTLE_PRIMITIVE_NAMES}. */
-export function turtlePrimitiveNames(): readonly string[] {
-  return TURTLE_PRIMITIVE_NAMES;
+ * The canonical Turtle & Rendering name `name` is a one-word alias spelling of, or `undefined` when
+ * it is not one of the five. Matching is case-insensitive, like every other name lookup here. The
+ * Heritage counterpart is {@link canonicalOfHeritageAlias}.
+ */
+export function canonicalOfTurtleAlias(name: string): string | undefined {
+  return TURTLE_ALIAS_CANONICAL.get(name.toLowerCase());
+}
+
+/** Every Turtle & Rendering one-word alias spelling, sorted for deterministic iteration. */
+const TURTLE_ALIAS_NAMES: readonly string[] = Object.freeze(
+  [...TURTLE_ALIAS_CANONICAL.keys()].sort(),
+);
+
+/**
+ * The five Turtle & Rendering one-word alias spellings, in sorted order. The enumerable half of
+ * {@link canonicalOfTurtleAlias}, so a consumer can walk the edges rather than probe for them.
+ */
+export function turtleAliasNames(): readonly string[] {
+  return TURTLE_ALIAS_NAMES;
+}
+
+/**
+ * The default arity of a Turtle & Rendering primitive, or `undefined` when `name` is not one of the
+ * primitives registered in {@link TURTLE_PRIMITIVE_ARITY} — which holds the canonical spellings
+ * **and** the five one-word alias spellings, each sharing its canonical's arity because they share
+ * a row in {@link TURTLE_PRIMITIVES}. Matching is case-insensitive.
+ *
+ * `TURTLE_PRIMITIVE_ARITY` is this profile's single source-of-truth table, and every consumer that
+ * needs its *names* rather than one arity reaches it through the profile-keyed
+ * {@link PROFILE_PRIMITIVES} registry ({@link profilePrimitiveNames}) rather than a per-profile
+ * name accessor of its own. Issue #136 wired that visibility for this table with such an accessor;
+ * issue #966 retired the last of them, because the checker's name model now sweeps every profile
+ * from the registry and eight per-profile enumerators had no caller left. The double-report
+ * constraint #136 recorded still holds: making a turtle callee statically-known in
+ * `checker-arity.ts` before `checker-names.ts` treats it as visible would fire
+ * `ol-unknown-command` and `ol-not-enough-inputs`/`ol-too-many-inputs` for the same call site,
+ * breaking the two rules' documented never-double-report contract.
+ */
+export function turtlePrimitiveArity(name: string): number | undefined {
+  return TURTLE_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
 
 /**
@@ -180,16 +301,29 @@ export function turtlePrimitiveNames(): readonly string[] {
  * reader (this table's only consumer, via {@link primitiveArity}) groups a bare call's arguments
  * for *any* recognized primitive regardless of profile.
  */
-const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
-  ["reverse", 1],
-  ["pick", 1],
-  ["sort", 1],
-  ["list", 0],
-  ["dict", 0],
-  ["keys", 1],
-  ["values", 1],
-  ["type_of", 1],
-]);
+const DATA_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["reverse", "reporter", 1],
+  ["pick", "reporter", 1],
+  ["sort", "reporter", 1],
+  ["list", "reporter", 0],
+  ["dict", "reporter", 0],
+  ["keys", "reporter", 1],
+  ["values", "reporter", 1],
+  ["type_of", "reporter", 1],
+];
+
+/** Default arity of each Data-profile primitive. See {@link DATA_PRIMITIVES}. */
+const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(DATA_PRIMITIVES);
+
+/**
+ * Every Data-profile primitive whose kind is `command` — none: every primitive
+ * {@link DATA_PRIMITIVES} registers has an `R` row in the tables cited above. Those tables also
+ * carry `S` rows (`add … to`, `clear`) and `R/place` rows (`:list[i]`, `:dict.key`), which are
+ * grammar forms and selectors rather than bare-call primitives, so they are registered nowhere
+ * here.
+ */
+const DATA_COMMAND_NAMES: ReadonlySet<string> = commandNames(DATA_PRIMITIVES);
 
 /**
  * The default (bare-call) arity of a Data-profile derived list reporter, or `undefined` when
@@ -197,10 +331,11 @@ const DATA_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
  * case-insensitive.
  *
  * `DATA_PRIMITIVE_ARITY` is this profile's single source-of-truth table. Its name-enumeration
- * counterpart, {@link dataPrimitiveNames}, makes these reporters visible to `ol-unknown-command`
- * (`checker-names.ts`, issue #397); its range counterpart, {@link dataPrimitiveArityRange}, is what
- * the static arity check (`checker-arity.ts`, issue #405) actually consults — mirroring
- * {@link corePrimitiveArityRange}'s role for Core primitives.
+ * counterpart, {@link profilePrimitiveNames}, makes these reporters visible to `ol-unknown-command`
+ * (`checker-names.ts`, issue #397); the static arity check (`checker-arity.ts`) reaches the same
+ * table — paired with {@link DATA_PRIMITIVE_MAX_ARITY} — through the profile-keyed
+ * {@link PROFILE_PRIMITIVES} registry rather than a per-profile range accessor of its own
+ * (issue #874).
  */
 export function dataPrimitiveArity(name: string): number | undefined {
   return DATA_PRIMITIVE_ARITY.get(name.toLowerCase());
@@ -219,45 +354,6 @@ const DATA_PRIMITIVE_MAX_ARITY: ReadonlyMap<string, number> = new Map([
 ]);
 
 /**
- * The inclusive input-count range a Data-profile primitive accepts, or `undefined` when `name` is
- * not a known Data primitive. `min` is the bare default arity ({@link dataPrimitiveArity}); `max`
- * is the most its parenthesized alternate/variadic form accepts
- * ({@link DATA_PRIMITIVE_MAX_ARITY}) — `Number.POSITIVE_INFINITY` for an open variadic (`list`),
- * and equal to `min` for every other, strictly fixed-arity Data primitive. Mirrors
- * {@link corePrimitiveArityRange} exactly; the static arity checker (issue #405) uses this to tell
- * `list`'s genuine variadic paren form (`(list 1 2)`) from a fixed-arity Data primitive given too
- * many inputs (`(reverse :a :b)`). Matching is case-insensitive.
- */
-export function dataPrimitiveArityRange(
-  name: string,
-): { readonly min: number; readonly max: number } | undefined {
-  const min = dataPrimitiveArity(name);
-  if (min === undefined) {
-    return undefined;
-  }
-  return { min, max: DATA_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
-}
-
-/**
- * Every Data-profile primitive's canonical lowercase name, sorted for deterministic iteration.
- * This is the enumerable counterpart to {@link dataPrimitiveArity} — the checker's visible-name
- * model (`checker-names.ts`, issue #397 and issue #405) needs the full name *list*, gated on the
- * `data` profile, to make these primitives both callable without `ol-unknown-command` and
- * candidates for its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role for
- * the Turtle & Rendering table.
- */
-const DATA_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
-  [...DATA_PRIMITIVE_ARITY.keys()].sort(),
-);
-
-/**
- * The full list of Data-profile primitive names, in sorted order. See
- * {@link DATA_PRIMITIVE_NAMES}. */
-export function dataPrimitiveNames(): readonly string[] {
-  return DATA_PRIMITIVE_NAMES;
-}
-
-/**
  * Default arities for the **Educational** profile's baseline meta-commands (issue #331), derived
  * from the signature table in [`spec/conformance.md`](../../../spec/conformance.md#educational):
  * `explain`/`why`/`hint`/`debug` are each a Command, arity 0, invoked as a bare word — the exact
@@ -269,43 +365,69 @@ export function dataPrimitiveNames(): readonly string[] {
  * it on its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
  * arguments for *any* recognized primitive regardless of profile.
  */
-const EDUCATIONAL_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
-  ["explain", 0],
-  ["why", 0],
-  ["hint", 0],
-  ["debug", 0],
-]);
+const EDUCATIONAL_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["explain", "command", 0],
+  ["why", "command", 0],
+  ["hint", "command", 0],
+  ["debug", "command", 0],
+];
+
+/** Default arity of each Educational meta-command. See {@link EDUCATIONAL_PRIMITIVES}. */
+const EDUCATIONAL_PRIMITIVE_ARITY: ReadonlyMap<string, number> = arityTable(
+  EDUCATIONAL_PRIMITIVES,
+);
+
+/**
+ * Every Educational-profile name whose kind is `command` — all four: `spec/conformance.md`'s
+ * Educational signature table gives each the Kind `Command`. See {@link EDUCATIONAL_PRIMITIVES}.
+ */
+const EDUCATIONAL_COMMAND_NAMES: ReadonlySet<string> = commandNames(
+  EDUCATIONAL_PRIMITIVES,
+);
 
 /**
  * The default arity of an Educational-profile meta-command, or `undefined` when `name` is not one
  * of `explain`/`why`/`hint`/`debug`. Matching is case-insensitive.
  *
  * `EDUCATIONAL_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
- * {@link turtlePrimitiveArity}/{@link dataPrimitiveArity} — for a future visibility slice's
- * `educationalPrimitiveNames()` accessor to read from, exactly as {@link turtlePrimitiveNames} does
- * for Turtle & Rendering.
+ * {@link turtlePrimitiveArity}/{@link dataPrimitiveArity} — and the checker reads its *names*
+ * through the profile-keyed {@link profilePrimitiveNames}, exactly as it does for every other
+ * profile.
  */
 export function educationalPrimitiveArity(name: string): number | undefined {
   return EDUCATIONAL_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
 
 /**
- * Every Educational-profile meta-command's canonical lowercase name, sorted for deterministic
- * iteration. This is the enumerable counterpart to {@link educationalPrimitiveArity} — the
- * checker's visible-name model (`checker-names.ts`) needs the full name *list*, gated on the
- * `educational` profile, to make these meta-commands both callable without `ol-unknown-command`
- * and candidates for its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s role
- * for the Turtle & Rendering table.
+ * The **Tutor (AI)** profile's one command (issue #838), whose canonical signature is normative in
+ * [`spec/conformance.md`](../../../spec/conformance.md#tutor-ai): `challenge` is a Command, arity 0,
+ * invoked as the bare word — the same "zero-input bare Command" shape as the Educational
+ * meta-commands it augments (`spec/ai-tutor.md:173`).
+ *
+ * Tutor has no runtime yet, so before this slice `challenge` was the one built-in name with **no
+ * registry at all** and therefore the one a program could declare with nothing to consult. It gets
+ * its own table for the same reason {@link EDUCATIONAL_PRIMITIVE_ARITY} does: Tutor is a profile of
+ * its own in the DAG, and a table per profile is what lets each be enumerated independently.
  */
-const EDUCATIONAL_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
-  [...EDUCATIONAL_PRIMITIVE_ARITY.keys()].sort(),
-);
+const TUTOR_PRIMITIVES: readonly PrimitiveRow[] = [["challenge", "command", 0]];
+
+/** Default arity of each Tutor-profile primitive. See {@link TUTOR_PRIMITIVES}. */
+const TUTOR_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(TUTOR_PRIMITIVES);
 
 /**
- * The full list of Educational-profile meta-command names, in sorted order. See
- * {@link EDUCATIONAL_PRIMITIVE_NAMES}. */
-export function educationalPrimitiveNames(): readonly string[] {
-  return EDUCATIONAL_PRIMITIVE_NAMES;
+ * Every Tutor-profile name whose kind is `command` — `challenge`, whose Kind is `Command` in
+ * `spec/conformance.md`'s Tutor (AI) signature table. See {@link TUTOR_PRIMITIVES}.
+ */
+const TUTOR_COMMAND_NAMES: ReadonlySet<string> = commandNames(TUTOR_PRIMITIVES);
+
+/**
+ * The default arity of a Tutor-profile command, or `undefined` when `name` is not `challenge`.
+ * Matching is case-insensitive. {@link TUTOR_PRIMITIVE_ARITY} is this profile's single
+ * source-of-truth table, mirroring {@link educationalPrimitiveArity}.
+ */
+export function tutorPrimitiveArity(name: string): number | undefined {
+  return TUTOR_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
 
 /**
@@ -324,91 +446,531 @@ export function educationalPrimitiveNames(): readonly string[] {
  * `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for *any* recognized
  * primitive regardless of profile.
  */
-const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> = new Map([
-  ["grid", 0],
-  ["axes", 0],
-  ["measure", 0],
-]);
+const GEOMETRY_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["grid", "command", 0],
+  ["axes", "command", 0],
+  ["measure", "command", 0],
+];
+
+/** Default arity of each Geometry overlay primitive. See {@link GEOMETRY_PRIMITIVES}. */
+const GEOMETRY_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(GEOMETRY_PRIMITIVES);
+
+/**
+ * Every Geometry-profile name whose kind is `command` — all three: `spec/geometry-module.md`'s
+ * overlay table gives each the kind `C`. See {@link GEOMETRY_PRIMITIVES}.
+ */
+const GEOMETRY_COMMAND_NAMES: ReadonlySet<string> =
+  commandNames(GEOMETRY_PRIMITIVES);
 
 /**
  * The default arity of a Geometry-profile overlay primitive, or `undefined` when `name` is not
  * one of `grid`/`axes`/`measure`. Matching is case-insensitive.
  *
  * `GEOMETRY_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
- * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}.
+ * {@link turtlePrimitiveArity}/{@link educationalPrimitiveArity}. All three overlay primitives are
+ * strictly fixed-arity 0 (`spec/geometry-module.md`'s `## grid`, `## axes`, and `## measure`
+ * sections each specify a Kind-C command taking no inputs), so the profile registers no ceiling
+ * table in {@link PROFILE_PRIMITIVES} and the static arity checker reads `max === min` from this
+ * table alone.
  */
 export function geometryPrimitiveArity(name: string): number | undefined {
   return GEOMETRY_PRIMITIVE_ARITY.get(name.toLowerCase());
 }
 
 /**
- * Every Geometry-profile overlay primitive's canonical lowercase name, sorted for deterministic
- * iteration. This is the enumerable counterpart to {@link geometryPrimitiveArity} — the checker's
- * visible-name model (`checker-names.ts`) needs the full name *list*, gated on the `geometry`
- * profile, to make these primitives both callable without `ol-unknown-command` and candidates for
- * its did-you-mean suggestions — mirroring {@link turtlePrimitiveNames}'s/
- * {@link educationalPrimitiveNames}'s role for their tables.
+ * Default arities for the **Interaction & Events** profile's Core-spelled primitives that the
+ * reader must group arguments for — `wait <n>` (issue #680, slice I1) and `input <prompt>` (issue
+ * #681, slice I2), the profile's only two ordinary calls (`spec/interaction-events.md:65`: "`input`
+ * and `wait` are ordinary calls and take no block"). `wait` is a Kind-C Command taking one input and
+ * `input` a Kind-R Reporter taking one prompt, both derived from
+ * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Profiles and reservation"
+ * table and their `### wait <n>` / `### input <prompt>` sections.
+ * `when`/`every`/`on_key`/`on_click` are profile block-heads (reserved words with their own block
+ * grammar, not ordinary calls) and register their reader support elsewhere — see
+ * {@link INTERACTION_EVENTS_BLOCK_HEAD_NAMES}; only the ordinary calls need an arity entry here so
+ * the reader groups their single argument. Kept as its own table for the same reason
+ * {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
+ * Interaction & Events has its own independent profile visibility (the Layer-2 checker gates it on
+ * its own active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile.
  */
-const GEOMETRY_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
-  [...GEOMETRY_PRIMITIVE_ARITY.keys()].sort(),
-);
-
-/**
- * The full list of Geometry-profile overlay primitive names, in sorted order. See
- * {@link GEOMETRY_PRIMITIVE_NAMES}. */
-export function geometryPrimitiveNames(): readonly string[] {
-  return GEOMETRY_PRIMITIVE_NAMES;
-}
-
-/**
- * Every profile's primitive-arity table the reader consults, in lookup order. Core Language is
- * checked first (today's only always-visible table), then each optional profile's Core-spelled
- * primitives as they are registered — currently Turtle & Rendering, Data, Educational, and
- * Geometry. A later profile slice adds its table here rather than editing {@link primitiveArity}'s
- * body.
- */
-const PROFILE_PRIMITIVE_ARITY_TABLES: readonly ReadonlyMap<string, number>[] = [
-  CORE_PRIMITIVE_ARITY,
-  TURTLE_PRIMITIVE_ARITY,
-  DATA_PRIMITIVE_ARITY,
-  EDUCATIONAL_PRIMITIVE_ARITY,
-  GEOMETRY_PRIMITIVE_ARITY,
+const INTERACTION_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["wait", "command", 1],
+  ["input", "reporter", 1],
 ];
 
-/**
- * The default arity of any registered primitive — Core or an optional profile's Core-spelled
- * primitives — or `undefined` when `name` matches none of them. This is the reader's single
- * lookup (`parser.ts`'s `arityOf`): the reader has no notion of an "active profile" (that is a
- * Layer-2 checker concept, `spec/tooling.md:175-176`), so it must group a bare call's arguments
- * for *any* known primitive name, leaving the question of whether that primitive is legal under
- * the program's active profile set entirely to `check()`. Matching is case-insensitive.
- */
-export function primitiveArity(name: string): number | undefined {
-  const lower = name.toLowerCase();
-  for (const table of PROFILE_PRIMITIVE_ARITY_TABLES) {
-    const arity = table.get(lower);
-    if (arity !== undefined) {
-      return arity;
-    }
-  }
-  return undefined;
-}
-
-/**
- * Every Core primitive's canonical lowercase name, sorted for deterministic iteration. This is
- * the enumerable counterpart to {@link corePrimitiveArity}: the checker's unknown-command rule
- * (issue #117) needs the full name *list* to build its did-you-mean candidate set, not just a
- * single-name arity lookup. Kept as a frozen array computed once so callers cannot mutate the
- * shared table.
- */
-const CORE_PRIMITIVE_NAMES: readonly string[] = Object.freeze(
-  [...CORE_PRIMITIVE_ARITY.keys()].sort(),
+/** Default arity of each Interaction & Events primitive. See {@link INTERACTION_PRIMITIVES}. */
+const INTERACTION_PRIMITIVE_ARITY: ReadonlyMap<string, number> = arityTable(
+  INTERACTION_PRIMITIVES,
 );
 
 /**
- * The full list of Core primitive names, in sorted order. See {@link CORE_PRIMITIVE_NAMES}. */
-export function corePrimitiveNames(): readonly string[] {
-  return CORE_PRIMITIVE_NAMES;
+ * Every Interaction & Events name whose kind is `command` — `wait` only: its `### wait <n>` entry
+ * states Kind `command` while `input`'s states `reporter`. See {@link INTERACTION_PRIMITIVES}.
+ */
+const INTERACTION_COMMAND_NAMES: ReadonlySet<string> = commandNames(
+  INTERACTION_PRIMITIVES,
+);
+
+/**
+ * The default arity of an Interaction & Events-profile primitive, or `undefined` when `name` is
+ * not one of them (`wait` and `input`). Matching is case-insensitive.
+ *
+ * `INTERACTION_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Its enumerable counterpart is
+ * {@link profilePrimitiveNames}. Both `wait <n>` and `input <prompt>` are strictly fixed-arity
+ * (`spec/interaction-events.md`'s "Profiles and reservation" table), so the profile registers no
+ * ceiling table in {@link PROFILE_PRIMITIVES}.
+ */
+export function interactionPrimitiveArity(name: string): number | undefined {
+  return INTERACTION_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * The **Interaction & Events** profile block-head names the Layer-2 checker must treat as visible
+ * so a call site whose head is one of them does not raise `ol-unknown-command` under an active
+ * `interaction-events` profile (issue #682, slice I3 — `spec/tooling.md:175-176`,
+ * `spec/interaction-events.md` §Profiles and reservation). These are the four reserved block-heads
+ * `when`/`every`/`on_key`/`on_click` the reader lowers to a `ProfileStatement` (C2 #664's
+ * `PROFILE_STATEMENT_FORMS`), NOT ordinary primitive calls — so they live in their own table,
+ * separate from {@link INTERACTION_PRIMITIVE_ARITY}'s Core-spelled `wait`, exactly as the spec
+ * distinguishes profile block-heads from ordinary calls.
+ *
+ * `when` (#682/I3), `every` (#683/I4), `on_key` (#684/I5), and `on_click` (#685/I6) are listed today:
+ * each is the head its slice delivers end to end. This table is now complete — all four Interaction &
+ * Events block-heads are usable — following the same one-form-at-a-time growth as every other
+ * profile's visible-name table; registering a head here before its slice can execute it would let a
+ * program check clean and then silently no-op at runtime. `input` (a reporter) and `wait` (an
+ * ordinary call) are visible through their own name path — {@link INTERACTION_PRIMITIVE_ARITY}, via
+ * {@link profilePrimitiveNames} — not this block-head table. Entries stay in
+ * registration order, which the checker's candidate set no longer depends on: since issue #966 it
+ * sweeps `OL_PROFILE_KEYWORDS` for these heads, and the did-you-mean tie-break is a total order, so
+ * iteration order cannot change which candidate wins.
+ */
+const INTERACTION_EVENTS_BLOCK_HEAD_NAMES: readonly string[] = Object.freeze([
+  "when",
+  "every",
+  "on_key",
+  "on_click",
+]);
+
+/**
+ * The Interaction & Events block-head names, in registration order. See
+ * {@link INTERACTION_EVENTS_BLOCK_HEAD_NAMES}. Its consumer is `checker-control-flow.ts`, which
+ * needs the heads whose block body is a fresh control-flow boundary. The checker's *visible-name*
+ * model no longer reads it: `checker-names.ts` takes every profile's reserved heads from
+ * `keywords.ts`'s profile-keyed `OL_PROFILE_KEYWORDS` — the registry `spec/built-in-names.json`
+ * also registers them through — so that one sweep covers every profile rather than one table at a
+ * time (issue #966).
+ */
+export function interactionEventsBlockHeadNames(): readonly string[] {
+  return INTERACTION_EVENTS_BLOCK_HEAD_NAMES;
+}
+
+/**
+ * Default arities for the **Sound** profile's primitives (issue #689,
+ * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
+ * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:286-299`)
+ * and `beep` takes none (`spec/interaction-events.md:336-351`) — the two primitives slice S1 (#689)
+ * delivered; `note`/`rest` arrived with #690 and `play` with #691, so all five are registered
+ * below, each a bare `Call` grouped by its arity exactly as `set_width`/`grid` are. Kept as
+ * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
+ * are separate: Sound has its own independent profile visibility (the Layer-2 checker gates it on
+ * its own active `sound` profile, `spec/tooling.md:175-176`), while the reader groups a bare call's
+ * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
+ * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
+ * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md:47`;
+ * the names themselves are built-in unconditionally per `spec/grammar.md:408`).
+ */
+const SOUND_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["set_tempo", "command", 1],
+  ["beep", "command", 0],
+  ["note", "command", 2],
+  ["rest", "command", 1],
+  ["play", "command", 1],
+];
+
+/** Default arity of each Sound primitive. See {@link SOUND_PRIMITIVES}. */
+const SOUND_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(SOUND_PRIMITIVES);
+
+/**
+ * Every Sound-profile name whose kind is `command` — all five: each one's entry in
+ * `spec/interaction-events.md` states Kind `command`. See {@link SOUND_PRIMITIVES}.
+ */
+const SOUND_COMMAND_NAMES: ReadonlySet<string> = commandNames(SOUND_PRIMITIVES);
+
+/**
+ * The default arity of a Sound-profile primitive, or `undefined` when `name` is not one of the
+ * primitives registered in {@link SOUND_PRIMITIVE_ARITY}. Matching is case-insensitive.
+ *
+ * `SOUND_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link geometryPrimitiveArity}/{@link educationalPrimitiveArity}. Every Sound primitive is
+ * strictly fixed-arity — none has a variadic parenthesized alternate — so the profile registers no
+ * ceiling table in {@link PROFILE_PRIMITIVES}.
+ */
+export function soundPrimitiveArity(name: string): number | undefined {
+  return SOUND_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * Default arities for the **Sprites** profile's turtle-identity reporters (issue #673),
+ * derived from [`spec/turtles-and-sprites.md`](../../../spec/turtles-and-sprites.md)'s "Canonical
+ * forms" table (the authoritative C3 rows): `new_turtle` (R, 0 → turtle), `who` (R, 0 → turtle),
+ * and `turtles` (R, 0 → list) are each a Kind-R reporter taking no inputs, invoked as a bare word
+ * exactly like `pos`/`heading` or the Geometry overlay primitives. The Sprites block-heads
+ * `tell`/`ask`/`each` are NOT here: they are statement forms/reserved words handled by the grammar
+ * and checker, not bare-call primitives whose arguments the reader groups. Kept as its own table
+ * for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY} are separate:
+ * Sprites has its own independent profile visibility (the Layer-2 checker gates it on its own
+ * active profile, `spec/tooling.md:175-176`), while the reader groups a bare call's arguments for
+ * *any* recognized primitive regardless of profile. Registering these arities therefore does NOT
+ * make the Sprites profile callable under Core or claimable — that gating is the checker's and the
+ * profile-claim slice's concern.
+ */
+const SPRITES_PRIMITIVES: readonly PrimitiveRow[] = [
+  ["new_turtle", "reporter", 0],
+  ["who", "reporter", 0],
+  ["turtles", "reporter", 0],
+];
+
+/** Default arity of each Sprites primitive. See {@link SPRITES_PRIMITIVES}. */
+const SPRITES_PRIMITIVE_ARITY: ReadonlyMap<string, number> =
+  arityTable(SPRITES_PRIMITIVES);
+
+/**
+ * Every Sprites-profile name whose kind is `command` — none: the "Canonical forms" table gives
+ * `new_turtle`/`who`/`turtles` the kind `R`. See {@link SPRITES_PRIMITIVES}.
+ */
+const SPRITES_COMMAND_NAMES: ReadonlySet<string> =
+  commandNames(SPRITES_PRIMITIVES);
+
+/**
+ * The default arity of a Sprites-profile reporter, or `undefined` when `name` is not one of
+ * `new_turtle`/`who`/`turtles`. Matching is case-insensitive.
+ *
+ * `SPRITES_PRIMITIVE_ARITY` is this profile's single source-of-truth table — mirroring
+ * {@link turtlePrimitiveArity}/{@link geometryPrimitiveArity}. Its enumerable name-list counterpart
+ * is the profile-keyed {@link profilePrimitiveNames}, which is what makes `new_turtle`/`who`/
+ * `turtles` known callees under an active `sprites` profile (slice #678) rather than raising
+ * `ol-unknown-command`.
+ */
+export function spritesPrimitiveArity(name: string): number | undefined {
+  return SPRITES_PRIMITIVE_ARITY.get(name.toLowerCase());
+}
+
+/**
+ * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
+ * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
+ * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:151` and
+ * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212,
+ * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
+ * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
+ * list reporters `bf`→`butfirst`:1070, `bl`→`butlast`:1087, `se`→`sentence`:1019). Heritage is
+ * "alternate spellings only — no new semantics" (`spec/conformance.md:150`): the reader records
+ * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
+ * the exact same code path as the Core spelling, and this module never keeps a second copy of each
+ * canonical's arity — that stays each owning profile's single source-of-truth table (see
+ * {@link heritageAliasArity} and {@link heritageAliasArityRange}, which resolve the alias then read
+ * the canonical's own arity).
+ */
+const HERITAGE_ALIAS_CANONICAL: ReadonlyMap<string, string> = new Map([
+  ["fd", "forward"],
+  ["bk", "back"],
+  ["lt", "left"],
+  ["rt", "right"],
+  ["st", "show_turtle"],
+  ["ht", "hide_turtle"],
+  ["pu", "pen_up"],
+  ["pd", "pen_down"],
+  ["cs", "clear_screen"],
+  ["pr", "print"],
+  ["bf", "butfirst"],
+  ["bl", "butlast"],
+  ["se", "sentence"],
+]);
+
+/**
+ * The Core-spelled command a Heritage short alias is an alternate spelling of, or `undefined` when
+ * `name` is not a Heritage short alias. Matching is case-insensitive. This is the one-to-one
+ * mapping the reader records as {@link import("./ast.js").CallNode.canonical} and every consumer
+ * (runtime dispatch, the checker's arity/did-you-mean logic, tutor `explain`/`why`) resolves an
+ * alias through — so Heritage stays "alternate spellings only" with no duplicated semantics.
+ */
+export function canonicalOfHeritageAlias(name: string): string | undefined {
+  return HERITAGE_ALIAS_CANONICAL.get(name.toLowerCase());
+}
+
+/**
+ * Every Heritage short command alias's lowercase spelling, sorted for deterministic iteration.
+ * The enumerable counterpart to {@link canonicalOfHeritageAlias} — the checker's visible-name model
+ * (`checker-names.ts`) needs the full list, gated on the `heritage` profile, to make these aliases
+ * both callable without `ol-unknown-command` and did-you-mean candidates. It reaches them through
+ * {@link profileCallableNames}, because {@link PROFILE_PRIMITIVES} holds `heritage: null` and an
+ * alias carries no arity of its own.
+ */
+const HERITAGE_ALIAS_NAMES: readonly string[] = Object.freeze(
+  [...HERITAGE_ALIAS_CANONICAL.keys()].sort(),
+);
+
+/** The full list of Heritage short alias names, in sorted order. See {@link HERITAGE_ALIAS_NAMES}. */
+export function heritageAliasNames(): readonly string[] {
+  return HERITAGE_ALIAS_NAMES;
+}
+
+/**
+ * The **Heritage** form heads (issue #667, slice H2) — the special-form spellings that are not
+ * *names* the reader lowers to a call, but surface tags on the same Core AST node as their Core
+ * equivalent — each mapped to the Core spelling it is an alternate spelling of. `make` → `set`
+ * (the word-shaped Core assignment; `=` is the other Core form), `to` → `define`, and
+ * `output`/`op` → `return`.
+ *
+ * This is the form-head counterpart of {@link HERITAGE_ALIAS_CANONICAL}, and it lives here — beside
+ * it — so the parser has exactly ONE table answering "what Core spelling is this Heritage spelling
+ * an alternate of". Two consumers need that answer for different reasons, and they must never drift:
+ * `checker-heritage-form.ts` points a Core-only learner's did-you-mean at the Core spelling, and
+ * `checker-control-flow.ts` canonicalizes `params.keyword` so a Heritage escape's diagnostic
+ * identity is byte-identical to its Core twin's (`spec/error-model.md:254-259`, issue #737).
+ *
+ * Declared `as const` so {@link canonicalOfHeritageFormHead} can report each head's canonical as a
+ * literal type: that is what lets a caller thread a canonical spelling into a diagnostic param
+ * without a cast, and what makes feeding a *surface* spelling to a canonical-typed parameter a
+ * compile error rather than a silently divergent diagnostic.
+ */
+const HERITAGE_FORM_HEAD_CANONICAL = {
+  make: "set",
+  to: "define",
+  output: "return",
+  op: "return",
+} as const;
+
+/** One of the four Heritage form-head spellings — the keys of {@link HERITAGE_FORM_HEAD_CANONICAL}. */
+export type HeritageFormHead = keyof typeof HERITAGE_FORM_HEAD_CANONICAL;
+
+/**
+ * The Core spelling a Heritage form head is an alternate spelling of, as a **literal type**:
+ * `canonicalOfHeritageFormHead("op")` is typed `"return"`, not `string`. Callers that must produce
+ * a canonical value — a diagnostic's structured params above all — get it from this one registry
+ * rather than repeating the mapping, so a Heritage spelling can never reach a canonical position.
+ */
+export function canonicalOfHeritageFormHead<Head extends HeritageFormHead>(
+  head: Head,
+): (typeof HERITAGE_FORM_HEAD_CANONICAL)[Head] {
+  return HERITAGE_FORM_HEAD_CANONICAL[head];
+}
+
+/** Every Heritage form-head spelling, sorted for deterministic iteration. */
+const HERITAGE_FORM_HEAD_NAMES: readonly HeritageFormHead[] = Object.freeze(
+  (Object.keys(HERITAGE_FORM_HEAD_CANONICAL) as HeritageFormHead[]).sort(),
+);
+
+/** The full list of Heritage form-head spellings, in sorted order. */
+export function heritageFormHeadNames(): readonly HeritageFormHead[] {
+  return HERITAGE_FORM_HEAD_NAMES;
+}
+
+/**
+ * The **Heritage** profile's WORDED forms — the multi-word spellings, which are neither callable
+ * *names* like {@link HERITAGE_ALIAS_CANONICAL}'s aliases nor single-word statement heads like
+ * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md:153` lists exactly one today, the
+ * worded dictionary reporter `value of … for key` (slice H5, issue #670), whose production is
+ * `spec/grammar.md:213`'s `value-of-reader`.
+ *
+ * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
+ * can hold this table against the spec's own inventory without normalising anything. `node` is the
+ * AST node kind the reader lowers the form onto, which lets a guard check that a test program
+ * parses to that kind rather than merely mentioning the form's head word — the AST records node
+ * kinds, not the production that built them, so it distinguishes registered forms only as long as
+ * no two share a kind, an invariant the parser guard asserts. And `head` is the word the
+ * form is identified BY — the only literal unique to this grammar production, and so its
+ * least-ambiguous representative in the registry. It is NOT a proof token: `value` turning up in a
+ * diagnostic's params does not establish that this form produced it, because a learner may name a
+ * dict key `value` like any other word. The phrase's other literals are weaker still, being
+ * ordinary vocabulary that reaches params on its own account (a malformed form quotes whatever
+ * token it stopped at through `ol-bad-token`'s `text`): `of` is the contextual preposition of the
+ * `is member of` predicate (`spec/grammar.md:380`), `for` opens the Core `for … in`/`for … from … to`
+ * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:115`) — which is
+ * why the head, not the phrase, is what {@link HERITAGE_SURFACE_SPELLINGS} registers for
+ * canonical-param matching. The operands the phrase elides are a dict and a word/number key
+ * (`spec/data-structures.md:268`).
+ *
+ * There is deliberately no `canonical` column. The four form heads each map onto a Core WORD
+ * (`make` → `set`, `to` → `define`, `output`/`op` → `return`), which is what lets
+ * {@link canonicalOfHeritageFormHead} hand a caller a canonical spelling for a diagnostic param.
+ * This reader's Core equivalent is the `[]`/`.` selector *syntax* — `:d["k"]`, `:d.k`
+ * (`spec/data-structures.md:265-268`) — not a word, so there is no canonical spelling to report and
+ * inventing one would name something absent from the diagnostic's own span. That is exactly why
+ * `checker-heritage-form.ts` gives this form's rejection no `did you mean`, and why the form must
+ * live in its own table rather than being forced into the head→canonical map.
+ *
+ * Each entry is frozen at RUNTIME, not merely `as const` at the type level:
+ * {@link heritageWordedForm} hands the entry object straight to callers rather than copying it, so
+ * an unfrozen entry would let one consumer mutate the head every other consumer reads — which is
+ * precisely the single-source-of-truth guarantee this table exists to provide.
+ */
+const HERITAGE_WORDED_FORMS = {
+  "value-of-reader": Object.freeze({
+    head: "value",
+    phrase: "value of … for key",
+    node: "ValueOfKey",
+  }),
+} as const satisfies Record<
+  string,
+  { head: string; phrase: string; node: NodeKind }
+>;
+
+/**
+ * One of the Heritage worded forms, named by its grammar production — the keys of
+ * {@link HERITAGE_WORDED_FORMS}.
+ */
+export type HeritageWordedFormName = keyof typeof HERITAGE_WORDED_FORMS;
+
+/** A Heritage worded form's head word and full phrase. */
+export type HeritageWordedForm =
+  (typeof HERITAGE_WORDED_FORMS)[HeritageWordedFormName];
+
+/**
+ * A Heritage worded form, by its grammar production name, as a **literal type**:
+ * `heritageWordedForm("value-of-reader").head` is typed `"value"`, not `string`. That is the same
+ * device {@link canonicalOfHeritageFormHead} uses, and it is what lets `checker-heritage-form.ts`
+ * span and report the reader's head word without keeping a second copy of the string beside the
+ * registry the guards match against (issue #755).
+ */
+export function heritageWordedForm<Name extends HeritageWordedFormName>(
+  name: Name,
+): (typeof HERITAGE_WORDED_FORMS)[Name] {
+  return HERITAGE_WORDED_FORMS[name];
+}
+
+/**
+ * The worded-form table itself, frozen. Unlike the entry freezes above this guards nothing an
+ * external caller could do — the table is module-private and only {@link heritageWordedForm}'s
+ * return value escapes — so it is defence against an accidental mutation inside this module, and
+ * no test asserts it.
+ */
+Object.freeze(HERITAGE_WORDED_FORMS);
+
+/**
+ * Every Heritage worded form's grammar-production name, sorted for deterministic iteration — the
+ * enumerable counterpart of {@link heritageWordedForm}. A guard that must prove each FORM is
+ * covered (rather than merely its head word, which any program may contain by accident) iterates
+ * these and looks each one up.
+ */
+const HERITAGE_WORDED_FORM_NAMES: readonly HeritageWordedFormName[] =
+  Object.freeze(
+    (Object.keys(HERITAGE_WORDED_FORMS) as HeritageWordedFormName[]).sort(),
+  );
+
+/** The full list of Heritage worded-form production names, in sorted order. */
+export function heritageWordedFormNames(): readonly HeritageWordedFormName[] {
+  return HERITAGE_WORDED_FORM_NAMES;
+}
+
+/**
+ * Every Heritage worded form, sorted by production name for deterministic iteration. The
+ * enumerable counterpart of {@link heritageFormHeadNames} for the multi-word spellings, so a
+ * consumer that must name the form to a learner has the phrase without restating it.
+ */
+const HERITAGE_WORDED_FORM_ENTRIES: readonly HeritageWordedForm[] =
+  Object.freeze(
+    HERITAGE_WORDED_FORM_NAMES.map((name) => HERITAGE_WORDED_FORMS[name]),
+  );
+
+/** The full list of Heritage worded forms. See {@link HERITAGE_WORDED_FORM_ENTRIES}. */
+export function heritageWordedForms(): readonly HeritageWordedForm[] {
+  return HERITAGE_WORDED_FORM_ENTRIES;
+}
+
+/**
+ * Every Heritage worded form's head word, sorted for deterministic iteration. This is the literal
+ * unique to the form's grammar production, and so its least-ambiguous representative when a
+ * diagnostic's structured params are scanned — `checker-heritage-form.ts` emits exactly this word
+ * as the `ol-unknown-command` `name` when Heritage is inactive — which is what
+ * {@link HERITAGE_SURFACE_SPELLINGS} carries on the form's behalf. It does not prove provenance: a
+ * learner may name a dict key `value` like any other word. The phrase's other literals are not
+ * registered at all, being ordinary vocabulary that matching on would fire on text that is not
+ * Heritage.
+ */
+const HERITAGE_WORDED_FORM_HEADS: readonly string[] = Object.freeze(
+  HERITAGE_WORDED_FORM_ENTRIES.map((form) => form.head).sort(),
+);
+
+/** The full list of Heritage worded-form head words, in sorted order. */
+export function heritageWordedFormHeads(): readonly string[] {
+  return HERITAGE_WORDED_FORM_HEADS;
+}
+
+/**
+ * Every surface WORD that identifies a Heritage-only FORM — the short command/reporter aliases
+ * ({@link heritageAliasNames}), the form heads ({@link heritageFormHeadNames}), and the worded
+ * forms' heads ({@link heritageWordedFormHeads}) — sorted for deterministic iteration.
+ *
+ * Read "identifies" precisely: these are the words a learner writes to make the reader take a
+ * Heritage spelling rather than a Core one. Several of them are ALSO ordinary Core vocabulary in
+ * some other position, so this is not a list of Heritage-exclusive tokens: `to` is the preposition
+ * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:104,128`) as well as
+ * the Heritage procedure opener, and the worded reader's head `value` is a globally reserved word
+ * (`spec/grammar.md:371`). What each entry has in common is that a diagnostic naming it would be
+ * naming the learner's Heritage spelling of a condition their Core twin raises identically.
+ *
+ * This is the enumerable definition of "a Heritage surface spelling", and it exists so the
+ * canonical-diagnostic-params guards (`heritage-canonical-diagnostic-params.test.mjs` in
+ * `@openlogo/parser` for the parse/semantic stages, issue #737, and in `@openlogo/runtime` for the
+ * runtime stage, issue #741) are driven by the registry instead of a hand-kept list: a future slice
+ * that adds a Heritage spelling to any of the three tables is automatically pulled into both
+ * guards, so the class of bug where a surface spelling leaks into a diagnostic's structured params
+ * is much harder to reintroduce unnoticed.
+ *
+ * A spelling here is a WORD, which is why {@link HERITAGE_WORDED_FORMS} contributes its head
+ * rather than its phrase: a leak is a string sitting in a param, and the guards match whole words
+ * against rendered param values. The three tables together cover every spelling
+ * `spec/conformance.md:146-157`'s Heritage inventory writes in code formatting (issue #755) — an
+ * agreement the parser guard asserts against the spec file itself, rather than by restating it
+ * here. Before #755 these were the single-word tables only, and this comment nevertheless claimed a
+ * completeness the worded reader disproved.
+ */
+const HERITAGE_SURFACE_SPELLINGS: readonly string[] = Object.freeze(
+  [
+    ...HERITAGE_ALIAS_NAMES,
+    ...HERITAGE_FORM_HEAD_NAMES,
+    ...HERITAGE_WORDED_FORM_HEADS,
+  ].sort(),
+);
+
+/** The full list of Heritage-only surface spellings. See {@link HERITAGE_SURFACE_SPELLINGS}. */
+export function heritageSurfaceSpellings(): readonly string[] {
+  return HERITAGE_SURFACE_SPELLINGS;
+}
+
+/**
+ * The default (bare-call) arity a Heritage short alias groups its arguments by, or `undefined` when
+ * `name` is not a Heritage short alias. Because Heritage adds no semantics, this is exactly the
+ * canonical command's own default arity ({@link primitiveArity} of the resolved Core name) — the
+ * alias never carries a second arity number of its own. The reader consults it (via
+ * {@link primitiveArity}) so `fd 100` groups one argument exactly as `forward 100` does and `pr :x`
+ * groups one exactly as `print :x` does.
+ */
+export function heritageAliasArity(name: string): number | undefined {
+  const canonical = canonicalOfHeritageAlias(name);
+  return canonical === undefined ? undefined : primitiveArity(canonical);
+}
+
+/**
+ * The inclusive input-count range a Heritage short alias accepts, or `undefined` when `name` is not
+ * a Heritage short alias — exactly the resolved canonical command's own range, so the static arity
+ * checker treats `pr` like `print` (its `(pr …)` form is an open variadic) and `fd` like `forward`
+ * (a turtle primitive with no static range, left to the runtime arity check). Only `print` among
+ * the ten canonicals has a Core static range; the turtle canonicals return `undefined` here just as
+ * they do through {@link corePrimitiveArityRange}, so the checker leaves their arity to the runtime.
+ */
+export function heritageAliasArityRange(
+  name: string,
+): { readonly min: number; readonly max: number } | undefined {
+  const canonical = canonicalOfHeritageAlias(name);
+  return canonical === undefined
+    ? undefined
+    : corePrimitiveArityRange(canonical);
 }
 
 /**
@@ -446,4 +1008,327 @@ export function corePrimitiveArityRange(
     return undefined;
   }
   return { min, max: CORE_PRIMITIVE_MAX_ARITY.get(name.toLowerCase()) ?? min };
+}
+
+/**
+ * One conformance profile's primitive registration: the profile's single source-of-truth default
+ * arity table and, only when the profile owns a primitive with a variadic or bounded-alternate
+ * *parenthesized* form, the ceiling table that records it. A profile with no such form omits
+ * `maxArity` entirely and every one of its primitives reads back as strictly fixed-arity
+ * (`max === min`) — which is what all of Turtle & Rendering, Educational, Geometry,
+ * Interaction & Events, Sound, Sprites, and Tutor are.
+ */
+interface ProfilePrimitives {
+  readonly arity: ReadonlyMap<string, number>;
+  /**
+   * The profile's primitives whose {@link PrimitiveKind} is `command`, derived from the same rows
+   * as `arity` ({@link commandNames}) — required, not optional, so a profile cannot register
+   * primitives while leaving their kind unstated (issue #932).
+   */
+  readonly commands: ReadonlySet<string>;
+  readonly maxArity?: ReadonlyMap<string, number>;
+}
+
+/**
+ * **The primitive registry: one entry per conformance profile, and the single place a profile's
+ * primitives are wired to everything that consults them** (issue #874).
+ *
+ * Its type is `Record<CheckProfile, …>` — a mapped type over `OL_CHECK_PROFILES` — so it is
+ * **exhaustive by construction**: a profile added to that list does not compile until it declares
+ * an entry here, and the declaration is a binary choice with no silent third option (a table, or an
+ * explicit `null` meaning "this profile contributes no bare-call primitives"). That is the
+ * fail-closed property this registry exists for, and it is the same structural move `parser.ts`'s
+ * `NON_PRIMARY_NAMES` makes for keywords (issue #853).
+ *
+ * **Why it is shaped this way.** Before this, the reader walked an untagged *array* of tables while
+ * the checker's arity rule hand-wrote one `if (<profile>Active) { … }` branch per profile against a
+ * per-profile range accessor. Nothing tied the two together, so a profile could be — and for
+ * Turtle & Rendering, Educational, Sprites, and Tutor **was** — registered for the reader and
+ * silently missing from the checker: `(home 10)` checked clean while the runtime raised
+ * `ol-too-many-inputs` for the very same call (issue #874, the third instance of the same shape
+ * after #783 and #854). Tagging each table with its owning {@link CheckProfile} collapses both
+ * lookups onto one registry, so **registering a future profile's table here wires the reader and
+ * the checker together, with no edit to `checker-arity.ts` at all**.
+ *
+ * The `null` entries are not omissions, they are claims:
+ * - `heritage` — its short aliases carry no arity of their own. Heritage is "alternate spellings
+ *   only, no new semantics" (`spec/conformance.md:150`), so an alias resolves to its canonical and
+ *   reads *that* profile's entry ({@link heritageAliasArity}); a Heritage table here would be a
+ *   second copy of every canonical's arity, the very duplication this registry removes.
+ * - `modules`, `localization` — neither profile defines a bare-call primitive: `spec/modules.md`'s
+ *   `import`/`export` and `spec/localization.md`'s `alias` are grammar forms with their own
+ *   productions, not callables whose arguments the reader groups.
+ *
+ * **Tutor's entry is load-bearing.** When issue #838 registered it, a QA review measured that
+ * removing it failed no test, and said so in a comment here. That is no longer true: issue #854
+ * routes `ol-style-name-case` to `challenge` through {@link primitiveArity}, so unregistering
+ * Tutor now reddens a test. The stale comment is deliberately not carried forward — a
+ * hand-maintained claim drifting from the registry it describes is epic #900's own failure mode,
+ * one file deeper. The proof is genuine but narrow: the Tutor table holds exactly one name, so it
+ * demonstrates that the entry is *reachable*, not that every future Tutor primitive would be.
+ */
+const PROFILE_PRIMITIVES: Readonly<
+  Record<CheckProfile, ProfilePrimitives | null>
+> = {
+  "core-language": {
+    arity: CORE_PRIMITIVE_ARITY,
+    commands: CORE_COMMAND_NAMES,
+    maxArity: CORE_PRIMITIVE_MAX_ARITY,
+  },
+  "turtle-rendering": {
+    arity: TURTLE_PRIMITIVE_ARITY,
+    commands: TURTLE_COMMAND_NAMES,
+  },
+  geometry: {
+    arity: GEOMETRY_PRIMITIVE_ARITY,
+    commands: GEOMETRY_COMMAND_NAMES,
+  },
+  sprites: { arity: SPRITES_PRIMITIVE_ARITY, commands: SPRITES_COMMAND_NAMES },
+  data: {
+    arity: DATA_PRIMITIVE_ARITY,
+    commands: DATA_COMMAND_NAMES,
+    maxArity: DATA_PRIMITIVE_MAX_ARITY,
+  },
+  heritage: null,
+  "interaction-events": {
+    arity: INTERACTION_PRIMITIVE_ARITY,
+    commands: INTERACTION_COMMAND_NAMES,
+  },
+  sound: { arity: SOUND_PRIMITIVE_ARITY, commands: SOUND_COMMAND_NAMES },
+  modules: null,
+  localization: null,
+  educational: {
+    arity: EDUCATIONAL_PRIMITIVE_ARITY,
+    commands: EDUCATIONAL_COMMAND_NAMES,
+  },
+  "tutor-ai": { arity: TUTOR_PRIMITIVE_ARITY, commands: TUTOR_COMMAND_NAMES },
+};
+
+/**
+ * {@link PROFILE_PRIMITIVES}'s arity-bearing entries, flattened once into `[profile, tables]` pairs
+ * in registry declaration order. Both lookups below walk this one array, so the profile-blind
+ * reader ({@link primitiveArity}) and the profile-aware checker
+ * ({@link activeProfilePrimitiveArityRange}) resolve a name through the identical sequence of
+ * tables and can never disagree about which profile owns it.
+ */
+const REGISTERED_PROFILE_PRIMITIVES: readonly (readonly [
+  CheckProfile,
+  ProfilePrimitives,
+])[] = Object.entries(PROFILE_PRIMITIVES).flatMap(([profile, tables]) =>
+  tables === null ? [] : [[profile as CheckProfile, tables] as const],
+);
+
+/** Reads `name` (already lowercased) out of one profile's tables. See {@link ArityRange}. */
+function arityRangeIn(
+  tables: ProfilePrimitives,
+  name: string,
+): ArityRange | undefined {
+  const min = tables.arity.get(name);
+  if (min === undefined) {
+    return undefined;
+  }
+  return { min, max: tables.maxArity?.get(name) ?? min };
+}
+
+/**
+ * The default arity of any registered primitive — Core or an optional profile's Core-spelled
+ * primitives — or `undefined` when `name` matches none of them. This is the reader's single
+ * lookup (`parser.ts`'s `arityOf`): the reader has no notion of an "active profile" (that is a
+ * Layer-2 checker concept, `spec/tooling.md:175-176`), so it must group a bare call's arguments
+ * for *any* known primitive name, leaving the question of whether that primitive is legal under
+ * the program's active profile set entirely to `check()`. Matching is case-insensitive.
+ */
+export function primitiveArity(name: string): number | undefined {
+  const lower = name.toLowerCase();
+  for (const [, tables] of REGISTERED_PROFILE_PRIMITIVES) {
+    const arity = tables.arity.get(lower);
+    if (arity !== undefined) {
+      return arity;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The inclusive input-count range `name` accepts under the **active** conformance profile set, or
+ * `undefined` when no active profile registers it — the static arity checker's single lookup
+ * (`checker-arity.ts`, issue #874), and the profile-aware counterpart to {@link primitiveArity}.
+ *
+ * Only profiles present in `profiles` are consulted, exactly as `spec/tooling.md:175-176` requires
+ * ("MUST use the active conformance profile set when deciding which primitives and profile
+ * block-heads are available") — a primitive whose owning profile is inactive is not visible, so its
+ * arity is not statically known and the callee belongs to `ol-unknown-command` instead. An
+ * unrecognized profile identifier simply matches no entry and contributes nothing. Matching is
+ * case-insensitive.
+ */
+export function activeProfilePrimitiveArityRange(
+  name: string,
+  profiles: readonly CheckProfile[],
+): ArityRange | undefined {
+  const lower = name.toLowerCase();
+  const active = new Set<string>(profiles);
+  for (const [profile, tables] of REGISTERED_PROFILE_PRIMITIVES) {
+    if (!active.has(profile)) {
+      continue;
+    }
+    const range = arityRangeIn(tables, lower);
+    if (range !== undefined) {
+      return range;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Look `name` — already lowercased — up in the primitive registry: `true` when the profile that
+ * registers it declares its {@link PrimitiveKind} as `command`, `false` when that profile
+ * registers it as a reporter, and `undefined` when no consulted profile registers it at all.
+ * Passing `active` restricts the walk to those profile identifiers; omitting it consults every
+ * registered profile, exactly the split {@link primitiveArity} and
+ * {@link activeProfilePrimitiveArityRange} already make.
+ */
+function registeredCommandKind(
+  name: string,
+  active?: ReadonlySet<string>,
+): boolean | undefined {
+  for (const [profile, tables] of REGISTERED_PROFILE_PRIMITIVES) {
+    if (active !== undefined && !active.has(profile)) {
+      continue;
+    }
+    if (tables.commands.has(name)) {
+      return true;
+    }
+    if (tables.arity.has(name)) {
+      return false;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Is `name` a registered primitive whose kind is **Command** — it performs an effect and reports no
+ * value? The profile-blind lookup, and the runtime's counterpart to {@link primitiveArity}:
+ * `@openlogo/runtime` executes a program without an active-profile set (a Layer-2 checker concept,
+ * `spec/tooling.md:175-177`), so it classifies any registered primitive. A Heritage short alias is
+ * resolved to its canonical and answers as that canonical does — Heritage is "alternate spellings
+ * only, no new semantics" (`spec/conformance.md:150`) — the same fallback the reader's own
+ * `arityOf` makes through {@link heritageAliasArity}. A name no profile registers (a user
+ * procedure, a misspelling) is not a known command: it reports `false`, so a caller judging a
+ * block's last statement treats it as value-producing rather than reporting a speculative error.
+ * Matching is case-insensitive.
+ */
+export function isPrimitiveCommandName(name: string): boolean {
+  const lower = name.toLowerCase();
+  const registered = registeredCommandKind(lower);
+  if (registered !== undefined) {
+    return registered;
+  }
+  const canonical = canonicalOfHeritageAlias(lower);
+  return canonical !== undefined && registeredCommandKind(canonical) === true;
+}
+
+/**
+ * Is `name` a primitive of kind **Command** under the **active** conformance profile set — the
+ * profile-aware counterpart to {@link isPrimitiveCommandName}, and the checker's single
+ * command-vs-reporter lookup (`checker-control-flow.ts`'s `ol-no-value` and `checker-style.ts`'s
+ * `ol-style-useless-value`).
+ *
+ * Only profiles present in `profiles` are consulted, as `spec/tooling.md:175-177` requires: a
+ * primitive whose owning profile is inactive is not visible, so its kind is not statically known
+ * and its callee belongs to `ol-unknown-command` instead. A Heritage short alias resolves to its
+ * canonical only when `heritage` is active, and then answers as that canonical does under the same
+ * active set — which `spec/conformance.md:155` requires directly: the nine turtle aliases "spell
+ * Turtle & Rendering primitives and therefore also need the **Turtle & Rendering** profile, while
+ * `pr` spells a Core output command". Matching is case-insensitive.
+ */
+export function isActiveProfileCommandName(
+  name: string,
+  profiles: readonly CheckProfile[],
+): boolean {
+  const active = new Set<string>(profiles);
+  const lower = name.toLowerCase();
+  const registered = registeredCommandKind(lower, active);
+  if (registered !== undefined) {
+    return registered;
+  }
+  if (!active.has("heritage")) {
+    return false;
+  }
+  const canonical = canonicalOfHeritageAlias(lower);
+  return (
+    canonical !== undefined && registeredCommandKind(canonical, active) === true
+  );
+}
+
+/**
+ * Every primitive name `profile` registers in {@link PROFILE_PRIMITIVES}, sorted, computed once per
+ * profile and frozen. Empty for a profile whose registry entry is `null` (`heritage`, `modules`,
+ * `localization`) — those contribute no bare-call primitives, which is a claim the registry makes
+ * rather than an omission.
+ */
+const PROFILE_PRIMITIVE_NAMES: ReadonlyMap<CheckProfile, readonly string[]> =
+  new Map(
+    Object.entries(PROFILE_PRIMITIVES).map(([profile, tables]) => [
+      profile as CheckProfile,
+      Object.freeze(tables === null ? [] : [...tables.arity.keys()].sort()),
+    ]),
+  );
+
+/**
+ * The full list of primitive names one conformance profile registers, in sorted order — the
+ * enumerable counterpart to {@link activeProfilePrimitiveArityRange}, derived from the same
+ * {@link PROFILE_PRIMITIVES} registry so the two can never disagree about what a profile owns.
+ *
+ * This is what lets a caller — the unit suites above all — walk the profile DAG
+ * (`OL_CHECK_PROFILES`) and assert a property of *every* registered primitive without restating any
+ * command name, so a primitive added to a profile's table is covered without editing the assertion.
+ * An unrecognized profile identifier reports no names.
+ */
+export function profilePrimitiveNames(
+  profile: CheckProfile,
+): readonly string[] {
+  return PROFILE_PRIMITIVE_NAMES.get(profile) ?? [];
+}
+
+/**
+ * Every conformance profile the primitive registry is keyed by, in registry declaration order.
+ *
+ * This is `OL_CHECK_PROFILES` **by construction, not by restatement**: {@link PROFILE_PRIMITIVES} is
+ * typed `Record<CheckProfile, …>`, so its key set is exactly that list and a profile added there
+ * appears here with no edit. It exists because `check.ts` imports the checker rules, which import
+ * `checker-names.ts` — so a checker module reading the profile list from `check.js` at module scope
+ * would close an initialisation cycle and read `OL_CHECK_PROFILES` in its temporal dead zone. Taking
+ * the list off the registry the caller is already consulting avoids the cycle *and* ties the
+ * enumeration to the same object the names come from.
+ */
+const PRIMITIVE_REGISTRY_PROFILES: readonly CheckProfile[] = Object.freeze(
+  Object.keys(PROFILE_PRIMITIVES) as CheckProfile[],
+);
+
+/** Every profile the primitive registry is keyed by. See {@link PRIMITIVE_REGISTRY_PROFILES}. */
+export function primitiveRegistryProfiles(): readonly CheckProfile[] {
+  return PRIMITIVE_REGISTRY_PROFILES;
+}
+
+/**
+ * Every **callable name** `profile` contributes: its registered primitives
+ * ({@link profilePrimitiveNames}) plus, for `heritage` alone, its short aliases.
+ *
+ * The Heritage arm is not a special case bolted on here — it is the other half of
+ * {@link PROFILE_PRIMITIVES}'s deliberate `heritage: null`, and it lives beside that entry so the
+ * claim and its compensation cannot drift apart. An alias carries no arity of its own (Heritage is
+ * "alternate spellings only, no new semantics", `spec/conformance.md:150`), so it has no row in an
+ * arity table and `profilePrimitiveNames("heritage")` is correctly empty — yet `fd` is still a name
+ * a learner can call and a did-you-mean can suggest. A consumer that asks "what may this profile's
+ * name be?" must get both, and asking one registry rather than remembering to union two is what
+ * keeps a future consumer from repeating `checker-names.ts`'s ladder.
+ *
+ * Profile **keywords** are deliberately not here: `ask`/`tell`/`when` are statement heads rather
+ * than callables, they live in `keywords.ts`'s profile-keyed {@link OL_PROFILE_KEYWORDS}, and that
+ * registry is already profile-keyed, so a consumer needing them reads it directly.
+ */
+export function profileCallableNames(profile: CheckProfile): readonly string[] {
+  return profile === "heritage"
+    ? HERITAGE_ALIAS_NAMES
+    : profilePrimitiveNames(profile);
 }

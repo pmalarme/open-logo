@@ -153,6 +153,36 @@ test("clear_screen homes position and heading but preserves pen, color, width, s
   assert.equal(cleared.visible, false);
 });
 
+test("the clear fold is idempotent with the runtime's explicit clear_screen homing", () => {
+  // Since issue #847 the runtime emits `move`/`turn` for the homing and *then* the `clear`. The
+  // `clear` fold is deliberately kept (spec/rendering.md's "Clear operations" requires the payload
+  // alone to distinguish clear-and-home, so a foreign producer may send only the `clear`), which
+  // makes it reinforcement rather than a second, competing home. Folding the full triple must
+  // reach exactly the same state as folding the `clear` alone, and must not resurrect the
+  // pre-reset heading the `move` payload reports.
+  const moved = OL.reduceTurtleEvents([
+    event("pen-change", { from: "down", to: "up" }),
+    event("turn", { from: 0, to: 90 }),
+    event("move", { from: [0, 0], to: [50, 50], heading: 90 }),
+  ]);
+  const clearOnly = OL.reduceTurtleState(
+    moved,
+    event("clear", { mode: "clear_screen" }),
+  );
+  const fullTriple = OL.reduceTurtleEvents(
+    [
+      event("move", { from: [50, 50], to: [0, 0], heading: 90 }),
+      event("turn", { from: 90, to: 0 }),
+      event("clear", { mode: "clear_screen" }),
+    ],
+    moved,
+  );
+  assert.deepEqual(fullTriple, clearOnly);
+  assert.deepEqual(fullTriple.position, [0, 0]);
+  assert.equal(fullTriple.heading, 0);
+  assert.equal(fullTriple.penDown, false);
+});
+
 test("reduceTurtleState folds a single event onto an explicit starting state", () => {
   const start = { ...OL.INITIAL_TURTLE_STATE, color: "green" };
   const next = OL.reduceTurtleState(

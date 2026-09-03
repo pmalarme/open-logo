@@ -1,0 +1,350 @@
+{
+  "description": "issue #660 (Sprites Epic Gate): the `each` half of `fill`'s per-turtle proof. `tell [ :a :b ]` addresses both turtles, then `each [ fill ]` narrows the addressed set to ONE turtle per iteration (spec/turtles-and-sprites.md's \"Addressing model\"), so `fill` runs single-turtle twice rather than fanning out once — a different way of aiming the current turtle than fill-tell-two-turtles' statement-level fan-out, and the only other mechanism by which `fill` could read the wrong turtle's pen. :a is `green` and :b `purple` (both from the normative 11-colour palette, spec/commands.md's \"Colors\"), so each iteration's `fill` event must carry that iteration's own turtle colour — `{color: \"green\"}` stamped `turtle_id` 1, then `{color: \"purple\"}` stamped `turtle_id` 2 — per spec/rendering.md's \"Fill\" (\"The fill color is the current pen color\") and its \"Color\" (\"A segment, fill, or stamp captures the color at the moment its event is applied\"), with the turtle identity required by spec/turtles-and-sprites.md:113. Every change of the addressed set — here from `ask`/`tell`/`each` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path — visible here as `each` narrowing to `[1]`, then `[2]`, then restoring the enclosing `tell` set `[1, 2]`. No `ask [ :a :b ] [ fill ]` fixture is added deliberately: `ask`'s multi-turtle form reaches the very same statement-level fan-out fill-tell-two-turtles already asserts, differing only in the scope save/restore that the addressing-*/ask-* fixtures prove independently — so a third fixture would re-prove the addressing mechanism, not any `fill` observable.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [3, 10],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "color-change",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [3, 10],
+        "end": [3, 27]
+      },
+      "payload": {
+        "from": "black",
+        "to": "green"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [3, 1],
+        "end": [3, 29]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [4, 10],
+        "end": [4, 28]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "color-change",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [4, 10],
+        "end": [4, 28]
+      },
+      "payload": {
+        "from": "black",
+        "to": "purple"
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 13,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [4, 1],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 1],
+        "end": [6, 14]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 1],
+        "end": [6, 14]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 8],
+        "end": [6, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "fill",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 8],
+        "end": [6, 12]
+      },
+      "payload": {
+        "color": "green"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 20,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 1],
+        "end": [6, 14]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 8],
+        "end": [6, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "fill",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 8],
+        "end": [6, 12]
+      },
+      "payload": {
+        "color": "purple"
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 23,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/fill-each-per-turtle-color/fill-each-per-turtle-color",
+        "start": [6, 1],
+        "end": [6, 14]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": []
+}

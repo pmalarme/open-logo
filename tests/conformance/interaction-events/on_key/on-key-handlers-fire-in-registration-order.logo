@@ -1,0 +1,3 @@
+on_key "x" [ print 1 ]
+on_key "x" [ print 2 ]
+wait 1

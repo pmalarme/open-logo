@@ -73,6 +73,22 @@ export const INITIAL_TURTLE_STATE: TurtleState = Object.freeze({
  * (scene, control-flow, diagnostic, …) leaves state unchanged, so a sibling scene reducer can
  * fold the same stream alongside this one without either needing to know about the other's
  * kinds.
+ *
+ * Since issue #847 `@openlogo/runtime` also emits an explicit `move`/`turn` pair for that homing
+ * (before the `clear`, and deliberately with no `draw-segment`), so folding the `clear` is now
+ * **idempotent reinforcement rather than the only signal**. It is kept because
+ * `spec/rendering.md`'s "Clear operations" requires the `clear` payload alone to distinguish
+ * clear-and-home from drawing-only clearing "so playback and debugging can reproduce state
+ * exactly" — a stream from another producer may carry only the `clear`, and this reducer stays
+ * correct for it.
+ *
+ * That is a **single-turtle** reading, and it is only sound here. This reducer follows one turtle,
+ * so "the turtle `clear_screen` homed" is unambiguous. The per-turtle sibling
+ * ({@link reduceTurtleWorldState} in `world-state.ts`) deliberately does **not** fold `clear` at
+ * all: one `clear_screen` homes *every* addressed turtle (`spec/turtles-and-sprites.md:111`), which
+ * no single identity on one shared-surface event can name, so there the homing must be read from the
+ * per-turtle `move`/`turn` events alone (`:113` — "consumers MUST NOT read a `clear` event as an
+ * instruction to move a turtle"). Issue #738.
  */
 export function reduceTurtleState(
   state: TurtleState,

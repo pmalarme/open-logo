@@ -11,8 +11,11 @@
         "start": [2, 1],
         "end": [2, 6]
       },
-      "params": { "callable": "point", "expected": 2, "actual": 1 },
-      "message": "point needs two inputs.",
+      "params": {
+        "callable": "point",
+        "expected": 2,
+        "actual": 1
+      },
       "stage": "semantic",
       "severity": "error"
     }

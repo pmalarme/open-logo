@@ -1,0 +1,8 @@
+{
+  "description": "issue #932's false-positive half, style-enabled. `repeat 4 [ forward 100 right 90 ]` is the specification's own instruction-block example (`spec/grammar.md:271` and `:294`), and `ol-style-useless-value` (`checker-style.ts`, issue #115) used to warn on it: the rule asks whether a control body's last statement produces a discarded value, and its command-vs-reporter classification was a hand-written three-name Core list that `right` was not in. `right` is a Command (`spec/commands.md:1247,1249`: Kind Command, Result —), so the block discards nothing and this program is clean. The counterpart `instruction-block-ending-in-reporter-warns` keeps the lint's positive direction pinned.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": []
+}

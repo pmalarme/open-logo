@@ -1,0 +1,4 @@
+print ( and[true false] true )
+print ( and [true false] true )
+print ( or[false] true )
+print ( or [false] true )

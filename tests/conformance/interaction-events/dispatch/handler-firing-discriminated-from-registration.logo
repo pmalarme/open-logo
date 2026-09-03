@@ -1,0 +1,2 @@
+on_key "space" [ print 1 ]
+wait 1

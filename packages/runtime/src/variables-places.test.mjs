@@ -216,6 +216,28 @@ test("creates a global binding on first assignment via `set place to value`", ()
   assert.deepEqual(evaluate(parseExpr(":count"), env), { ok: true, value: 1 });
 });
 
+test('creates a global binding on first assignment via heritage `make "name" value`', () => {
+  const env = createEnvironment();
+  const node = parseStatement('make "count" 1');
+  // The heritage `make` spelling lowers to the exact same `Assign` shape as `set … to`, so the
+  // form-agnostic `executeAssign` binds it identically (`spec/conformance.md:270` — alternate
+  // spelling, no new semantics).
+  assert.equal(node.kind, "Assign");
+  assert.equal(node.form, "make");
+  const result = executeAssign(node, env);
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(evaluate(parseExpr(":count"), env), { ok: true, value: 1 });
+});
+
+test("heritage `make` mutates the nearest existing binding, matching `set … to`", () => {
+  const env = envWith("count", 1);
+  const result = executeAssign(parseStatement('make "count" :count + 1'), env);
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(evaluate(parseExpr(":count"), env), { ok: true, value: 2 });
+  // No second global was created under a different scope — the nearest binding was reused.
+  assert.equal(env.frames[env.frames.length - 1].size, 1);
+});
+
 test("mutates the nearest existing binding rather than shadowing it", () => {
   const env = envWith("count", 1);
   const result = executeAssign(parseStatement("set count to :count + 1"), env);

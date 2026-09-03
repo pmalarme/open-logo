@@ -1,0 +1,32 @@
+{
+  "description": "issue #684 (slice I5): the multiline `on_key \"space\" ... end on_key` form behaves identically to the bracket form — it registers one keyboard handler and emits the `instruction`+`primitive` pair (seq 0-1) after registration (spec/interaction-events.md's event-block-tail grammar and \"Event registration forms emit `primitive` events after the handler is registered\"). No key is delivered when the run supplies no host input, so the body never fires.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-long-form",
+        "start": [1, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-long-form",
+        "start": [1, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    }
+  ],
+  "diagnostics": []
+}

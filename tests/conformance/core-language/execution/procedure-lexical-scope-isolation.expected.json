@@ -1,5 +1,5 @@
 {
-  "description": "Lexical frame scoping: a callee's params/locals are frame-local and invisible outside it, and the caller's own locals are invisible to the callee unless passed explicitly (spec/execution-model.md:316-364). Issue #97.",
+  "description": "Lexical frame scoping: a callee's params/locals are frame-local and invisible outside it, and the caller's own locals are invisible to the callee unless passed explicitly (spec/execution-model.md:340-342). Issue #97.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

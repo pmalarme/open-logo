@@ -13,7 +13,7 @@
  * {@link ExecSignal} — `"normal"`/`"halt"` (its original two outcomes, renamed) plus `"return"`/
  * `"stop"` — so a control form's body (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`)
  * transparently propagates a `return`/`stop` up to the nearest enclosing procedure, rather than
- * only stopping its own loop (`spec/execution-model.md:340-349`). {@link runProcedure} is the
+ * only stopping its own loop (`spec/execution-model.md:368-374`). {@link runProcedure} is the
  * shared call mechanics reachable from both a statement-position call (dispatched directly, right
  * here) and an expression-position call (`evaluate.ts`'s `evaluateCall`, via the `callProcedure`
  * callback threaded onto `Environment` — see `evaluate.ts`'s doc comment for why a direct import
@@ -29,7 +29,9 @@ import type {
   DrawSegmentPayload,
   FillPayload,
   GridOverlayPayload,
+  InstructionPayload,
   MeasureOverlayPayload,
+  MelodyStep,
   MovePayload,
   OLValue,
   PenChangePayload,
@@ -39,39 +41,40 @@ import type {
   ProcedureExitPayload,
   ReturnPayload,
   ShapeChangePayload,
+  SoundPayload,
   SourceSpan,
   StampPayload,
+  TraceEvent,
   TurnPayload,
+  TurtleId,
   TutorCommand,
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
-import { typeNameOf } from "@openlogo/core";
+import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
+import { OL_TURTLE_SPECIFIC_EVENT_KINDS } from "@openlogo/core";
 import type {
+  BlockNode,
   CallNode,
   ExpressionNode,
   ParenCallNode,
   ProcedureDefNode,
+  ProfileStatementNode,
   ProgramNode,
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
-import {
-  corePrimitiveArity,
-  dataPrimitiveArity,
-  educationalPrimitiveArity,
-  geometryPrimitiveArity,
-  isReservedWord,
-  parse,
-  turtlePrimitiveArity,
-  walk,
-} from "@openlogo/parser";
+import { isBuiltInName, parse, walk } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
+import { isValidPitch } from "./pitch.js";
 import {
   bindElement,
+  chargeHandlerFiring,
   checkExecutionLimits,
   createDefaultTurtleState,
+  createTurtleAddressing,
+  currentTurtleState,
   evaluate,
   executeAdd,
   executeAssign,
@@ -86,27 +89,61 @@ import {
   snapshotValue,
   requireNumber,
   requireWholeNumber,
+  turtleStateFor,
   type AssignResult,
   type Environment,
   type EvalResult,
   type Frame,
   type ProcedureRegistry,
   type StructRegistry,
+  type TurtleAddressing,
+  type TurtleState,
 } from "./evaluate.js";
 import { runtimeDiag } from "./errors.js";
-import type {
-  ExecuteOptions,
-  ExecuteResult,
-  InstructionPayload,
-} from "./index.js";
+import {
+  claimDueEveryHandlers,
+  claimPendingClickHandlers,
+  claimPendingEventHandlers,
+  claimPendingKeyHandlers,
+  claimQueuedEveryHandlers,
+  createEventHandlerRegistry,
+  createTickClock,
+  emitEveryPrimitive,
+  emitOnClickPrimitive,
+  emitOnKeyPrimitive,
+  emitWhenPrimitive,
+  enqueueHostInput,
+  isWaitCall,
+  registerEveryHandler,
+  registerOnClickHandler,
+  registerOnKeyHandler,
+  registerWhenHandler,
+  runWait,
+  STANDARD_EVENT_WORDS,
+  type EveryHandler,
+  type HandlerDelivery,
+  type HostInputEvent,
+  type OnClickHandler,
+  type OnKeyHandler,
+  type WhenHandler,
+} from "./interaction.js";
+import type { ExecuteOptions, ExecuteResult } from "./index.js";
 import {
   createRandomNumberGeneratorState,
+  drawImplementationSeed,
   seedFromText,
 } from "./random-number-generator.js";
+import { createSoundState } from "./sound-state.js";
 import type { TutorCommandMetadata, TutorContext } from "./tutor-context.js";
 import { defaultTutorTemplate } from "./tutor-templates.js";
 import type { TutorLearnerLevel } from "./tutor-context.js";
 import { normalizeHeading } from "./turtle-math.js";
+import { MAIN_TURTLE_ID, TurtleWorld } from "./turtle-world.js";
+import type {
+  AddressingPrimitiveName,
+  AddressingScopeSnapshot,
+} from "./addressing.js";
+import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
 
 /**
  * Is `statement` a call to `print` — the single-value `print value` form or the parenthesized
@@ -187,7 +224,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * `spec/execution-model.md:592-593` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
- * pen is down** (`environment.turtle.penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
+ * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
  * is drawn only while the pen is down; while up, the turtle still moves (and still emits `move`)
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md:1215`), positive for `forward`.
@@ -199,10 +236,10 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  */
 function moveTurtle(
   environment: Environment,
+  turtle: TurtleState,
   distance: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const heading = turtle.heading;
   const radians = (heading * Math.PI) / 180;
   const from: Point = [turtle.x, turtle.y];
@@ -247,15 +284,31 @@ function moveTurtle(
  * call, so every local variable declared directly in its body adds to the native stack frame
  * reserved on *every* recursive level — even for recursion that never touches `forward`/`back`.
  * Keeping this branch's locals in their own (non-recursive) function keeps `executeStatements`'s
- * own frame small, which is what lets `execution-budget.test.mjs`'s 1000-deep
- * `recursionDepthLimit` override actually complete without hitting the real (V8) native stack
- * limit first.
+ * own frame small, which is what lets a deep recursive program run out of OpenLogo's *own*
+ * recursion-depth budget — and report the friendly `ol-limit` — instead of hitting the real (V8)
+ * native stack limit first.
+ *
+ * **This is the canonical frame-width note**; the sibling helpers below point here. Each of them
+ * records that inlining it back into `executeStatements` once pushed the deep-recursion budget
+ * test *of the day* over that native limit — at the time, a 600-deep run under
+ * `recursionDepthLimit: 1000`. That test no longer exists: issue #726 found it promised a depth
+ * the host could not honor and replaced it with `execution-budget.test.mjs`'s "recursion up to
+ * just under the host-safe ceiling completes normally" case — depth
+ * `HOST_SAFE_RECURSION_DEPTH - 1` (499) under a limit of {@link HOST_SAFE_RECURSION_DEPTH} (500)
+ * — plus the clamp in {@link resolveEffectiveRecursionDepthLimit}, which caps any configured
+ * `recursionDepthLimit` at that ceiling. **Only the numbers changed, not the constraint:** frame
+ * width is still multiplied by recursion depth, and {@link HOST_SAFE_RECURSION_DEPTH} keeps only
+ * its documented headroom margin below a cold-overflow floor that drifts *down* as the evaluator
+ * gains features. Note the live test recurses *shallower* than the 600 these regressions were
+ * observed at, so it is a weaker tripwire than the one that caught them — treat every extraction
+ * that cites this note as load-bearing even if some future inlining experiment happens to stay
+ * green.
  */
 function executeTurtleMoveCall(
   moveCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = moveCall.callee.name;
+  const callableName = canonicalCalleeName(moveCall);
   if (moveCall.args.length !== 1) {
     return halt(
       moveCall.args.length < 1
@@ -277,6 +330,13 @@ function executeTurtleMoveCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Fix the acting turtle BEFORE the argument runs. A turtle command applies to the turtle(s)
+  // addressed when the statement began ({@link runPerTurtleCommand}'s `addressedIds` snapshot), so
+  // a `tell` reached from the argument — necessarily via a procedure call — must change the
+  // addressed set for what *follows*, never re-aim the command it is an argument of. Pinning it as
+  // a local keeps that a property of this call's stack frame rather than of any shared or copied
+  // state (issue #782).
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -305,7 +365,7 @@ function executeTurtleMoveCall(
   }
   const signedDistance =
     callableName.toLowerCase() === "back" ? -distance.value : distance.value;
-  moveTurtle(environment, signedDistance, moveCall.source_span);
+  moveTurtle(environment, turtle, signedDistance, moveCall.source_span);
   return undefined;
 }
 
@@ -335,10 +395,10 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
  */
 function turnTurtle(
   environment: Environment,
+  turtle: TurtleState,
   deltaDegrees: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.heading;
   const to = normalizeHeading(from + deltaDegrees);
   turtle.heading = to;
@@ -366,7 +426,7 @@ function executeTurtleTurnCall(
   turnCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = turnCall.callee.name;
+  const callableName = canonicalCalleeName(turnCall);
   if (turnCall.args.length !== 1) {
     return halt(
       turnCall.args.length < 1
@@ -388,6 +448,8 @@ function executeTurtleTurnCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -414,7 +476,7 @@ function executeTurtleTurnCall(
   }
   const signedAngle =
     callableName.toLowerCase() === "left" ? -angle.value : angle.value;
-  turnTurtle(environment, signedAngle, turnCall.source_span);
+  turnTurtle(environment, turtle, signedAngle, turnCall.source_span);
   return undefined;
 }
 
@@ -442,14 +504,14 @@ function isTurtlePenCall(statement: StatementNode): boolean {
  *
  * Setting has no `move`/`draw-segment` counterpart: it never moves or turns the turtle, so no
  * position or heading event follows it. It is, however, the reason {@link moveTurtle}'s
- * `draw-segment` is now conditional on `environment.turtle.penDown`.
+ * `draw-segment` is now conditional on the acting turtle's `penDown`.
  */
 function setPen(
   environment: Environment,
+  turtle: TurtleState,
   penDown: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.penDown ? "down" : "up";
   const to = penDown ? "down" : "up";
   turtle.penDown = penDown;
@@ -476,7 +538,7 @@ function executeTurtlePenCall(
   penCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = penCall.callee.name;
+  const callableName = canonicalCalleeName(penCall);
   if (penCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -489,6 +551,7 @@ function executeTurtlePenCall(
   }
   setPen(
     environment,
+    currentTurtleState(environment),
     callableName.toLowerCase() === "pen_down",
     penCall.source_span,
   );
@@ -523,10 +586,10 @@ function isTurtleVisibilityCall(statement: StatementNode): boolean {
  */
 function setVisibility(
   environment: Environment,
+  turtle: TurtleState,
   visible: boolean,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.visible;
   turtle.visible = visible;
   environment.events.push({
@@ -552,7 +615,7 @@ function executeTurtleVisibilityCall(
   visibilityCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = visibilityCall.callee.name;
+  const callableName = canonicalCalleeName(visibilityCall);
   if (visibilityCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -565,6 +628,7 @@ function executeTurtleVisibilityCall(
   }
   setVisibility(
     environment,
+    currentTurtleState(environment),
     callableName.toLowerCase() === "show_turtle",
     visibilityCall.source_span,
   );
@@ -585,27 +649,138 @@ function isTurtleClearCall(statement: StatementNode): boolean {
 }
 
 /**
- * Clear the drawing and, for `clear_screen` only, silently home the turtle's position and
- * heading — emitting exactly one `clear` event (`spec/rendering.md`'s "Clear operations" table:
- * `clean` clears drawing only, `clear_screen` clears drawing and homes position+heading; both
- * leave pen state, color, width, visibility, and background unchanged).
+ * Home one turtle's position and heading for `clear_screen`, emitting the **observable** `move`
+ * and `turn` pair that names it (issue #847). `identity` is the `{turtle_id}` envelope fragment
+ * every event of this homing carries (empty before any `tell` — see {@link clearScreen}).
  *
- * `clear_screen`'s homing is deliberately a *silent* internal state reset — no `move`/`turn`
- * event fires alongside it. `@openlogo/turtle`'s scene/state reducers (issues #211/#213, already
- * merged) fold a `clear{mode:"clear_screen"}` event into a position/heading reset themselves, so
- * emitting `move`/`turn` here as well would double-home the reducer's turtle state. This mirrors
- * how {@link setVisibility}/{@link setPen} emit only their own single event, not a compound one.
+ * The event shape deliberately mirrors `home`'s ({@link moveTurtleTo} + {@link setHeadingTo}) with
+ * **one deliberate difference: no `draw-segment` is ever emitted, whatever the pen state.**
+ * `spec/rendering.md:36`'s "a pen-down move appends one straight segment" describes what a move
+ * contributes to the **retained scene**, and `clear_screen`'s row of the "Clear operations" table
+ * (`spec/rendering.md:150`) fixes that contribution at *cleared* — the operation is defined to
+ * leave no drawing segments at all, so a segment back to the origin would be exactly the artifact
+ * the same instruction removes. `move` and `draw-segment` are independent events, so "moved but
+ * drew nothing" is expressible without any renderer-side special case.
+ *
+ * The spec does **not** settle this explicitly. It does make the homing reproducible — through the
+ * `clear` payload's mode (`spec/rendering.md:153`) — but says nothing about whether a *duplicate*
+ * `move`/`turn` representation of the same homing also carries a segment. Read as an exception-free
+ * rule over every pen-down `move`, :36 would instead require `move`/`draw-segment`/`turn`/`clear`
+ * (same empty final scene, but a trace claiming a segment the learner never drew). That reading was
+ * raised during this change's review gate; the decision here is recorded and **escalated to the
+ * maintainer as issue #858** rather than silently settled. Emitting the segment instead would be a
+ * one-line change.
+ *
+ * The `move` payload reports the heading the turtle *had* (heading is not changed by a position
+ * move — same rule as {@link moveTurtleTo}); the following `turn` reports the reset to `0`, so a
+ * heading reset from a non-zero heading is observable in its own right rather than only implied by
+ * the `clear` payload's mode.
+ *
+ * Split out from {@link clearScreen} so "`clear_screen` homes *every* addressed turtle" (issue #738)
+ * could be built by calling it once per addressed turtle without re-deriving the event contract —
+ * which is exactly what {@link clearScreen} now does.
+ */
+function homeTurtleForClearScreen(
+  environment: Environment,
+  turtle: TurtleState,
+  identity: { readonly turtle_id?: TurtleId },
+  source_span: SourceSpan,
+): void {
+  // Position first, its event next, then heading and *its* event — so each payload is the
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:652`) and each
+  // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
+  // mutations up front would emit a `move` reporting a heading the turtle no longer had.
+  const from: Point = [turtle.x, turtle.y];
+  turtle.x = 0;
+  turtle.y = 0;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "move",
+    source_span,
+    ...identity,
+    payload: {
+      from,
+      to: [0, 0],
+      heading: turtle.heading,
+    } satisfies MovePayload,
+  });
+  const heading = turtle.heading;
+  turtle.heading = 0;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "turn",
+    source_span,
+    ...identity,
+    payload: { from: heading, to: 0 } satisfies TurnPayload,
+  });
+}
+
+/**
+ * Clear the drawing and, for `clear_screen` only, home **every addressed turtle**'s position and
+ * heading (`spec/rendering.md`'s "Clear operations" table: `clean` clears drawing only,
+ * `clear_screen` clears drawing and homes position+heading; both leave pen state, color, width,
+ * visibility, and background unchanged).
+ *
+ * The canvas is cleared **once** however many turtles are addressed, and the homing applies once
+ * per addressed turtle — the rule `spec/turtles-and-sprites.md:111` and `:113` now state outright
+ * (issue #738). `clear_screen` is therefore not a per-turtle command
+ * ({@link isPerTurtleCommand}): multiplying the whole statement would emit N `clear` events for one
+ * shared surface. Only the homing is multiplied, here, over {@link TurtleAddressing.ids} — so
+ * `tell [ :a :b ]` and `tell [ :b :a ]` home the same two turtles and the result no longer depends
+ * on the order they were listed in, which is exactly the wart :113 removes. `tell [ ]` addresses no
+ * turtle, so it homes none while still clearing the surface, matching every other command's empty-set
+ * behavior.
+ *
+ * `clear_screen` therefore emits **two events per addressed turtle** — `move` then `turn`, via
+ * {@link homeTurtleForClearScreen} — followed by the single `clear`, while `clean` emits only the
+ * `clear`. The homing pair fixes issue #847: the homing used to be a silent internal state reset,
+ * leaving a stream consumer believing the turtle was still where `clear_screen` found it while the
+ * runtime reported the origin — the two disagreed with nothing in the stream to say so. Explicit
+ * `home` never had that gap, and now neither does `clear_screen`.
+ *
+ * Those per-turtle events are also the **only** record of which turtles were homed. The `clear`
+ * carries no `turtle_id` in either mode — `spec/turtles-and-sprites.md:113`: "A `clear` event
+ * describes the shared surface rather than any turtle, so it is not turtle-specific and carries no
+ * turtle identity" — because one shared-surface event cannot name the N turtles one `clear_screen`
+ * homes. `spec/rendering.md:153`'s obligation on the payload is unaffected and now spans both
+ * regimes: the payload's `mode` still distinguishes drawing-only clearing from clear-and-home, which
+ * is what a single-turtle consumer folds ({@link reduceTurtleState} in `@openlogo/turtle`). A
+ * multi-turtle consumer must instead read the per-turtle `move`/`turn` events and MUST NOT treat the
+ * `clear` as an instruction to move a turtle (`:113` again) — otherwise an un-stamped `clear` routed
+ * to a default turtle homes one that was never addressed.
+ *
+ * The homing events come **before** the `clear`, which is the only order in which *every* prefix of
+ * the stream folds to a state the runtime agrees with: `move` reports the pre-reset heading and
+ * `turn` then resets it, so a stepping consumer paused between them never sees a heading the
+ * runtime never had. It also means a consumer that (wrongly) inferred drawing from `move` rather
+ * than `draw-segment` has its stray segment wiped by the `clear` that closes the same instruction
+ * step (`spec/rendering.md:86` — every effect event between two `instruction` events belongs to
+ * one user-visible step).
+ *
+ * Each turtle's pair carries that turtle's own `turtle_id` — exactly the `turtle_id`
+ * {@link stampTurtleId} would put on a per-turtle event — so a per-turtle state reducer homes the
+ * turtles the runtime actually homed rather than assuming the main turtle. Before any `tell`
+ * (`explicit === false`) the events stay un-stamped, matching every Turtle & Rendering fixture that
+ * predates the Sprites profile; there the addressed set is the single default turtle, so the stream
+ * is unchanged by this slice.
  */
 function clearScreen(
   environment: Environment,
   mode: "clear_screen" | "clean",
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
+  const { addressing } = environment;
   if (mode === "clear_screen") {
-    turtle.x = 0;
-    turtle.y = 0;
-    turtle.heading = 0;
+    // Snapshot the addressed ids for the same reason the per-turtle command loop does: the set this
+    // one statement homes is fixed at the moment it runs.
+    for (const id of [...addressing.ids]) {
+      homeTurtleForClearScreen(
+        environment,
+        turtleStateFor(addressing, id),
+        addressing.explicit ? { turtle_id: id } : {},
+        source_span,
+      );
+    }
   }
   environment.events.push({
     seq: environment.events.length,
@@ -628,7 +803,7 @@ function executeTurtleClearCall(
   clearCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = clearCall.callee.name;
+  const callableName = canonicalCalleeName(clearCall);
   if (clearCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -683,7 +858,7 @@ function executeTurtleColorCall(
   colorCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = colorCall.callee.name;
+  const callableName = canonicalCalleeName(colorCall);
   if (colorCall.args.length !== 1) {
     return halt(
       colorCall.args.length < 1
@@ -705,6 +880,8 @@ function executeTurtleColorCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -719,7 +896,6 @@ function executeTurtleColorCall(
       }),
     );
   }
-  const { turtle } = environment;
   const from = turtle.color;
   turtle.color = color;
   environment.events.push({
@@ -767,7 +943,7 @@ function executeTurtleBackgroundCall(
   backgroundCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = backgroundCall.callee.name;
+  const callableName = canonicalCalleeName(backgroundCall);
   if (backgroundCall.args.length !== 1) {
     return halt(
       backgroundCall.args.length < 1
@@ -848,7 +1024,7 @@ function executeTurtleWidthCall(
   widthCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = widthCall.callee.name;
+  const callableName = canonicalCalleeName(widthCall);
   if (widthCall.args.length !== 1) {
     return halt(
       widthCall.args.length < 1
@@ -870,6 +1046,8 @@ function executeTurtleWidthCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -887,7 +1065,6 @@ function executeTurtleWidthCall(
       }),
     );
   }
-  const { turtle } = environment;
   const from = turtle.width;
   turtle.width = width.value;
   environment.events.push({
@@ -928,7 +1105,7 @@ function executeTurtleFillCall(
   fillCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = fillCall.callee.name;
+  const callableName = canonicalCalleeName(fillCall);
   if (fillCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -943,7 +1120,9 @@ function executeTurtleFillCall(
     seq: environment.events.length,
     kind: "fill",
     source_span: fillCall.source_span,
-    payload: { color: environment.turtle.color } satisfies FillPayload,
+    payload: {
+      color: currentTurtleState(environment).color,
+    } satisfies FillPayload,
   });
   return undefined;
 }
@@ -977,7 +1156,7 @@ function executeTurtleStampCall(
   stampCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = stampCall.callee.name;
+  const callableName = canonicalCalleeName(stampCall);
   if (stampCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -988,7 +1167,7 @@ function executeTurtleStampCall(
       ),
     );
   }
-  const { turtle } = environment;
+  const turtle = currentTurtleState(environment);
   environment.events.push({
     seq: environment.events.length,
     kind: "stamp",
@@ -1006,7 +1185,7 @@ function executeTurtleStampCall(
 /**
  * `grid`'s default guide-line spacing in canvas units (`spec/geometry-module.md:272`: "Default
  * grid spacing is `20` canvas units"). `grid` takes no arguments (Kind C, arity 0), so this is the
- * only spacing the runtime ever emits — a future slice adding a `grid :spacing` overload would
+ * only spacing the runtime ever emits — a later change adding a `grid :spacing` overload would
  * change the arity table and this call site together, not this constant alone.
  */
 const DEFAULT_GRID_SPACING = 20;
@@ -1040,7 +1219,7 @@ function executeTurtleGridCall(
   gridCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = gridCall.callee.name;
+  const callableName = canonicalCalleeName(gridCall);
   if (gridCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1090,7 +1269,7 @@ function executeTurtleAxesCall(
   axesCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = axesCall.callee.name;
+  const callableName = canonicalCalleeName(axesCall);
   if (axesCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1139,7 +1318,7 @@ function executeTurtleMeasureCall(
   measureCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = measureCall.callee.name;
+  const callableName = canonicalCalleeName(measureCall);
   if (measureCall.args.length !== 0) {
     return halt(
       runtimeDiag.tooManyInputs(
@@ -1150,7 +1329,7 @@ function executeTurtleMeasureCall(
       ),
     );
   }
-  const { turtle } = environment;
+  const turtle = currentTurtleState(environment);
   environment.events.push({
     seq: environment.events.length,
     kind: "overlay",
@@ -1207,7 +1386,7 @@ function executeTurtleShapeCall(
   shapeCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = shapeCall.callee.name;
+  const callableName = canonicalCalleeName(shapeCall);
   if (shapeCall.args.length !== 1) {
     return halt(
       shapeCall.args.length < 1
@@ -1229,6 +1408,8 @@ function executeTurtleShapeCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1252,7 +1433,6 @@ function executeTurtleShapeCall(
     );
   }
   const shape = normalizeShape(argResult.value);
-  const { turtle } = environment;
   const from = turtle.shape;
   turtle.shape = shape;
   environment.events.push({
@@ -1291,10 +1471,10 @@ function isTurtlePositionCall(statement: StatementNode): boolean {
  */
 function moveTurtleTo(
   environment: Environment,
+  turtle: TurtleState,
   to: Point,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from: Point = [turtle.x, turtle.y];
   turtle.x = to[0];
   turtle.y = to[1];
@@ -1328,10 +1508,10 @@ function moveTurtleTo(
  */
 function setHeadingTo(
   environment: Environment,
+  turtle: TurtleState,
   to: number,
   source_span: SourceSpan,
 ): void {
-  const { turtle } = environment;
   const from = turtle.heading;
   turtle.heading = to;
   environment.events.push({
@@ -1364,7 +1544,7 @@ function executeTurtlePositionCall(
   positionCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = positionCall.callee.name;
+  const callableName = canonicalCalleeName(positionCall);
   const isHome = callableName.toLowerCase() === "home";
   const expectedArgs = isHome ? 0 : 2;
   if (positionCall.args.length !== expectedArgs) {
@@ -1385,8 +1565,9 @@ function executeTurtlePositionCall(
     );
   }
   if (isHome) {
-    moveTurtleTo(environment, [0, 0], positionCall.source_span);
-    setHeadingTo(environment, 0, positionCall.source_span);
+    const homingTurtle = currentTurtleState(environment);
+    moveTurtleTo(environment, homingTurtle, [0, 0], positionCall.source_span);
+    setHeadingTo(environment, homingTurtle, 0, positionCall.source_span);
     return undefined;
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
@@ -1396,6 +1577,8 @@ function executeTurtlePositionCall(
   ) {
     return undefined;
   }
+  // Acting turtle pinned before the arguments run — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const xResult = evaluate(xArg, environment);
   if (!xResult.ok) {
     return halt(xResult.diagnostic);
@@ -1431,7 +1614,12 @@ function executeTurtlePositionCall(
       }),
     );
   }
-  moveTurtleTo(environment, [x.value, y.value], positionCall.source_span);
+  moveTurtleTo(
+    environment,
+    turtle,
+    [x.value, y.value],
+    positionCall.source_span,
+  );
   return undefined;
 }
 
@@ -1466,7 +1654,7 @@ function executeTurtleHeadingCall(
   headingCall: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal | undefined {
-  const callableName = headingCall.callee.name;
+  const callableName = canonicalCalleeName(headingCall);
   if (headingCall.args.length !== 1) {
     return halt(
       headingCall.args.length < 1
@@ -1488,6 +1676,8 @@ function executeTurtleHeadingCall(
   if (!isSupportedArgument(arg, environment)) {
     return undefined;
   }
+  // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
+  const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1513,10 +1703,547 @@ function executeTurtleHeadingCall(
   }
   setHeadingTo(
     environment,
+    turtle,
     normalizeHeading(angle.value),
     headingCall.source_span,
   );
   return undefined;
+}
+
+/**
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:286-299`). Same
+ * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
+ * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
+ * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
+ */
+function isSoundSetTempoCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "set_tempo";
+}
+
+/**
+ * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which must additionally be positive and finite
+ * (`spec/interaction-events.md:289` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
+ * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
+ * emits one `sound` event
+ * carrying a {@link SetTempoSoundPayload}, AFTER the tempo state has been updated
+ * (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound` events after
+ * sound state has been scheduled"). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for an
+ * unsupported argument expression, mirroring {@link executeTurtleWidthCall}).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundSetTempoCall(
+  tempoCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(tempoCall);
+  if (tempoCall.args.length !== 1) {
+    return halt(
+      tempoCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            tempoCall.callee.source_span,
+            callableName,
+            1,
+            tempoCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            tempoCall.callee.source_span,
+            callableName,
+            1,
+            tempoCall.args.length,
+          ),
+    );
+  }
+  const [arg] = tempoCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const tempo = requireNumber(argResult.value, arg.source_span, "set_tempo");
+  if (!tempo.ok) {
+    return halt(tempo.diagnostic);
+  }
+  if (!Number.isFinite(tempo.value) || tempo.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveTempo(arg.source_span, {
+        value: String(tempo.value),
+      }),
+    );
+  }
+  environment.sound.tempo = tempo.value;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: tempoCall.source_span,
+    payload: {
+      command: "set_tempo",
+      beats_per_minute: tempo.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:336-351`). Same
+ * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
+ */
+function isSoundBeepCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "beep";
+}
+
+/**
+ * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
+ * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:344`)
+ * — the runtime models that scheduling purely as the event emission, never as a real audio device,
+ * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
+ * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
+ * keeping replay deterministic. No sound-state change: `beep` carries no parameters. Returns an
+ * {@link ExecSignal} to halt on, or `undefined` for {@link executeStatements} to `continue` on
+ * success.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundBeepCall(
+  beepCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(beepCall);
+  if (beepCall.args.length !== 0) {
+    return halt(
+      runtimeDiag.tooManyInputs(
+        beepCall.callee.source_span,
+        callableName,
+        0,
+        beepCall.args.length,
+      ),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: beepCall.source_span,
+    payload: { command: "beep" } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:301-318`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
+ * (`note` takes a pitch word and a duration number).
+ */
+function isSoundNoteCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "note";
+}
+
+/**
+ * Validate and run a `note <pitch-word> <duration>` statement matched by {@link isSoundNoteCall}:
+ * exactly two arguments (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise). The first MUST be a
+ * word (`ol-type`, `expected: "word"`) naming a well-formed scientific-pitch-notation pitch
+ * (`ol-type`, `expected: "pitch"`, via `runtimeDiag.invalidPitch` — mirroring `set_shape`'s
+ * word-then-recognized two-stage check); the second MUST be a positive finite number
+ * (`ol-type` via {@link requireNumber}, then `ol-range` via `runtimeDiag.nonPositiveDuration`).
+ *
+ * On success it schedules the pitched sound — headlessly, so scheduling *is* emitting one `sound`
+ * event carrying a {@link NoteSoundPayload} (the beat `duration` travels verbatim; nothing here
+ * converts it to wall-clock), AFTER the sound
+ * has been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit
+ * `sound` events after sound state has been scheduled"). The event is emitted unconditionally even
+ * in a muted environment ("Implementations that cannot play audio … MUST still emit `sound`
+ * events"), so replay never depends on audio availability. Returns an {@link ExecSignal} to halt
+ * on, or `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundNoteCall(
+  noteCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(noteCall);
+  if (noteCall.args.length !== 2) {
+    return halt(
+      noteCall.args.length < 2
+        ? runtimeDiag.notEnoughInputs(
+            noteCall.callee.source_span,
+            callableName,
+            2,
+            noteCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            noteCall.callee.source_span,
+            callableName,
+            2,
+            noteCall.args.length,
+          ),
+    );
+  }
+  const [pitchArg, durationArg] = noteCall.args as [
+    ExpressionNode,
+    ExpressionNode,
+  ];
+  // Validate the pitch fully before looking at the duration argument at all: the pitch is the
+  // first operand, so its diagnostic must win over anything about the duration. Preflighting both
+  // args together would let an unsupported *duration* expression (e.g. `note "bad" forward`)
+  // short-circuit to `undefined` and silently swallow the pitch's `ol-type` (rubber-duck, #690).
+  if (!isSupportedArgument(pitchArg, environment)) {
+    return undefined;
+  }
+  const pitchResult = evaluate(pitchArg, environment);
+  if (!pitchResult.ok) {
+    return halt(pitchResult.diagnostic);
+  }
+  if (typeof pitchResult.value !== "string") {
+    return halt(
+      runtimeDiag.placeType(pitchArg.source_span, {
+        expected: "word",
+        actual: typeNameOf(pitchResult.value),
+        value: pitchResult.value,
+        operation: "note",
+      }),
+    );
+  }
+  if (!isValidPitch(pitchResult.value)) {
+    return halt(
+      runtimeDiag.invalidPitch(pitchArg.source_span, {
+        value: pitchResult.value,
+        operation: "note",
+      }),
+    );
+  }
+  if (!isSupportedArgument(durationArg, environment)) {
+    return undefined;
+  }
+  const durationResult = evaluate(durationArg, environment);
+  if (!durationResult.ok) {
+    return halt(durationResult.diagnostic);
+  }
+  const duration = requireNumber(
+    durationResult.value,
+    durationArg.source_span,
+    "note",
+  );
+  if (!duration.ok) {
+    return halt(duration.diagnostic);
+  }
+  if (!Number.isFinite(duration.value) || duration.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveDuration(durationArg.source_span, {
+        operation: "note",
+        value: String(duration.value),
+      }),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: noteCall.source_span,
+    payload: {
+      command: "note",
+      pitch: pitchResult.value,
+      duration: duration.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:353-368`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
+ * primitive.
+ */
+function isSoundRestCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "rest";
+}
+
+/**
+ * Validate and run a `rest <duration>` statement matched by {@link isSoundRestCall}: exactly one
+ * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
+ * {@link requireNumber}), which MUST be a positive finite number (`ol-range` via
+ * `runtimeDiag.nonPositiveDuration` otherwise — folding `Infinity` in like `note`'s duration and
+ * `set_tempo`'s tempo). On success it schedules silence for `duration` beats — carried verbatim in
+ * the payload, as `note`/`play` durations are — and emits one `sound` event
+ * carrying a {@link RestSoundPayload}, "so replay tools can show the
+ * silent interval" (`spec/interaction-events.md`), AFTER the silence has been scheduled and
+ * unconditionally even in a muted environment. `rest` changes no sound state — silence is modeled
+ * purely as the event. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundRestCall(
+  restCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(restCall);
+  if (restCall.args.length !== 1) {
+    return halt(
+      restCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            restCall.callee.source_span,
+            callableName,
+            1,
+            restCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            restCall.callee.source_span,
+            callableName,
+            1,
+            restCall.args.length,
+          ),
+    );
+  }
+  const [arg] = restCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const duration = requireNumber(argResult.value, arg.source_span, "rest");
+  if (!duration.ok) {
+    return halt(duration.diagnostic);
+  }
+  if (!Number.isFinite(duration.value) || duration.value <= 0) {
+    return halt(
+      runtimeDiag.nonPositiveDuration(arg.source_span, {
+        operation: "rest",
+        value: String(duration.value),
+      }),
+    );
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: restCall.source_span,
+    payload: {
+      command: "rest",
+      duration: duration.value,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:320-334`). Same
+ * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
+ * (`play` takes one melody list).
+ */
+function isSoundPlayCall(statement: StatementNode): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  return statement.callee.name.toLowerCase() === "play";
+}
+
+/**
+ * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
+ * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
+ * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
+ * MUST be even" (`spec/interaction-events.md:328-330`) — an odd length raises `ol-range`
+ * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
+ * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
+ * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
+ * and the duration MUST be a positive finite number (`ol-type` via {@link requireNumber}, then
+ * `ol-range` via {@link runtimeDiag.nonPositiveDuration}, folding `Infinity` in exactly like `note`).
+ * Validation is left-to-right and halts on the first offending element, so the earliest error wins.
+ *
+ * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
+ * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
+ * `spec/interaction-events.md:294-295`) — and emits exactly one
+ * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
+ * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
+ * events after sound state has been scheduled"). The event is emitted unconditionally even in a
+ * muted environment. `play` changes no sound state — the beat-resolved melody lives entirely in the
+ * event, so the headless stream ({@link import("./sound-state.js").SoundState} holds only tempo)
+ * stays self-sufficient. Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case).
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}.
+ */
+function executeSoundPlayCall(
+  playCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(playCall);
+  if (playCall.args.length !== 1) {
+    return halt(
+      playCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            playCall.callee.source_span,
+            callableName,
+            1,
+            playCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            playCall.callee.source_span,
+            callableName,
+            1,
+            playCall.args.length,
+          ),
+    );
+  }
+  const [melodyArg] = playCall.args as [ExpressionNode];
+  if (!isSupportedArgument(melodyArg, environment)) {
+    return undefined;
+  }
+  const melodyResult = evaluate(melodyArg, environment);
+  if (!melodyResult.ok) {
+    return halt(melodyResult.diagnostic);
+  }
+  if (!Array.isArray(melodyResult.value)) {
+    return halt(
+      runtimeDiag.placeType(melodyArg.source_span, {
+        expected: "list",
+        actual: typeNameOf(melodyResult.value),
+        value: melodyResult.value,
+        operation: "play",
+      }),
+    );
+  }
+  const elements = melodyResult.value;
+  const melody: MelodyStep[] = [];
+  // Validate elements strictly left-to-right so the EARLIEST offending element wins, exactly like
+  // `note` validates its pitch before its duration (rubber-duck, #691): an up-front parity check
+  // would let an odd-length list mask an earlier bad pitch/duration (e.g. `play ["c4" 0 "e4"]` must
+  // report the `0` duration, not the odd length). The odd-length `ol-range` is therefore raised only
+  // when the loop reaches a final pitch with no duration partner, after every earlier pair passed.
+  for (let index = 0; index < elements.length; index += 2) {
+    const pitchValue = elements[index];
+    if (typeof pitchValue !== "string") {
+      return halt(
+        runtimeDiag.placeType(melodyArg.source_span, {
+          expected: "word",
+          actual: typeNameOf(pitchValue),
+          value: pitchValue,
+          operation: "play",
+        }),
+      );
+    }
+    if (pitchValue !== "rest" && !isValidPitch(pitchValue)) {
+      return halt(
+        runtimeDiag.invalidPitch(melodyArg.source_span, {
+          value: pitchValue,
+          operation: "play",
+        }),
+      );
+    }
+    if (index + 1 >= elements.length) {
+      // A well-formed pitch with no duration partner: the list is odd-length. `spec/
+      // interaction-events.md`'s `play` entry: "The list length MUST be even" -> `ol-range`.
+      return halt(
+        runtimeDiag.oddMelodyLength(melodyArg.source_span, {
+          length: elements.length,
+        }),
+      );
+    }
+    const durationValue = elements[index + 1];
+    const duration = requireNumber(
+      durationValue,
+      melodyArg.source_span,
+      "play",
+    );
+    if (!duration.ok) {
+      return halt(duration.diagnostic);
+    }
+    if (!Number.isFinite(duration.value) || duration.value <= 0) {
+      return halt(
+        runtimeDiag.nonPositiveDuration(melodyArg.source_span, {
+          operation: "play",
+          value: String(duration.value),
+        }),
+      );
+    }
+    melody.push({ pitch: pitchValue, duration: duration.value });
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "sound",
+    source_span: playCall.source_span,
+    payload: {
+      command: "play",
+      melody,
+    } satisfies SoundPayload,
+  });
+  return undefined;
+}
+
+/**
+ * Sentinel {@link dispatchSoundCommand} returns when `statement` isn't any recognized Sound-profile
+ * command, so {@link executeStatements} can fall through to its other statement-kind checks.
+ * Distinct from `undefined`, which means a sound command ran successfully (the same "handled,
+ * continue" meaning {@link NOT_A_TURTLE_COMMAND} carries for turtle commands).
+ */
+const NOT_A_SOUND_COMMAND = Symbol("not-a-sound-command");
+
+/**
+ * Single entry point {@link executeStatements} calls to try every Sound-profile command in one
+ * step (issue #689 registers `set_tempo`/`beep`; #690/#691 add `note`/`play`/`rest` here). Kept as
+ * its own dispatcher — like {@link dispatchTurtleCommand} — so `executeStatements`'s own stack frame
+ * stays fixed regardless of how many sound commands exist (the recursion-depth rationale that
+ * {@link executeTurtleMoveCall}'s canonical frame-width note records).
+ */
+function dispatchSoundCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_SOUND_COMMAND {
+  if (isSoundSetTempoCall(statement)) {
+    return executeSoundSetTempoCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundBeepCall(statement)) {
+    return executeSoundBeepCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundNoteCall(statement)) {
+    return executeSoundNoteCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundRestCall(statement)) {
+    return executeSoundRestCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  if (isSoundPlayCall(statement)) {
+    return executeSoundPlayCall(
+      statement as unknown as CallNode | ParenCallNode,
+      environment,
+    );
+  }
+  return NOT_A_SOUND_COMMAND;
 }
 
 /**
@@ -1528,21 +2255,1455 @@ function executeTurtleHeadingCall(
 const NOT_A_TURTLE_COMMAND = Symbol("not-a-turtle-command");
 
 /**
+ * Validate and run a `wait <n>` statement matched by {@link isWaitCall} (issue #680,
+ * `spec/interaction-events.md`, `wait <n>`): exactly one numeric argument
+ * (`ol-not-enough-inputs`/`ol-too-many-inputs` on the wrong arity), which MUST be a non-negative
+ * **whole** number — `ol-type` via {@link requireWholeNumber} for a non-whole or non-number count,
+ * then `ol-range` via {@link runtimeDiag.negativeCount} for a negative one. That is deliberately
+ * the exact type-then-range shape {@link executeEveryStatement} applies to an `every` interval,
+ * down to the inline range guard (issue #775): both Interaction numeric arguments are whole-number
+ * arguments, so for one input class both must report one `ol-type` **type expectation** —
+ * `expected: "whole number"`, with `actual`/`value` naming the offending value as the learner wrote
+ * it — the spelling `repeat` and `random` already emit. (`operation` still names the primitive, so
+ * the two diagnostics remain distinguishable; it is the type vocabulary that is shared.) Using
+ * {@link requireNumber} here instead reported `expected: "number"` for a non-number word, and
+ * pre-coerced a word into a number so `actual`/`value` lost the word — an observable divergence,
+ * since `params` are part of a diagnostic's identity (`spec/error-model.md`). The pause + trailing
+ * `primitive` event are produced by {@link runWait}. Returns an {@link ExecSignal} to halt on, or
+ * `undefined` for {@link executeStatements} to `continue` on success (including the "left
+ * un-evaluated" case for an unsupported argument expression, mirroring the turtle commands).
+ *
+ * Issue #953 adds the third outcome: the pause can now halt with `ol-limit` of its own accord. Each
+ * tick the pause advances to is charged one instruction against the execution budget through
+ * {@link checkExecutionLimits}, so `wait <n>` costs `n` instructions on top of the one its own
+ * statement already pays, and a `wait` large enough to exhaust the budget stops at the last tick it
+ * could afford instead of occupying the thread for arbitrary wall-time. See `interaction.ts`'s
+ * `TickCharge` for why a tick is an instruction; `wait 0` advances no tick and is unchanged.
+ *
+ * Deliberately a separate, non-inlined function — same stack-frame-size rationale documented on
+ * {@link executeTurtleMoveCall}: `executeStatements` recurses once per procedure call, so this
+ * argument-gating logic stays out of its body.
+ */
+function executeWaitCall(
+  waitCall: CallNode | ParenCallNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const callableName = canonicalCalleeName(waitCall);
+  if (waitCall.args.length !== 1) {
+    return halt(
+      waitCall.args.length < 1
+        ? runtimeDiag.notEnoughInputs(
+            waitCall.callee.source_span,
+            callableName,
+            1,
+            waitCall.args.length,
+          )
+        : runtimeDiag.tooManyInputs(
+            waitCall.callee.source_span,
+            callableName,
+            1,
+            waitCall.args.length,
+          ),
+    );
+  }
+  const [arg] = waitCall.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ticks = requireWholeNumber(argResult.value, arg.source_span, "wait");
+  if (!ticks.ok) {
+    return halt(ticks.diagnostic);
+  }
+  // RANGE after TYPE: `wait 0` is valid ("yields to the renderer and event loop without adding a
+  // visible delay"), only a negative count is out of range. Guarded inline, exactly as
+  // `executeEveryStatement` guards its own `<= 0` interval, so the two forms have no structural
+  // difference left for their diagnostics to drift through (issue #775).
+  if (ticks.value < 0) {
+    return halt(
+      runtimeDiag.negativeCount(arg.source_span, {
+        operation: "wait",
+        value: ticks.value,
+      }),
+    );
+  }
+  // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
+  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:84-89`) —
+  // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
+  // named events due at this tick into the pending queues. This is what makes registered
+  // `every`/`on_key`/`on_click` handlers "still fire" while a `wait` pause elapses, only the
+  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:113-118`).
+  //
+  // Both per-tick callbacks below share ONE `interruption` stash: `runWait` reports only "keep
+  // pausing" or "abort" (`interaction.ts`'s callbacks are plain booleans to stay free of the
+  // evaluator's control-flow types), so whichever of them halts, the real `ExecSignal` is read back
+  // here after `runWait` returns and propagated. They are named rather than written inline so the
+  // charge sits beside the drain it is paired with — see `main-line-boundary-pairing.test.mjs`.
+  let interruption: ExecSignal | undefined;
+  // Issue #953 — one charged instruction per tick the pause is about to advance to.
+  // `checkExecutionLimits` is THE single execution-safety gate every looping form passes before
+  // running another pass, and a `wait` tick is now one of those passes, so it goes through that gate
+  // rather than a budget-only variant of its own: one mechanism, one `ol-limit` shape, and no second
+  // way for a tick to be counted — or missed. Rationale for charging at all: `interaction.ts`'s
+  // `TickCharge`.
+  const chargeTick = (): boolean => {
+    const diagnostic = checkExecutionLimits(environment, waitCall.source_span);
+    if (diagnostic === undefined) {
+      return false;
+    }
+    interruption = halt(diagnostic);
+    return true;
+  };
+  // The paired main-line boundary for that charge: `dispatchDueHandlers` runs on the very tick just
+  // charged and drains the queued `every` occurrences (`claimDueEveryHandlers` claims exactly the
+  // `queued && !running && !claimed` set `claimQueuedEveryHandlers` does, plus the newly due), which
+  // is what `executeMainLine` means by "the end-of-tick drain in dispatchDueHandlers covers the
+  // occurrences that were queued while a `wait` was still advancing the clock".
+  const dispatchTick = (tick: number): boolean => {
+    const signal = dispatchDueHandlers(tick, environment, waitCall.source_span);
+    if (signal.kind === "normal") {
+      return false;
+    }
+    interruption = signal;
+    return true;
+  };
+  const interrupted = runWait(
+    environment.tickClock,
+    environment.events,
+    ticks.value,
+    waitCall.source_span,
+    dispatchTick,
+    chargeTick,
+    environment.tickTimeline,
+  );
+  if (interrupted && interruption) {
+    return interruption;
+  }
+  return undefined;
+}
+
+/**
+ * Is `statement` a `when <event-word> <block>` handler registration (issue #682,
+ * `spec/interaction-events.md`'s `### when <event-word> <block>`)? `when` is a profile block-head
+ * the reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name.
+ * A plain `boolean` (not a type predicate) to match the surrounding turtle/wait dispatch
+ * convention; the caller narrows via a cast at the single call site, exactly as `executeWaitCall`
+ * does.
+ */
+function isWhenStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "when"
+  );
+}
+
+/**
+ * The halt gate every handler invocation passes BEFORE emitting its block-head
+ * `instruction` event (issue #686, slice I7; issue #828 makes it charge the firing). Returns an
+ * `ol-limit` {@link ExecSignal} to halt with
+ * when the run has been cancelled, or when the budget cannot afford this firing (or the first
+ * statement of a non-empty body) — otherwise `undefined` to proceed.
+ *
+ * Placing it here, at the single entry every `invoke*Handler` shares, guards BOTH handler-delivery
+ * paths uniformly: the immediate `when "start"` fire during registration
+ * ({@link executeWhenStatement}) and the
+ * tick-driven same-tick dispatch ({@link dispatchDueHandlers}). An exhausted budget or a cancelled
+ * run must "stop future handler delivery" (`spec/interaction-events.md`'s "Errors and cancellation")
+ * on every path — so a handler that would begin only to be immediately halted is not started at all,
+ * and the trace never shows a handler that emitted its block-head yet produced no effect (an
+ * incoherent partial delivery). {@link chargeHandlerFiring} **charges the firing one instruction**
+ * (issue #828's ruling: handler firings are instructions and count against the ordinary budget),
+ * which is what bounds a repeating handler that registers another repeating handler — see that
+ * function's doc comment for the measurement showing an empty-bodied inner handler otherwise
+ * accumulates at zero budget cost. An **empty**-bodied handler is still delivered whenever its own
+ * firing fits, because it has no statement gate — `bodyHasStatements` gates only the extra
+ * first-statement arm accordingly. Cancellation, by contrast, is re-checked
+ * here ungated by `bodyHasStatements`: the Web-Worker `Atomics` deployment ({@link CancellationSignal})
+ * can flip `aborted` between this guard and the body's first-statement gate, so without an abort check
+ * a handler cancelled at its dispatch boundary — or any empty handler, which never reaches a body
+ * gate — would emit an orphan block-head after cancellation (the review-gate finding that reversed an
+ * earlier decline).
+ */
+function guardHandlerDispatch(
+  handler: { keyword: { source_span: SourceSpan }; block: BlockNode },
+  environment: Environment,
+): ExecSignal | undefined {
+  const limitDiagnostic = chargeHandlerFiring(
+    environment,
+    handler.keyword.source_span,
+    handler.block.body.length > 0,
+  );
+  return limitDiagnostic ? halt(limitDiagnostic) : undefined;
+}
+
+/**
+ * Credit one handler invocation to the host-input occurrence that caused it (issue #975), or do
+ * nothing when the caller supplied no delivery sink.
+ *
+ * Called at exactly one point in each `invoke*Handler`: **immediately after the handler-block
+ * `instruction` event is pushed**, and therefore only once {@link guardHandlerDispatch} has passed.
+ * That placement is the whole definition of the count and is deliberate on both sides:
+ *
+ * - A handler that ran and then **raised** is still counted, because the block-head event is emitted
+ *   before the body runs. That is the axis on which every host-side proxy for this fact failed — a
+ *   raising handler *shortens* the event stream, so stream growth reported "nothing responded" for a
+ *   handler that plainly responded.
+ * - A handler that was **guarded off** — cancelled, or out of budget — is not counted, because
+ *   `guardHandlerDispatch` returns before the event is pushed and nothing ran.
+ *
+ * So `HandlerDelivery.invocations` is exactly "how many handler-firing `instruction` events this
+ * occurrence produced". Tying the inbound count to the outbound event at a single line is what stops
+ * the two halves of this contract drifting apart, the way a re-derived count did.
+ */
+function countHandlerInvocation(delivery: HandlerDelivery | undefined): void {
+  if (delivery) {
+    delivery.invocations += 1;
+  }
+}
+
+/**
+ * Run one `when` handler's block for one occurrence of its event (`spec/interaction-events.md`'s
+ * "Trace stream integration"): first emit the `instruction` event for the block-head that caused the
+ * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
+ * registration site — then execute the handler body, whose own effects emit the ordinary
+ * after-effect events. Marks nothing: a `when` registration is **persistent** and runs "each time the
+ * named event occurs, once per occurrence" (`spec/interaction-events.md:158-163`, maintainer ruling
+ * #984), exactly like {@link invokeOnKeyHandler}/{@link invokeOnClickHandler}. Returns the body's
+ * {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside the handler)
+ * propagates and stops the whole run, per `spec/interaction-events.md`'s "Errors and cancellation". A
+ * `return`/`stop` that escapes the handler body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level), rather than being returned raw: a `when "start"` handler fires
+ * synchronously during registration, so a raw `return`/`stop` signal would otherwise be caught by an
+ * enclosing procedure call and silently consumed as that procedure's own `return`/`stop`. Converting
+ * at the boundary makes the diagnostic independent of whether the `when` was registered inside a
+ * procedure.
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "when", event}` — so a
+ * consumer reads which handler fired from a field instead of inferring it from the span being the
+ * bare keyword rather than the whole statement. `delivery` is the {@link HandlerDelivery} record of
+ * the host input that caused this invocation (#975), credited by {@link countHandlerInvocation} at
+ * the same point; it is absent for a `when "start"` handler, which fires from registration rather
+ * than from any host delivery.
+ */
+function invokeWhenHandler(
+  handler: WhenHandler,
+  environment: Environment,
+  delivery?: HandlerDelivery,
+): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+      handler: { kind: "when", event: handler.event },
+    } satisfies InstructionPayload,
+  });
+  countHandlerInvocation(delivery);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Register a `when <event-word> <block>` handler (issue #682, `spec/interaction-events.md`'s
+ * `### when <event-word> <block>`): evaluate the single event argument, require it to be a word
+ * (`ol-type` via {@link runtimeDiag.whenEventNotWord} otherwise), record the handler on the
+ * environment's registry in registration order, then emit the `primitive` event **after** the
+ * handler is registered (spec: "Event registration forms emit `primitive` events after the handler
+ * is registered"). Finally, because a batch `execute()` run has already started, a `"start"` handler
+ * is already being delivered, so it fires immediately after registration (spec: registering "does
+ * not run its block immediately unless the triggering event is already being delivered"); every
+ * other event — including `"stop"` — is registered and fires only if a host schedules it through
+ * `ExecuteOptions.hostInput` (see
+ * {@link STANDARD_EVENT_WORDS}), so with none supplied its handler does not fire here.
+ *
+ * Only the handler **just registered** fires, never the whole `"start"` cohort: the run's single
+ * `"start"` occurrence is what each handler is catching as it registers, and handlers registered
+ * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:158-163`,
+ * ruling #984 — a handler is never retired, so nothing filters an already-delivered one out) from
+ * re-firing every earlier `"start"` handler on each new registration. Persistence is observable
+ * instead when an event occurs again, which for `"start"`/`"stop"` cannot happen in v0.1 and for a
+ * vendor event means a further host delivery through {@link dispatchDueHandlers}.
+ *
+ * `block` is the handler body the reader always attaches to a `when` block-head (`hasBlock: true`,
+ * `parser.ts`'s `parseProfileStatement`), recovered here by a cast since a `when` node reaching the
+ * runtime always has one (see the inline note on the cast).
+ *
+ * Returns an {@link ExecSignal} to halt/propagate on (a non-word event, or a signal that escaped an
+ * immediately-fired `"start"` handler), or `undefined` for {@link executeStatements} to `continue`
+ * on — including the "argument left un-evaluated" case, mirroring {@link executeWaitCall} and the
+ * turtle commands.
+ */
+function executeWhenStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [eventArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(eventArg, environment)) {
+    return undefined;
+  }
+  const eventResult = evaluate(eventArg, environment);
+  if (!eventResult.ok) {
+    return halt(eventResult.diagnostic);
+  }
+  if (typeof eventResult.value !== "string") {
+    return halt(
+      runtimeDiag.whenEventNotWord(eventArg.source_span, {
+        actual: typeNameOf(eventResult.value),
+      }),
+    );
+  }
+  const event = eventResult.value;
+  // The reader always attaches a block to a `when` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` returns `undefined` — failing the whole parse, which `runProgram` bails
+  // on before `execute()` runs — if the body is missing), so `body` is guaranteed present for any
+  // `when` node reaching the runtime. The optional `body` on `ProfileStatementNode` exists only
+  // because the bodyless `tell` mode-switch shares that node kind; a cast (not a runtime guard)
+  // records that invariant without adding an unreachable branch.
+  const block = statement.body as BlockNode;
+  const handler = registerWhenHandler(
+    environment.eventHandlers,
+    event,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitWhenPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "when",
+    event,
+    source_span: statement.source_span,
+  });
+  if (event === STANDARD_EVENT_WORDS.start) {
+    const signal = invokeWhenHandler(handler, environment);
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Run one handler block with the main-line statement boundary SUPPRESSED for its duration
+ * (ruling #984). A handler body is not the main line: opening a boundary inside it would let a
+ * drained `every` occurrence re-enter its own handler, and would keep the run alive on work the
+ * program never asked for. Restores the previous hook on every exit path, including a halt, so a
+ * handler that stops the run cannot leave the main line permanently boundary-less.
+ */
+function executeHandlerBody(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  const suppressed = environment.mainLineBoundary.fn;
+  environment.mainLineBoundary.fn = undefined;
+  try {
+    return executeStatements(body, environment);
+  } finally {
+    environment.mainLineBoundary.fn = suppressed;
+  }
+}
+
+/**
+ * The main-line boundary for one **loop iteration** (maintainer ruling #984,
+ * `spec/interaction-events.md:189-204`), returning a halting {@link ExecSignal} or `undefined`.
+ *
+ * `executeStatements` already offers a boundary before each statement, so a non-empty body has one
+ * per unit of progress and needs nothing here — firing again per iteration would drain twice for the
+ * same unit and make a loop offer more boundaries than the equivalent comprehension. An **empty**
+ * body executes no statements at all, yet each of its iterations is charged against the budget and
+ * is main-line progress just the same, so the iteration itself is that body's only unit and its only
+ * boundary. Measured before this existed: `forever [ ]` gave a queued `every` occurrence three
+ * firings before `ol-limit` where `forever [ print 0 ]` gave eleven — the ruling's back-to-back
+ * guarantee held only for loops that happened to contain a statement.
+ */
+function runIterationBoundary(
+  body: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal | undefined {
+  return body.length === 0 ? environment.mainLineBoundary.fn?.() : undefined;
+}
+
+/**
+ * Sentinel `dispatchProfileStatement` returns when a {@link ProfileStatementNode} is not a Sprites
+ * addressing form this slice runs (`tell`/`ask`; `each` lands in #676; the Interaction event heads
+ * are their own profile), so {@link executeStatements} can fall through. Distinct from `undefined`
+ * ("handled, continue") and an {@link ExecSignal} ("handled, halt"), mirroring
+ * {@link NOT_A_TURTLE_COMMAND}.
+ */
+const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
+
+/**
+ * Coerce one turtle value or a list of turtle values into the ids an addressing form should address
+ * (`spec/turtles-and-sprites.md:46` "Its input is either one turtle value or a list whose items are
+ * turtle values"). `operation` is the head keyword (`"tell"` or `"ask"`) the `ol-type` diagnostic
+ * names. Returns the ids on success, or the `ol-type` diagnostic to halt on when the input is a
+ * non-turtle, or a list containing a non-turtle value (`spec/turtles-and-sprites.md:176-177`). The
+ * whole form fails on the first non-turtle item — the addressed set is left unchanged — so a
+ * partially-valid list never half-addresses.
+ *
+ * The ids are **deduplicated by stable id, in first-occurrence order**: what `tell`/`ask` establish
+ * is an addressed **set** (`spec/turtles-and-sprites.md:44` "turtle commands run for an **addressed
+ * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:540`), so a turtle
+ * listed twice is one member. A turtle command then "applies once for each addressed turtle"
+ * (`spec/turtles-and-sprites.md:113`) and `each` runs "once per turtle in the current `tell` or `ask`
+ * set" (`:78`) — one run per member, on **every** path (issue #748: deduplicating only inside `each`
+ * left the direct `tell`/`ask` path moving a repeated turtle twice, contradicting the same epic's
+ * `each`). Deduplicating here, where the set is built, makes every consumer — `each`'s iteration,
+ * {@link runPerTurtleCommand}'s per-turtle loop, and the restored set after `ask` — inherit the one
+ * rule instead of each re-deciding it. First-occurrence order is preserved so the set stays
+ * insertion-ordered and `who` keeps reporting its first member (`tell [ :b :a ]` ⇒ `:b`).
+ */
+function turtleIdsFor(
+  value: OLValue,
+  source_span: SourceSpan,
+  operation: "tell" | "ask",
+): { ok: true; ids: TurtleId[] } | { ok: false; diagnostic: Diagnostic } {
+  if (value instanceof OLTurtle) {
+    return { ok: true, ids: [value.id] };
+  }
+  if (Array.isArray(value)) {
+    const ids: TurtleId[] = [];
+    const seen = new Set<TurtleId>();
+    for (const item of value) {
+      if (!(item instanceof OLTurtle)) {
+        return {
+          ok: false,
+          diagnostic: runtimeDiag.tellNotATurtle(source_span, {
+            expected: "turtle",
+            actual: typeNameOf(item),
+            value: item,
+            operation,
+          }),
+        };
+      }
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        ids.push(item.id);
+      }
+    }
+    return { ok: true, ids };
+  }
+  return {
+    ok: false,
+    diagnostic: runtimeDiag.tellNotATurtle(source_span, {
+      expected: "turtle",
+      actual: typeNameOf(value),
+      value,
+      operation,
+    }),
+  };
+}
+
+/**
+ * Run a `tell <turtle|turtle-list>` statement (Sprites profile,
+ * `spec/turtles-and-sprites.md`'s "Addressing model"): `tell` is a command (no block) that
+ * **sets the addressed set** for every subsequent turtle command until the next `tell`. Evaluates
+ * its single argument, coerces it to turtle ids ({@link turtleIdsFor} — `ol-type` on a non-turtle),
+ * replaces {@link TurtleAddressing.ids}, marks addressing explicit so per-turtle events now carry a
+ * `turtle-id`, and re-aims the current-turtle pointer
+ * ({@link TurtleAddressing.currentId}) at the first addressed turtle so the
+ * movement reporters and `who` report it. An empty turtle list is a valid (if unusual) addressed
+ * set — subsequent commands then apply to no turtle — and the current-turtle pointer falls back to
+ * the main turtle so `who` and the movement reporters stay consistent.
+ * Returns an {@link ExecSignal} to halt on, or `undefined` to continue (including the "argument
+ * expression not yet evaluable" deferral every other command uses).
+ */
+function executeTell(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `tell`'s single-argument arity is enforced at parse/check time (its `PROFILE_STATEMENT_FORMS`
+  // entry is `argCount: 1`), so exactly one argument always reaches here.
+  const [arg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ids = turtleIdsFor(argResult.value, arg.source_span, "tell");
+  if (!ids.ok) {
+    return halt(ids.diagnostic);
+  }
+  // `tell` persistently points the addressed set at `ids` — the same pointing rule `ask` applies for
+  // the duration of its block ({@link pointAddressedSet}), so `who` and the state reporters never
+  // diverge between the two forms. When the addressed set is empty (`tell [ ]`) the current turtle
+  // falls back to the main turtle, matching `who`'s own empty-set fallback. Pointing also emits the
+  // addressing `primitive` event that makes the new set observable (issue #766); its `source_span` is
+  // the whole `tell` statement, the same span its `instruction` event carries.
+  pointAddressedSet(
+    environment.addressing,
+    ids.ids,
+    environment,
+    "tell",
+    statement.source_span,
+  );
+  return undefined;
+}
+
+/**
+ * Point the addressed set at `ids` and re-derive the current turtle from its first member (the main
+ * turtle when the set is empty), the one rule `tell`/`ask`/`each` share so `who` and the state
+ * reporters (`xcor`/`ycor`/`heading`/`pos`) never diverge (`spec/turtles-and-sprites.md:44,113`).
+ * Marks addressing explicit so per-turtle events now carry a `turtle-id`.
+ * {@link TurtleAddressing.currentId} is the single, shared record of which turtle is current —
+ * nothing caches the resolved state alongside it, so there is no second copy that could be written
+ * here and not there (issue #782).
+ *
+ * Emits the addressing `primitive` event for `primitive`/`source_span` **after** the change, so the
+ * new addressed set is observable to a consumer (`spec/rendering.md:193`, issue #766). Emitting here
+ * — inside the one function that establishes an addressed set — is what makes that guarantee
+ * structural rather than a rule each caller must remember: `tell`, `ask`'s entry, and every `each`
+ * iteration all narrow through this function. Its counterpart {@link restoreAddressedSet} covers the
+ * only other way the set changes.
+ */
+function pointAddressedSet(
+  addressing: TurtleAddressing,
+  ids: TurtleId[],
+  environment: Environment,
+  primitive: AddressingPrimitiveName,
+  source_span: SourceSpan,
+): void {
+  addressing.ids = ids;
+  addressing.explicit = true;
+  const [firstId = MAIN_TURTLE_ID] = ids;
+  addressing.currentId = firstId;
+  emitAddressingPrimitive(
+    environment.events,
+    source_span,
+    primitive,
+    addressing,
+  );
+}
+
+/**
+ * Restore the addressing scope `snapshot` an `ask`/`each` saved on entry — the mirror of
+ * {@link pointAddressedSet} and the only other writer of the addressed set. Restoring
+ * {@link TurtleAddressing.currentId} restores the current turtle outright, since the state
+ * reporters and turtle commands resolve through it. Then emits the addressing `primitive`
+ * event so a consumer sees the restored set (`spec/turtles-and-sprites.md:58` "The previous addressed
+ * set is restored after the block finishes"; `spec/rendering.md:193`).
+ *
+ * Called from the `finally` of both forms, so it runs on **every** exit path — normal completion and
+ * every abnormal one (`stop`, `return`/`output`/`op`, `throw`, a runtime diagnostic). A restoration
+ * that changed the runtime's state without emitting would leave a consumer believing the block's
+ * narrowed set is still addressed — exactly the silent divergence issue #766 exists to close.
+ */
+function restoreAddressedSet(
+  addressing: TurtleAddressing,
+  snapshot: AddressingScopeSnapshot,
+  environment: Environment,
+  primitive: AddressingPrimitiveName,
+  source_span: SourceSpan,
+): void {
+  addressing.ids = snapshot.ids;
+  addressing.explicit = snapshot.explicit;
+  addressing.currentId = snapshot.currentId;
+  emitAddressingPrimitive(
+    environment.events,
+    source_span,
+    primitive,
+    addressing,
+  );
+}
+
+/**
+ * Run an `ask <turtle|turtle-list> <block>` statement (Sprites profile,
+ * `spec/turtles-and-sprites.md:58`): `ask` is a special form that **temporarily** runs its block for
+ * the given turtle(s), then **restores the previous addressed set** after the block finishes — "The
+ * previous addressed set is restored after the block finishes." Unlike the persistent `tell`, the
+ * scope lasts exactly the block's duration.
+ *
+ * The save/restore covers every exit path — normal completion **and** an abnormal one (a runtime
+ * `halt`, a `stop`, a `return`/`output`/`op` propagating out of the block, or a `throw` surfaced as a
+ * `halt`): the block runs inside a `try` whose `finally` restores the snapshot, so a block that
+ * errors mid-way never leaks its addressed set to the code that follows (the classic scope leak).
+ * Restoration is exactly one level deep, so nested `ask` (and `ask` inside a `tell` scope) each
+ * unwind their own level (`spec/turtles-and-sprites.md` "Addressing model").
+ *
+ * Evaluates its single argument, coerces it to turtle ids ({@link turtleIdsFor} — `ol-type` on a
+ * non-turtle, leaving the addressed set unchanged), points the addressed set at them
+ * ({@link pointAddressedSet}), runs the block, and restores. Returns the block's {@link ExecSignal}
+ * (so a `stop`/`return`/`halt` still propagates to the caller after restoration), or `undefined` to
+ * continue, including the "argument not yet evaluable" deferral every other command uses.
+ */
+function executeAsk(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `ask`'s single-argument arity and mandatory block are enforced at parse/check time (its
+  // `PROFILE_STATEMENT_FORMS` entry is `argCount: 1, hasBlock: true`), so exactly one argument and a
+  // block always reach here.
+  const [arg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(arg, environment)) {
+    return undefined;
+  }
+  const argResult = evaluate(arg, environment);
+  if (!argResult.ok) {
+    return halt(argResult.diagnostic);
+  }
+  const ids = turtleIdsFor(argResult.value, arg.source_span, "ask");
+  if (!ids.ok) {
+    return halt(ids.diagnostic);
+  }
+  const { addressing } = environment;
+  // Snapshot the addressed set (ids, current turtle, explicit flag) so the block runs scoped and the
+  // previous set is restored afterward, on every exit path (`spec/turtles-and-sprites.md:58,69`).
+  const saved = snapshotAddressing(addressing);
+  // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
+  // way `executeWhenStatement` does.
+  const block = statement.body as BlockNode;
+  try {
+    pointAddressedSet(
+      addressing,
+      ids.ids,
+      environment,
+      "ask",
+      statement.source_span,
+    );
+    const signal = executeStatements(block.body, environment);
+    // A block that runs to completion returns the `normal` signal; `ask` is a statement, not a
+    // reporter, so it must fall through to the next statement — return `undefined` ("handled,
+    // continue"). A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) still propagates out so
+    // it unwinds the enclosing procedure or program, exactly as it would without the `ask`.
+    return signal.kind === "normal" ? undefined : signal;
+  } finally {
+    // Restore exactly one level: the saved ids, explicit flag, and current turtle, so an `ask` at
+    // top level before any `tell` leaves addressing implicit again and
+    // its events carry no `turtle-id`, and a nested `ask`/`tell` scope unwinds to precisely the set
+    // that was active before this `ask`. The restore emits its own addressing `primitive` event, so
+    // the stream shows the previous set coming back on every exit path — including the abnormal ones
+    // that reach this `finally` (issue #766).
+    restoreAddressedSet(
+      addressing,
+      saved,
+      environment,
+      "ask",
+      statement.source_span,
+    );
+  }
+}
+
+/**
+ * Is `statement` an `every <n> <block>` handler registration (issue #683, slice I4,
+ * `spec/interaction-events.md`'s `### every <n> <block>`)? Like `when`, `every` is a profile
+ * block-head the reader lowers to a {@link ProfileStatementNode} (C2 #664's
+ * `PROFILE_STATEMENT_FORMS`), NOT an ordinary `Call`, so it is matched here by node kind + head
+ * keyword rather than by callee name. A plain `boolean` (not a type predicate) to match the
+ * surrounding turtle/wait/`when` dispatch convention; the caller narrows via a cast at the single
+ * call site, exactly as {@link isWhenStatement} does.
+ */
+function isEveryStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "every"
+  );
+}
+
+/**
+ * Run one `every` handler's block for a due tick (`spec/interaction-events.md`'s "Trace stream
+ * integration"): emit the `instruction` event for the block-head that caused the handler to run —
+ * carrying the `every` keyword's own span, so replay attributes each repeated run to the
+ * registration site — then execute the handler body, whose own effects emit the ordinary
+ * after-effect events. Unlike {@link invokeWhenHandler}, an `every` handler is marked `running` for
+ * the duration of its body (and has its batch `claimed` flag cleared as it starts), so a re-entrant
+ * `wait` inside the body cannot deliver a second overlapping invocation of the same handler: that
+ * arriving interval is queued instead and drained as soon as the handler is free
+ * ({@link claimQueuedEveryHandlers}) — at the end of the dispatch batch, or at the main line's next
+ * statement boundary, never at some later checkpoint the program might never supply. That is the
+ * spec's required "queue that occurrence and run it once the handler is free", capped at one pending
+ * invocation
+ * (`spec/interaction-events.md:189-196`). Returns the body's
+ * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
+ * `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level and {@link invokeWhenHandler}).
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "every", interval}`, this
+ * handler's own validated tick count — so two `every` handlers in one program are distinguishable in
+ * the stream without slicing source text at the span. `every` is tick-driven rather than host-driven,
+ * so it never carries a {@link HandlerDelivery}: no delivered input caused it.
+ */
+function invokeEveryHandler(
+  handler: EveryHandler,
+  environment: Environment,
+): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  handler.claimed = false;
+  handler.running = true;
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+      handler: { kind: "every", interval: handler.interval },
+    } satisfies InstructionPayload,
+  });
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
+  handler.running = false;
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Run one `on_key` handler's block for a delivered key press (issue #686, slice I7,
+ * `spec/interaction-events.md`'s "Trace stream integration"): emit the `instruction` event for the
+ * block-head that caused the handler to run — carrying the `on_key` keyword's own span, so replay
+ * attributes each run to the registration site — then execute the handler body, whose own effects
+ * emit the ordinary after-effect events. `on_key` has no delivery-state flag (a key can be pressed
+ * any number of times), so unlike {@link invokeWhenHandler}/{@link invokeEveryHandler} it neither
+ * sets nor clears one. Returns the body's {@link ExecSignal} so a `halt` (a runtime error or a
+ * cancelled budget inside the handler) propagates and stops the whole run ("Errors and
+ * cancellation"); a `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
+ * body, exactly like the top level and {@link invokeWhenHandler}).
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "on_key", key}`, this
+ * handler's own registered key word. That is the field an accessibility surface needs to announce
+ * "your space-key handler fired" rather than just `on_key`, which is indistinguishable from
+ * re-running the registration line. `delivery` credits the press that caused it (#975).
+ */
+function invokeOnKeyHandler(
+  handler: OnKeyHandler,
+  environment: Environment,
+  delivery?: HandlerDelivery,
+): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+      handler: { kind: "on_key", key: handler.key },
+    } satisfies InstructionPayload,
+  });
+  countHandlerInvocation(delivery);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * Run one `on_click` handler's block for a delivered click (issue #686, slice I7,
+ * `spec/interaction-events.md`'s "Trace stream integration"): emit the `instruction` event for the
+ * block-head that caused the handler to run — carrying the `on_click` keyword's own span — then
+ * execute the handler body. Like {@link invokeOnKeyHandler} it carries no delivery-state flag (the
+ * surface can be clicked any number of times). Returns the body's {@link ExecSignal} so a `halt`
+ * propagates; a `return`/`stop` that escapes the body is converted HERE into its
+ * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic, exactly like the other handler kinds.
+ *
+ * The block-head event carries #954's `handler` discriminator — `{kind: "on_click"}` with no
+ * argument, because `on_click` is the only Interaction & Events block-head that takes none. The
+ * discriminator is still what tells its firing apart from its registration, which is the point.
+ * `delivery` credits the click that caused it (#975).
+ */
+function invokeOnClickHandler(
+  handler: OnClickHandler,
+  environment: Environment,
+  delivery?: HandlerDelivery,
+): ExecSignal {
+  const guard = guardHandlerDispatch(handler, environment);
+  if (guard) {
+    return guard;
+  }
+  environment.events.push({
+    seq: environment.events.length,
+    kind: "instruction",
+    source_span: handler.keyword.source_span,
+    payload: {
+      statement_kind: "ProfileStatement",
+      handler: { kind: "on_click" },
+    } satisfies InstructionPayload,
+  });
+  countHandlerInvocation(delivery);
+  const signal = executeHandlerBody(handler.block.body, handler.environment);
+  if (signal.kind === "return") {
+    return halt(
+      runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword),
+    );
+  }
+  if (signal.kind === "stop") {
+    return halt(runtimeDiag.stopOutsideProc(signal.source_span));
+  }
+  return signal;
+}
+
+/**
+ * The unified same-tick handler dispatch (issue #686, slice I7) — the single callback
+ * {@link executeWaitCall} hands to {@link runWait}, invoked at every {@link yieldToEventLoop}
+ * checkpoint the tick clock reaches (once per elapsed tick, and once for a `wait 0` yield). It
+ * imposes the **normative same-tick delivery order** `spec/interaction-events.md` fixes in §Time,
+ * ticks, and handlers (l.84-89), delivering in exactly this sequence, each in registration order:
+ *
+ *   1. pending `when` events        ({@link claimPendingEventHandlers} → {@link invokeWhenHandler})
+ *   2. pending `on_key` events      ({@link claimPendingKeyHandlers}   → {@link invokeOnKeyHandler})
+ *   3. pending `on_click` events    ({@link claimPendingClickHandlers} → {@link invokeOnClickHandler})
+ *   4. due `every` events           ({@link claimDueEveryHandlers}     → {@link invokeEveryHandler})
+ *
+ * "Registration order" here means the order the **handlers** were registered, primary over the order
+ * the host happened to deliver input in: each `claim*` visits its registered handler list in order,
+ * so a run is deterministic in the program's own registration order (`spec/interaction-events.md`
+ * l.84-89 names no delivery-order concept). The whole tick's ordered invocation batch is built by
+ * claiming **all four buckets up front** — each `claim*` empties its pending queue (and
+ * `claimDueEveryHandlers` claims its handlers, advancing `nextDueTick` and marking them `claimed`) at
+ * claim time — and
+ * only then are the bodies run. That up-front claim is what makes a nested `wait` inside a handler
+ * body re-entrancy-safe: a same-tick re-entry finds every queue already drained, so it cannot steal
+ * a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier handlers
+ * finish; newly scheduled input only becomes pending at a strictly later tick.
+ *
+ * The order is imposed **purely here, at the drain point** — the four registration lists (I3/I5/I6)
+ * and the pending host-input queues (this slice) are kept separate precisely so this composition is
+ * the only place ordering lives; no registration code participates. Before draining, host-supplied
+ * key/click/named events scheduled at or before `tick` are moved into the pending queues
+ * ({@link enqueueHostInput}, reading `environment.hostInput` and threading
+ * `environment.hostInputConsumed` forward). In a normal headless run `hostInput` is empty, so the
+ * pending queues stay empty and only step 4 (`every`, the sole tick-driven kind) can fire — exactly
+ * the I5/I6 "registered but not delivered" behavior, reached because nothing was pending.
+ *
+ * The run stops at the first handler that halts (a runtime error, a `return`/`stop` escaping a
+ * handler, or a cancelled/over-budget execution), returning that {@link ExecSignal} without running
+ * any later invocation — so once cancellation is observed no further handler of any kind fires,
+ * satisfying `spec/interaction-events.md`'s "Errors and cancellation". Returns {@link NORMAL_SIGNAL}
+ * when every delivered handler completed normally.
+ */
+function dispatchDueHandlers(
+  tick: number,
+  environment: Environment,
+  source_span: SourceSpan,
+): ExecSignal {
+  // Poll cancellation once per tick BEFORE enqueuing host input or claiming any bucket, so a
+  // cross-thread abort (the Web-Worker `Atomics` deployment in `CancellationSignal`) is observed
+  // even on a tick with no due handler — otherwise a long `wait` with nothing pending would keep
+  // advancing its remaining ticks after cancellation, unresponsive until it finishes and the next
+  // top-level statement's `checkExecutionLimits` finally sees the abort. Returning a halt here makes
+  // `runWait` abort its remaining ticks immediately (`spec/interaction-events.md`'s
+  // "Errors and cancellation": a cancelled run stops cleanly, with no further delivery). The
+  // per-handler `guardHandlerDispatch` still covers the abort-between-guard-and-body-gate orphan on
+  // ticks that DO have handlers; this covers the tick that has none. The `wait` call's own span is
+  // threaded in so the diagnostic points at the paused instruction.
+  if (environment.signal?.aborted) {
+    return halt(runtimeDiag.cancelled(source_span));
+  }
+  environment.hostInputConsumed.count = enqueueHostInput(
+    environment.eventHandlers,
+    environment.hostInput,
+    tick,
+    environment.hostInputConsumed.count,
+    environment.handlerDeliveries,
+  );
+  // Claim ALL four buckets into one ordered invocation list BEFORE running any body. Each `claim*`
+  // empties its pending queue (and `claimDueEveryHandlers` claims its handlers, advancing
+  // `nextDueTick` and marking them `claimed`) at claim time, so the whole tick's ordered batch is
+  // fixed up front. This is what
+  // makes a nested `wait` inside a handler body re-entrancy-safe: when that nested `wait` re-enters
+  // this dispatcher at the SAME tick, every queue for this tick is already drained, so it cannot
+  // steal a later-in-order invocation (e.g. a pending click) and run it before this tick's earlier
+  // handlers finish. Newly scheduled input only becomes pending at a strictly later tick.
+  const registry = environment.eventHandlers;
+  const invocations: Array<() => ExecSignal> = [];
+  for (const claimed of claimPendingEventHandlers(registry)) {
+    invocations.push(() =>
+      invokeWhenHandler(claimed.handler, environment, claimed.delivery),
+    );
+  }
+  for (const claimed of claimPendingKeyHandlers(registry)) {
+    invocations.push(() =>
+      invokeOnKeyHandler(claimed.handler, environment, claimed.delivery),
+    );
+  }
+  for (const claimed of claimPendingClickHandlers(registry)) {
+    invocations.push(() =>
+      invokeOnClickHandler(claimed.handler, environment, claimed.delivery),
+    );
+  }
+  for (const handler of claimDueEveryHandlers(registry, tick)) {
+    invocations.push(() => invokeEveryHandler(handler, environment));
+  }
+  // Each invocation's own `guardHandlerDispatch` (in `invoke*Handler`) checks cancellation/budget
+  // BEFORE emitting its block-head event, so once the run has halted no further handler is delivered
+  // and none leaves an orphan handler-start in the trace — cancellation "stops future handler
+  // delivery" (`spec/interaction-events.md`'s "Errors and cancellation"). The dispatcher just stops
+  // at the first non-normal signal.
+  for (const invoke of invocations) {
+    const signal = invoke();
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  // Drain the one-slot `every` queues ONCE, after this tick's batch. A handler is free the moment
+  // its body returns, and the spec requires a queued occurrence to run "once the handler is free"
+  // (`spec/interaction-events.md:189-196`) — NOT at whatever later checkpoint the program happens to
+  // supply. Deferring it to the next tick silently drops the occurrence whenever the program's
+  // `wait`s are exhausted first, which is the "drop the missed occurrence" reading ruling #984
+  // rejects.
+  //
+  // Draining once per dispatch rather than looping until the queues are empty is the other half of
+  // that ruling: "the run's lifetime is the main line's business — an `every` handler does not
+  // extend it" (`spec/interaction-events.md:198-204`). A drained invocation whose own body outruns
+  // the interval re-queues, and looping here would run that occurrence too, and the next,
+  // manufacturing ticks the main line never asked for until the budget raised `ol-limit`. Instead
+  // the re-queued occurrence waits for the next checkpoint the MAIN LINE provides. A program that
+  // wants the timer to keep firing says so explicitly — `forever`, or a longer `wait` — and then
+  // back-to-back running continues until the budget bounds it (`spec/interaction-events.md:79`). A
+  // program whose main line has finished simply closes, discarding whatever is still queued but not
+  // yet started.
+  for (const handler of claimQueuedEveryHandlers(registry)) {
+    const signal = invokeEveryHandler(handler, environment);
+    if (signal.kind !== "normal") {
+      return signal;
+    }
+  }
+  return NORMAL_SIGNAL;
+}
+
+/**
+ * Register an `every <n> <block>` handler (issue #683, slice I4, `spec/interaction-events.md`'s
+ * `### every <n> <block>`): evaluate the single tick-count argument, require it to be a positive
+ * whole number (`ol-type` via {@link requireWholeNumber} for a non-whole/non-number count, then
+ * `ol-range` via {@link runtimeDiag.everyNonPositive} for zero or negative), record the handler on
+ * the environment's registry in registration order, then emit the `primitive` event **after** the
+ * handler is registered ("Event registration forms emit `primitive` events after the handler is
+ * registered"). Registration never fires the block: unlike `when "start"`, no `every` interval has
+ * elapsed at registration time, so an `every` handler first runs only after `n` ticks pass — which
+ * in a headless batch run happens only while a `wait` pause advances the clock
+ * ({@link dispatchDueHandlers}).
+ *
+ * `block` is the handler body the reader always attaches to an `every` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `every` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeWhenStatement}).
+ *
+ * Returns an {@link ExecSignal} to halt on (a non-whole or non-positive count), or `undefined` for
+ * {@link executeStatements} to `continue` on — including the "argument left un-evaluated" case,
+ * mirroring {@link executeWhenStatement}/{@link executeWaitCall} and the turtle commands.
+ */
+function executeEveryStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [countArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(countArg, environment)) {
+    return undefined;
+  }
+  const countResult = evaluate(countArg, environment);
+  if (!countResult.ok) {
+    return halt(countResult.diagnostic);
+  }
+  const whole = requireWholeNumber(
+    countResult.value,
+    countArg.source_span,
+    "every",
+  );
+  if (!whole.ok) {
+    return halt(whole.diagnostic);
+  }
+  if (whole.value <= 0) {
+    return halt(
+      runtimeDiag.everyNonPositive(countArg.source_span, {
+        value: whole.value,
+      }),
+    );
+  }
+  // The reader always attaches a block to an `every` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `every` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerEveryHandler(
+    environment.eventHandlers,
+    whole.value,
+    block,
+    statement.keyword,
+    environment,
+    environment.tickClock.tick,
+  );
+  emitEveryPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "every",
+    interval: whole.value,
+    source_span: statement.source_span,
+  });
+  return undefined;
+}
+
+/**
+ * Run an `each <block>` statement (Sprites profile, `spec/turtles-and-sprites.md:78`): `each` runs
+ * its block **once per turtle in the current `tell` or `ask` set** — "During each run, `who` reports
+ * the turtle for that iteration, and Turtle commands affect only that turtle unless the program
+ * changes the addressed set again."
+ *
+ * Each iteration narrows the addressed set to the single turtle whose turn it is
+ * ({@link pointAddressedSet} with `[id]`), so inside the block `who` reports that turtle
+ * ({@link TurtleAddressing.currentId}) and a per-turtle command runs once for — and stamps its events
+ * with — that turtle only. Iteration order is the addressed set's insertion order, which is already
+ * deduplicated by stable id where the set is built ({@link turtleIdsFor}), so the same program always
+ * produces the same event sequence and a turtle listed twice runs the block once (issues #713, #748)
+ * — the same one-run-per-member rule the direct `tell`/`ask` path obeys.
+ *
+ * Like `ask`, the previous addressed set is snapshotted and restored on **every** exit path — normal
+ * completion and an abnormal one (a runtime `halt`, a `stop`, a `return`/`output`/`op`, or a `throw`
+ * surfaced as a `halt`) — via a `try`/`finally`, so a block that unwinds mid-iteration never leaks an
+ * addressed set or a current-turtle pointer to the code that follows. A non-normal signal from any
+ * iteration stops the loop immediately and propagates out (so a `stop`/`return` inside `each` unwinds
+ * the enclosing procedure, exactly as it would without the `each`). An empty addressed set runs the
+ * block zero times. `each` composes with `ask`/`tell`: it iterates whatever set is current when it
+ * runs (the `ask` scope inside an `ask`, the `tell` set otherwise), and the enclosing addressing is
+ * restored after it, unchanged.
+ */
+function executeEach(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  // `each`'s zero-argument arity and mandatory block are enforced at parse/check time (its
+  // `PROFILE_STATEMENT_FORMS` entry is `argCount: 0, hasBlock: true`), so a block always reaches here
+  // with no arguments to evaluate.
+  const { addressing } = environment;
+  // Snapshot the addressed set so it is restored after the loop on every exit path (mirroring `ask`).
+  const saved = snapshotAddressing(addressing);
+  // Snapshot the ids to iterate before the loop begins, so a block that changes the world mid-loop
+  // (e.g. a nested `tell` in an early iteration) cannot change which turtles `each` visits.
+  const iterationIds = [...addressing.ids];
+  // `hasBlock: true` guarantees the reader attached a block; the cast records that invariant the same
+  // way `executeAsk`/`executeWhenStatement` do.
+  const block = statement.body as BlockNode;
+  try {
+    const span = statement.source_span;
+    for (const id of iterationIds) {
+      // Narrow the addressed set to this one turtle so the block runs scoped to it: `who` reports it
+      // and its per-turtle commands run once, stamped with its id. `explicit` is forced true so the
+      // events carry a `turtle_id` even when `each` runs at top level with only the implicit default
+      // turtle addressed (a single-turtle `each` still attributes its events). Each narrowing emits
+      // its own addressing `primitive` event, so a consumer sees which single turtle the iteration's
+      // events belong to (issue #766).
+      //
+      // One `each` iteration is one unit of main-line progress — it narrows the addressed set and
+      // runs a body — so it is charged like any other loop iteration and carries the same boundary
+      // (ruling #984). Without the charge the iteration is invisible to the budget; without the
+      // boundary an EMPTY `each` body strands a queued `every` occurrence exactly as `forever [ ]`
+      // did.
+      //
+      // Order matters twice over. The charge comes BEFORE the narrowing, because `pointAddressedSet`
+      // emits an addressing `primitive` event and charging afterwards would publish the narrowing for
+      // an iteration the budget then refuses — an observable effect for work that never happened. The
+      // boundary stays AFTER it, so a drained handler observes the same addressed set the iteration's
+      // own statements would have.
+      const limitDiagnostic = checkExecutionLimits(environment, span);
+      if (limitDiagnostic) {
+        return halt(limitDiagnostic);
+      }
+      pointAddressedSet(addressing, [id], environment, "each", span);
+      const iterationBoundary = runIterationBoundary(block.body, environment);
+      if (iterationBoundary) {
+        return iterationBoundary;
+      }
+      const signal = executeStatements(block.body, environment);
+      // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
+      // so a diagnostic or early exit in one iteration is never masked by a later one.
+      if (signal.kind !== "normal") {
+        return signal;
+      }
+    }
+    // Every iteration completed normally: `each` is a statement, so fall through to the next one.
+    return undefined;
+  } finally {
+    // Restore exactly one level: the addressed set active before `each`, its explicit flag, and the
+    // current turtle, so `each` composes with the enclosing `tell`/
+    // `ask` scope and leaves it exactly as it found it. The restore emits its own addressing
+    // `primitive` event on every exit path, normal or abnormal (issue #766).
+    restoreAddressedSet(
+      addressing,
+      saved,
+      environment,
+      "each",
+      statement.source_span,
+    );
+  }
+}
+
+/**
+ * Is `statement` an `on_key <key-word> <block>` handler registration (issue #684, slice I5,
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`)? `on_key` is a profile block-head
+ * the reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name. A
+ * plain `boolean` (not a type predicate) to match the surrounding turtle/wait/`when`/`every`
+ * dispatch convention; the caller narrows via a cast at the single call site, exactly as
+ * {@link isWhenStatement} does.
+ */
+function isOnKeyStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "on_key"
+  );
+}
+
+/**
+ * Register an `on_key <key-word> <block>` handler (issue #684, slice I5,
+ * `spec/interaction-events.md`'s `### on_key <key-word> <block>`): evaluate the single key argument,
+ * require it to be a word (`ol-type` via {@link runtimeDiag.onKeyKeyNotWord} otherwise, exactly as
+ * `when` validates its event word), record the handler on the environment's registry in registration
+ * order, then emit the `primitive` event **after** the handler is registered (spec: "Event
+ * registration forms emit `primitive` events after the handler is registered").
+ *
+ * Registration never fires the block: a key press is host input, and in a headless batch `execute()`
+ * run with no host input supplied, an `on_key` handler is registered but never fires — exactly like
+ * a `when "stop"` handler in the same situation. Synthesizing a key press is a host concern outside this
+ * slice; the `on-key-registered-not-delivered` fixture locks that narrowing so it is falsifiable
+ * rather than silently omitted.
+ *
+ * `block` is the handler body the reader always attaches to an `on_key` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `on_key` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeWhenStatement}).
+ *
+ * Returns an {@link ExecSignal} to halt on (a non-word key), or `undefined` for
+ * {@link executeStatements} to `continue` on — including the "argument left un-evaluated" case,
+ * mirroring {@link executeWhenStatement}/{@link executeEveryStatement} and the turtle commands.
+ */
+function executeOnKeyStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const [keyArg] = statement.args as [ExpressionNode];
+  if (!isSupportedArgument(keyArg, environment)) {
+    return undefined;
+  }
+  const keyResult = evaluate(keyArg, environment);
+  if (!keyResult.ok) {
+    return halt(keyResult.diagnostic);
+  }
+  if (typeof keyResult.value !== "string") {
+    return halt(
+      runtimeDiag.onKeyKeyNotWord(keyArg.source_span, {
+        actual: typeNameOf(keyResult.value),
+      }),
+    );
+  }
+  const key = keyResult.value;
+  // The reader always attaches a block to an `on_key` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `on_key` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerOnKeyHandler(
+    environment.eventHandlers,
+    key,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitOnKeyPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "on_key",
+    key,
+    source_span: statement.source_span,
+  });
+  return undefined;
+}
+
+/**
+ * Is `statement` an `on_click <block>` handler registration (issue #685, slice I6,
+ * `spec/interaction-events.md`'s `### on_click <block>`)? `on_click` is a profile block-head the
+ * reader lowers to a {@link ProfileStatementNode} (C2 #664's `PROFILE_STATEMENT_FORMS`), NOT an
+ * ordinary `Call`, so it is matched here by node kind + head keyword rather than by callee name. A
+ * plain `boolean` (not a type predicate) to match the surrounding turtle/wait/`when`/`every`/`on_key`
+ * dispatch convention; the caller narrows via a cast at the single call site, exactly as
+ * {@link isOnKeyStatement} does.
+ */
+function isOnClickStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind === "ProfileStatement" &&
+    statement.keyword.name.toLowerCase() === "on_click"
+  );
+}
+
+/**
+ * Register an `on_click <block>` handler (issue #685, slice I6,
+ * `spec/interaction-events.md`'s `### on_click <block>`): record the handler on the environment's
+ * registry in registration order, then emit the `primitive` event **after** the handler is registered
+ * (spec: "Event registration forms emit `primitive` events after the handler is registered").
+ *
+ * `on_click` takes **no argument** — it is the only Interaction & Events block-head that takes just a
+ * block (`spec/interaction-events.md` §Profile grammar: "`on_click` takes none") — so there is no
+ * argument to evaluate or type-check, and the spec lists its errors as **none**. Registration never
+ * fires the block: a click is host input, and with no host input supplied
+ * an `on_click` handler is registered but never fires — exactly like a `when "stop"`
+ * (I3) or an `on_key` (I5) handler in the same situation. Synthesizing a click is a host concern outside
+ * this slice; the `on-click-registered-not-delivered` fixture locks that narrowing so it is
+ * falsifiable rather than silently omitted.
+ *
+ * `block` is the handler body the reader always attaches to an `on_click` block-head (`hasBlock: true`,
+ * `parser.ts`'s `PROFILE_STATEMENT_FORMS`), recovered here by a cast since an `on_click` node reaching
+ * the runtime always has one (see the inline note, mirroring {@link executeOnKeyStatement}).
+ *
+ * Returns `void`, not an {@link ExecSignal}: unlike its argument-taking siblings
+ * ({@link executeOnKeyStatement} can fail its word-type check), `on_click` takes no argument and the
+ * spec lists its errors as **none** — registration cannot fail — so there is never a signal to halt
+ * on and the caller simply `continue`s. A bad `on_click` (a stray argument) is caught earlier, at
+ * parse time, before `execute()` runs.
+ */
+function executeOnClickStatement(
+  statement: ProfileStatementNode,
+  environment: Environment,
+): void {
+  // The reader always attaches a block to an `on_click` block-head (`hasBlock: true`, and
+  // `parseProfileStatement` fails the whole parse — which `runProgram` bails on before `execute()`
+  // runs — if the body is missing), so `body` is guaranteed present for any `on_click` node reaching
+  // the runtime. The optional `body` on `ProfileStatementNode` exists only because the bodyless
+  // `tell` mode-switch shares that node kind; a cast (not a runtime guard) records that invariant.
+  const block = statement.body as BlockNode;
+  registerOnClickHandler(
+    environment.eventHandlers,
+    block,
+    statement.keyword,
+    environment,
+  );
+  emitOnClickPrimitive(environment.events, statement.source_span);
+  environment.handlerRegistrations?.push({
+    kind: "on_click",
+    source_span: statement.source_span,
+  });
+}
+
+/**
+ * Try to run `statement` as a Sprites addressing statement — `tell` (SP2, issue #674) sets the
+ * addressed set persistently, `ask` (SP3, issue #675) runs its block for a scoped set and then
+ * restores the previous one, and `each` (SP4, issue #676) runs its block once per turtle in the
+ * current set; the Interaction & Events heads register their own handling upstream. Returns
+ * {@link NOT_A_PROFILE_STATEMENT} when `statement` is not an addressing statement this dispatcher
+ * runs — either because it is not a `ProfileStatement` at all, or because it is one whose keyword no
+ * addressing form matches (a defensive guard against a head being registered in the parser's
+ * `PROFILE_STATEMENT_FORMS` without a runtime handler) — so {@link executeStatements} falls through to
+ * its remaining checks. Both cases share the single final `return`, so the guard stays covered by the
+ * ordinary non-`ProfileStatement` path even once every registered head is handled elsewhere (#732).
+ */
+function dispatchProfileStatement(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_PROFILE_STATEMENT {
+  if (statement.kind === "ProfileStatement") {
+    const keyword = statement.keyword.name.toLowerCase();
+    if (keyword === "tell") {
+      return executeTell(statement, environment);
+    }
+    if (keyword === "ask") {
+      return executeAsk(statement, environment);
+    }
+    if (keyword === "each") {
+      return executeEach(statement, environment);
+    }
+  }
+  return NOT_A_PROFILE_STATEMENT;
+}
+
+/**
+ * Whether `statement` is a **per-turtle** turtle command — one whose effect and events belong to a
+ * specific turtle, so under `tell` it runs once for each addressed turtle
+ * (`spec/turtles-and-sprites.md:113`): movement (`forward`/`back`), turning (`left`/`right`), pen
+ * (`pen_up`/`pen_down`), absolute position (`home`/`set_xy`), heading (`set_heading`), visibility
+ * (`show_turtle`/`hide_turtle`), color (`set_color`), width (`set_width`), `fill`, `stamp`, and
+ * `set_shape`.
+ *
+ * The canvas-global turtle commands are deliberately excluded: `set_background`, `grid`, `axes`, and
+ * `measure` describe the drawing surface, not one turtle's avatar, so they run once regardless of
+ * how many turtles are addressed. `clear_screen`/`clean` is also excluded — it clears the whole
+ * canvas, and there is one surface, so it is cleared once however many turtles are addressed
+ * (`spec/turtles-and-sprites.md:111`); a per-turtle multiplication would emit N `clear` events for
+ * one canvas clear, which no renderer expects. `clear_screen`'s **homing** is nonetheless per-turtle
+ * and reaches every addressed turtle — {@link clearScreen} runs that half of the command in its own
+ * loop, emitting one `move`/`turn` pair per addressed turtle while the canvas is still cleared
+ * exactly once (issue #738).
+ */
+function isPerTurtleCommand(statement: StatementNode): boolean {
+  return (
+    isTurtleMoveCall(statement) ||
+    isTurtleTurnCall(statement) ||
+    isTurtlePenCall(statement) ||
+    isTurtlePositionCall(statement) ||
+    isTurtleHeadingCall(statement) ||
+    isTurtleVisibilityCall(statement) ||
+    isTurtleColorCall(statement) ||
+    isTurtleWidthCall(statement) ||
+    isTurtleFillCall(statement) ||
+    isTurtleStampCall(statement) ||
+    isTurtleShapeCall(statement)
+  );
+}
+
+/**
+ * Run one per-turtle command once for **every** addressed turtle
+ * (`spec/turtles-and-sprites.md:113` "When multiple turtles are addressed by `tell`, a turtle
+ * command applies once for each addressed turtle"), pointing the current turtle
+ * ({@link TurtleAddressing.currentId}) at each
+ * addressed turtle in turn so the existing
+ * single-turtle executors ({@link dispatchTurtleCommandOnce}) mutate the right per-turtle state
+ * unchanged — each resolves that turtle's own stored state through {@link currentTurtleState}.
+ * After each turtle's run, the events that turtle produced are stamped with its
+ * `turtle-id` — but only once `tell` has made the addressed set explicit
+ * ({@link TurtleAddressing.explicit}); before any `tell` the implicit default main turtle's events
+ * carry no `turtle-id`, exactly as every Core/Turtle & Rendering fixture expects. A halting outcome
+ * from any addressed turtle stops the loop immediately, so a diagnostic on one turtle is not masked
+ * by a later turtle's success.
+ *
+ * Each iteration points the current turtle at the turtle whose turn it is, so a `who` evaluated
+ * *inside* the
+ * command's argument (e.g. `forward some_proc` where `some_proc` reads `who`) reports the turtle
+ * actually running the command, not the first addressed one (`spec/turtles-and-sprites.md:26`).
+ *
+ * This per-iteration re-pointing is transient — it must not outlive the statement, because merely
+ * iterating the addressed set does not change it. After the loop the current turtle is re-derived
+ * from the addressed set's first turtle ({@link TurtleAddressing.ids}, the main turtle when it is
+ * empty). That one rule handles both cases correctly: with no nested `tell`, `ids` is still the
+ * original set, so the current turtle returns to its first member; a `tell` run inside the argument
+ * evaluation legitimately replaced `ids` with its own set, so re-deriving from `ids[0]` honors that
+ * nested `tell` — even when it ran in an early iteration and a later iteration re-pointed
+ * `currentId` transiently in between.
+ */
+function runPerTurtleCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined {
+  const { addressing } = environment;
+  // Snapshot the addressed ids so a command that mutates the world mid-loop (e.g. a nested `tell`
+  // during argument evaluation) cannot change which turtles this one statement applies to.
+  const addressedIds = [...addressing.ids];
+  let outcome: ExecSignal | undefined;
+  for (const id of addressedIds) {
+    addressing.currentId = id;
+    const firstEventIndex = environment.events.length;
+    outcome = dispatchTurtleCommandOnce(statement, environment) as
+      ExecSignal | undefined;
+    if (addressing.explicit) {
+      stampTurtleId(environment, firstEventIndex, id);
+    }
+    if (outcome) {
+      break;
+    }
+  }
+  // Re-derive the current turtle from the addressed set's first member: the per-iteration
+  // re-pointing above is transient, and `addressing.ids` now holds whatever set is in effect — the
+  // original one when no nested `tell` ran, or the nested `tell`'s set when one did. Either way its
+  // first turtle (the main turtle when empty) is the current turtle, keeping `who` and the state
+  // reporters in agreement.
+  const [firstId = MAIN_TURTLE_ID] = addressing.ids;
+  addressing.currentId = firstId;
+  return outcome;
+}
+
+/**
+ * The kinds a per-turtle command run may have **labelled with the turtle that is currently acting**
+ * — the narrower producer policy that sits under `@openlogo/core`'s classification of which kinds
+ * may carry a `turtle_id` at all ({@link OL_TURTLE_SPECIFIC_EVENT_KINDS}, issue #764). Derived from
+ * that set so the two can never drift, minus the one kind that already knows its own turtle:
+ * `spawn-turtle` carries the identity of the turtle it just created in its own envelope and payload
+ * (`spec/turtles-and-sprites.md:34`). A `new_turtle` evaluated in a command's argument position must
+ * keep that id, never the acting turtle's.
+ *
+ * `clear` needs no exclusion here: it is not turtle-specific at all
+ * (`spec/turtles-and-sprites.md:113` — "A `clear` event describes the shared surface rather than any
+ * turtle"), so `@openlogo/core` already leaves it out of the set this derives from (issue #738).
+ */
+const ACTING_TURTLE_STAMPABLE_KINDS: ReadonlySet<string> = new Set(
+  [...OL_TURTLE_SPECIFIC_EVENT_KINDS].filter((kind) => kind !== "spawn-turtle"),
+);
+
+/**
+ * Stamp `turtle_id` onto the turtle-specific events emitted at or after `firstEventIndex` — the
+ * events one addressed turtle's command run just produced (`spec/turtles-and-sprites.md:113`:
+ * turtle-specific events "MUST" carry the acting turtle's identity). Only events that do **not**
+ * already carry a `turtle_id` are stamped, so an event that arrives with its own authoritative id
+ * keeps it and the acting turtle's id is never written over another turtle's. The payload is
+ * untouched.
+ *
+ * Only {@link ACTING_TURTLE_STAMPABLE_KINDS} are stamped. This window is wider than it looks —
+ * **argument evaluation runs inside it** — so `forward some_reporter` also emits that reporter's
+ * `procedure-enter`/`instruction`/`return`/`procedure-exit` and any `print` here, an addressing form
+ * in its body emits an addressing `primitive` here, and a `clean` in its body emits a scene-only
+ * `clear` here. None of those is the acting turtle's effect: before the filter they picked up a
+ * `turtle_id` that tracked *addressing context* rather than turtle-specificity (issue #764), and for
+ * an addressing event the stamp was actively misleading, naming a turtle the event's own addressed
+ * set need not even contain.
+ */
+function stampTurtleId(
+  environment: Environment,
+  firstEventIndex: number,
+  id: TurtleId,
+): void {
+  const produced = environment.events.slice(firstEventIndex);
+  const stamped = produced.map((event) =>
+    event.turtle_id === undefined &&
+    ACTING_TURTLE_STAMPABLE_KINDS.has(event.kind)
+      ? { ...event, turtle_id: id }
+      : event,
+  );
+  environment.events.splice(firstEventIndex, produced.length, ...stamped);
+}
+
+/**
  * Single entry point {@link executeStatements} calls to try every turtle command in one step.
- * Each new turtle command (`#202`/`#204`/`#207`/`#210`, …) should add its `isTurtleXCall`/
- * `executeTurtleXCall` pair and one more branch **here**, not in `executeStatements` itself
- * (issue #209 added the `set_width` branch this way, following issue #208's `set_color`/
- * `set_background` branches):
- * `executeStatements` recurses once per procedure call (via `runProcedureBody`/`runProcedure`),
- * so every local variable/branch added directly to its body grows *every* stack frame in a deep
- * recursive program. Growing this dispatcher instead keeps `executeStatements`'s own frame size
- * fixed regardless of how many turtle commands exist — confirmed necessary when adding the
- * `pen_up`/`pen_down` branch here (issue #206) pushed a 600-deep `recursionDepthLimit: 1000`
- * regression test (`execution-budget.test.mjs`) over the native call-stack limit until the three
- * previously-inline branches (`forward`/`back`, `left`/`right`, `pen_up`/`pen_down`) were
- * consolidated into this single call.
+ * A per-turtle command ({@link isPerTurtleCommand}) runs once for each addressed turtle via
+ * {@link runPerTurtleCommand}; a canvas-global turtle command (`set_background`/`grid`/`axes`/
+ * `measure`/`clear_screen`) runs exactly once via {@link dispatchTurtleCommandOnce}. Returns the
+ * {@link NOT_A_TURTLE_COMMAND} sentinel when `statement` is neither.
  */
 function dispatchTurtleCommand(
+  statement: StatementNode,
+  environment: Environment,
+): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
+  if (isPerTurtleCommand(statement)) {
+    return runPerTurtleCommand(statement, environment);
+  }
+  return dispatchTurtleCommandOnce(statement, environment);
+}
+
+/**
+ * Validate and run a single turtle command against the current turtle
+ * ({@link currentTurtleState}).
+ * This is the original per-command dispatch — every `isTurtleXCall`/`executeTurtleXCall` branch —
+ * now reached once per addressed turtle for a per-turtle command ({@link runPerTurtleCommand}) or
+ * once for a canvas-global one ({@link dispatchTurtleCommand}).
+ */
+function dispatchTurtleCommandOnce(
   statement: StatementNode,
   environment: Environment,
 ): ExecSignal | undefined | typeof NOT_A_TURTLE_COMMAND {
@@ -1657,9 +3818,10 @@ function dispatchTurtleCommand(
  * `Assign` and the five mutators share one dispatch — and therefore one result local in
  * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
  * every extra local it declares widens the per-level stack frame; a *second* result local there for
- * the mutators pushed the 600-deep `recursionDepthLimit: 1000` regression test
- * (`execution-budget.test.mjs`) over the native call-stack limit, exactly as {@link executeShowCall}'s
- * doc comment warns. Folding them together keeps that frame at its original width.
+ * the mutators pushed the deep-recursion budget test of the day over the native call-stack limit,
+ * exactly as {@link executeShowCall}'s doc comment warns. Folding them together keeps that frame at
+ * its original width. See {@link executeTurtleMoveCall}'s canonical frame-width note for that
+ * test's history and the ceiling enforced today.
  */
 function dispatchAssignOrListMutator(
   statement: StatementNode,
@@ -1686,12 +3848,12 @@ function dispatchAssignOrListMutator(
 /**
  * Executes a `print value1 [value2 ...]` statement (`spec/commands.md`'s `print`) once
  * {@link executeStatements} has confirmed it via {@link isPrintCall}. Extracted into its own
- * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
- * recurses once per procedure call, so keeping this arity/evaluation/snapshot logic (including the
- * per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule) out of its body keeps
- * its own stack frame size fixed — inlining it there is exactly what pushed the 600-deep
- * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
- * call-stack limit.
+ * function for the same reason {@link executeTurtleMoveCall}'s canonical frame-width note gives:
+ * `executeStatements` recurses once per procedure call, so keeping this arity/evaluation/snapshot
+ * logic (including the per-print `snapshotValue` memo, issue #495's point-in-time-snapshot rule)
+ * out of its body keeps its own stack frame size fixed — inlining it there is exactly what pushed
+ * the deep-recursion budget test of the day over the native call-stack limit (that note has the
+ * numbers, then and now).
  *
  * All arguments are evaluated first into `rawValues`, and only once every argument has finished
  * evaluating is that whole list snapshotted, in one pass sharing a single memo (issue #543): a
@@ -1707,7 +3869,7 @@ function executePrintCall(
     return halt(
       runtimeDiag.notEnoughInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         0,
       ),
@@ -1754,10 +3916,11 @@ function executePrintCall(
 /**
  * Executes a `show value` statement (issue #234, `spec/commands.md`'s `show`) once
  * {@link executeStatements} has confirmed it via {@link isShowCall}. Extracted into its own
- * function for the same reason {@link dispatchTurtleCommand}'s doc comment gives: `executeStatements`
- * recurses once per procedure call, so keeping this arity/evaluation logic out of its body keeps
- * its own stack frame size fixed — inlining it there pushed the 600-deep `recursionDepthLimit:
- * 1000` regression test (`execution-budget.test.mjs`) over the native call-stack limit.
+ * function for the same reason {@link executeTurtleMoveCall}'s canonical frame-width note gives:
+ * `executeStatements` recurses once per procedure call, so keeping this arity/evaluation logic out
+ * of its body keeps its own stack frame size fixed — inlining it there pushed the deep-recursion
+ * budget test of the day over the native call-stack limit (that note has the numbers, then and
+ * now).
  */
 function executeShowCall(
   statement: CallNode | ParenCallNode,
@@ -1767,7 +3930,7 @@ function executeShowCall(
     return halt(
       runtimeDiag.notEnoughInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         0,
       ),
@@ -1777,7 +3940,7 @@ function executeShowCall(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         statement.args.length,
       ),
@@ -1816,9 +3979,13 @@ function executeShowCall(
  * into its own top-level function for the same stack-depth reason {@link executeShowCall}'s doc
  * comment gives.
  *
- * With no seed, a fresh implementation-chosen seed is drawn
- * ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback — the entry: "With no seed
- * the implementation chooses a seed"). With a seed, the entry documents no type restriction at
+ * With no seed, a fresh implementation-chosen seed is drawn from the generator itself
+ * ({@link drawImplementationSeed} — the entry: "With no seed the implementation chooses a seed",
+ * and `spec/execution-model.md:596-597`: "`randomize` with no input uses an implementation seed").
+ * Issue #865 moved that choice off the wall clock so a run a host pinned with
+ * `ExecuteOptions.randomSeed` stays deterministic even when the program reseeds itself; see
+ * {@link drawImplementationSeed} for why an unseeded run is unaffected. With a seed, the entry
+ * documents no type restriction at
  * all ("Possible errors: none specified beyond
  * general arity diagnostics" — deliberately omitting the "type" diagnostics every sibling entry
  * with an argument lists), so every {@link OLValue} is a valid seed: a number seeds directly
@@ -1833,15 +4000,24 @@ function executeRandomizeCall(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         1,
         statement.args.length,
       ),
     );
   }
   if (statement.args.length === 0) {
-    environment.randomNumberGenerator.state =
-      createRandomNumberGeneratorState().state;
+    // Issue #865: the implementation's own seed is derived by advancing the generator's state
+    // rather than by reading the wall clock. `spec/execution-model.md:596-597` ("`randomize` with
+    // no input uses an implementation seed") leaves the choice entirely to the implementation, and
+    // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
+    // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
+    // unseeded run is unaffected: its initial state is still the clock, so it retains the prior
+    // clock-seeded behavior exactly. See {@link drawImplementationSeed}, including why the state is
+    // advanced rather than replaced by a drawn value.
+    environment.randomNumberGenerator.state = drawImplementationSeed(
+      environment.randomNumberGenerator,
+    );
     return undefined;
   }
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
@@ -1997,7 +4173,7 @@ function executeEducationalMetaCommand(
     return halt(
       runtimeDiag.tooManyInputs(
         statement.callee.source_span,
-        statement.callee.name,
+        canonicalCalleeName(statement),
         0,
         statement.args.length,
       ),
@@ -2053,14 +4229,16 @@ const NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND = Symbol(
 /**
  * Single entry point {@link executeStatements} calls to try `show`, `randomize`, and the four
  * Educational meta-commands (`explain`/`why`/`hint`/`debug`, issue #332) in one step — the same
- * amortization {@link dispatchTurtleCommand}'s doc comment explains: folding multiple
+ * amortization {@link executeTurtleMoveCall}'s canonical frame-width note explains: folding multiple
  * single-command predicate/dispatch pairs behind one call site keeps `executeStatements`'s own
  * body (and so every stack frame in a deep recursive program) from growing with each additional
  * statement kind it recognizes. `show` (issue #234) and `randomize` (issue #287) were already
  * combined here for exactly this reason — the doc comment on the original two-command version
- * of this function recorded that "the second inline check alone was enough to push the 600-deep
- * `recursionDepthLimit: 1000` regression test over the native call-stack limit under coverage
- * instrumentation" — and issue #332's own first attempt (a separate
+ * of this function (`dispatchShowOrRandomizeCommand`, as it stood in #294) recorded that "the
+ * second inline check alone was enough to push the 600-deep `recursionDepthLimit: 1000`
+ * regression test over the native call-stack limit under coverage instrumentation"; that quoted
+ * test has since been replaced by the depth-499/limit-500 case described in the canonical note,
+ * but the effect it measured has not gone away — and issue #332's own first attempt (a separate
  * `dispatchEducationalMetaCommand` call site right after this one) reproduced precisely that
  * regression, so the four meta-commands are folded into this SAME dispatcher rather than added
  * as a new one. `statements` (the full statement list `statement` appears in) is threaded through
@@ -2103,7 +4281,7 @@ function hintTargetKey(span: SourceSpan): string {
 
 /**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
- * (`spec/execution-model.md:365-369`, `spec/error-model.md:121`). `operation` names the leading
+ * (`spec/execution-model.md:389`, `spec/error-model.md:123`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
  * `runtimeDiag.notBoolean` builder issue #95 added for `and`/`or`/`not` rather than duplicating it.
  * Returns the propagated evaluation failure, the `ol-not-boolean` diagnostic, or the boolean.
@@ -2140,12 +4318,12 @@ function evaluateCondition(
  * `stop` reached). Every control-form body below (`If`/`While`/`Repeat`/`Forever`/`ForIn`/
  * `ForRange`) now propagates ANY non-`"normal"` signal straight up unchanged rather than only
  * checking for `"halt"` — this is what makes a `stop`/`return` nested inside a loop inside a
- * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:340-349`).
+ * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:368-374`).
  * {@link runProcedure} is the only place that ever *consumes* a `"return"`/`"stop"` signal; if one
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
  */
-type ExecSignal =
+export type ExecSignal =
   | { readonly kind: "normal" }
   | { readonly kind: "halt"; readonly diagnostic: Diagnostic }
   | {
@@ -2163,93 +4341,119 @@ function halt(diagnostic: Diagnostic): ExecSignal {
 }
 
 /**
- * Every `ProcedureDef` in `program`, keyed by its lowercased name — a whole-program scan (not
- * just the top-level statement list) so a procedure may be called before its textual `define`
- * (`spec/execution-model.md:328-333`), mirroring the static checker's `collectProcedureArities`/
- * `collectVisibleNames` (`packages/parser/src/checker-arity.ts`) exactly, including "a later
- * `define` of the same name overwrites the earlier one here" — redefinition itself is
- * `ol-reserved-word`'s concern (issue #113), not this collection's.
+ * The canonical callable identity a primitive's arity diagnostic must carry, matching what the
+ * static checker reports (`checker-arity.ts`: `heritageActive && node.canonical ? node.canonical :
+ * lower`). OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
+ * diagnostic's identity (`spec/error-model.md:254-259`): `SHOW` and `show` are one primitive, one
+ * condition, and must report one `callable`. A Heritage alias carries its Core `canonical` on the
+ * call node (`fd` → `forward`); any primitive that actually executes has an active profile providing
+ * it, so `canonical ?? lower` is the runtime's exact analogue of the checker's rule (issue #1005).
  */
-function collectProcedures(program: ProgramNode): ProcedureRegistry {
-  const procedures = new Map<string, ProcedureDefNode>();
-  walk(program, (node) => {
-    if (node.kind === "ProcedureDef") {
-      procedures.set(node.name.name.toLowerCase(), node);
-    }
-  });
-  return procedures;
+function canonicalCalleeName(node: CallNode | ParenCallNode): string {
+  return node.canonical ?? node.callee.name.toLowerCase();
 }
 
-/** The outcome of {@link collectStructs}: either the built registry, or the first collision found. */
-type StructCollection =
-  | { readonly ok: true; readonly structs: StructRegistry }
+/**
+ * Phase-1 registration (`spec/execution-model.md:82-89`) for the whole program: every
+ * `define`/`to` procedure and every `struct` declaration, collected in one pre-order walk before
+ * any statement runs, so a callable may be used before its textual declaration and `type_of`/`is_a?`
+ * see every struct type up front. Either the two registries, or the first collision in source order.
+ */
+type DeclarationRegistration =
+  | {
+      readonly ok: true;
+      readonly procedures: ProcedureRegistry;
+      readonly structs: StructRegistry;
+    }
   | { readonly ok: false; readonly diagnostic: Diagnostic };
 
 /**
- * Is `name` already a primitive in ANY profile's callable table? `struct` registers a constructor
- * in the callable namespace, so a struct type name that shadows any built-in command/reporter —
- * Core, Turtle, Data, Educational, or the Geometry overlay (`grid`/`axes`/`measure`) — is a
- * collision regardless of which profiles a given program happens to touch, mirroring how
- * {@link runProgram} runs every profile's primitives unconditionally (`execute()` does not gate by
- * profile).
+ * The runtime's phase-1 registration guard, over the grammar's **declaration slots** — `define`/`to`
+ * and `struct` (`spec/grammar.md:58-59,165`; issue #833's maintainer ruling). `spec/grammar.md:165`
+ * enumerates **four** slots: the fourth is the first operand of `alias`, which has no AST node yet
+ * (`alias fwd forward` is `ol-bad-token` at parse), so there is nothing here to check for it — it is
+ * named so that whoever lands `alias` wires the slot rather than rediscovering it.
+ *
+ * It answers the one question a declaration slot asks — *is this name already taken, and by whom?* —
+ * with the one code that fits, exactly as the parser's `declarationSlotRule` does, so `check()` and
+ * `execute()` agree on code, params and spans (issue #839).
+ *
+ * **They agree because they call the same predicate**, `@openlogo/parser`'s {@link isBuiltInName},
+ * rather than composing an answer each. Two compositions of one rule drift apart silently, and this
+ * pair did — so do not reintroduce a local one here.
+ *
+ * - `ol-reserved-word` when OpenLogo owns the name ({@link isBuiltInName});
+ * - otherwise `ol-duplicate-definition` when an earlier declaration already registered the name,
+ *   carrying that earlier declaration's span in `params.original_span`.
+ *
+ * Built-in wins, so a name that is both is reported once, as the thing the learner cannot change.
+ * (A built-in name is also never recorded as a first declaration. That is deliberate for the
+ * checker, which reports every finding; here it is **unobservable**, because the run halts at the
+ * first collision and the map is never read again — a mutant that records it passes every gate.
+ * Kept for parity with `declarationSlotRule` rather than for any behaviour of this function.)
+ *
+ * **Both declaration kinds share one first-declaration map**, and every later declaration of a name
+ * — whichever kind, whichever spelling, at whatever nesting depth — is reported against the first.
+ * One map is the chosen implementation, not a conclusion the observable behaviour forces: two maps
+ * with a correct cross-kind lookup would be indistinguishable from source, which is why no fixture
+ * here claims otherwise. What *is* observable, and is pinned, is that a `define`/`struct` collision
+ * is reported in **both** orders and that `original_span` names the earlier declaration.
+ *
+ * **Neither kind is profile-gated, and neither is depth-gated.** `spec/execution-model.md:82-88`
+ * makes phase-1 registration unconditional, `execute()` has no active profile set to gate on in any
+ * case, and the `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148`
+ * makes a declaration an ordinary statement, so `define outer / define forward / end / end` is a
+ * collision exactly as the top-level form is.
+ *
+ * **One half of `spec/execution-model.md:86-87` is out of scope here and NOT covered:** it also
+ * makes a name "an imported module already registered" a duplicate. `import` has no runtime
+ * implementation (Modules is M6), so there is nothing to collide with and no fixture asserts it.
+ * That clause is *unimplemented*, not merely untested — recorded so a later reader does not mistake
+ * this guard for having handled it.
+ *
+ * The first collision found in source order halts the whole program — nothing runs, so the
+ * `define foo` twice that used to print the *second* body prints nothing at all.
  */
-function isPrimitiveName(name: string): boolean {
-  return (
-    corePrimitiveArity(name) !== undefined ||
-    turtlePrimitiveArity(name) !== undefined ||
-    dataPrimitiveArity(name) !== undefined ||
-    educationalPrimitiveArity(name) !== undefined ||
-    geometryPrimitiveArity(name) !== undefined
-  );
-}
-
-/**
- * The runtime phase-1 struct registration guard (issue #329): every top-level `struct <name>
- * [ field… ]` registers its type name → declaration in the callable namespace BEFORE any statement
- * runs, so a struct may be constructed before its textual declaration and so `type_of`/`is_a?` see
- * every struct type up front — exactly mirroring {@link collectProcedures}'s whole-program pre-scan
- * for `define`. Unlike procedures, a struct name that collides with a reserved word, a primitive
- * (any profile), an already-collected procedure, or an earlier `struct` of the same name raises
- * `ol-reserved-word` here at phase-1 (`spec/data-structures.md:264`), at `stage: "runtime"` —
- * because `execute()` runs `parse()` only, never `check()`, so the parser's `checker-reserved-word`
- * rule never runs. The `namespace` priority (`reserved` → `primitive` → `procedure` → `struct`)
- * matches that checker's "more fundamental category wins" ordering, extended with `struct` for a
- * duplicate type name. The first collision found (in source order) halts the whole program.
- */
-function collectStructs(
-  program: ProgramNode,
-  procedures: ProcedureRegistry,
-): StructCollection {
+function registerDeclarations(program: ProgramNode): DeclarationRegistration {
+  const procedures = new Map<string, ProcedureDefNode>();
   const structs = new Map<string, StructDefNode>();
+  const firstDeclaration = new Map<string, SourceSpan>();
   let collision: Diagnostic | undefined;
+
   walk(program, (node) => {
-    if (collision !== undefined || node.kind !== "StructDef") {
+    if (collision !== undefined) {
       return;
     }
-    const name = node.name.name;
-    const namespace = isReservedWord(name)
-      ? "reserved"
-      : isPrimitiveName(name)
-        ? "primitive"
-        : procedures.has(name.toLowerCase())
-          ? "procedure"
-          : structs.has(name.toLowerCase())
-            ? "struct"
-            : undefined;
-    if (namespace !== undefined) {
-      collision = runtimeDiag.reservedWord(
-        node.name.source_span,
-        name,
-        namespace,
+    if (node.kind !== "ProcedureDef" && node.kind !== "StructDef") {
+      return;
+    }
+    const declared = node.name;
+    const key = declared.name.toLowerCase();
+    if (isBuiltInName(key)) {
+      collision = runtimeDiag.reservedWord(declared.source_span, declared.name);
+      return;
+    }
+    const originalSpan = firstDeclaration.get(key);
+    if (originalSpan !== undefined) {
+      collision = runtimeDiag.duplicateDefinition(
+        declared.source_span,
+        declared.name,
+        originalSpan,
       );
       return;
     }
-    structs.set(name.toLowerCase(), node);
+    firstDeclaration.set(key, declared.source_span);
+    if (node.kind === "ProcedureDef") {
+      procedures.set(key, node);
+    } else {
+      structs.set(key, node);
+    }
   });
+
   if (collision !== undefined) {
     return { ok: false, diagnostic: collision };
   }
-  return { ok: true, structs };
+  return { ok: true, procedures, structs };
 }
 
 /**
@@ -2316,13 +4520,13 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:606-648`).
+ * (`spec/execution-model.md:775-813`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
  * raises `ol-limit` at the callee span instead of recursing further, so an unbounded recursive
  * procedure degrades to a friendly diagnostic rather than a host `RangeError: Maximum call stack
- * size exceeded` (`spec/execution-model.md:551-557`). A depth marker is pushed once the check
+ * size exceeded` (`spec/execution-model.md#execution-safety`). A depth marker is pushed once the check
  * passes and popped in a `finally` covering the rest of this function, so it is removed on every
  * exit path — a clean return, a `stop`, or a diagnostic partway through argument/default
  * evaluation or the body itself. `recursionDepthLimit` defaults to
@@ -2334,6 +4538,7 @@ function runProcedure(
   node: CallNode | ParenCallNode,
   environment: Environment,
 ): ProcedureOutcome {
+  environment.lastCallSpan.span = node.callee.source_span;
   if (environment.callDepth.length >= environment.recursionDepthLimit) {
     return {
       ok: false,
@@ -2360,8 +4565,9 @@ function runProcedure(
  * {@link runProcedureBody}'s `procedure-enter` push — for the same stack-frame-size reason
  * {@link executePrintCall}'s doc comment gives: `runProcedureBody` is on the
  * `recursionDepthLimit`-checked recursive call path, so any inline growth there (a `Map`
- * allocation, a `.map()` call) risks reproducing the 600-deep `recursionDepthLimit: 1000`
- * regression (`execution-budget.test.mjs`) over the native call-stack limit.
+ * allocation, a `.map()` call) risks reproducing the native-call-stack overflow the deep-recursion
+ * budget test of the day caught here (see {@link executeTurtleMoveCall}'s canonical frame-width
+ * note).
  */
 function snapshotProcedureEnterPayload(
   name: string,
@@ -2378,6 +4584,11 @@ function runProcedureBody(
 ): ProcedureOutcome {
   const name = node.callee.name.toLowerCase();
   const def = environment.procedures.get(name) as ProcedureDefNode;
+  // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
+  // diagnostic's identity (`spec/error-model.md:254-259`). The static checker reports the
+  // *definition's* declared spelling (`checker-arity.ts` `params.callable`); the runtime must
+  // agree, so arity diagnostics carry `def.name.name`, not `node.callee.name` (issue #1005).
+  const declaredName = def.name.name;
   const required = def.params.filter(
     (param) => param.defaultValue === undefined,
   ).length;
@@ -2388,7 +4599,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.notEnoughInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         required,
         actual,
       ),
@@ -2399,7 +4610,7 @@ function runProcedureBody(
       ok: false,
       diagnostic: runtimeDiag.tooManyInputs(
         node.callee.source_span,
-        node.callee.name,
+        declaredName,
         max,
         actual,
       ),
@@ -2467,12 +4678,13 @@ function runProcedureBody(
       name: def.name.name,
       // Snapshotted inline (issue #495), unlike `procedure-enter`'s payload just above, which
       // uses the extracted `snapshotProcedureEnterPayload` helper: an equivalent extracted
-      // helper here was tried and regressed the 600-deep `recursionDepthLimit: 1000` regression
-      // test (`execution-budget.test.mjs`) over the native call-stack limit, since this push is
-      // in `runProcedureBody`'s own frame on the recursion-depth-checked call path — every byte
-      // added to this frame's own size is multiplied by the recursion depth. `procedure-enter`'s
-      // extraction stayed under that budget; this one and `executeStatements`'s `"Return"`
-      // branch below did not, so both are inlined as the smallest correct fix instead.
+      // helper here was tried and pushed the deep-recursion budget test of the day over the
+      // native call-stack limit (see `executeTurtleMoveCall`'s canonical frame-width note), since
+      // this push is in `runProcedureBody`'s own frame on the recursion-depth-checked call path —
+      // every byte added to this frame's own size is multiplied by the recursion depth.
+      // `procedure-enter`'s extraction stayed under that budget; this one and
+      // `executeStatements`'s `"Return"` branch below did not, so both are inlined as the
+      // smallest correct fix instead.
       result: result === null ? null : snapshotValue(result),
     } satisfies ProcedureExitPayload,
   });
@@ -2484,7 +4696,7 @@ function runProcedureBody(
  * Call a user procedure from an expression/reporter position (`print area :r`): like
  * {@link runProcedure}, but a command result (`null` — the procedure never reached `return`)
  * is `ol-no-output` here, since a value is required in this position
- * (`spec/execution-model.md:346-349`). Wired onto every execution `Environment`'s
+ * (`spec/execution-model.md:368-374`). Wired onto every execution `Environment`'s
  * `callProcedure` field so `evaluate.ts`'s `evaluateCall` can reach it without importing this
  * module (see this file's header comment).
  */
@@ -2497,12 +4709,15 @@ function callProcedureAsValue(
     return outcome;
   }
   if (outcome.result === null) {
+    // Report the definition's declared spelling, not the call site's, so `ol-no-output`'s
+    // identity is stable across case-insensitive call spellings and matches the enter/exit
+    // events (which already use `def.name.name`) — issue #1005.
+    const def = environment.procedures.get(
+      node.callee.name.toLowerCase(),
+    ) as ProcedureDefNode;
     return {
       ok: false,
-      diagnostic: runtimeDiag.noOutput(
-        node.callee.source_span,
-        node.callee.name,
-      ),
+      diagnostic: runtimeDiag.noOutput(node.callee.source_span, def.name.name),
     };
   }
   return { ok: true, value: outcome.result };
@@ -2564,7 +4779,7 @@ function callProcedureAsValue(
  * `ol-stop-outside-proc`.
  *
  * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
- * otherwise (`spec/execution-model.md:365-369`) — and runs exactly one branch: `thenBody` when
+ * otherwise (`spec/execution-model.md:389`) — and runs exactly one branch: `thenBody` when
  * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
  * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
  * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
@@ -2577,12 +4792,12 @@ function callProcedureAsValue(
  *
  * A `While` statement (issue #100) re-evaluates `condition` before every pass — including the
  * first — running `body` each time it holds and stopping the moment it is `false`
- * (`spec/execution-model.md:365-369`); a condition that never becomes `false` runs forever, same
+ * (`spec/execution-model.md:330-331`); a condition that never becomes `false` runs forever, same
  * as any other unbounded loop in this issue's scope (the cancellable execution budget is a later,
  * separate slice).
  *
  * A `Repeat` statement (issue #104) evaluates `count`, then validates it TYPE then RANGE, in that
- * exact order (`spec/execution-model.md:367-369`): a non-whole-number count raises `ol-type`
+ * exact order (`spec/execution-model.md:389-391`): a non-whole-number count raises `ol-type`
  * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
  * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
  * pushes that pass's 1-based turn onto `environment.repeatTurns` before running `body` and pops it after —
@@ -2598,13 +4813,13 @@ function callProcedureAsValue(
  * `while`.
  *
  * A `ForIn` statement (issue #103) evaluates `iterable` — it must be a list, `ol-type` otherwise
- * (`spec/execution-model.md:375-376`; Core `for ... in` is list-only, dict iteration is a later
+ * (`spec/execution-model.md:397-398`; Core `for ... in` is list-only, dict iteration is a later
  * profile) — then runs `body` once per element, in order, binding `binder` fresh each pass via
  * `evaluate.ts`'s {@link pushLoopFrame}. A bare-name binder binds the whole element; a
  * destructuring binder (`evaluate.ts`'s {@link bindElement}) binds each of its names positionally
  * from the element, which must
  * itself be a list of exactly that many items (`ol-range` otherwise —
- * `spec/execution-model.md:435-439`). A duplicate name within one destructuring pattern
+ * `spec/execution-model.md:460-461`). A duplicate name within one destructuring pattern
  * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
  * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
  *
@@ -2612,12 +4827,12 @@ function callProcedureAsValue(
  * a number, `ol-type` otherwise ({@link requireNumber}, which unlike `repeat`'s count is not
  * restricted to whole numbers) — then iterates `variable` from `from` to `to` inclusive, adding
  * `step` each pass: with a positive step the body runs while `variable` is at most `to`, with a
- * negative step while it is at least `to` (`spec/execution-model.md:370-375`). A step pointing
+ * negative step while it is at least `to` (`spec/execution-model.md:392-396`). A step pointing
  * away from `to` (e.g. `from 1 to 5 by -1`) runs `body` zero times, no diagnostic; a step of `0`
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:435-437`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,870`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
@@ -2625,7 +4840,7 @@ function callProcedureAsValue(
  * both still work correctly across a nested `for`. Every control-form body below propagates ANY
  * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
  * — so a `stop` or `return` nested inside a loop nested inside a procedure exits the *procedure*,
- * not just that loop (`spec/execution-model.md:340-349`).
+ * not just that loop (`spec/execution-model.md:368-374`).
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
@@ -2644,9 +4859,9 @@ function callProcedureAsValue(
  * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
  * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
  * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
- * size fixed — inlining an `isSupportedExpression` gate directly there pushed the 600-deep
- * `recursionDepthLimit: 1000` regression test (`execution-budget.test.mjs`) over the native
- * call-stack limit.
+ * size fixed — inlining an `isSupportedExpression` gate directly there pushed the deep-recursion
+ * budget test of the day over the native call-stack limit (see {@link executeTurtleMoveCall}'s
+ * canonical frame-width note).
  *
  * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
  * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
@@ -2670,11 +4885,81 @@ function executeProcedureCallStatement(
   return NORMAL_SIGNAL;
 }
 
+/**
+ * Normalize a Heritage short command alias to its Core spelling for execution (issue #668). When
+ * `statement` is a `Call`/`ParenCall` carrying a `canonical` name (the reader sets it only for the
+ * ten Heritage aliases `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr`), this returns a shallow
+ * copy whose `callee.name` is that Core name, preserving the original `callee.source_span` (so
+ * diagnostics still point at the alias the learner wrote) and `args`. Every other statement — and
+ * every Core-spelled call, which has no `canonical` — is returned unchanged, so this is a strict
+ * no-op outside Heritage and the existing execution behavior is bit-for-bit identical.
+ *
+ * A user procedure whose name is the alias's surface spelling used to shadow the alias — `define fd
+ * :x … end` made `fd` the user's procedure — so this function carried a guard that left the callee
+ * untouched when the surface name was a registered procedure. **Issue #839 removed that guard**,
+ * because the ruling it implements (#833 rule 3, "nothing shadows") makes the shadow impossible to
+ * create: an alias spelling is a built-in name, so `define fd` raises `ol-reserved-word` at phase-1
+ * registration and `procedures` can never hold one. The condition was therefore unreachable from any
+ * source program, and unreachable code cannot meet this repository's 100% coverage gate.
+ *
+ * What proves it is unreachable, rather than merely believed to be:
+ * `execute-declaration-slots.test.mjs`'s "EVERY built-in name is rejected at `define`" sweeps every
+ * `heritageAliasNames()` entry, and "a Heritage alias is exactly as illegal as its canonical" pins
+ * the same property through the alias→canonical resolution. If either goes red, this guard has to
+ * come back. (Canonicalizing to a name that *is* a user procedure — `fd` when the program defines
+ * `forward` — is likewise impossible now, for the same reason.)
+ *
+ * The **expression**-position twin of the guard, `evaluate.ts`'s `resolveHeritageAliasName`, is
+ * deliberately KEPT: `evaluate()` and `createEnvironment()` are public API, so a host can assemble a
+ * registry this function can never see, and `heritage-alias-chokepoint.test.mjs` drives exactly that.
+ * There is no equivalent public entry into statement execution, which is the whole of the asymmetry.
+ *
+ * This is the single dispatch chokepoint: because the callee name is normalized here, before any
+ * `is*Call` predicate or executor runs, `fd 10` executes through the exact same path as
+ * `forward 10` and emits an identical event stream — including the `primitive`/`procedure-enter`/
+ * `procedure-exit` payload names, which therefore carry the canonical Core name, never the surface
+ * alias (`spec/conformance.md#heritage` — "alternate spellings only, no new semantics").
+ */
+function canonicalizeHeritageAliasCall(
+  statement: StatementNode,
+): StatementNode {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return statement;
+  }
+  const canonical = statement.canonical;
+  if (canonical === undefined) {
+    return statement;
+  }
+  return {
+    ...statement,
+    callee: { ...statement.callee, name: canonical },
+  };
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
 ): ExecSignal {
-  for (const statement of statements) {
+  for (const rawStatement of statements) {
+    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:189-204`). Runs
+    // before each statement so a queued `every` occurrence gets its "once the handler is free" turn
+    // while the main line has not finished, and NOT after the last statement — that missing final
+    // boundary is exactly what makes the ruling's discard-at-close observable. The hook is carried on
+    // a shared box that child environments inherit, so it reaches procedure and control-form bodies
+    // (still the main line) while handler bodies clear it for their duration.
+    const boundarySignal = environment.mainLineBoundary.fn?.();
+    if (boundarySignal) {
+      return boundarySignal;
+    }
+    // Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) are "alternate spellings only —
+    // no new semantics" (`spec/conformance.md:150`): the reader recorded the Core name the alias
+    // spells on the node's `canonical` field. Normalizing the callee to that Core name ONCE here —
+    // the single dispatch chokepoint — makes every downstream `is*Call` predicate and executor,
+    // plus every emitted event payload (`instruction`, `primitive`, `procedure-enter/exit`), fire
+    // exactly as they do for the Core spelling, with no per-command alias handling and no divergent
+    // code path. A Core-spelled statement carries no `canonical`, so this is a no-op for it and the
+    // entire existing behavior is bit-for-bit unchanged.
+    const statement = canonicalizeHeritageAliasCall(rawStatement);
     const limitDiagnostic = checkExecutionLimits(
       environment,
       statement.source_span,
@@ -2742,6 +5027,71 @@ function executeStatements(
       continue;
     }
 
+    if (isWaitCall(statement)) {
+      const waitOutcome = executeWaitCall(
+        statement as unknown as CallNode | ParenCallNode,
+        environment,
+      );
+      if (waitOutcome) {
+        return waitOutcome;
+      }
+      continue;
+    }
+
+    if (isWhenStatement(statement)) {
+      const whenOutcome = executeWhenStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (whenOutcome) {
+        return whenOutcome;
+      }
+      continue;
+    }
+
+    if (isEveryStatement(statement)) {
+      const everyOutcome = executeEveryStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (everyOutcome) {
+        return everyOutcome;
+      }
+      continue;
+    }
+
+    if (isOnKeyStatement(statement)) {
+      const onKeyOutcome = executeOnKeyStatement(
+        statement as ProfileStatementNode,
+        environment,
+      );
+      if (onKeyOutcome) {
+        return onKeyOutcome;
+      }
+      continue;
+    }
+
+    if (isOnClickStatement(statement)) {
+      executeOnClickStatement(statement as ProfileStatementNode, environment);
+      continue;
+    }
+
+    const soundOutcome = dispatchSoundCommand(statement, environment);
+    if (soundOutcome !== NOT_A_SOUND_COMMAND) {
+      if (soundOutcome) {
+        return soundOutcome;
+      }
+      continue;
+    }
+
+    const profileOutcome = dispatchProfileStatement(statement, environment);
+    if (profileOutcome !== NOT_A_PROFILE_STATEMENT) {
+      if (profileOutcome) {
+        return profileOutcome;
+      }
+      continue;
+    }
+
     if (statement.kind === "Return") {
       if (!isSupportedArgument(statement.value, environment)) {
         continue;
@@ -2756,8 +5106,9 @@ function executeStatements(
         // Snapshotted inline (issue #495) rather than via an extracted helper — see
         // `runProcedureBody`'s `procedure-exit` push's comment: `executeStatements` is on the
         // same recursion-depth-checked call path, and an extracted helper here reproduced the
-        // 600-deep `recursionDepthLimit: 1000` regression (`execution-budget.test.mjs`), so this
-        // is the smallest correct fix instead.
+        // deep-recursion budget test of the day's native-call-stack overflow (see
+        // `executeTurtleMoveCall`'s canonical frame-width note), so this is the smallest correct
+        // fix instead.
         source_span: statement.source_span,
         payload: { value: snapshotValue(result.value) } satisfies ReturnPayload,
       });
@@ -2822,6 +5173,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         const condition = evaluateCondition(
           statement.condition,
           environment,
@@ -2873,6 +5236,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         environment.repeatTurns.push(turn);
         const signal = executeStatements(statement.body.body, environment);
         environment.repeatTurns.pop();
@@ -2895,6 +5270,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const signal = executeStatements(statement.body.body, environment);
         if (signal.kind !== "normal") {
@@ -2936,6 +5323,18 @@ function executeStatements(
         );
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
+        }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
         }
         const bound = bindElement(statement.binder, element);
         if (!bound.ok) {
@@ -3029,6 +5428,18 @@ function executeStatements(
         if (limitDiagnostic) {
           return halt(limitDiagnostic);
         }
+        // One iteration is one unit of main-line progress, charged just above — so it is also one
+        // main-line boundary (ruling #984). `executeStatements` covers a NON-empty body per
+        // statement; this covers the iteration itself, which is the only unit an EMPTY body has.
+        // Without it `forever [ ]` offers a queued `every` occurrence no boundary at all while it
+        // spins, contradicting the ruling's back-to-back guarantee for an explicitly held-open run.
+        const iterationBoundary = runIterationBoundary(
+          statement.body.body,
+          environment,
+        );
+        if (iterationBoundary) {
+          return iterationBoundary;
+        }
         const signal = executeStatements(
           statement.body.body,
           pushLoopFrame(
@@ -3049,7 +5460,7 @@ function executeStatements(
 /**
  * Default instruction-execution budget and procedure-call recursion-depth limit applied by
  * {@link createExecutionEnvironment} when a real `execute()` call's {@link ExecuteOptions} does
- * not override them (issue #102, `spec/execution-model.md:551-557`). `DEFAULT_RECURSION_DEPTH_LIMIT`
+ * not override them (issue #102, `spec/execution-model.md#execution-safety`). `DEFAULT_RECURSION_DEPTH_LIMIT`
  * is the exact value this file previously hardcoded as `MAX_PROCEDURE_CALL_DEPTH` — only its name
  * and configurability changed, not the default behavior, so existing recursion-limit tests need
  * no update. `DEFAULT_INSTRUCTION_BUDGET` is generous enough that any ordinary, terminating
@@ -3059,6 +5470,41 @@ function executeStatements(
  */
 export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
 export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
+
+/**
+ * The highest procedure-call recursion depth the interpreter will honor regardless of what a
+ * caller configures via {@link ExecuteOptions.recursionDepthLimit} — the reconciliation issue #726
+ * requires between OpenLogo's *language-level* depth budget and the *host's* native call stack.
+ *
+ * OpenLogo's recursion-depth budget is a language limit; V8's call stack is a host limit, and each
+ * OpenLogo procedure frame costs several native frames along the
+ * `evaluate` → `evaluateCall` → `callProcedure` → `runProcedure` → `runProcedureBody` →
+ * `executeStatements` chain. If a caller sets `recursionDepthLimit` higher than the host stack can
+ * actually hold, the native stack overflows *first* and the learner gets a raw
+ * `RangeError: Maximum call stack size exceeded` with no source span and no learner-facing meaning
+ * — which `spec/error-model.md` (stable `ol-*` codes, always a span) and the team working
+ * agreement §8 (a budget that keeps runaway programs *stable*) both forbid. So the configured
+ * limit is **clamped** to this ceiling: the interpreter promises no depth it cannot deliver, and
+ * the `ol-limit`/`recursion-depth` diagnostic reports the depth it actually enforced.
+ *
+ * The value is chosen with a **documented headroom margin**. Measured cold (worst-case, no JIT
+ * warmup) on Node 22 — the `.nvmrc`/CI pin and the authoritative host for this repo — the real
+ * interpreter overflows its default-stack recursion at roughly 800 OpenLogo frames, and that
+ * figure drifts *down* as the evaluator gains features (every M5 slice adds frames to the hot
+ * chain — the very drift that turned #722 into the trigger for this bug). Pinning the ceiling to
+ * {@link DEFAULT_RECURSION_DEPTH_LIMIT} (500) keeps a comfortable ~40% margin below that cold
+ * floor, so ordinary programs are unaffected (they never reach 500) and a future slice adding a
+ * frame to the chain does not silently erode the guarantee. It is deliberately equal to the
+ * default rather than higher: a caller *raising* the budget must not be able to push past what the
+ * host can survive.
+ *
+ * This is a ceiling, not a guarantee the host can always honor it: a host with an unusually small
+ * stack (a browser tab — V8 stacks there are typically smaller than Node's — or a
+ * `--stack-size`-reduced Node) can still overflow below 500. That residual case is caught at the
+ * `runProgram` boundary (see its escaped-`RangeError` guard) and likewise turned into an
+ * `ol-limit`/`recursion-depth` diagnostic, so a raw host error can never escape to the caller.
+ */
+export const HOST_SAFE_RECURSION_DEPTH = DEFAULT_RECURSION_DEPTH_LIMIT;
 
 /** {@link ExecuteOptions.learnerLevel}'s default when a caller does not supply one — the
  * first/movement level (`spec/educational-model.md`'s level table), the least-prior-knowledge
@@ -3086,6 +5532,32 @@ function resolvePositiveFiniteLimit(
 }
 
 /**
+ * The recursion-depth limit `execute()` will *actually* enforce for a given
+ * {@link ExecuteOptions.recursionDepthLimit} request — the single, observable definition of the
+ * clamp. A requested limit is first normalised by {@link resolvePositiveFiniteLimit} (omitted /
+ * `NaN` / non-positive / non-finite → {@link DEFAULT_RECURSION_DEPTH_LIMIT}) and then capped at
+ * {@link HOST_SAFE_RECURSION_DEPTH}, because the interpreter's own depth counter must trip before
+ * the host's native stack can overflow (issue #726).
+ *
+ * This makes the clamp a *readable contract* rather than a silent narrowing: a host or the studio
+ * can call this to learn the effective ceiling before running, and a test locks it (requesting
+ * `1000` yields `500`) so the next person to change {@link HOST_SAFE_RECURSION_DEPTH} has a failing
+ * assertion telling them what capability they are altering. **A caller can no longer obtain
+ * recursion deeper than {@link HOST_SAFE_RECURSION_DEPTH}** — that configurability is deliberately
+ * removed here, since a limit the host cannot honour is a promise the implementation cannot keep;
+ * the guard layer ({@link recoverFromNativeStackOverflow}) still protects any host whose stack is
+ * smaller than the clamp.
+ */
+export function resolveEffectiveRecursionDepthLimit(
+  requested: number | undefined,
+): number {
+  return Math.min(
+    resolvePositiveFiniteLimit(requested, DEFAULT_RECURSION_DEPTH_LIMIT),
+    HOST_SAFE_RECURSION_DEPTH,
+  );
+}
+
+/**
  * Build a fresh execution environment for running `program` from the top: the root/global frame,
  * no active `repeat` turn, `program`'s whole-program {@link ProcedureRegistry} and
  * {@link StructRegistry} (collected by {@link collectProcedures}/{@link collectStructs} and passed
@@ -3097,11 +5569,15 @@ function resolvePositiveFiniteLimit(
  * unreachable, for expression-only tests with no procedures in scope), this is the environment
  * every real statement/expression in `program` actually runs against. Issue #287 adds
  * `randomNumberGenerator`, the shared seeded `random`/`randomize` generator state, freshly seeded
- * per run ({@link createRandomNumberGeneratorState}'s own `Date.now()` fallback) so two separate
- * `execute()` calls are independent even before either program ever calls `randomize`.
+ * per run; issue #865 lets a host pin that seed through `ExecuteOptions.randomSeed`, falling back
+ * to {@link createRandomNumberGeneratorState}'s own `Date.now()` when none is supplied — so two
+ * unseeded `execute()` calls keep the clock-seeded behavior they have always had, while two calls
+ * sharing a seed reproduce each other exactly (given deterministic host collaborators — see
+ * `index.ts`'s `randomSeed` bullet).
  *
- * Issue #102: `options` supplies the three execution-safety gates `spec/execution-model.md:
- * 551-557` requires — `instructionBudget`/`recursionDepthLimit` fall back to
+ * Issue #102: `options` supplies the three execution-safety gates
+ * `spec/execution-model.md#execution-safety` requires — `instructionBudget`/`recursionDepthLimit`
+ * fall back to
  * {@link DEFAULT_INSTRUCTION_BUDGET}/{@link DEFAULT_RECURSION_DEPTH_LIMIT} when omitted OR when
  * supplied but not a usable finite positive limit (see {@link resolvePositiveFiniteLimit} — a
  * caller cannot disable the safety gate by passing `Infinity`/`NaN`/a non-positive number);
@@ -3117,6 +5593,55 @@ function resolvePositiveFiniteLimit(
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the
  * M3-orchestrator's injectable-template ruling on issue #332).
  */
+/**
+ * Copy `hostInput` into a fresh array sorted by non-decreasing `tick`, returning a frozen empty
+ * array when a caller supplies none (issue #686, slice I7). {@link dispatchDueHandlers} advances a
+ * single forward cursor ({@link Environment.hostInputConsumed}) through this array at every
+ * {@link yieldToEventLoop} checkpoint, so it MUST be tick-ordered for that cursor to enqueue each
+ * entry exactly once; sorting here — once, at environment construction — lets a caller pass
+ * host-input in any order. The sort is *stable* (Array.prototype.sort is spec-guaranteed stable), so
+ * two entries scheduled at the same tick stay in caller-supplied order and therefore enqueue into
+ * their pending queue in that order — the deterministic tie-break the same-tick dispatch order
+ * relies on. A defensive copy so a caller's array is never mutated and the environment's view cannot
+ * change after construction.
+ */
+function sortHostInputByTick(
+  hostInput: readonly HostInputEvent[] | undefined,
+): readonly HostInputEvent[] {
+  if (hostInput === undefined || hostInput.length === 0) {
+    return EMPTY_HOST_INPUT;
+  }
+  return [...hostInput].sort((left, right) => left.tick - right.tick);
+}
+
+/** The shared frozen empty host-input array every normal headless run gets (issue #686): no key,
+ * click, or named event is ever pending, so the I5/I6 never-fires behavior holds because nothing was
+ * queued. Frozen so an accidental push can never leak input into an unrelated run. */
+const EMPTY_HOST_INPUT: readonly HostInputEvent[] = Object.freeze([]);
+
+/**
+ * Copy `responses` into a fresh array of scripted `input` answers, returning a frozen empty array
+ * when a caller supplies none (issue #681, slice I2 — `ExecuteOptions.hostInput.responses`). Order
+ * is caller order and is preserved exactly: it IS the FIFO the reads consume
+ * ({@link takeInputResponse}), so — unlike {@link sortHostInputByTick}'s tick sort — there is
+ * nothing to reorder. A defensive copy, for the same reason: a caller's array is never mutated and
+ * the environment's view of the queue cannot change after construction, so the run stays
+ * deterministic even if the caller keeps pushing to their own array.
+ */
+function copyHostResponses(
+  responses: readonly string[] | undefined,
+): readonly string[] {
+  if (responses === undefined || responses.length === 0) {
+    return EMPTY_HOST_RESPONSES;
+  }
+  return [...responses];
+}
+
+/** The shared frozen empty answer queue every ordinary headless run gets (issue #681): no `input`
+ * read has a scripted answer, so the first one ends the run as cancelled rather than inventing a
+ * reply. Frozen so an accidental push can never leak an answer into an unrelated run. */
+const EMPTY_HOST_RESPONSES: readonly string[] = Object.freeze([]);
+
 function createExecutionEnvironment(
   program: ProgramNode,
   procedures: ProcedureRegistry,
@@ -3125,26 +5650,59 @@ function createExecutionEnvironment(
   options: ExecuteOptions | undefined,
   source: string,
 ): Environment {
+  const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
     procedures,
     structs,
-    events: [],
+    // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
+    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:108-110`
+    // permits rendering already-emitted events while `input` waits, and the reader receives only the
+    // prompt, so without this seam that allowance is unreachable. It IS the array `runProgram`
+    // returns; supplying it only makes the stream readable earlier. See `index.ts`.
+    events: options?.observedEvents ?? [],
     foreverIterationLimit,
     callDepth: [],
-    recursionDepthLimit: resolvePositiveFiniteLimit(
+    recursionDepthLimit: resolveEffectiveRecursionDepthLimit(
       options?.recursionDepthLimit,
-      DEFAULT_RECURSION_DEPTH_LIMIT,
     ),
+    lastCallSpan: { span: null },
     instructionBudget: resolvePositiveFiniteLimit(
       options?.instructionBudget,
       DEFAULT_INSTRUCTION_BUDGET,
     ),
     instructionCount: { count: 0 },
+    mainLineBoundary: { fn: undefined },
     signal: options?.signal,
-    turtle: createDefaultTurtleState(),
-    randomNumberGenerator: createRandomNumberGeneratorState(),
+    turtleWorld: new TurtleWorld(),
+    addressing: createTurtleAddressing(mainTurtleState),
+    // Issue #865: `options.randomSeed` when a host pinned one, and only otherwise
+    // `createRandomNumberGeneratorState`'s own `Date.now()` fallback. That fallback is this
+    // package's only AMBIENT entropy source, so a pinned seed reproduces a run exactly — given
+    // host collaborators that are deterministic too, since `hostInput.read`/`tutorTemplates` are
+    // caller-supplied functions and `signal` is caller-mutable (see `index.ts`'s `randomSeed`
+    // bullet). An omitted seed leaves an ordinary run seeded from the clock, exactly as before.
+    randomNumberGenerator: createRandomNumberGeneratorState(
+      options?.randomSeed,
+    ),
+    tickClock: createTickClock(),
+    // #985 — the host's tick-timeline sink when one was supplied. `undefined` for every ordinary
+    // run, so nothing is recorded and no allocation happens. See `interaction.ts`'s
+    // `TickBoundary` for why this is a separate sink rather than a trace payload field.
+    tickTimeline: options?.tickTimeline,
+    // #975 — the host's registration-log and delivery-report sinks when supplied. `undefined` for
+    // every ordinary run, so nothing is recorded and no record is allocated. See `interaction.ts`'s
+    // `HandlerRegistration`/`HandlerDelivery` for the questions they answer.
+    handlerRegistrations: options?.handlerRegistrations,
+    handlerDeliveries: options?.handlerDeliveries,
+    sound: createSoundState(),
+    eventHandlers: createEventHandlerRegistry(),
+    hostInput: sortHostInputByTick(options?.hostInput?.events),
+    hostInputConsumed: { count: 0 },
+    hostResponses: copyHostResponses(options?.hostInput?.responses),
+    hostResponsesConsumed: { count: 0 },
+    hostReader: options?.hostInput?.read,
     source,
     program,
     hintProgress: new Map(),
@@ -3152,6 +5710,171 @@ function createExecutionEnvironment(
     learnerLevel: options?.learnerLevel ?? DEFAULT_LEARNER_LEVEL,
     callProcedure: callProcedureAsValue,
   };
+}
+
+/**
+ * Whether `error` is a genuine native stack-overflow, across every JS engine OpenLogo runs on
+ * (Node and the studio's browser targets — Chromium, Firefox, Safari; see
+ * `docs/adr/0013-studio-editor-component.md`). Each engine reserves a distinct, stable signature for
+ * stack exhaustion, and *only* for that condition:
+ * - V8 (Node, Chromium) and JavaScriptCore (Safari): a `RangeError` whose message is
+ *   `Maximum call stack size exceeded`.
+ * - SpiderMonkey (Firefox): an `InternalError` whose message is `too much recursion` (its class is
+ *   *not* `RangeError`, so an `instanceof RangeError` gate would let a real Firefox overflow escape
+ *   raw — reintroducing issue #726 on that target).
+ *
+ * Matching these known signatures (rather than merely `instanceof RangeError`) is what keeps
+ * {@link recoverFromNativeStackOverflow} from misclassifying an *unrelated* error — e.g. a
+ * `RangeError` thrown by an injected `tutorTemplates` callback or an option getter — as a
+ * learner-facing recursion overflow; those must surface as the integration bugs they are. The
+ * property access is guarded defensively so a thrown non-`Error` value (or one with no string
+ * `message`) can never itself throw here.
+ */
+function isNativeStackOverflow(error: unknown): boolean {
+  if (!(error instanceof Error) || typeof error.message !== "string") {
+    return false;
+  }
+  return (
+    error.message === "Maximum call stack size exceeded" ||
+    error.message === "too much recursion"
+  );
+}
+
+/**
+ * Convert an error that escaped the `parse` → execute pipeline into an {@link ExecuteResult}, per
+ * issue #726's first acceptance criterion: recursion (or any nesting) that exceeds what the host
+ * stack can support must stop with an `ol-*` diagnostic carrying a source span, never a raw
+ * `RangeError` reaching the caller.
+ *
+ * The interpreter clamps `recursionDepthLimit` to {@link HOST_SAFE_RECURSION_DEPTH} so its own
+ * depth counter normally trips before V8's native stack does. But two things can still overflow the
+ * native stack before that counter fires: a host with an unusually small stack — a browser tab (V8
+ * stacks there are typically smaller than Node's) or a `--stack-size`-reduced Node — recursing
+ * below the ceiling, and deeply nested *expression* evaluation or *parsing* (which the depth
+ * counter does not bound at all). A native stack overflow surfaces with an engine-specific
+ * signature (`RangeError: Maximum call stack size exceeded` on V8/JSC, `InternalError: too much
+ * recursion` on Firefox), matched by {@link isNativeStackOverflow}. So *only* a genuine overflow is
+ * rewritten into the `ol-limit`/`recursion-depth` diagnostic — carrying `fallbackSpan` (the deepest
+ * procedure call reached, or the whole-program/whole-source span when the overflow preceded any
+ * call). The partial event trace collected so far is preserved (empty when the overflow happened
+ * during parsing), matching how a language-level `halt` returns its events. Any other error —
+ * including an unrelated `RangeError` thrown by an injected callback such as `tutorTemplates`, which
+ * must surface as the integration bug it is rather than a bogus learner-facing recursion diagnostic
+ * — is a genuine bug and is rethrown unchanged.
+ *
+ * Extracted into its own function (rather than inlined in the `catch`) so both arms — the overflow
+ * rewrite and the rethrow of an unrelated error — are directly and deterministically unit testable,
+ * and so a caller can supply whichever span best explains the overflow.
+ */
+function recoverFromNativeStackOverflow(
+  error: unknown,
+  fallbackSpan: SourceSpan,
+  events: readonly TraceEvent[],
+  recursionDepthLimit: number,
+): ExecuteResult {
+  if (isNativeStackOverflow(error)) {
+    return {
+      events: [...events],
+      diagnostics: [
+        runtimeDiag.recursionLimit(fallbackSpan, recursionDepthLimit),
+      ],
+    };
+  }
+  throw error;
+}
+
+/**
+ * **Test-only.** Direct handle on {@link recoverFromNativeStackOverflow} so both of its arms — the
+ * `RangeError` → `ol-limit` rewrite and the rethrow of any other error — are covered
+ * deterministically, without having to provoke a real, host-dependent native stack overflow inside
+ * the test process. Never re-exported by `index.ts`; reachable only by this package's own tests
+ * importing this module by relative path (see the header comment and
+ * {@link executeWithForeverIterationLimitForTests}).
+ */
+export function recoverFromNativeStackOverflowForTests(
+  error: unknown,
+  fallbackSpan: SourceSpan,
+  events: readonly TraceEvent[],
+  recursionDepthLimit: number,
+): ExecuteResult {
+  return recoverFromNativeStackOverflow(
+    error,
+    fallbackSpan,
+    events,
+    recursionDepthLimit,
+  );
+}
+
+/**
+ * A {@link SourceSpan} covering `source` in its entirety (line 1, column 1 to just past the last
+ * character), used as the {@link recoverFromNativeStackOverflow} fallback span when a native stack
+ * overflow happens during parsing — before any AST node or procedure call exists to point at. It
+ * still gives the learner a document-anchored diagnostic rather than a bare host trace.
+ */
+function wholeSourceSpan(source: string, document: string): SourceSpan {
+  let line = 1;
+  let column = 1;
+  for (const character of source) {
+    if (character === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  return makeSpan(document, [1, 1], [line, column]);
+}
+
+/**
+ * Run the program's top level, giving a queued `every` occurrence a chance to run **between
+ * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:189-204`).
+ *
+ * The end-of-tick drain in {@link dispatchDueHandlers} covers the occurrences that were queued while
+ * a `wait` was still advancing the clock, but a drained invocation's own body can outrun the
+ * interval and queue another one *after* that dispatch has finished. If the main line still has
+ * statements to run, the run has not closed, so discarding that occurrence would be the rejected
+ * "drop the missed occurrence" reading — the handler is free and the spec says to run it. The main
+ * line's own statement boundary is the checkpoint that lets it.
+ *
+ * Draining once per boundary — rather than looping until the queues are empty — is what keeps ruling
+ * 4 intact: a handler that keeps overrunning gets exactly one invocation per statement the main line
+ * still has, never an unbounded catch-up that manufactures ticks nobody asked for. The drain runs
+ * **before** each statement rather than after, so there is no boundary after the last one: when the
+ * main line finishes, whatever is still queued but unstarted is discarded, exactly as ruling 4 says.
+ *
+ * Implemented as a hook on a shared {@link Environment} box rather than as a parameter threaded
+ * through each call site. Child environments are built by spreading the parent, so the box reaches
+ * procedure bodies and control-form bodies **by construction** — a `repeat`/`while`/`if`/`for` body
+ * and a procedure called from the main line are all still the main line, and the run has not closed
+ * while any of them is running. Handler bodies are the one exception and opt out explicitly
+ * ({@link executeHandlerBody}); comprehension bodies are expressions that never reach this function,
+ * so they run the same hook at their own per-iteration progress point in `evaluate.ts`.
+ *
+ * The hook fires inside {@link executeStatements} rather than by running the top
+ * level one statement at a time, because a statement list is **not** just a sequence: the
+ * educational meta-commands resolve their target by looking back through their own sibling list
+ * ({@link findPrecedingSiblingStatement}), so slicing the top level into single-statement calls
+ * silently strips `explain`/`why`/`debug`/`hint` of their targets. Only the top-level call passes a
+ * callback, so nested bodies — procedures, loops, handler blocks — are unaffected.
+ */
+function executeMainLine(
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  environment.mainLineBoundary.fn = () => {
+    for (const handler of claimQueuedEveryHandlers(environment.eventHandlers)) {
+      const drained = invokeEveryHandler(handler, environment);
+      if (drained.kind !== "normal") {
+        return drained;
+      }
+    }
+    return undefined;
+  };
+  try {
+    return executeStatements(statements, environment);
+  } finally {
+    environment.mainLineBoundary.fn = undefined;
+  }
 }
 
 /**
@@ -3175,38 +5898,54 @@ export function runProgram(
   foreverIterationLimit: number | undefined,
   options?: ExecuteOptions,
 ): ExecuteResult {
-  const { ast: program, diagnostics } = parse(source, document);
-  if (diagnostics.length > 0) {
-    return { events: [], diagnostics };
-  }
+  // Issue #726: the whole `parse` → execute pipeline runs inside one guard. On a host whose native
+  // stack is smaller than `HOST_SAFE_RECURSION_DEPTH` assumes, or for deeply nested expressions /
+  // parsing (which the recursion-depth counter does not bound), V8 can still overflow with a raw
+  // `RangeError`. That must never escape to the caller — `spec/error-model.md` requires a stable
+  // `ol-*` code with a source span. `environment` is captured as it becomes available so the guard
+  // can point at the deepest procedure call reached; before it exists (an overflow during parsing)
+  // the guard falls back to a whole-source span.
+  let environment: Environment | undefined;
+  try {
+    const { ast: program, diagnostics } = parse(source, document);
+    if (diagnostics.length > 0) {
+      return { events: [], diagnostics };
+    }
 
-  const procedures = collectProcedures(program);
-  const structResult = collectStructs(program, procedures);
-  if (!structResult.ok) {
-    return { events: [], diagnostics: [structResult.diagnostic] };
-  }
+    const registration = registerDeclarations(program);
+    if (!registration.ok) {
+      return { events: [], diagnostics: [registration.diagnostic] };
+    }
 
-  const environment = createExecutionEnvironment(
-    program,
-    procedures,
-    structResult.structs,
-    foreverIterationLimit,
-    options,
-    source,
-  );
-  const signal = executeStatements(program.body, environment);
-  const diagnostic =
-    signal.kind === "halt"
-      ? signal.diagnostic
-      : signal.kind === "return"
-        ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
-        : signal.kind === "stop"
-          ? runtimeDiag.stopOutsideProc(signal.source_span)
-          : undefined;
-  return {
-    events: environment.events,
-    diagnostics: diagnostic ? [diagnostic] : [],
-  };
+    environment = createExecutionEnvironment(
+      program,
+      registration.procedures,
+      registration.structs,
+      foreverIterationLimit,
+      options,
+      source,
+    );
+    const signal = executeMainLine(program.body, environment);
+    const diagnostic =
+      signal.kind === "halt"
+        ? signal.diagnostic
+        : signal.kind === "return"
+          ? runtimeDiag.returnOutsideProc(signal.source_span, signal.keyword)
+          : signal.kind === "stop"
+            ? runtimeDiag.stopOutsideProc(signal.source_span)
+            : undefined;
+    return {
+      events: environment.events,
+      diagnostics: diagnostic ? [diagnostic] : [],
+    };
+  } catch (error) {
+    return recoverFromNativeStackOverflow(
+      error,
+      environment?.lastCallSpan.span ?? wholeSourceSpan(source, document),
+      environment?.events ?? [],
+      environment?.recursionDepthLimit ?? HOST_SAFE_RECURSION_DEPTH,
+    );
+  }
 }
 
 /**

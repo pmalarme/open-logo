@@ -1,0 +1,3 @@
+:name = input "what is your name?"
+print word "hello " :name
+print :name is a "number"

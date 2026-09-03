@@ -1,0 +1,3 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ ask :b [ forward 10 ] forward 5 ]

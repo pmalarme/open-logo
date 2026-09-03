@@ -1,0 +1,19 @@
+{
+  "description": "issue #844: the CHECK-mode half of the checker/runtime agreement for `measure`'s arity (spec/geometry-module.md's `## measure` — Kind C, arity 0). Its execute-mode twin is geometry/overlays/measure-too-many-inputs.",
+  "profiles": ["core-language", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "geometry/check/arity-paren-measure-too-many",
+        "start": [1, 2],
+        "end": [1, 9]
+      },
+      "params": { "callable": "measure", "expected": 0, "actual": 1 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

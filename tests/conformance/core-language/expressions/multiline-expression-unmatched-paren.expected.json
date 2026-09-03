@@ -1,0 +1,20 @@
+{
+  "description": "A genuinely unmatched `(` still raises `ol-unmatched-paren`, exactly once, even though the expression inside it spans two lines. Issue #933 removed the phantom cascade on *matched* parentheses; this pins the opposite direction, so a regression that simply stopped emitting the diagnostic would fail here.",
+  "profiles": ["core-language"],
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-paren",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-unmatched-paren",
+        "start": [4, 7],
+        "end": [4, 8]
+      },
+      "params": {
+        "delimiter": "("
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+:repeat = 1
+set while to 2
+for if in [1 2] [ print 1 ]
+:mapped = map key in [1 2] [ 1 ]
+:total = reduce value item in [1 2] from 0 [ 1 ]
+for [ :add :second ] in [[1 2]] [ print 1 ]
+define draw :clear
+  print 1
+end

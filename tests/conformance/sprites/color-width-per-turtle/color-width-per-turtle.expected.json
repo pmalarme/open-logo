@@ -1,0 +1,270 @@
+{
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:109 — pen COLOR and WIDTH are per-turtle too, and each turtle threads its own values into its own `draw-segment` payload. `ask :a [ set_color \"red\" set_width 3 ]` changes only :a; the single `forward 10` under `tell [ :a :b ]` then emits draw-segment#1 with `{color:\"red\", width:3}` and draw-segment#2 with the untouched defaults `{color:\"black\", width:1}`. Every change of the addressed set — here from `ask`/`tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 1],
+        "end": [3, 39]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 1],
+        "end": [3, 39]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 10],
+        "end": [3, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "color-change",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 10],
+        "end": [3, 25]
+      },
+      "payload": {
+        "from": "black",
+        "to": "red"
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 26],
+        "end": [3, 37]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "width-change",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 26],
+        "end": [3, 37]
+      },
+      "payload": {
+        "from": 1,
+        "to": 3
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [3, 1],
+        "end": [3, 39]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 15,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "red",
+        "width": 3
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 16,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 2
+    },
+    {
+      "seq": 17,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/color-width-per-turtle/color-width-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 2
+    }
+  ],
+  "diagnostics": []
+}

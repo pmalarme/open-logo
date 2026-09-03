@@ -5,7 +5,9 @@
 - Deciders: OpenLogo maintainer (@pmalarme) + testing
 - Supersedes: ADR-0007 decision #2 (placeholder `produce()`)
 - Related: ADR-0007 (conformance harness); issue #44 (M1 harness + fixture format);
-  [`spec/error-model.md`](../../spec/error-model.md) (diagnostic shape)
+  [`spec/error-model.md`](../../spec/error-model.md) (diagnostic shape); refined by
+  [ADR-0029](0029-conformance-fixtures-opt-in-to-message-comparison.md) (conformance fixtures may
+  opt in to comparing a diagnostic `message`)
 
 ## Context
 

@@ -30,7 +30,7 @@
  *   `execute()` (composing it, never re-implementing evaluation) and reduces its trace-event
  *   stream to the shared `output`/`diagnostics` fields — this part is unchanged since #126 and
  *   always synchronous/instant. `run()` then (#228) replays that same completed event stream
- *   through a `TurtleAnimationController`, pushing each folded `turtleState`/`turtleScene`
+ *   through a `TurtleAnimationController`, pushing each folded `turtleWorld`/`turtleScene`
  *   snapshot into the shared state model (and repainting an optional `RunControllerOptions.
  *   canvasView` immediately) as it plays — paced via an injected `RunControllerOptions.scheduler`
  *   (default: `@openlogo/turtle`'s synchronous `IMMEDIATE_SCHEDULER`, which preserves every
@@ -42,7 +42,7 @@
  *   same point — a stale, already-scheduled tick can never fire afterward and advance it further
  *   (`TurtleAnimationController`'s own guard).
  * - `reset()` clears output/diagnostics and re-arms cancellation deterministically, *and* (#228)
- *   resets the turtle animation and restores `turtleState`/`turtleScene` to `@openlogo/turtle`'s
+ *   resets the turtle animation and restores `turtleWorld`/`turtleScene` to `@openlogo/turtle`'s
  *   program-start defaults, repainting the Canvas view if one was supplied.
  * - `step()` — no longer a no-op as of #228: it advances the turtle animation by exactly one
  *   instruction-step and pushes the resulting snapshot (a no-op before the first `run()` or once
@@ -82,8 +82,12 @@
  *   {@link Announcement} whenever `runStatus` or `diagnostics` changes, built from structured
  *   fields only (never `Diagnostic.message` prose). See `a11y.ts`.
  * - {@link createTurtleStateRegion} (#229) is the non-visual turtle-state text region: a single,
- *   always-current `status`/`aria-live="polite"` string over the shared `turtleState` slot,
- *   rendered via `@openlogo/turtle`'s published `describeTurtleState` — never re-derived here —
+ *   always-current `status`/`aria-live="polite"` string over the shared `turtleWorld` slot,
+ *   rendered via `@openlogo/turtle`'s published `describeTurtleWorldState` — which names the
+ *   turtle it describes once the world holds more than one live turtle (#749), and additionally
+ *   identifies
+ *   the **addressed turtle set** whenever that set is not exactly the turtle a command last drove
+ *   (#770, e.g. `addressed turtles #1 #2. turtle #2 at x …`) — never re-derived here —
  *   updating in lockstep with the Canvas view on every run tick, `step()`, and `reset()`.
  *
  * #127 adds the lesson pane, reading `@openlogo/edu`'s read-only `Lesson` contract (#189):
@@ -105,9 +109,11 @@
  *
  * #218 adds the turtle Canvas view — static composition of `@openlogo/turtle`'s DOM-free renderer
  * into the app shell (the dynamic run-loop repaint is #228, above):
- * - `state-model.ts`'s {@link StudioState} gains `turtleState`/`turtleScene` slots, reusing
- *   `@openlogo/turtle`'s own `TurtleState`/`TurtleScene` types verbatim and defaulting to its
- *   `INITIAL_TURTLE_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
+ * - `state-model.ts`'s {@link StudioState} gains `turtleWorld`/`turtleScene` slots (plus the
+ *   `turtleState` projection of the world's last-acted turtle — the addressed turtle set #770 folds
+ *   into that same world is read straight off `turtleWorld`), reusing `@openlogo/turtle`'s own
+ *   `TurtleWorldState`/`TurtleScene` types verbatim and defaulting to its
+ *   `INITIAL_TURTLE_WORLD_STATE`/`INITIAL_TURTLE_SCENE` program-start defaults.
  * - {@link Canvas2DContext} names the real Canvas 2D context surface this package forwards (this
  *   monorepo has no `lib.dom`); {@link createCanvasRenderTarget} adapts one into
  *   `@openlogo/turtle`'s headless `RenderTarget` — the DOM canvas lives in studio, never in
@@ -237,6 +243,61 @@
  *   instead of rendering `runStatus` raw, staying a thin, branch-free wiring layer.
  * - `a11y.ts`'s `describeRunStatus` gains the matching `"Run complete."` announcement for the new
  *   `"done"` value, keeping the existing `aria-live` announcement in sync with the visible label.
+ *
+ * #769 wires the studio's prompt UI to the blocking `input` reader seam #681 shipped in
+ * `@openlogo/runtime`, so a learner in the browser can actually answer `input "what is your name?"`:
+ * - {@link createInputPromptController} (`input-prompt.ts`) is the headless prompt: an
+ *   {@link InputPromptHost} the run controller `present()`s an outstanding read through, plus the
+ *   {@link InputPromptView} a renderer paints and the {@link INPUT_PROMPT_FOCUS_ORDER} focus scope
+ *   that keeps it keyboard-operable. `submit()`/`cancel()` are the learner's two endings, and
+ *   `cancel()` maps onto the runtime reader's own `undefined` — the read ends unanswered, which
+ *   cancels the run (`spec/interaction-events.md:110-111`).
+ * - {@link RunControllerOptions.inputPrompt} is how that host reaches the run controller. Supplying
+ *   it installs `ExecuteOptions.hostInput.read`; omitting it changes nothing at all. The runtime's
+ *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two
+ *   with an **attempt chain** rather than by changing runtime semantics — see `run-controller.ts`'s
+ *   doc comment ("#769") for why replaying the captured source is observationally equivalent to
+ *   blocking.
+ * - {@link RunControllerOptions.randomSeedSource} is what makes that equivalence hold for **every**
+ *   program rather than only deterministic ones (issue **#881**). `run()` draws one
+ *   `ExecuteOptions.randomSeed` (#865) from it per chain — `Date.now` by default, the same
+ *   implementation-chosen seed the runtime would have picked itself — so every attempt of a chain
+ *   is bit-identical up to the read the newest answer extends. The branch a `random` chose cannot
+ *   change under the covers, the question is never re-asked, what the learner has already seen is
+ *   never rewritten, and two `input` sites asking identical prompt text each get their own answer.
+ *   See `run-controller.ts`'s doc comment ("#881").
+ *   {@link resolveRecordedAnswer} is the one tested place that decides how a read draws from the
+ *   chain's accumulated answers — an answer is reused only when it was given for that same prompt at
+ *   that same position, kept as defence in depth so an answer can never reach a question the learner
+ *   was not shown, independently of the determinism argument above.
+ * - `index.html`/`web/main.ts`/`web/styles.css` add the real prompt: a native modal `<dialog>` whose
+ *   accessible name is the program's own question, an autofocused answer field, and Escape/Cancel
+ *   routed to `cancel()`. It is closed — and so absent from both the layout and the accessibility
+ *   tree — until a program actually asks something.
+ *
+ * #876 makes that read **genuinely blocking**, and gives Stop something it can preempt. It is a
+ * mechanism change, not a correctness fix: #881 already closed the replay's divergence window.
+ * - {@link ExecutionHost} (`execution-host.ts`) is the seam. `createRunController` composes one
+ *   instead of calling `@openlogo/runtime`'s `execute()` itself, and a host's whole contract is to
+ *   settle with an {@link ExecutionSettlement}. {@link createInProcessExecutionHost} is the default
+ *   and carries #769's replay unchanged, settling synchronously — so omitting
+ *   {@link RunControllerOptions.executionHost} changes nothing.
+ * - {@link createWorkerExecutionHost} runs the interpreter in a Worker that parks inside the read on
+ *   `Atomics.wait`, so **one execution answers however many questions** (the replay costs N+1), and
+ *   a `CancellationSignal` backed by shared memory aborts a loop *mid*-`execute()` — the preemptible
+ *   Stop `run-controller.ts` has recorded as impossible since #126.
+ * - `blocking-input-channel.ts` is the protocol: straight-line logic over an `Int32Array` control
+ *   block and a `Uint16Array` answer region, with `wait`/`notify` **injected** so a primitive that
+ *   throws on a browser's main thread stays fully covered by `node:test` with no timing dependence.
+ *   No single park is indefinite, so a Stop is observed even if its wake-up were missed.
+ * - {@link runExecutionWorkerCommand} (`execution-worker-runner.ts`) is the Worker side;
+ *   `web/execution-worker.ts` supplies the real `Atomics.wait` and nothing else.
+ * - {@link selectExecutionHost} picks between them from `crossOriginIsolated` +
+ *   `SharedArrayBuffer`, because the Worker host needs COOP/COEP cross-origin isolation — a
+ *   deployment posture, not a code decision. The replay is the **degraded mode**, kept and tested.
+ * - A settlement carries `output`/`tutorOutput` already reduced, because structured clone drops
+ *   class prototypes and `printedForm` throws on a cloned `OLDict`: values are reduced on the thread
+ *   that produced them. See `docs/adr/0023-worker-execution-host.md`.
  */
 
 export type {
@@ -301,11 +362,14 @@ export {
   setDiagnosticsEffect,
 } from "./editor-cm6.js";
 
+export type { ParserHighlighterOptions } from "./highlighter.js";
 export {
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
   createParserHighlighter,
 } from "./highlighter.js";
+
+export { STUDIO_PROFILES } from "./profiles.js";
 
 export type { RunController, RunControllerOptions } from "./run-controller.js";
 export {
@@ -313,6 +377,102 @@ export {
   createRunController,
   mountRunController,
 } from "./run-controller.js";
+
+export {
+  KEY_WORD_BY_BROWSER_KEY,
+  MODIFIER_KEY_NAMES,
+  normalizeKeyWord,
+} from "./key-words.js";
+
+export type {
+  ActivationControlElement,
+  CanvasInteractionElement,
+  CanvasInteractionElements,
+  KeyboardEventLike,
+} from "./canvas-interaction.js";
+export {
+  CANVAS_ACTIVATION_LABEL,
+  CANVAS_ACTIVATION_TEXT,
+  CANVAS_INTERACTION_HELP_TEXT,
+  SCROLLING_KEY_WORDS,
+  handleCanvasKeyDown,
+  mountCanvasInteraction,
+  suppressesBrowserDefault,
+  syncActivationControl,
+} from "./canvas-interaction.js";
+
+export type {
+  ExecutionHost,
+  ExecutionRequest,
+  ExecutionSettle,
+  ExecutionSettlement,
+  InProcessExecutionHostOptions,
+  RecordedAnswer,
+  RecordedAnswerResolution,
+} from "./execution-host.js";
+export {
+  collectOutput,
+  collectTutorOutput,
+  createInProcessExecutionHost,
+  resolveRecordedAnswer,
+  toExecuteOptions,
+} from "./execution-host.js";
+
+export type {
+  BlockingAnswerDelivery,
+  BlockingInputBufferAllocator,
+  BlockingInputChannel,
+  BlockingInputNotify,
+  BlockingInputWait,
+  BlockingReadOutcome,
+} from "./blocking-input-channel.js";
+export {
+  BLOCKING_INPUT_CONTROL_SLOT_COUNT,
+  DEFAULT_BLOCKING_INPUT_ANSWER_CAPACITY,
+  DEFAULT_BLOCKING_INPUT_POLL_INTERVAL_MS,
+  armBlockingRead,
+  awaitBlockingRead,
+  blockingInputBufferByteLength,
+  clearBlockingRead,
+  createBlockingInputChannel,
+  createSharedCancellationSignal,
+  deliverBlockingAnswer,
+  dismissBlockingRead,
+  isBlockingCancellationRequested,
+  isBlockingReadOutstanding,
+  requestBlockingCancellation,
+} from "./blocking-input-channel.js";
+
+export type {
+  ExecutionWorkerCommand,
+  ExecutionWorkerDoneReport,
+  ExecutionWorkerPort,
+  ExecutionWorkerReadReport,
+  ExecutionWorkerReport,
+  ExecutionWorkerRunCommand,
+  WorkerExecutionHostOptions,
+} from "./worker-execution-host.js";
+export { createWorkerExecutionHost } from "./worker-execution-host.js";
+
+export type { ExecutionWorkerRunnerOptions } from "./execution-worker-runner.js";
+export { runExecutionWorkerCommand } from "./execution-worker-runner.js";
+
+export type {
+  InputPromptController,
+  InputPromptHost,
+  InputPromptRequest,
+  InputPromptResponder,
+  InputPromptView,
+  InputPromptViewListener,
+} from "./input-prompt.js";
+export {
+  INPUT_PROMPT_CANCEL_LABEL,
+  INPUT_PROMPT_FIELD_LABEL,
+  INPUT_PROMPT_FOCUS_ORDER,
+  INPUT_PROMPT_SUBMIT_LABEL,
+  createInputPromptController,
+  mapInputPromptRequestToView,
+} from "./input-prompt.js";
 
 export type {
   Persistence,
@@ -372,6 +532,7 @@ export {
 export type {
   DiagnosticListItem,
   KeyValueStorage,
+  SharedMemoryCapability,
   TextValueTarget,
   TimeoutSchedulerTimers,
 } from "./web-bootstrap.js";
@@ -385,7 +546,9 @@ export {
   formatOutput,
   NO_DIAGNOSTICS_LABEL,
   selectAnnouncerElementId,
+  selectExecutionHost,
   selectScheduler,
+  supportsBlockingExecutionHost,
   syncTextValue,
   toDiagnosticListItems,
 } from "./web-bootstrap.js";

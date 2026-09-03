@@ -124,7 +124,6 @@
       "params": {
         "message": "an arc needs a positive radius"
       },
-      "message": "an arc needs a positive radius",
       "stage": "runtime",
       "severity": "error"
     }

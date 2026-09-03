@@ -1,0 +1,92 @@
+{
+  "description": "issue #674 (SP2): a repeated-reporter identity check. After `tell :friend`, reading `who` twice yields two separate OLTurtle wrappers of the same addressed turtle, and `who == who` is `true` because turtle `==` compares the stable id (C3, #665), not the JS instance — the assertion that would have caught the original identity trap (a re-wrapped turtle must still compare equal). Written unparenthesised (bug #709). Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [1, 11],
+        "end": [1, 21]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [2, 1],
+        "end": [2, 13]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [3, 1],
+        "end": [3, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/tell-repeated-reporter-identity/tell-repeated-reporter-identity",
+        "start": [3, 1],
+        "end": [3, 17]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

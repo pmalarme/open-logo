@@ -1,11 +1,11 @@
 {
-  "description": "A `struct` type name colliding with a user procedure raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:264`): `foo` is already a procedure, so `struct foo` cannot also register a constructor of that name (`namespace: \"procedure\"`).",
+  "description": "A `struct` type name colliding with a user procedure raises `ol-duplicate-definition` at phase-1 registration: `foo` is already declared on line 1, so `struct foo` cannot also register a constructor of that name. Ruling #833 rule 6 gives a name the LEARNER already declared its own code, distinct from `ol-reserved-word`'s \"OpenLogo owns this name\". What this fixture pins is the observable behaviour: the two declarations differ in KIND (`define` then `struct`), which is the cross-kind half of `spec/error-model.md:126` (\"a procedure and a struct with the same name in either order\"), and `params.original_span` points at the `define`. It does NOT prove the runtime keeps a single first-declaration map internally — two maps with an explicit cross-kind lookup would produce the identical diagnostic, and no source-level fixture can tell them apart. `struct-then-define-duplicate` pins the opposite order, and `data/check/duplicate-definition-across-declaration-slots` pins the same program at check stage.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],
   "diagnostics": [
     {
-      "code": "ol-reserved-word",
+      "code": "ol-duplicate-definition",
       "source_span": {
         "document": "data/struct-runtime/struct-reserved-word-procedure",
         "start": [4, 8],
@@ -13,9 +13,12 @@
       },
       "params": {
         "name": "foo",
-        "namespace": "procedure"
+        "original_span": {
+          "document": "data/struct-runtime/struct-reserved-word-procedure",
+          "start": [1, 8],
+          "end": [1, 11]
+        }
       },
-      "message": "foo is already a procedure, so it can't be redefined here.",
       "stage": "runtime",
       "severity": "error"
     }

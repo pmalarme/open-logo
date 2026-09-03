@@ -13,17 +13,25 @@
  * ```
  *
  * This slice publishes the deterministic turtle-**state** reducer (position, heading, pen,
- * color, width, shape, visibility), the deterministic retained-**scene** reducer (background,
- * segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and **PNG**
- * export — all three renderers paint the same retained data through the same
- * dependency-injected `RenderTarget` abstraction and coordinate mapping — the
+ * color, width, shape, visibility), the per-turtle **world** reducer (every live turtle's own
+ * state, the addressed turtle set, and the last-acted turtle, routed by the event stream's
+ * `turtle_id` and addressing snapshots — what a Sprites drawing is painted and described from), the
+ * deterministic retained-**scene** reducer
+ * (background, segments, fills, stamps), the **Canvas live renderer**, deterministic **SVG** and
+ * **PNG** export — all three renderers paint the same retained data through the same
+ * dependency-injected `RenderTarget` abstraction and coordinate mapping, and all three accept
+ * either a single turtle's state or a whole world — the
  * **animation/execution-control** cursor (`run`/`pause`/`step`/`speed`/`reset`+`replay`) that
  * paces consumption of that same event stream without ever re-deriving it, and **rendering
  * accessibility** primitives: a non-visual textual state description
- * (`describeTurtleState`), color-independent feedback descriptors for otherwise color-only
- * rendering state, and a `renderFrame` reduced-motion paint mode that instantly drains and
- * paints the retained scene without ever changing the event stream, final scene, turtle state,
- * or export output.
+ * (`describeTurtleState`, and `describeTurtleWorldState` which additionally names the turtle it
+ * describes once the world holds more than one live turtle, and identifies the **addressed turtle
+ * set**
+ * whenever that set is not exactly the turtle a command last drove),
+ * color-independent feedback descriptors for
+ * otherwise color-only rendering state, and a `renderFrame` reduced-motion paint mode that
+ * instantly drains and paints the retained scene without ever changing the event stream, final
+ * scene, turtle state, or export output.
  */
 
 export {
@@ -34,8 +42,18 @@ export {
 export type { TurtleState } from "./state.js";
 
 export {
+  INITIAL_TURTLE_WORLD_STATE,
+  MAIN_TURTLE_ID,
+  lastActedTurtleState,
+  reduceTurtleWorldEvents,
+  reduceTurtleWorldState,
+} from "./world-state.js";
+export type { TurtleWorldState } from "./world-state.js";
+
+export {
   INITIAL_TURTLE_SCENE,
   reduceSceneEvents,
+  reduceSceneRange,
   reduceTurtleScene,
 } from "./scene.js";
 export type {
@@ -59,6 +77,7 @@ export type {
   BackingResolution,
   MotionPreference,
   MotionPreferencePlayer,
+  PaintableTurtles,
   ReducedMotionSource,
   RenderTarget,
   Viewport,
@@ -91,6 +110,8 @@ export {
   describePenUpPreviewCue,
   describeTurtleFocusCue,
   describeTurtleState,
+  describeTurtleWorldState,
+  summarizeSourceInstruction,
 } from "./a11y.js";
 export type {
   ColorIndependentCue,

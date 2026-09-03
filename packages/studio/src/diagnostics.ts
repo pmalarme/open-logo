@@ -29,6 +29,15 @@
  * `semanticCheck: true` (once epic #108 closes that gap) to layer semantic/style diagnostics into
  * the exact same unified `diagnostics` field — no rendering-side change needed when that flag
  * flips, because {@link toDiagnosticsView} already renders every stage identically.
+ *
+ * ## One profile set, shared with the highlighter (#740)
+ * When `check()` does run, its active profile set defaults to `profiles.ts`'s
+ * {@link STUDIO_PROFILES} — the identical constant `highlighter.ts` hands `highlight()` by default.
+ * A learner's program has exactly one profile set, so the checker deciding a name is unavailable
+ * while the editor paints it as if that profile were on (or the reverse) would be a contradiction
+ * the learner sees on screen. Sharing the default is what removes that class of contradiction, when
+ * neither caller overrides it; a caller that passes its own `profiles` here is on its own to keep
+ * the two aligned.
  */
 
 import { check, parse } from "@openlogo/parser";
@@ -40,6 +49,7 @@ import type {
   SourceSpan,
 } from "@openlogo/core";
 import type { AppShell } from "./app-shell.js";
+import { STUDIO_PROFILES } from "./profiles.js";
 import type { StudioStateStore } from "./state-model.js";
 
 /** The document identifier passed to `parse()`/`check()` when the caller doesn't supply one. */
@@ -118,7 +128,13 @@ export interface DiagnosticsControllerOptions {
    * `false`, matching `check()`'s own opt-in default.
    */
   readonly styleCheck?: boolean;
-  /** Active conformance profiles passed to `check()` when `semanticCheck` is `true`. */
+  /**
+   * Active conformance profiles passed to `check()` when `semanticCheck` is `true`. Defaults to
+   * {@link STUDIO_PROFILES} — the same default `highlighter.ts` gives `highlight()`, so by default,
+   * when neither caller overrides the profile set, the checker and the editor's colors read a
+   * program under the same profiles (#740). Leaving it unset used to fall through to `check()`'s own
+   * Core-Language-only default, which is not the environment the studio actually runs.
+   */
   readonly profiles?: readonly CheckProfile[];
 }
 
@@ -147,7 +163,7 @@ function runChecks(
     return parsed.diagnostics;
   }
   const checked = check(parsed.ast, {
-    profiles: options.profiles,
+    profiles: options.profiles ?? STUDIO_PROFILES,
     source,
     style: options.styleCheck === true,
   });

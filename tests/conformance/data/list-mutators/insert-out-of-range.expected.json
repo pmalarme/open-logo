@@ -41,7 +41,6 @@
         "index": 5,
         "length": 3
       },
-      "message": "insert position 5 is out of range for a list of 3.",
       "stage": "runtime",
       "severity": "error"
     }

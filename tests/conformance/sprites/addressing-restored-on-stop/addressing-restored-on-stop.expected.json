@@ -1,0 +1,249 @@
+{
+  "description": "issue #766, abnormal exit 1 of 4 — `stop`. A `stop` inside `each` (within a procedure) unwinds the procedure mid-iteration; the `finally` that restores the addressed set runs, and so must the addressing event that publishes it. Only turtle 1's iteration ran, so the stream shows the narrowing to { 1 } and then the restoration to { 1, 2 } — never leaving a consumer believing the loop's narrowed set is still addressed.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [4, 1],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [4, 6],
+        "end": [4, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [5, 1],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [5, 6],
+        "end": [5, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [7, 1],
+        "end": [7, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [7, 1],
+        "end": [7, 5]
+      },
+      "payload": {
+        "name": "once",
+        "args": []
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 3],
+        "end": [2, 27]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 3],
+        "end": [2, 27]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 10],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 10],
+        "end": [2, 20]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 13,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 10],
+        "end": [2, 20]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 21],
+        "end": [2, 25]
+      },
+      "payload": {
+        "statement_kind": "Stop"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [2, 3],
+        "end": [2, 27]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-stop/addressing-restored-on-stop",
+        "start": [7, 1],
+        "end": [7, 5]
+      },
+      "payload": {
+        "name": "once",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

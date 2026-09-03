@@ -1,0 +1,3 @@
+:a = new_turtle
+tell [ :a :a ]
+forward count fput new_turtle [ ]

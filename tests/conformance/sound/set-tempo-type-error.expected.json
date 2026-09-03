@@ -1,0 +1,35 @@
+{
+  "description": "issue #689: `set_tempo` needs a number; a word argument raises `ol-type` at runtime (spec/error-model.md) and emits no `sound` event - the tempo state is left unchanged. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-type-error",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sound/set-tempo-type-error",
+        "start": [1, 11],
+        "end": [1, 17]
+      },
+      "params": {
+        "expected": "number",
+        "actual": "word",
+        "value": "fast",
+        "operation": "set_tempo"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

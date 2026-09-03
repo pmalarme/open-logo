@@ -15,10 +15,16 @@
  * Scope for this slice is the Core surface: prefix calls, the precedence ladder, blocks,
  * assignment, `local`, dotted places (`:a.b.c`), worded `is`-predicates, comparison chains,
  * the parenthesized variadic `(and …)`/`(or …)`, and dict literals (`{ key: value … }`, the
- * Data profile's `dict-literal` production). Index/key selectors (`:a[i]`), struct and the
- * other Data forms, and the Heritage spellings (`make`/`to`/`output`/`op`/aliases) are handled
- * by their own later slices; until then those spellings degrade to ordinary calls or a
- * collected diagnostic rather than a crash.
+ * Data profile's `dict-literal` production). The Heritage assignment/procedure spellings
+ * `make`/`to`/`output`/`op` also parse structurally — into the same `Assign`/`ProcedureDef`/
+ * `Return` nodes as their Core equivalents, discriminated by `form`/`keyword` (issues #151, #667) —
+ * with their profile-legality (Heritage active?) left to the Layer-2 checker's form-head gate.
+ * Index/key selectors (`:a[i]`) and struct and the other Data forms are handled by their own later
+ * slices; until then those spellings degrade to ordinary calls or a collected diagnostic rather
+ * than a crash. The Heritage short command aliases (`fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/
+ * `pr`, issue #668) parse into an ordinary `Call`/`ParenCall` grouped by the canonical command's
+ * arity, with `canonical` recording the Core spelling so the runtime dispatches identically — their
+ * Heritage-active gating is again the checker's concern.
  */
 
 import { makeSpan } from "@openlogo/core";
@@ -32,14 +38,21 @@ import type {
   ExpressionNode,
   NumberLitNode,
   PlaceSegment,
+  ProcedureDefNode,
   ProcedureParam,
   ProgramNode,
+  ReturnNode,
   SpannedName,
   StatementNode,
   WordLitNode,
 } from "./ast.js";
 import { parseDiag } from "./errors.js";
-import { primitiveArity } from "./signatures.js";
+import { OL_KEYWORDS } from "./keywords.js";
+import {
+  canonicalOfHeritageAlias,
+  heritageAliasArity,
+  primitiveArity,
+} from "./signatures.js";
 import { tokenize } from "./tokens.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
 
@@ -50,44 +63,77 @@ export interface ParseResult {
 }
 
 /**
- * Structural words that can never begin an expression, so the reader must not read them as a
- * bare call. This is intentionally narrower than {@link OL_RESERVED_WORDS}: reserved command
- * words like `thing`, `print`, `add`, and `value` *are* callables, whereas these are control,
- * binding, preposition, logic, predicate, and module keywords.
+ * The keywords that genuinely *may* begin an `expression` (`spec/grammar.md:193-206`), and
+ * are therefore the only ones {@link parseNamePrimary} reads rather than rejecting:
+ *
+ * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:206`).
+ * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:133-136,342-352`),
+ *   which "may appear anywhere a value is expected".
+ * - `thing` — the one keyword that is *also* a Core primitive reporter (`thing "name`,
+ *   `spec/commands.md`), so it is a real `fixed-call` callee.
+ *
+ * `value` is deliberately absent: it heads the `value-of-reader` production
+ * (`spec/grammar.md:217`) only when `of` directly follows, which {@link parseNamePrimary} matches
+ * *before* consulting {@link NON_PRIMARY_NAMES} — so the reader form keeps working while a **bare**
+ * `value` is rejected like any other misplaced structural word.
  */
-const NON_PRIMARY_NAMES = new Set<string>([
-  "set",
-  "if",
-  "else",
-  "while",
-  "repeat",
-  "for",
-  "forever",
-  "define",
-  "to",
-  "end",
-  "return",
-  "output",
-  "op",
-  "stop",
-  "throw",
-  "local",
-  "in",
-  "from",
-  "at",
-  "by",
-  "and",
-  "or",
-  "not",
-  "is",
-  "between",
-  "strictly",
-  "mod",
-  "struct",
-  "alias",
-  "import",
-  "export",
+const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
+  "thing",
+  "true",
+  "false",
+  "map",
+  "filter",
+  "reduce",
 ]);
+
+/**
+ * Structural words that can never begin an expression, so the reader must not read them as a bare
+ * call — it returns `undefined` instead and the caller reports the token with `ol-bad-token`
+ * ("a token that is itself a valid OpenLogo token but is not permitted at the current grammar
+ * position", `spec/error-model.md:110`).
+ *
+ * **Derived from {@link OL_KEYWORDS}, not hand-listed** (issue #853). A keyword is "a word the
+ * grammar itself gives meaning to rather than a name a program can introduce"
+ * (`spec/grammar.md:358`), so *every* keyword is illegal in expression position except the handful
+ * {@link EXPRESSION_INITIAL_KEYWORDS} names. Deriving the
+ * complement makes that the invariant: a word added to that registry in a future slice is rejected
+ * here automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
+ * Before this, `repeat value [ ]` and `repeat key [ ]` parsed *and* checked completely CLEAN under
+ * every profile set — as did the Data mutation heads `add`/`remove`/`insert`/`clear` in the same
+ * position. That is the "silent no-op" class: the program does something other than what was
+ * written, and nothing says so.
+ *
+ * **That invariant has now had its first live test, and it held.** #853 had to carry `mod` as an
+ * explicit extra entry, because `mod` was the one reader-structural word missing from the registry —
+ * the gap #853 filed as #868. Issue #837 closes it: `mod` is a keyword
+ * (`spec/grammar.md:373`, and see `keywords.ts`), so the derivation now supplies it and the hand-kept
+ * exception is **gone**. Removing it is behaviour-preserving by construction — `mod` is in
+ * {@link OL_KEYWORDS} and not in {@link EXPRESSION_INITIAL_KEYWORDS}, so the filter yields it
+ * either way — which is exactly the property #853 built this derivation to guarantee. This set now
+ * has no hand-maintained exceptions at all.
+ *
+ * Scope is the **global Core registry only**. {@link OL_PROFILE_KEYWORDS} (`ask`/`each`/`tell`, the
+ * four event heads) is deliberately excluded: this reader is profile-blind by design (see
+ * {@link PROFILE_STATEMENT_FORMS}), so it shapes a program that declares `ask` as an ordinary
+ * `define`/call pair rather than a profile statement. Since issue #841 the *checker* then raises
+ * `ol-reserved-word` on that declaration — `spec/grammar.md:408` makes profile words built-in names
+ * unconditionally — but which diagnostic to raise is the checker's question, not this set's, and
+ * rejecting them in value position is a third rule again (issue #864).
+ *
+ * The statement heads stay unaffected because {@link parseStatement} dispatches `add`/`remove`/
+ * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
+ * (`key-term`, `dict-key`, `.field`) read a raw `name` token rather than a primary — "Dictionary
+ * keys and selector bare keys are data, not declarations, so built-in names are legal keys"
+ * (`spec/grammar.md:406`) still holds.
+ *
+ * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here. It is a
+ * **binding** rather than data, and `spec/grammar.md:386` makes binding any name — keyword
+ * included — a conforming program, so nothing rejects it at either layer; this set neither adds nor
+ * removes that.
+ */
+const NON_PRIMARY_NAMES: ReadonlySet<string> = new Set<string>(
+  OL_KEYWORDS.filter((word) => !EXPRESSION_INITIAL_KEYWORDS.has(word)),
+);
 
 const END_LABELS = new Set<string>([
   "if",
@@ -96,25 +142,106 @@ const END_LABELS = new Set<string>([
   "for",
   "forever",
   "define",
+  // Profile block-head labels: a labeled `end` after a profile block (`end ask`, `end each`,
+  // `end when`, `end every`, `end on_key`, `end on_click`) must be recognized as a closer so the
+  // block-tail machinery can match it against its opener and raise `ol-mismatched-end` on a wrong
+  // label (`spec/turtles-and-sprites.md:167,170`, `spec/interaction-events.md:62,65`). `tell` is
+  // absent: it is a bodyless mode-switch command with no block and therefore no `end`.
+  "ask",
+  "each",
+  "when",
+  "every",
+  "on_key",
+  "on_click",
 ]);
 
 /**
- * Pre-scan the token stream for the two user-declared forms that register a callable name, so a
- * later prefix call to either knows how many arguments to gather:
+ * A profile-gated statement form the reader recognizes structurally — the extension point for
+ * every profile's block-head and mode-switch statement (`spec/grammar.md#profile-grammar-extensions`).
+ *
+ * - `argCount` — how many Core `expression` arguments the head takes before its block (one for
+ *   `tell`/`ask`/`when`/`every`/`on_key`, none for `each`/`on_click`).
+ * - `hasBlock` — whether the form takes a block body: a block-head (`ask`, `each`, and all four
+ *   event heads) does; the bodyless `tell` mode-switch command does not.
+ */
+interface ProfileStatementForm {
+  readonly argCount: number;
+  readonly hasBlock: boolean;
+}
+
+/**
+ * The profile statement-form registry: the single seam through which every M5 profile statement
+ * form hangs off the Core `statement` production, so a profile epic (Sprites SP2/SP3/SP4,
+ * Interaction & Events I3–I6) needs no further edit to the reader's statement dispatch. Consulted
+ * only in {@link parseStatement}'s name-`switch` default, it keeps that `switch` — the shared code
+ * `#151`'s `make` special form also restructured — closed to new profile keywords.
+ *
+ * The reader is deliberately profile-blind: it parses any registered keyword into a
+ * {@link ast.profileStatement} node regardless of the active profile set, reusing the Core
+ * `expression` and block productions the spec mandates ("They reuse the Core `expression`,
+ * `bracket-block`, `statement`, and `terminator` productions."). Whether a form is *legal* under
+ * the program's active profiles is left to the Layer-2 checker (`spec/tooling.md:175-176`),
+ * mirroring how {@link primitiveArity} groups a profile primitive's arguments for the reader while
+ * `check()` gates legality. The keyword registry (`OL_PROFILE_KEYWORDS`, C1 #663) is
+ * the checker's contract, not the reader's — this table is intentionally separate.
+ *
+ * Sources: `spec/turtles-and-sprites.md:161-167` (`tell`/`ask`/`each`),
+ * `spec/interaction-events.md:54-62` (`when`/`every`/`on_key`/`on_click`).
+ */
+const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
+  new Map([
+    // Sprites profile.
+    ["tell", { argCount: 1, hasBlock: false }],
+    ["ask", { argCount: 1, hasBlock: true }],
+    ["each", { argCount: 0, hasBlock: true }],
+    // Interaction & Events profile.
+    ["when", { argCount: 1, hasBlock: true }],
+    ["every", { argCount: 1, hasBlock: true }],
+    ["on_key", { argCount: 1, hasBlock: true }],
+    ["on_click", { argCount: 0, hasBlock: true }],
+  ]);
+
+/**
+ * Whether the token at index `k` begins a statement — i.e. it is the first token of the stream, the
+ * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
+ * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
+ * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
+ * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:380`, plus the Data
+ * `add … to <list>` preposition, `spec/grammar.md:115` — `:380` names the first two and the
+ * opener, not this one), so only the opener registers a callable arity. Including `[` keeps a
+ * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
+ * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
+ * operands always come between the block opener and the `to`), so widening the start set stays safe.
+ */
+function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
+  if (k === 0) {
+    return true;
+  }
+  const previous = (tokens[k - 1] as LexToken).kind;
+  return previous === "newline" || previous === "lbracket";
+}
+
+/**
+ * Pre-scan the token stream for the user-declared forms that register a callable name, so a
+ * later prefix call to any of them knows how many arguments to gather:
  *
  * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
  *   `:name` parameters (an optional `( :name default )` parameter does not count).
+ * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:148`), which
+ *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
+ *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
- *   reporter (`spec/data-structures.md:254,264`); its arity is the declared field count. Without
+ *   reporter (`spec/data-structures.md:294,324`); its arity is the declared field count. Without
  *   this, a bare constructor call like `point 3 4` would read `point` as a zero-arity call and
  *   leave `3 4` as stray tokens (issue #329) — the same "reader needs a callee's arity to group a
  *   bare call's arguments" mechanism `define` already relies on, extended to the other name-
  *   registering form the grammar already parses (issue #321's `StructDef`).
  *
  * This pre-scan is purely about arity grouping for the reader; it performs no validation. A name
- * that collides with a primitive or another declaration is still recorded here so parsing does not
- * crash — the runtime's phase-1 `struct` registration is what raises `ol-reserved-word` for a real
- * collision (`spec/data-structures.md:264`).
+ * that collides with a built-in or another declaration is still recorded here so parsing does not
+ * crash — the runtime's phase-1 `struct` registration is what reports the collision, and it
+ * distinguishes the two: a built-in type name raises `ol-reserved-word`, while one the program has
+ * already declared raises `ol-duplicate-definition` (`spec/data-structures.md:304`).
  */
 function collectUserArities(
   tokens: readonly LexToken[],
@@ -133,7 +260,19 @@ function collectUserArities(
     if (nameTok.kind !== "name") {
       continue;
     }
-    if (headText === "define") {
+    if (
+      headText === "define" ||
+      (headText === "to" && atStatementStart(tokens, k))
+    ) {
+      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:148`), so a
+      // `to <name> :p …` procedure registers a callable of the same default arity — the count of
+      // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
+      // its arguments correctly. `to` carries FOUR roles: the Heritage procedure *opener*, plus the
+      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:380` names those three) and
+      // the Data `add … to <list>` preposition (`spec/grammar.md:115`). Only the opener begins a
+      // statement; the other three appear mid-statement — so {@link atStatementStart} gates this to
+      // the opener alone and never mis-registers the `<list>` name in `add 3 to colors` as a
+      // procedure.
       let arity = 0;
       for (let j = k + 2; j < tokens.length; j += 1) {
         if ((tokens[j] as LexToken).kind !== "variable") {
@@ -179,6 +318,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   let pos = 0;
   let lastEnd: Position = [1, 1];
+  // Was the most recently consumed token a newline? See {@link currentAdjacentToPrev} for why a
+  // position comparison alone cannot answer that after the fact.
+  let sawWhitespaceGap = false;
+  // True while parsing the VALUE of a dictionary entry. See {@link isDictKeyAt} for how a worded
+  // operator there is told apart from the key that opens the next entry.
+  let inDictEntryValue = false;
+  // Which delimiters are genuinely unmatched, decided from the source once rather than from
+  // wherever a recovering parser happened to stop. See {@link findUnmatchedDelimiters}.
+  const unmatchedDelimiters = findUnmatchedDelimiters();
+
+  /**
+   * Run `parse` with the "directly inside a dictionary entry's value" flag set to `active`, then
+   * restore it. Only the *innermost* enclosing literal decides what a newline means, so every
+   * nested container sets the flag to its OWN answer: a list, group or block clears it — in
+   * `{ a: [1` ⏎ `mod 2] }` the newline is inside a list, so it is insignificant and `mod` is an
+   * operator — while a nested dictionary sets it again through its own {@link parseDictEntry}. A
+   * selector needs no wrapper of its own; see {@link collectPostfixSegments}.
+   */
+  function inDictValue<T>(active: boolean, parse: () => T): T {
+    const previous = inDictEntryValue;
+    inDictEntryValue = active;
+    const result = parse();
+    inDictEntryValue = previous;
+    return result;
+  }
 
   // current()/peek()/advance() clamp with Math.min (a call, not a branch) instead of a
   // guard, so reads past the end return the eof sentinel that every loop already checks —
@@ -193,9 +357,124 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   function advance(): LexToken {
     const token = current();
+    // A consumed newline is a whitespace gap between what precedes and follows it. Recorded here
+    // because it is unknowable later: the newline's `end` is the next line's column 1, so once it
+    // is skipped the tokens on either side look adjacent. See {@link currentAdjacentToPrev}.
+    sawWhitespaceGap = token.kind === "newline";
     lastEnd = token.source_span.end;
     pos += 1;
     return token;
+  }
+
+  /**
+   * The delimiter tokens that are **genuinely** unmatched in this token stream, keyed by their
+   * start position (unique per token). Computed once, up front, by the standard stack walk.
+   *
+   * `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
+   * malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic — the class whose
+   * members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` —
+   * for a delimiter that is, in fact, correctly matched in the source."* Whether a delimiter is
+   * matched is a property of the **source**, not of how far a recovering parser happened to get, so
+   * it is answered here from the tokens rather than from parser state — which is what makes the
+   * answer the same on every recovery path (issues #879, #947, #980).
+   *
+   * A closer whose top-of-stack opener is a different kind (`( ]`) counts as unmatched and leaves
+   * that opener on the stack, so `( ]` reports both rather than silently pairing them.
+   */
+  function findUnmatchedDelimiters(): ReadonlySet<string> {
+    const unmatched = new Set<string>();
+    const openers: { kind: LexTokenKind; key: string }[] = [];
+    const closerOf: Partial<Record<LexTokenKind, LexTokenKind>> = {
+      rparen: "lparen",
+      rbracket: "lbracket",
+      rbrace: "lbrace",
+    };
+    for (const token of tokens) {
+      const key = positionKey(token.source_span.start);
+      if (
+        token.kind === "lparen" ||
+        token.kind === "lbracket" ||
+        token.kind === "lbrace"
+      ) {
+        openers.push({ kind: token.kind, key });
+        continue;
+      }
+      const wanted = closerOf[token.kind];
+      if (wanted === undefined) {
+        continue;
+      }
+      if (openers.at(-1)?.kind === wanted) {
+        openers.pop();
+      } else {
+        unmatched.add(key);
+      }
+    }
+    for (const opener of openers) {
+      unmatched.add(opener.key);
+    }
+    return unmatched;
+  }
+
+  /** `"line:column"` — a stable identity for a token, since no two tokens share a start. */
+  function positionKey(position: Position): string {
+    return `${position[0]}:${position[1]}`;
+  }
+
+  /**
+   * Is `token` a delimiter that is genuinely unmatched in the source? Every unmatched-delimiter
+   * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
+   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   *
+   * Four sites report without calling it: the end-of-input branches of the list literal, the dict
+   * literal, the parenthesized call, and the block body. Each sits inside `if (token.kind === "eof")`.
+   *
+   * **That exemption is not fully sound, and the residue is known.** An earlier revision of this
+   * comment justified it by claiming that having consumed to end of input proves no later closer
+   * exists — that claim is false and is deleted rather than rewritten. Nested long-block recovery can
+   * *consume* the closer before the outer block reaches end of input, so the source may be balanced
+   * while the parser is not: `repeat 2 [ repeat :x` ⏎ `]` reports its outer `[` unmatched even though
+   * the `]` is right there. Issue #879 tracks the residue; this slice halves it, since the same
+   * program reports the phantom **twice** before this change and once after — the stray `]` now
+   * correctly raises `ol-bad-token` through the gated path.
+   *
+   * All four sites are pinned exactly-once by `GENUINELY_UNMATCHED` in
+   * `packages/parser/src/newline-continuations-and-delimiters.test.mjs`. Two of them were **not**,
+   * until review measured it: an earlier revision asserted the coverage without checking it, and the
+   * paren-call and block-body branches had no witness, because a plain `print ( 1 + 2` reaches the
+   * *gated* paren path rather than the end-of-input one. Reaching each branch takes a specific shape
+   * — `print (sum 1 2` for the call, `repeat 2 [ print 1` for the block — which is exactly why the
+   * claim could not be made by reading.
+   *
+   * Cited by role rather than by line: an earlier revision named the four by `parser.ts:<line>`, and
+   * those line numbers were invalidated by the length of this very comment, which sits above them in
+   * the same file. Nothing gates an intra-repo `file:line` citation.
+   */
+  function isGenuinelyUnmatched(token: LexToken): boolean {
+    return unmatchedDelimiters.has(positionKey(token.source_span.start));
+  }
+
+  /**
+   * The diagnostic for "I expected `open`'s closer here and found something else".
+   *
+   * When `open` really has no closer, that *is* the defect and the unmatched-delimiter diagnostic is
+   * correct. When it has one, the delimiters are balanced and the defect is whatever is sitting here
+   * instead — so this reports **that token** rather than the delimiter
+   * (`spec/error-model.md:165-169`: *"`ol-bad-token` alone is authoritative for the malformed-input
+   * class"*).
+   *
+   * Substituting, rather than staying silent, is the load-bearing half. Every caller reports and
+   * then abandons its construct; returning no diagnostic at all would hand the caller a silent
+   * success, and the tokens it walked away from would be re-read as statements — turning one honest
+   * error into a cascade of invented ones (issues #879, #947).
+   */
+  function unmatchedOpenerOr(
+    open: LexToken,
+    unmatchedFor: (span: SourceSpan, delimiter: never) => Diagnostic,
+    delimiter: string,
+  ): Diagnostic {
+    return isGenuinelyUnmatched(open)
+      ? unmatchedFor(open.source_span, delimiter as never)
+      : unexpected(current());
   }
 
   function skipNewlines(): void {
@@ -228,16 +507,31 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return makeSpan(document, start, lastEnd);
   }
 
+  /**
+   * The diagnostic for a token the grammar cannot use here. A **closing** delimiter is reported as
+   * unmatched only when it genuinely is — otherwise the offending token is the malformed input
+   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:165-169`). Before
+   * this gate, `print [ 1 + ]` reported `ol-unmatched-bracket` against a `]` that is correctly
+   * matched two characters from its `[` (issues #947, #879).
+   */
   function unexpected(token: LexToken): Diagnostic {
     switch (token.kind) {
       case "rbracket":
-        return parseDiag.unmatchedBracket(token.source_span, "]");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBracket(token.source_span, "]")
+          : parseDiag.badToken(token.source_span, token.text);
       case "rparen":
-        return parseDiag.unmatchedParen(token.source_span, ")");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedParen(token.source_span, ")")
+          : parseDiag.badToken(token.source_span, token.text);
       case "lbrace":
-        return parseDiag.unmatchedBrace(token.source_span, "{");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBrace(token.source_span, "{")
+          : parseDiag.badToken(token.source_span, token.text);
       case "rbrace":
-        return parseDiag.unmatchedBrace(token.source_span, "}");
+        return isGenuinelyUnmatched(token)
+          ? parseDiag.unmatchedBrace(token.source_span, "}")
+          : parseDiag.badToken(token.source_span, token.text);
       case "newline":
         return parseDiag.badToken(token.source_span, "end of line");
       case "eof":
@@ -250,6 +544,33 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /** Build a spanned name from the surface spelling `name` and a source token's span. */
   function sname(name: string, token: LexToken): SpannedName {
     return { name, source_span: token.source_span };
+  }
+
+  /**
+   * True when a diagnostic already covers the source between `afterToken` and `beforeToken` — i.e.
+   * the lexer reported a fault (an unclosed string such as `make "size`, or a multiline triple
+   * quoted `make """size`) that consumed the very text a grammar slot expected. A caller uses this
+   * to avoid stacking a redundant `ol-bad-token` on top of that more-specific diagnostic
+   * (`spec/error-model.md:110`).
+   *
+   * The window is bounded on *both* sides so an unrelated diagnostic *later* on the line cannot
+   * trigger suppression: `make 5 "oops` must still report the invalid `5` target even though an
+   * `ol-unclosed-string` appears further along. Positions are compared lexicographically (line then
+   * column) so a multiline unclosed string — whose consuming `eof`/`newline` slot token lands on a
+   * *later* line — is still recognised as having eaten the slot.
+   */
+  function lexDiagnosticInGap(
+    afterToken: LexToken,
+    beforeToken: LexToken,
+  ): boolean {
+    const gapStart = afterToken.source_span.end;
+    const gapEnd = beforeToken.source_span.start;
+    const atOrAfter = (a: Position, b: Position): boolean =>
+      a[0] > b[0] || (a[0] === b[0] && a[1] >= b[1]);
+    return diagnostics.some((diagnostic) => {
+      const start = diagnostic.source_span.start;
+      return atOrAfter(start, gapStart) && atOrAfter(gapEnd, start);
+    });
   }
 
   /**
@@ -308,6 +629,23 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * selectors — to decide whether this is an assignment target (`:a.b[1] = …`) rather than a bare
    * place read used as an expression. Selectors are skipped by balanced bracket/paren depth so a
    * parenthesized key-term (`:nums[(:i + 1)] = …`) is spanned correctly.
+   */
+  /**
+   * Is the token at `offset` lexically adjacent to the one before it? The fourth adjacency site,
+   * and the only one that asks the question *ahead* of the cursor rather than behind it.
+   *
+   * **It needs no newline guard, and deliberately has none.** Its one caller,
+   * {@link colonAssignmentAhead}, walks only over `dot`/`name` pairs and adjacent `lbracket`s, so a
+   * raw `newline` token ends that walk before this is ever reached across one — which is the same
+   * kind of immunity {@link isNegativeNumberLiteralAt} and {@link isDictKeyAt} have: the newline is
+   * a *token* in the way, not an invisible gap. Adding a guard here anyway would be an unreachable
+   * branch, which the coverage gate rejects and which would misleadingly imply the caller could
+   * arrive here mid-newline.
+   *
+   * **The invariant a later caller must preserve:** never call this with a `newline` between
+   * `offset - 1` and `offset`. A newline token's `end` *is* the next line's column 1, so it would
+   * report adjacency across a line break — the exact defect {@link currentAdjacentToPrev}'s
+   * `sawWhitespaceGap` exists to prevent, where the caller could not be constrained that way.
    */
   function peekAdjacent(offset: number): boolean {
     const prevEnd = peek(offset - 1).source_span.end;
@@ -374,18 +712,43 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (user !== undefined) {
       return user;
     }
-    return primitiveArity(name) ?? 0;
+    return primitiveArity(name) ?? heritageAliasArity(name) ?? 0;
   }
 
+  /**
+   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:215`)? **Derived
+   * from the same two sets {@link parseNamePrimary} consults** (issue #853), so the primary reader
+   * and the parenthesized-call reader cannot drift apart: a word that may not begin an expression is
+   * not a callee either, and of the expression-initial keywords only `thing` is a real
+   * callable — `true`/`false` are literals and `map`/`filter`/`reduce` open a comprehension, none of
+   * which is a `callable-name`. Hand-restating that second list here is the very drift this issue
+   * fixed one layer up, so it is computed instead.
+   *
+   * **This answer is load-bearing for the Heritage `value-of-reader` (issue #830).** Because
+   * {@link parseParenthesized} consults it on the head token, `value` answering **false** here is
+   * the whole reason `( value of :d for key "a" )` reaches {@link parseValueOfKey} instead of being
+   * taken as a `parenthesized-call` on a callee named `value` — the grammar derives the reader
+   * inside parentheses (`spec/grammar.md:199,203,213,217`), and returning true for `value` makes
+   * that derivation unreachable, which is exactly the `ol-bad-token` defect #830 reported. The
+   * false comes from `value` being in {@link NON_PRIMARY_NAMES} via its presence in
+   * {@link OL_KEYWORDS} — a property #885 established when it replaced a hand-written list with
+   * that derivation, incidentally fixing #830 without naming it.
+   *
+   * Precisely: what would reopen #830 is dropping `value` from {@link OL_KEYWORDS} (it would leave
+   * {@link NON_PRIMARY_NAMES}, and the final clause would then answer true), or special-casing it
+   * to true here. Moving it into {@link EXPRESSION_INITIAL_KEYWORDS} would **not** — it would leave
+   * {@link NON_PRIMARY_NAMES}, but the final clause negates that same set, so the answer stays
+   * false. That edit breaks the *other* rule instead, #853's rejection of a bare `value` in
+   * expression position. Both cases are covered: `value-of-key-in-parentheses.test.mjs` and the two
+   * `heritage-value-of-key-reader-in-parentheses` conformance fixtures fail on the former, and that
+   * test file's bare-`value` case fails on the latter.
+   */
   function isCalleeName(text: string): boolean {
     const lower = text.toLowerCase();
-    if (lower === "true" || lower === "false") {
+    if (NON_PRIMARY_NAMES.has(lower)) {
       return false;
     }
-    if (lower === "map" || lower === "filter" || lower === "reduce") {
-      return false;
-    }
-    return !NON_PRIMARY_NAMES.has(lower);
+    return lower === "thing" || !EXPRESSION_INITIAL_KEYWORDS.has(lower);
   }
 
   // --- Expressions ---------------------------------------------------------
@@ -394,17 +757,240 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return parseOr();
   }
 
+  /**
+   * Consume the newlines sitting where a **required piece of the expression is still pending** —
+   * after a binary or unary operator has been consumed but its operand has not been read yet, or
+   * after a multi-word reader has committed to a head whose remaining fixed words and operands have
+   * not. `spec/grammar.md:34`: *"Within a single expression, list literal, dict literal, or
+   * parenthesized group, newlines are insignificant."* A newline in this position cannot be the
+   * statement terminator that the same sentence describes, because the statement it would terminate
+   * is not finished (issue #933).
+   *
+   * This can never change a program that is legal today: an operator with a newline in its operand
+   * slot — or a `value of :d for` with a newline where its `key` must be — is *always* a parse error
+   * right now (`ol-bad-token`), so there is no valid meaning to swallow. That is also why the
+   * position needs no dictionary-key guard: {@link isDictKeyAt} exists to protect a reading that is
+   * legal today, and here there is none to protect (issue #962). `spec/grammar.md:314` says so
+   * normatively for the dictionary case, naming this reader: where a value is "not yet complete —
+   * an operator or a call still owed an operand, say, or a `value of … for key` reader still owed
+   * its tail — the unfinished value's own grammar position wins and no entry opens", and "because
+   * none of this consults line breaks, newlines inside a dict literal are insignificant without
+   * exception". Contrast {@link continuesOnNextLine}, which faces a *complete* expression and
+   * therefore has to be guarded.
+   */
+  function skipNewlinesBeforeOperand(): void {
+    skipNewlines();
+  }
+
+  function isAdditiveOp(token: LexToken): boolean {
+    return token.kind === "op" && (token.text === "+" || token.text === "-");
+  }
+
+  /** Is `token` the `name` keyword `word`? The worded operators are `name`s, not `op`s. */
+  function isKeywordToken(token: LexToken, word: string): boolean {
+    return token.kind === "name" && token.text.toLowerCase() === word;
+  }
+
+  function isMultiplicativeOp(token: LexToken): boolean {
+    return (
+      (token.kind === "op" && (token.text === "*" || token.text === "/")) ||
+      isKeywordToken(token, "mod")
+    );
+  }
+
+  /**
+   * Is the token at `offset` a `-` sitting directly against a numeral, i.e. the leading `-` of a
+   * negative `number` literal rather than a subtraction operator (`spec/grammar.md:60`)? Adjacency
+   * is compared on BOTH line and column, so `- 3` (and a `-` separated by a line-spanning block
+   * comment) is a bare operator. Shared by {@link tryNegativeNumberLiteral}, which consumes such a
+   * pair, and {@link continuesOnNextLine}, which must decline to continue a line across one.
+   */
+  function isNegativeNumberLiteralAt(offset: number): boolean {
+    const token = peek(offset);
+    const after = peek(offset + 1);
+    const end = token.source_span.end;
+    const start = after.source_span.start;
+    return (
+      token.kind === "op" &&
+      token.text === "-" &&
+      after.kind === "number" &&
+      end[0] === start[0] &&
+      end[1] === start[1]
+    );
+  }
+
+  /**
+   * The expression parsed so far is *complete*, but the current token is a newline and the
+   * expression continues on a later line with a leading binary operator (`print 1` ⏎ `+ 2`). Report
+   * whether to consume those newlines so the operator binds to what came before, honouring
+   * `spec/grammar.md:34`'s "newlines are insignificant" within one expression (issue #933).
+   *
+   * Unlike {@link skipNewlinesBeforeOperand} this position *can* legally end a statement, so what
+   * makes a continuation safe is a property of the operator itself: **no operator this admits can
+   * begin a statement.** `and true false`, `or true false`, `mod 5 2`, `is empty` and every
+   * symbolic operator are all parse errors in statement position today, so continuing onto one can
+   * never swallow a statement that used to be read — there is no valid reading to lose.
+   *
+   * The single exception is the one token that *can*: a `-` glued to a numeral is a negative
+   * `number` literal (`spec/grammar.md:60`), which is a legal statement and a legal list element.
+   * So `print 1` ⏎ `-2` keeps its two statements and `[1` ⏎ `-2]` keeps its two elements, while the
+   * spaced `print 1` ⏎ `- 2` — a parse error today — becomes the subtraction it reads as. A worded
+   * operator has a second exception of the same shape, {@link isDictKeyAt}: it may also be a
+   * dictionary key.
+   *
+   * `isOperator` is handed the token *and* its offset so a caller whose continuation is more than
+   * one token wide can look past it — {@link continuesOnNextLineWithValueOfKeyTail} needs that, and
+   * every single-token caller simply ignores the second parameter.
+   */
+  function continuesOnNextLine(
+    isOperator: (token: LexToken, offset: number) => boolean,
+  ): boolean {
+    if (current().kind !== "newline") {
+      return false;
+    }
+    const offset = skippingNewlines(0);
+    return (
+      isOperator(peek(offset), offset) &&
+      !isNegativeNumberLiteralAt(offset) &&
+      !isDictKeyAt(offset)
+    );
+  }
+
+  /** The offset of the first non-`newline` token at or after `offset`. */
+  function skippingNewlines(offset: number): number {
+    let index = offset;
+    while (peek(index).kind === "newline") {
+      index += 1;
+    }
+    return index;
+  }
+
+  /**
+   * Is the token at `offset` a worded operator being used as a **dictionary key** rather than as an
+   * operator? `and`, `or`, `mod` and `is` are perfectly good key names, so after a complete entry
+   * value the word is genuinely ambiguous — and `spec/grammar.md:314`'s **Entry lookahead** rule
+   * settles it by *"the next token after it, ignoring any line breaks between the two — so a
+   * dictionary written on one line and the same dictionary written across several lines always read
+   * alike"* (issue #944, maintainer ruling option 4).
+   *
+   * The discriminator is the separator's **lexeme**, not its position and not adjacency:
+   *
+   * - a `colon` token is the next entry's key separator, so `{ a: 1 mod: 2 }`, `{ a: 1 mod : 2 }`
+   *   and `{ a: 1 and: 2 }` are each **two** entries;
+   * - a `variable` token is a `variable-read`, *"whose `:` is immediately followed by its name"*, and
+   *   keeps the word an operator — so `{ a: 1 mod :two }` and `{ a: 1 mod:two }` are **one** entry
+   *   whose value is `1 mod :two`.
+   *
+   * That second case is why this returns false for `variable`: reading it as a separator would
+   * silently reparse a currently-valid program into two entries with `two` as a bare word. Both
+   * readings parse cleanly, so the dictionary would change meaning with no diagnostic at all — the
+   * defect the ruling rejected option 2 for. In **key** position a `variable` token legitimately
+   * *is* the separator (`{ a:b }`), which is {@link splitGluedColonToken}'s job, not this one's.
+   *
+   * Newlines between the word and its separator are skipped because the rule says to ignore them,
+   * which is what makes the one-line and multi-line spellings agree. Outside a dictionary entry
+   * value this never fires, so `print :total` ⏎ `mod :divisor` still continues as the one expression
+   * it plainly is. Only a worded operator can be a key; a symbolic one is not an identifier, so it
+   * never reaches this test with a `name` token.
+   */
+  function isDictKeyAt(offset: number): boolean {
+    if (!inDictEntryValue || peek(offset).kind !== "name") {
+      return false;
+    }
+    return peek(skippingNewlines(offset + 1)).kind === "colon";
+  }
+
+  /**
+   * Does the worded operator sitting at the **current** position open the next dictionary entry
+   * instead of continuing this one's value? `spec/grammar.md:314` settles that question *"once an
+   * entry's value is complete"* — which is here, at the top of each worded-operator loop — and
+   * settles it *"regardless of position"*, so it must be asked on one line exactly as it is asked
+   * across a newline (issue #944).
+   *
+   * Newlines are looked past for the same reason the rule ignores them: a dictionary written on one
+   * line and the same dictionary written across several must read alike. In the operator loops the
+   * current token is never a newline by the time this is asked, so the skip matters only to
+   * {@link parseFixedCall}'s pending-operand test, where it may well be.
+   *
+   * Before the ruling this test lived only inside {@link continuesOnNextLine}, i.e. only on the
+   * newline path, which is precisely what made a newline significant inside a dict literal:
+   * `{ a: 1` ⏎ `mod: 2 }` read as two entries while `{ a: 1 mod: 2 }` raised `ol-bad-token`.
+   */
+  function opensNextDictEntry(): boolean {
+    return isDictKeyAt(skippingNewlines(0));
+  }
+
+  /** {@link continuesOnNextLine} for a worded operator (`and`, `or`, `mod`, `is`). */
+  function continuesOnNextLineWith(word: string): boolean {
+    return continuesOnNextLine((token) => isKeywordToken(token, word));
+  }
+
+  /**
+   * {@link continuesOnNextLine} for the `for key` tail of the Heritage `value of … for key …`
+   * reader (`spec/grammar.md:217`), which is **one expression** and therefore subject to
+   * `spec/grammar.md:34`'s "newlines are insignificant" exactly like the operators above (issue
+   * #962). Without this, `print value of :d` ⏎ `for key :k` breaks at the newline — and inside a
+   * dictionary the wreckage also *misreads*, producing an entry keyed `key` in place of the entry
+   * that was there, which no diagnostic describes.
+   *
+   * `for` needs a guard the worded operators do not, because it is the one continuation token here
+   * that **can** begin a statement (`for i in …`/`for i from …`, `spec/grammar.md:129-130`). Two
+   * conditions keep those loops intact, and both are load-bearing:
+   *
+   * 1. The whole two-word tail must be there, so `print value of :d` ⏎
+   *    `for i in [ 1 2 ] [ print :i ]` keeps its loop as a separate statement.
+   * 2. `key` must not itself be the loop's **binder**. A `binder` is a `name`
+   *    (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+   *    perfectly good binder and `for key in …`/`for key from …` satisfy condition 1 while being
+   *    loops, not tails. The word after `key` settles it: `in`/`from` can only continue a loop, and
+   *    neither can begin the reader's key expression, so declining on them costs no legal reading.
+   *
+   * All four words this predicate inspects — `for` and `key` on the continuing side, `in` and
+   * `from` on the declining side — are matched case-insensitively, via {@link isKeywordToken},
+   * because OpenLogo keywords are case-insensitive (`spec/grammar.md:13`). So `FOR KEY` continues
+   * across a newline exactly as `for key` does, and `FOR i IN …` is declined exactly as `for i in
+   * …` is. `for` and `key` are looked up past newlines of their own, so `value of :d` ⏎ `for` ⏎
+   * `key :k` — a newline on both sides of `for` — is still one expression. The `in`/`from` lookup
+   * skips newlines too, but only defensively: `for key` ⏎ `in …` is a parse error both before and
+   * after this fix, so that skip protects no legal reading and is not pinned.
+   *
+   * Two of {@link continuesOnNextLine}'s three tests are inert for this caller and are inherited
+   * only because they come with the mechanism: `for` is a `name`, never a negative numeral, and
+   * {@link isDictKeyAt} needs a `colon`/`variable` right after it, which condition 1 has already
+   * excluded by requiring `key` there. Neither is load-bearing here — do not read them as a reason
+   * this predicate is safe. The two numbered conditions are that reason.
+   */
+  function continuesOnNextLineWithValueOfKeyTail(): boolean {
+    return continuesOnNextLine((token, offset) => {
+      if (!isKeywordToken(token, "for")) {
+        return false;
+      }
+      const keyOffset = skippingNewlines(offset + 1);
+      if (!isKeywordToken(peek(keyOffset), "key")) {
+        return false;
+      }
+      const afterKey = peek(skippingNewlines(keyOffset + 1));
+      return (
+        !isKeywordToken(afterKey, "in") && !isKeywordToken(afterKey, "from")
+      );
+    });
+  }
+
   function parseOr(): ExpressionNode | undefined {
     let left = parseAnd();
     if (left === undefined) {
       return undefined;
     }
     for (;;) {
-      if (!isName("or")) {
+      if (continuesOnNextLineWith("or")) {
+        skipNewlines();
+      }
+      if (!isName("or") || opensNextDictEntry()) {
         break;
       }
       const opTok = current();
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseAnd();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -425,11 +1011,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
-      if (!isName("and")) {
+      if (continuesOnNextLineWith("and")) {
+        skipNewlines();
+      }
+      if (!isName("and") || opensNextDictEntry()) {
         break;
       }
       const opTok = current();
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseComparison();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -461,7 +1051,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (first === undefined) {
       return undefined;
     }
-    if (isName("is")) {
+    if (continuesOnNextLineWith("is")) {
+      skipNewlines();
+    }
+    if (isName("is") && !opensNextDictEntry()) {
       return parseIsPredicate(first);
     }
     // A single comparison stays a Call; two or more become one ComparisonChain that stores each
@@ -469,11 +1062,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const operands: ExpressionNode[] = [first];
     const operators: SpannedName[] = [];
     for (;;) {
+      if (continuesOnNextLine(isCompareOp)) {
+        skipNewlines();
+      }
       const token = current();
       if (!isCompareOp(token)) {
         break;
       }
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseAdditive();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -499,6 +1096,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
   function parseIsPredicate(operand: ExpressionNode): ExpressionNode {
     advance(); // consume `is`
     const start = operand.source_span.start;
+    // Every slot from here on is part of one unfinished `is` predicate, so a newline in any of
+    // them is insignificant (`spec/grammar.md:34`) — and is a parse error today, so nothing that
+    // parses cleanly can be re-read (issue #933).
+    skipNewlinesBeforeOperand();
     const token = current();
     if (token.kind === "name") {
       const lower = token.text.toLowerCase();
@@ -508,8 +1109,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       if (lower === "member") {
         advance();
+        skipNewlinesBeforeOperand();
         if (isName("of")) {
           advance();
+          skipNewlinesBeforeOperand();
         } else {
           diagnostics.push(unexpected(current()));
         }
@@ -526,6 +1129,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       }
       if (lower === "a") {
         advance();
+        skipNewlinesBeforeOperand();
         const typeTok = current();
         if (typeTok.kind !== "word") {
           diagnostics.push(unexpected(typeTok));
@@ -550,6 +1154,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   ): ExpressionNode {
     advance(); // consume `between` or `strictly`
     if (strict) {
+      skipNewlinesBeforeOperand();
       if (isName("between")) {
         advance();
       } else {
@@ -557,17 +1162,20 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return operand;
       }
     }
+    skipNewlinesBeforeOperand();
     const low = parseAdditive();
     if (low === undefined) {
       diagnostics.push(unexpected(current()));
       return operand;
     }
+    skipNewlinesBeforeOperand();
     if (isName("and")) {
       advance();
     } else {
       diagnostics.push(unexpected(current()));
       return operand;
     }
+    skipNewlinesBeforeOperand();
     const high = parseAdditive();
     if (high === undefined) {
       diagnostics.push(unexpected(current()));
@@ -586,13 +1194,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLine(isAdditiveOp)) {
+        skipNewlines();
+      }
       const token = current();
-      const isAddOp =
-        token.kind === "op" && (token.text === "+" || token.text === "-");
-      if (!isAddOp) {
+      if (!isAdditiveOp(token)) {
         break;
       }
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseMultiplicative();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -613,14 +1223,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     for (;;) {
+      if (continuesOnNextLine(isMultiplicativeOp)) {
+        skipNewlines();
+      }
       const token = current();
-      const isMulOp =
-        token.kind === "op" && (token.text === "*" || token.text === "/");
-      const isMod = token.kind === "name" && token.text.toLowerCase() === "mod";
-      if (!isMulOp && !isMod) {
+      if (!isMultiplicativeOp(token) || opensNextDictEntry()) {
         break;
       }
+      const isMod = isKeywordToken(token, "mod");
       advance();
+      skipNewlinesBeforeOperand();
       const right = parseUnary();
       if (right === undefined) {
         diagnostics.push(unexpected(current()));
@@ -639,27 +1251,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * If the current token is a `-` sitting directly against a numeral (no gap), consume both and
    * return the negative numeric literal — a leading `-` is part of the `number` in that position
-   * (`spec/grammar.md:17,58`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
+   * (`spec/grammar.md:17,60`). Returns `undefined` otherwise. Shared by {@link parseUnary} (where a
    * negative literal may lead an expression) and {@link parseKeyTerm} (a selector key is a
    * `number`). A gap (`- 3`, or a block comment between the two) is a stray minus with no left
    * operand, not a negative literal, so the `-`'s end must equal the numeral's start on BOTH line
    * and column — a block comment is whitespace and may span lines (`spec/grammar.md:32`).
    */
   function tryNegativeNumberLiteral(): NumberLitNode | undefined {
-    const token = current();
-    const after = peek(1);
-    const end = token.source_span.end;
-    const start = after.source_span.start;
-    if (
-      token.kind === "op" &&
-      token.text === "-" &&
-      after.kind === "number" &&
-      end[0] === start[0] &&
-      end[1] === start[1]
-    ) {
-      advance();
-      const numTok = current();
-      advance();
+    if (isNegativeNumberLiteralAt(0)) {
+      const token = advance();
+      const numTok = advance();
       return ast.numberLit(-Number(numTok.text), spanBetween(token, numTok));
     }
     return undefined;
@@ -669,6 +1270,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const token = current();
     if (token.kind === "name" && token.text.toLowerCase() === "not") {
       advance();
+      skipNewlinesBeforeOperand();
       const operand = parseUnary();
       if (operand === undefined) {
         diagnostics.push(unexpected(current()));
@@ -694,16 +1296,38 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * them)? A selector `[` binds as a postfix only when it directly follows its place, so
    * `:durations[:i]` is a selector while `map n in :nums [ … ]` keeps `[ … ]` as a separate body.
    * `lastEnd` tracks the end of the last consumed token, so this compares the `[`'s start to it.
+   *
+   * **Adjacency is whitespace-agnostic: any whitespace breaks it, and a newline is whitespace.**
+   * A newline is insignificant to the *grammar*, not invisible to the *lexer* — it separates two
+   * tokens exactly as a space does (maintainer ruling on issue #944's sibling question). Comparing
+   * positions alone cannot see that, because a newline token's `end` **is** the next line's column
+   * 1: after a `skipNewlines()` the following token's start equals `lastEnd` and tests as adjacent,
+   * so a skipped newline *manufactures* an adjacency the source never had. `sawWhitespaceGap`
+   * records the real answer at the moment the newline is consumed, which is the only moment it is
+   * still knowable.
+   *
+   * Two sibling adjacency tests need no such flag and are left alone. Their immunity is not that
+   * they avoid positions — {@link isNegativeNumberLiteralAt} compares positions exactly as this
+   * does — but that they read the **raw token stream**, where a newline still occupies a slot, and
+   * so is *in the way* rather than already skipped past: that one peeks at two neighbouring stream
+   * slots, and {@link isDictKeyAt} inspects the separator's own lexeme kind. Reading the stream
+   * unskipped is the shape to prefer — this flag exists only because `lastEnd` is a position left
+   * behind *after* the newline was consumed. The fourth site, {@link peekAdjacent}, is immune the
+   * same way: a newline token ends its caller's walk before it is reached, so it states the
+   * invariant a later caller must preserve instead of re-testing it.
    */
   function currentAdjacentToPrev(): boolean {
+    if (sawWhitespaceGap) {
+      return false;
+    }
     const start = current().source_span.start;
     return lastEnd[0] === start[0] && lastEnd[1] === start[1];
   }
 
   /**
-   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:111`): a `number` (including a
+   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:113`): a `number` (including a
    * negative literal such as `[-1]`), a word literal, a `:name` read, a bare identifier (a *literal
-   * word key*, never evaluated — reserved words are valid data here), or a parenthesized
+   * word key*, never evaluated — built-in names are valid data here), or a parenthesized
    * expression. Returns `undefined` for anything else so the caller can report the malformed
    * selector.
    */
@@ -738,10 +1362,22 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `[ key-term ]` selector, interleaved freely (so `:a.b[1].c` yields field, selector, field).
    * A `[` is only a selector when it is lexically adjacent to what precedes it; a spaced `[`
    * belongs to something else (a list literal, a control body) and ends the chain.
+   *
+   * A `.field` may sit on the next line — `spec/grammar.md:34` makes newlines insignificant within
+   * one expression, and `postfix-expression` (:192) is one (issue #980). {@link continuesOnNextLine}
+   * guards the crossing: a `dot` can never begin a statement, so continuing onto one can swallow no
+   * valid reading. **A selector `[` deliberately does not cross**, because the same sentence gives a
+   * newline a competing job there — *"immediately after a control or procedure header, a newline
+   * selects the long `... end` body form"* — so `map n in :nums` ⏎ `[ … ]` is a long-form body, not
+   * a selector on `:nums`. Adjacency, which a newline breaks by construction, is what keeps those
+   * apart.
    */
   function collectPostfixSegments(): PlaceSegment[] {
     const segments: PlaceSegment[] = [];
     for (;;) {
+      if (continuesOnNextLineWithFieldPostfix()) {
+        skipNewlines();
+      }
       if (current().kind === "dot" && peek(1).kind === "name") {
         const dot = current();
         advance();
@@ -761,13 +1397,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (current().kind === "lbracket" && currentAdjacentToPrev()) {
         const open = current();
         advance();
+        // No `inDictValue(false, …)` here: a key-term is a number, word, `:name`, bare identifier,
+        // or a parenthesized expression — and only the parenthesized form can reach a binary
+        // operator, which clears the flag itself. A wrapper here would be unreachable code.
         const key = parseKeyTerm();
         if (key === undefined) {
           diagnostics.push(unexpected(current()));
           break;
         }
         if (current().kind !== "rbracket") {
-          diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+          diagnostics.push(
+            unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+          );
           break;
         }
         const close = current();
@@ -819,6 +1460,19 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
   }
 
+  /**
+   * {@link continuesOnNextLine} for a `.field` postfix (issue #980). A `dot` begins no statement and
+   * is no dictionary key, so both of `continuesOnNextLine`'s guards are inert here and the two
+   * conditions that matter are stated directly: the next non-newline token is a `dot`, and a `name`
+   * follows it — the same pair {@link collectPostfixSegments} requires on one line.
+   */
+  function continuesOnNextLineWithFieldPostfix(): boolean {
+    return continuesOnNextLine(
+      (token, offset) =>
+        token.kind === "dot" && peek(offset + 1).kind === "name",
+    );
+  }
+
   function parsePostfix(): ExpressionNode | undefined {
     const primaryStart = current();
     const primaryStartIndex = pos;
@@ -828,9 +1482,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     // A postfix read `:a.b.c` or `:nums[1]` grows the bare variable into a place; a plain `:a`
     // stays a VarRef. A `[` counts only when adjacent, so a spaced `[ … ]` stays a separate token.
+    // A `.field` may also sit on the next line (issue #980); see
+    // {@link continuesOnNextLineWithFieldPostfix} for why it crosses and the selector `[` does not.
     const hasPostfixAhead =
       (current().kind === "dot" && peek(1).kind === "name") ||
-      (current().kind === "lbracket" && currentAdjacentToPrev());
+      (current().kind === "lbracket" && currentAdjacentToPrev()) ||
+      continuesOnNextLineWithFieldPostfix();
     if (!hasPostfixAhead) {
       return primary;
     }
@@ -853,7 +1510,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         spanToHere(primaryStart.source_span.start),
       );
     }
-    // `spec/grammar.md:188` — `postfix-expression ::= primary { selector | "." identifier }` —
+    // `spec/grammar.md:192` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
     // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
     // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
@@ -915,11 +1572,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (lower === "map" || lower === "filter" || lower === "reduce") {
       return parseComprehension(token, lower);
     }
-    if (
-      lower === "value" &&
-      peek(1).kind === "name" &&
-      peek(1).text.toLowerCase() === "of"
-    ) {
+    if (lower === "value" && isKeywordToken(peek(skippingNewlines(1)), "of")) {
       return parseValueOfKey(token);
     }
     if (NON_PRIMARY_NAMES.has(lower)) {
@@ -929,26 +1582,56 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `value of expression "for" "key" expression` (`spec/grammar.md:213`'s `value-of-reader`), the
+   * `value of expression "for" "key" expression` (`spec/grammar.md:217`'s `value-of-reader`), the
    * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
-   * (`spec/data-structures.md:183-195`). Both the dictionary and the key are full expressions
+   * (`spec/data-structures.md:213-231`). Both the dictionary and the key are full expressions
    * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
-   * intercepted here when `value` is directly followed by `of`, so a bare `value` (not a known
-   * primitive today) still falls through to {@link parseFixedCall} unchanged.
+   * intercepted here when `value` is directly followed by `of` — and that check runs *before*
+   * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
+   * `value` (never a callable: it is a keyword, `spec/grammar.md:358,371`) is
+   * rejected in expression position like every other misplaced keyword (issue #853).
+   *
+   * The reader is legal **wrapped in parentheses** too — `( value of :d for key "a" )` — because
+   * `primary` (`spec/grammar.md:193-204`) offers `parenthesized-expression` (:199) and
+   * `value-of-reader` (:203) side by side. That shape arrives here through
+   * {@link parseParenthesized}'s fall-through rather than through a `parenthesized-call`; see
+   * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
+   *
+   * Being one expression, it spans newlines: `spec/grammar.md:34` makes them insignificant inside
+   * it, so **every** internal slot skips them (issues #962, #979). Three are positions where the
+   * reader has already committed and a newline is a parse error today whatever follows, so they use
+   * {@link skipNewlinesBeforeOperand}; only the tail's leading `for` faces a newline that could
+   * otherwise be a statement terminator, and it uses the guarded
+   * {@link continuesOnNextLineWithValueOfKeyTail}.
+   *
+   * The newline between `value` and `of` is the fourth, and it is a slot of the *interception* test
+   * above rather than of this function — which is why #962 fixed the other three and left it. It
+   * needs no guard either: `value` is a reserved keyword that is never callable, so a bare `value`
+   * in expression position "is the head of the heritage `value of … for key …` reader where
+   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:390`). There is
+   * therefore no legal one-statement-per-line reading to swallow — `print value` ⏎ `of :d for key
+   * :k` was four `ol-bad-token` before this.
    */
   function parseValueOfKey(token: LexToken): ExpressionNode | undefined {
     advance(); // "value"
+    skipNewlinesBeforeOperand();
     advance(); // "of"
+    skipNewlinesBeforeOperand();
     const dictionary = requireExpression();
     if (dictionary === undefined) {
       return undefined;
     }
+    if (continuesOnNextLineWithValueOfKeyTail()) {
+      skipNewlines();
+    }
     if (!consumeKeyword("for")) {
       return undefined;
     }
+    skipNewlinesBeforeOperand();
     if (!consumeKeyword("key")) {
       return undefined;
     }
+    skipNewlinesBeforeOperand();
     const key = requireExpression();
     if (key === undefined) {
       return undefined;
@@ -965,8 +1648,40 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const arity = arityOf(token.text.toLowerCase());
     const args: ExpressionNode[] = [];
     for (let k = 0; k < arity; k += 1) {
-      const arg = parseExpression();
+      // At the start of a pending argument the call is **still owed an operand**, so
+      // `spec/grammar.md:314` gives its grammar position precedence — *"an operator or a call still
+      // owed an operand … the unfinished value's own grammar position wins and no entry opens"*.
+      // Only that first token is protected: once the argument's own expression is under way, its
+      // completion completes the call, and a key after it may open the next entry.
+      //
+      // Both halves are load-bearing and pull opposite ways. `{ a: sentence 1 mod: 2 }` is owed its
+      // second operand at `mod`, so no entry opens and the entry is malformed (as the spec's own
+      // `{ a: 1 + b: 2 }` example is). `{ a: sentence 1 2 mod: 3 }` is complete at `mod`, so the
+      // entry does open — clearing the flag for the whole argument instead would swallow that
+      // `mod` as an operator and turn a valid two-entry dictionary into a parse error.
+      const owedAnOperand = opensNextDictEntry();
+      const arg = owedAnOperand
+        ? inDictValue(false, () => {
+            // The lookahead already looked past them, so consume them: the one-line and multi-line
+            // spellings of this malformed entry must agree, and leaving the newline unconsumed
+            // would let the dict loop open the entry anyway. Scoped to this branch on purpose —
+            // an unconditional skip here would join `print` ⏎ `abs 3` into one statement, which is
+            // the statement-delimitation question tracked by #983, not this slice's.
+            skipNewlines();
+            return parseExpression();
+          })
+        : parseExpression();
       if (arg === undefined) {
+        if (owedAnOperand) {
+          // The pending operand slot holds a token that would otherwise open the next entry. The
+          // grammar position wins, so the entry must NOT open — and simply breaking here would let
+          // it, by returning a short call whose caller then reads the key. Reporting *and
+          // consuming* the offending token makes the entry malformed instead, which is exactly
+          // what the spec's own `{ a: 1 + b: 2 }` example already does: there the operator path
+          // consumes its failed operand, so nothing is left for the dict loop to read as a key.
+          diagnostics.push(unexpected(current()));
+          advance();
+        }
         break;
       }
       args.push(arg);
@@ -976,6 +1691,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       sname(token.text, token),
       args,
       spanBetween(token, endNode),
+      canonicalOfHeritageAlias(token.text),
     );
   }
 
@@ -995,7 +1711,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.listLit(elements, spanBetween(open, token));
       }
       const before = pos;
-      const element = parseExpression();
+      const element = inDictValue(false, parseExpression);
       if (element !== undefined) {
         elements.push(element);
       }
@@ -1028,7 +1744,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.dictLit(entries, spanBetween(open, token));
       }
       const before = pos;
-      const entry = parseDictEntry();
+      // Scope the dict-entry-value flag around the WHOLE entry, not just its value parse, so the
+      // malformed-key recovery path ({@link skipMalformedDictKeyLiteral}, which also parses an
+      // expression) is covered too — otherwise a bad key swallows the entry after it.
+      const entry = inDictValue(true, parseDictEntry);
       if (entry !== undefined) {
         entries.push(entry);
       }
@@ -1169,7 +1888,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * `identifier | number` — narrower than {@link parseKeyTerm}'s selector `key-term`, which also
    * accepts `:name` reads, word literals, and parenthesized expressions — because a dict key is
    * always a literal, never evaluated (`spec/data-structures.md:143-171`). A bare identifier
-   * reuses {@link WordLitNode} exactly like a bare selector key; reserved words are legal keys
+   * reuses {@link WordLitNode} exactly like a bare selector key; built-in names are legal keys
    * for free, since the lexer never special-cases them. Returns `undefined` for anything else so
    * the caller can report the malformed entry.
    */
@@ -1209,6 +1928,102 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return { key, value, source_span: spanBetween(key, value) };
   }
 
+  /**
+   * Does the token at `offset` **continue** an expression rather than **begin** one — i.e. is it
+   * one of the infix operators the expression grammar layers into `expression`
+   * (`spec/grammar.md:181-190`: `or`, `and`, the `compare-op`s and `is`, `+`/`-`, `*`/`/`/`mod`)?
+   *
+   * **The symbolic operators are derived from the predicates the expression readers themselves
+   * branch on** ({@link isAdditiveOp}, {@link isMultiplicativeOp}, {@link isCompareOp}), never
+   * re-listed — the same anti-drift discipline {@link isCalleeName} follows for callee-hood (issue
+   * #853). A symbol added to one of those productions in a future slice reaches this answer through
+   * the reader that already recognises it, so the two cannot disagree about what an operator is.
+   *
+   * **The three worded heads are hand-mirrored, and that is a real seam.** `and`, `or` and `is` are
+   * recognised by their readers with inline `isName(…)` rather than through a shared predicate
+   * ({@link parseOr}, {@link parseAnd}, {@link parseComparison}), so there is no single source of
+   * truth to derive them from and they are restated here with {@link isKeywordToken}. A *new* worded
+   * infix operator — or a rename of one of these three — must be added here by hand; it will not
+   * flow through on its own. `mod` is not in that group: it arrives via
+   * {@link isMultiplicativeOp}, which its reader also uses.
+   *
+   * Every word here is a keyword (`spec/grammar.md:373-374`) and therefore in
+   * {@link NON_PRIMARY_NAMES}, and every symbol here is an `op` token. So **nothing this predicate
+   * admits can start an expression** — which is what makes {@link parseParenthesized} safe to treat
+   * it as proof that the head before it is complete. `not` is deliberately absent: it is prefix
+   * (:191), so it *does* begin an expression and is a perfectly good argument.
+   *
+   * The one token needing care is `-`, the single symbol a `primary` **can** begin with, and the
+   * grammar — not arity — settles it. A leading `-` glued to a numeral is *part of the `number`*
+   * (`spec/grammar.md:60`, restated at :230: *"A leading `-` on a numeral is part of a negative
+   * literal, not a unary operator"*), so `-1` opens an argument while `- 1` continues an
+   * expression. The **lexer emits `op(-) number(1)` for both** — measured, and the module doc of
+   * `tokens.ts` says so outright: *"a `-` that is only ever the minus operator (a negative numeral
+   * is assembled by the reader)"*. So the discriminator is **adjacency**, not token kind:
+   * {@link isNegativeNumberLiteralAt} compares the `-`'s end to the numeral's start on both line and
+   * column, exactly as {@link parseUnary} and {@link continuesOnNextLine} already do. Consulting it
+   * here is what lets `-` join the other nine operators instead of being carved out as an exception
+   * (issue #1021).
+   */
+  function isInfixOperatorAt(offset: number): boolean {
+    if (isNegativeNumberLiteralAt(offset)) {
+      return false;
+    }
+    const token = peek(offset);
+    return (
+      isAdditiveOp(token) ||
+      isMultiplicativeOp(token) ||
+      isCompareOp(token) ||
+      isKeywordToken(token, "and") ||
+      isKeywordToken(token, "or") ||
+      isKeywordToken(token, "is")
+    );
+  }
+
+  /**
+   * Could a **postfix segment** begin at `offset` — a `.field`, or a selector `[` glued to the token
+   * before it (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`)?
+   *
+   * **It is a lexical question, and the answer is deliberately not a conclusion.** It reports that
+   * the tokens after the head *could* continue it, not that they do: for `( round[1] )` this answers
+   * true, the call branch declines, and the ordinary expression path then reads `[1]` as `round`'s
+   * **argument** rather than as a selector — agreeing with bare `round[1]`, which does the same. So
+   * what a `true` buys is "the head is not a bare parenthesized call; let the normal expression
+   * grammar decide", which is exactly the decision {@link parseParenthesized} needs and no more.
+   * (An earlier revision of this doc said it "proves the head is a base". That was a stronger claim
+   * than the code makes, and `( round[1] )` is the counter-example.)
+   *
+   * The mirror image of {@link isInfixOperatorAt}, which asks whether something *continues* a
+   * complete head; this asks whether something *extends* it. Either way the head is not a bare call.
+   *
+   * **Ask it only of a head that can be a `primary`** — in this reader, an {@link isCalleeName}. A
+   * postfix segment extends a primary, so for a head that is no primary the question is meaningless
+   * and its answer actively wrong: `parseParenthesized` also admits the keyword heads `and`/`or`,
+   * which are callable only in that parenthesized form, and treating a glued `[` after one as a
+   * possible postfix turned the legal `( and[true false] true )` into two `ol-bad-token`s. The caller
+   * states that restriction; this predicate does not re-test it, because it has no way to know which
+   * of its caller's admitted heads are primaries.
+   *
+   * **The two conditions are transcribed from {@link parsePostfix}'s own `hasPostfixAhead`, not
+   * re-derived**, and that is the whole point: a parenthesized group must read its head exactly as
+   * the bare spelling does. A `.field` crosses newlines (a `dot` begins no statement, so continuing
+   * onto one can swallow no valid reading — see {@link continuesOnNextLineWithFieldPostfix}), while a
+   * selector `[` does **not**, because adjacency is what separates `:nums[1]` from a control's
+   * `[ … ]` body and a newline breaks adjacency by construction. Reading the raw stream for the `[`
+   * also keeps {@link peekAdjacent}'s stated invariant: its caller must never span a newline, and
+   * here a newline at `offset` fails the `lbracket` test before adjacency is ever asked.
+   */
+  function mayBeginPostfixAt(offset: number): boolean {
+    const fieldOffset = skippingNewlines(offset);
+    if (
+      peek(fieldOffset).kind === "dot" &&
+      peek(fieldOffset + 1).kind === "name"
+    ) {
+      return true;
+    }
+    return peek(offset).kind === "lbracket" && peekAdjacent(offset);
+  }
+
   function parseParenthesized(): ExpressionNode | undefined {
     const open = current();
     advance();
@@ -1217,29 +2032,169 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const lower = head.kind === "name" ? head.text.toLowerCase() : "";
     // A parenthesized head that is a callable — including the variadic logic words `and`/`or`,
     // which are not fixed-arity callees elsewhere — gathers every operand up to the `)`.
+    //
+    // Everything this branch declines falls through to the plain `parenthesized-expression`
+    // (`spec/grammar.md:213`) below, which re-enters the full `expression` grammar — and that is
+    // how the Heritage `value-of-reader` (:203, defined :217) stays reachable inside parentheses,
+    // as `primary` (:193-204) requires (issue #830). `value` is not an `isCalleeName`, so
+    // `( value of :d for key "a" )` declines here, reaches `parseExpression()`, and lands in
+    // {@link parseNamePrimary}'s `value`-then-`of` interception. Widening this condition to admit
+    // a worded reader's head word would swallow the reader and re-open #830.
+    //
+    // **A callable head is not enough on its own: the token after it must be able to *be* an
+    // argument.** `(` opens either production and this reader has no backtracking, so committing on
+    // the head alone made `( pi == pi )` gather arguments until it met `==` in an argument slot and
+    // raised `ol-bad-token` — while the identical unparenthesized `pi == pi` read cleanly. Adding
+    // parentheses to group an expression more explicitly is exactly what a learner is taught to do,
+    // so it must never be what breaks the program (issue #1021).
+    //
+    // **The lookahead asks two questions, one per way the grammar can continue a complete
+    // `primary`.** Neither is a claim of totality — the previous revision of this comment made one
+    // ("the grammar makes that lookahead total") and it was false, which is what issue #1025 came
+    // back to correct. What is claimed here is only what each question covers, and what it does not:
+    //
+    // - **An infix operator continues the head** (`spec/grammar.md:191`), so meeting one right after
+    //   the head proves the head was a whole operand and the group is a `parenthesized-expression`
+    //   (:213), not a `parenthesized-call` (:215) — a reading the call branch has no derivation for
+    //   anyway. {@link isInfixOperatorAt}.
+    // - **A postfix segment may extend the head** (`postfix-expression`, :192), so a `.field` or a
+    //   glued selector `[` means the head is not a *bare* call and the ordinary expression grammar
+    //   should read the whole thing. It does not follow that the head is a base: `( round[1] )`
+    //   declines here and then reads `[1]` as `round`'s **argument**, agreeing with bare `round[1]`,
+    //   which does the same. {@link mayBeginPostfixAt}.
+    //
+    // **The postfix question is asked only of an `isCalleeName` head, and that restriction is
+    // load-bearing rather than incidental.** {@link isCalleeName} is exactly "this name can head a
+    // `primary`", so it is exactly the set of heads a postfix segment could be extending. The
+    // `and`/`or` arm is admitted here *despite* answering false to it — they are keywords, and this
+    // parenthesized form is the only place they are callable — so they can never be a postfix base,
+    // and a glued `[` after one is a list **argument**. Asking them the postfix question broke
+    // `( and[true false] true )` into two `ol-bad-token`s while the spaced `( and [true false] true )`
+    // stayed clean (measured; `spec/grammar.md:390` gives the variadic form). Both spellings are
+    // pinned in `multiline-expressions.test.mjs`.
+    //
+    // A glued `[` is therefore **not** invariably a selector even among admitted heads, and the
+    // reader needs no arity to see it: after declining, `( round[1] )` reads `[1]` as `round`'s
+    // argument through the ordinary expression path — agreeing with bare `round[1]`, which does the
+    // same thing for the same reason.
+    //
+    // The postfix half is issue #1025, routing a decline #1021 left open. Measured at `f3066730`,
+    // with `define origin`/`define pair`:
+    //
+    // | source | parenthesized (before) | bare (control) |
+    // |---|---|---|
+    // | `print ( origin.x )` | `ol-bad-token` at parse | parses; `ol-type` at runtime |
+    // | `print ( pair[1] )` | `ol-too-many-inputs` | prints `10` |
+    //
+    // The second is the sharper one: the bare spelling *worked* and the parenthesized spelling
+    // failed, which is precisely the #1021 defect this branch's lookahead was added to fix — adding
+    // parentheses to group an expression more explicitly is what a learner is taught to do, so it
+    // must never be what breaks the program. Both now decline the call branch, fall through to
+    // `parseExpression()`, and read identically to their bare spellings.
+    //
+    // It is still decided on the token stream alone, with **no arity and no profile knowledge**:
+    // `heading` is a turtle primitive whose arity this profile-blind reader cannot see (issue #878),
+    // and it needs to see none. Newlines are skipped first for the operator (and for a `.field`,
+    // which may sit on the next line) because they are insignificant inside one parenthesized group
+    // (`spec/grammar.md:34`), so `( pi` ⏎ `+ 1 )` reads like `( pi + 1 )`. A selector `[`
+    // deliberately does not cross a newline; {@link mayBeginPostfixAt} says why.
+    //
+    // The AC3 traps all survive by this same rule rather than by exceptions to it: `( round -1 )`
+    // keeps its negative *argument* because a glued `-1` is a `number` literal, not an operator
+    // (see {@link isInfixOperatorAt}); `( and true false )` keeps its variadic call because `and` is
+    // the **head** here, and the lookahead looks *past* the head at `true`; and `( pi )` keeps its
+    // zero-argument call because `)` is no operator.
+    //
+    // A **spaced** `( pair [1] )` keeps the call on a one-element list argument — which is what
+    // `parenthesized-call` (:215) is *for*, and it deliberately does **not** agree with the bare
+    // `pair [1]`, which is a complete `pair` call followed by a stray list (`ol-bad-token`). The
+    // parenthesized call form has no bare equivalent by design: parentheses are how a call supplies
+    // arguments explicitly. Adjacency is what separates the two spellings, exactly as it already
+    // separates `-1` from `- 1`.
+    //
+    // What the lookahead deliberately does **not** do is second-guess arity, and both directions of
+    // that were measured rather than assumed:
+    //
+    // - `( pi -1 )` still commits to a call of `pi` on `-1`, so it parses clean and the **checker**
+    //   reports `ol-too-many-inputs` — the arity layer answering an arity question.
+    // - `( round - 1 )`, where the head is short of an input, stays a **parse** error. Declining the
+    //   call sends it to the branch below, where `round` runs {@link parseExpression} for its one
+    //   input; a spaced `-` cannot begin a `primary`, so {@link parsePrimary}'s `default` branch
+    //   consumes it and reports the first `ol-bad-token`, and {@link parseFixedCall} then breaks
+    //   with **zero** arguments (pinned, not described — the test asserts that arity). That first
+    //   diagnostic is not a grouping artifact: the bare, unparenthesized `round -` reports the same
+    //   one on the same token. The trailing `1` and `)` are then reported downstream, by the
+    //   group's tail and by the statement loop — three diagnostics from three sites, one per stray
+    //   token. `spec/error-model.md:165-172`'s MUST NOT is upheld throughout, since
+    //   {@link findUnmatchedDelimiters} answers from the source: no `ol-unmatched-paren` is raised
+    //   for these correctly-matched parentheses.
+    //
+    // That last recovery is inherited in **shape**, not invented — `( 1 2 )` and `( 1 2 3 )` already
+    // reported one `ol-bad-token` per stray token before this change and are unchanged by it. What
+    // is inherited is that shape, not one shared code path: the diagnostics come from several sites
+    // and their messages say so (`( 1 2 3 )`'s `3` carries the statement loop's *"each instruction
+    // needs a new line of its own"*, not a bad-token-in-a-group message). The difference worth
+    // naming is at the front: a literal head runs no argument reader at all, whereas above the
+    // **first** diagnostic is raised inside `round`'s argument attempt — which is exactly what the
+    // bare, unparenthesized `round -` control pins, since it reports that same single diagnostic on
+    // that same token with no group anywhere in sight.
+    //
+    // Declining the call newly routes arity-short heads into that recovery, with two consequences
+    // worth naming rather than discovering later. Both are confined to programs that are **invalid
+    // either way**, and both belong to the parser-resynchronisation defect tracked by saga #1017
+    // (Half B, *"after rejecting a token the parser does not resynchronise, so one mistake yields
+    // several messages"*); they are deliberately **not** special-cased here, since papering over a
+    // general defect in one error path only hides it:
+    //
+    // 1. The trailing operand leaks out of the group as a top-level sibling statement, so
+    //    `print ( round - 1 )` yields `print(round())` *and* a stray `1`.
+    // 2. The one-line and multi-line spellings of such a group stop agreeing:
+    //    `print ( round` ⏎ `- 1 )` parses clean as `print(round() - 1)` and leaves the arity
+    //    complaint to the checker, because there the `-` is reached through
+    //    {@link continuesOnNextLine} rather than through a pending argument slot. `spec/grammar.md:34`
+    //    makes newlines insignificant inside a group, and for the branch **decision** above they are
+    //    (that is what {@link skippingNewlines} is for, and an arity-0 head such as `pi` agrees in
+    //    both spellings). It is only this already-failing **recovery** that still reads them apart.
+    const headIsCallee = head.kind === "name" && isCalleeName(head.text);
+    const headIsVariadicLogic = lower === "and" || lower === "or";
     if (
-      head.kind === "name" &&
-      (isCalleeName(head.text) || lower === "and" || lower === "or")
+      (headIsCallee || headIsVariadicLogic) &&
+      !isInfixOperatorAt(skippingNewlines(1)) &&
+      !(headIsCallee && mayBeginPostfixAt(1))
     ) {
       advance();
       const callee =
         lower === "and" || lower === "or"
           ? sname(lower, head)
           : sname(head.text, head);
+      const canonical =
+        lower === "and" || lower === "or"
+          ? undefined
+          : canonicalOfHeritageAlias(head.text);
       const args: ExpressionNode[] = [];
       for (;;) {
         skipNewlines();
         const token = current();
         if (token.kind === "rparen") {
           advance();
-          return ast.parenCall(callee, args, spanBetween(open, token));
+          return ast.parenCall(
+            callee,
+            args,
+            spanBetween(open, token),
+            canonical,
+          );
         }
         if (token.kind === "eof") {
           diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
-          return ast.parenCall(callee, args, spanBetween(open, token));
+          return ast.parenCall(
+            callee,
+            args,
+            spanBetween(open, token),
+            canonical,
+          );
         }
         const before = pos;
-        const arg = parseExpression();
+        const arg = inDictValue(false, parseExpression);
         if (arg !== undefined) {
           args.push(arg);
         }
@@ -1249,7 +2204,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         }
       }
     }
-    const inner = parseExpression();
+    const inner = inDictValue(false, parseExpression);
     skipNewlines();
     if (inner === undefined && current().kind === "rparen") {
       // `( )` closes with no operand for the group — flag it rather than vanishing silently.
@@ -1260,7 +2215,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (current().kind === "rparen") {
       advance();
     } else {
-      diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+      diagnostics.push(unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("));
     }
     return inner;
   }
@@ -1365,7 +2320,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         return ast.block(body, spanBetween(open, token));
       }
       const before = pos;
-      const statement = parseStatement();
+      const statement = inDictValue(false, parseStatement);
       if (statement !== undefined) {
         body.push(statement);
       }
@@ -1425,7 +2380,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Re-wraps a fully-parenthesized assignment target — `(:x)`, `(:x.a)`, `((:x))`, `(first :x)` —
    * into the zero-selector `PostfixExpression` shape `parsePostfix` builds for every other
    * parenthesized read (issue #407/F7), so the semantic checker flags it with `ol-not-a-place`
-   * (spec/tooling.md:187, "reject … parenthesized expressions as targets") instead of the blunt
+   * (spec/tooling.md:188, "reject … parenthesized expressions as targets") instead of the blunt
    * parse `ol-bad-token` that discarding the grouping (`parseParenthesized`) would otherwise leave
    * (issue #442/F3). `parseParenthesized` strips the grouping parens, so a `(:x)` target parses to
    * the same bare `VarRef`/`Place` an assignable `:x` does; `countStrippedGroupingParens` recovers
@@ -1466,6 +2421,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
       switch (token.text.toLowerCase()) {
         case "set":
           return parseSetAssignment();
+        case "make":
+          return parseMakeAssignment();
         case "local":
           return parseLocal();
         case "if":
@@ -1479,9 +2436,25 @@ export function parse(source: string, document = "<input>"): ParseResult {
         case "for":
           return parseFor();
         case "define":
-          return parseProcedureDef();
+          return parseProcedureDef("define");
+        case "to":
+          // `to` is a keyword with three non-procedure roles: the `set … to` and `for … from … to`
+          // prepositions (`spec/grammar.md:380`) and the Data `add … to <list>` preposition
+          // (`spec/grammar.md:115`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
+          // else — including a `to` reached during error recovery of a malformed `set :x to 100` —
+          // is not a definition, so fall through to the generic token handling that already
+          // reports it, rather than mis-entering `parseProcedureDef` and cascading a spurious
+          // diagnostic on the token after `to`.
+          if (peek(1).kind === "name") {
+            return parseProcedureDef("to");
+          }
+          break;
         case "return":
-          return parseReturn();
+          return parseReturn("return");
+        case "output":
+          return parseReturn("output");
+        case "op":
+          return parseReturn("op");
         case "stop":
           return parseStop();
         case "throw":
@@ -1499,6 +2472,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
         default:
           break;
       }
+      // A registered profile head becomes a profile statement (`ask`/`each`/`tell`, the four event
+      // heads) — the seam every M5 profile grammar slice hangs off. But a *user-declared* callable
+      // of the same spelling wins here and parses as an ordinary Core call, because the reader is
+      // profile-blind: it never inspects the active profile set, so it cannot ask whether the word
+      // is a profile head "right now". Since issue #841 the checker raises `ol-reserved-word` on
+      // that declaration whatever the profile set (`spec/grammar.md:408`), so the program is not
+      // legal — but it must still be SHAPED as the learner wrote it, or the diagnostic would land
+      // on the wrong node. Without this guard the reader would mis-shape ordinary code that shadows
+      // one of these heads (see
+      // `tests/conformance/educational/meta-commands/hint-in-procedure-falls-back-to-program`).
+      const lowerHead = token.text.toLowerCase();
+      const profileForm = PROFILE_STATEMENT_FORMS.get(lowerHead);
+      if (profileForm !== undefined && !userArities.has(lowerHead)) {
+        return parseProfileStatement(profileForm);
+      }
     }
     const targetStartIndex = pos;
     const targetStartToken = current();
@@ -1506,7 +2494,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:187, :213-219) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:188, :215-220) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`
@@ -1547,6 +2535,57 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return target;
   }
 
+  /**
+   * Parse a registered profile statement form — the shared machinery every profile block-head
+   * (`ask`/`each`, `when`/`every`/`on_key`/`on_click`) and bodyless mode-switch command (`tell`)
+   * flows through (`spec/grammar.md#profile-grammar-extensions`). The head keyword has already been
+   * matched in {@link parseStatement}; `form` is its {@link PROFILE_STATEMENT_FORMS} descriptor.
+   *
+   * Each `argCount` argument is a Core `expression`; the block-tail (`hasBlock`) is the Core
+   * bracket-or-`… end` block reused via {@link parseControlBody}, so `end` and a matching
+   * `end <keyword>` both close it and a mismatched label (`ask` closed by `end each`) raises
+   * `ol-mismatched-end` — see {@link consumeEndLabel} and the profile labels added to
+   * {@link END_LABELS}. The head word is recorded as the node's {@link SpannedName} keyword so the
+   * checker can gate the form on the active profile set and point diagnostics at it.
+   */
+  function parseProfileStatement(
+    form: ProfileStatementForm,
+  ): StatementNode | undefined {
+    const headTok = current();
+    const keyword: SpannedName = {
+      name: headTok.text.toLowerCase(),
+      source_span: headTok.source_span,
+    };
+    advance();
+    const args: ExpressionNode[] = [];
+    for (let i = 0; i < form.argCount; i += 1) {
+      const arg = parseExpression();
+      if (arg === undefined) {
+        diagnostics.push(unexpected(current()));
+        return undefined;
+      }
+      args.push(arg);
+    }
+    if (!form.hasBlock) {
+      return ast.profileStatement(
+        keyword,
+        args,
+        undefined,
+        spanToHere(headTok.source_span.start),
+      );
+    }
+    const body = parseControlBody(keyword.name, headTok.source_span);
+    if (body === undefined) {
+      return undefined;
+    }
+    return ast.profileStatement(
+      keyword,
+      args,
+      body,
+      spanToHere(headTok.source_span.start),
+    );
+  }
+
   function parseLocal(): StatementNode | undefined {
     const localTok = current();
     advance();
@@ -1580,7 +2619,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     if (current().kind === "rparen") {
       advance();
     } else {
-      diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+      diagnostics.push(unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("));
     }
     return ast.local(names, spanToHere(open.source_span.start));
   }
@@ -1635,13 +2674,64 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
+   * Parses the Heritage assignment spelling `make "name" value`
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:107`). `make` is a
+   * Heritage-profile *alternate spelling only* with no new semantics
+   * (`spec/conformance.md:150-152`), so it lowers to the exact same {@link AssignNode} shape as
+   * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
+   * — identical to how `set name to …` builds its bare place — and the runtime's shared
+   * `executeAssign` binds it (mutate nearest binding, else create global,
+   * `spec/execution-model.md:344-345`) with no dependence on the surface `form`.
+   *
+   * The target must be a `word-literal` (`"name"`, lexed as a `word` token); any other token there
+   * is a parse error via {@link unexpected}, with the offending token left unconsumed so statement
+   * recovery re-parses it. Profile-legality (`make` requires the Heritage profile) is deliberately
+   * *not* decided here — the reader has no notion of an active profile (that is the Layer-2
+   * checker's job, `spec/tooling.md:175-176`); the Heritage form-head gate is owned by issue #667.
+   */
+  function parseMakeAssignment(): StatementNode | undefined {
+    const makeTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "word") {
+      // The word-literal target is missing. If the lexer already reported an unclosed string
+      // starting after `make` (e.g. `make "size`), that diagnostic *is* the missing target and
+      // consumed the rest of the line, so an extra `ol-bad-token` would be a redundant cascade —
+      // `spec/error-model.md:110` reserves `ol-bad-token` for when no more-specific diagnostic
+      // applies. Suppress it there; a genuinely wrong token (`make 5`) or a bare `make` still
+      // reports normally.
+      if (!lexDiagnosticInGap(makeTok, nameTok)) {
+        diagnostics.push(unexpected(nameTok));
+      }
+      return undefined;
+    }
+    advance();
+    const place = ast.place(
+      sname(nameTok.value, nameTok),
+      [],
+      nameTok.source_span,
+    );
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return ast.assign(
+      place,
+      value,
+      "make",
+      spanFrom(makeTok.source_span.start, value),
+    );
+  }
+
+  /**
    * Parses the target of a `set … to` assignment. The spec's
-   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:104) requires a
+   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:106) requires a
    * *bare* place — a `name` optionally postfixed — which is the one well-formed, assignable case.
    * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
    * `<place> = <value>` form it is recognized structurally and re-wrapped by
    * {@link asNonPlaceTarget} (issue #442/F3) so the semantic checker reports `ol-not-a-place`
-   * (spec/tooling.md:187) rather than a blunt parse error. Anything else — a colon-place `set :x`
+   * (spec/tooling.md:188) rather than a blunt parse error. Anything else — a colon-place `set :x`
    * (issue #55), a literal `set 5` — is left to the parse `ol-bad-token` the bare-place grammar
    * demands, with the offending token unconsumed so statement recovery re-parses it.
    */
@@ -1804,7 +2894,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:136-137`).
+   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:138-139`).
    * Only `for … in` accepts this form — `for … from … to …` keeps its single bare-name variable.
    */
   function parseDestructuringBinder(): DestructuringBinderNode | undefined {
@@ -1827,7 +2917,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     if (current().kind !== "rbracket") {
-      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      diagnostics.push(
+        unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+      );
       return undefined;
     }
     const close = current();
@@ -1919,7 +3011,21 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return undefined;
   }
 
-  function parseProcedureDef(): StatementNode | undefined {
+  /**
+   * Parse a procedure definition: Core `define name :params… <body> end`
+   * (`define-statement`, `spec/grammar.md:147`) or the Heritage alternate spelling
+   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:148`). Both share the identical
+   * grammar after the opener keyword and the same `define-end ::= "end" [ "define" ]` closer
+   * (`spec/grammar.md:149`, `spec/grammar.md:291` — a `to` body closes with `end` or `end define`,
+   * never `end to`), so `to` reuses this whole function and every diagnostic label ("define"): the
+   * only difference is the {@link ProcedureDefNode} `keyword` recorded, which the Layer-2 Heritage
+   * form-head gate (issue #667) consults to reject `to` when the Heritage profile is inactive. `to`
+   * reaches here only as a *statement opener*; its other reserved-word roles (`set … to`,
+   * `for … from … to`) consume the word inside those parsers and never dispatch here.
+   */
+  function parseProcedureDef(
+    keyword: ProcedureDefNode["keyword"],
+  ): StatementNode | undefined {
     const defTok = current();
     advance();
     const nameTok = current();
@@ -1956,7 +3062,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
       if (current().kind === "rparen") {
         advance();
       } else {
-        diagnostics.push(parseDiag.unmatchedParen(open.source_span, "("));
+        diagnostics.push(
+          unmatchedOpenerOr(open, parseDiag.unmatchedParen, "("),
+        );
       }
       if (defaultValue === undefined) {
         params.push({ name: sname(nameParam.value, nameParam) });
@@ -1970,10 +3078,19 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     const body = parseLongBlock("define", defTok.source_span);
     const span = spanToHere(defTok.source_span.start);
-    return ast.procedureDef(name, params, body, span);
+    return ast.procedureDef(keyword, name, params, body, span);
   }
 
-  function parseReturn(): StatementNode | undefined {
+  /**
+   * Parse a return statement: Core `return value` or the Heritage alternate spellings
+   * `output value` / `op value` (`return-statement`, `spec/grammar.md:152`). All three share the
+   * identical grammar and lower to the same {@link ReturnNode}; `keyword` records the surface word
+   * only so the Layer-2 Heritage form-head gate (issue #667) can reject `output`/`op` when the
+   * Heritage profile is inactive.
+   */
+  function parseReturn(
+    keyword: ReturnNode["keyword"],
+  ): StatementNode | undefined {
     const token = current();
     advance();
     const value = parseExpression();
@@ -1982,7 +3099,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     return ast.returnStmt(
-      "return",
+      keyword,
       value,
       spanFrom(token.source_span.start, value),
     );
@@ -2007,7 +3124,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a required expression, reporting the offending token when none is present. Shared by the
-   * list-mutator statements below, whose operands (`spec/grammar.md:113-117`) are all required.
+   * list-mutator statements below, whose operands (`spec/grammar.md:115-119`) are all required.
    */
   function requireExpression(): ExpressionNode | undefined {
     const expr = parseExpression();
@@ -2031,7 +3148,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return true;
   }
 
-  /** `add expression "to" expression` (`spec/grammar.md:113`, Data profile). */
+  /** `add expression "to" expression` (`spec/grammar.md:115`, Data profile). */
   function parseAdd(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2050,8 +3167,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `remove expression "from" expression` (`spec/grammar.md:114`) or, when `key` follows `remove`,
-   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:115`). Both are Data
+   * `remove expression "from" expression` (`spec/grammar.md:116`) or, when `key` follows `remove`,
+   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:117`). Both are Data
    * profile.
    */
   function parseRemove(): StatementNode | undefined {
@@ -2091,7 +3208,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return ast.remove(value, target, spanFrom(token.source_span.start, target));
   }
 
-  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:116`, Data profile). */
+  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:118`, Data profile). */
   function parseInsert(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2121,7 +3238,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     );
   }
 
-  /** `clear expression` (`spec/grammar.md:117`, Data profile). */
+  /** `clear expression` (`spec/grammar.md:119`, Data profile). */
   function parseClear(): StatementNode | undefined {
     const token = current();
     advance();
@@ -2133,12 +3250,16 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `struct type-name "[" identifier { identifier } "]"` (`spec/grammar.md:155-156`, Data profile).
-   * Declares a record type, its fixed fields, and a same-named constructor. The bracketed field
-   * list is not a list literal: it holds bare field names that perform no evaluation
-   * (`spec/data-structures.md:264`), so the fields are carried as {@link SpannedName} metadata, the
-   * same shape as procedure parameter and destructuring-binder names. Grammar/AST only — the
-   * constructor call and field access/mutation land in a later Data-profile slice.
+   * `struct-declaration ::= "struct" declared-type-name field-list` with
+   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
+   * Declares a record type, its fixed fields, and a same-named constructor. The two slots differ on
+   * purpose: the type name is a *declaration* slot (`declared-type-name`), so a built-in name there
+   * raises `ol-reserved-word`, while the bracketed field list is not a list literal and holds bare
+   * field names that perform no evaluation, so any name — a keyword or a primitive included — is
+   * legal in it (`spec/data-structures.md:304`). The fields are therefore carried as
+   * {@link SpannedName} metadata, the same shape as procedure parameter and destructuring-binder
+   * names. This function is grammar/AST only; the constructor call and field access/mutation it
+   * declares are evaluated by `@openlogo/runtime`.
    */
   function parseStructDef(): StatementNode | undefined {
     const structTok = current();
@@ -2182,8 +3303,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
     }
     if (closer.kind === "newline" || closer.kind === "eof") {
       // The field list was opened but never closed before the statement ended: the opening `[`
-      // is the genuinely unmatched bracket (`spec/error-model.md:102`).
-      diagnostics.push(parseDiag.unmatchedBracket(open.source_span, "["));
+      // is the genuinely unmatched bracket (`spec/error-model.md:103`).
+      diagnostics.push(
+        unmatchedOpenerOr(open, parseDiag.unmatchedBracket, "["),
+      );
       return undefined;
     }
     // A non-identifier token (e.g. a number) interrupts the field list. Both brackets are

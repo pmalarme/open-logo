@@ -1,0 +1,2 @@
+on_key "space" [ ]
+wait 4

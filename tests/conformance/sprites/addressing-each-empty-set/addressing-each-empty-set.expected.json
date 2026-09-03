@@ -1,0 +1,96 @@
+{
+  "description": "issue #766: `each` over an empty addressed set (`tell [ ]`) runs its block zero times, so it narrows zero times and emits no per-iteration addressing event — but its restoration still runs and still publishes the (unchanged, empty) set, so the stream never goes silent about what is addressed. `current_turtle_id` is `null`: the spec defines no current turtle for an empty addressed set, so this implementation's own fallback (`who` keeps reporting the main turtle) stays out of the portable contract rather than becoming binding on every implementation.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [],
+          "current_turtle_id": null
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [3, 1],
+        "end": [3, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-each-empty-set/addressing-each-empty-set",
+        "start": [3, 1],
+        "end": [3, 20]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [],
+          "current_turtle_id": null
+        }
+      }
+    }
+  ],
+  "diagnostics": []
+}

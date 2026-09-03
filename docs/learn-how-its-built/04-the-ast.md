@@ -16,7 +16,7 @@ shape — like exactly which spaces you typed — while keeping everything that 
 
 Let's build the tree for our square, one token at a time:
 
-```
+```logo
 repeat 4 [ forward 100 right 90 ]
 ```
 

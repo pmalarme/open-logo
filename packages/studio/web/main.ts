@@ -59,6 +59,7 @@ import {
   createEditorController,
   createEditorExtensions,
   createExternalSyncQueue,
+  createInputPromptController,
   createKeyValueStorageAdapter,
   createLessonPaneController,
   createParserHighlighter,
@@ -69,6 +70,7 @@ import {
   createTimeoutScheduler,
   createTurtleStateRegion,
   createTutorOutputController,
+  createWorkerExecutionHost,
   decideExternalSync,
   DEFAULT_RUN_PROGRAM,
   describeSpeedTickDelayMs,
@@ -78,6 +80,7 @@ import {
   mapRunStatusToRunToggleViewModel,
   mapSpeedSliderValueToTickDelayMs,
   mountCanvasView,
+  mountCanvasInteraction,
   mountDiagnosticsPane,
   mountEditorPane,
   mountLessonPane,
@@ -85,6 +88,7 @@ import {
   mountTutorOutputPane,
   reconcileExternalSyncQueue,
   selectAnnouncerElementId,
+  selectExecutionHost,
   selectScheduler,
   setDiagnosticsEffect,
   SPEED_SLIDER_MAX,
@@ -97,6 +101,8 @@ import {
 import type {
   DiagnosticListItem,
   Canvas2DContext,
+  ExecutionWorkerReport,
+  InputPromptView,
   LessonPaneView,
   RunLogEntry,
   RunLogEntryViewItem,
@@ -123,6 +129,11 @@ const canvasElement = assertPresent(
   document.getElementById("turtle-canvas"),
   "turtle-canvas",
   (value): value is HTMLCanvasElement => value instanceof HTMLCanvasElement,
+);
+const canvasActivateButton = assertPresent(
+  document.getElementById("canvas-activate-button"),
+  "canvas-activate-button",
+  (value): value is HTMLButtonElement => value instanceof HTMLButtonElement,
 );
 const runToggleButton = assertPresent(
   document.getElementById("run-toggle-button"),
@@ -185,6 +196,37 @@ const announcerAssertiveElement = assertPresent<HTMLElement>(
   document.getElementById("announcer-assertive"),
   "announcer-assertive",
 );
+const inputPromptDialog = assertPresent(
+  document.getElementById("input-prompt"),
+  "input-prompt",
+  (value): value is HTMLDialogElement => value instanceof HTMLDialogElement,
+);
+const inputPromptFormElement = assertPresent(
+  document.getElementById("input-prompt-form"),
+  "input-prompt-form",
+  (value): value is HTMLFormElement => value instanceof HTMLFormElement,
+);
+const inputPromptMessageElement = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-message"),
+  "input-prompt-message",
+);
+const inputPromptFieldLabelElement = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-field-label"),
+  "input-prompt-field-label",
+);
+const inputPromptFieldElement = assertPresent(
+  document.getElementById("input-prompt-field"),
+  "input-prompt-field",
+  (value): value is HTMLInputElement => value instanceof HTMLInputElement,
+);
+const inputPromptSubmitButton = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-submit"),
+  "input-prompt-submit",
+);
+const inputPromptCancelButton = assertPresent<HTMLElement>(
+  document.getElementById("input-prompt-cancel"),
+  "input-prompt-cancel",
+);
 
 const canvasContext = assertPresent<Canvas2DContext>(
   canvasElement.getContext("2d"),
@@ -218,7 +260,10 @@ mountLessonPane(shell, lessonPane);
  * wires the real `@openlogo/parser`-backed highlighter (`highlighter.ts`'s
  * `createParserHighlighter`) into both the controller (`getTokens()`, for any future non-CM6
  * consumer) and the CM6 extension list (the actual painted decorations) — one shared instance, so
- * both read the exact same classification.
+ * both read the exact same classification. #740 makes that classification profile-aware: with no
+ * argument, `createParserHighlighter()` classifies under `profiles.ts`'s `STUDIO_PROFILES` (the
+ * profiles this build supports — the ones a learner here can actually run), so a Sprites block-head
+ * like `ask` paints as the `keyword` it is instead of taking the plain `primitive` fallback.
  */
 const highlighter = createParserHighlighter();
 const editorController = createEditorController(state, { highlighter });
@@ -399,12 +444,71 @@ const scheduler = selectScheduler(
   timeoutScheduler,
   IMMEDIATE_SCHEDULER,
 );
+/**
+ * #769 — the learner-facing prompt for the blocking `input` reporter. `createRunController` below
+ * receives it as `inputPrompt`, which is what installs `ExecuteOptions.hostInput.read` for every
+ * run; `renderInputPrompt` (further down) applies each published `InputPromptView` onto the native
+ * `<dialog>` in `index.html`. All decisions — visible or not, what text each control carries — were
+ * already made in `src/input-prompt.ts`, so this file only assigns them.
+ */
+const inputPromptController = createInputPromptController();
+/**
+ * #876 — where each run's `execute()` happens. When the page is cross-origin isolated (COOP/COEP),
+ * the interpreter runs in a Worker that **genuinely blocks** inside `input` on `Atomics.wait`, which
+ * also gives Stop something to preempt mid-run; otherwise this is `undefined` and
+ * `createRunController` keeps its default in-process host, i.e. #769's replay. `selectExecutionHost`
+ * owns that choice and takes a factory, so a page without shared memory never constructs a Worker
+ * it could not use — the branch lives in `src/web-bootstrap.ts`, not here.
+ *
+ * Enabling the isolated path is a **deployment** decision (the two response headers
+ * `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`),
+ * deliberately not baked into this package. See `docs/adr/0023-worker-execution-host.md`.
+ */
+const executionHost = selectExecutionHost(
+  {
+    crossOriginIsolated: globalThis.crossOriginIsolated === true,
+    hasSharedArrayBuffer: typeof SharedArrayBuffer !== "undefined",
+  },
+  () => {
+    const worker = new Worker(
+      new URL("./execution-worker.ts", import.meta.url),
+      { type: "module" },
+    );
+    return createWorkerExecutionHost({
+      port: {
+        postMessage: (command) => {
+          worker.postMessage(command);
+        },
+        onReport: (listener) => {
+          worker.addEventListener("message", (event: MessageEvent) => {
+            listener(event.data as ExecutionWorkerReport);
+          });
+        },
+      },
+      allocateBuffer: (byteLength) => new SharedArrayBuffer(byteLength),
+      notify: (control, index) => Atomics.notify(control, index),
+    });
+  },
+);
 const runController = createRunController(state, {
   canvasView,
+  executionHost,
+  inputPrompt: inputPromptController,
   scheduler,
   reducedMotion: prefersReducedMotion,
 });
 mountRunController(shell, runController);
+/**
+ * #952 — the studio's keyboard and pointer input, so `on_key` and `on_click` actually fire. Every
+ * decision (key-word normalization, which keys have their browser default suppressed, and why the
+ * activation button is a separate control) lives in `src/canvas-interaction.ts`, which is
+ * type-checked, linted, and covered; this file only supplies the two real elements. See that
+ * module's doc comment.
+ */
+mountCanvasInteraction(
+  { canvas: canvasElement, activationControl: canvasActivateButton },
+  runController,
+);
 
 const runLog = createRunLogController(state);
 
@@ -441,6 +545,51 @@ resetButton.addEventListener("click", () => {
 });
 speedSliderElement.addEventListener("input", () => {
   shell.state.setSpeedSliderValue(speedSliderElement.valueAsNumber);
+});
+
+/**
+ * Applies the prompt's already-decided presentation ({@link InputPromptView}, produced by
+ * `src/input-prompt.ts`) onto the real `<dialog>` — plain text/open-state assignment with no
+ * decision of its own (#769). Every string, including the program's own question, is written via
+ * `textContent`, never `innerHTML`: a learner's prompt is data, never markup.
+ *
+ * `showModal()` (rather than `show()`) is what makes the question keyboard-operable without any
+ * focus-management code here — the browser scopes focus to the dialog, honors the field's
+ * `autofocus`, restores focus to whatever was focused before when it closes, and turns Escape into
+ * the `cancel` event wired below.
+ */
+function renderInputPrompt(view: InputPromptView): void {
+  inputPromptMessageElement.textContent = view.prompt;
+  inputPromptFieldLabelElement.textContent = view.fieldLabel;
+  inputPromptSubmitButton.textContent = view.submitLabel;
+  inputPromptCancelButton.textContent = view.cancelLabel;
+  if (view.isVisible) {
+    inputPromptFieldElement.value = "";
+    if (!inputPromptDialog.open) {
+      inputPromptDialog.showModal();
+    }
+    return;
+  }
+  inputPromptDialog.close();
+}
+renderInputPrompt(inputPromptController.getView());
+inputPromptController.subscribeView(renderInputPrompt);
+
+inputPromptFormElement.addEventListener("submit", (event) => {
+  // The form is `method="dialog"`, so let the controller — not the browser's own default close —
+  // own the transition: it is what reports the answer back to the waiting run.
+  event.preventDefault();
+  inputPromptController.submit(inputPromptFieldElement.value);
+});
+inputPromptCancelButton.addEventListener("click", () => {
+  inputPromptController.cancel();
+});
+inputPromptDialog.addEventListener("cancel", (event) => {
+  // Escape. Same ending as the Cancel button — the read finishes unanswered, cancelling the run
+  // (`spec/interaction-events.md:110-111`) — routed through the controller so the two paths cannot
+  // diverge.
+  event.preventDefault();
+  inputPromptController.cancel();
 });
 
 /** Applies the Start/Stop toggle button's already-decided presentation

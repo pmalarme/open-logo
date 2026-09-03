@@ -1,0 +1,171 @@
+{
+  "description": "issue #688 (terminal slice): item 2 of the normative same-tick delivery list, `pending on_key events in registration order` (spec/interaction-events.md:84-89). Two handlers are registered for the SAME key `x` and ONE key press is delivered at tick 1, so both become pending at the same drain point and their relative order can come only from the handler list -- not from the host schedule, which carries a single entry here. They fire in registration order: the line-1 handler prints 1 before the line-2 handler prints 2. The order is pinned TWICE over, independently: by the printed values, and by the handler-start `instruction` events (spec/interaction-events.md:101-102, `the start of a handler block emits an instruction event for the block-head that caused the handler to run`), whose spans are the line-1 `on_key` head (seq 5) before the line-2 head (seq 8) -- so a run that reversed delivery fails on both assertions. The sibling `on-key-registered-twice` proves only that a duplicate registration REGISTERS both handlers and explicitly records that neither fires; recognition is not delivery, so before this fixture the corpus pinned item 2 of that list at no shared drain point at all (the cross-kind fixture `dispatch/cross-kind-order-during-wait` has exactly one handler per kind, which cannot discriminate intra-kind order). `wait` still emits its `primitive` after the pause completes (seq 11), and no event payload carries the tick, the key, or a `turtle_id` -- a key press concerns no turtle.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "key",
+          "key": "x"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [1, 1],
+        "end": [1, 23]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [2, 1],
+        "end": [2, 23]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "x"
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [1, 14],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [1, 14],
+        "end": [1, 21]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "x"
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [2, 14],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [2, 14],
+        "end": [2, 21]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-handlers-fire-in-registration-order",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,35 @@
+{
+  "description": "issue #680: `wait -1` is rejected with `ol-range` because a tick count must be 0 or greater (spec/interaction-events.md's `### wait <n>`; spec/error-model.md's `ol-range`). The type check passes first (it is a whole number), then the range check fails; the `primitive` event is NOT emitted and only the instruction event precedes the diagnostic.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "interaction-events/wait/wait-negative",
+        "start": [1, 6],
+        "end": [1, 8]
+      },
+      "params": {
+        "operation": "wait",
+        "value": -1
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

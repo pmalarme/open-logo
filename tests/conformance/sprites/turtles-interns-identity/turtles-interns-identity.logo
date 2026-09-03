@@ -1,0 +1,3 @@
+:a = first turtles
+:b = first turtles
+print (:a == :b)

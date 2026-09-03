@@ -1,0 +1,7 @@
+{
+  "description": "every is a visible command name under the interaction-events profile, so a well-formed handler checks clean",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

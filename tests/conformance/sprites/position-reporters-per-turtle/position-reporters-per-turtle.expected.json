@@ -1,0 +1,357 @@
+{
+  "description": "issue #679 (SP7): spec/turtles-and-sprites.md:108 — `xcor`, `ycor`, `heading`, and `pos` READ FROM THE CURRENT TURTLE, a whole spec bullet with no fixture before this slice. After `tell :a` plus `forward 30`/`right 90`, the four reporters see :a's own state (0, 30, 90, [0 30]); re-addressing the main turtle with `tell first turtles` makes those same four reporters report the untouched main turtle (0, 0, 0, [0 0]). Locks that the reporters follow the addressed set instead of reading one global turtle. Every change of the addressed set — here from `tell` — also emits the addressing `primitive` event carrying `addressing: { addressed_turtle_ids, current_turtle_id }`, so a consumer can identify the addressed turtle set (issue #766, spec/rendering.md:193); `ask`/`each` emit one again when the previous set is restored, on every exit path.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 30],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 30],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "turn",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [4, 1],
+        "end": [4, 9]
+      },
+      "payload": {
+        "from": 0,
+        "to": 90
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [6, 1],
+        "end": [6, 11]
+      },
+      "payload": {
+        "values": [30]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [7, 1],
+        "end": [7, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [7, 1],
+        "end": [7, 14]
+      },
+      "payload": {
+        "values": [90]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [8, 1],
+        "end": [8, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [8, 1],
+        "end": [8, 10]
+      },
+      "payload": {
+        "values": [[0, 30]]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [9, 1],
+        "end": [9, 19]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [9, 1],
+        "end": [9, 19]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [10, 1],
+        "end": [10, 11]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [11, 1],
+        "end": [11, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [11, 1],
+        "end": [11, 11]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [12, 1],
+        "end": [12, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [12, 1],
+        "end": [12, 14]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [13, 1],
+        "end": [13, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/position-reporters-per-turtle/position-reporters-per-turtle",
+        "start": [13, 1],
+        "end": [13, 10]
+      },
+      "payload": {
+        "values": [[0, 0]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,2 @@
+on_key "x" [ print 1 ]
+wait 1

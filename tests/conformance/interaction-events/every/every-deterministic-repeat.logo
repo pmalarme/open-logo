@@ -1,0 +1,2 @@
+every 3 [ print "tick" ]
+wait 12

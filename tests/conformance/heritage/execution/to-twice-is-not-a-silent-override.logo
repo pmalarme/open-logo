@@ -1,0 +1,7 @@
+to foo
+  print 111
+end
+to foo
+  print 222
+end
+foo

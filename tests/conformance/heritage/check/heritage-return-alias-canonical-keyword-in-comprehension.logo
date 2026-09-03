@@ -1,0 +1,3 @@
+:nums = [ 1 2 3 ]
+print map n in :nums [ output :n ]
+print map n in :nums [ op :n ]

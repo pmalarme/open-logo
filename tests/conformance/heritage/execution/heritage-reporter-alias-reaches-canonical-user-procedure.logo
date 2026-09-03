@@ -1,0 +1,8 @@
+# Issue #787's host-crash repro, EXECUTED. A Heritage short alias in REPORTER position whose
+# canonical is a user procedure. `execute()` runs `parse()` only and never `check()`, so this path
+# is the runtime's alone. `define forward` takes a built-in name, so phase-1 registration raises
+# `ol-reserved-word` and nothing runs.
+define forward
+  return 55
+end
+print fd

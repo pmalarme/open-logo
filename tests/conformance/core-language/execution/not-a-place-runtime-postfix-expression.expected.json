@@ -1,6 +1,6 @@
 {
   "description": "`[1 2][1] = 5` (issue #407/F7): assigns to a postfix read over a list-literal base, not a place, raising the runtime's own `ol-not-a-place` (reached without `check()`, mirroring `not-a-place-runtime-list-literal.expected.json`'s bare-list case) — proving `not-a-place-text.ts`'s runtime-side `PostfixExpressionNode` renderer, added in lockstep with the checker's, produces the same full target text `[1 2][1]`.",
-  "profiles": ["core-language"],
+  "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
     {

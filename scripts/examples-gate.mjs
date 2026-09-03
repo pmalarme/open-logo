@@ -19,49 +19,50 @@
  * example's manifest entry to *under*-declare a profile it actually depends on. A source file
  * that needs, say, Data (e.g. `:list[i]` list-index) but also declares an unrelated
  * not-yet-implemented profile (e.g. Sound) would previously be skipped in its entirety before
- * `data` was ever checked — silently masking the missing declaration. {@link detectUsedProfiles}
- * statically scans the parsed AST (plus the parser's own diagnostics, for the handful of reserved
- * words with no AST production at all) for the constructs `spec/conformance.md` classifies as
- * normatively belonging to an optional profile (list-index/dict/struct/mutation-form usage and
- * the Data-profile derived reporters `dict`/`list`/`reverse`/`pick`/`sort`/`keys`/`values`/
- * `type_of` — detected via `@openlogo/parser`'s own `dataPrimitiveArity()` name table, not a
- * second hand-maintained list — for Data; `grid`/`axes`/`measure` via `geometryPrimitiveArity()`
- * plus the derived stdlib procedures `polygon`/`star`/`circle`/`arc`/`area`/`perimeter` (the
- * latter two also needing Data) for Geometry; `explain`/`why`/`hint`/`debug` via
- * `educationalPrimitiveArity()` for Educational; `note`/`beep`/`play`/`rest`/`set_tempo` for
- * Sound; `input`/`when`/`every`/`on_key`/`on_click`/`wait` for Interaction & Events;
- * `new_turtle`/`tell`/`ask`/`each`/`turtles`/`who` for Sprites; the closed Heritage short-alias
- * list plus `make` plus `value of … for key` (which also needs Data) for Heritage; `challenge` for
- * Tutor (AI); and the reserved words `to`/`output`/`op` (Heritage), `import`/`export` (Modules),
- * and `alias` (Localization) via the parser's own `ol-bad-token` diagnostics, since those six have
- * no `Call`/`ParenCall` production at all — see {@link detectUsedProfiles}'s own doc comment for
- * the full per-profile audit and the one remaining, genuinely-undetectable case (locale-pack
- * syntax beyond `alias` itself, none of which exists in the grammar today), and
- * {@link runExamplesGate} compares that detected set against the manifest's declared profiles
- * (expanded to their full dependency closure via `scripts/harness/index.mjs`'s `PROFILE_DEPS`)
- * for **every** example — before the SKIP decision, so an under-declaration FAILS the gate loudly
- * (naming the example and the missing profile) even when the file would otherwise be skipped for
- * an unrelated reason.
+ * `data` was ever checked — silently masking the missing declaration.
+ * `scripts/profile-detection.mjs`'s `detectUsedProfiles` statically scans the parsed AST (plus the
+ * parser's own diagnostics, for the handful of reserved words with no AST production at all) for
+ * the constructs `spec/conformance.md` classifies as normatively belonging to an optional profile —
+ * see that module for the full per-profile audit — and {@link runExamplesGate} compares that
+ * detected set against the manifest's declared profiles (expanded to their full dependency closure
+ * via `scripts/harness/index.mjs`'s `PROFILE_DEPS`) for **every** example — before the SKIP
+ * decision, so an under-declaration FAILS the gate loudly (naming the example and the missing
+ * profile) even when the file would otherwise be skipped for an unrelated reason.
  *
- * The profile manifest (`scripts/examples-profiles.json`) is owned here, not under `spec/` —
- * `spec/` is maintainer-owned (AGENTS.md), so this gate must never add tags/headers to the
- * `.logo` files themselves.
+ * **Host input (issue #955):** executing every example with an *empty* host made this gate
+ * structurally blind to every host-dependent feature the language has. `spec/examples/10-game.logo`
+ * states its own contract in prose — "expected output: each click prints the updated `:score`" —
+ * and with no host delivering a click that output is unreachable, so the gate certified the file
+ * green while asserting nothing about its interaction. Be exact about the scope of that failure:
+ * this gate drives `@openlogo/runtime`'s `execute()`, so it could never have caught #952 (a
+ * *studio* host-forwarding defect, asserted by `packages/studio`'s own tests). What it failed to
+ * assert is the **language-level** contract that would have made the file's own stated output
+ * testable at all. An example that registers a handler needing host delivery MUST therefore declare
+ * a deterministic **host-input schedule** plus the output it expects, in
+ * `scripts/examples-host-input.json` ({@link HOST_INPUT_PATH}) — the same declarative
+ * `{ tick, kind }` shape a conformance fixture's `executeOptions.hostInput` uses, validated by the
+ * harness's own {@link validateExecuteOptions}. {@link classifyExample} then runs the example with
+ * that schedule and asserts the declared prints and event counts. Examples with no such handler keep
+ * running exactly as before, and the summary line reports how many ran **with** input versus with
+ * an empty host, so the blind fraction is visible rather than assumed.
+ *
+ * The profile manifest (`scripts/examples-profiles.json`) and the host-input manifest
+ * (`scripts/examples-host-input.json`) are owned here, not under `spec/` — `spec/` is
+ * maintainer-owned (AGENTS.md), so this gate must never add tags/headers to the `.logo` files
+ * themselves.
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import {
-  dataPrimitiveArity,
-  educationalPrimitiveArity,
-  geometryPrimitiveArity,
-  parse,
-  walk,
-} from "@openlogo/parser";
+import { OL_EVENT_KINDS } from "@openlogo/core";
+import { parse, walk } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
-import { closureOf } from "./harness/index.mjs";
+import { closureOf, validateExecuteOptions } from "./harness/index.mjs";
+import { detectUsedProfiles } from "./profile-detection.mjs";
 
 export const EXAMPLES_DIR = join("spec", "examples");
 export const MANIFEST_PATH = join("scripts", "examples-profiles.json");
+export const HOST_INPUT_PATH = join("scripts", "examples-host-input.json");
 
 /**
  * Profiles with real conformance fixtures today (`tests/conformance/<profile>/`) — i.e. the
@@ -75,477 +76,209 @@ export const IMPLEMENTED_PROFILES = [
   "turtle-rendering",
   "data",
   "geometry",
+  "sound",
+  "sprites",
+  "heritage",
+  "interaction-events",
 ];
-
-/**
- * AST node kinds that `spec/conformance.md`'s feature table classifies as unconditionally
- * **Data**-profile behavior, regardless of what implementation-status other profiles the example
- * also declares: dictionary literals (`{ key: value }`), `struct` type declarations, and the
- * `add`/`remove`/`clear`/`insert` collection-mutation forms.
- *
- * `ValueOfKey` (the Heritage `value of … for key` dictionary reader) is deliberately NOT in this
- * set: `spec/conformance.md:273`/`:301` classify that spelling as **Heritage**, which *also*
- * depends on **Data** because the reader operates on dicts — so a source using it needs BOTH
- * profiles, not just Data. It gets its own check below so it can add both.
- *
- * This does NOT cover the Data profile's derived-reporter *primitives* (`dict`, `list`, `reverse`,
- * `pick`, `sort`, `keys`, `values`, `type_of`, `spec/data-structures.md`'s "Derived list
- * reporters"/dictionary/record-operation tables) — those are call-site names, not distinct node
- * kinds (they parse as ordinary `Call`/`ParenCall` nodes), so {@link detectUsedProfiles} detects
- * them via `@openlogo/parser`'s own `dataPrimitiveArity()` name table instead of a second,
- * hand-maintained name list that could drift from the parser's.
- */
-const DATA_NODE_KINDS = new Set([
-  "DictLit",
-  "StructDef",
-  "Add",
-  "Remove",
-  "RemoveKey",
-  "Insert",
-  "Clear",
-]);
-
-/**
- * Call-site names that `spec/interaction-events.md` reserves for the **Sound** primitives
- * (`set_tempo`/`note`/`play`/`beep`/`rest`).
- */
-const SOUND_CALLEE_NAMES = new Set([
-  "note",
-  "play",
-  "beep",
-  "rest",
-  "set_tempo",
-]);
-
-/**
- * Call-site names `spec/interaction-events.md` reserves for the **Interaction & Events**
- * primitives (`input`, `wait`, and the `when`/`every`/`on_key`/`on_click` block-heads).
- */
-const INTERACTION_EVENTS_CALLEE_NAMES = new Set([
-  "input",
-  "wait",
-  "when",
-  "every",
-  "on_key",
-  "on_click",
-]);
-
-/**
- * Call-site names `spec/turtles-and-sprites.md`'s canonical-forms list reserves for the
- * **Sprites** profile (`new_turtle`, `tell`, `ask`, `each`, `turtles`, `who`).
- */
-const SPRITES_CALLEE_NAMES = new Set([
-  "new_turtle",
-  "tell",
-  "ask",
-  "each",
-  "turtles",
-  "who",
-]);
-
-/**
- * Call-site name `spec/conformance.md:279-280` reserves for the **Tutor (AI)** profile's
- * Socratic-challenge entry point. Not in a parser arity table (same as `SOUND_CALLEE_NAMES`/
- * `SPRITES_CALLEE_NAMES`/`INTERACTION_EVENTS_CALLEE_NAMES` above — none of those are
- * arity-registered either), so it is a bare-name hand-list identical in kind to those three. The
- * `definedProcedureNames` shadow-guard (checked before any of these hand-lists are consulted)
- * already neutralizes the "collides with a user's own `define challenge ... end`" risk for all
- * four, so there is no principled reason to hardcode Sound/Sprites/Interaction & Events this way
- * but leave Tutor (AI) undetected — doing so left a live G8 masking hole (issue #519, fourth
- * review round): an example calling `challenge` while declaring only an unrelated unimplemented
- * profile (omitting `tutor-ai`) reached SKIP undetected.
- */
-const TUTOR_AI_CALLEE_NAMES = new Set(["challenge"]);
-
-/**
- * The **Heritage** profile's closed short-alias list (`spec/conformance.md:105-117`,`:271-272`):
- * `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` plus the list-reporter alias spellings
- * `bf`/`bl`/`se`, plus `make` (the Heritage assignment spelling, `spec/conformance.md:107`) — it
- * has no dedicated AST node, but it still parses as an ordinary zero-arity `Call` (the parser has
- * no arity entry for it, so the reader that provides its `"x" 1` operands is left for the next
- * statement, producing `ol-bad-token` diagnostics), so its *callee name* is still detectable here.
- * `to`/`output`/`op` are also Heritage spellings but are reserved words with no `Call`/`ParenCall`
- * production at all today, so a bare-name check like this one can never see them — they are
- * detected separately, via {@link RESERVED_WORD_PROFILES}, from the parser's own parse-time
- * diagnostics rather than from the AST.
- */
-const HERITAGE_CALLEE_NAMES = new Set([
-  "fd",
-  "bk",
-  "lt",
-  "rt",
-  "pu",
-  "pd",
-  "st",
-  "ht",
-  "cs",
-  "pr",
-  "bf",
-  "bl",
-  "se",
-  "make",
-]);
-
-/**
- * The Geometry profile's derived standard-library procedures (`spec/geometry-module.md`,
- * `spec/conformance.md:261`): `polygon`, `star`, `circle`, `arc`, `area`, `perimeter`. Unlike
- * `grid`/`axes`/`measure` (renderer-backed overlay primitives with a `geometryPrimitiveArity()`
- * table entry), these are **discoverable OpenLogo source** an example is expected to `define`
- * for itself (`spec/examples/13-geometry-stdlib.logo`), never a parser primitive — but a call
- * site invoking one of them is still an ordinary, recognizable `Call`/`ParenCall` node, exactly
- * like `SOUND_CALLEE_NAMES`/`SPRITES_CALLEE_NAMES`/etc. above. The `definedProcedureNames`
- * shadow-guard (checked before this set) already covers the "this example defines these itself"
- * case correctly, so leaving them out of a shared detector was an unprincipled gap, not a genuine
- * undetectability (fifth review round, issue #519): an example calling `polygon` without
- * defining it, while declaring only an unrelated unimplemented profile, reached SKIP with the
- * missing `geometry` declaration never surfaced.
- *
- * `area` and `perimeter` specifically also add `data`: `spec/conformance.md:261` states their
- * canonical stdlib implementation "read[s] a shape spec by list index, so they also need Data" —
- * the same "this construct's own semantics always need a second profile" reasoning already
- * applied to `ValueOfKey` above, scoped to just the two names the spec calls out.
- */
-const GEOMETRY_STDLIB_CALLEE_NAMES = new Set([
-  "polygon",
-  "star",
-  "circle",
-  "arc",
-  "area",
-  "perimeter",
-]);
-
-/** Of {@link GEOMETRY_STDLIB_CALLEE_NAMES}, the two whose canonical implementation also needs Data. */
-const GEOMETRY_STDLIB_ALSO_DATA_NAMES = new Set(["area", "perimeter"]);
-
-/**
- * Reserved words (`packages/parser/src/parser.ts`'s `NON_PRIMARY_NAMES`) that have no
- * `Call`/`ParenCall` — or any other — AST production at all today, so no AST walk can ever see
- * them: the Heritage `to`/`output`/`op` procedure-definition/return spellings
- * (`spec/conformance.md:257`,`:270`), and the Modules/Localization `import`/`export`/`alias`
- * module-and-keyword-pack-aliasing forms (`spec/conformance.md:177-186`,`:277-278`;
- * `spec/localization.md:18-21`'s `alias new_name existing_name`). `struct` is deliberately
- * excluded from this map: unlike the six words above, it DOES have a dedicated production
- * (`parser.ts`'s `parseStructDef`, reached via its own statement-level dispatch), so it already
- * surfaces as a `StructDef` node in {@link DATA_NODE_KINDS} and needs no diagnostic-based
- * fallback.
- *
- * Every occurrence of `import`/`export`/`alias` produces a parser diagnostic today (none of the
- * three has any legitimate grammar role, so there is no "clean" use to miss). `to` is the one
- * exception, with THREE legitimate roles that all consume it with **zero** diagnostics when used
- * correctly — the `for … from … to` range bound, the `set … to` assignment preposition, and the
- * Data profile's `add … to …` list-mutation preposition (`spec/grammar.md:104`,`:113`,`:128`;
- * confirmed directly: `parse("for i from 1 to 5 [ ]")`, `parse("set x to 5")`, and
- * `parse("add 3 to colors")` all return `diagnostics: []`) — so a diagnostic naming `to` only ever
- * fires when it appears outside those three roles, i.e. genuinely as the Heritage procedure-opener
- * (or beside an already-unrelated parse error, which is not a live masking risk: such a source
- * would already fail `classifyExample`'s diagnostics check whenever it is actually run, and
- * over-attributing `heritage` to an already-broken file is the opposite of under-declaration).
- */
-const RESERVED_WORD_PROFILES = new Map([
-  ["to", "heritage"],
-  ["output", "heritage"],
-  ["op", "heritage"],
-  ["import", "modules"],
-  ["export", "modules"],
-  ["alias", "localization"],
-]);
-
-/**
- * Statically detect the set of optional conformance profiles `source` actually uses, per
- * `spec/conformance.md`'s normative feature-to-profile classification. This is independent of
- * which profiles are implemented today (see {@link IMPLEMENTED_PROFILES}) and independent of the
- * manifest's declared profiles — it is a fact about the source text alone, used to catch a
- * manifest entry that under-declares what the example needs (issue #519, finding G8).
- *
- * **Exhaustiveness audit against every optional profile in `spec/conformance.md`'s dependency
- * DAG** (issue #519, fifth review round — see git history for the earlier rounds that added
- * Data-derived-reporter, Heritage `value of … for key`, Geometry/Educational/Tutor-AI table-driven
- * detection, and the reserved-word/Geometry-stdlib rounds below):
- *
- * | Profile | Detected via | Notes |
- * | --- | --- | --- |
- * | Data | `DATA_NODE_KINDS`, index/field segments, `dataPrimitiveArity()` | |
- * | Turtle & Rendering | *(not detected)* | every example needs it; never contradicts a declaration |
- * | Geometry | `geometryPrimitiveArity()` (`grid`/`axes`/`measure`) plus `GEOMETRY_STDLIB_CALLEE_NAMES`
- *   (`polygon`/`star`/`circle`/`arc`/`area`/`perimeter`, the latter two also adding `data` per
- *   `spec/conformance.md:261`) | implemented profile — a live masking case |
- * | Heritage | `HERITAGE_CALLEE_NAMES`, `ValueOfKey` (adds `data` too), `RESERVED_WORD_PROFILES`
- *   (`to`/`output`/`op`, via diagnostics) | |
- * | Sprites | `SPRITES_CALLEE_NAMES` | |
- * | Interaction & Events | `INTERACTION_EVENTS_CALLEE_NAMES` | |
- * | Sound | `SOUND_CALLEE_NAMES` | |
- * | Educational | `educationalPrimitiveArity()` (`explain`/`why`/`hint`/`debug`) | |
- * | Modules | `RESERVED_WORD_PROFILES` (`import`/`export`, via diagnostics) | |
- * | Localization | `RESERVED_WORD_PROFILES` (`alias`, via diagnostics) | depends on Modules,
- *   expanded by `closureOf` on the declared side |
- * | Tutor (AI) | `TUTOR_AI_CALLEE_NAMES` (`challenge`, `spec/conformance.md:279-280`) | |
- *
- * `to`/`output`/`op` (Heritage) and `import`/`export`/`alias` (Modules/Localization) have no
- * `Call`/`ParenCall` — or any other — AST production at all today (`packages/parser/src/parser.ts`'s
- * `NON_PRIMARY_NAMES`), so the AST walk below can never see them directly; {@link
- * RESERVED_WORD_PROFILES} detects them instead from the parser's own `ol-bad-token` diagnostics,
- * which always carry the offending token text even though no AST node results — see that map's own
- * doc comment for why this is safe (in particular, why `to`'s three legitimate non-Heritage roles
- * never produce a false positive).
- *
- * **After this round, every optional profile in the DAG is detected by at least one signal** —
- * either an AST construct/callee name, or (for the six reserved words with no production at all) a
- * parser diagnostic. There is no remaining profile-classified construct this function cannot see;
- * the only thing it deliberately does NOT attempt is record-binder destructuring (see below), which
- * is a Data-vs-Core split decided by a *runtime* value, not a static one.
- *
- * Deliberately conservative otherwise: it flags only constructs the spec ties to one profile in
- * *every* context (list-index/field-selector reads, dict/struct/mutation-form syntax, and each
- * profile's reserved primitive/alias names). It does not attempt record-binder destructuring
- * (`spec/conformance.md`'s Data-vs-Core split for `for [:x :y] in ...` depends on the *runtime*
- * value being destructured — list vs record — which a static AST walk cannot decide; see the
- * spec's "List-binder destructuring classification").
- *
- * Never throws: a source that fails to parse cleanly still returns whatever partial AST
- * `@openlogo/parser`'s `parse()` recovered, and this function only ever reads node `kind`s and
- * callee names off it.
- *
- * **User-defined procedures never masquerade as profile usage** (round-5 rubber-duck review):
- * `define` accepts any `name` token (`packages/parser/src/parser.ts`'s `parseProcedureDef` has no
- * reserved-name check), so a Core-only example is free to `define` its own procedure that happens
- * to share a name with an optional profile's callee (e.g. `define note :duration ... end`). Bare
- * callee-name matching alone would then misattribute that call to Sound/Geometry/Data/Tutor
- * (AI)/etc., and acceptance criterion 3 (a correctly-declared example still passes) would break
- * for a program that needs no optional profile at all. This function therefore precollects every
- * name the source itself `define`s and never treats a call to one of those names as
- * profile-primitive usage — a structural guard, not a one-off exclusion, so it covers every
- * bare-name hand-list (including `TUTOR_AI_CALLEE_NAMES`) uniformly.
- *
- * **The shadow-guard also precollects `struct` names, not just `define`d ones** (round-12
- * rubber-duck review — the opposite-direction bug from masking: a spurious FAIL on a *correct*
- * example): a `struct` declaration registers a same-named **constructor reporter**
- * (`packages/parser/src/ast.ts`'s `StructDefNode` doc comment), so `struct area [ value ]` then
- * `print area 5` is ordinary, valid Data-profile code whose `area` call resolves to the user's own
- * constructor — exactly like a colliding `define`. Enumerating every `"...Def"`-kind node in
- * `ast.ts`'s `OL_NODE_KINDS` shows exactly two register a same-named callable, `ProcedureDef` and
- * `StructDef` (no other declaration node introduces one), so precollecting both kinds makes this
- * guard provably exhaustive — there is no third declaration-with-callable-name construct left to
- * find.
- *
- * **The Data shadow-guard exception depends on AST *position*, not just the name** (round-6 and
- * round-7 rubber-duck reviews — two runtime dispatch paths, two opposite bugs):
- * - Round 6: `@openlogo/runtime`'s **expression** evaluator (`evaluate.ts`) resolves the 8 Data
- *   derived-reporter names (`list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`) to
- *   the Data builtin *before* it ever consults `environment.procedures` — so a colliding local
- *   `define` does NOT shadow them in expression position (e.g. `define list ... end` then
- *   `print list 1 2` still prints the builtin's result). Applying the shadow-guard there would
- *   under-detect a real Data dependency, reopening G8.
- * - Round 7: but `@openlogo/runtime`'s **statement**-position dispatch
- *   (`execute-internal.ts`'s `isProcedureCallStatement`) checks `environment.procedures.has(name)`
- *   FIRST, with no builtin exclusion at all — confirmed by direct `execute()` repro: with
- *   `define list :a :b / print :a / end` in scope, the bare statement `list 1 2` emits a
- *   `procedure-enter` for the user's `list` and prints `1`, never touching the Data builtin. So a
- *   colliding local `define` DOES shadow these 8 names in statement position, and unconditionally
- *   attributing `"data"` there — as round 6's fix did — reopens the exact round-5 false-positive
- *   class (a Core-only example whose own procedure happens to be named `list`/`dict`/etc. would be
- *   wrongly failed for omitting Data, violating acceptance criterion 3).
- *
- * The fix tracks which `Call`/`ParenCall` nodes are themselves direct statements — elements of
- * `Program.body`, or of the `BlockNode` a genuine control-flow construct (`If`'s `thenBody`/
- * `elseBody`, `While`/`Repeat`/`Forever`/`ForIn`/`ForRange`/`ProcedureDef`'s `body`) dispatches
- * through `executeStatements` — versus nested inside an expression. Deliberately enumerated by
- * parent node kind rather than "any `Block`-shaped node" (round-8 rubber-duck review): a
- * `Comprehension`'s `body` field is ALSO typed `BlockNode` (`packages/parser/src/ast.ts:381-386`)
- * but is evaluated as a bracketed *expression* per iteration
- * (`packages/runtime/src/evaluate.ts`'s comprehension evaluator), never through
- * `executeStatements` — confirmed by direct `execute()` repro: with the round-7 `define list`
- * shadow in scope, `print map x in [1 2] [ list :x :x ]` prints the Data builtin's
- * `[[1, 1], [2, 2]]`, with no `procedure-enter` for the user's `list`. A generic "every `Block`'s
- * body is a statement" rule would have wrongly classified that call as statement position and
- * shadow-guarded it, silently under-detecting a real Data dependency again. Only the latter
- * (expression position, including `Comprehension` bodies) gets the unconditional Data
- * attribution; a statement-position Data-reporter call still goes through the ordinary
- * shadow-guard, exactly like every other profile's callee names.
- *
- * @returns a sorted, de-duplicated array of profile ids, e.g. `["data"]` or `["data", "sound"]`.
- */
-export function detectUsedProfiles(source) {
-  const { ast, diagnostics } = parse(source);
-  const used = new Set();
-
-  // Reserved words with no AST production at all (`to`/`output`/`op`/`import`/`export`/`alias`,
-  // see {@link RESERVED_WORD_PROFILES}) can never be found by the AST walk below, so they are
-  // detected from the parser's own diagnostics instead: `packages/parser/src/errors.ts`'s
-  // `badToken` (and its `missingTerminator` cascade sibling, both `ol-bad-token`) always carries
-  // the exact offending token text in `params.text`. Matched on the diagnostic `code` plus an
-  // exact, case-insensitive `params.text` value — never on `message` prose, which is not part of
-  // a diagnostic's stable identity (`spec/localization.md:221`).
-  for (const diagnostic of diagnostics) {
-    if (diagnostic.code !== "ol-bad-token") {
-      continue;
-    }
-    const text = diagnostic.params?.text;
-    if (typeof text !== "string") {
-      continue;
-    }
-    const profile = RESERVED_WORD_PROFILES.get(text.toLowerCase());
-    if (profile !== undefined) {
-      used.add(profile);
-    }
-  }
-
-  // A `struct` declaration registers a same-named CONSTRUCTOR REPORTER, not just a type
-  // (`packages/parser/src/ast.ts`'s `StructDefNode` doc comment: "declares a record type ... and
-  // a same-named constructor reporter"; `spec/data-structures.md`) — so `struct area [ value ]`
-  // makes a bare call to `area` resolve to the user's own constructor, exactly as
-  // `define area ... end` would. Enumerating every `"...Def"`/`"...Declaration"` kind in
-  // `ast.ts`'s `OL_NODE_KINDS`, exactly two register a same-named callable: `ProcedureDef` and
-  // `StructDef` (no other declaration node — `DictLit`, `Add`/`Remove`/etc. — introduces a name).
-  // Collecting only `ProcedureDef` here left that second one unguarded (round-12 rubber-duck
-  // review): a *correct* Data-only example naming its own struct `area`/`polygon`/`note`/
-  // `challenge` was spuriously flagged as needing Geometry/Sound/Tutor-AI, the false-positive
-  // mirror image of the masking bug this whole detector exists to close. Collecting both kinds
-  // makes the shadow-guard provably exhaustive.
-  const definedProcedureNames = new Set();
-  walk(ast, (node) => {
-    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
-      definedProcedureNames.add(node.name.name.toLowerCase());
-    }
-  });
-
-  // Every `Call`/`ParenCall` that is itself a direct statement — a member of `Program.body`, or
-  // of the `BlockNode` that a genuine control-flow construct runs through `executeStatements`.
-  // Enumerated by exact parent node kind (not "any node whose shape happens to hold a
-  // `BlockNode`") specifically so `Comprehension.body` — a `BlockNode`-typed field that is really
-  // an expression, evaluated once per iteration, never dispatched via `executeStatements` — is
-  // excluded; see this function's doc comment for the round-8 evidence.
-  const statementPositionCalls = new Set();
-  const collectStatementBody = (block) => {
-    for (const statement of block.body) {
-      if (statement.kind === "Call" || statement.kind === "ParenCall") {
-        statementPositionCalls.add(statement);
-      }
-    }
-  };
-  walk(ast, (node) => {
-    switch (node.kind) {
-      case "Program":
-        collectStatementBody(node);
-        return;
-      case "If":
-        collectStatementBody(node.thenBody);
-        if (node.elseBody !== undefined) {
-          collectStatementBody(node.elseBody);
-        }
-        return;
-      case "While":
-      case "Repeat":
-      case "Forever":
-      case "ForIn":
-      case "ForRange":
-      case "ProcedureDef":
-        collectStatementBody(node.body);
-        return;
-      default:
-        return;
-    }
-  });
-
-  walk(ast, (node) => {
-    if (node.kind === "ValueOfKey") {
-      // The Heritage `value of ... for key` dictionary reader (`spec/conformance.md:273`,`:301`):
-      // classified as Heritage, but it "also needs Data" because it operates on dicts — an
-      // example using it must declare BOTH, or the missing one goes undetected (issue #519
-      // masking class: declaring only `data` would silently under-declare `heritage`, and vice
-      // versa).
-      used.add("heritage");
-      used.add("data");
-      return;
-    }
-    if (DATA_NODE_KINDS.has(node.kind)) {
-      used.add("data");
-      return;
-    }
-    if (node.kind === "Place" || node.kind === "PostfixExpression") {
-      for (const segment of node.segments) {
-        if (segment.kind === "index" || segment.kind === "field") {
-          used.add("data");
-        }
-      }
-      return;
-    }
-    if (node.kind !== "Call" && node.kind !== "ParenCall") {
-      return;
-    }
-    const name = node.callee.name.toLowerCase();
-    if (dataPrimitiveArity(name) !== undefined) {
-      // The Data profile's derived list/dict/record reporters (`dict`, `list`, `reverse`,
-      // `pick`, `sort`, `keys`, `values`, `type_of`) are call-site names, not distinct AST node
-      // kinds — detected via the parser's own name table so this stays in lockstep with it
-      // (issue #519 rubber-duck review: a hand-maintained second list would drift and reopen the
-      // exact masking gap this fix closes).
-      //
-      // A colliding local `define` shadows one of these 8 names ONLY in statement position, not
-      // expression position (round-6 vs. round-7 rubber-duck reviews; see this function's own
-      // doc comment for the full runtime-dispatch evidence from `evaluate.ts` and
-      // `execute-internal.ts`). So: in expression position, always attribute `"data"`
-      // unconditionally (a local `define` can never suppress it, or a real Data dependency goes
-      // undetected); in statement position, fall through to the ordinary
-      // `definedProcedureNames` shadow-guard below, exactly like every other profile's callee
-      // names (or a Core-only example whose own procedure happens to be named e.g. `list` would
-      // be wrongly failed for omitting Data).
-      if (
-        !statementPositionCalls.has(node) ||
-        !definedProcedureNames.has(name)
-      ) {
-        used.add("data");
-      }
-      return;
-    }
-    if (definedProcedureNames.has(name)) {
-      // A locally `define`d procedure of this name shadows every OTHER optional-profile callee it
-      // happens to collide with: `@openlogo/runtime`'s statement dispatch
-      // (`execute-internal.ts`'s `isProcedureCallStatement`) checks `environment.procedures` with
-      // no builtin exclusion, and none of Geometry/Educational/Sound/Interaction & Events/
-      // Sprites/Heritage's names appear in `evaluate.ts`'s expression dispatch chain either — so a
-      // user procedure of one of those names always wins, at both statement and expression
-      // position. Treat the call as ordinary Core user code, not as evidence of profile usage.
-      return;
-    }
-    if (geometryPrimitiveArity(name) !== undefined) {
-      // The Geometry profile's renderer-backed overlay primitives `grid`/`axes`/`measure`
-      // (`packages/parser/src/signatures.ts`'s `GEOMETRY_PRIMITIVE_ARITY`) — Geometry IS
-      // implemented (see {@link IMPLEMENTED_PROFILES}), so an example using one of these while
-      // under-declaring `geometry` is a live, catchable masking case, not a hypothetical.
-      used.add("geometry");
-    } else if (GEOMETRY_STDLIB_CALLEE_NAMES.has(name)) {
-      // The Geometry profile's derived stdlib procedures `polygon`/`star`/`circle`/`arc`/`area`/
-      // `perimeter` (`spec/geometry-module.md`, `spec/conformance.md:261`) — an ordinary,
-      // recognizable call site an example either `define`s for itself (already excluded above by
-      // the `definedProcedureNames` shadow-guard) or calls while relying on the profile's
-      // stdlib semantics (fifth review round, issue #519).
-      used.add("geometry");
-      if (GEOMETRY_STDLIB_ALSO_DATA_NAMES.has(name)) {
-        used.add("data");
-      }
-    } else if (educationalPrimitiveArity(name) !== undefined) {
-      // The Educational profile's baseline meta-commands `explain`/`why`/`hint`/`debug`
-      // (`packages/parser/src/signatures.ts`'s `EDUCATIONAL_PRIMITIVE_ARITY`).
-      used.add("educational");
-    } else if (SOUND_CALLEE_NAMES.has(name)) {
-      used.add("sound");
-    } else if (INTERACTION_EVENTS_CALLEE_NAMES.has(name)) {
-      used.add("interaction-events");
-    } else if (SPRITES_CALLEE_NAMES.has(name)) {
-      used.add("sprites");
-    } else if (HERITAGE_CALLEE_NAMES.has(name)) {
-      used.add("heritage");
-    } else if (TUTOR_AI_CALLEE_NAMES.has(name)) {
-      used.add("tutor-ai");
-    }
-  });
-
-  return [...used].sort();
-}
 
 /** Load the filename -> required-profile-id[] manifest from `manifestPath`. */
 export function loadManifest(manifestPath = MANIFEST_PATH) {
   return JSON.parse(readFileSync(manifestPath, "utf8"));
+}
+
+/**
+ * Load the filename -> host-input entry manifest from `hostInputPath` (issue #955), stripping the
+ * leading `_comment` key the JSON file carries in place of a comment syntax it does not have.
+ */
+export function loadHostInputManifest(hostInputPath = HOST_INPUT_PATH) {
+  const { _comment, ...entries } = JSON.parse(
+    readFileSync(hostInputPath, "utf8"),
+  );
+  return entries;
+}
+
+/**
+ * Validate one `scripts/examples-host-input.json` entry (issue #955). Returns `null` when valid, or
+ * an error string.
+ *
+ * Validated as strictly as the conformance harness validates a fixture's `executeOptions` — via the
+ * very same {@link validateExecuteOptions} — for the same reason: an entry is what turns this gate
+ * from "runs the program" into "asserts the program's stated output", so a typo'd key that loaded
+ * clean and was silently ignored would leave a file that LOOKS driven while still running blind.
+ * That is exactly the failure this issue exists to close, one level up.
+ *
+ * An entry declares:
+ *   - `description` — optional prose, mirroring a conformance fixture's `description`: why this
+ *     schedule and why these assertions are the decisive ones. JSON has no comment syntax, so
+ *     without it an entry's rationale would have nowhere to live.
+ *   - `executeOptions` — required, and it must carry a **non-empty** `hostInput.events`. An entry
+ *     without deliveries would be counted as "ran with a host input schedule" while scheduling
+ *     nothing, which is the original defect wearing this mechanism's clothes.
+ *   - `expect.prints` — the ordered `print` event payloads the run must produce, compared exactly.
+ *   - `expect.eventCounts` — exact totals for the named event kinds, for contracts a print cannot
+ *     express (a key handler that only moves the turtle, say). Kinds are validated against
+ *     `@openlogo/core`'s registry and counts must be non-negative integers, so a misspelled kind
+ *     cannot quietly assert `0` — an assertion that holds for every kind that does not exist is not
+ *     an assertion.
+ * At least one of the two `expect` fields must be present, and `expect.prints` must not be an empty
+ * array when it is the only assertion: an entry that schedules input but asserts nothing would
+ * reintroduce the blindness in a form that merely looks busier.
+ */
+export function validateHostInputEntry(file, entry) {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    return `${file}: host-input entry must be an object`;
+  }
+  const ALLOWED_KEYS = new Set(["description", "executeOptions", "expect"]);
+  for (const key of Object.keys(entry)) {
+    if (!ALLOWED_KEYS.has(key)) {
+      return `${file}: "${key}" is not a known host-input entry key (known keys: ${[...ALLOWED_KEYS].join(", ")})`;
+    }
+  }
+  if (entry.executeOptions === undefined) {
+    return `${file}: host-input entry must declare "executeOptions"`;
+  }
+  const optionsError = validateExecuteOptions(entry.executeOptions);
+  if (optionsError !== null) {
+    return `${file}: ${optionsError}`;
+  }
+  const events = entry.executeOptions.hostInput?.events;
+  if (events === undefined || events.length === 0) {
+    return `${file}: "executeOptions.hostInput.events" must deliver at least one event — an entry that schedules nothing would still be counted as running with a host input schedule (issue #955)`;
+  }
+  const expect = entry.expect;
+  if (typeof expect !== "object" || expect === null || Array.isArray(expect)) {
+    return `${file}: host-input entry must declare an "expect" object`;
+  }
+  const ALLOWED_EXPECT_KEYS = new Set(["prints", "eventCounts"]);
+  for (const key of Object.keys(expect)) {
+    if (!ALLOWED_EXPECT_KEYS.has(key)) {
+      return `${file}: "expect.${key}" is not a known key (known keys: ${[...ALLOWED_EXPECT_KEYS].join(", ")})`;
+    }
+  }
+  if (expect.prints !== undefined && !Array.isArray(expect.prints)) {
+    return `${file}: "expect.prints" must be an array when present`;
+  }
+  if (
+    expect.eventCounts !== undefined &&
+    (typeof expect.eventCounts !== "object" ||
+      expect.eventCounts === null ||
+      Array.isArray(expect.eventCounts))
+  ) {
+    return `${file}: "expect.eventCounts" must be an object when present`;
+  }
+  for (const [kind, count] of Object.entries(expect.eventCounts ?? {})) {
+    if (!OL_EVENT_KINDS.includes(kind)) {
+      return `${file}: "expect.eventCounts.${kind}" is not an event kind in the @openlogo/core registry — a misspelled kind would assert 0 forever`;
+    }
+    if (!Number.isInteger(count) || count < 0) {
+      return `${file}: "expect.eventCounts.${kind}" must be a non-negative integer`;
+    }
+  }
+  const asserts =
+    (expect.prints?.length ?? 0) + Object.keys(expect.eventCounts ?? {}).length;
+  if (asserts === 0) {
+    return `${file}: "expect" must assert something — declare a non-empty "prints" and/or "eventCounts"; an entry that delivers host input but asserts nothing leaves the example as unasserted as an empty host would (issue #955)`;
+  }
+  return null;
+}
+
+/**
+ * Does `source` register a handler that **cannot fire unless a host delivers something** — an
+ * `on_key`/`on_click` block head, or a `when` for any event other than an exact-case `"start"`
+ * (`spec/interaction-events.md`)?
+ *
+ * This is what makes the host-input requirement structural rather than a matter of remembering
+ * (issue #955, review round 1). Without it, deleting or misspelling an example's entry in
+ * `scripts/examples-host-input.json` would leave `npm run examples` green while the example silently
+ * went back to running with an empty host — the manifest would be the only thing asserting that the
+ * example is asserted, which is the recursion this whole issue is about. With it, the corpus itself
+ * decides: any example that registers such a handler MUST carry a schedule, so a missing entry fails
+ * the gate rather than quietly relaxing it.
+ *
+ * **The boundary is "needs delivery", not "is an interaction form"** — measured, because three
+ * review rounds got it wrong in three different ways. The two wrong versions were too permissive
+ * and then too strict on the same axis, which is the signature of classifying on the wrong
+ * dimension: the rule was sorting by block *head* when the property is *delivery*. The tell was
+ * available throughout — `when "start"` and `when "stop"` behave differently, and a single head with
+ * two behaviours falsifies any head-shaped rule. Each row is a direct `execute()` run of the
+ * source followed by `wait 100`:
+ *
+ * | source (followed by `wait 100`) | prints under an EMPTY host | needs a schedule |
+ * | --- | --- | --- |
+ * | `on_click [ print 1 ]` | 0 | **yes** |
+ * | `on_key "a" [ print 1 ]` | 0 | **yes** |
+ * | `when "stop" [ print 1 ]` | 0 (1 when the host delivers `stop`) | **yes** |
+ * | `when "START" [ print 1 ]` | 0 (1 when the host delivers `START`) | **yes** |
+ * | `when "start" [ print 1 ]` | 1 | no |
+ * | `every 10 [ print 1 ]` | 10 | no |
+ *
+ * - `every` fires from the runtime's own **tick clock** (round 2: requiring a schedule for it would
+ *   force a meaningless entry onto a correct timer-only example). The count is a property of the
+ *   `wait`, not of `every` alone: `every 10` prints 2 under `wait 20` and 10 under `wait 100`, and 0
+ *   with no clock-advancing statement at all — so "`every 10 [ print 1 ]` prints 10" is only true of
+ *   this exact pairing.
+ * - `when "start"` is delivered internally — `packages/runtime/src/interaction.ts`: in a headless
+ *   run "only `"start"` is *delivered*: the run has already started, so a `when "start"` handler
+ *   fires immediately on registration".
+ * - Every **other** `when` event, `"stop"` included, needs the host (round 3: excluding all of `when`
+ *   reopened exactly the hole this predicate exists to close — an example advertising a `when "stop"`
+ *   behaviour could pass with that behaviour unreachable).
+ *
+ * A `when` whose event word is **not a literal** (`when :chosen [ … ]`) cannot be classified
+ * statically, so it is treated as needing a schedule. That is the conservative direction for a gate
+ * whose purpose is to stop handlers going unasserted, and it is a stated residual rather than a
+ * silent one: no example in the corpus uses a dynamic event word today.
+ *
+ * **The set is congruent with what a schedule can actually deliver**, which is the structural reason
+ * behind the behavioural table. `HostInputEvent`
+ * (`packages/runtime/src/interaction.ts:459-462`) has exactly three variants — `{kind:"key"}`,
+ * `{kind:"click"}`, and `{kind:"event", event}` — and those are precisely `on_key`, `on_click`, and
+ * `when`. So every head this predicate requires a schedule for is one a schedule can drive: measured,
+ * `when "stop"` and even a vendor `when "acme.shake"` both fire when the entry delivers
+ * `{tick, kind:"event", event}`. If that union ever gains or loses a variant, this set must be
+ * revisited — state it here rather than leaving the congruence to be rediscovered.
+ *
+ * **`input` is excluded for a different reason, and it is worth naming** (review round 3): it *is*
+ * host-dependent, but it is safe because the runtime **fails closed** rather than because it needs no
+ * host. With an empty host an `input` read blocks until the execution budget trips, so
+ * `execute()` reports `ol-limit` and {@link classifyExample} fails the example loudly — it cannot run
+ * blind and pass. That safety comes from the budget, not from this gate: if `input` were ever changed
+ * to yield an empty word instead of blocking, an `input`-using example would run blind and pass, and
+ * this predicate would need to cover it. No example uses `input` today.
+ *
+ * Keyed on the `ProfileStatement` node the reader builds for a profile block head (issue #664).
+ */
+export function registersHostHandlers(source) {
+  const ALWAYS_HOST_DRIVEN = new Set(["on_key", "on_click"]);
+  const { ast } = parse(source);
+  let found = false;
+  walk(ast, (node) => {
+    if (node.kind !== "ProfileStatement") {
+      return;
+    }
+    const head = node.keyword.name.toLowerCase();
+    if (ALWAYS_HOST_DRIVEN.has(head)) {
+      found = true;
+      return;
+    }
+    if (head !== "when") {
+      return;
+    }
+    const event = node.args[0];
+    // Compared EXACTLY, not case-folded: a word literal preserves the case the learner wrote
+    // (`spec/execution-model.md:20`) and the runtime matches the delivered event word exactly, so
+    // `when "START"` is NOT the internally-delivered `"start"`. Measured: `when "start"` prints once
+    // under an empty host, while `when "START"` and `when "Start"` print nothing and print once only
+    // when a host delivers that exact word — so they need a schedule. Lower-casing here (review
+    // round 4) wrongly excluded them, and the test pinned that wrong answer.
+    const isStart =
+      event !== undefined &&
+      event.kind === "WordLit" &&
+      event.value === "start";
+    found ||= !isStart;
+  });
+  return found;
 }
 
 /** True when every profile in `requiredProfiles` is already implemented. */
@@ -556,29 +289,71 @@ export function isRunnable(requiredProfiles, implementedProfiles) {
 }
 
 /**
+ * Compare an executed run's observable output against a host-input entry's `expect` block
+ * (issue #955), returning an array of human-readable mismatch reasons (empty when it all holds).
+ */
+function expectationFailures(events, expect) {
+  const failures = [];
+  if (expect.prints !== undefined) {
+    const actual = events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload);
+    if (JSON.stringify(actual) !== JSON.stringify(expect.prints)) {
+      failures.push(
+        `expected prints ${JSON.stringify(expect.prints)} but got ${JSON.stringify(actual)}`,
+      );
+    }
+  }
+  if (expect.eventCounts !== undefined) {
+    for (const [kind, expected] of Object.entries(expect.eventCounts)) {
+      const actual = events.filter((event) => event.kind === kind).length;
+      if (actual !== expected) {
+        failures.push(
+          `expected ${expected} "${kind}" event(s) but got ${actual}`,
+        );
+      }
+    }
+  }
+  return failures;
+}
+
+/**
  * Parse+execute `source` (document label `name`) via `@openlogo/runtime`'s `execute()` and
  * classify the result. `execute()` is not expected to throw for a well-formed program, but a gate
  * must never itself crash on an unexpected internal error — an unexpected throw is reported as a
  * failure rather than propagated.
  *
+ * With no `hostInputEntry` this is the historical behaviour: run with an empty host and require
+ * zero error-severity diagnostics. With one (issue #955), the run is driven by the entry's
+ * `executeOptions` and additionally has to satisfy the entry's `expect` block — so an example whose
+ * contract is interactive has that contract actually asserted, instead of merely parsing and
+ * executing while every handler stays unreachable.
+ *
  * @returns `{ status: "pass" }`, or `{ status: "fail", reason }` when execution produced one or
- *   more error-severity diagnostics (joined into `reason`) or threw.
+ *   more error-severity diagnostics (joined into `reason`), failed an expectation, or threw.
  */
-export function classifyExample(source, name) {
+export function classifyExample(source, name, hostInputEntry = undefined) {
   let result;
   try {
-    result = execute(source, name);
+    result = execute(source, name, hostInputEntry?.executeOptions);
   } catch (err) {
     return { status: "fail", reason: `threw: ${err.message}` };
   }
   const errors = result.diagnostics.filter((d) => d.severity === "error");
-  if (errors.length === 0) {
+  if (errors.length > 0) {
+    return {
+      status: "fail",
+      reason: errors.map((d) => `${d.code}: ${d.message}`).join("; "),
+    };
+  }
+  if (hostInputEntry === undefined) {
     return { status: "pass" };
   }
-  return {
-    status: "fail",
-    reason: errors.map((d) => `${d.code}: ${d.message}`).join("; "),
-  };
+  const failures = expectationFailures(result.events, hostInputEntry.expect);
+  if (failures.length > 0) {
+    return { status: "fail", reason: failures.join("; ") };
+  }
+  return { status: "pass" };
 }
 
 /**
@@ -587,26 +362,40 @@ export function classifyExample(source, name) {
  * the CLI shell (`check-examples.mjs`) does that from the returned `ok` flag.
  *
  * For every example with a manifest entry, this also runs the profile under-declaration check
- * (issue #519, finding G8, see {@link detectUsedProfiles}) BEFORE deciding whether to run or skip
- * it: an example whose source uses a construct outside its declared profiles' dependency closure
- * FAILS loudly, naming the example and the missing profile(s), regardless of whether the example
- * would otherwise have run, passed, or been skipped for an unrelated not-yet-implemented profile.
+ * (issue #519, finding G8, see `scripts/profile-detection.mjs`) BEFORE deciding whether to run or
+ * skip it: an example whose source uses a construct outside its declared profiles' dependency
+ * closure FAILS loudly, naming the example and the missing profile(s), regardless of whether the
+ * example would otherwise have run, passed, or been skipped for an unrelated not-yet-implemented
+ * profile.
  *
- * @returns `{ ok, ran, skipped, failed, lines }` — `lines` is the printable report (one
- *   `PASS`/`FAIL`/`SKIP` line per example plus a trailing summary line); `ok` is `false` when any
- *   example failed or the manifest/directory itself is invalid.
+ * An example named in `hostInputManifest` (default: read from `hostInputPath`) is executed with
+ * that entry's host-input schedule and must satisfy its declared expectations (issue #955); an
+ * example that registers a handler that needs host delivery and is NOT named there FAILS, so
+ * the requirement comes from the corpus rather than from the manifest and a deleted entry cannot
+ * quietly relax it. `every` and an exact-case `when "start"` are excluded because they fire without
+ * host delivery — see
+ * {@link registersHostHandlers}. Every other
+ * example runs with an empty host exactly as before. The summary line reports both counts, so the
+ * fraction of the corpus running blind is visible rather than assumed.
+ *
+ * @returns `{ ok, ran, ranWithInput, skipped, failed, lines }` — `lines` is the printable report
+ *   (one `PASS`/`FAIL`/`SKIP` line per example plus a trailing summary line); `ok` is `false` when
+ *   any example failed or the manifest/directory itself is invalid.
  */
 export function runExamplesGate({
   dir = EXAMPLES_DIR,
   manifestPath = MANIFEST_PATH,
   manifest,
+  hostInputPath = HOST_INPUT_PATH,
+  hostInputManifest,
   implementedProfiles = IMPLEMENTED_PROFILES,
 } = {}) {
   const lines = [];
+  const empty = { ok: false, ran: 0, ranWithInput: 0, skipped: 0, failed: 0 };
 
   if (!existsSync(dir)) {
     lines.push(`examples: directory ${dir} does not exist`);
-    return { ok: false, ran: 0, skipped: 0, failed: 0, lines };
+    return { ...empty, lines };
   }
 
   const files = readdirSync(dir)
@@ -615,12 +404,15 @@ export function runExamplesGate({
 
   if (files.length === 0) {
     lines.push(`examples: no .logo files found in ${dir}`);
-    return { ok: false, ran: 0, skipped: 0, failed: 0, lines };
+    return { ...empty, lines };
   }
 
   const resolvedManifest = manifest ?? loadManifest(manifestPath);
+  const resolvedHostInput =
+    hostInputManifest ?? loadHostInputManifest(hostInputPath);
 
   let ran = 0;
+  let ranWithInput = 0;
   let skipped = 0;
   let failed = 0;
 
@@ -659,6 +451,33 @@ export function runExamplesGate({
       continue;
     }
 
+    const hostInputEntry = resolvedHostInput[file];
+    // These two checks run BEFORE the SKIP decision below, for the same reason the profile
+    // under-declaration check above does (issue #519's masking class): a malformed or missing entry
+    // attached to an example that happens to need a not-yet-implemented profile would otherwise
+    // load clean and go unreported until that profile lands.
+    if (hostInputEntry === undefined) {
+      // An example that registers such a handler and has NO entry would run with an empty
+      // host and report PASS while every such handler in it stayed unreachable — exactly the state issue #955
+      // exists to end. Requiring the schedule from the SOURCE rather than from the manifest is what
+      // makes a deleted or misspelled entry fail rather than silently relax the gate.
+      if (registersHostHandlers(source)) {
+        failed += 1;
+        lines.push(
+          `FAIL ${file}: registers a handler that needs host delivery (on_key/on_click, or a "when" for any event but an exact-case "start" — word values preserve case) but has no entry in ${hostInputPath} — ` +
+            `it would run with an empty host, so none of them could fire and the gate would assert nothing about them (issue #955)`,
+        );
+        continue;
+      }
+    } else {
+      const entryError = validateHostInputEntry(file, hostInputEntry);
+      if (entryError !== null) {
+        failed += 1;
+        lines.push(`FAIL ${entryError} (${hostInputPath})`);
+        continue;
+      }
+    }
+
     if (!isRunnable(requiredProfiles, implementedProfiles)) {
       const missing = requiredProfiles.filter(
         (profile) => !implementedProfiles.includes(profile),
@@ -671,9 +490,16 @@ export function runExamplesGate({
     }
 
     ran += 1;
-    const outcome = classifyExample(source, file);
+    if (hostInputEntry !== undefined) {
+      ranWithInput += 1;
+    }
+    const outcome = classifyExample(source, file, hostInputEntry);
     if (outcome.status === "pass") {
-      lines.push(`PASS ${file}`);
+      lines.push(
+        hostInputEntry === undefined
+          ? `PASS ${file}`
+          : `PASS ${file} (with host input)`,
+      );
     } else {
       failed += 1;
       lines.push(`FAIL ${file}: ${outcome.reason}`);
@@ -681,24 +507,27 @@ export function runExamplesGate({
   }
 
   lines.push(
-    `examples: ran ${ran}, skipped ${skipped}, failed ${failed} (of ${files.length} total)`,
+    `examples: ran ${ran} (${ranWithInput} with a host input schedule, ${ran - ranWithInput} with an empty host), skipped ${skipped}, failed ${failed} (of ${files.length} total)`,
   );
 
-  return { ok: failed === 0, ran, skipped, failed, lines };
+  return { ok: failed === 0, ran, ranWithInput, skipped, failed, lines };
 }
 
-/** Parse CLI arguments: `--dir=<path>` and `--manifest=<path>` override the defaults (used by the
- * subprocess regression test to point the CLI at isolated temp fixtures instead of the real
- * `spec/examples/` corpus). */
+/** Parse CLI arguments: `--dir=<path>`, `--manifest=<path>` and `--host-input=<path>` override the
+ * defaults (used by the subprocess regression test to point the CLI at isolated temp fixtures
+ * instead of the real `spec/examples/` corpus). */
 export function parseArgs(argv) {
   let dir;
   let manifestPath;
+  let hostInputPath;
   for (const arg of argv) {
     if (arg.startsWith("--dir=")) {
       dir = arg.slice("--dir=".length);
     } else if (arg.startsWith("--manifest=")) {
       manifestPath = arg.slice("--manifest=".length);
+    } else if (arg.startsWith("--host-input=")) {
+      hostInputPath = arg.slice("--host-input=".length);
     }
   }
-  return { dir, manifestPath };
+  return { dir, manifestPath, hostInputPath };
 }

@@ -1,0 +1,3 @@
+define forward :n
+  print :n
+end

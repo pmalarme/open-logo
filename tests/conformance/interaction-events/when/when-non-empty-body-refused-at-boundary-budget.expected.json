@@ -1,0 +1,50 @@
+{
+  "description": "the discriminating twin of when-firing-counts-against-budget at the SAME instruction budget of 2: that handler's body is empty and IS delivered, this one's body holds a statement and is REFUSED. A handler must afford its firing AND, when its body has statements, its body's first statement - executeStatements runs that first statement only while the count is below the budget on entry, so a non-empty handler admitted at the boundary would emit its block-head and then halt having run nothing. The proof is an ABSENCE that a source-to-events fold observes directly: there is exactly one ProfileStatement instruction event here, the when registration itself, and no second one for a handler start. Dropping the body-gate arm admits the handler and adds that orphan block-head event",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 2
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-non-empty-body-refused-at-boundary-budget",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-non-empty-body-refused-at-boundary-budget",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "name": "when"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/when/when-non-empty-body-refused-at-boundary-budget",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {
+        "limit": "instruction-budget",
+        "value": 2
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

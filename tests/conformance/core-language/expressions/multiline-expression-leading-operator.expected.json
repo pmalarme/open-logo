@@ -1,0 +1,200 @@
+{
+  "description": "A binary operator that opens a line continues the expression above it, the mirror image of the trailing-operator case in `spec/grammar.md:34` (issue #933) — for the worded operators `and`, `or`, `mod`, `is` as well as the symbolic ones, because none of them can begin a statement, so continuing onto one can never swallow the statement below. The one operator that *can* begin a statement, a `-` glued to a numeral, is excluded; `multiline-expression-statement-separation` pins that.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [6, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [6, 1],
+        "end": [7, 6]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [8, 1],
+        "end": [9, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [8, 1],
+        "end": [9, 6]
+      },
+      "payload": {
+        "values": [6]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [10, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [10, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "values": [12]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [12, 1],
+        "end": [13, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [12, 1],
+        "end": [13, 6]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [14, 1],
+        "end": [15, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [14, 1],
+        "end": [15, 8]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [16, 1],
+        "end": [17, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [16, 1],
+        "end": [17, 12]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [18, 1],
+        "end": [19, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [18, 1],
+        "end": [19, 10]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [20, 1],
+        "end": [21, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/expressions/multiline-expression-leading-operator",
+        "start": [20, 1],
+        "end": [21, 11]
+      },
+      "payload": {
+        "values": [false]
+      }
+    }
+  ],
+  "diagnostics": []
+}

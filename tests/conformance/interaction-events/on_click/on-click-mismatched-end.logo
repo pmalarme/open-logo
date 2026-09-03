@@ -1,0 +1,3 @@
+on_click
+  print "x"
+end when

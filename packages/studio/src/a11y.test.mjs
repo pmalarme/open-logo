@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import { MAIN_TURTLE_ID } from "@openlogo/turtle";
+
+/** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what a single-turtle
+ * (Turtle & Rendering) program's event stream folds to. */
+function singleTurtleWorld(state) {
+  return {
+    turtles: new Map([[MAIN_TURTLE_ID, state]]),
+    lastActedTurtleId: MAIN_TURTLE_ID,
+  };
+}
 
 test("REPL_FOCUS_ORDER covers every studio region with unique, stable ids", () => {
   const order = OL.REPL_FOCUS_ORDER;
@@ -83,7 +93,7 @@ test("REPL_FOCUS_ORDER puts the lesson pane first and the tutor-output pane last
   assert.equal(tutorOutputStop.role, "log");
 });
 
-test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: run log, canvas, turtle state, output", () => {
+test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: run log, canvas, turtle state, output — with #952's canvas activation button beside the canvas it activates", () => {
   const order = OL.REPL_FOCUS_ORDER;
   const ids = order.map((stop) => stop.id);
   assert.deepEqual(
@@ -92,11 +102,22 @@ test("REPL_FOCUS_ORDER orders the new #410 stops between Speed and diagnostics: 
       "speed-slider",
       "run-log",
       "canvas",
+      "canvas-activate",
       "turtle-state",
       "output",
       "diagnostics-list",
     ],
   );
+});
+
+test("#952: the canvas activation button is a real, labelled, tab-reachable button stop — on_click's 'equivalent accessible action'", () => {
+  const stop = OL.REPL_FOCUS_ORDER.find(
+    (entry) => entry.id === "canvas-activate",
+  );
+  assert.ok(stop, "on_click must be reachable without a pointer");
+  assert.equal(stop.region, "turtle");
+  assert.equal(stop.role, "button");
+  assert.equal(stop.label, OL.CANVAS_ACTIVATION_LABEL);
 });
 
 test("#315: the editor stays exactly one `textbox` focus stop, and CM6's own aria-role/aria-label (editor-cm6.ts) are derived from it, never a second literal that could drift", () => {
@@ -434,19 +455,21 @@ test("createTurtleStateRegion.state is the exact same store instance passed in, 
   assert.equal(region.state, state);
 });
 
-test("createTurtleStateRegion.getText updates when turtleState changes", () => {
+test("createTurtleStateRegion.getText updates when the turtle world changes", () => {
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
 
-  state.setTurtleState({
-    position: [100, 0],
-    heading: 90,
-    penDown: true,
-    color: "black",
-    width: 1,
-    shape: "turtle",
-    visible: true,
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      position: [100, 0],
+      heading: 90,
+      penDown: true,
+      color: "black",
+      width: 1,
+      shape: "turtle",
+      visible: true,
+    }),
+  );
 
   assert.equal(
     region.getText(),
@@ -460,21 +483,22 @@ test("createTurtleStateRegion does not notify for a same-reference re-set (no-op
   const texts = [];
   region.subscribeText((text) => texts.push(text));
 
-  const { turtleState } = state.getState();
-  state.setTurtleState(turtleState);
+  const { turtleWorld, turtleState } = state.getState();
+  state.setTurtleWorld(turtleWorld);
   assert.deepEqual(texts, []);
 
   // A genuine change is still delivered to the same listener.
-  state.setTurtleState({ ...turtleState, heading: 90 });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState, heading: 90 }));
   assert.deepEqual(texts, [region.getText()]);
 });
 
-test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtleState object", () => {
+test("createTurtleStateRegion does not notify for a genuine no-op turtle event that still produces a fresh (but text-identical) turtle world", () => {
   // @openlogo/turtle's reduceTurtleState always spreads a new object for any state-bearing trace
   // event, even a no-op like a repeated pen_down while the pen is already down (the runtime emits
-  // these; see execute-internal.ts's pen-change events). A reference-equality check alone would
-  // wrongly re-notify identical text on every such tick during a long animation — this proves the
-  // region instead compares the rendered text, matching diagnosticsKey's precedent above.
+  // these; see execute-internal.ts's pen-change events), and reduceTurtleWorldState then hands
+  // back a fresh world around it. A reference-equality check alone would wrongly re-notify
+  // identical text on every such tick during a long animation — this proves the region instead
+  // compares the rendered text, matching diagnosticsKey's precedent above.
   const state = OL.createStudioState();
   const region = OL.createTurtleStateRegion(state);
   const texts = [];
@@ -484,11 +508,11 @@ test("createTurtleStateRegion does not notify for a genuine no-op turtle event t
   assert.equal(turtleState.penDown, true, "the default turtle starts pen down");
   // A fresh object with the exact same field values as the current state — as a no-op pen_down/
   // set_color/etc. trace event's reducer output would be — must not be treated as a "change".
-  state.setTurtleState({ ...turtleState });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState }));
   assert.deepEqual(texts, []);
 
   // A genuine change afterward is still delivered.
-  state.setTurtleState({ ...turtleState, penDown: false });
+  state.setTurtleWorld(singleTurtleWorld({ ...turtleState, penDown: false }));
   assert.deepEqual(texts, [region.getText()]);
 });
 
@@ -498,19 +522,23 @@ test("createTurtleStateRegion.subscribeText only notifies listeners of changes a
   const texts = [];
   const unsubscribe = region.subscribeText((text) => texts.push(text));
 
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    position: [10, 0],
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      position: [10, 0],
+    }),
+  );
   assert.deepEqual(texts, [
     "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
   ]);
 
   unsubscribe();
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    position: [20, 0],
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      position: [20, 0],
+    }),
+  );
   // Unsubscribed, so no further notifications, even though getText() keeps tracking the change.
   assert.deepEqual(texts, [
     "turtle at x 10 y 0 heading 0 degrees pen down color black width 1",
@@ -530,16 +558,188 @@ test("two independent consumers of the same turtle-state region observe identica
   region.subscribeText((text) => consumerA.push(text));
   region.subscribeText((text) => consumerB.push(text));
 
-  state.setTurtleState({
-    ...state.getState().turtleState,
-    heading: 45,
-  });
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      ...state.getState().turtleState,
+      heading: 45,
+    }),
+  );
 
   assert.deepEqual(consumerA, consumerB);
   assert.deepEqual(consumerA, [region.getText()]);
 });
 
-test("createTurtleStateRegion composes with the real run controller end to end, in lockstep with the canvas turtle state, and includes the current source instruction (#410)", () => {
+test("the state text names the described turtle once the world holds more than one live turtle (#749, spec/rendering.md:193)", () => {
+  // The #749 reproduction, as a screen reader hears it: `tell [ :a :b ]` / `forward 10` /
+  // `ask :b [ hide_turtle set_color "blue" ]`. Before the fix the region announced ":b's" blue,
+  // hidden attributes with no identity at all — indistinguishable from the one turtle a
+  // Turtle & Rendering program has. Now the text names which turtle it is describing.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const base = {
+    position: [0, 10],
+    heading: 0,
+    penDown: true,
+    width: 1,
+    shape: "turtle",
+  };
+  state.setTurtleWorld({
+    turtles: new Map([
+      [0, { ...base, position: [0, 0], color: "black", visible: true }],
+      [1, { ...base, color: "black", visible: true }],
+      [2, { ...base, color: "blue", visible: false }],
+    ]),
+    lastActedTurtleId: 2,
+  });
+
+  assert.equal(
+    region.getText(),
+    "turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 hidden",
+  );
+});
+
+test("the state region names a turtle exactly as the output pane does, so the two text channels agree (#749)", () => {
+  // A screen-reader user has only text: the output pane (`print who` -> "turtle #2") and this
+  // region. If the region used a creation-order ordinal it would call that same turtle "turtle 3",
+  // contradicting the output pane by one for every turtle, forever. Driving a real program end to
+  // end proves the two channels agree on the name.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell :b",
+      "forward 10",
+      "print who",
+    ].join("\n"),
+  );
+  controller.run();
+
+  const printedName = state.getState().output.at(-1);
+  assert.equal(printedName, "turtle #2");
+  assert.ok(
+    region.getText().startsWith(`${printedName} at x `),
+    `the state region must name the turtle "${printedName}", got: ${region.getText()}`,
+  );
+});
+
+test("the state text identifies the whole addressed turtle set, end to end from a real program (#770, spec/rendering.md:193)", () => {
+  // `tell [ :a :b ]` addresses two turtles at once, and no single turtle is "the" answer: the
+  // per-turtle effects that follow name whichever turtle each one drove. Driving the real runtime
+  // proves the addressing snapshots #766 publishes survive the whole chain — runtime → trace
+  // stream → `reduceTurtleWorldState` → this region — and reach a screen reader as the set.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [":a = new_turtle", ":b = new_turtle", "tell [ :a :b ]", "forward 10"].join(
+      "\n",
+    ),
+  );
+  controller.run();
+
+  assert.equal(
+    region.getText(),
+    "addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction forward 10",
+  );
+  // Both addressed turtles really did move — the text names the set precisely because describing
+  // one of them alone would be describing half the drawing.
+  const { turtleWorld } = state.getState();
+  assert.deepEqual(turtleWorld.turtles.get(1).position, [0, 10]);
+  assert.deepEqual(turtleWorld.turtles.get(2).position, [0, 10]);
+});
+
+test("the state text follows an ask block in and back out again, end to end (#770)", () => {
+  // #770's acceptance criterion as a learner hears it. Inside `ask :b [ … ]` only `:b` is
+  // addressed, and `:b` is also what acts, so the text is the plain `turtle #2` sentence; when the
+  // block ends the runtime restores `{ :a, :b }` (spec/turtles-and-sprites.md:58) and the text
+  // names that set again — while still reporting `:b`'s state, because `:b` is what changed.
+  //
+  // The restore lands in the SAME step as the block's last inner instruction (a step spans one
+  // `instruction` event to the next), so that final sentence carries both halves of the step at
+  // once: the set that is addressed again, and the change the step actually made. Describing the
+  // restored turtle instead would announce `:a`, still black — and `:b` turning blue would never
+  // be announced at all (rubber-duck finding 1 on this slice).
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [
+      ":a = new_turtle",
+      ":b = new_turtle",
+      "tell [ :a :b ]",
+      "forward 10",
+      'ask :b [ set_color "blue" ]',
+    ].join("\n"),
+  );
+
+  controller.step(); // :a = new_turtle
+  controller.step(); // :b = new_turtle
+  controller.step(); // tell [ :a :b ]
+  assert.match(region.getText(), /^addressed turtles #1 #2\. turtle #/);
+
+  controller.step(); // forward 10
+  controller.step(); // ask :b [ … ] — its entry narrows the addressed set to { :b }
+  assert.equal(
+    region.getText(),
+    'turtle #2 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction ask :b [ set_color "blue" ]',
+  );
+
+  controller.step(); // the block's inner instruction — and, in the same step, the exit's restore
+  assert.equal(
+    region.getText(),
+    'addressed turtles #1 #2. turtle #2 at x 0 y 10 heading 0 degrees pen down color blue width 1 current instruction set_color "blue"',
+  );
+  // The restored set is named, and the turtle that actually turned blue is the one described.
+  const { turtleWorld } = state.getState();
+  assert.equal(turtleWorld.lastActedTurtleId, 2);
+  assert.equal(turtleWorld.turtles.get(2).color, "blue");
+  assert.equal(turtleWorld.turtles.get(1).color, "black");
+});
+
+test("the state text says plainly when a program addresses no turtle at all (#770)", () => {
+  // `tell [ ]` addresses nothing, and the spec defines no current turtle for an empty set — the
+  // stream reports `current_turtle_id: null` and leaves the display fallback to the consumer.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [":a = new_turtle", "tell :a", "forward 10", "tell [ ]"].join("\n"),
+  );
+  controller.run();
+
+  assert.equal(
+    region.getText(),
+    "no addressed turtles. turtle #1 at x 0 y 10 heading 0 degrees pen down color black width 1 current instruction tell [ ]",
+  );
+});
+
+test("the state text of a Turtle & Rendering program never names a turtle (byte-identical to spec/rendering.md's example)", () => {
+  // The compatibility half of #749: naming the described turtle must not leak into the
+  // wording `spec/rendering.md:193` gives verbatim. The condition is one live turtle addressing
+  // itself, which no Turtle & Rendering program can leave — `tell` is a Sprites primitive.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  state.setTurtleWorld(
+    singleTurtleWorld({
+      position: [100, 0],
+      heading: 90,
+      penDown: true,
+      color: "black",
+      width: 1,
+      shape: "turtle",
+      visible: true,
+    }),
+  );
+  assert.equal(
+    region.getText(),
+    "turtle at x 100 y 0 heading 90 degrees pen down color black width 1",
+  );
+});
+
+test("createTurtleStateRegion composes with the real run controller end to end, reporting the canvas turtle state and the current source instruction (#410)", () => {
   const state = OL.createStudioState();
   const shell = OL.createAppShell(state);
   const editor = OL.createEditorController(state);
@@ -567,7 +767,7 @@ test("createTurtleStateRegion omits the current-instruction clause entirely befo
   assert.doesNotMatch(region.getText(), /current instruction/);
 });
 
-test("createTurtleStateRegion appends the current instruction's exact source text per step (#410)", () => {
+test("createTurtleStateRegion appends the current instruction's source text per step, summarized (#410, #778)", () => {
   const state = OL.createStudioState();
   const shell = OL.createAppShell(state);
   const editor = OL.createEditorController(state);
@@ -603,7 +803,10 @@ test("createTurtleStateRegion's current-instruction clause is cleared by reset()
   assert.doesNotMatch(region.getText(), /current instruction/);
 });
 
-test("createTurtleStateRegion joins a multi-line current-instruction source span verbatim, across every covered line (#410)", () => {
+test("createTurtleStateRegion reduces a multi-line current-instruction span to its head line plus a count, never splicing the block (#778, was #410's verbatim join)", () => {
+  // #410 joined every covered line into the live region verbatim. #778 replaced that: the region
+  // text then contained the block's body lines as well as its head, and a block head recurs (2 of
+  // 18 announcements for a four-line `repeat`), so those body lines were carried repeatedly.
   const state = OL.createStudioState();
   state.setSource("forward 100\nright 90\nback 50");
   state.setCurrentInstructionSourceSpan({
@@ -612,13 +815,32 @@ test("createTurtleStateRegion joins a multi-line current-instruction source span
     end: [3, 8],
   });
   const region = OL.createTurtleStateRegion(state);
-  assert.match(
+  assert.equal(
     region.getText(),
-    /current instruction forward 100\nright 90\nback 50$/,
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1 current instruction forward 100, plus 2 more lines",
+  );
+  assert.doesNotMatch(region.getText(), /\n/);
+  assert.doesNotMatch(region.getText(), /right 90|back 50/);
+});
+
+test("createTurtleStateRegion leaves a single-line current-instruction span byte-identical (#778)", () => {
+  // The compatibility half: #410's wording is unchanged for every one-line instruction, which is
+  // every instruction the #410 tests above cover.
+  const state = OL.createStudioState();
+  state.setSource("forward 100\nright 90");
+  state.setCurrentInstructionSourceSpan({
+    document: "editor",
+    start: [1, 1],
+    end: [1, 12],
+  });
+  const region = OL.createTurtleStateRegion(state);
+  assert.equal(
+    region.getText(),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1 current instruction forward 100",
   );
 });
 
-test("createTurtleStateRegion defensively tolerates a current-instruction span whose lines are out of range for the current source, degrading to empty text per missing line rather than throwing (#410)", () => {
+test("createTurtleStateRegion defensively tolerates a current-instruction span whose lines are out of range for the current source, omitting the clause rather than throwing (#410, #778)", () => {
   // In normal operation this can't happen: state-model.ts's setSource()/setSourceAndSelection()
   // always clear currentInstructionSourceSpan to null on every edit (see the "clears the
   // current-instruction span whenever the source is edited" tests below), so a real learner
@@ -626,6 +848,10 @@ test("createTurtleStateRegion defensively tolerates a current-instruction span w
   // setCurrentInstructionSourceSpan() directly (as a headless test double for a future producer,
   // not via the editor) purely to exercise extractSourceSpanText's defensive out-of-range
   // fallback and keep it under coverage, not to describe a reachable user scenario.
+  //
+  // #778: the fallback used to speak `current instruction ` followed by two bare newlines. There
+  // is no instruction text to name, so the clause is now omitted entirely — the same "omitted,
+  // never a placeholder" rule a null span already followed.
   const state = OL.createStudioState();
   state.setSource("forward 100");
   state.setCurrentInstructionSourceSpan({
@@ -635,5 +861,107 @@ test("createTurtleStateRegion defensively tolerates a current-instruction span w
   });
   const region = OL.createTurtleStateRegion(state);
   assert.doesNotThrow(() => region.getText());
-  assert.match(region.getText(), /current instruction \n\n$/);
+  assert.equal(
+    region.getText(),
+    "turtle at x 0 y 0 heading 0 degrees pen down color black width 1",
+  );
+  assert.doesNotMatch(region.getText(), /current instruction/);
+});
+
+// --- #778: what the region text carries across a whole run ---
+//
+// These assert the announcement VECTOR, not a total. Both defects were re-derived on the saga tip
+// by driving every runnable `spec/examples/*.logo` through this region: 163/1423 texts spliced a
+// multi-line block, 1018/1423 carried raw float noise in x, y or heading.
+
+test("no announcement in a whole run carries a newline or raw float noise (#778)", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    ["repeat 4", "  forward 80", "  right 90", "end repeat"].join("\n"),
+  );
+  const announcements = [region.getText()];
+  region.subscribeText((text) => announcements.push(text));
+  controller.run();
+
+  // Control: a clean sweep means nothing unless announcements actually happened.
+  assert.ok(
+    announcements.length > 5,
+    `expected several announcements, got ${announcements.length}`,
+  );
+  for (const text of announcements) {
+    assert.doesNotMatch(text, /\n/);
+    assert.doesNotMatch(text, /\d\.\d{4,}|\de[+-]\d+/);
+  }
+
+  // The turtle's real, un-rounded position at the closing corner IS float noise — so the clean
+  // `x 0 y 0` announcement is this slice's rounding at work, not a coincidentally exact program.
+  const [x, y] = state.getState().turtleWorld.turtles.get(0).position;
+  assert.notEqual(x, 0);
+  assert.ok(Math.abs(x) < 1e-9 && Math.abs(y) < 1e-9, `x=${x} y=${y}`);
+  assert.match(announcements.at(-1), /^turtle at x 0 y 0 heading 0 degrees /);
+});
+
+test("a block instruction is announced by its head line, and its body lines never are (#778)", () => {
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    ["repeat 4", "  forward 80", "  right 90", "end repeat"].join("\n"),
+  );
+  const announcements = [region.getText()];
+  region.subscribeText((text) => announcements.push(text));
+  controller.run();
+
+  assert.ok(
+    announcements.some((text) =>
+      text.endsWith("current instruction repeat 4, plus 3 more lines"),
+    ),
+    `no head-line announcement in ${JSON.stringify(announcements)}`,
+  );
+  // `end repeat` is a line of the block that is never itself the current instruction; before
+  // #778 the region text contained it whenever the block head was the current instruction.
+  assert.ok(
+    announcements.every((text) => !text.includes("end repeat")),
+    "an elided block line was announced as the current instruction",
+  );
+});
+
+test("a repeatedly-firing handler is announced by the same head-line rule, and identical text is never re-announced (#778)", () => {
+  // The `every`/handler case: instructions arrive repeatedly, so any per-tick verbosity is paid
+  // over and over. The rule does not change — the head line is the actionable identity — and the
+  // region's existing text-equality guard still means a tick that changes nothing says nothing.
+  const state = OL.createStudioState();
+  const region = OL.createTurtleStateRegion(state);
+  const controller = OL.createRunController(state);
+  state.setSource(
+    [
+      "every 2 [",
+      "  forward 10",
+      "  right 90",
+      "]",
+      "repeat 8",
+      "  wait 1",
+      "end repeat",
+    ].join("\n"),
+  );
+  const announcements = [region.getText()];
+  region.subscribeText((text) => announcements.push(text));
+  controller.run();
+
+  assert.equal(state.getState().diagnostics.length, 0);
+  assert.ok(
+    announcements.some((text) =>
+      text.endsWith("current instruction every 2 [, plus 3 more lines"),
+    ),
+    `no handler head-line announcement in ${JSON.stringify(announcements)}`,
+  );
+  for (const text of announcements) {
+    assert.doesNotMatch(text, /\n/);
+  }
+  // No two consecutive announcements are identical — the region still only speaks real changes.
+  for (let index = 1; index < announcements.length; index += 1) {
+    assert.notEqual(announcements[index], announcements[index - 1]);
+  }
 });

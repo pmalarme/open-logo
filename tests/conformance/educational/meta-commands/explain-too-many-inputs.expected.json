@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 12]
       },
-      "payload": { "statement_kind": "ParenCall" }
+      "payload": {
+        "statement_kind": "ParenCall"
+      }
     }
   ],
   "diagnostics": [
@@ -22,8 +24,11 @@
         "start": [1, 2],
         "end": [1, 9]
       },
-      "params": { "callable": "explain", "expected": 0, "actual": 1 },
-      "message": "explain takes 0 inputs, but got 1.",
+      "params": {
+        "callable": "explain",
+        "expected": 0,
+        "actual": 1
+      },
       "stage": "runtime",
       "severity": "error"
     }
