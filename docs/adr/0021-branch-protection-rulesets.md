@@ -64,11 +64,16 @@ merging into* the saga branch, which are squash-by-PR-title. There is no scenari
 rules obstruct the 133-commit RC, so there is no reason to weaken them.
 
 **3. Merge methods encode the two-path model.** `main` allows **squash and merge-commit**; `saga/*`
-allows **squash only**. The RC promotion (`saga/* → main`) is a deliberate **merge commit** so M5's
+allows **both** as well. The RC promotion (`saga/* → main`) is a deliberate **merge commit** so M5's
 133-commit slice history is preserved on `main`, not collapsed. Slice merges (into `saga/*` or, for
-Maintenance work, into `main`) are **squash**, with the PR title as the subject. This supersedes
-acceptance-criterion 6 of #695 ("squash-merge is the only enabled merge method"): disabling
-merge-commit would break the RC promotion. The applied repo settings already reflect this
+Maintenance work, into `main`) are **squash**, with the PR title as the subject. `saga/*` must also
+permit merge-commit because the periodic **`main → saga/*` pullback** — which keeps a saga branch from
+drifting behind released trunk (integration-flow step 3 of `devops/branching-and-commits`) — has to be
+a merge commit to preserve ancestry; a squash there would flatten released history back into the saga.
+The `saga/*` ruleset also sets `do_not_enforce_on_create: true` so a saga branch can be created lazily
+when its saga starts. This supersedes acceptance-criterion 6 of #695 ("squash-merge is the only
+enabled merge method"): disabling merge-commit would break both the RC promotion and the pullback. The
+applied repo settings already reflect the two-path model
 (`allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge=false`, squash subject = PR title).
 
 **4. Three workflows are deliberately NOT required.** A required status check that never *reports*

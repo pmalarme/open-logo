@@ -27,9 +27,13 @@ Both rulesets require, for every PR into a protected branch:
   check-name. See the list below and ADR-0021 for why three workflows are deliberately **excluded**.
 - **No force-pushes** (`non_fast_forward`) and **no branch deletion** (`deletion`).
 - **Merge methods**: `main` allows **squash** (slice-title subject) **and merge-commit** (the RC
-  promotion deliberately preserves a saga's slice history); `saga/*` allows **squash only** (slices
-  land by PR title). This matches the applied repo settings — do not disable merge-commit on `main`,
-  or the Release Candidate promotion would collapse a saga's commits into one.
+  promotion deliberately preserves a saga's slice history); `saga/*` allows **squash** (slices land by
+  PR title) **and merge-commit** (the periodic `main → saga/*` pullback that keeps a saga from drifting
+  behind released trunk must be a merge commit to preserve ancestry). This matches the applied repo
+  settings — do not disable merge-commit on `main`, or the Release Candidate promotion would collapse a
+  saga's commits into one.
+- **Branch creation is not gated** on `saga/*` (`do_not_enforce_on_create: true`), so a saga branch can
+  be created lazily when its saga starts without a PR/checks existing yet.
 
 ### Required status checks (exact names — a mismatch is a permanent block)
 
@@ -71,7 +75,7 @@ To satisfy both "#695 before the RC" and "don't debut a brand-new ruleset on the
 create the ruleset with `"enforcement": "evaluate"` (a temporary edit) so violations are **logged,
 not blocked**, open a throwaway PR to confirm every required check name resolves and no rule
 misfires, review the rule-insights log, then flip back to `"enforcement": "active"` and re-apply.
-`evaluate` mode requires GitHub Team/Enterprise; on Free, apply to a throwaway `saga/*`-shaped test
+`evaluate` mode requires GitHub Enterprise; on other plans, apply to a throwaway `saga/*`-shaped test
 branch pattern first, or apply `active` and watch the first PR closely.
 
 The existing `protect-default-branch` ruleset (deletion + non-fast-forward only) is **superseded** by

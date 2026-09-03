@@ -141,8 +141,9 @@ The **merge-method settings** follow the two-path model (see
 **squash** whose subject is the PR title, so the linted title is what lands and commit subjects can
 safely be advisory; a **`saga/* → main`** Release Candidate is a deliberate **merge commit** that
 preserves the saga's slice history rather than collapsing it. Repo settings therefore allow **squash
-and merge-commit** (rebase off), with the squash subject set to the PR title — the `saga/*` ruleset
-allows squash only, `main` allows both.
+and merge-commit** (rebase off), with the squash subject set to the PR title. Both `main` and `saga/*`
+allow both methods: `saga/*` needs merge-commit for the periodic `main → saga/*` pullback (step 3
+above), which must preserve ancestry.
 
 CODEOWNERS by itself does **not** restrict who clicks "Merge"; the ruleset does. If merge-actor
 restriction is needed beyond code-owner review, use repo permissions/automation, not CODEOWNERS.
