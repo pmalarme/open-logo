@@ -34,6 +34,7 @@ export type {
   ForeverNode,
   ForInNode,
   ForRangeNode,
+  GlobalNode,
   IfNode,
   InsertNode,
   IsPredicateNode,

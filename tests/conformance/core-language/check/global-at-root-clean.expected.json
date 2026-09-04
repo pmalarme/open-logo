@@ -1,0 +1,7 @@
+{
+  "description": "A global declared at the root scope is legal and makes its name visible to a procedure body that reads and writes it, so the checker reports nothing (spec/execution-model.md:561-569). This is the positive control for global-outside-root-procedure and global-outside-root-block: the same declaration, at the one place it belongs.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

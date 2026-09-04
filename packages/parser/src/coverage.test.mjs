@@ -778,6 +778,8 @@ test("exposes the data profile's derived list reporter arities (issue #190)", ()
 const MEGA = [
   ":x = 1",
   "local total",
+  "local seed = 1",
+  "global shared = 1",
   'print "a"',
   "print true",
   "print [1 2][1]",

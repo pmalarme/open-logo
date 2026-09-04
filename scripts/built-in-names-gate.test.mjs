@@ -2331,7 +2331,9 @@ test("INJECTED DRIFT: a keyword in the block that the manifest does not list is 
 
 test("INJECTED DRIFT: the exact regression that already happened — the C19 mirror losing `mod`", () => {
   // spec/tooling.md's mirror had silently drifted to 43 words before issue #855 restored it. This
-  // is that drift, replayed against the gate.
+  // is that drift, replayed against the gate. The absolute number moves whenever the keyword list
+  // grows — `global` (issue #823) took it from 44 words to 45 — so what is pinned is the mirror
+  // standing exactly one word short of the block.
   const io = proseIo(TOOLING_PATH, (text) =>
     text.replace(
       "`and`, `or`, `not`, `mod`, `true`, `false`,",
@@ -2342,7 +2344,7 @@ test("INJECTED DRIFT: the exact regression that already happened — the C19 mir
   assert.equal(
     findings.some((finding) =>
       finding.startsWith(
-        `${TOOLING_PATH}: the C19 mirror (43 words) does not carry the same words in the same order`,
+        `${TOOLING_PATH}: the C19 mirror (44 words) does not carry the same words in the same order`,
       ),
     ),
     true,
@@ -3659,8 +3661,8 @@ test("INJECTED DRIFT: a name a Record registry lists under two profiles at once"
 test("INJECTED DRIFT: a keyword duplicated in BOTH normative lists at once", () => {
   // `missing`/`extra` are set semantics and the mirror compares joined strings, so duplicating a
   // word in the grammar block AND the C19 mirror satisfied all three checks: the normative keyword
-  // list shipped 45 entries with 44 unique and the gate said nothing. That is this module's own
-  // founding defect with the opposite sign — the mirror silently standing at 43 words.
+  // list shipped one more entry than it had unique words and the gate said nothing. That is this
+  // module's own founding defect with the opposite sign — the mirror silently standing at 43 words.
   const grammar = REAL_IO.readText(GRAMMAR_PATH).replace(
     "is between strictly",
     "is between strictly strictly",
@@ -3674,21 +3676,21 @@ test("INJECTED DRIFT: a keyword duplicated in BOTH normative lists at once", () 
     exists: REAL_IO.exists,
     isStdlibFile: REAL_IO.isStdlibFile,
   };
-  // Sanity: both lists really are 45-with-44-unique, or this proves nothing.
-  assert.equal(extractGrammarKeywordBlock(grammar).length, 45);
-  assert.equal(new Set(extractGrammarKeywordBlock(grammar)).size, 44);
-  assert.equal(extractToolingC19Mirror(tooling).length, 45);
+  // Sanity: both lists really are 46-with-45-unique, or this proves nothing.
+  assert.equal(extractGrammarKeywordBlock(grammar).length, 46);
+  assert.equal(new Set(extractGrammarKeywordBlock(grammar)).size, 45);
+  assert.equal(extractToolingC19Mirror(tooling).length, 46);
   const findings = proseFindings(REAL_MANIFEST, both);
   assert.equal(
     findings.includes(
-      `${GRAMMAR_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+      `${GRAMMAR_PATH}: the keyword list names strictly more than once — 46 entries, 45 unique`,
     ),
     true,
     findings.join("\n"),
   );
   assert.equal(
     findings.includes(
-      `${TOOLING_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+      `${TOOLING_PATH}: the keyword list names strictly more than once — 46 entries, 45 unique`,
     ),
     true,
     findings.join("\n"),

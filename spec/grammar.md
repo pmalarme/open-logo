@@ -368,7 +368,7 @@ The normative OpenLogo keyword list is:
 
 ```text
 define to end return output op stop throw
-set make local thing
+set make local global thing
 if else while repeat for forever in from at by
 key value add remove insert clear
 map filter reduce

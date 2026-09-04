@@ -1,0 +1,19 @@
+{
+  "description": "The initializer is REQUIRED (spec/grammar.md:157 has no optional bracket around \"=\" expression; spec/execution-model.md:549 says so in words), so a bare global count reports ol-bad-token at the end of the line rather than declaring an uninitialised shared name. This is the one place global and local differ in shape: local name is complete on its own.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/global-missing-initializer-diagnostic",
+        "start": [1, 13],
+        "end": [2, 1]
+      },
+      "params": { "text": "end of line" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

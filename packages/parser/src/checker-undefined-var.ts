@@ -150,7 +150,9 @@ function collectLocalsWithoutCrossingProcedures(
     for (const name of node.names) {
       into.add(name.name.toLowerCase());
     }
-    return;
+    // Fall through to the generic descent rather than returning: since #823 a `Local` can carry an
+    // initializer, and a comprehension body inside it holds statements — so a `local` nested there
+    // is reachable exactly the way one nested in a control body already was.
   }
   for (const child of childrenOf(node)) {
     collectLocalsWithoutCrossingProcedures(child, into);
@@ -183,6 +185,20 @@ function collectGlobalsIn(
           globals.add(name.name.toLowerCase());
         }
       }
+      // The single-name form's initializer is an ordinary expression and may itself assign
+      // (`local total = :n + 1`), so it is descended into whatever the frame.
+      if (node.value !== undefined) {
+        collectGlobalsIn(node.value, scopeContext, globals);
+      }
+      return;
+    case "Global":
+      // `global name = value` names the ROOT scope's binding whatever scope it is written in
+      // (`spec/execution-model.md:576-583`), so it contributes a global unconditionally — the
+      // `procedureFrame` gate `Local` needs does not apply. A misplaced one is
+      // `ol-global-outside-root`'s subject (`checker-global-placement.ts`), not this rule's:
+      // reporting the name as undefined *as well* would answer one mistake with two diagnostics.
+      globals.add(node.name.name.toLowerCase());
+      collectGlobalsIn(node.value, scopeContext, globals);
       return;
     case "Assign": {
       const target = node.place;
@@ -334,7 +350,16 @@ function checkReadsIn(
       return;
     case "Local":
       // A declaration, never a read; its names are collected by collectGlobalNames /
-      // collectProcedureFrame, not here.
+      // collectProcedureFrame, not here. Its optional initializer IS a read position, so it is
+      // checked (`local total = :n + 1`).
+      if (node.value !== undefined) {
+        checkReadsIn(node.value, scopeContext, globals, diagnostics);
+      }
+      return;
+    case "Global":
+      // Same split as `Local`: the declared name is a binding collected by collectGlobalNames,
+      // and the required initializer is a read position.
+      checkReadsIn(node.value, scopeContext, globals, diagnostics);
       return;
     case "Assign": {
       const target = node.place;

@@ -20,7 +20,9 @@
  * last Layer-2 (error) rule registered. Issue #667's Heritage form-head gate
  * (`checker-heritage-form.ts`) registers second, right after `ol-unknown-command`, since it too
  * reports an `ol-unknown-command` for an unrecognized command spelling — the Heritage
- * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive.
+ * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive. #823's
+ * `ol-global-outside-root` (`checker-global-placement.ts`) registers after them: it judges *where*
+ * a `global` declaration stands, which is meaningful only once the declaration itself parsed.
  *
  * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
  * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
@@ -34,6 +36,7 @@ import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
 import { controlFlowRule } from "./checker-control-flow.js";
+import { globalPlacementRule } from "./checker-global-placement.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { profileWordPositionRule } from "./checker-profile-word-position.js";
@@ -147,6 +150,7 @@ const RULES: readonly CheckRule[] = [
   undefinedVarRule,
   declarationSlotRule,
   controlFlowRule,
+  globalPlacementRule,
 ];
 
 /** Dispatches `program`/`profiles`/`source` to every registered rule and concatenates their findings. */
