@@ -37,6 +37,15 @@
  * `is`-predicate or the heritage `value of … for key` reader (issue #785), and an ordinary name
  * everywhere else. Registry membership is unaffected by that: none of the four is ever a keyword.
  *
+ * `global` is the one entry whose *route* to built-in-name status runs through the C3 primitive
+ * matrix rather than the keyword list — it is a Core special form a profile-style matrix entry
+ * defines, like `when` or `ask` (`spec/grammar.md:388`). It is registered here all the same,
+ * because the same sentence has the keyword list, `spec/tooling.md`'s C19 registry, and
+ * `spec/built-in-names.json` record the word "from the version in which a conforming reader
+ * recognizes the word", and because this registry is what makes it a grammar terminal: `global` is
+ * matched as the head of `global-statement`, has no callable form, and so must be blocked at the
+ * four declaration slots while staying free in every binding position.
+ *
  * Profile block-heads (`ask`/`each`/`tell`, `when`/`every`/`on_key`/`on_click`) are **not** in
  * {@link OL_KEYWORDS}: they live in the separate {@link OL_PROFILE_KEYWORDS} registry, whose doc
  * comment records the profile-gating this ruling reverses and the slice that lands it.
@@ -83,6 +92,7 @@ export const OL_KEYWORDS = [
   "set",
   "make",
   "local",
+  "global",
   "thing",
   // Control forms and their contextual prepositions.
   "if",

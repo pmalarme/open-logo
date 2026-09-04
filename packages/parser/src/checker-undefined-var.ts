@@ -41,6 +41,14 @@
  * binder scopes, by contrast, are checked for *lexical membership*, not order, which is what
  * `spec/execution-model.md`'s frame model actually specifies.
  *
+ * That same order-free frame set is why a `local`'s own initializer is checked against a scope
+ * that already contains the binding the declaration creates, so `local x = :x` does not report
+ * although `spec/execution-model.md:508-515` evaluates the initializer *before* the binding exists.
+ * Fixing it needs a per-statement scope rather than a per-frame set — the same model
+ * `ol-var-not-visible` has to build — and a partial fix would reject the conforming
+ * `local x = 1` / `local x = :x` snapshot idiom `:511-515` exists to allow. Tracked as issue #1102,
+ * scheduled with #825.
+ *
  * A segmented place's base (`:people` in `:people.tom = 1`) is always checked as a **read**, never
  * treated as a declaration — `spec/execution-model.md:251-291` is explicit that there is no
  * intermediate auto-vivification; only a bare, zero-segment `:name = value` can create a new
@@ -150,7 +158,9 @@ function collectLocalsWithoutCrossingProcedures(
     for (const name of node.names) {
       into.add(name.name.toLowerCase());
     }
-    return;
+    // Fall through to the generic descent rather than returning: since #823 a `Local` can carry an
+    // initializer, and a comprehension body inside it holds statements — so a `local` nested there
+    // is reachable exactly the way one nested in a control body already was.
   }
   for (const child of childrenOf(node)) {
     collectLocalsWithoutCrossingProcedures(child, into);
@@ -183,6 +193,28 @@ function collectGlobalsIn(
           globals.add(name.name.toLowerCase());
         }
       }
+      // The single-name form's initializer is an ordinary expression and may itself assign
+      // (`local total = :n + 1`), so it is descended into whatever the frame.
+      if (node.value !== undefined) {
+        collectGlobalsIn(node.value, scopeContext, globals);
+      }
+      return;
+    case "Global":
+      // `global name = value` names the ROOT scope's binding whatever scope it is written in
+      // (`spec/execution-model.md:576-583`), so it contributes a global unconditionally — the
+      // `procedureFrame` gate `Local` needs does not apply. A misplaced one is
+      // `ol-global-outside-root`'s subject (`checker-global-placement.ts`), not this rule's:
+      // reporting the name as undefined *as well* would answer one mistake with two diagnostics.
+      //
+      // **That suppression is this rule's alone and must not carry over to `ol-var-not-visible`
+      // (#825).** A learner who wrote `global` in the wrong place still needs the diagnostic whose
+      // message names the fix when a procedure body reads the name. Note too that `globals` below
+      // flattens three different origins — a top-level `local`, a root-level bare assignment, and a
+      // `Global` declaration — which is all `ol-undefined-var` needs and is *not* enough for #825,
+      // whose whole question is whether a root-bound name is `global` or merely top-level. The
+      // `Global` node kind is the discriminator; the flat set is not a settled contract.
+      globals.add(node.name.name.toLowerCase());
+      collectGlobalsIn(node.value, scopeContext, globals);
       return;
     case "Assign": {
       const target = node.place;
@@ -334,7 +366,16 @@ function checkReadsIn(
       return;
     case "Local":
       // A declaration, never a read; its names are collected by collectGlobalNames /
-      // collectProcedureFrame, not here.
+      // collectProcedureFrame, not here. Its optional initializer IS a read position, so it is
+      // checked (`local total = :n + 1`).
+      if (node.value !== undefined) {
+        checkReadsIn(node.value, scopeContext, globals, diagnostics);
+      }
+      return;
+    case "Global":
+      // Same split as `Local`: the declared name is a binding collected by collectGlobalNames,
+      // and the required initializer is a read position.
+      checkReadsIn(node.value, scopeContext, globals, diagnostics);
       return;
     case "Assign": {
       const target = node.place;

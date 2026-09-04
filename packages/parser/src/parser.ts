@@ -2425,6 +2425,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseMakeAssignment();
         case "local":
           return parseLocal();
+        case "global":
+          return parseGlobal();
         case "if":
           return parseIf();
         case "while":
@@ -2586,6 +2588,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
     );
   }
 
+  /**
+   * `local-statement ::= "local" name [ "=" expression ]` — the single-name form
+   * (`spec/grammar.md:156`). The initializer is optional, so `local count` and `local count = 0`
+   * are the same production and the same declaration; only the initializer differs.
+   *
+   * The `=` must be the very next token, never one reached across a newline: a `local count` on its
+   * own line is a complete statement, and reading a following line's `= 5` into it would silently
+   * join two instructions.
+   */
   function parseLocal(): StatementNode | undefined {
     const localTok = current();
     advance();
@@ -2595,9 +2606,60 @@ export function parse(source: string, document = "<input>"): ParseResult {
       return undefined;
     }
     advance();
-    return ast.local(
-      [sname(nameTok.text, nameTok)],
-      spanToHere(localTok.source_span.start),
+    const names = [sname(nameTok.text, nameTok)];
+    if (!isEqualsSign()) {
+      return ast.local(names, spanToHere(localTok.source_span.start));
+    }
+    advance();
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return ast.local(names, spanFrom(localTok.source_span.start, value), value);
+  }
+
+  /** Is the current token the assignment `=` operator (never `==`, which the lexer keeps whole)? */
+  function isEqualsSign(): boolean {
+    const token = current();
+    return token.kind === "op" && token.text === "=";
+  }
+
+  /**
+   * `global-statement ::= "global" name "=" expression` (`spec/grammar.md:157`). Three things are
+   * required and each is rejected separately so the span points at what the learner wrote:
+   *
+   * - the name is **bare**, so `global :count = 0` stops at the `:count` variable token — the same
+   *   shape `local :x` and `set :x to 5` are already rejected in;
+   * - the `=` is required, so `global count 5` and `global count` both stop at whatever follows the
+   *   name — including the `:` of a `global count := 0`, which is why that spelling keeps its
+   *   `ol-bad-token` (two of them, in fact: the `:`, then the `=` where an expression was expected)
+   *   without `:=` ever becoming a token;
+   * - the initializer is required, so `global count =` stops at the end of the line.
+   */
+  function parseGlobal(): StatementNode | undefined {
+    const globalTok = current();
+    advance();
+    const nameTok = current();
+    if (nameTok.kind !== "name") {
+      diagnostics.push(unexpected(nameTok));
+      return undefined;
+    }
+    advance();
+    if (!isEqualsSign()) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    advance();
+    const value = parseExpression();
+    if (value === undefined) {
+      diagnostics.push(unexpected(current()));
+      return undefined;
+    }
+    return ast.global(
+      sname(nameTok.text, nameTok),
+      value,
+      spanFrom(globalTok.source_span.start, value),
     );
   }
 

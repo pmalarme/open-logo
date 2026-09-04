@@ -88,7 +88,7 @@ theme maps all roles to the same bracket color.
 The Core reserved-word list is generated from the grammar, whose [keyword list](grammar.md#keywords-primitives-and-built-in-names) is normative; this is the C19 registry repeated
 here so highlighters and linters can share the same names. Membership answers one question — *may a program declare this name?* — and never how a word is painted:
 
-`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `thing`,
+`define`, `to`, `end`, `return`, `output`, `op`, `stop`, `throw`, `set`, `make`, `local`, `global`, `thing`,
 `if`, `else`, `while`, `repeat`, `for`, `forever`, `in`, `from`, `at`, `by`, `key`, `value`,
 `add`, `remove`, `insert`, `clear`, `map`, `filter`, `reduce`, `and`, `or`, `not`, `mod`, `true`, `false`,
 `is`, `between`, `strictly`, `struct`, `alias`, `import`, `export`.

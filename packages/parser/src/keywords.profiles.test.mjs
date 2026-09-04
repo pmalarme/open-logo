@@ -44,6 +44,7 @@ const EXPECTED_CORE_KEYWORDS = [
   "set",
   "make",
   "local",
+  "global",
   "thing",
   "if",
   "else",

@@ -38,6 +38,7 @@ export const OL_NODE_KINDS = [
   "PostfixExpression",
   "Assign",
   "Local",
+  "Global",
   "Call",
   "ParenCall",
   "ComparisonChain",
@@ -281,14 +282,64 @@ export interface AssignNode extends NodeBase {
 }
 
 /**
- * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
- * names carry their own spans so the checker can point `ol-duplicate-binder`
+ * A `local name`, `local name = value`, or `(local name {name})` — declare one or more names in the
+ * current scope. The names carry their own spans so the checker can point `ol-duplicate-binder`
  * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
  * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:390`.)
+ *
+ * `value` is the optional initializer of the **single-name** form — `spec/grammar.md:156` reads
+ * `local-statement ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"`. The
+ * parenthesized multi-name form takes none, so a node with two or more
+ * `names` never carries one. It stays an optional field rather than a second node kind because
+ * `local count` and `local count = 0` are one production and one declaration; only the initializer
+ * differs (`spec/execution-model.md:508-518`).
+ *
+ * **Until issue #824 the initializer is parsed and checked but never evaluated**, because
+ * `@openlogo/runtime` gives a `Local` no effect at all — as it already gave a bare `local count`
+ * none. Where nothing of that name is bound yet the failure is loud (`ol-undefined-var` on the
+ * first read), but where the declaration **shadows** a binding that already exists, the read finds
+ * the outer one and the program runs to completion with the wrong value and no diagnostic:
+ * `:count = 0` / `local count = 5` / `print :count` prints `0`. That is measured, not predicted,
+ * and it is a *regression in kind* — before this slice the same program was a parse error. It is
+ * recorded here rather than guarded, because the fix is the scoping runtime #824 owns and a guard
+ * would be a second, wrong model of it. {@link GlobalNode} carries the same hole for the same
+ * reason; see its own note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
   readonly names: readonly SpannedName[];
+  readonly value?: ExpressionNode;
+}
+
+/**
+ * A `global name = value` — declare a **shared** binding in the root scope and give it an initial
+ * value (`global-statement ::= "global" name "=" expression`, `spec/grammar.md:157`).
+ *
+ * It is deliberately **not** an {@link AssignNode}. An assignment targets a *place* — a
+ * colon-form `:name`, possibly postfixed — and updates the nearest visible binding; a `global`
+ * declaration takes a **bare** name, requires its initializer, and states that the root scope's
+ * binding of that name is shared across the sealed procedure boundary
+ * (`spec/execution-model.md:545-583`). Folding it into `Assign` would erase exactly the fact the
+ * form exists to record, and would make the `ol-global-outside-root` placement rule unable to see
+ * its own subject.
+ *
+ * The name is a {@link SpannedName} rather than a {@link PlaceNode}: it is a binding, so the
+ * checker never raises `ol-reserved-word` for it (`spec/grammar.md:390`), and its own span is what
+ * `ol-global-outside-root`'s `name` param and diagnostics point at.
+ *
+ * **Until issue #824 this declaration has no runtime effect either**, exactly as {@link LocalNode}'s
+ * initializer has none, and the consequence is the same rather than milder. `spec/execution-model.md:576-580`
+ * lets a root binding of the name already exist — "`:count = 5` followed by `global count = 0`
+ * leaves one binding, now shared and holding `0`" — and in that case the dropped initializer is
+ * silent: `:count = 5` / `global count = 0` / `print :count` prints `5`, with no diagnostic. With no
+ * prior binding it fails loudly (`ol-undefined-var`) instead. The rule across both node kinds is one
+ * rule: a dropped initializer degrades silently wherever the name is already bound, and loudly
+ * wherever it is not.
+ */
+export interface GlobalNode extends NodeBase {
+  readonly kind: "Global";
+  readonly name: SpannedName;
+  readonly value: ExpressionNode;
 }
 
 /**
@@ -589,6 +640,7 @@ export type StatementNode =
   | ExpressionNode
   | AssignNode
   | LocalNode
+  | GlobalNode
   | BlockNode
   | IfNode
   | WhileNode
@@ -693,8 +745,21 @@ export const ast = {
   ): AssignNode {
     return { kind: "Assign", source_span: span, place, value, form };
   },
-  local(names: readonly SpannedName[], span: SourceSpan): LocalNode {
-    return { kind: "Local", source_span: span, names };
+  local(
+    names: readonly SpannedName[],
+    span: SourceSpan,
+    value?: ExpressionNode,
+  ): LocalNode {
+    return value === undefined
+      ? { kind: "Local", source_span: span, names }
+      : { kind: "Local", source_span: span, names, value };
+  },
+  global(
+    name: SpannedName,
+    value: ExpressionNode,
+    span: SourceSpan,
+  ): GlobalNode {
+    return { kind: "Global", source_span: span, name, value };
   },
   comparisonChain(
     operands: readonly ExpressionNode[],
@@ -990,6 +1055,15 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     }
     case "Assign":
       return [node.place, node.value];
+    case "Local":
+      // The single-name form's optional initializer (`local count = 0`) is the only walkable child
+      // a `Local` ever has; the names themselves are `SpannedName` metadata, and the parenthesized
+      // multi-name form carries no initializer at all (`spec/grammar.md:156`).
+      return node.value === undefined ? [] : [node.value];
+    case "Global":
+      // The declared name is `SpannedName` metadata, like `Local`'s; the required initializer is
+      // the one walkable child (`spec/grammar.md:157`).
+      return [node.value];
     case "Place":
       return node.segments.flatMap(segmentChildren);
     case "PostfixExpression":
@@ -1065,7 +1139,6 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "WordLit":
     case "BooleanLit":
     case "VarRef":
-    case "Local":
     case "Stop":
     case "StructDef":
       return [];

@@ -1,0 +1,7 @@
+{
+  "description": "The other half of reserving a word: binding it stays legal. spec/grammar.md:390 is a MUST NOT — an implementation \"MUST NOT raise ol-reserved-word — or any other diagnostic — for the name alone\" in a binding position — and spec/grammar.md:388 applies it to this word by name: `:global = 1`, `local global` and `set global to 1` \"are conforming programs\". A `for ... in` binder is checked too, so the guarantee is pinned across four binding forms rather than one.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
