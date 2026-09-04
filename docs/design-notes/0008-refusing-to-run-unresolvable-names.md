@@ -4,20 +4,13 @@
 - Date: 2026
 - Deciders: OpenLogo maintainer (@pmalarme) + team
 - Ruling: issue #814 (maintainer-signed-off, [comment 5530622860](https://github.com/pmalarme/open-logo/issues/814#issuecomment-5530622860)),
-  under saga #811. This record is the **rationale layer** over that ruling. At the time it was
-  accepted, the normative `spec/` text had not yet been amended to state the ruling; the closing
-  section records exactly which parts, as a dated statement of fact.
-- Measurements: every present-tense statement about implementation behaviour in this record was
-  measured at commit `2a1888c1` and describes the tree as it stood when the record was accepted.
-  Read every "today" as "at `2a1888c1`". The slice that changes that behaviour is #815.
-- Waiver: `@orchestrator`, under maintainer-delegated authority for saga #811, granted an explicit
-  waiver of LDR-0000's rule that an LDR states only behaviour the spec already states — because this
-  record explains a maintainer-signed-off ruling (#814, comment 5530622860) whose normative text was
-  still in flight, tracked by #814 and a required precondition of saga #811's Saga Gate. The waiver
-  lapses when #814's normative text merges: from that moment the merged `spec/` text is the contract
-  and this record is read as the dated rationale behind it. Per LDR-0000 this record is immutable
-  once Accepted, so if the merged text ever diverges from what is described here, the remedy is a
-  superseding LDR, not an edit to this one.
+  under saga #811. This record is the **rationale layer** over that ruling. The ruling's normative
+  text has since merged, so the closing section points at where each part of it now lives in `spec/`
+  rather than at a decision in flight.
+- Measurements: every statement about implementation behaviour in this record was measured at commit
+  `2a1888c1` — the tree as it stood *before* the ruling's text merged — and describes what the
+  implementation did then. Read every "today" as "at `2a1888c1`". The slice that changes that
+  behaviour is #815.
 - Related: [LDR-0007](0007-binding-vs-registration.md) (binding versus registration) — that record
   says which names a program may *declare*; this one says what happens when a program *uses* a name
   nothing answers to.
@@ -78,12 +71,22 @@ line above exactly as silent as it was.
 There is a third thing wrong in the same neighbourhood, and it deserves to be told apart from both:
 a name that is known, correctly used, and part of a completely valid program, for which the
 evaluator simply has **no branch yet**. The program really is valid, so the gap is in the
-implementation, not in what the learner wrote — and the checker has no way to say that. Its only
-lever is to withhold the name from its visible set, which is what
-`packages/parser/src/checker-names.ts`'s `NAMES_AWAITING_AN_EVALUATOR` does for `challenge` today, at
-the cost of reporting `ol-unknown-command`: a learner-error message for our bug. Before that lever
-was reached for, the class simply shipped silently, twice: `sin`/`cos`/`tan`/`pi` (issue #323) and
-`reverse`/`pick`/`sort` (issue #190) all parsed clean, checked clean, and quietly did nothing.
+implementation, not in what the learner wrote, and Layer 2 has no way to *derive* it — whether an
+evaluation exists is a fact about the evaluator, not about the program's text
+(`spec/execution-model.md:701-704`). At `2a1888c1` the checker reached for the only lever it had:
+withholding the name from its visible set, which `packages/parser/src/checker-names.ts`'s
+`NAMES_AWAITING_AN_EVALUATOR` does for `challenge`, at the cost of reporting `ol-unknown-command` — a
+learner-error message for our bug. Before that lever was reached for, the class simply shipped
+silently, twice: `sin`/`cos`/`tan`/`pi` (issue #323) and `reverse`/`pick`/`sort` (issue #190) all
+parsed clean, checked clean, and quietly did nothing.
+
+Measured at `2a1888c1`, the withholding trick makes this class **observationally identical** to a
+misspelling: `challenge` and `print (wibble 2)` produce the same code, at the same stage, with the
+same shape of params, and the same silence from `execute()`. Nothing a learner or a test could
+observe distinguished *"this name does not exist"* from *"this name exists and we withheld it"*. That
+indistinguishability is the sharpest argument for a separate code, and it is the argument no code can
+preserve, because the fix destroys the evidence for it (issue #1087 captures the behaviour before it
+goes).
 
 A learner cannot tell these three apart from the outside, because from the outside all three look
 identical: the turtle did not move and the language said nothing. The question this record answers
@@ -95,10 +98,11 @@ for.**
 
 **OpenLogo does not run a program it cannot resolve.** The decision has two halves, one per fault,
 plus a precedence rule that decides which message a learner sees when both stages have an opinion.
-The normative wording **will** live in `spec/` — its drafting is tracked by #814, and it had not
-landed when this record was accepted (see the closing section). What follows states the shape of the
-ruling, in the spec's own vocabulary, so the rationale below has something to attach to; it is
-rationale, not a substitute for the normative text.
+The normative wording now lives in `spec/execution-model.md`'s [Checking before
+execution](../../spec/execution-model.md#checking-before-execution) section
+(`spec/execution-model.md:632`) and the sections that follow it; the closing section of this record
+maps each part of the ruling to the text that states it. What follows is the rationale for that
+shape, not a restatement of its normative force.
 
 **An unresolvable name stops the run before it starts.** Executing a program runs the semantic check
 first and declines to run a program that fails it — the same way a program carrying **parse**
@@ -119,10 +123,11 @@ Three details make that rule safe rather than merely strict:
   alone and clean once `turtle-rendering` is active. A check-before-run gate reading the wrong
   profile set would refuse to run every turtle program ever written.
 - **Style lints never block a run.** `ol-style-*` findings carry `severity=warning`
-  (`spec/tooling.md:233`), and a warning "MUST NOT change program meaning"
+  (`spec/tooling.md:236`), and a warning "MUST NOT change program meaning"
   (`spec/error-model.md:85-86`). Blocking a run on one would do exactly that. The gate must therefore
   key on **severity**, not on the mere presence of a finding — a distinction the existing parse gate
-  has never had to make, because every parse diagnostic is an error.
+  has never had to make, because every parse diagnostic is an error, and one the merged text now
+  makes explicitly (`spec/execution-model.md:666`).
 - **Any teaching opt-out is opt-*out*, never the default.** A host may choose to let a learner run
   an unfinished program on purpose; it may not silently restore silence for everyone.
 
@@ -130,25 +135,36 @@ Three details make that rule safe rather than merely strict:
 duplicate of it, and it exists for the third case in the Context: the known name with no evaluator
 branch. That class needs its own diagnostic, distinct from `ol-unknown-command` and from
 `ol-undefined-var`, because it reports **our** bug and not the learner's — and telling a learner they
-misspelled something they spelled correctly is worse than saying nothing. That is exactly the price
-the checker pays today when it withholds such a name to avoid the silence.
+misspelled something they spelled correctly is worse than saying nothing. The merged text names that
+diagnostic **`ol-not-implemented`** (`spec/error-model.md:131`) and settles the point this record
+argued from the other direction: an implementation "MUST report it rather than `ol-unknown-command`
+for such a name, at any stage, and MUST NOT withhold the name from the visible vocabulary in order to
+manufacture `ol-unknown-command` instead" (`spec/execution-model.md:725-728`). So the lever the
+checker was pulling at `2a1888c1` is not merely a regrettable price — it is now **non-conforming**,
+and `NAMES_AWAITING_AN_EVALUATOR` is a live violation rather than a pending cleanup. Removing it and
+emitting `ol-not-implemented` is work the implementing slice owes (#815; the `challenge` case is
+#838).
 
-**A command used where a value is required is `ol-no-output`.** No new code: the rule already exists
-and simply was not being applied to built-ins. `spec/execution-model.md:369-371` already states it in
-the language's own vocabulary — "A procedure that reaches `return` is usable as a reporter; a
-procedure that does not is a command. Using a command procedure where a value is required raises
-`ol-no-output` at the call site" — and `spec/commands.md:15` classifies every built-in primitive on
-that same axis, where "Kind is **Command**, **Reporter**, or **Special form**." `forward` **is** a
-command. The change is one generalized word, from "command procedure" to "command", built-in or
-user-defined.
+**A command used where a value is required is `ol-no-output`.** No new code: the rule already
+existed and simply was not being applied to built-ins. At `2a1888c1`
+`spec/execution-model.md:369-371` scoped it to a *procedure* — "a procedure that does not [reach
+`return`] is a command. Using a command **procedure** where a value is required raises `ol-no-output`
+at the call site" — while `spec/commands.md:15` already classified every built-in primitive on the
+same axis, where "Kind is **Command**, **Reporter**, or **Special form**." `forward` **is** a
+command, so the sentence already described the right outcome for the wrong set of callees. The change
+was one generalized word, and the merged text now carries it: the same lines read "a procedure that
+does not is a **command** — the same Kind the C3 matrix gives a built-in such as `forward`", and
+"Using a command of either kind where a value is required raises `ol-no-output` at the call site"
+(`spec/execution-model.md:369-371`).
 
 Where that is caught differs by what is knowable statically. A built-in **command or reporter**'s
 Kind is part of its registration row and cannot be left unstated (`packages/parser/src/signatures.ts`,
 issue #932; special forms have dedicated grammar productions rather than registry rows), so the
 built-in case is statically decidable and belongs to the **semantic** stage. Whether a *user*
 procedure reaches `return` can depend on a branch, so it is not statically decidable in general and
-stays a **runtime** diagnostic at the call site — which is where `spec/error-model.md:114` already
-puts it: "reported at the call site."
+stays a **runtime** diagnostic at the call site. `spec/error-model.md:114` states both halves and the
+split between them, and puts the user-procedure case where it always was: "reported at the call
+site."
 
 **When two stages describe the same mistake, the learner sees the better message.** The commonest
 learner typo is a misspelled command *with* an argument, and it produced this, measured at
@@ -230,7 +246,10 @@ implementation that could drift from the first, and would still report the fault
 reached it, after the earlier half of the drawing had already happened.
 
 The narrow evaluator net is kept precisely because it is *not* that duplicate. It has one job the
-checker cannot do: notice that the implementation itself has no answer.
+checker cannot do: notice that the implementation itself has no answer. That is not a gap in the
+checker's rules but in what a checker can know — "[w]hether an evaluation exists is a fact about the
+evaluator, not about the program's text, so Layer 2 has no way to **derive** it"
+(`spec/execution-model.md:701-703`).
 
 ### The command-in-value-position fault needed a generalization, not an invention
 
@@ -261,7 +280,7 @@ misread: it is scoped to a `map`/`filter`/`reduce` **body** that produces no fin
 ### A better message must not lose to a worse one
 
 `spec/error-model.md:13` opens with "OpenLogo errors are part of teaching," and
-`spec/error-model.md:196` makes did-you-mean a **MUST** for `ol-unknown-command`. A language can
+`spec/error-model.md:197` makes did-you-mean a **MUST** for `ol-unknown-command`. A language can
 satisfy both of those and still fail the learner, if the message that reaches them is chosen by
 accident of stage ordering rather than by usefulness. `fowad 100` was that failure: two true
 diagnostics, and the less useful one won because it happened to be produced by an earlier stage.
@@ -427,7 +446,7 @@ Read together, the two OpenLogo codes are not new ideas but old ones given stabl
 | Berkeley Logo | OpenLogo |
 |---|---|
 | `I don't know how to PROC` (errors 13 / 24) | `ol-unknown-command`, whose learner message at `spec/error-model.md:97` is literally *"i don't know how to {name}. did you mean {suggestion}?"* |
-| `PROC didn't output to PROC` (error 5), primitives included | `ol-no-output` (`spec/error-model.md:114`), generalized here from "command procedure" to "command" |
+| `PROC didn't output to PROC` (error 5), primitives included | `ol-no-output` (`spec/error-model.md:114`), generalized from "command procedure" to "command" so it covers a built-in too |
 
 What OpenLogo adds is the stage, and only where a stage can be added. Classic Logo tells you at run
 time, when the interpreter reaches the line; OpenLogo tells you before the run starts for the two
@@ -447,11 +466,13 @@ procedure that fails to report a value cannot be decided statically in general, 
   program, source spans, trace events and **diagnostics** — so a fault that produces no diagnostic is
   a fault the Educational profile is structurally unable to teach. Refusing to run converts an
   unteachable event into a teachable one.
-- The three faults in the Context become distinguishable from the outside: a misspelled name, a
-  command used as a value, and a primitive the implementation has not finished. The third one says
-  so, which means a learner never spends an afternoon debugging a program that was correct.
+- The three faults in the Context become distinguishable from the outside: a misspelled name
+  (`ol-unknown-command`), a command used as a value (`ol-no-output`), and a primitive the
+  implementation has not finished (`ol-not-implemented`). The third one says so in its own words —
+  *"i know the word {name}, but i can't run it yet. that is my gap, not your mistake"* — which means a
+  learner never spends an afternoon debugging a program that was correct.
 - Diagnostics stop competing. Choosing the message by usefulness rather than by stage order means the
-  did-you-mean that `spec/error-model.md:196` requires actually reaches the person it was computed
+  did-you-mean that `spec/error-model.md:197` requires actually reaches the person it was computed
   for.
 
 **What it forecloses, and what it costs.**
@@ -463,14 +484,15 @@ procedure that fails to report a value cannot be decided statically in general, 
   wants the sketching workflow back must opt *out* explicitly.
 - **The gate is only as good as the profile set it is given.** This decision moves the active
   profile set from a detail of the checker's configuration onto the critical path of every run: get
-  it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` is necessary but not
-  sufficient here — it binds the semantic *layer* to the active profile set, and nothing yet binds
-  the *run path* to a caller-supplied one; #814's text has to say where the gate's profiles come
-  from. It is also work, not merely a rule to honour: at `2a1888c1` `execute()` accepts no profile
-  set at all, and `check()`'s own default is Core Language alone.
+  it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` binds the semantic
+  *layer* to the active profile set; what the gate additionally needs — that the set be the run's own
+  and be nameable by whoever starts the run — is settled at `spec/execution-model.md:673-680`, which
+  rules a fixed Core-Language-only set "specifically not conforming" for exactly this reason. It is
+  also work, not merely a rule to honour: at `2a1888c1` `execute()` accepted no profile set at all,
+  and `check()`'s own default was Core Language alone.
 - **The semantic stage acquires a new obligation: it must not be wrong.** A false positive used to be
   a spurious squiggle in the editor; it now stops a run. That raises the cost of adding an
-  over-eager Layer 2 rule, and is the reason `spec/tooling.md:196-197` — "Tools MUST NOT report
+  over-eager Layer 2 rule, and is the reason `spec/tooling.md:199-200` — "Tools MUST NOT report
   speculative type errors when dynamic values are unknown" — matters more after this decision than
   before it.
 - **Two stages can now report the same underlying mistake, so precedence is permanent work.** Every
@@ -492,18 +514,25 @@ This record explains, and does not restate, the following **normative** text:
   (`spec/error-model.md:76-78`); [Severity](../../spec/error-model.md#severity)
   (`spec/error-model.md:85-86`); the [normative code
   registry](../../spec/error-model.md#normative-code-registry) rows for `ol-unknown-command`
-  (`spec/error-model.md:97`), `ol-no-output` (`spec/error-model.md:114`) and `ol-no-value`
-  (`spec/error-model.md:115`); and [Did-you-mean](../../spec/error-model.md#did-you-mean)
-  (`spec/error-model.md:196`).
+  (`spec/error-model.md:97`), `ol-no-output` (`spec/error-model.md:114`), `ol-no-value`
+  (`spec/error-model.md:115`) and `ol-not-implemented` (`spec/error-model.md:131`); and
+  [Did-you-mean](../../spec/error-model.md#did-you-mean)
+  (`spec/error-model.md:197`).
 - `spec/execution-model.md` — the reporter/command rule and `ol-no-output` at the call site
-  (`spec/execution-model.md:369-371`).
+  (`spec/execution-model.md:369-371`); [Checking before
+  execution](../../spec/execution-model.md#checking-before-execution) (`spec/execution-model.md:632`)
+  and the rules within it; [Evaluation terminates in a value, an effect, or a
+  diagnostic](../../spec/execution-model.md#evaluation-terminates-in-a-value-an-effect-or-a-diagnostic)
+  (`spec/execution-model.md:696`); and [One fault, one
+  diagnostic](../../spec/execution-model.md#one-fault-one-diagnostic)
+  (`spec/execution-model.md:737`). The closing section maps each to the part of the ruling it states.
 - `spec/commands.md` — the primitive-entry shape whose **Kind** is Command, Reporter or Special form
   (`spec/commands.md:15`).
 - `spec/tooling.md` — [Layer 2: semantic checking](../../spec/tooling.md#layer-2-semantic-checking),
   its active-profile-set requirement (`spec/tooling.md:176-177`) and its prohibition on speculative
-  type errors (`spec/tooling.md:196-197`); and [Layer 3: style
+  type errors (`spec/tooling.md:199-200`); and [Layer 3: style
   lints](../../spec/tooling.md#layer-3-style-lints), which makes style findings warnings
-  (`spec/tooling.md:233`).
+  (`spec/tooling.md:236`).
 - `spec/grammar.md` — the declare-versus-bind rule (`spec/grammar.md:363`) and the prohibition on
   raising `ol-reserved-word` for a bound name at any stage (`spec/grammar.md:386`), which is why that
   code was not the answer to a *use*.
@@ -513,25 +542,31 @@ One **Informative** document is cited for the pedagogy the decision serves, not 
 things that must become visible (`spec/educational-model.md:15`), and the deterministic,
 diagnostic-driven baseline for `explain`/`why`/`hint`/`debug` (`spec/educational-model.md:435`).
 
-## The state of the spec when this record was accepted
+## Where the ruling now lives
 
-The maintainer ruling this record explains is issue #814, and the normative text moves to match it in
-a separate, maintainer-merged `spec/` PR (`spec/**` is CODEOWNERS-gated). At the time this record was
-accepted that PR had not landed, and a search of `spec/**` for the ruling's terms returned nothing.
-As a dated statement of fact, none of the following was normative text at `2a1888c1`:
+The maintainer ruling this record explains is issue #814, and its normative text was drafted and
+merged separately, by the maintainer (`spec/**` is CODEOWNERS-gated). This record was written while
+that text was in flight and describes the implementation as it stood **before** it — hence the
+`Measurements:` line in the header. The mapping below is the record's own audit trail: each part of
+the ruling, and the normative text that now states it. Where this record and that text differ, the
+text is the contract.
 
-- **The check-before-run gate itself** — that `execute()` runs the semantic check and declines to run
-  a program that fails it. `spec/error-model.md:76-78` licenses reporting a condition at an earlier
-  stage, but says nothing about whether the program then runs.
-- **Where the gate's profile set comes from.** `spec/tooling.md:176-177` binds the semantic *layer*
-  to the active profile set; nothing yet binds the *run path* to a caller-supplied one.
-- **The evaluator net and the #358 implementation-gap class**, which has no `ol-*` code yet — which
-  is why this record names none.
-- **`ol-no-output` generalized to a built-in command.** `spec/execution-model.md:369-371` still says
-  "command **procedure**", and `spec/error-model.md:114`'s row still carries the `procedure` param
-  and the `runtime` stage alone.
-- **The style-lint carve-out and the opt-out rule**, neither of which appears in `spec/`.
-- **The de-duplication / precedence rule** between a parse diagnostic and a semantic one.
+| Part of the ruling | Where it is now normative |
+|---|---|
+| The gate itself — a program that fails the check does not run | `spec/execution-model.md:632` ([Checking before execution](../../spec/execution-model.md#checking-before-execution)), with the "Phase 2 MUST NOT begin" rule at `spec/execution-model.md:659-664` |
+| Severity, not presence, decides | `spec/execution-model.md:666-671` |
+| The check runs under the run's own profile set, nameable by the caller | `spec/execution-model.md:673-680`, over `spec/tooling.md:176-177` |
+| Warnings never stop a run | `spec/execution-model.md:682-685` |
+| Running unchecked is opt-out, never the default | `spec/execution-model.md:687-694` |
+| The terminal rule — a value, an effect, or a diagnostic | `spec/execution-model.md:696` ([Evaluation terminates…](../../spec/execution-model.md#evaluation-terminates-in-a-value-an-effect-or-a-diagnostic)) |
+| The #358 implementation-gap class gets its own code | `ol-not-implemented`, `spec/error-model.md:131`; the prohibition on faking it with `ol-unknown-command` at `spec/execution-model.md:725-728` |
+| `ol-no-output` generalized from "command procedure" to "command" | `spec/execution-model.md:369-371` and `spec/error-model.md:114`, now staged `semantic or runtime` |
+| De-duplication and precedence — the learner sees the typo | `spec/execution-model.md:737` ([One fault, one diagnostic](../../spec/execution-model.md#one-fault-one-diagnostic)), precedence at `spec/execution-model.md:750` |
 
-#814 supersedes that state. A reader who finds the merged text should read it, not this record, as
-the contract — and this record's waiver (see the header) retires at that moment.
+Two consequences a reader should carry away. First, this record's argument is now the *rationale* for
+merged normative text rather than for a pending decision, so nothing here needs to be read as
+asserting normative force — it never had any. Second, one thing the record describes as the
+implementation's behaviour has become a **conformance violation** rather than a wart: the checker's
+withholding of a registered-but-unevaluated name, which `spec/execution-model.md:725-728` now
+forbids. That is tracked as implementation work (#815, and #838 for `challenge`), and it is the
+clearest illustration of why this record separates what was measured from what was decided.
