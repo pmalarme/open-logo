@@ -1,11 +1,11 @@
-# A globally reserved structural word (spec/grammar.md:355-362) heads no alternative of the
-# `expression` production (spec/grammar.md:190-200), so the reader reports each as ol-bad-token at
+# A globally reserved structural word (spec/grammar.md:357-364) heads no alternative of the
+# `expression` production (spec/grammar.md:192-202), so the reader reports each as ol-bad-token at
 # the offending token — "a valid OpenLogo token ... not permitted at the current grammar position"
 # (spec/error-model.md:109). Before issue #853 all six below parsed AND checked completely CLEAN
 # under every profile set: nothing said so.
 #
 # The first two lines are the issue's verbatim reproduction. The rest use a list element — a full
-# `expression` by spec/grammar.md:204 — because the Data mutation heads (spec/grammar.md:113-117)
+# `expression` by spec/grammar.md:206 — because the Data mutation heads (spec/grammar.md:114-118)
 # are ALSO statement openers, so at the start of a statement the reader's error recovery re-enters
 # their statement form and adds a second, incidental diagnostic. Pinning them in a non-statement
 # value position keeps this stack-neutral contract about ACCEPTANCE, not about one reader's

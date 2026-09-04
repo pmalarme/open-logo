@@ -56,7 +56,7 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    prose lists that nothing used to check. Two of them are **compared**: `spec/grammar.md`'s
    normative keyword block, against the list, and `spec/tooling.md`'s C19 mirror, against that
    block. The third, `spec/tooling.md`'s `keyword` **token-class** enumeration (a different set from
-   the keyword list on purpose, `spec/grammar.md:378`), moved out of the row and into the list as a
+   the keyword list on purpose, `spec/grammar.md:380`), moved out of the row and into the list as a
    per-name `tokenClass` (issue #959): the gate re-paints every name through the shipped
    `highlight()` and compares, so a **declared** class that is wrong can no longer be green. The
    reverse direction covers the name sources `highlight()` reads, not arbitrary output — ADR-0026

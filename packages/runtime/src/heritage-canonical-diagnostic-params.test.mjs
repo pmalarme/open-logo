@@ -4,7 +4,7 @@
 // ## Why this file exists, and why it is here rather than beside the parser's guard
 //
 // Diagnostic identity is `code` plus structured `params`, and the SAME condition MUST keep the same
-// code AND the same params (`spec/error-model.md:254-259`, "Localization boundary"). Heritage is
+// code AND the same params (`spec/error-model.md:256-261`, "Localization boundary"). Heritage is
 // defined as "alternate spellings only, no new semantics" (`spec/conformance.md#heritage`), so a
 // Heritage spelling and its Core twin are the same condition: their diagnostics must agree in `code`
 // and in every param whose subject is not the learner's own text. Only the prose `message` — and the
@@ -181,7 +181,7 @@ function astContains(source, kind) {
 const SURFACE_SUBJECT_PARAMS = {
   "ol-not-a-place": {
     text:
-      "`spec/tooling.md:218-219` MANDATES the surface value: `count :nums = 3` → " +
+      "`spec/tooling.md:221-222` MANDATES the surface value: `count :nums = 3` → " +
       '`params={ text: "count :nums" }`. It is a machine-readable quotation of the span, not an ' +
       "identifier — canonicalizing it would make the param disagree with its own source_span, " +
       "and a target such as `1 + 2` or `(first :x)` has no canonical form at all. The runtime " +
@@ -208,7 +208,7 @@ function isSurfaceSubject(code, field) {
  *
  * The extra `print (…)` line is what reaches the three list-reporter aliases (`bf`/`bl`/`se`): the
  * current runtime does not evaluate a bare expression statement — an implementation state, not a
- * spec rule (`spec/execution-model.md:412-413` — "Used alone as a statement, its result is
+ * spec rule (`spec/execution-model.md:779-780` — "Used alone as a statement, its result is
  * *discarded* like any other unused value", i.e. evaluated and then dropped) — so the reporter is
  * placed where its value is required. The shape is deliberately robust if that changes: an
  * evaluated `(bf)` on line 1 raises the identical `ol-not-enough-inputs` with the identical
@@ -394,7 +394,7 @@ const EXTRA_TWINS = [
     // the two programs supply the SAME evaluated value. An inline key would not be a twin on either
     // of two mechanisms: for a LIST key the inline Core form does not even parse
     // (`:ages[[ 1 2 ]]` → `ol-bad-token` plus unmatched brackets), and for a BOOLEAN key it parses
-    // but means something else — `spec/grammar.md:256`, "a bare identifier inside a selector is a
+    // but means something else — `spec/grammar.md:258`, "a bare identifier inside a selector is a
     // literal word key", so `:ages[true]` is the word `"true"` while `for key true` evaluates a
     // boolean. Binding the key sidesteps both.
     heritage:
@@ -611,7 +611,7 @@ test("every alias twin reaches a CANONICAL-carrying field, not just a spelling-i
         callable,
         canonical,
         `alias ${alias}: params.callable must be the canonical "${canonical}", never the surface ` +
-          `spelling (spec/error-model.md:254-259)`,
+          `spelling (spec/error-model.md:256-261)`,
       );
     }
   }
@@ -647,7 +647,7 @@ test("the worded `value of … for key` reader reports EXACTLY the Core selector
           expected.params,
           `${twin.note}: diagnostic ${index} params must be exactly the Core selector's — a Heritage ` +
             `spelling in any field is a divergent machine-readable identity ` +
-            `(spec/error-model.md:254-259)`,
+            `(spec/error-model.md:256-261)`,
         );
       }
     }
@@ -698,7 +698,7 @@ test("an EXECUTED Heritage program's diagnostics match its Core twin's in code a
           `${twin.note}: diagnostic ${index} (${actual.code}) param "${field}" diverged with the ` +
             `spelling — ${JSON.stringify(value)} vs ${JSON.stringify(expected.params[field])}. ` +
             `Diagnostic identity is code + params and the same condition must keep the same ` +
-            `params (spec/error-model.md:254-259); Heritage adds no new semantics ` +
+            `params (spec/error-model.md:256-261); Heritage adds no new semantics ` +
             `(spec/conformance.md#heritage). Canonicalize the param at its source, or — if this ` +
             `FIELD's subject genuinely IS the learner's own text — add it to ` +
             `SURFACE_SUBJECT_PARAMS with the spec citation that says so.`,
@@ -729,7 +729,7 @@ test("no runtime diagnostic param carries a Heritage surface spelling, outside t
             !pattern.test(rendered),
             `${twin.note}: ${diagnostic.code} param "${field}" = ${rendered} contains the ` +
               `Heritage spelling "${spelling}". Params are canonical; prose is presentation ` +
-              `(spec/error-model.md:254-259).`,
+              `(spec/error-model.md:256-261).`,
           );
         }
       }

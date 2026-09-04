@@ -362,7 +362,7 @@ test("execute runs the else-branch of a bracketed `if` when the condition is fal
 });
 
 test("execute runs the long-form `if ... end if` identically to the bracketed form", () => {
-  // Per `spec/grammar.md:119-124` the long-form body parses to the same `BlockNode` shape as the
+  // Per `spec/grammar.md:120-125` the long-form body parses to the same `BlockNode` shape as the
   // bracketed body, so comparing event kinds/payloads (ignoring source spans, which necessarily
   // differ across the two distinct sources) proves the two forms execute identically.
   const bracketed = execute("if true [ print 1 ]", "main.logo");

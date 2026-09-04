@@ -15,7 +15,7 @@
 # parenthesized rows raising the substituted `ol-bad-token` and no `ol-unmatched-paren` at all. Its
 # twin, by contrast, passes unchanged against that same pre-fix parser.
 #
-# The second group is the round-2 review finding on `spec/grammar.md:314`: a call still owed an
+# The second group is the round-2 review finding on `spec/grammar.md:316`: a call still owed an
 # operand is unfinished exactly as an operator is, so *"the unfinished value's own grammar position
 # wins and no entry opens"*. `{ a: sentence 1 mod: 2 }` must be a malformed entry — not an entry
 # keyed `mod` leaving `sentence` one argument short — and its newline spelling must agree.

@@ -251,7 +251,7 @@ test("a runtime error inside each surfaces its ol-type and emits no move", () =>
 
 test("a `throw` inside each halts the run after the first turtle's move", () => {
   // A `throw` on :a's run halts the program (v0.1 has no try/catch, so it stops like any runtime
-  // error, spec/commands.md:980) and surfaces `ol-user-error`. The loop stops on the first iteration
+  // error, spec/commands.md:1001) and surfaces `ol-user-error`. The loop stops on the first iteration
   // — :a's `forward 10` ran but :b never does.
   //
   // The restoration `spec/turtles-and-sprites.md:78` mandates on this path is NOT what the moves

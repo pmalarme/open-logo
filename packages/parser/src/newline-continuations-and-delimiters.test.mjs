@@ -12,7 +12,7 @@
 // **B — the recovery path reports a matched delimiter as unmatched.** `parseParenthesized` reported
 // its `(` unmatched whenever the inner expression failed, without ever checking whether the `)` was
 // present, and `unexpected()` mapped *any* stray closer to an unmatched-delimiter diagnostic. Both
-// violate `spec/error-model.md:165-169`, which is delimiter-agnostic: *"on any recovery path, for
+// violate `spec/error-model.md:167-171`, which is delimiter-agnostic: *"on any recovery path, for
 // any malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic … for a delimiter
 // that is, in fact, correctly matched in the source."*
 //
@@ -205,7 +205,7 @@ test("`of` stays a keyword when the reader is split across a newline", () => {
 // --- Mechanism A must not reach too far ----------------------------------------------------------
 
 test("an entry lookahead does not fire while the value is still owed an operand", () => {
-  // `spec/grammar.md:314` gives an unfinished value precedence: *"where the value is not yet
+  // `spec/grammar.md:316` gives an unfinished value precedence: *"where the value is not yet
   // complete — an operator or a call still owed an operand, say … the unfinished value's own
   // grammar position wins and no entry opens, so `{ a: 1 + b: 2 }` is a malformed entry rather than
   // two entries."* A call is owed an operand exactly as an operator is, so `{ a: sentence 1 mod: 2 }`

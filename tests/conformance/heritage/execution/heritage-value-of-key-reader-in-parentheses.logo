@@ -3,8 +3,8 @@
 # rules and the parenthesized reader has to be proven to RUN, not merely to parse clean.
 #
 # Every `print` below pins a VALUE that only exists if the `(` path actually entered the
-# `value-of-reader` (`spec/grammar.md:203`, defined :217) instead of taking `value` as a
-# `parenthesized-call` callee (:215). The reader operates on a dict, so Heritage also needs
+# `value-of-reader` (`spec/grammar.md:205`, defined :219) instead of taking `value` as a
+# `parenthesized-call` callee (:217). The reader operates on a dict, so Heritage also needs
 # Data (`spec/conformance.md:305`).
 :d = { a: 7 b: "a" }
 :nested = { inner: { x: 9 } }
@@ -26,7 +26,7 @@ print ((value of :d for key "a"))
 print (value of :d for key "a") + 1
 print 1 + (value of :d for key "a")
 
-# A parenthesized reader takes postfixes, so it is a real `primary` (`spec/grammar.md:192`).
+# A parenthesized reader takes postfixes, so it is a real `primary` (`spec/grammar.md:194`).
 print (value of :nested for key "inner").x
 print (value of :nested for key "inner")[x]
 

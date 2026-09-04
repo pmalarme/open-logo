@@ -1,6 +1,6 @@
 # Issue #1021 — `spec/grammar.md:34`: "Within a single expression, list literal, dict literal, or
 # parenthesized group, newlines are insignificant." The branch decision that picks
-# `parenthesized-expression` (grammar.md:213) over `parenthesized-call` (:215) therefore looks PAST
+# `parenthesized-expression` (grammar.md:213) over `parenthesized-call` (:217) therefore looks PAST
 # any newlines between the head and the operator, so a group written across lines reads exactly as
 # its one-line form.
 #

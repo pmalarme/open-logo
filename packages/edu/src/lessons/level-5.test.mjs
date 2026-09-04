@@ -45,7 +45,7 @@ const LATER_LEVEL_NODE_KINDS = new Set([
 // case-insensitive) sorts them by level. The parser preserves the surface spelling and does not
 // canonicalize aliases today, so every documented one-word alias of a denied command is listed
 // beside its canonical spelling; among the denied commands only `set_xy`/`set_heading` have one
-// (`setxy`/`seth` — spec/commands.md:1279,1296). The learner-built `polygon` is Level 5 and absent.
+// (`setxy`/`seth` — spec/commands.md:1300,1317). The learner-built `polygon` is Level 5 and absent.
 const LATER_LEVEL_CALL_NAMES = new Set([
   // Level 6 — derived geometry beyond the learner-built polygon
   "star",

@@ -7,7 +7,7 @@
 // turtle nor the addressed set.
 //
 // So every change of the addressed set now emits a `primitive` event (the registered generic
-// catch-all for a primitive without a more specific kind, spec/execution-model.md:703 — no new event
+// catch-all for a primitive without a more specific kind, spec/execution-model.md:1070 — no new event
 // kind, see packages/runtime/src/addressing.ts) carrying an absolute snapshot:
 // `{ addressed_turtle_ids, current_turtle_id }`. `foldAddressing` below is the whole consumer
 // algorithm — assign, never infer — and these tests assert what a renderer or the studio's
@@ -63,7 +63,7 @@ test("tell publishes the whole addressed set and the current turtle", () => {
 });
 
 test("an addressing event is never stamped with an envelope turtle_id (it describes a set)", () => {
-  // spec/execution-model.md:638 — `turtle-id` is "present only when the event is turtle-specific".
+  // spec/execution-model.md:1005 — `turtle-id` is "present only when the event is turtle-specific".
   // An addressing event concerns the whole addressed set, so stamping it with one turtle's id would
   // make a spec-violating envelope binding on every implementation that reads this corpus.
   const result = execute(
@@ -617,7 +617,7 @@ test("a Core/Turtle & Rendering program emits no addressing event at all", () =>
 });
 
 test("each addressing event reports its own set: a later tell does not rewrite an earlier event", () => {
-  // spec/execution-model.md:652-661 — an effect payload is a point-in-time snapshot, not a live
+  // spec/execution-model.md:1019-1028 — an effect payload is a point-in-time snapshot, not a live
   // reference. Re-addressing must leave the first event reporting the set it was emitted for. (The
   // payload's defensive copy of the ids is not *distinguishable* here, because the runtime replaces
   // the ids array rather than mutating it in place; the copy keeps the payload sealed if that ever

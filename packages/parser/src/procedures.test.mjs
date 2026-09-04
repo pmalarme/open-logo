@@ -1,5 +1,5 @@
 // Unit tests for Core procedure definitions — `define name { :param } … end` — plus the
-// `return`/`stop` statements that appear inside a procedure body, per spec/grammar.md:145-151
+// `return`/`stop` statements that appear inside a procedure body, per spec/grammar.md:146-152
 // (`define-statement`, `required-parameter`, `optional-parameter`, `return-statement`,
 // `stop-statement`) and spec/execution-model.md's block-result rule (procedures return a value
 // only through `return`/`output`/`op`). These validate the already-merged parser; they do not
@@ -153,7 +153,7 @@ test("parses `define name ( :param default ) … end` with an optional parameter
   assert.equal(def.params[0].defaultValue.value, "world");
 });
 
-test("`return` requires a value expression — Core has no bare `return` (spec/grammar.md:150)", () => {
+test("`return` requires a value expression — Core has no bare `return` (spec/grammar.md:151)", () => {
   const { ast, diagnostics } = OL.parse("define f\n  return\nend\n", doc);
 
   // The parser recovers: the procedure def still parses, but with an empty body and a

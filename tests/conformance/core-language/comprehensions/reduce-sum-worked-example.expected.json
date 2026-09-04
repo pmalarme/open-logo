@@ -1,5 +1,5 @@
 {
-  "description": "reduce folds an accumulator across every element, seeded by `from` — the spec's own worked map/reduce example (spec/execution-model.md:400-402,716-741). Issue #105.",
+  "description": "reduce folds an accumulator across every element, seeded by `from` — the spec's own worked map/reduce example (spec/execution-model.md:767-769,1083-1108). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

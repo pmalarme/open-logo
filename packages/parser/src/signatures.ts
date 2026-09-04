@@ -135,8 +135,8 @@ export function corePrimitiveArity(name: string): number | undefined {
  * Pen and screen tables in [`spec/commands.md`](../../../spec/commands.md). Each row is a canonical
  * name, its **Kind** and arity as that primitive's own entry states them, and — for five of them —
  * the one-word alias spelling `spec/commands.md` documents inline: `setxy`/`seth` (issue #202;
- * `spec/commands.md:1280,1297`), `setcolor`/`setbg`
- * (issue #208; `spec/commands.md:1522,1540`), and `setwidth` (issue #209; `spec/commands.md:1557`).
+ * `spec/commands.md:1301,1318`), `setcolor`/`setbg`
+ * (issue #208; `spec/commands.md:1543,1561`), and `setwidth` (issue #209; `spec/commands.md:1578`).
  *
  * **The alias lives on its canonical's row rather than in a table beside it.** Until issue #841 the
  * five were independent arity entries with no recorded relationship, so nothing anywhere could
@@ -571,8 +571,8 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
 /**
  * Default arities for the **Sound** profile's primitives (issue #689,
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
- * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:286-299`)
- * and `beep` takes none (`spec/interaction-events.md:336-351`) — the two primitives slice S1 (#689)
+ * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:347-360`)
+ * and `beep` takes none (`spec/interaction-events.md:397-412`) — the two primitives slice S1 (#689)
  * delivered; `note`/`rest` arrived with #690 and `play` with #691, so all five are registered
  * below, each a bare `Call` grouped by its arity exactly as `set_width`/`grid` are. Kept as
  * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
@@ -581,7 +581,7 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
  * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
  * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
  * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md:47`;
- * the names themselves are built-in unconditionally per `spec/grammar.md:408`).
+ * the names themselves are built-in unconditionally per `spec/grammar.md:412`).
  */
 const SOUND_PRIMITIVES: readonly PrimitiveRow[] = [
   ["set_tempo", "command", 1],
@@ -664,10 +664,10 @@ export function spritesPrimitiveArity(name: string): number | undefined {
  * The **Heritage** profile's short command and reporter aliases (issues #668 slice H3 + #669 slice
  * H4), each mapping onto the Core-spelled command or reporter it is an alternate spelling of. The
  * list and its one-to-one canonical mapping are authoritative in `spec/conformance.md:151` and
- * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1195, `bk`→`back`:1212,
- * `lt`→`left`:1229, `rt`→`right`:1246, `st`→`show_turtle`:1418, `ht`→`hide_turtle`:1435,
- * `pu`→`pen_up`:1452, `pd`→`pen_down`:1470, `cs`→`clear_screen`:1488, `pr`→`print`:146, plus the
- * list reporters `bf`→`butfirst`:1070, `bl`→`butlast`:1087, `se`→`sentence`:1019). Heritage is
+ * `spec/commands.md`'s per-command **Aliases** rows (`fd`→`forward`:1216, `bk`→`back`:1233,
+ * `lt`→`left`:1250, `rt`→`right`:1267, `st`→`show_turtle`:1439, `ht`→`hide_turtle`:1456,
+ * `pu`→`pen_up`:1473, `pd`→`pen_down`:1491, `cs`→`clear_screen`:1509, `pr`→`print`:167, plus the
+ * list reporters `bf`→`butfirst`:1091, `bl`→`butlast`:1108, `se`→`sentence`:1040). Heritage is
  * "alternate spellings only — no new semantics" (`spec/conformance.md:150`): the reader records
  * `canonical` on the alias's {@link import("./ast.js").CallNode} so the runtime dispatches through
  * the exact same code path as the Core spelling, and this module never keeps a second copy of each
@@ -731,7 +731,7 @@ export function heritageAliasNames(): readonly string[] {
  * an alternate of". Two consumers need that answer for different reasons, and they must never drift:
  * `checker-heritage-form.ts` points a Core-only learner's did-you-mean at the Core spelling, and
  * `checker-control-flow.ts` canonicalizes `params.keyword` so a Heritage escape's diagnostic
- * identity is byte-identical to its Core twin's (`spec/error-model.md:254-259`, issue #737).
+ * identity is byte-identical to its Core twin's (`spec/error-model.md:256-261`, issue #737).
  *
  * Declared `as const` so {@link canonicalOfHeritageFormHead} can report each head's canonical as a
  * literal type: that is what lets a caller thread a canonical spelling into a diagnostic param
@@ -775,7 +775,7 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * *names* like {@link HERITAGE_ALIAS_CANONICAL}'s aliases nor single-word statement heads like
  * {@link HERITAGE_FORM_HEAD_CANONICAL}'s. `spec/conformance.md:153` lists exactly one today, the
  * worded dictionary reporter `value of … for key` (slice H5, issue #670), whose production is
- * `spec/grammar.md:213`'s `value-of-reader`.
+ * `spec/grammar.md:215`'s `value-of-reader`.
  *
  * Each entry records three things. `phrase` is quoted verbatim from that spec bullet, so a guard
  * can hold this table against the spec's own inventory without normalising anything. `node` is the
@@ -789,8 +789,8 @@ export function heritageFormHeadNames(): readonly HeritageFormHead[] {
  * dict key `value` like any other word. The phrase's other literals are weaker still, being
  * ordinary vocabulary that reaches params on its own account (a malformed form quotes whatever
  * token it stopped at through `ol-bad-token`'s `text`): `of` is the contextual preposition of the
- * `is member of` predicate (`spec/grammar.md:380`), `for` opens the Core `for … in`/`for … from … to`
- * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:115`) — which is
+ * `is member of` predicate (`spec/grammar.md:382`), `for` opens the Core `for … in`/`for … from … to`
+ * loops, and `key` is also the Data profile's `remove key … from` (`spec/grammar.md:116`) — which is
  * why the head, not the phrase, is what {@link HERITAGE_SURFACE_SPELLINGS} registers for
  * canonical-param matching. The operands the phrase elides are a dict and a word/number key
  * (`spec/data-structures.md:268`).
@@ -909,9 +909,9 @@ export function heritageWordedFormHeads(): readonly string[] {
  * Read "identifies" precisely: these are the words a learner writes to make the reader take a
  * Heritage spelling rather than a Core one. Several of them are ALSO ordinary Core vocabulary in
  * some other position, so this is not a list of Heritage-exclusive tokens: `to` is the preposition
- * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:104,128`) as well as
+ * of Core's `set … to` and the bound of `for … from … to` (`spec/grammar.md:105,129`) as well as
  * the Heritage procedure opener, and the worded reader's head `value` is a globally reserved word
- * (`spec/grammar.md:371`). What each entry has in common is that a diagnostic naming it would be
+ * (`spec/grammar.md:373`). What each entry has in common is that a diagnostic naming it would be
  * naming the learner's Heritage spelling of a condition their Core twin raises identically.
  *
  * This is the enumerable definition of "a Heritage surface spelling", and it exists so the

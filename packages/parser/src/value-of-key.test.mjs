@@ -1,5 +1,5 @@
 // Unit tests for the Heritage `value of <dictionary> for key <key>` reader (issue #322,
-// `spec/grammar.md:213`'s `value-of-reader`). `coverage.test.mjs`'s `MEGA` walk exercises the
+// `spec/grammar.md:215`'s `value-of-reader`). `coverage.test.mjs`'s `MEGA` walk exercises the
 // happy-path shape once for AST-visitor coverage; this file targets the per-branch syntax-error
 // recovery `parseValueOfKey` performs when the dictionary expression, the `for` keyword, the `key`
 // keyword, or the key expression is missing — each reports a diagnostic and bails out with
@@ -29,7 +29,7 @@ test("parses `value of <dict> for key <key>` into a ValueOfKey node", () => {
 test("a bare `value` not followed by `of` is rejected as a misplaced reserved word, not read as a call", () => {
   const { diagnostics } = OL.parse("print value", doc);
 
-  // `value` is globally reserved (`spec/grammar.md:358`) and heads no `expression` alternative but
+  // `value` is globally reserved (`spec/grammar.md:360`) and heads no `expression` alternative but
   // the `of`-gated reader above, so outside that form it is not permitted at this grammar position
   // (`spec/error-model.md:109`). Before issue #853 it fell through to a bare zero-argument call
   // that parsed and checked clean in every profile set — a silent no-op.

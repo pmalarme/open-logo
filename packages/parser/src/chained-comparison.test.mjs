@@ -1,7 +1,7 @@
 // Unit tests for chained comparisons (issue #52). `parse.test.mjs` already covers the two-link case
 // (`1 < :x < 10`) and the lone-comparison boundary (`1 < 2` stays a Call); this file targets what
 // that leaves untested: 3+ link chains, mixed comparison operators in one chain, and chains whose
-// operands are themselves variables/expressions, per spec/grammar.md:180 and the single-evaluation
+// operands are themselves variables/expressions, per spec/grammar.md:182 and the single-evaluation
 // ComparisonChain lowering documented in packages/parser/src/ast.ts. PARSE-shape only — no runtime
 // single-evaluation assertions (out of scope for this parse-only slice).
 //

@@ -45,7 +45,7 @@ const isReservedWordFinding = (d) => d.code === "ol-reserved-word";
 
 // ── ol-not-a-place: reconciling #79's first cut to the spec worked example ──────────────────
 
-test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:213-219)", () => {
+test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:216-222)", () => {
   const diagnostics = checkSource(":nums = 1\ncount :nums = 3\n");
   const [finding] = diagnostics.filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");
@@ -369,7 +369,7 @@ test("source-slicing already renders both grouping levels correctly (the fallbac
 });
 
 // ── ol-not-a-place: a FULLY-parenthesized assignment target (issue #442/F3) ──────────────────
-// spec/tooling.md:187 requires "reject … parenthesized expressions as targets" as a SEMANTIC
+// spec/tooling.md:188 requires "reject … parenthesized expressions as targets" as a SEMANTIC
 // `ol-not-a-place`, not a parse error. `parseParenthesized` strips grouping and returns the inner
 // node unchanged, so `(:x)`/`(:x.a)` land as a bare `VarRef`/`Place` — byte-identical to the
 // assignable `:x`/`:x.a`. The parser now re-wraps such a target into the zero-segment
@@ -377,7 +377,7 @@ test("source-slicing already renders both grouping levels correctly (the fallbac
 // semantic rule instead of the pre-#442 blunt parse `ol-bad-token`. The postfix form `(:x).foo`
 // (#407/F7, a NON-empty segment list) is unchanged.
 
-test("a parenthesized colon-variable target (:x) = 2 is a SEMANTIC ol-not-a-place, not a parse error (issue #442/F3; spec/tooling.md:187)", () => {
+test("a parenthesized colon-variable target (:x) = 2 is a SEMANTIC ol-not-a-place, not a parse error (issue #442/F3; spec/tooling.md:188)", () => {
   const [finding] = checkSource(":x = 1\n(:x) = 2\n").filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");
   assert.equal(finding.stage, "semantic");
@@ -478,7 +478,7 @@ test("set ( with an unparseable target recovers gracefully — no set-form Assig
 });
 
 // #442/F3 regression guards: the fix must NOT broaden a bare colon-place `set` target or a valid
-// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:104 wants a bare place, and
+// assignment. `set :x` stays a parse `ol-bad-token` (spec/grammar.md:105 wants a bare place, and
 // `:x` is a colon read, not a bare name); `:x = 100` stays a clean equals-form assignment.
 test("set :x still reports exactly one parse ol-bad-token on the colon read and recovers as a VarRef (issue #442/F3 regression guard for #55)", () => {
   const { ast, diagnostics } = OL.parse("set :x\n", "unit.logo");
@@ -738,7 +738,7 @@ test("thing is reachable in two categories at once; it is still reported exactly
 });
 
 test("#841: a Core primitive collides even with an EMPTY profile set", () => {
-  // The most extreme statement of `spec/grammar.md:408` available: no profile at all is claimed,
+  // The most extreme statement of `spec/grammar.md:412` available: no profile at all is claimed,
   // and `first` is still a name the program may not declare. Nothing consults the profile set on
   // this axis, and an empty set is the cheapest way to prove it.
   const findings = checkSource("define first :x\n  print :x\nend\n", []).filter(
@@ -751,7 +751,7 @@ test("#841: a Core primitive collides even with an EMPTY profile set", () => {
 test("two define f ... end blocks only flag the second, later occurrence", () => {
   // Issue #838 recoded this from `ol-reserved-word` with `namespace: "procedure"` to
   // `ol-duplicate-definition`: a name the program itself declared is not a name OpenLogo owns
-  // (`spec/grammar.md:412`). The new code carries the earlier declaration's span so the message can
+  // (`spec/grammar.md:416`). The new code carries the earlier declaration's span so the message can
   // name the line the learner already used.
   const findings = checkSource(
     "define f :a\n  print :a\nend\ndefine f :a\n  print :a\nend\n",
@@ -764,7 +764,7 @@ test("two define f ... end blocks only flag the second, later occurrence", () =>
 
 test("local first inside a procedure body is a binding, so it no longer collides", () => {
   // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not one of the four
-  // declaration slots, and `spec/grammar.md:386` makes accepting the name a MUST. `local first`
+  // declaration slots, and `spec/grammar.md:390` makes accepting the name a MUST. `local first`
   // used to report a primitive collision.
   assert.deepEqual(
     checkSource("define g :y\n  local first\n  print :y\nend\n").filter(

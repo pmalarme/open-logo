@@ -8,7 +8,7 @@
 // Two shapes with deliberately different mechanics — proven not to leak into each other:
 //
 //   1. Block-head forms `when`/`every`/`on_key`/`on_click` lower to a `ProfileStatement`. Their
-//      PAINT is profile-gated, but their DECLARATION is not: `spec/grammar.md:408` and
+//      PAINT is profile-gated, but their DECLARATION is not: `spec/grammar.md:412` and
 //      `spec/interaction-events.md:43-47` state an unconditional rule ("what a profile decides is
 //      whether a name *works*, never whether a program may declare it"), #855 deleted the earlier
 //      "reserved only within this profile" wording from `spec/`, and #841 removed the matching gate
@@ -516,7 +516,7 @@ test("check: `input` is STILL ol-unknown-command without the profile — it is n
 test("check: redefining an Interaction block-head under an active profile raises ol-reserved-word", () => {
   // This section is a lock on the RULE, not on a profile's behaviour. `when`/`every`/`on_key`/
   // `on_click` were once treated as reserved only while Interaction & Events was active (C1 #663);
-  // `spec/grammar.md:408` and `spec/interaction-events.md:43-47` make them unconditional ("reserved
+  // `spec/grammar.md:412` and `spec/interaction-events.md:43-47` make them unconditional ("reserved
   // **unconditionally**: every implementation reserves them whether or not it claims this
   // profile"), for `wait`/`input` and the Sound names too, and #841 removed the gate. So this test
   // and its Core-only twin below must agree name for name; a difference between them is the defect.
@@ -536,7 +536,7 @@ test("check: redefining an Interaction block-head under an active profile raises
 });
 
 test("#841: redefining an Interaction block-head raises under Core-only too", () => {
-  // `spec/interaction-events.md:43-47` and `spec/grammar.md:408` make these words built-in names
+  // `spec/interaction-events.md:43-47` and `spec/grammar.md:412` make these words built-in names
   // unconditionally, so the answer here must match the profile-ACTIVE test above name for name. A
   // difference between the two is the defect, not the point.
   for (const head of Object.keys(INTERACTION_BLOCK_HEADS)) {
@@ -553,12 +553,12 @@ test("#841: redefining an Interaction block-head raises under Core-only too", ()
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:186` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
   // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
   // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
-  // `spec/error-model.md:136` puts it, that is "an implementation distinction the learner never has
+  // `spec/error-model.md:138` puts it, that is "an implementation distinction the learner never has
   // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.

@@ -1,5 +1,5 @@
 {
-  "description": "The parenthesized call form supplies an argument for the optional trailing parameter that the fixed-arity bare form cannot reach (spec/execution-model.md:363-365; issue #97 (star 5 100 3) example).",
+  "description": "The parenthesized call form supplies an argument for the optional trailing parameter that the fixed-arity bare form cannot reach (spec/execution-model.md:706-708; issue #97 (star 5 100 3) example).",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

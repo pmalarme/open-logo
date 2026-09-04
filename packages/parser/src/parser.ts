@@ -63,17 +63,17 @@ export interface ParseResult {
 }
 
 /**
- * The keywords that genuinely *may* begin an `expression` (`spec/grammar.md:193-206`), and
+ * The keywords that genuinely *may* begin an `expression` (`spec/grammar.md:195-208`), and
  * are therefore the only ones {@link parseNamePrimary} reads rather than rejecting:
  *
- * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:206`).
- * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:133-136,342-352`),
+ * - `true`/`false` — the `boolean-literal` production (`spec/grammar.md:208`).
+ * - `map`/`filter`/`reduce` — the `comprehension` production (`spec/grammar.md:134-137,344-354`),
  *   which "may appear anywhere a value is expected".
  * - `thing` — the one keyword that is *also* a Core primitive reporter (`thing "name`,
  *   `spec/commands.md`), so it is a real `fixed-call` callee.
  *
  * `value` is deliberately absent: it heads the `value-of-reader` production
- * (`spec/grammar.md:217`) only when `of` directly follows, which {@link parseNamePrimary} matches
+ * (`spec/grammar.md:219`) only when `of` directly follows, which {@link parseNamePrimary} matches
  * *before* consulting {@link NON_PRIMARY_NAMES} — so the reader form keeps working while a **bare**
  * `value` is rejected like any other misplaced structural word.
  */
@@ -94,7 +94,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  *
  * **Derived from {@link OL_KEYWORDS}, not hand-listed** (issue #853). A keyword is "a word the
  * grammar itself gives meaning to rather than a name a program can introduce"
- * (`spec/grammar.md:358`), so *every* keyword is illegal in expression position except the handful
+ * (`spec/grammar.md:360`), so *every* keyword is illegal in expression position except the handful
  * {@link EXPRESSION_INITIAL_KEYWORDS} names. Deriving the
  * complement makes that the invariant: a word added to that registry in a future slice is rejected
  * here automatically, instead of silently becoming a zero-arity {@link ast.call} that no rule flags.
@@ -106,7 +106,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * **That invariant has now had its first live test, and it held.** #853 had to carry `mod` as an
  * explicit extra entry, because `mod` was the one reader-structural word missing from the registry —
  * the gap #853 filed as #868. Issue #837 closes it: `mod` is a keyword
- * (`spec/grammar.md:373`, and see `keywords.ts`), so the derivation now supplies it and the hand-kept
+ * (`spec/grammar.md:375`, and see `keywords.ts`), so the derivation now supplies it and the hand-kept
  * exception is **gone**. Removing it is behaviour-preserving by construction — `mod` is in
  * {@link OL_KEYWORDS} and not in {@link EXPRESSION_INITIAL_KEYWORDS}, so the filter yields it
  * either way — which is exactly the property #853 built this derivation to guarantee. This set now
@@ -116,7 +116,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * four event heads) is deliberately excluded: this reader is profile-blind by design (see
  * {@link PROFILE_STATEMENT_FORMS}), so it shapes a program that declares `ask` as an ordinary
  * `define`/call pair rather than a profile statement. Since issue #841 the *checker* then raises
- * `ol-reserved-word` on that declaration — `spec/grammar.md:408` makes profile words built-in names
+ * `ol-reserved-word` on that declaration — `spec/grammar.md:412` makes profile words built-in names
  * unconditionally — but which diagnostic to raise is the checker's question, not this set's, and
  * rejecting them in value position is a third rule again (issue #864).
  *
@@ -124,10 +124,10 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
  * (`key-term`, `dict-key`, `.field`) read a raw `name` token rather than a primary — "Dictionary
  * keys and selector bare keys are data, not declarations, so built-in names are legal keys"
- * (`spec/grammar.md:406`) still holds.
+ * (`spec/grammar.md:410`) still holds.
  *
  * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here. It is a
- * **binding** rather than data, and `spec/grammar.md:386` makes binding any name — keyword
+ * **binding** rather than data, and `spec/grammar.md:390` makes binding any name — keyword
  * included — a conforming program, so nothing rejects it at either layer; this set neither adds nor
  * removes that.
  */
@@ -206,8 +206,8 @@ const PROFILE_STATEMENT_FORMS: ReadonlyMap<string, ProfileStatementForm> =
  * previous token is a statement terminator (`newline`), or the previous token opens a block (`[`), so
  * the first statement inside an inline block body counts too. Used by {@link collectUserArities} to
  * distinguish the Heritage procedure *opener* `to` (statement-leading) from `to`'s mid-statement
- * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:380`, plus the Data
- * `add … to <list>` preposition, `spec/grammar.md:115` — `:380` names the first two and the
+ * keyword roles (`set … to` and `for … from … to`, `spec/grammar.md:382`, plus the Data
+ * `add … to <list>` preposition, `spec/grammar.md:116` — `:382` names the first two and the
  * opener, not this one), so only the opener registers a callable arity. Including `[` keeps a
  * nested `[to f :x … end …]` procedure registering its arity exactly as the equivalent nested
  * `define` already does — the mid-statement `to` prepositions never sit directly after `[` (their
@@ -227,7 +227,7 @@ function atStatementStart(tokens: readonly LexToken[], k: number): boolean {
  *
  * - `define <name> :p …` — a user procedure; its default arity is the count of leading required
  *   `:name` parameters (an optional `( :name default )` parameter does not count).
- * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:148`), which
+ * - `to <name> :p …` — the Heritage alternate procedure spelling (`spec/grammar.md:149`), which
  *   registers a callable of the same default arity as `define`, gated to a statement-leading `to`
  *   so `to`'s mid-statement preposition roles never mis-register a following name.
  * - `struct <name> [ f1 f2 … ]` — a Data-profile record type whose type name becomes a constructor
@@ -264,12 +264,12 @@ function collectUserArities(
       headText === "define" ||
       (headText === "to" && atStatementStart(tokens, k))
     ) {
-      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:148`), so a
+      // `to` is the Heritage alternate spelling of `define` (`spec/grammar.md:149`), so a
       // `to <name> :p …` procedure registers a callable of the same default arity — the count of
       // leading `:name` parameters — exactly as `define` does, so a later bare call to it groups
       // its arguments correctly. `to` carries FOUR roles: the Heritage procedure *opener*, plus the
-      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:380` names those three) and
-      // the Data `add … to <list>` preposition (`spec/grammar.md:115`). Only the opener begins a
+      // `set … to` and `for … from … to` prepositions (`spec/grammar.md:382` names those three) and
+      // the Data `add … to <list>` preposition (`spec/grammar.md:116`). Only the opener begins a
       // statement; the other three appear mid-statement — so {@link atStatementStart} gates this to
       // the opener alone and never mis-registers the `<list>` name in `add 3 to colors` as a
       // procedure.
@@ -370,7 +370,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * The delimiter tokens that are **genuinely** unmatched in this token stream, keyed by their
    * start position (unique per token). Computed once, up front, by the standard stack walk.
    *
-   * `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
+   * `spec/error-model.md:167-171` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
    * malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic — the class whose
    * members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` —
    * for a delimiter that is, in fact, correctly matched in the source."* Whether a delimiter is
@@ -423,7 +423,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * Is `token` a delimiter that is genuinely unmatched in the source? Every unmatched-delimiter
    * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
-   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:167-171`).
    *
    * Four sites report without calling it: the end-of-input branches of the list literal, the dict
    * literal, the parenthesized call, and the block body. Each sits inside `if (token.kind === "eof")`.
@@ -459,7 +459,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * When `open` really has no closer, that *is* the defect and the unmatched-delimiter diagnostic is
    * correct. When it has one, the delimiters are balanced and the defect is whatever is sitting here
    * instead — so this reports **that token** rather than the delimiter
-   * (`spec/error-model.md:165-169`: *"`ol-bad-token` alone is authoritative for the malformed-input
+   * (`spec/error-model.md:167-171`: *"`ol-bad-token` alone is authoritative for the malformed-input
    * class"*).
    *
    * Substituting, rather than staying silent, is the load-bearing half. Every caller reports and
@@ -510,7 +510,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * The diagnostic for a token the grammar cannot use here. A **closing** delimiter is reported as
    * unmatched only when it genuinely is — otherwise the offending token is the malformed input
-   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:165-169`). Before
+   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:167-171`). Before
    * this gate, `print [ 1 + ]` reported `ol-unmatched-bracket` against a `]` that is correctly
    * matched two characters from its `[` (issues #947, #879).
    */
@@ -716,7 +716,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:215`)? **Derived
+   * Is `text` a legal `callable-name` for a parenthesized call (`spec/grammar.md:217`)? **Derived
    * from the same two sets {@link parseNamePrimary} consults** (issue #853), so the primary reader
    * and the parenthesized-call reader cannot drift apart: a word that may not begin an expression is
    * not a callee either, and of the expression-initial keywords only `thing` is a real
@@ -728,7 +728,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * {@link parseParenthesized} consults it on the head token, `value` answering **false** here is
    * the whole reason `( value of :d for key "a" )` reaches {@link parseValueOfKey} instead of being
    * taken as a `parenthesized-call` on a callee named `value` — the grammar derives the reader
-   * inside parentheses (`spec/grammar.md:199,203,213,217`), and returning true for `value` makes
+   * inside parentheses (`spec/grammar.md:201,205,215,219`), and returning true for `value` makes
    * that derivation unreachable, which is exactly the `ol-bad-token` defect #830 reported. The
    * false comes from `value` being in {@link NON_PRIMARY_NAMES} via its presence in
    * {@link OL_KEYWORDS} — a property #885 established when it replaced a hand-written list with
@@ -770,7 +770,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * slot — or a `value of :d for` with a newline where its `key` must be — is *always* a parse error
    * right now (`ol-bad-token`), so there is no valid meaning to swallow. That is also why the
    * position needs no dictionary-key guard: {@link isDictKeyAt} exists to protect a reading that is
-   * legal today, and here there is none to protect (issue #962). `spec/grammar.md:314` says so
+   * legal today, and here there is none to protect (issue #962). `spec/grammar.md:316` says so
    * normatively for the dictionary case, naming this reader: where a value is "not yet complete —
    * an operator or a call still owed an operand, say, or a `value of … for key` reader still owed
    * its tail — the unfinished value's own grammar position wins and no entry opens", and "because
@@ -868,7 +868,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * Is the token at `offset` a worded operator being used as a **dictionary key** rather than as an
    * operator? `and`, `or`, `mod` and `is` are perfectly good key names, so after a complete entry
-   * value the word is genuinely ambiguous — and `spec/grammar.md:314`'s **Entry lookahead** rule
+   * value the word is genuinely ambiguous — and `spec/grammar.md:316`'s **Entry lookahead** rule
    * settles it by *"the next token after it, ignoring any line breaks between the two — so a
    * dictionary written on one line and the same dictionary written across several lines always read
    * alike"* (issue #944, maintainer ruling option 4).
@@ -902,7 +902,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Does the worded operator sitting at the **current** position open the next dictionary entry
-   * instead of continuing this one's value? `spec/grammar.md:314` settles that question *"once an
+   * instead of continuing this one's value? `spec/grammar.md:316` settles that question *"once an
    * entry's value is complete"* — which is here, at the top of each worded-operator loop — and
    * settles it *"regardless of position"*, so it must be asked on one line exactly as it is asked
    * across a newline (issue #944).
@@ -927,20 +927,20 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * {@link continuesOnNextLine} for the `for key` tail of the Heritage `value of … for key …`
-   * reader (`spec/grammar.md:217`), which is **one expression** and therefore subject to
+   * reader (`spec/grammar.md:219`), which is **one expression** and therefore subject to
    * `spec/grammar.md:34`'s "newlines are insignificant" exactly like the operators above (issue
    * #962). Without this, `print value of :d` ⏎ `for key :k` breaks at the newline — and inside a
    * dictionary the wreckage also *misreads*, producing an entry keyed `key` in place of the entry
    * that was there, which no diagnostic describes.
    *
    * `for` needs a guard the worded operators do not, because it is the one continuation token here
-   * that **can** begin a statement (`for i in …`/`for i from …`, `spec/grammar.md:129-130`). Two
+   * that **can** begin a statement (`for i in …`/`for i from …`, `spec/grammar.md:130-131`). Two
    * conditions keep those loops intact, and both are load-bearing:
    *
    * 1. The whole two-word tail must be there, so `print value of :d` ⏎
    *    `for i in [ 1 2 ] [ print :i ]` keeps its loop as a separate statement.
    * 2. `key` must not itself be the loop's **binder**. A `binder` is a `name`
-   *    (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+   *    (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:390`), so `key` is a
    *    perfectly good binder and `for key in …`/`for key from …` satisfy condition 1 while being
    *    loops, not tails. The word after `key` settles it: `in`/`from` can only continue a loop, and
    *    neither can begin the reader's key expression, so declining on them costs no legal reading.
@@ -1325,7 +1325,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:113`): a `number` (including a
+   * Parse one `key-term` inside a selector `[ … ]` (`spec/grammar.md:114`): a `number` (including a
    * negative literal such as `[-1]`), a word literal, a `:name` read, a bare identifier (a *literal
    * word key*, never evaluated — built-in names are valid data here), or a parenthesized
    * expression. Returns `undefined` for anything else so the caller can report the malformed
@@ -1364,7 +1364,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * belongs to something else (a list literal, a control body) and ends the chain.
    *
    * A `.field` may sit on the next line — `spec/grammar.md:34` makes newlines insignificant within
-   * one expression, and `postfix-expression` (:192) is one (issue #980). {@link continuesOnNextLine}
+   * one expression, and `postfix-expression` (:194) is one (issue #980). {@link continuesOnNextLine}
    * guards the crossing: a `dot` can never begin a statement, so continuing onto one can swallow no
    * valid reading. **A selector `[` deliberately does not cross**, because the same sentence gives a
    * newline a competing job there — *"immediately after a control or procedure header, a newline
@@ -1510,7 +1510,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
         spanToHere(primaryStart.source_span.start),
       );
     }
-    // `spec/grammar.md:192` — `postfix-expression ::= primary { selector | "." identifier }` —
+    // `spec/grammar.md:194` — `postfix-expression ::= primary { selector | "." identifier }` —
     // permits a postfix read after *any* primary, not only a `:name`. A literal-list read
     // (`[1 2][1]`), a dict-literal field read (`{tom: 8}.tom`), a constructor-call-result field
     // read (`(point 0 0).x`), or a parenthesized variable read (`(:x).foo`) all grow their
@@ -1582,18 +1582,18 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `value of expression "for" "key" expression` (`spec/grammar.md:217`'s `value-of-reader`), the
+   * `value of expression "for" "key" expression` (`spec/grammar.md:219`'s `value-of-reader`), the
    * Heritage dict reader — a read-only equivalent of `dictionary.key`/`dictionary[key]`
    * (`spec/data-structures.md:213-231`). Both the dictionary and the key are full expressions
    * (unlike a selector's narrower `key-term`), so `value of ( f ) for key ( g )` is legal. Only
    * intercepted here when `value` is directly followed by `of` — and that check runs *before*
    * {@link NON_PRIMARY_NAMES}, which is what keeps this Heritage-gated form readable while a bare
-   * `value` (never a callable: it is a keyword, `spec/grammar.md:358,371`) is
+   * `value` (never a callable: it is a keyword, `spec/grammar.md:360,373`) is
    * rejected in expression position like every other misplaced keyword (issue #853).
    *
    * The reader is legal **wrapped in parentheses** too — `( value of :d for key "a" )` — because
-   * `primary` (`spec/grammar.md:193-204`) offers `parenthesized-expression` (:199) and
-   * `value-of-reader` (:203) side by side. That shape arrives here through
+   * `primary` (`spec/grammar.md:195-206`) offers `parenthesized-expression` (:201) and
+   * `value-of-reader` (:205) side by side. That shape arrives here through
    * {@link parseParenthesized}'s fall-through rather than through a `parenthesized-call`; see
    * {@link isCalleeName} for the invariant that keeps it reachable (issue #830).
    *
@@ -1608,7 +1608,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * above rather than of this function — which is why #962 fixed the other three and left it. It
    * needs no guard either: `value` is a reserved keyword that is never callable, so a bare `value`
    * in expression position "is the head of the heritage `value of … for key …` reader where
-   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:390`). There is
+   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:394`). There is
    * therefore no legal one-statement-per-line reading to swallow — `print value` ⏎ `of :d for key
    * :k` was four `ol-bad-token` before this.
    */
@@ -1649,7 +1649,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     const args: ExpressionNode[] = [];
     for (let k = 0; k < arity; k += 1) {
       // At the start of a pending argument the call is **still owed an operand**, so
-      // `spec/grammar.md:314` gives its grammar position precedence — *"an operator or a call still
+      // `spec/grammar.md:316` gives its grammar position precedence — *"an operator or a call still
       // owed an operand … the unfinished value's own grammar position wins and no entry opens"*.
       // Only that first token is protected: once the argument's own expression is under way, its
       // completion completes the call, and a key after it may open the next entry.
@@ -1931,7 +1931,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * Does the token at `offset` **continue** an expression rather than **begin** one — i.e. is it
    * one of the infix operators the expression grammar layers into `expression`
-   * (`spec/grammar.md:181-190`: `or`, `and`, the `compare-op`s and `is`, `+`/`-`, `*`/`/`/`mod`)?
+   * (`spec/grammar.md:183-192`: `or`, `and`, the `compare-op`s and `is`, `+`/`-`, `*`/`/`/`mod`)?
    *
    * **The symbolic operators are derived from the predicates the expression readers themselves
    * branch on** ({@link isAdditiveOp}, {@link isMultiplicativeOp}, {@link isCompareOp}), never
@@ -1947,15 +1947,15 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * flow through on its own. `mod` is not in that group: it arrives via
    * {@link isMultiplicativeOp}, which its reader also uses.
    *
-   * Every word here is a keyword (`spec/grammar.md:373-374`) and therefore in
+   * Every word here is a keyword (`spec/grammar.md:375-376`) and therefore in
    * {@link NON_PRIMARY_NAMES}, and every symbol here is an `op` token. So **nothing this predicate
    * admits can start an expression** — which is what makes {@link parseParenthesized} safe to treat
    * it as proof that the head before it is complete. `not` is deliberately absent: it is prefix
-   * (:191), so it *does* begin an expression and is a perfectly good argument.
+   * (:193), so it *does* begin an expression and is a perfectly good argument.
    *
    * The one token needing care is `-`, the single symbol a `primary` **can** begin with, and the
    * grammar — not arity — settles it. A leading `-` glued to a numeral is *part of the `number`*
-   * (`spec/grammar.md:60`, restated at :230: *"A leading `-` on a numeral is part of a negative
+   * (`spec/grammar.md:60`, restated at :232: *"A leading `-` on a numeral is part of a negative
    * literal, not a unary operator"*), so `-1` opens an argument while `- 1` continues an
    * expression. The **lexer emits `op(-) number(1)` for both** — measured, and the module doc of
    * `tokens.ts` says so outright: *"a `-` that is only ever the minus operator (a negative numeral
@@ -1982,7 +1982,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Could a **postfix segment** begin at `offset` — a `.field`, or a selector `[` glued to the token
-   * before it (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`)?
+   * before it (`spec/grammar.md:194`, `postfix-expression ::= primary { selector | "." identifier }`)?
    *
    * **It is a lexical question, and the answer is deliberately not a conclusion.** It reports that
    * the tokens after the head *could* continue it, not that they do: for `( round[1] )` this answers
@@ -2034,9 +2034,9 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // which are not fixed-arity callees elsewhere — gathers every operand up to the `)`.
     //
     // Everything this branch declines falls through to the plain `parenthesized-expression`
-    // (`spec/grammar.md:213`) below, which re-enters the full `expression` grammar — and that is
-    // how the Heritage `value-of-reader` (:203, defined :217) stays reachable inside parentheses,
-    // as `primary` (:193-204) requires (issue #830). `value` is not an `isCalleeName`, so
+    // (`spec/grammar.md:215`) below, which re-enters the full `expression` grammar — and that is
+    // how the Heritage `value-of-reader` (:205, defined :219) stays reachable inside parentheses,
+    // as `primary` (:195-206) requires (issue #830). `value` is not an `isCalleeName`, so
     // `( value of :d for key "a" )` declines here, reaches `parseExpression()`, and lands in
     // {@link parseNamePrimary}'s `value`-then-`of` interception. Widening this condition to admit
     // a worded reader's head word would swallow the reader and re-open #830.
@@ -2053,11 +2053,11 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // ("the grammar makes that lookahead total") and it was false, which is what issue #1025 came
     // back to correct. What is claimed here is only what each question covers, and what it does not:
     //
-    // - **An infix operator continues the head** (`spec/grammar.md:191`), so meeting one right after
+    // - **An infix operator continues the head** (`spec/grammar.md:193`), so meeting one right after
     //   the head proves the head was a whole operand and the group is a `parenthesized-expression`
-    //   (:213), not a `parenthesized-call` (:215) — a reading the call branch has no derivation for
+    //   (:215), not a `parenthesized-call` (:217) — a reading the call branch has no derivation for
     //   anyway. {@link isInfixOperatorAt}.
-    // - **A postfix segment may extend the head** (`postfix-expression`, :192), so a `.field` or a
+    // - **A postfix segment may extend the head** (`postfix-expression`, :194), so a `.field` or a
     //   glued selector `[` means the head is not a *bare* call and the ordinary expression grammar
     //   should read the whole thing. It does not follow that the head is a base: `( round[1] )`
     //   declines here and then reads `[1]` as `round`'s **argument**, agreeing with bare `round[1]`,
@@ -2070,7 +2070,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // parenthesized form is the only place they are callable — so they can never be a postfix base,
     // and a glued `[` after one is a list **argument**. Asking them the postfix question broke
     // `( and[true false] true )` into two `ol-bad-token`s while the spaced `( and [true false] true )`
-    // stayed clean (measured; `spec/grammar.md:390` gives the variadic form). Both spellings are
+    // stayed clean (measured; `spec/grammar.md:394` gives the variadic form). Both spellings are
     // pinned in `multiline-expressions.test.mjs`.
     //
     // A glued `[` is therefore **not** invariably a selector even among admitted heads, and the
@@ -2106,7 +2106,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // zero-argument call because `)` is no operator.
     //
     // A **spaced** `( pair [1] )` keeps the call on a one-element list argument — which is what
-    // `parenthesized-call` (:215) is *for*, and it deliberately does **not** agree with the bare
+    // `parenthesized-call` (:217) is *for*, and it deliberately does **not** agree with the bare
     // `pair [1]`, which is a complete `pair` call followed by a stray list (`ol-bad-token`). The
     // parenthesized call form has no bare equivalent by design: parentheses are how a call supplies
     // arguments explicitly. Adjacency is what separates the two spellings, exactly as it already
@@ -2125,7 +2125,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //   diagnostic is not a grouping artifact: the bare, unparenthesized `round -` reports the same
     //   one on the same token. The trailing `1` and `)` are then reported downstream, by the
     //   group's tail and by the statement loop — three diagnostics from three sites, one per stray
-    //   token. `spec/error-model.md:165-172`'s MUST NOT is upheld throughout, since
+    //   token. `spec/error-model.md:167-174`'s MUST NOT is upheld throughout, since
     //   {@link findUnmatchedDelimiters} answers from the source: no `ol-unmatched-paren` is raised
     //   for these correctly-matched parentheses.
     //
@@ -2380,7 +2380,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * Re-wraps a fully-parenthesized assignment target — `(:x)`, `(:x.a)`, `((:x))`, `(first :x)` —
    * into the zero-selector `PostfixExpression` shape `parsePostfix` builds for every other
    * parenthesized read (issue #407/F7), so the semantic checker flags it with `ol-not-a-place`
-   * (spec/tooling.md:188, "reject … parenthesized expressions as targets") instead of the blunt
+   * (spec/tooling.md:189, "reject … parenthesized expressions as targets") instead of the blunt
    * parse `ol-bad-token` that discarding the grouping (`parseParenthesized`) would otherwise leave
    * (issue #442/F3). `parseParenthesized` strips the grouping parens, so a `(:x)` target parses to
    * the same bare `VarRef`/`Place` an assignable `:x` does; `countStrippedGroupingParens` recovers
@@ -2439,8 +2439,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
           return parseProcedureDef("define");
         case "to":
           // `to` is a keyword with three non-procedure roles: the `set … to` and `for … from … to`
-          // prepositions (`spec/grammar.md:380`) and the Data `add … to <list>` preposition
-          // (`spec/grammar.md:115`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
+          // prepositions (`spec/grammar.md:382`) and the Data `add … to <list>` preposition
+          // (`spec/grammar.md:116`). It opens a Heritage procedure ONLY when a name follows it (`to <name> …`); anything
           // else — including a `to` reached during error recovery of a malformed `set :x to 100` —
           // is not a definition, so fall through to the generic token handling that already
           // reports it, rather than mis-entering `parseProcedureDef` and cascading a spurious
@@ -2477,7 +2477,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // of the same spelling wins here and parses as an ordinary Core call, because the reader is
       // profile-blind: it never inspects the active profile set, so it cannot ask whether the word
       // is a profile head "right now". Since issue #841 the checker raises `ol-reserved-word` on
-      // that declaration whatever the profile set (`spec/grammar.md:408`), so the program is not
+      // that declaration whatever the profile set (`spec/grammar.md:412`), so the program is not
       // legal — but it must still be SHAPED as the learner wrote it, or the diagnostic would land
       // on the wrong node. Without this guard the reader would mis-shape ordinary code that shadows
       // one of these heads (see
@@ -2494,7 +2494,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:188, :215-220) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:189, :218-223) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`
@@ -2675,7 +2675,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the Heritage assignment spelling `make "name" value`
-   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:107`). `make` is a
+   * (`make-assignment ::= "make" word-literal expression`, `spec/grammar.md:108`). `make` is a
    * Heritage-profile *alternate spelling only* with no new semantics
    * (`spec/conformance.md:150-152`), so it lowers to the exact same {@link AssignNode} shape as
    * `set … to`: the word literal's value becomes the base name of a zero-segment {@link PlaceNode}
@@ -2726,12 +2726,12 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parses the target of a `set … to` assignment. The spec's
-   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:106) requires a
+   * `set-assignment ::= "set" bare-place "to" expression` (spec/grammar.md:107) requires a
    * *bare* place — a `name` optionally postfixed — which is the one well-formed, assignable case.
    * A parenthesized target (`set (:x) to …`, `set (first :x) to …`) is not a place; like the
    * `<place> = <value>` form it is recognized structurally and re-wrapped by
    * {@link asNonPlaceTarget} (issue #442/F3) so the semantic checker reports `ol-not-a-place`
-   * (spec/tooling.md:188) rather than a blunt parse error. Anything else — a colon-place `set :x`
+   * (spec/tooling.md:189) rather than a blunt parse error. Anything else — a colon-place `set :x`
    * (issue #55), a literal `set 5` — is left to the parse `ol-bad-token` the bare-place grammar
    * demands, with the offending token unconsumed so statement recovery re-parses it.
    */
@@ -2894,7 +2894,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:138-139`).
+   * A destructuring `for` binder: `"[" ":" name { ":" name } "]"` (`spec/grammar.md:139-140`).
    * Only `for … in` accepts this form — `for … from … to …` keeps its single bare-name variable.
    */
   function parseDestructuringBinder(): DestructuringBinderNode | undefined {
@@ -3013,10 +3013,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a procedure definition: Core `define name :params… <body> end`
-   * (`define-statement`, `spec/grammar.md:147`) or the Heritage alternate spelling
-   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:148`). Both share the identical
+   * (`define-statement`, `spec/grammar.md:148`) or the Heritage alternate spelling
+   * `to name :params… <body> end` (`to-statement`, `spec/grammar.md:149`). Both share the identical
    * grammar after the opener keyword and the same `define-end ::= "end" [ "define" ]` closer
-   * (`spec/grammar.md:149`, `spec/grammar.md:291` — a `to` body closes with `end` or `end define`,
+   * (`spec/grammar.md:150`, `spec/grammar.md:293` — a `to` body closes with `end` or `end define`,
    * never `end to`), so `to` reuses this whole function and every diagnostic label ("define"): the
    * only difference is the {@link ProcedureDefNode} `keyword` recorded, which the Layer-2 Heritage
    * form-head gate (issue #667) consults to reject `to` when the Heritage profile is inactive. `to`
@@ -3083,7 +3083,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a return statement: Core `return value` or the Heritage alternate spellings
-   * `output value` / `op value` (`return-statement`, `spec/grammar.md:152`). All three share the
+   * `output value` / `op value` (`return-statement`, `spec/grammar.md:153`). All three share the
    * identical grammar and lower to the same {@link ReturnNode}; `keyword` records the surface word
    * only so the Layer-2 Heritage form-head gate (issue #667) can reject `output`/`op` when the
    * Heritage profile is inactive.
@@ -3124,7 +3124,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * Parse a required expression, reporting the offending token when none is present. Shared by the
-   * list-mutator statements below, whose operands (`spec/grammar.md:115-119`) are all required.
+   * list-mutator statements below, whose operands (`spec/grammar.md:116-120`) are all required.
    */
   function requireExpression(): ExpressionNode | undefined {
     const expr = parseExpression();
@@ -3148,7 +3148,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return true;
   }
 
-  /** `add expression "to" expression` (`spec/grammar.md:115`, Data profile). */
+  /** `add expression "to" expression` (`spec/grammar.md:116`, Data profile). */
   function parseAdd(): StatementNode | undefined {
     const token = current();
     advance();
@@ -3167,8 +3167,8 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   /**
-   * `remove expression "from" expression` (`spec/grammar.md:116`) or, when `key` follows `remove`,
-   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:117`). Both are Data
+   * `remove expression "from" expression` (`spec/grammar.md:117`) or, when `key` follows `remove`,
+   * the distinct `remove "key" key-term "from" expression` (`spec/grammar.md:118`). Both are Data
    * profile.
    */
   function parseRemove(): StatementNode | undefined {
@@ -3208,7 +3208,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     return ast.remove(value, target, spanFrom(token.source_span.start, target));
   }
 
-  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:118`, Data profile). */
+  /** `insert expression "in" expression "at" expression` (`spec/grammar.md:119`, Data profile). */
   function parseInsert(): StatementNode | undefined {
     const token = current();
     advance();
@@ -3238,7 +3238,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     );
   }
 
-  /** `clear expression` (`spec/grammar.md:119`, Data profile). */
+  /** `clear expression` (`spec/grammar.md:120`, Data profile). */
   function parseClear(): StatementNode | undefined {
     const token = current();
     advance();
@@ -3251,7 +3251,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
 
   /**
    * `struct-declaration ::= "struct" declared-type-name field-list` with
-   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:157-158`, Data profile).
+   * `field-list ::= "[" identifier { identifier } "]"` (`spec/grammar.md:159-160`, Data profile).
    * Declares a record type, its fixed fields, and a same-named constructor. The two slots differ on
    * purpose: the type name is a *declaration* slot (`declared-type-name`), so a built-in name there
    * raises `ol-reserved-word`, while the bracketed field list is not a list literal and holds bare

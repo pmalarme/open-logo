@@ -102,7 +102,7 @@ export interface Token {
    * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
    * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
    * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
-   * from `spec/tooling.md:279`; absent on classes with no such split (e.g. `keyword`, `number`).
+   * from `spec/tooling.md:282`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
 }
@@ -110,8 +110,8 @@ export interface Token {
 /**
  * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
  * `operator`, never `keyword`. Consulted before the {@link isKeyword} lookup so none of the four
- * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
- * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
+ * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:375`), and
+ * `spec/grammar.md:380` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
  *
  * **Exported as the set classification actually reads, not as a copy of it.** The four are built-in
@@ -638,7 +638,7 @@ export function highlight(
   }
 
   /**
-   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:217`'s
+   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:219`'s
    * `value-of-reader`) is `keyword`, alongside the `is`-predicate's `of` above.
    *
    * `spec/tooling.md:97-99` is the normative highlighter instruction and names **both** positions:
@@ -654,17 +654,17 @@ export function highlight(
    * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
    * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
    * `of` a structural word of this production, beside the three siblings that are reserved and so
-   * already `keyword`; and `spec/grammar.md:380` calls this `of` "the contextual preposition in the
+   * already `keyword`; and `spec/grammar.md:382` calls this `of` "the contextual preposition in the
    * heritage `value of … for key` reader".
    *
-   * Those passages now match. `spec/grammar.md:234`, `spec/execution-model.md:156-159`, and
-   * `spec/commands.md:461` each keep their "after `is`" claim scoped to their own subject and
-   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:380` had already
+   * Those passages now match. `spec/grammar.md:236`, `spec/execution-model.md:156-159`, and
+   * `spec/commands.md:482` each keep their "after `is`" claim scoped to their own subject and
+   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:382` had already
    * folded its reader parenthetical into the sentence (#875), ending the tension it had carried
    * since the spec's initial commit. None of them governs token class in any case:
    * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax, expression
    * precedence, bracket roles, assignable places, keywords, and the built-in names a program may
-   * not declare", and `spec/commands.md:461` draws its contrast in keyword-membership terms ("Only
+   * not declare", and `spec/commands.md:482` draws its contrast in keyword-membership terms ("Only
    * `is`, `strictly`, and `between` are keywords") — the *reservation* half of the claim comes
    * from `spec/tooling.md:100` ("`is`, `between`, and `strictly` are globally reserved"). The
    * normative token-class model is `spec/tooling.md`'s.

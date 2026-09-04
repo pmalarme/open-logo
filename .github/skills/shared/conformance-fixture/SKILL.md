@@ -95,8 +95,8 @@ It is not the only unchecked thing in an `.expected.json`, and knowing the other
 writing an assertion that quietly asserts nothing:
 
 - A **diagnostic `message`** is compared **only when the fixture sets `"compareMessages": true`**
-  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:254-259`) — and
-  `:261-263` positively permits a template author to reword prose, so most learner wording is
+  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:256-261`) — and
+  `:263-265` positively permits a template author to reword prose, so most learner wording is
   presentation a conforming implementation may change. Opt in only where the spec fixes the words
   themselves: `ol-reserved-word`'s `spec/error-model.md:125` both prescribes the sentence and makes
   *keyword*/*primitive*/*alias* a MUST NOT in it. **Three** ways of holding a message that is not

@@ -699,7 +699,7 @@ test("describeCurrentStepCue omits the trailing label when the slice has no head
 });
 
 test("describeTurtleState speaks a heading that rounds up to a full turn as 0 (#778)", () => {
-  // `spec/rendering.md:67` and `spec/execution-model.md:619` normalize headings into [0,360), so
+  // `spec/rendering.md:67` and `spec/execution-model.md:986` normalize headings into [0,360), so
   // `heading 360 degrees` names a value the model never holds. Reachable, not hypothetical:
   // `right 359.9999` and `repeat 3 / right 119.99999999 / end repeat` both reach it, with no
   // diagnostics, on a plain Turtle & Rendering program.

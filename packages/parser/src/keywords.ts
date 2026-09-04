@@ -3,7 +3,7 @@
  * ([`spec/grammar.md`](../../../spec/grammar.md#keywords-primitives-and-built-in-names)). A keyword
  * is a word the grammar itself gives meaning to rather than a name a program can introduce —
  * `define`, `if`, `end`, `and`, `mod`. Keywords and primitives together are OpenLogo's **built-in
- * names**, governed by one rule (`spec/grammar.md:363`):
+ * names**, governed by one rule (`spec/grammar.md:365`):
  *
  * > **A program may not declare a built-in name. A program may bind a value to any name.**
  *
@@ -20,19 +20,19 @@
  *
  * - **Binding.** A keyword is free in every binding position — `:end = 1`, `set end to 1`,
  *   `make "end" 1`, `local count`, a parameter, a `for`/comprehension binder, a struct field, a
- *   dictionary key (`spec/grammar.md:386`, a normative MUST). The rule is enforced at the four
+ *   dictionary key (`spec/grammar.md:390`, a normative MUST). The rule is enforced at the four
  *   *declaration slots* instead, which is what makes it unbypassable — see
  *   `checker-reserved-word.ts`.
  * - **Highlighting.** `mod` is on this list for the same reason `and`, `or`, and `not` are: all
  *   four are word-spelled operators of the expression grammar rather than callable primitives. Like
  *   `and`, `mod` is still painted `operator` — `highlight.ts`'s `OL_WORD_OPERATORS` is consulted
  *   before this registry — because the `keyword` **token class** and this list "are different sets
- *   on purpose" (`spec/grammar.md:378`). Reserved-list membership and token class are independent
+ *   on purpose" (`spec/grammar.md:380`). Reserved-list membership and token class are independent
  *   axes.
  *
  * The four contextual keywords `empty`, `member`, `of`, and `a` are deliberately **absent**: they
  * are structural *by position only*, so a program may still declare them — `define of` is legal and
- * `value of :d for key "a"` still reports the key's value afterwards (`spec/grammar.md:380`). Their
+ * `value of :d for key "a"` still reports the key's value afterwards (`spec/grammar.md:382`). Their
  * *highlighting* is positional too: `spec/tooling.md:97-99` marks them `keyword` only inside an
  * `is`-predicate or the heritage `value of … for key` reader (issue #785), and an ordinary name
  * everywhere else. Registry membership is unaffected by that: none of the four is ever a keyword.
@@ -43,14 +43,14 @@
  */
 
 /**
- * The keywords, in the grammar's grouping order (`spec/grammar.md:368-376`).
+ * The keywords, in the grammar's grouping order (`spec/grammar.md:370-378`).
  *
  * **Adding or removing a keyword edits several places.** Deliberately listed rather than counted,
  * because the count is itself the kind of claim nothing recomputes — and it names which gate covers
  * each, because "gated" alone hides *which* gate, and the last entry below is held by a different
  * one:
  *
- * - `spec/grammar.md:368-375` — normative; `npm run built-in-names` compares its extracted words
+ * - `spec/grammar.md:370-377` — normative; `npm run built-in-names` compares its extracted words
  *   against `spec/built-in-names.json`.
  * - `spec/tooling.md:91-94` — mirrors that block; the same gate compares **the same extracted words
  *   in the same order**. Not the bytes: the extractor takes the backticked words, so changing the
@@ -59,7 +59,7 @@
  * - this array — reaches that comparison through `spec/built-in-names.json`, in both directions.
  * - `spec/built-in-names.json` itself — the authoritative list, added by #841.
  * - `spec/tooling.md:30` — the `keyword` **token class**, a different set on purpose
- *   (`spec/grammar.md:378`). Since issue #959 the row no longer enumerates it: each name's class is
+ *   (`spec/grammar.md:380`). Since issue #959 the row no longer enumerates it: each name's class is
  *   declared as `tokenClass` in `spec/built-in-names.json`, and the same gate re-paints every name
  *   through `highlight()` and compares. The reverse direction reads the name **sources**
  *   `highlight()` classifies from — this array among them — rather than arbitrary output.
@@ -145,20 +145,20 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * **Two different questions read this registry, and only one of them is profile-gated.** Confusing
  * them is what issue #841 came to fix, so the split is stated here rather than at each call site:
  *
- * - **May a program declare this name?** No. `spec/grammar.md:408` makes profile words built-in
+ * - **May a program declare this name?** No. `spec/grammar.md:412` makes profile words built-in
  *   names **unconditionally** — "a program cannot declare which profiles it requires … so a name
  *   that could be declared in one implementation but not in another would be invisible and
  *   unpredictable to a learner", and "what a profile decides is whether a name *works*, never
  *   whether a program may declare it". {@link isKeywordInAnyProfile} answers this one, and takes no
  *   profile set because there is none to take. It is about the four **declaration** slots only:
- *   `spec/grammar.md:386` makes accepting any of these words as a **binding** a MUST, so
+ *   `spec/grammar.md:390` makes accepting any of these words as a **binding** a MUST, so
  *   `local ask` and `for ask in :xs` stay legal whatever the profile set.
  * - **Does this word paint as a keyword?** Only while its profile is active, which
  *   `spec/tooling.md:30`'s `keyword` row states directly ("Profile words … take this class while
  *   their profile is active"). {@link isKeyword}'s two-argument form answers this one and stays
  *   profile-gated, because here the gate is what the spec asks for.
  *
- * Issue #855 aligned the rest of the spec with the `:408` ruling, so `turtles-and-sprites.md:154`,
+ * Issue #855 aligned the rest of the spec with the `:412` ruling, so `turtles-and-sprites.md:154`,
  * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md:100-104` state the
  * unconditional rule too.
  */
@@ -203,7 +203,7 @@ export function profileKeywords(profile: string): readonly string[] {
  * never gets a match here. Matching is case-insensitive, like {@link isKeyword}.
  *
  * **"Not a keyword here" does not mean "an ordinary name".** This is the paint/position axis only:
- * a word that fails this test still may not be **declared**, because `spec/grammar.md:408` makes
+ * a word that fails this test still may not be **declared**, because `spec/grammar.md:412` makes
  * profile words built-in names unconditionally — ask {@link isKeywordInAnyProfile} for that.
  * Under Core alone `when` is not painted as a keyword and is not structural in value position, yet
  * `define when` is still `ol-reserved-word`.
@@ -235,7 +235,7 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
 
 /**
  * Is `name` a keyword of Core **or of any profile at all**, active or not? This is the
- * **declaration** axis of `spec/grammar.md:408` — "what a profile decides is whether a name
+ * **declaration** axis of `spec/grammar.md:412` — "what a profile decides is whether a name
  * *works*, never whether a program may declare it" — so `ask`, `tell`, `when` and friends answer
  * `true` here even for a Core-only program, and `define ask` is `ol-reserved-word` in every
  * conformance profile set.
@@ -246,8 +246,8 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
  * counts. Keep the profile-gated {@link isKeyword} for the paint axis, where `spec/tooling.md:30`
  * does ask for a gate.
  *
- * "Declare" is exact: this is the four declaration slots of `spec/grammar.md:382`, not bindings.
- * `spec/grammar.md:386` makes accepting a keyword as a **binding** a MUST, so `local ask` stays
+ * "Declare" is exact: this is the four declaration slots of `spec/grammar.md:384`, not bindings.
+ * `spec/grammar.md:390` makes accepting a keyword as a **binding** a MUST, so `local ask` stays
  * legal whatever this answers.
  */
 export function isKeywordInAnyProfile(name: string): boolean {
@@ -270,8 +270,8 @@ export function isKeywordInAnyProfile(name: string): boolean {
  * re-derived there. `checker-style.ts` also calls this form, but passes *every* keyword-contributing
  * profile, so it is asking the unconditional question through the two-argument door. The callers
  * that ask the *declaration* question — whether a program may **declare** the name — moved to
- * {@link isKeywordInAnyProfile}, because `spec/grammar.md:408` makes that answer
- * profile-independent. None of them asks about **bindings**, which `spec/grammar.md:386` requires
+ * {@link isKeywordInAnyProfile}, because `spec/grammar.md:412` makes that answer
+ * profile-independent. None of them asks about **bindings**, which `spec/grammar.md:390` requires
  * every consumer to accept regardless.
  *
  * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a

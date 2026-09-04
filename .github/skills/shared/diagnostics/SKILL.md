@@ -31,7 +31,7 @@ A diagnostic carries:
 ## Rules
 
 - **`params` are canonical; prose is surface.** Diagnostic identity is `code` plus `params`
-  (`spec/error-model.md:256-259`, "Localization boundary"): the **same condition MUST keep the same
+  (`spec/error-model.md:258-261`, "Localization boundary"): the **same condition MUST keep the same
   code and the same structured params**, whichever spelling the learner wrote. So a param that
   **names a language spelling** — a `keyword`, `callable`, `operation`, or form head — carries the
   **canonical** name, except where audited otherwise (below). `output 5` outside a procedure reports

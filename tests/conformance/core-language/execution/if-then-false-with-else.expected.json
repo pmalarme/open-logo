@@ -1,5 +1,5 @@
 {
-  "description": "`if false [ print 1 ] else [ print 2 ]` runs the else-branch when the condition is `false` (`spec/commands.md:721`): only the else-branch's `Call`/`print` events appear. Issue #100.",
+  "description": "`if false [ print 1 ] else [ print 2 ]` runs the else-branch when the condition is `false` (`spec/commands.md:742`): only the else-branch's `Call`/`print` events appear. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

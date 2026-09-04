@@ -81,7 +81,7 @@ export type { RecordFieldAccess } from "./checker-type-field.js";
 
 export { isBuiltInName } from "./built-in-names.js";
 
-// The did-you-mean tie-break's profile classification (`spec/error-model.md:210-211`, issue #966).
+// The did-you-mean tie-break's profile classification (`spec/error-model.md:212-213`, issue #966).
 // Exported because it is a CLAIM about the registry — "is this an optional-profile word?" — and its
 // only production caller consults it through `collectVisibleNames`, which deliberately withholds a
 // name no evaluator can run. `challenge` was misclassified as Core for exactly as long as nothing

@@ -251,7 +251,7 @@ test("an alias program with heritage active is not flagged, but the Core-name tw
 
 // ---------------------------------------------------------------------------
 // The did-you-mean tie-break: a full canonical name outranks a short alias
-// (spec/error-model.md:145-146) when both tie on Levenshtein distance and sit
+// (spec/error-model.md:147-148) when both tie on Levenshtein distance and sit
 // in the same profile tier — reachable with Data + Heritage both active.
 // ---------------------------------------------------------------------------
 

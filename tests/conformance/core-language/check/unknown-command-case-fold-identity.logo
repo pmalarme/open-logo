@@ -1,6 +1,6 @@
 # An unknown command typed in mixed case earns the SAME diagnostic identity as any other casing of
 # the same absent callable: `params.name` is the case-folded resolution identity (`mystery`), not the
 # source spelling — case-insensitive identifiers can never make the source casing the identity
-# (spec/error-model.md:254-259; issue #1005). No visible name is within edit distance 2, so there is
+# (spec/error-model.md:256-261; issue #1005). No visible name is within edit distance 2, so there is
 # no `suggestion`.
 MyStErY

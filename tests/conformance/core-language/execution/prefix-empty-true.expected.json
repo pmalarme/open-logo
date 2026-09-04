@@ -1,5 +1,5 @@
 {
-  "description": "The prefix predicate `empty?` is a Core fixed-arity alternative to the worded `is empty` and shares its evaluation path (spec/commands.md:655-671): `empty? []` is `true`. Issue #99.",
+  "description": "The prefix predicate `empty?` is a Core fixed-arity alternative to the worded `is empty` and shares its evaluation path (spec/commands.md:676-692): `empty? []` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

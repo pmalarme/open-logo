@@ -165,7 +165,7 @@ Core ideas:
 - Parameters are variables such as `:sides` and `:size`.
 - `return` hands a value back from a reporter.
 - A command procedure may draw without returning a value.
-- `local` names a variable that lives only inside the procedure.
+- `local` names a variable that lives only inside the scope that declares it — the procedure or the block.
 - Learners build `polygon` from `repeat`; it is never introduced as a black-box drawing trick.
 
 ```logo

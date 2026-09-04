@@ -78,6 +78,67 @@ by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
 block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
+A handler block captures the **scope** it is written in, by reference and not as
+a snapshot, under the scoping rules of
+[execution-model.md](execution-model.md#variables-scoping-and-procedures). It
+resolves the names it reads in that captured scope **when the handler fires**,
+not when it is registered, so it sees the values those bindings hold at that
+moment and also any binding its enclosing scope has created since. Two
+consequences follow, and both are normative.
+
+**Each registration captures its own scope.** Every entry into a scope creates
+fresh bindings, so a loop that registers one handler per turn gives each handler
+the names born on its own turn:
+
+```logo
+repeat 3 [ :n = repcount * 10   every 5 [ print :n ] ]
+wait 8
+```
+
+The three handlers MUST print `10`, `20`, and `30` — not the same value three
+times. Per-turn capture in a loop is **not yet implemented** — the runtime in
+this repository reuses one binding and prints `30` three times, tracked by #824.
+
+**A scope lives as long as any handler registered inside it may still run** — a
+block scope as much as a procedure frame. A handler registered in a procedure
+body keeps working after the call that registered it has returned, reading the
+parameters and locals of the frame it was written in:
+
+```logo
+define setup :speed
+  every 5 [ print :speed ]
+end
+setup 10
+wait 8
+```
+
+That program prints `10`. This is a rule about lifetime, not about values: blocks
+are still not values, and v0.1 still has no lambda and no first-class procedure
+value.
+
+A **handler invocation** is a separate, deferred instruction, not part of the
+control flow of the call that registered the handler. `return`, `output`, `op`,
+and `stop` inside a handler block are therefore outside any procedure and raise
+`ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler was
+registered inside a `define`. Capturing the registering frame's bindings does not
+put the handler into that procedure's control flow: without this rule a `return`
+in a handler firing while the registering call was still on the stack would be
+consumed as that call's own result, and one firing after it returned would have
+no procedure to leave. Every block other than a handler block or a comprehension
+body is different, because it runs as part of the statement that contains it, so
+a `return` in an `if` body still reaches the procedure that body is written in; a
+comprehension body raises `ol-return-in-comprehension`
+([execution-model.md](execution-model.md#procedures)). This is a rule about
+control flow, not visibility: a handler block is an ordinary block scope and sees
+its enclosing chain, which is why a top-level handler can read and write a plain
+top-level name.
+
+A `global` declaration is legal only at the root scope, so a handler block never
+contains one; `global name = value` inside a handler raises
+`ol-global-outside-root`. A handler block MAY update any binding visible where it
+is written, which is what lets a top-level `on_click [ :score = :score + 1 ]`
+maintain a plain top-level `:score` with no declaration at all.
+
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary
 instructions so learner-visible state changes remain deterministic. If several

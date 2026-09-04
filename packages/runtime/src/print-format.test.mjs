@@ -1,5 +1,5 @@
 // Unit tests for the `print` trace event's canonical printed form (issue #98) —
-// spec/execution-model.md:19 (number formatting) and spec/commands.md:142-158 (`print`
+// spec/execution-model.md:19 (number formatting) and spec/commands.md:163-179 (`print`
 // signature, variadic `(print a b …)` form, and the worked `(print :nums "has" count :nums
 // "items")` example whose shape this formatter must handle once lists/words/booleans reach it).
 // `formatNumber` and `printedForm` are exercised directly against constructed `OLValue`s (not

@@ -1,8 +1,8 @@
 {
   "specVersion": "0.1.0",
-  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:363 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:414 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. It carries TWO independent axes per name and neither determines the other (spec/grammar.md:378): `category` answers may a program DECLARE this name?, and `tokenClass` answers how is this word PAINTED? -- see `tokenClass` below, which spec/tooling.md's normative token-class model owns and this file enumerates. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is. A note must be present and non-blank after trimming, and two further mechanical checks apply to its CONTENT -- no control character in any string value of this file, and no note naming an accessor the file declares. Nothing verifies the rest of what a note says. In particular the no-restatement rule below is stated in full and only partly enforced: the no-counts half is deliberately NOT checked, because checking it needs a list of counting words, which is itself the second list this file exists to remove. The rule: a note must never restate data this file already carries, because a restatement is a second list. This applies to `note` only -- `invariants`, `profiles.about`, `tokenClass` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
+  "about": "The authoritative list of OpenLogo's built-in names for this specification version: every keyword and every primitive, aliases included. spec/grammar.md:365 governs them with one rule -- a program may not DECLARE a built-in name, and may BIND a value to any name -- and spec/grammar.md:418 versions them with the specification. This file is that list in machine-readable form, and CI asserts the implementation's registries equal it exactly, in both directions (docs/adr/0021-built-in-names-list-and-ci-gate.md). It is normative and maintainer-owned like the rest of spec/. It carries TWO independent axes per name and neither determines the other (spec/grammar.md:380): `category` answers may a program DECLARE this name?, and `tokenClass` answers how is this word PAINTED? -- see `tokenClass` below, which spec/tooling.md's normative token-class model owns and this file enumerates. Each registry's `note` is NON-NORMATIVE rationale: it records why a tag is shaped as it is. A note must be present and non-blank after trimming, and two further mechanical checks apply to its CONTENT -- no control character in any string value of this file, and no note naming an accessor the file declares. Nothing verifies the rest of what a note says. In particular the no-restatement rule below is stated in full and only partly enforced: the no-counts half is deliberately NOT checked, because checking it needs a list of counting words, which is itself the second list this file exists to remove. The rule: a note must never restate data this file already carries, because a restatement is a second list. This applies to `note` only -- `invariants`, `profiles.about`, `tokenClass` and every `excluded[].rationale` are normative or required as data by ADR-0021 and are not demoted by it.",
   "invariants": {
-    "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:408). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
+    "unconditional": "Every profile's keywords and primitives are built-in names in EVERY implementation, whether or not that profile is claimed (spec/grammar.md:412). `profile` below is metadata for docs and tooling; nothing may branch on it when deciding whether a name is blocked at a declaration slot.",
     "precedence": "A name reachable from two registries is filed ONCE. Precedence is TWO-LEVEL and the order matters: first by CATEGORY, `keyword` beating `primitive` regardless of where the tags sit -- which is what files `thing` as a keyword though `core-primitive` also holds it; then, among registries of the SAME category, by the key order of `registries` below -- which is what files `to` under core-language rather than heritage, since `reserved` precedes `heritage-form-head`. Reordering `registries` therefore never changes a keyword/primitive verdict, only which same-category tag supplies the `profile`. Its `profile` follows the precedence-winning registry. The full membership is always recorded in `registries` on the entry, never inferred from `category` or `profile`, so losing one of two registrations fails the gate instead of matching a summary that still looks right.",
     "bothDirections": "The gate compares structured entries, not a flat name set: every name here must be in the implementation and every name in the implementation must be here, with `category`, `profile` and `registries` all checked. Each registry names TWO accessors because the two directions need different shapes -- a `lookup` (is this name here?) and an `enumerate` (what does this hold?). The *PrimitiveArity functions are lookups only, so their tags enumerate through `profilePrimitiveNames` instead. Those two views derive from ONE table, so they cannot disagree about membership; what the gate's agreement check really catches there is case-normalisation mismatch, because the lookup lowercases its argument and the enumerator does not.",
     "accessorStatus": "`present` means the accessor MUST resolve as a public export of @openlogo/parser; a missing one is drift. `declared` means decided but not yet created: the gate accepts its absence and FAILS if it ever resolves, because at that moment it should have become `present`. Status attaches per accessor, not per tag, because a tag can be split. At 0.1.0 every accessor is `present`.",
@@ -245,11 +245,11 @@
     "localization": "Localization ships `alias` keyword packs -- alternate spellings declared in OpenLogo source -- rather than primitives (spec/conformance.md's Localization section). An alias spelling a program declares is a program name, not a built-in one."
   },
   "tokenClass": {
-    "about": "How a conforming highlighter PAINTS each built-in name: spec/tooling.md's normative token-class model, declared here as data rather than enumerated in prose. This is a SECOND AXIS, INDEPENDENT of `category` above, and neither determines the other (spec/grammar.md:378). `category` answers may a program DECLARE this name?; `tokenClass` answers how is this word PAINTED? They disagree wherever the language spells an operator as a word: `and`, `mod`, `not` and `or` are category keyword and tokenClass operator. Their profile semantics differ too -- `category` is unconditional (spec/grammar.md:408), while `tokenClass` is the class WHILE THE ENTRY'S OWN PROFILE IS ACTIVE, so a non-core name painted keyword here is primitive when that profile is inactive (spec/tooling.md:31), and the gate probes the entry's OWN profile rather than only the two endpoints. What issue #855 refuted was DERIVING this class from data that already existed -- a positional rule, and the keyword list minus the operators. DECLARING it as new data was never attempted; cannot be derived from the existing lists and cannot be written down are different claims, and issue #959 separated them. Every value here is re-painted through @openlogo/parser's shipped highlight() and compared; the reverse direction set-compares the name SOURCES highlight() classifies from, which is narrower than comparing against arbitrary highlighter output. docs/adr/0026-token-class-declared-and-gated.md states each mechanism and what it does not reach; in particular nothing verifies what this paragraph itself says.",
+    "about": "How a conforming highlighter PAINTS each built-in name: spec/tooling.md's normative token-class model, declared here as data rather than enumerated in prose. This is a SECOND AXIS, INDEPENDENT of `category` above, and neither determines the other (spec/grammar.md:380). `category` answers may a program DECLARE this name?; `tokenClass` answers how is this word PAINTED? They disagree wherever the language spells an operator as a word: `and`, `mod`, `not` and `or` are category keyword and tokenClass operator. Their profile semantics differ too -- `category` is unconditional (spec/grammar.md:412), while `tokenClass` is the class WHILE THE ENTRY'S OWN PROFILE IS ACTIVE, so a non-core name painted keyword here is primitive when that profile is inactive (spec/tooling.md:31), and the gate probes the entry's OWN profile rather than only the two endpoints. What issue #855 refuted was DERIVING this class from data that already existed -- a positional rule, and the keyword list minus the operators. DECLARING it as new data was never attempted; cannot be derived from the existing lists and cannot be written down are different claims, and issue #959 separated them. Every value here is re-painted through @openlogo/parser's shipped highlight() and compared; the reverse direction set-compares the name SOURCES highlight() classifies from, which is narrower than comparing against arbitrary highlighter output. docs/adr/0026-token-class-declared-and-gated.md states each mechanism and what it does not reach; in particular nothing verifies what this paragraph itself says.",
     "classVocabulary": "A tokenClass is one of spec/tooling.md's normative token classes, and the gate requires membership in the implementation's own OL_TOKEN_CLASSES rather than a list restated here. Only three of them can be the class of a NAME: keyword, primitive, and operator. The other twelve classify punctuation, literals, comments, or a spelling that symbol discovery has resolved to a program's own procedure, type, or field -- none of which a built-in name is.",
-    "positionIndependence": "Every name below carries ONE class because every name below is painted the same wherever it appears, including the positions where the grammar admits it as an ordinary name (spec/grammar.md:386): `local end`, `for end from 1 to 3`, `for end in [ 1 2 ]`, `export end`, `set end to 1`, `:p.end`. That is a measured claim, not an assumption: the gate re-paints every name in each of those positions, requires EVERY position to yield a token -- a position that paints nothing proves nothing and must not be hidden by the others -- and fails if any two disagree. A word whose class DOES depend on position cannot be a row here at all; see `contextual` below.",
+    "positionIndependence": "Every name below carries ONE class because every name below is painted the same wherever it appears, including the positions where the grammar admits it as an ordinary name (spec/grammar.md:390): `local end`, `for end from 1 to 3`, `for end in [ 1 2 ]`, `export end`, `set end to 1`, `:p.end`. That is a measured claim, not an assumption: the gate re-paints every name in each of those positions, requires EVERY position to yield a token -- a position that paints nothing proves nothing and must not be hidden by the others -- and fails if any two disagree. A word whose class DOES depend on position cannot be a row here at all; see `contextual` below.",
     "contextual": {
-      "about": "The four words that are painted keyword BY POSITION and are ordinary names everywhere else, so no single class above can express them. They are not built-in names at all (spec/grammar.md:378) and so are absent from `names`; their DECLARATION axis is the matching `excluded` carve-out with reason contextual-keyword, and the gate requires this set and that one to name the same words with the same positions, in both directions. Each position carries a probe the gate both PARSES -- it must build that position's own AST form, so a probe cannot be labelled with a position it does not occupy -- and PAINTS. FOUR sides pin the set: its own declared non-emptiness, the carve-outs, spec/tooling.md's Reserved words for tooling sentence, and spec/grammar.md:380. Emptying one side fails against the others; emptying every side at once fails against non-emptiness, which is the one check no pairwise comparison could make.",
+      "about": "The four words that are painted keyword BY POSITION and are ordinary names everywhere else, so no single class above can express them. They are not built-in names at all (spec/grammar.md:380) and so are absent from `names`; their DECLARATION axis is the matching `excluded` carve-out with reason contextual-keyword, and the gate requires this set and that one to name the same words with the same positions, in both directions. Each position carries a probe the gate both PARSES -- it must build that position's own AST form, so a probe cannot be labelled with a position it does not occupy -- and PAINTS. FOUR sides pin the set: its own declared non-emptiness, the carve-outs, spec/tooling.md's Reserved words for tooling sentence, and spec/grammar.md:382. Emptying one side fails against the others; emptying every side at once fails against non-emptiness, which is the one check no pairwise comparison could make.",
       "class": "keyword",
       "elsewhereClass": "primitive",
       "words": [
@@ -1660,37 +1660,37 @@
       "name": "arc",
       "reason": "library",
       "source": "stdlib/geometry/arc.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "area",
       "reason": "library",
       "source": "stdlib/geometry/area.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "circle",
       "reason": "library",
       "source": "stdlib/geometry/circle.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "perimeter",
       "reason": "library",
       "source": "stdlib/geometry/perimeter.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "polygon",
       "reason": "library",
       "source": "stdlib/geometry/polygon.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "star",
       "reason": "library",
       "source": "stdlib/geometry/star.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:412)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "a",
@@ -1698,7 +1698,7 @@
       "positions": [
         "is-predicate"
       ],
-      "rationale": "Structural by position only (spec/grammar.md:380). `define a` is legal and `:p is a \"point\"` still reads as the predicate afterwards, because no declaration can occupy the position that makes the word structural."
+      "rationale": "Structural by position only (spec/grammar.md:382). `define a` is legal and `:p is a \"point\"` still reads as the predicate afterwards, because no declaration can occupy the position that makes the word structural."
     },
     {
       "name": "empty",
@@ -1706,7 +1706,7 @@
       "positions": [
         "is-predicate"
       ],
-      "rationale": "Structural by position only (spec/grammar.md:380). `define empty` is legal and `:x is empty` still reads as the predicate afterwards."
+      "rationale": "Structural by position only (spec/grammar.md:382). `define empty` is legal and `:x is empty` still reads as the predicate afterwards."
     },
     {
       "name": "member",
@@ -1714,7 +1714,7 @@
       "positions": [
         "is-predicate"
       ],
-      "rationale": "Structural by position only (spec/grammar.md:380). `define member` is legal and `2 is member of :nums` still reads as the predicate afterwards. Distinct from the Core reporter `member?`, which IS a built-in name."
+      "rationale": "Structural by position only (spec/grammar.md:382). `define member` is legal and `2 is member of :nums` still reads as the predicate afterwards. Distinct from the Core reporter `member?`, which IS a built-in name."
     },
     {
       "name": "of",
@@ -1723,7 +1723,7 @@
         "is-predicate",
         "value-of-reader"
       ],
-      "rationale": "Structural in two positions and a built-in name in neither (spec/grammar.md:380). `define of` is legal and `value of :d for key \"a\"` still reports the key's value afterwards. `positions` records where the grammar makes the word structural, which is an independent axis from how the word is painted (LDR-0007); the paint is declared separately under `tokenClass.contextual`, and the gate requires the two to record the same positions so neither can drift from the other."
+      "rationale": "Structural in two positions and a built-in name in neither (spec/grammar.md:382). `define of` is legal and `value of :d for key \"a\"` still reports the key's value afterwards. `positions` records where the grammar makes the word structural, which is an independent axis from how the word is painted (LDR-0007); the paint is declared separately under `tokenClass.contextual`, and the gate requires the two to record the same positions so neither can drift from the other."
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "description": "stop reached inside a repeat loop nested in a procedure body propagates out of the whole procedure, not just the loop (spec/execution-model.md:368-374); print after never runs. Issue #97.",
+  "description": "stop reached inside a repeat loop nested in a procedure body propagates out of the whole procedure, not just the loop (spec/execution-model.md:711-728); print after never runs. Issue #97.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

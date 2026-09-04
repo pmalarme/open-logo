@@ -5,8 +5,8 @@
  * `scripts/examples-gate.mjs` and `scripts/markdown-examples-gate.mjs` already have, and outside the
  * loaded-module coverage set [ADR-0009](../docs/adr/0009-test-layout.md) defines.
  *
- * **Why this exists.** `spec/grammar.md:414` versions the built-in names with the specification —
- * *"there is no second list to keep in step"* — and `:363` governs them with one rule: a program may
+ * **Why this exists.** `spec/grammar.md:418` versions the built-in names with the specification —
+ * *"there is no second list to keep in step"* — and `:365` governs them with one rule: a program may
  * not **declare** a built-in name, and may **bind** a value to any name. Nothing stated what that
  * set is, and nothing compared the spec to the implementation.
  * [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md) makes
@@ -38,7 +38,7 @@
  * ## The two axes this gate now compares, and the one it used to only fingerprint
  *
  * `spec/built-in-names.json` carries two independent per-name axes and neither determines the other
- * (`spec/grammar.md:378`): `category` (may a program **declare** this name?) and `tokenClass` (how is
+ * (`spec/grammar.md:380`): `category` (may a program **declare** this name?) and `tokenClass` (how is
  * this word **painted**?). `category` is compared against the implementation in both directions;
  * `tokenClass` is measured declaration-first and compared back over the enumerable name sources
  * only. ADR-0026 names each mechanism and what it does not reach — "both directions" over-describes
@@ -116,7 +116,7 @@ export const STDLIB_DIR = "stdlib";
 
 /**
  * The closed vocabulary of positions that make a contextual word structural
- * (`spec/grammar.md:380`): the `is`-predicate, and the heritage `value of … for key` reader. A
+ * (`spec/grammar.md:382`): the `is`-predicate, and the heritage `value of … for key` reader. A
  * position outside this set is a typo or an invention, and either way the carve-out stops meaning
  * anything.
  */
@@ -1227,7 +1227,7 @@ const NUMBER_WORDS = {
 };
 
 /**
- * The **contextual keywords** `spec/grammar.md:380` names — the words that are structural by
+ * The **contextual keywords** `spec/grammar.md:382` names — the words that are structural by
  * position without OpenLogo owning the name — extracted from the sentence that enumerates them:
  * *"By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in
  * names."*
@@ -1553,7 +1553,7 @@ export function wordsBetween(text, open, close) {
  * claim made executable: a bare statement head, an argument, a list element, a `local` binder, a
  * postfix field, an `export` operand, a `for … from` binder, a `for … in` binder, and a `set … to`
  * place. Every one after the first is a position where the grammar admits a keyword as an
- * **ordinary name** (`spec/grammar.md:386`), which is where a positional rule for this class was
+ * **ordinary name** (`spec/grammar.md:390`), which is where a positional rule for this class was
  * refuted (issue #855) — so a class that varied by position is caught here rather than assumed away.
  *
  * Each probe must yield **at least one** matching token. Unioning the classes across probes made a
@@ -1596,7 +1596,7 @@ export const CONTEXTUAL_POSITION_NODE_KINDS = {
  * `keyword` token-class row alone, `"tooling"` for the whole of `spec/tooling.md`, `"grammar"` for
  * `spec/grammar.md`.
  *
- * Three sides, not two, because two can be emptied together: `spec/grammar.md:380`'s "the contextual
+ * Three sides, not two, because two can be emptied together: `spec/grammar.md:382`'s "the contextual
  * keywords are exactly these four" is a normative statement in a document this slice does not touch,
  * so it is the independent lower bound (issue #959 review, finding 4).
  */
@@ -1972,7 +1972,7 @@ export function contextualDeclaration(manifest) {
 /**
  * The **exception set**: the four words painted `keyword` by position and ordinary names elsewhere.
  *
- * They are not built-in names (`spec/grammar.md:378`), so they are not rows in `names` and no flat
+ * They are not built-in names (`spec/grammar.md:380`), so they are not rows in `names` and no flat
  * class can express them. What makes this a gate rather than a carve-out that passes when emptied
  * (issue #964) is that the set is pinned from four sides at once, and each measures the others:
  *
@@ -2018,7 +2018,7 @@ export function contextualTokenClassFindings(manifest, api) {
   }
   if (carveOuts.size === 0) {
     findings.push(
-      `${MANIFEST_PATH}: no excluded carve-out has reason "contextual-keyword" — spec/grammar.md:380 names four such words, so an empty set here is drift rather than a language with none`,
+      `${MANIFEST_PATH}: no excluded carve-out has reason "contextual-keyword" — spec/grammar.md:382 names four such words, so an empty set here is drift rather than a language with none`,
     );
   }
   const named = new Set(words.map((word) => word.name));
@@ -2034,7 +2034,7 @@ export function contextualTokenClassFindings(manifest, api) {
   );
   if (unclaimed.length > 0) {
     findings.push(
-      `${MANIFEST_PATH}: no contextual word claims position(s) ${unclaimed.join(", ")} — spec/grammar.md:380 makes each of them structural, and the probe is the only thing proving the highlighter paints a word "${declared.class}" there`,
+      `${MANIFEST_PATH}: no contextual word claims position(s) ${unclaimed.join(", ")} — spec/grammar.md:382 makes each of them structural, and the probe is the only thing proving the highlighter paints a word "${declared.class}" there`,
     );
   }
   for (const name of carveOuts.keys()) {

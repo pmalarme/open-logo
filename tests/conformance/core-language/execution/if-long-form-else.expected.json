@@ -1,5 +1,5 @@
 {
-  "description": "The long-form `if <cond> ... else ... end if` (`spec/grammar.md:119-124`) with a `false` condition runs the else-branch, identically to the bracketed `if-then-false-with-else` fixture. Issue #100.",
+  "description": "The long-form `if <cond> ... else ... end if` (`spec/grammar.md:120-125`) with a `false` condition runs the else-branch, identically to the bracketed `if-then-false-with-else` fixture. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

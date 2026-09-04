@@ -6,13 +6,13 @@
 // `ol-reserved-word` to *every form that introduces a name*. Maintainer ruling #833 overrules that;
 // the normative text landed in #875:
 //
-//   spec/grammar.md:363 — "A program may not declare a built-in name. A program may bind a value to
+//   spec/grammar.md:365 — "A program may not declare a built-in name. A program may bind a value to
 //                          any name."
-//   spec/grammar.md:386 — every binding form "MUST accept **any** name, including a keyword, a
+//   spec/grammar.md:390 — every binding form "MUST accept **any** name, including a keyword, a
 //                          primitive, or an alias spelling of one … An implementation MUST NOT raise
 //                          `ol-reserved-word` — or any other diagnostic — for the name alone in any
 //                          of those positions, at any stage."
-//   spec/grammar.md:388 — why the declaration slots are the complete enforcement point: "A
+//   spec/grammar.md:392 — why the declaration slots are the complete enforcement point: "A
 //                          restriction on a binding form is bypassable, because `local` is optional
 //                          and the same name can be bound with `<place> = <value>` instead."
 //
@@ -67,7 +67,7 @@ function reservedFindings(source, profiles = CORE) {
 }
 
 /**
- * Every binding position `spec/grammar.md:386` names, as a template that puts `name` in it. `make`
+ * Every binding position `spec/grammar.md:390` names, as a template that puts `name` in it. `make`
  * is absent only because its target is a word literal rather than a name token and it needs the
  * Heritage profile; it gets its own test below.
  */
@@ -125,7 +125,7 @@ function assertBindingIsFree(form, word, profiles) {
   assert.deepEqual(
     checkSource(source, profiles),
     [],
-    `${form.label} with \`${word}\` must be accepted (spec/grammar.md:386)`,
+    `${form.label} with \`${word}\` must be accepted (spec/grammar.md:390)`,
   );
 }
 
@@ -144,7 +144,7 @@ test("every binding form is free for every keyword — no diagnostic of any code
 });
 
 test("every binding form is free for a profile word — in BOTH directions", () => {
-  // `spec/grammar.md:408` makes profile words built-in unconditionally, and binding a built-in name
+  // `spec/grammar.md:412` makes profile words built-in unconditionally, and binding a built-in name
   // is free, so the profile set must make no difference at a binding. Asserted with the profile
   // active *and* inactive, so neither direction can regress unnoticed.
   for (const form of BINDING_FORMS) {
@@ -184,7 +184,7 @@ test('the Heritage `make "name" value` spelling is free for every keyword too', 
 });
 
 test("`local` is a binding, not a declaration: it registers nothing callable", () => {
-  // This is the evidence `spec/grammar.md:388` rests on, asserted rather than quoted. `local foo`
+  // This is the evidence `spec/grammar.md:392` rests on, asserted rather than quoted. `local foo`
   // followed by a call to `foo` is an unknown command, so `local` never enters the callable
   // namespace and cannot be a declaration slot — which is why it stopped being checked here.
   const findings = checkSource("define g\n  local foo\nend\nfoo\n");
@@ -217,7 +217,7 @@ test("`local` no longer collides in any of the four categories #739 checked", ()
 });
 
 test("a nested place is a write into an existing structure, so it stays clean", () => {
-  // spec/grammar.md:404,406 — "A write **into** an existing value introduces no name … a postfix
+  // spec/grammar.md:408,410 — "A write **into** an existing value introduces no name … a postfix
   // names a field or key, which is data", and "Dictionary keys and selector bare keys are data, not
   // declarations, so built-in names are legal keys."
   assert.deepEqual(
@@ -308,7 +308,7 @@ test("non-regression: `define` and `struct` still reject every keyword", () => {
 
 test("non-regression: `define` keeps its full check, now split across two codes", () => {
   // Issue #838 divided the old four-category `namespace` between two codes that each mean one
-  // thing (`spec/error-model.md:132-141`): a keyword or primitive is `ol-reserved-word` ("OpenLogo
+  // thing (`spec/error-model.md:134-143`): a keyword or primitive is `ol-reserved-word` ("OpenLogo
   // owns this name"), while an earlier procedure or struct declaration is `ol-duplicate-definition`
   // ("something already declares this name") carrying both spans. All four situations are still
   // caught; only the reporting changed.
@@ -345,7 +345,7 @@ test("the declaration slot and the binding slot of one statement are judged sepa
 });
 
 test("call sites stay legal — the rule is keyed to `declared-callable-name`, not `callable-name`", () => {
-  // spec/grammar.md:165 — `callable-name`/`type-name` remain the CALL slots, "where every built-in
+  // spec/grammar.md:167 — `callable-name`/`type-name` remain the CALL slots, "where every built-in
   // name is of course legal — that is how `forward 100` and `point 3 4` are written". Keying the
   // rule to them instead of to the declaration slots would make this program illegal.
   assert.deepEqual(

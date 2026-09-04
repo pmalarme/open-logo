@@ -15,56 +15,56 @@
   ],
   "docs/design-notes/0003-closed-comma-free-prefix-call-grammar.md": [
     {
-      "subject": "spec/commands.md:1000",
+      "subject": "spec/commands.md:1021",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 999 (\"### `word`\") and below is line 1001 (\"- **Signature:** `word word word`; `(word …)` variadic\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "55eed8aade7218f4"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 1020 (\"### `word`\") and below is line 1022 (\"- **Signature:** `word word word`; `(word …)` variadic\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "2c079306fdc63ae1"
     },
     {
-      "subject": "spec/commands.md:1017",
+      "subject": "spec/commands.md:1038",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 1016 (\"### `sentence`\") and below is line 1018 (\"- **Signature:** `sentence value value`; `(sentence …)` variad…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "ab55a4438b3234d9"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 1037 (\"### `sentence`\") and below is line 1039 (\"- **Signature:** `sentence value value`; `(sentence …)` variad…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "7814beb0c8457f62"
     },
     {
-      "subject": "spec/commands.md:908",
+      "subject": "spec/commands.md:929",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 907 (\"## Procedures\") and below is line 909 (\"Procedures are named behavior. A procedure that reaches `retur…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "eebb2885f0125ce5"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 928 (\"## Procedures\") and below is line 930 (\"Procedures are named behavior. A procedure that reaches `retur…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "e70b09c8af794f75"
     }
   ],
   "packages/core/src/values.ts": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "124d92743857a881"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "4dc9758954ef2e7a"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "070c6b0e96ddc2b9"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "beb9981e11411f88"
     }
   ],
   "packages/edu/src/debug.test.mjs": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "8f6a16ab8cc0093e"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "a35451259f22dbe3"
     }
   ],
   "packages/edu/src/lesson.ts": [
@@ -84,71 +84,71 @@
       "kind": "stale-citation",
       "issue": "#948",
       "why": "Lands on blank space in grammar.md: the nearest text above is line 74 (\"EOF ::= ? the end of the input ?\") and below is line 76 (\"program ::= [ terminator ] { statement terminator } [ statemen…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "0ee0f9e5b675af40"
+      "fingerprint": "30b4ae5d89c190c3"
     },
     {
-      "subject": "spec/grammar.md:267",
+      "subject": "spec/grammar.md:269",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 266 (\"OpenLogo has five source roles for square brackets. The role i…\") and below is line 268 (\"| Role | Position | Example |\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "0f054f8aac77c6ab"
-    },
-    {
-      "subject": "spec/grammar.md:277",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 276 (\"The roles never overlap because each occupies a distinct gramm…\") and below is line 278 (\"Control bodies for `if`, `while`, `repeat`, `for`, and `foreve…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "a2c901ce0520d6ac"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 268 (\"OpenLogo has five source roles for square brackets. The role i…\") and below is line 270 (\"| Role | Position | Example |\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "8be387281724af5f"
     },
     {
       "subject": "spec/grammar.md:279",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 278 (\"Control bodies for `if`, `while`, `repeat`, `for`, and `foreve…\") and below is line 280 (\"1. bracketed block `[ ... ]`, inline or multiline\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "7a25a38ab06dc1f2"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 278 (\"The roles never overlap because each occupies a distinct gramm…\") and below is line 280 (\"Control bodies for `if`, `while`, `repeat`, `for`, and `foreve…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "8a8af1f769de6966"
+    },
+    {
+      "subject": "spec/grammar.md:281",
+      "observed": "blank-region",
+      "kind": "stale-citation",
+      "issue": "#948",
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 280 (\"Control bodies for `if`, `while`, `repeat`, `for`, and `foreve…\") and below is line 282 (\"1. bracketed block `[ ... ]`, inline or multiline\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "6d6838a59602b49d"
     }
   ],
   "packages/parser/src/checker-control-flow.ts": [
     {
-      "subject": "spec/execution-model.md:426",
+      "subject": "spec/execution-model.md:793",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 425 (\"result is discarded like any other unused value.\") and below is line 427 (\"`map <var> in <listExpr> [ <expr> ]` returns a fresh list cont…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "b5f8bbb5dfdaf20f"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 792 (\"result is discarded like any other unused value.\") and below is line 794 (\"`map <var> in <listExpr> [ <expr> ]` returns a fresh list cont…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "ed8ef3e30602faa6"
     }
   ],
   "packages/parser/src/checker-type-field.ts": [
     {
-      "subject": "spec/tooling.md:193",
+      "subject": "spec/tooling.md:196",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in tooling.md: the nearest text above is line 192 (\"| Repeated `reduce` or pattern binder name | `ol-duplicate-bin…\") and below is line 194 (\"Semantic tools SHOULD also report statically knowable uses of …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "8968fd4a2b717d29"
+      "why": "Lands on blank space in tooling.md: the nearest text above is line 193 (\"| Repeated `reduce` or pattern binder name | `ol-duplicate-bin…\") and below is line 197 (\"Semantic tools SHOULD also report statically knowable uses of …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "43ed1c759ec6ee3e"
     }
   ],
   "packages/parser/src/heritage-spellings.test.mjs": [
     {
-      "subject": "spec/grammar.md:146",
+      "subject": "spec/grammar.md:147",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 145 (\"control-end-label ::= \"end\" [ \"if\" | \"while\" | \"repeat\" | \"for…\") and below is line 147 (\"define-statement ::= \"define\" declared-callable-name { require…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "98dd453f6538d4d2"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 146 (\"control-end-label ::= \"end\" [ \"if\" | \"while\" | \"repeat\" | \"for…\") and below is line 148 (\"define-statement ::= \"define\" declared-callable-name { require…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "6d8a5d2e7729fabb"
     }
   ],
   "packages/parser/src/name-resolution.test.mjs": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "1763f44bbf6dd3d4"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "c0deec8160d55fe8"
     }
   ],
   "packages/parser/src/signatures.ts": [
@@ -161,12 +161,12 @@
       "fingerprint": "356515795cdbe048"
     },
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "e2108acfb76836d4"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "11f745e05fc7c733"
     }
   ],
   "packages/runtime/src/errors.ts": [
@@ -179,20 +179,20 @@
       "fingerprint": "7441c65e26f58514"
     },
     {
-      "subject": "spec/commands.md:671",
+      "subject": "spec/commands.md:692",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 670 (\"```\") and below is line 672 (\"- **Possible errors:** `ol-type` when the value is not a list,…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "a7e96067a6b4222b"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 691 (\"```\") and below is line 693 (\"- **Possible errors:** `ol-type` when the value is not a list,…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "3366830747c71da4"
     },
     {
-      "subject": "spec/commands.md:689",
+      "subject": "spec/commands.md:710",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 688 (\"```\") and below is line 690 (\"- **Possible errors:** `ol-type` when the collection is not a …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "4a96f8cb9907a9ff"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 709 (\"```\") and below is line 711 (\"- **Possible errors:** `ol-type` when the collection is not a …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "ce6e176da457c8e4"
     },
     {
       "subject": "spec/data-structures.md:127",
@@ -203,22 +203,22 @@
       "fingerprint": "e60078fc47f9b8f5"
     },
     {
-      "subject": "spec/commands.md:792",
+      "subject": "spec/commands.md:813",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 791 (\"```\") and below is line 793 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "096ae2ab5caec0b5"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 812 (\"```\") and below is line 814 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "bbba407917501d70"
     }
   ],
   "packages/runtime/src/evaluate.ts": [
     {
-      "subject": "spec/commands.md:1189",
+      "subject": "spec/commands.md:1210",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 1188 (\"## Turtle movement\") and below is line 1190 (\"Turtle geometry uses origin `(0,0)` at the canvas center, +x t…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "3bd61c5228541a97"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 1209 (\"## Turtle movement\") and below is line 1211 (\"Turtle geometry uses origin `(0,0)` at the canvas center, +x t…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "106d5498b8207b9e"
     },
     {
       "subject": "spec/data-structures.md:93",
@@ -237,44 +237,44 @@
       "fingerprint": "b90f5aeb97a43b3b"
     },
     {
-      "subject": "spec/commands.md:566",
+      "subject": "spec/commands.md:587",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 565 (\"### `and`\") and below is line 567 (\"- **Signature:** `boolean and boolean`; `(and …)` for multiple…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "a6ddc753fe76079e"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 586 (\"### `and`\") and below is line 588 (\"- **Signature:** `boolean and boolean`; `(and …)` for multiple…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "def439ec270531d0"
     },
     {
-      "subject": "spec/commands.md:585",
+      "subject": "spec/commands.md:606",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 584 (\"### `or`\") and below is line 586 (\"- **Signature:** `boolean or boolean`; `(or …)` for multiple o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "91e7015643f0a834"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 605 (\"### `or`\") and below is line 607 (\"- **Signature:** `boolean or boolean`; `(or …)` for multiple o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "131e447cbc718ecd"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "c5f4bf85b2783e94"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "7d0ded7ec4079174"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "f5170353e6f25d3e"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "c85812bb9c9186d6"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "83f44d6c2ac2e898"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "3fe018364d66019c"
     },
     {
       "subject": "spec/data-structures.md:287",
@@ -317,12 +317,12 @@
       "fingerprint": "b0346922db4f2e2e"
     },
     {
-      "subject": "spec/execution-model.md:538",
+      "subject": "spec/execution-model.md:905",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 537 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 539 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "db0dfcbd5cb4bc2e"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 904 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 906 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "60de3d52b24f5d86"
     },
     {
       "subject": "spec/conformance.md:129",
@@ -335,270 +335,270 @@
   ],
   "packages/runtime/src/execute-internal.ts": [
     {
-      "subject": "spec/commands.md:160",
+      "subject": "spec/commands.md:181",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 159 (\"- **Possible errors:** none specified beyond general arity dia…\") and below is line 161 (\"### `show`\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "49517649e845d9e1"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 180 (\"- **Possible errors:** none specified beyond general arity dia…\") and below is line 182 (\"### `show`\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "90470a1bd4670d59"
     },
     {
-      "subject": "spec/execution-model.md:538",
+      "subject": "spec/execution-model.md:905",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 537 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 539 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "a767fa5b7e9a1175"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 904 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 906 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "8f7c7e6158aeea2e"
     },
     {
-      "subject": "spec/execution-model.md:652",
+      "subject": "spec/execution-model.md:1019",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 651 (\"| `payload` | Kind-specific typed data. |\") and below is line 653 (\"There are two timing classes:\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "b3dc8394c79643f5"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 1018 (\"| `payload` | Kind-specific typed data. |\") and below is line 1020 (\"There are two timing classes:\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "f9315a27b21bde96"
     },
     {
-      "subject": "spec/commands.md:1573",
+      "subject": "spec/commands.md:1594",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 1572 (\"### `fill`\") and below is line 1574 (\"- **Signature:** `fill`\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "32465eda7c85b34c"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 1593 (\"### `fill`\") and below is line 1595 (\"- **Signature:** `fill`\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "d993053b858a24db"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "a6c4a637c27e767f"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "3c7a9999171d74ac"
     }
   ],
   "packages/runtime/src/sprites-ask.test.mjs": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "317aff32f34108b9"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "ec121ba8f519bb8d"
     }
   ],
   "packages/runtime/src/sprites-tell.test.mjs": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "11c5cf3587031a4d"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "f543c7693a46fbfb"
     }
   ],
   "packages/runtime/src/turtle-math.ts": [
     {
-      "subject": "spec/execution-model.md:538",
+      "subject": "spec/execution-model.md:905",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 537 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 539 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "334640afb20f4d97"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 904 (\"Fresh lists are shallow: nested references remain shared.\") and below is line 906 (\"## Equality and ordering\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "70dee941e8bd989a"
     }
   ],
   "packages/runtime/src/turtle-value.test.mjs": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "721d7f8ccaad4a88"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "0d626db374753e15"
     },
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "57238d413f8b4309"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "9015546d5a6833fa"
     }
   ],
   "packages/runtime/src/turtle-world.ts": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "b137ec1b106236ed"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "b9ce9ca19c3dd1a2"
     }
   ],
   "scripts/check-examples.test.mjs": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "6422f71760fb01d1"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "a66f910a1b92253a"
     }
   ],
   "tests/conformance/core-language/assignment/mixed-place-set.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "6fc37a4c3137aa64"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "2a17bc44d32ed289"
     },
     {
-      "subject": "spec/grammar.md:108",
+      "subject": "spec/grammar.md:109",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 107 (\"make-assignment ::= \"make\" word-literal expression\") and below is line 109 (\"colon-place ::= \":\" name { postfix }\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "3fedcf9e0ba5487b"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 108 (\"make-assignment ::= \"make\" word-literal expression\") and below is line 110 (\"colon-place ::= \":\" name { postfix }\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "4a923d712a2a40da"
     }
   ],
   "tests/conformance/core-language/assignment/set-boolean.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "ce0b5738a6d56060"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "e7d35de85e039dc1"
     }
   ],
   "tests/conformance/core-language/assignment/set-boolean.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "c84ea1e0ab7ed5f4"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "7d96d0fdd8f34bf6"
     }
   ],
   "tests/conformance/core-language/assignment/set-colon-place-invalid.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "f346da03f98986db"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "bbea500cfd848733"
     }
   ],
   "tests/conformance/core-language/assignment/set-colon-place-invalid.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "954015e7f4d865bc"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "e6bcf0c33a441f4d"
     }
   ],
   "tests/conformance/core-language/assignment/set-colon-place-to-value-invalid.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "06453e9231a91432"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "51a02a342548631a"
     }
   ],
   "tests/conformance/core-language/assignment/set-colon-place-to-value-invalid.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "954015e7f4d865bc"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "e6bcf0c33a441f4d"
     }
   ],
   "tests/conformance/core-language/assignment/set-list.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "688abe7e2c74c21e"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "a02b65e04ac89bb8"
     }
   ],
   "tests/conformance/core-language/assignment/set-list.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "9b22e93d16e3c7be"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "bcd4eda2b7480441"
     }
   ],
   "tests/conformance/core-language/assignment/set-number.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "e8040cc6e902e864"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "3454c64b65cadf35"
     }
   ],
   "tests/conformance/core-language/assignment/set-number.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "d83abef304f9ecba"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "658678a8f9b1d347"
     }
   ],
   "tests/conformance/core-language/assignment/set-reporter-call.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "b8e4d37a37823700"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "90ef8414e045075b"
     }
   ],
   "tests/conformance/core-language/assignment/set-reporter-call.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "0af5d7dcfe8fd2c3"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "75f812b1eea6a443"
     }
   ],
   "tests/conformance/core-language/assignment/set-word.expected.json": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "729ec5b04a066f8d"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "0aa649889906d3b9"
     }
   ],
   "tests/conformance/core-language/assignment/set-word.logo": [
     {
-      "subject": "spec/grammar.md:104",
+      "subject": "spec/grammar.md:105",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in grammar.md: the nearest text above is line 103 (\"| expression\") and below is line 105 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "008a8a62e416e4c9"
+      "why": "Lands on blank space in grammar.md: the nearest text above is line 104 (\"| expression\") and below is line 106 (\"assignment ::= colon-place \"=\" expression\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "78d2a810158429dc"
     }
   ],
   "tests/conformance/core-language/execution/logical-or-short-circuit.expected.json": [
@@ -613,22 +613,22 @@
   ],
   "tests/conformance/core-language/execution/repcount-outside-repeat.expected.json": [
     {
-      "subject": "spec/commands.md:792",
+      "subject": "spec/commands.md:813",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 791 (\"```\") and below is line 793 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "ba4a326e3a7b0ebf"
+      "why": "Lands on blank space in commands.md: the nearest text above is line 812 (\"```\") and below is line 814 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "3e38e862b261b6d2"
     }
   ],
   "tests/conformance/data/check/struct-constructor-unknown-field-read.expected.json": [
     {
-      "subject": "spec/tooling.md:193",
+      "subject": "spec/tooling.md:196",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in tooling.md: the nearest text above is line 192 (\"| Repeated `reduce` or pattern binder name | `ol-duplicate-bin…\") and below is line 194 (\"Semantic tools SHOULD also report statically knowable uses of …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "21ad28898cd2bee9"
+      "why": "Lands on blank space in tooling.md: the nearest text above is line 193 (\"| Repeated `reduce` or pattern binder name | `ol-duplicate-bin…\") and below is line 197 (\"Semantic tools SHOULD also report statically knowable uses of …\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "735b29e6ba63fd23"
     }
   ],
   "tests/conformance/data/dict-runtime/dict-read-bad-key-type.expected.json": [
@@ -753,32 +753,32 @@
   ],
   "tests/conformance/sprites/ask-dedup-repeated-turtle/ask-dedup-repeated-turtle.expected.json": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "c7569dd329d294a3"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "6f6ed61322fa98e1"
     }
   ],
   "tests/conformance/sprites/each-dedup-repeated-turtle/each-dedup-repeated-turtle.expected.json": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "954e36148a0e4e5e"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "2c62833b2a342186"
     }
   ],
   "tests/conformance/sprites/tell-dedup-repeated-turtle/tell-dedup-repeated-turtle.expected.json": [
     {
-      "subject": "spec/execution-model.md:540",
+      "subject": "spec/execution-model.md:907",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 539 (\"## Equality and ordering\") and below is line 541 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "d9cf66ae5020a57b"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 906 (\"## Equality and ordering\") and below is line 908 (\"`==` returns a boolean according to this matrix. `!=` is exact…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "c13690d3ab99922e"
     }
   ]
 }

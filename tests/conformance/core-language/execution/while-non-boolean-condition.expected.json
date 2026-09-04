@@ -1,5 +1,5 @@
 {
-  "description": "`while 5 [ print 1 ]` raises `ol-not-boolean` (`spec/execution-model.md:389`, `spec/error-model.md:123`): there is no truthiness, so a number condition is never coerced, and the loop body never runs even once. Issue #100.",
+  "description": "`while 5 [ print 1 ]` raises `ol-not-boolean` (`spec/execution-model.md:756`, `spec/error-model.md:123`): there is no truthiness, so a number condition is never coerced, and the loop body never runs even once. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -97,6 +97,7 @@ statement           ::= assignment
                       | stop-statement
                       | throw-statement
                       | local-statement
+                      | global-statement
                       | alias-statement
                       | import-statement
                       | export-statement
@@ -152,7 +153,8 @@ optional-parameter  ::= "(" ":" name expression ")"
 return-statement    ::= ( "return" | "output" | "op" ) expression
 stop-statement      ::= "stop"
 throw-statement     ::= "throw" expression
-local-statement     ::= "local" name | "(" "local" name { name } ")"
+local-statement     ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"
+global-statement    ::= "global" name "=" expression
 
 struct-declaration  ::= "struct" declared-type-name field-list
 field-list          ::= "[" identifier { identifier } "]"
@@ -383,7 +385,9 @@ struct alias import export
 
 `export` is **not** a declaration slot. `export <identifier>` names a procedure the program has already defined, so it is a reference: `export if` fails as an unknown name rather than as a built-in-name collision, because no procedure named `if` can exist. This section does not otherwise constrain `export` — the **Modules** profile owns its behavior (see [conformance.md](conformance.md#modules)).
 
-**Binding a name.** Binding attaches a value to a name and registers nothing. Every binding form MUST accept **any** name, including a keyword, a primitive, or an alias spelling of one: `<place> = <value>`, `set <place> to <value>`, `make "name" <value>`, `local <name>`, procedure parameters, `for` / `map` / `filter` binders and destructuring patterns, the `reduce` accumulator, struct field names, and dictionary keys. An implementation MUST NOT raise `ol-reserved-word` — or any other diagnostic — for the name alone in any of those positions, at any stage. `:end = 1` and `local count` are conforming programs.
+**`global` is a built-in name by the primitive route.** `global` is a special form of the [C3 matrix](commands.md), so the rule above applies to it unchanged: `define global`, the heritage `to global`, `struct global`, and `alias global …` raise `ol-reserved-word`, while **binding** the name stays legal — `:global = 1`, `local global`, and `set global to 1` are conforming programs. Like a keyword the word is a grammar terminal: it is matched as the head of `global-statement` wherever the grammar names it, and the matrix gives it no callable form, so `(global …)` has no derivation. Its route to built-in-name status is the matrix alone rather than the keyword list as well — the ordinary route for a form a profile document defines, which `when`, `every`, `on_key`, `ask`, `each`, and `tell` also take; `global` is the only **Core** special form that reaches it that way. The keyword list above, [tooling.md](tooling.md)'s C19 registry, and [built-in-names.json](built-in-names.json) record it from the version in which a conforming reader recognizes the word.
+
+**Binding a name.** Binding attaches a value to a name and registers nothing. Every binding form MUST accept **any** name, including a keyword, a primitive, or an alias spelling of one: `<place> = <value>`, `set <place> to <value>`, `make "name" <value>`, `local <name>`, `local <name> = <value>`, `global <name> = <value>`, procedure parameters, `for` / `map` / `filter` binders and destructuring patterns, the `reduce` accumulator, struct field names, and dictionary keys. An implementation MUST NOT raise `ol-reserved-word` — or any other diagnostic — for the name alone in any of those positions, at any stage. `:end = 1` and `local count` are conforming programs.
 
 Enforcing the rule at the declaration slots rather than at the binding forms is what makes it complete. A restriction on a binding form is bypassable, because `local` is optional and the same name can be bound with `<place> = <value>` instead; the four declaration slots are the only way to register a callable, so there is nothing to bypass. Binding a built-in name was never the hazard: `:end = 1` shadows nothing, while a declaration OpenLogo accepts leaves the learner with a procedure that is unreachable, or with a primitive that silently stops working, or with both at once depending on the spelling at each call site.
 

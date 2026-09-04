@@ -2,7 +2,7 @@
 // (rules 3 and 6) at phase-1 registration (`spec/execution-model.md:82-89`).
 //
 // A declaration slot (`define`/`to`, `struct`) asks one question — *is this name already taken, and
-// by whom?* — and `spec/error-model.md:132-141` splits the answer in two so each code means exactly
+// by whom?* — and `spec/error-model.md:134-143` splits the answer in two so each code means exactly
 // one thing: `ol-reserved-word` (OpenLogo owns this name) and `ol-duplicate-definition` (something
 // in the program already declares it, with `params.original_span` naming where).
 //
@@ -207,7 +207,7 @@ function declareProcedure(name, keyword = "define") {
 /**
  * The same declaration, wrapped in `depth` enclosing `define … end` procedures.
  *
- * `spec/grammar.md:93-94,147-148` makes a declaration an ordinary `statement` and a body a sequence
+ * `spec/grammar.md:93-94,148-149` makes a declaration an ordinary `statement` and a body a sequence
  * of statements, so declarations nest by construction — and `registerDeclarations` uses a
  * whole-program `walk`, which is depth-agnostic for free. **"For free" is exactly why it needs
  * pinning:** nothing about the guard mentions depth, so a change that started visiting only
