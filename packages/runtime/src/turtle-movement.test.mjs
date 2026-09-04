@@ -103,7 +103,7 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `forward`", (
       code: "ol-not-enough-inputs",
       source_span: { document: "main.logo", start: [1, 1], end: [1, 8] },
       params: { callable: "forward", expected: 1, actual: 0 },
-      message: "forward needs one input, but got 0.",
+      message: "forward needs one input.",
       stage: "semantic",
       severity: "error",
     },

@@ -11,9 +11,7 @@ import { test } from "node:test";
 import * as Parser from "@openlogo/parser";
 import {
   createEnvironment,
-  evaluate,
-  isSupportedExpression,
-} from "@openlogo/runtime";
+  evaluate,} from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
 
@@ -234,7 +232,7 @@ test("(or :a) with one operand raises ol-not-enough-inputs", () => {
   });
 });
 
-// --- Combined precedence + isSupportedExpression --------------------------------------------
+// --- Combined precedence + operand evaluation --------------------------------------------
 
 test("and binds tighter than or, matching precedence levels 6/7", () => {
   // `false and true or true` is `(false and true) or true` = `false or true` = `true`.
@@ -252,23 +250,31 @@ test("not binds tighter than a comparison built from its operand", () => {
   });
 });
 
-test("isSupportedExpression accepts not/and/or calls, recursing into every operand", () => {
-  assert.equal(isSupportedExpression(parseExpr("not true")), true);
-  assert.equal(isSupportedExpression(parseExpr("true and false")), true);
-  assert.equal(isSupportedExpression(parseExpr("true or false")), true);
-  assert.equal(isSupportedExpression(parseExpr("(and true false true)")), true);
-  // A short-circuited operand's *shape* is still checked — `:missing` is a supported `VarRef`
-  // even though evaluating it would raise `ol-undefined-var`.
-  assert.equal(isSupportedExpression(parseExpr("false and :missing")), true);
+test("evaluating a not/and/or call recurses into every operand", () => {
+  assert.deepEqual(evalExpr("not true"), { ok: true, value: false });
+  assert.deepEqual(evalExpr("true and false"), { ok: true, value: false });
+  assert.deepEqual(evalExpr("true or false"), { ok: true, value: true });
+  assert.deepEqual(evalExpr("(and true false true)"), {
+    ok: true,
+    value: false,
+  });
+  // A short-circuited operand is never reached, so `:missing` never raises `ol-undefined-var`.
+  assert.deepEqual(evalExpr("false and :missing"), { ok: true, value: false });
 });
 
-test("isSupportedExpression rejects a not/and/or call with an unsupported operand", () => {
-  assert.equal(
-    isSupportedExpression(parseExpr("not (nonexistent_builtin 1)")),
-    false,
-  );
-  assert.equal(
-    isSupportedExpression(parseExpr("true and (nonexistent_builtin 1)")),
-    false,
-  );
+test("a not/and/or call with an unresolvable operand callee raises, never reports a value", () => {
+  // Issue #815: this used to be a *shape* question answered by `isSupportedExpression`, and the
+  // answer was "unsupported", which meant the whole enclosing statement was silently skipped. The
+  // evaluator now ends in a diagnostic instead (`spec/execution-model.md:717-720`).
+  for (const source of [
+    "not (nonexistent_builtin 1)",
+    "true and (nonexistent_builtin 1)",
+  ]) {
+    const result = evalExpr(source);
+    assert.equal(result.ok, false, source);
+    assert.equal(result.diagnostic.code, "ol-unknown-command");
+    assert.deepEqual(result.diagnostic.params, {
+      name: "nonexistent_builtin",
+    });
+  }
 });

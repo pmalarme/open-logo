@@ -389,12 +389,23 @@ test("a comprehension whose body ends in an expression kind this evaluator does 
   assert.equal(result.events.length, 0);
 });
 
-test("a comprehension whose body has a leading statement kind this evaluator does not implement (If) is deferred entirely, no diagnostic", () => {
+test("a comprehension whose body has a leading statement kind this evaluator does not implement (If) reports it", () => {
+  // Issue #815: this comprehension used to be abandoned wholesale, with no diagnostic — the
+  // learner got an unbound `:out` and no reason. `spec/execution-model.md:717-720` requires
+  // evaluation to end in a value, an effect, or a diagnostic "at any depth", so the form this
+  // narrower body evaluator cannot run now says so by name.
   const result = execute(
     ":out = map n in [1] [\n  if true [\n    print 1\n  ]\n  :n\n]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => [
+      diagnostic.code,
+      diagnostic.stage,
+      diagnostic.params,
+    ]),
+    [["ol-not-implemented", "runtime", { name: "if" }]],
+  );
   assert.deepEqual(
     result.events.map((event) => event.kind),
     ["instruction"],
@@ -499,7 +510,11 @@ test("check() and execute() agree about ol-no-value for every registered primiti
       const statically = OL.check(ast, { profiles, source }).diagnostics.some(
         (finding) => finding.code === "ol-no-value",
       );
-      const dynamically = execute(source, doc).diagnostics.some(
+      // Issue #815: `execute()` now checks under ITS OWN profile set, so the comparison must
+      // name the same one `check()` was given — `spec/execution-model.md:673-680`'s "One value
+      // MUST govern both the check and the run", stated as a test. Under the default set
+      // `challenge` is not visible at all and the answer is `ol-unknown-command` instead.
+      const dynamically = execute(source, doc, { profiles }).diagnostics.some(
         (finding) => finding.code === "ol-no-value",
       );
       assert.equal(
