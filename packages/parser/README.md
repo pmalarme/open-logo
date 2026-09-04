@@ -20,7 +20,25 @@ options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`
 top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
 `modifiers` array drawn from the modifier vocabulary in
 [`tooling.md:278-280`](../../spec/tooling.md#L278-L280) — `declaration`, `reference`, `readonly`,
-`defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
+`defaultLibrary`, `listRole`, `blockRole`, `selectorRole` — plus one extension, `global`.
+
+`global` marks a `:variable` occurrence that resolves to a name the program declared `global`
+(issue #826). It is the reader-facing half of the variable-scoping ruling: a procedure's first
+*write* to a name it cannot see silently creates a private binding — correct, and deliberately never
+diagnosed ([`execution-model.md:441-446`](../../spec/execution-model.md#L441-L446)) — so nothing but
+the paint tells a learner that `:private = 1` and `:shared = 1` in one body mean different things.
+It is a **modifier rather than a sixteenth token class** because that is how `tooling.md` already
+models a grammar-derived sub-distinction over one lexical class: five bracket roles, one `bracket`
+class, exposed "as semantic-token modifiers where possible, even when the visible theme maps all
+roles to the same bracket color" ([`:83-84`](../../spec/tooling.md#L83-L84)), and the LSP list is
+open — "optional modifiers **such as** …". The normative class table is unchanged.
+
+It follows **resolution, not spelling**: a `local` that shadows a global does not carry it, a
+procedure parameter of the same name does not, and a root-scope `local` — which
+[`execution-model.md:520-526`](../../spec/execution-model.md#L520-L526) says "leaves it global" —
+does not remove it. `src/global-variable-resolution.ts` owns that scope walk and documents each
+clause behind it; `highlight()` exposes its answer as `Token.global` so a class-only consumer can
+read it without re-analysis.
 
 `options` is optional on both (`HighlightOptions`); `document` is **required** on both, and that is
 a rule rather than an accident. **A `document` parameter may keep a default only where it is the

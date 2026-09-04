@@ -32,6 +32,12 @@
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
  *    always gets `defaultLibrary` (`tooling.md:279`'s literal example).
+ *  - `:variable` occurrences that resolve to a name the program declared `global` get `global`
+ *    (issue #826) — read straight through from {@link Token.global}, which `highlight.ts` resolves
+ *    with a scope-aware walk (`global-variable-resolution.ts`). This is the modifier that lets a
+ *    reader tell `:private = 1` from `:shared = 1` at the assignment site, the one case
+ *    `spec/execution-model.md:441-446` rules is correct and therefore never diagnoses. It follows
+ *    **resolution, not spelling**: a `local` shadowing a global does not carry it.
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
  *    `"field-list"` have no named LSP modifier in `tooling.md:278-280` and so contribute none.
@@ -53,8 +59,17 @@ import type {
 import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md:281-283`, in the document's own
- * order.
+ * The LSP-style semantic-token modifiers this parser emits: the seven from `spec/tooling.md:281-283`
+ * in the document's own order, then `global` (issue #826).
+ *
+ * `global` is an **extension**, and a permitted one: that section is Informative and lists its seven
+ * "optional modifiers **such as** …", so the list is open. It carries the one thing a learner cannot
+ * otherwise see — whether a `:name` inside a procedure reaches shared state or creates a private
+ * binding — on the modifier channel rather than as a sixteenth token class, following
+ * `spec/tooling.md:83-84`'s own treatment of the five bracket roles: one lexical class, the
+ * grammar-derived sub-distinction exposed "as semantic-token modifiers where possible, even when
+ * the visible theme maps all roles to the same bracket color". The normative 15-class table is
+ * therefore unchanged.
  */
 export const OL_TOKEN_MODIFIERS = [
   "declaration",
@@ -64,6 +79,7 @@ export const OL_TOKEN_MODIFIERS = [
   "listRole",
   "blockRole",
   "selectorRole",
+  "global",
 ] as const;
 
 /** One LSP-style semantic-token modifier. */
@@ -146,6 +162,9 @@ function modifiersFor(
     readonlyReads.has(posKey(token.source_span.start))
   ) {
     modifiers.push("readonly");
+  }
+  if (token.global === true) {
+    modifiers.push("global");
   }
   return modifiers;
 }
