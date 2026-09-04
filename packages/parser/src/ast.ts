@@ -269,7 +269,7 @@ export interface PostfixExpressionNode extends NodeBase {
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
  * place). The parser also accepts a non-place expression here — a reporter/command call such as
  * `first :x = 5`, or a bare literal/list such as `3 = 5`/`count :nums = 3` — purely so the
- * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:214-220`)
+ * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:215-221`)
  * at `stage: "semantic"` instead of a blunt parse error. The runtime only ever sees a `Place`,
  * because `check()` rejects every non-place target first.
  */
@@ -284,7 +284,7 @@ export interface AssignNode extends NodeBase {
  * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
  * names carry their own spans so the checker can point `ol-duplicate-binder`
  * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
- * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:388`.)
+ * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:390`.)
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
@@ -463,7 +463,7 @@ export interface ThrowNode extends NodeBase {
 /**
  * `add value to target` — append `value` to the list `target` (Data profile,
  * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
- * `spec/execution-model.md:710-745`). A statement, never a reporter — it mutates in place and
+ * `spec/execution-model.md:751-786`). A statement, never a reporter — it mutates in place and
  * returns nothing. Runtime evaluation lands in its own Data-profile slice.
  */
 export interface AddNode extends NodeBase {

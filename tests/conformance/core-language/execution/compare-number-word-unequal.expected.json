@@ -1,5 +1,5 @@
 {
-  "description": "Number\u2194word equality is by the number's printed form, not by re-parsing the word: `5 == \"05\"` is `false` because `5` prints as `\"5\"`, not `\"05\"` (spec/execution-model.md:761-763). Issue #96.",
+  "description": "Number\u2194word equality is by the number's printed form, not by re-parsing the word: `5 == \"05\"` is `false` because `5` prints as `\"5\"`, not `\"05\"` (spec/execution-model.md:802-804). Issue #96.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

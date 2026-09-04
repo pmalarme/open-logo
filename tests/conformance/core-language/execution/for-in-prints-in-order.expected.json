@@ -1,5 +1,5 @@
 {
-  "description": "Core for <binder> in <list> [ body ] iterates list elements in order, binding the bare-name binder each turn (spec/execution-model.md:660-661). Issue #103.",
+  "description": "Core for <binder> in <list> [ body ] iterates list elements in order, binding the bare-name binder each turn (spec/execution-model.md:701-702). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

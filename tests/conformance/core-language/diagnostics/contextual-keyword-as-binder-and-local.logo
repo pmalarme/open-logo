@@ -5,7 +5,7 @@
 # `member` binds a `for ... from ... to` counter, and `of` is bound with `local` and then assigned
 # and read. None raises ol-reserved-word twice over: they are not built-in names at all, and under
 # maintainer ruling #833 (issue #837) no BINDING position raises it for any name -- `local` is not
-# one of the grammar's four declaration slots (spec/grammar.md:384,388). Every read resolves, so the
+# one of the grammar's four declaration slots (spec/grammar.md:384,390). Every read resolves, so the
 # checker reports nothing. The carve-out that makes these four special is proven at the DECLARATION
 # slot instead, by contextual-keyword-as-procedure-name.
 for empty in [1 2 3] [ print :empty ]

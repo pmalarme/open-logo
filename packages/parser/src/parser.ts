@@ -116,7 +116,7 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * four event heads) is deliberately excluded: this reader is profile-blind by design (see
  * {@link PROFILE_STATEMENT_FORMS}), so it shapes a program that declares `ask` as an ordinary
  * `define`/call pair rather than a profile statement. Since issue #841 the *checker* then raises
- * `ol-reserved-word` on that declaration — `spec/grammar.md:410` makes profile words built-in names
+ * `ol-reserved-word` on that declaration — `spec/grammar.md:412` makes profile words built-in names
  * unconditionally — but which diagnostic to raise is the checker's question, not this set's, and
  * rejecting them in value position is a third rule again (issue #864).
  *
@@ -124,10 +124,10 @@ const EXPRESSION_INITIAL_KEYWORDS: ReadonlySet<string> = new Set<string>([
  * `insert`/`clear` by keyword *before* any expression is read, and the bare-key positions
  * (`key-term`, `dict-key`, `.field`) read a raw `name` token rather than a primary — "Dictionary
  * keys and selector bare keys are data, not declarations, so built-in names are legal keys"
- * (`spec/grammar.md:408`) still holds.
+ * (`spec/grammar.md:410`) still holds.
  *
  * A `bare-place` (`set value to 1`) also reads a raw `name`, so it too is untouched here. It is a
- * **binding** rather than data, and `spec/grammar.md:388` makes binding any name — keyword
+ * **binding** rather than data, and `spec/grammar.md:390` makes binding any name — keyword
  * included — a conforming program, so nothing rejects it at either layer; this set neither adds nor
  * removes that.
  */
@@ -940,7 +940,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * 1. The whole two-word tail must be there, so `print value of :d` ⏎
    *    `for i in [ 1 2 ] [ print :i ]` keeps its loop as a separate statement.
    * 2. `key` must not itself be the loop's **binder**. A `binder` is a `name`
-   *    (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:388`), so `key` is a
+   *    (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:390`), so `key` is a
    *    perfectly good binder and `for key in …`/`for key from …` satisfy condition 1 while being
    *    loops, not tails. The word after `key` settles it: `in`/`from` can only continue a loop, and
    *    neither can begin the reader's key expression, so declining on them costs no legal reading.
@@ -1608,7 +1608,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * above rather than of this function — which is why #962 fixed the other three and left it. It
    * needs no guard either: `value` is a reserved keyword that is never callable, so a bare `value`
    * in expression position "is the head of the heritage `value of … for key …` reader where
-   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:392`). There is
+   * Heritage is present, and nothing at all where it is not" (`spec/grammar.md:394`). There is
    * therefore no legal one-statement-per-line reading to swallow — `print value` ⏎ `of :d for key
    * :k` was four `ol-bad-token` before this.
    */
@@ -2070,7 +2070,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // parenthesized form is the only place they are callable — so they can never be a postfix base,
     // and a glued `[` after one is a list **argument**. Asking them the postfix question broke
     // `( and[true false] true )` into two `ol-bad-token`s while the spaced `( and [true false] true )`
-    // stayed clean (measured; `spec/grammar.md:392` gives the variadic form). Both spellings are
+    // stayed clean (measured; `spec/grammar.md:394` gives the variadic form). Both spellings are
     // pinned in `multiline-expressions.test.mjs`.
     //
     // A glued `[` is therefore **not** invariably a selector even among admitted heads, and the
@@ -2477,7 +2477,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
       // of the same spelling wins here and parses as an ordinary Core call, because the reader is
       // profile-blind: it never inspects the active profile set, so it cannot ask whether the word
       // is a profile head "right now". Since issue #841 the checker raises `ol-reserved-word` on
-      // that declaration whatever the profile set (`spec/grammar.md:410`), so the program is not
+      // that declaration whatever the profile set (`spec/grammar.md:412`), so the program is not
       // legal — but it must still be SHAPED as the learner wrote it, or the diagnostic would land
       // on the wrong node. Without this guard the reader would mis-shape ordinary code that shadows
       // one of these heads (see
@@ -2494,7 +2494,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:188, :216-221) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:188, :217-222) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`

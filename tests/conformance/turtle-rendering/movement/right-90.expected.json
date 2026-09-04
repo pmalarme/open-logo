@@ -1,5 +1,5 @@
 {
-  "description": "issue #201: `right 90` turns the turtle clockwise from the default heading `0`, emitting a `turn` event `{from:0, to:90}` and no `move`/`draw-segment` event (turning never translates) — spec/execution-model.md:800's clockwise convention and :857's `turn` payload shape.",
+  "description": "issue #201: `right 90` turns the turtle clockwise from the default heading `0`, emitting a `turn` event `{from:0, to:90}` and no `move`/`draw-segment` event (turning never translates) — spec/execution-model.md:841's clockwise convention and :898's `turn` payload shape.",
   "profiles": ["turtle-rendering"],
   "execute": true,
   "events": [

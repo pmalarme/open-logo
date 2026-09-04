@@ -1,5 +1,5 @@
 {
-  "description": "reduce whose accumulator name collides with its bare item binder raises ol-duplicate-binder (form: reduce) at runtime — the spec's own worked example (spec/execution-model.md:1173). Mirrors #114's checker shape, but at stage=runtime since execute() never runs check(). Issue #105.",
+  "description": "reduce whose accumulator name collides with its bare item binder raises ol-duplicate-binder (form: reduce) at runtime — the spec's own worked example (spec/execution-model.md:1214). Mirrors #114's checker shape, but at stage=runtime since execute() never runs check(). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

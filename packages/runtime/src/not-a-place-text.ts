@@ -2,7 +2,7 @@
  * The `ol-not-a-place` target-text derivation shared by the runtime's own `executeAssign` guard
  * (issue #94/#156) — mirrors the semantic checker's identical rule
  * (`packages/parser/src/checker-not-a-place.ts`, issue #79/#113) so both stages report the FULL
- * target surface text (`spec/tooling.md:214-220`'s worked example: `count :nums = 3` →
+ * target surface text (`spec/tooling.md:215-221`'s worked example: `count :nums = 3` →
  * `{text:"count :nums"}`), not just the offending callee's name. Deliberately duplicated rather
  * than imported: `checker-not-a-place.ts`'s renderer is a parser-internal module, not part of
  * `@openlogo/parser`'s public `index.ts` surface, so the runtime cannot depend on its internals

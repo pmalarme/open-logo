@@ -1,5 +1,5 @@
 {
-  "description": "issue #685 (slice I6): on_click is not a Core command — without the interaction-events profile it is rejected as ol-unknown-command (spec/interaction-events.md §Profiles and reservation: the event block-heads belong to the profile, and a profile decides whether such a word *works*). Together with on-click-visible-under-profile this proves the form end to end: profile active → checks clean; Core-only → rejected. Note this is the AVAILABILITY axis, which is legitimately profile-conditional, not the naming axis: whether a program may *declare* the name is unconditional (spec/grammar.md:410).",
+  "description": "issue #685 (slice I6): on_click is not a Core command — without the interaction-events profile it is rejected as ol-unknown-command (spec/interaction-events.md §Profiles and reservation: the event block-heads belong to the profile, and a profile decides whether such a word *works*). Together with on-click-visible-under-profile this proves the form end to end: profile active → checks clean; Core-only → rejected. Note this is the AVAILABILITY axis, which is legitimately profile-conditional, not the naming axis: whether a program may *declare* the name is unconditional (spec/grammar.md:412).",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

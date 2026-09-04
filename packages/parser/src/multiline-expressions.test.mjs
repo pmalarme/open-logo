@@ -840,7 +840,7 @@ test("#1025: a SPACED `[` after the head keeps the parenthesized call — adjace
 test("#1025: the postfix lookahead is NOT asked of the `and`/`or` heads, which are no primaries", () => {
   // The regression an earlier revision of this fix shipped, caught in review. `and`/`or` are
   // keywords admitted as heads here only because this parenthesized form is the one place they are
-  // callable (`spec/grammar.md:392`) — they answer false to `isCalleeName` and can never be the
+  // callable (`spec/grammar.md:394`) — they answer false to `isCalleeName` and can never be the
   // base of a postfix expression. Treating a glued `[` after one as a selector declined the call
   // branch, and `and` is then no primary at all: two `ol-bad-token`s for a legal variadic call.
   for (const head of ["and", "or"]) {

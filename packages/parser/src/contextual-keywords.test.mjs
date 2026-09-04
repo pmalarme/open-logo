@@ -12,7 +12,7 @@
 // position only" and "not built-in names", "and because the positions that make them structural are
 // positions no declaration can occupy, taking one of these names cannot make a definition
 // unreachable: `define of` is legal". The binder and `local` rows are bindings, which under
-// maintainer ruling #833 accept ANY name (spec/grammar.md:388) — so they no longer distinguish these
+// maintainer ruling #833 accept ANY name (spec/grammar.md:390) — so they no longer distinguish these
 // four from a keyword, and are kept as parse-shape coverage rather than as evidence of the carve-out.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its public

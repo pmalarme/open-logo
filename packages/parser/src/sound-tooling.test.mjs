@@ -7,7 +7,7 @@
 //
 //   1. Highlighting — a Sound command name is an ordinary primitive call, not a block-head, so
 //      `highlight()` classifies it `primitive` (`spec/tooling.md:28-44`) and `semanticTokens()`
-//      layers `defaultLibrary` on it (`spec/tooling.md:279-281`), exactly as a Core command like
+//      layers `defaultLibrary` on it (`spec/tooling.md:280-282`), exactly as a Core command like
 //      `forward` is treated. Since issue #740 the highlighter DOES take an active-profile set, and
 //      that is precisely why this file matters: `spec/tooling.md:30` moves only "a profile's
 //      block-heads and its mode-switch commands" into `keyword` while
@@ -133,7 +133,7 @@ test("semanticTokens: each Sound command call carries the defaultLibrary modifie
 
 test("semanticTokens: every Sound command carries defaultLibrary when nested in a whole program", () => {
   // The nested counterpart of the top-level check above: all five commands, in awkward positions,
-  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:279-281).
+  // must still surface as `primitive` + `defaultLibrary` semantic tokens (spec/tooling.md:280-282).
   const tokens = OL.semanticTokens(NESTED_SOUND_PROGRAM, doc);
   for (const name of Object.keys(SOUND_CALLS)) {
     const token = tokens.find((t) => t.text === name);

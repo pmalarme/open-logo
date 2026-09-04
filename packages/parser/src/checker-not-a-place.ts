@@ -4,9 +4,9 @@
  * structurally accepts a reporter/command call or a bare literal/list in target position —
  * `first :x = 5`, `count :nums = 3`, `3 = 5` — so this rule can explain the mistake with the exact
  * shape the spec's worked example mandates instead of a blunt parse error
- * (`spec/error-model.md`, `spec/tooling.md:214-220`).
+ * (`spec/error-model.md`, `spec/tooling.md:215-221`).
  *
- * `spec/tooling.md:214-220` mandates `count :nums = 3` → `ol-not-a-place`,
+ * `spec/tooling.md:215-221` mandates `count :nums = 3` → `ol-not-a-place`,
  * `params: { text: "count :nums" }` — the FULL target surface text, not just the callee name.
  *
  * Two text-recovery paths, in priority order:
@@ -349,7 +349,7 @@ function messageFor(text: string): string {
 /**
  * The `ol-not-a-place` rule: every assignment whose target is not a `Place` raises one diagnostic
  * at the target's span, with its exact surface text carried as the `text` param
- * (`spec/tooling.md:214-220`). Prefers slicing `source` (exact for any shape); falls back to
+ * (`spec/tooling.md:215-221`). Prefers slicing `source` (exact for any shape); falls back to
  * reconstructing the text from the AST when no `source` is available — see the module doc
  * comment.
  */

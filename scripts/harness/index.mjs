@@ -241,7 +241,7 @@ function validateHostInput(hostInput) {
  * entry.
  *
  * Each entry MUST be a **string**: it is the raw text a learner would have typed, and `input`
- * classifies it as a number or a word by parsing it (`spec/interaction-events.md:182-183`). A
+ * classifies it as a number or a word by parsing it (`spec/interaction-events.md:184-185`). A
  * fixture writing the bare JSON number `42` instead of `"42"` is therefore rejected here rather than
  * silently reaching `execute()` — it would look like proof of the number branch while actually
  * skipping the very parse that branch is about. Validated as strictly as `events` above, for the

@@ -20,7 +20,7 @@
  *
  * - **Binding.** A keyword is free in every binding position — `:end = 1`, `set end to 1`,
  *   `make "end" 1`, `local count`, a parameter, a `for`/comprehension binder, a struct field, a
- *   dictionary key (`spec/grammar.md:388`, a normative MUST). The rule is enforced at the four
+ *   dictionary key (`spec/grammar.md:390`, a normative MUST). The rule is enforced at the four
  *   *declaration slots* instead, which is what makes it unbypassable — see
  *   `checker-reserved-word.ts`.
  * - **Highlighting.** `mod` is on this list for the same reason `and`, `or`, and `not` are: all
@@ -145,20 +145,20 @@ const KEYWORDS = new Set<string>(OL_KEYWORDS);
  * **Two different questions read this registry, and only one of them is profile-gated.** Confusing
  * them is what issue #841 came to fix, so the split is stated here rather than at each call site:
  *
- * - **May a program declare this name?** No. `spec/grammar.md:410` makes profile words built-in
+ * - **May a program declare this name?** No. `spec/grammar.md:412` makes profile words built-in
  *   names **unconditionally** — "a program cannot declare which profiles it requires … so a name
  *   that could be declared in one implementation but not in another would be invisible and
  *   unpredictable to a learner", and "what a profile decides is whether a name *works*, never
  *   whether a program may declare it". {@link isKeywordInAnyProfile} answers this one, and takes no
  *   profile set because there is none to take. It is about the four **declaration** slots only:
- *   `spec/grammar.md:388` makes accepting any of these words as a **binding** a MUST, so
+ *   `spec/grammar.md:390` makes accepting any of these words as a **binding** a MUST, so
  *   `local ask` and `for ask in :xs` stay legal whatever the profile set.
  * - **Does this word paint as a keyword?** Only while its profile is active, which
  *   `spec/tooling.md:30`'s `keyword` row states directly ("Profile words … take this class while
  *   their profile is active"). {@link isKeyword}'s two-argument form answers this one and stays
  *   profile-gated, because here the gate is what the spec asks for.
  *
- * Issue #855 aligned the rest of the spec with the `:410` ruling, so `turtles-and-sprites.md:154`,
+ * Issue #855 aligned the rest of the spec with the `:412` ruling, so `turtles-and-sprites.md:154`,
  * `interaction-events.md#profiles-and-reservation`, and `spec/tooling.md:100-104` state the
  * unconditional rule too.
  */
@@ -203,7 +203,7 @@ export function profileKeywords(profile: string): readonly string[] {
  * never gets a match here. Matching is case-insensitive, like {@link isKeyword}.
  *
  * **"Not a keyword here" does not mean "an ordinary name".** This is the paint/position axis only:
- * a word that fails this test still may not be **declared**, because `spec/grammar.md:410` makes
+ * a word that fails this test still may not be **declared**, because `spec/grammar.md:412` makes
  * profile words built-in names unconditionally — ask {@link isKeywordInAnyProfile} for that.
  * Under Core alone `when` is not painted as a keyword and is not structural in value position, yet
  * `define when` is still `ol-reserved-word`.
@@ -235,7 +235,7 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
 
 /**
  * Is `name` a keyword of Core **or of any profile at all**, active or not? This is the
- * **declaration** axis of `spec/grammar.md:410` — "what a profile decides is whether a name
+ * **declaration** axis of `spec/grammar.md:412` — "what a profile decides is whether a name
  * *works*, never whether a program may declare it" — so `ask`, `tell`, `when` and friends answer
  * `true` here even for a Core-only program, and `define ask` is `ol-reserved-word` in every
  * conformance profile set.
@@ -247,7 +247,7 @@ const ALL_KEYWORD_PROFILES: readonly string[] =
  * does ask for a gate.
  *
  * "Declare" is exact: this is the four declaration slots of `spec/grammar.md:384`, not bindings.
- * `spec/grammar.md:388` makes accepting a keyword as a **binding** a MUST, so `local ask` stays
+ * `spec/grammar.md:390` makes accepting a keyword as a **binding** a MUST, so `local ask` stays
  * legal whatever this answers.
  */
 export function isKeywordInAnyProfile(name: string): boolean {
@@ -270,8 +270,8 @@ export function isKeywordInAnyProfile(name: string): boolean {
  * re-derived there. `checker-style.ts` also calls this form, but passes *every* keyword-contributing
  * profile, so it is asking the unconditional question through the two-argument door. The callers
  * that ask the *declaration* question — whether a program may **declare** the name — moved to
- * {@link isKeywordInAnyProfile}, because `spec/grammar.md:410` makes that answer
- * profile-independent. None of them asks about **bindings**, which `spec/grammar.md:388` requires
+ * {@link isKeywordInAnyProfile}, because `spec/grammar.md:412` makes that answer
+ * profile-independent. None of them asks about **bindings**, which `spec/grammar.md:390` requires
  * every consumer to accept regardless.
  *
  * Returns a plain `boolean` rather than a type predicate: matching is case-insensitive, so a

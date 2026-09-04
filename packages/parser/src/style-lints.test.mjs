@@ -404,7 +404,7 @@ function nameCaseNames(source, profiles = ALL_PROFILES) {
 test("ol-style-name-case: every silent row of issue #854's reported table now warns", () => {
   // The defect table verbatim. The first three rows already warned before #854 and must keep
   // warning (a widening must not trade one gap for another); the last four were silent, which is
-  // the bug: `spec/tooling.md:242` requires that "built-ins should be shown lowercase", and
+  // the bug: `spec/tooling.md:243` requires that "built-ins should be shown lowercase", and
   // `forward` is the first command a learner ever types.
   const cases = [
     ["TO f\nreturn 1\nend", ["TO"]],
@@ -650,7 +650,7 @@ test("ol-style-name-case: a built-in keeps its identity even when a program ille
 });
 
 test("ol-style-name-case: a bare word-literal key is data, never a miscased built-in", () => {
-  // Dictionary and selector keys may be written bare, and `spec/grammar.md:388` makes a keyword
+  // Dictionary and selector keys may be written bare, and `spec/grammar.md:390` makes a keyword
   // free in every binding position — a key included. A learner writing `{ PRINT: 1 }` has named a
   // key, not miscased the `print` primitive. Reporting it would also be inconsistent, since
   // `{ Alpha: 1 }` (no built-in collision) is left alone; the control pins that symmetry.
@@ -687,7 +687,7 @@ test("ol-style-name-case: a built-in callee is reported once, keeping the identi
 });
 
 test("ol-style-name-case: built-in casing is judged the same under any profile set", () => {
-  // A built-in name's *identity* is profile-independent (`spec/grammar.md:410`: a program cannot
+  // A built-in name's *identity* is profile-independent (`spec/grammar.md:412`: a program cannot
   // declare which profiles it requires, so "what a profile decides is whether a name *works*,
   // never whether a program may declare it"). Whether `forward` is available is
   // `ol-unknown-command`'s job; its casing is not. This also pins that a Core-only caller keeps

@@ -571,8 +571,8 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
 /**
  * Default arities for the **Sound** profile's primitives (issue #689,
  * [`spec/interaction-events.md`](../../../spec/interaction-events.md)'s "Sound primitives"
- * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:332-345`)
- * and `beep` takes none (`spec/interaction-events.md:382-397`) — the two primitives slice S1 (#689)
+ * section). `set_tempo` takes one number (the beats-per-minute, `spec/interaction-events.md:334-347`)
+ * and `beep` takes none (`spec/interaction-events.md:384-399`) — the two primitives slice S1 (#689)
  * delivered; `note`/`rest` arrived with #690 and `play` with #691, so all five are registered
  * below, each a bare `Call` grouped by its arity exactly as `set_width`/`grid` are. Kept as
  * its own table for the same reason {@link TURTLE_PRIMITIVE_ARITY}/{@link GEOMETRY_PRIMITIVE_ARITY}
@@ -581,7 +581,7 @@ export function interactionEventsBlockHeadNames(): readonly string[] {
  * arguments for *any* recognized primitive regardless of profile — the profile-legality decision
  * belongs to the checker, not the reader. Sound command names are ordinary primitive names (not
  * reserved block-heads) whose availability requires the profile (`spec/interaction-events.md:47`;
- * the names themselves are built-in unconditionally per `spec/grammar.md:410`).
+ * the names themselves are built-in unconditionally per `spec/grammar.md:412`).
  */
 const SOUND_PRIMITIVES: readonly PrimitiveRow[] = [
   ["set_tempo", "command", 1],

@@ -231,7 +231,7 @@ test("the Data mutation statement heads still parse as statements", () => {
 
 test("keywords are still legal data — dict keys, fields, and bare selector keys", () => {
   // "Dictionary keys and selector bare keys are data, not declarations, so built-in names are legal
-  // keys" (`spec/grammar.md:408`). `[key]` is the BARE `identifier` alternative of `key-term`
+  // keys" (`spec/grammar.md:410`). `[key]` is the BARE `identifier` alternative of `key-term`
   // (`spec/grammar.md:114`) — the case that actually routes through `parseKeyTerm`'s `name` branch,
   // which a quoted `["key"]` word literal would not exercise.
   const sources = [
@@ -246,7 +246,7 @@ test("keywords are still legal data — dict keys, fields, and bare selector key
     assert.deepEqual(
       OL.parse(source, doc).diagnostics,
       [],
-      `\`${source}\` uses a keyword as data, which stays legal (spec/grammar.md:408)`,
+      `\`${source}\` uses a keyword as data, which stays legal (spec/grammar.md:410)`,
     );
   }
 });
@@ -255,7 +255,7 @@ test("a keyword as a bare place still parses, and binding it is legal", () => {
   // `set value to 1` is a BINDING, not data: `bare-place` reads a raw `name` token, so the reader
   // is unaffected by the expression-position guard. This test asserted the checker REJECTED that
   // binding when #853 landed, which was true then; maintainer ruling #833 (spec merged in #875,
-  // implemented for the parser by #837) reverses it. `spec/grammar.md:388` now makes accepting any
+  // implemented for the parser by #837) reverses it. `spec/grammar.md:390` now makes accepting any
   // name in a binding position a normative MUST — "An implementation MUST NOT raise
   // `ol-reserved-word` — or any other diagnostic — for the name alone in any of those positions, at
   // any stage" — and enforcement moved to the four declaration slots, which `bare-place` is not

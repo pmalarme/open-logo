@@ -94,10 +94,10 @@ wait 8
 
 The three handlers print `10`, `20`, and `30` — not the same value three times.
 
-**A procedure frame lives as long as any handler registered inside it may still
-run.** A handler registered in a procedure body keeps working after the call that
-registered it has returned, reading the parameters and locals of the frame it was
-written in:
+**A scope lives as long as any handler registered inside it may still run** — a
+block scope as much as a procedure frame. A handler registered in a procedure
+body keeps working after the call that registered it has returned, reading the
+parameters and locals of the frame it was written in:
 
 ```logo
 define setup :speed
@@ -111,12 +111,14 @@ That program prints `10`. This is a rule about lifetime, not about values: block
 are still not values, and v0.1 still has no lambda and no first-class procedure
 value.
 
-`return` and `stop` inside a handler block follow their ordinary rule — they exit
-the procedure the block is written in. When that procedure's original call has
-already returned, the handler invocation is what remains of it, so the invocation
-ends cleanly. A handler block written at the top level is outside any procedure,
-so `return` raises `ol-return-outside-proc` and `stop` raises
-`ol-stop-outside-proc` there, exactly as in any other top-level block.
+`return` and `stop` inside a handler block follow their ordinary rule — a handler
+block is not a procedure body, so they are outside any procedure and raise
+`ol-return-outside-proc` or `ol-stop-outside-proc` even when the handler was
+registered inside a `define`. Capturing the registering frame's bindings does not
+put the handler inside that procedure's control flow: a `return` in a handler
+firing while the registering call is still on the stack would otherwise be
+consumed as that call's own result, and one firing after it returned would have
+no procedure to leave.
 
 A `global` declaration is legal only at the root scope, so a handler block never
 contains one; `global name = value` inside a handler raises

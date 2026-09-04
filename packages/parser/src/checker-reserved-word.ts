@@ -39,14 +39,14 @@
  * ruling ("reserved word is reserved word") that extended this rule to *every form that introduces
  * a name*, so at the previous HEAD all 43 keywords raised `ol-reserved-word` from every binding
  * position — measured: `:end = 7` parsed clean, ran clean and printed `7`, yet checked
- * `ol-reserved-word`. #833 overrules that: `spec/grammar.md:388` now requires that an
+ * `ol-reserved-word`. #833 overrules that: `spec/grammar.md:390` now requires that an
  * implementation "MUST NOT raise `ol-reserved-word` — or any other diagnostic — for the name alone
  * in any of those positions, at any stage", and names `local` among them. Do not reinstate a
  * binding-position check here; the sentence #739 relied on ("may not be redefined as variables") is
  * gone from the spec.
  *
  * **Why the declaration slots are the complete enforcement point**, in the spec's own words
- * (`spec/grammar.md:390`): "A restriction on a binding form is bypassable, because `local` is
+ * (`spec/grammar.md:392`): "A restriction on a binding form is bypassable, because `local` is
  * optional and the same name can be bound with `<place> = <value>` instead; the four declaration
  * slots are the only way to register a callable, so there is nothing to bypass." That is also why
  * `local` moved out: `local foo` registers nothing callable — a later `foo` call raises
@@ -62,13 +62,13 @@
  * make `forward 100` illegal.
  *
  * **`alias` is a declaration slot with nothing to check yet.** Only its *first* operand declares
- * (`spec/grammar.md:412`) — `alias definir define` is legal, which is how a localized keyword pack
+ * (`spec/grammar.md:414`) — `alias definir define` is legal, which is how a localized keyword pack
  * renames a keyword. Modules is a later profile and `ast.ts` has no `AliasDefNode`, so the slot has
  * no node to reach; it is listed here so the day it gains one, the fourth slot is wired rather than
  * rediscovered.
  *
  * **`struct` field names and dictionary keys stay legal even when built in**, because they are not
- * in the callable namespace at all: `spec/grammar.md:408` — "Record field names live in a per-type
+ * in the callable namespace at all: `spec/grammar.md:410` — "Record field names live in a per-type
  * namespace reached only by `.field` … Dictionary keys and selector bare keys are data, not
  * declarations, so built-in names are legal keys." So `struct point [ repeat y ]` and `{ end: 1 }`
  * check clean, by design.
@@ -88,7 +88,7 @@
  *   `@openlogo/core`'s {@link builtInNameMessage}, *"`<name>` is already part of OpenLogo. choose
  *   another name."*, and the words *keyword*, *primitive* and *alias* MUST NOT appear in it.
  * - **`ol-duplicate-definition` — something in the program already declares this name.** The
- *   `procedure` and `struct` namespaces move here (`spec/grammar.md:414`), and the code carries
+ *   `procedure` and `struct` namespaces move here (`spec/grammar.md:416`), and the code carries
  *   **both** spans: `source_span` at the later declaration, `original_span` in `params` at the
  *   earlier one, so the message can name the line the learner already used
  *   ({@link duplicateDefinitionDiagnostic}). It is deliberately *not* `ol-reserved-word`: a name the
@@ -101,8 +101,8 @@
  * what keeps the two codes interleaved in **source order** rather than grouped by code.
  *
  * **What counts as a built-in name lives in `built-in-names.ts`, not here.**
- * `spec/grammar.md:416` makes the set "exactly the keywords listed above plus every primitive …
- * and every alias spelling", and `:410` makes it profile-independent, so this rule asks one
+ * `spec/grammar.md:418` makes the set "exactly the keywords listed above plus every primitive …
+ * and every alias spelling", and `:412` makes it profile-independent, so this rule asks one
  * question of one predicate ({@link isBuiltInName}) and takes no profile set at all.
  *
  * Two properties of that predicate this rule depends on, both guaranteed there rather than here:
@@ -198,7 +198,7 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  *
  * Every **binding** position — `local`, an assignment target, a `for`/comprehension binder, a
  * destructuring name, a `reduce` accumulator, a procedure parameter, a struct field, a dictionary
- * key — is deliberately not visited: `spec/grammar.md:388` makes accepting them a MUST.
+ * key — is deliberately not visited: `spec/grammar.md:390` makes accepting them a MUST.
  *
  * Findings are returned in **source order**, which the walk's pre-order gives directly now that
  * only a declaration's own name is checked, and across both codes because one walk emits both.
@@ -230,12 +230,12 @@ function isStructDef(node: AnyNode): node is StructDefNode {
  *
  * `checker-names.ts` and `checker-arity.ts` keep their own profile gates, and correctly so: those
  * rules answer "is this name *visible* to call", which is precisely what a profile decides
- * (`spec/grammar.md:410`). This rule answers "may the program declare it", which a profile never
+ * (`spec/grammar.md:412`). This rule answers "may the program declare it", which a profile never
  * decides. Same word, two different questions.
  *
  * **It therefore takes no profile set at all.** Do not add one back: a parameter a rule does not
  * consult is a claimed dependency that does not exist, and a profile-gated answer here is the
- * outcome `:410` forbids.
+ * outcome `:412` forbids.
  */
 export function declarationSlotRule(
   program: ProgramNode,

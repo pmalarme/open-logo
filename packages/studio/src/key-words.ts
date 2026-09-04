@@ -1,6 +1,6 @@
 /**
  * Browser key → OpenLogo key word normalization (#952) for `on_key`
- * (`spec/interaction-events.md:267-271`).
+ * (`spec/interaction-events.md:269-273`).
  *
  * `on_key`'s entry says key words "are lowercase words such as `"space"`, `"enter"`, `"left"`,
  * `"right"`, `"up"`, `"down"`, or a single printable character word such as `"a"`", and then makes

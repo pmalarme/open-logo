@@ -14,7 +14,7 @@
 # really has no partner IS still reported — without which a parser could satisfy this file by
 # never emitting the class at all.
 #
-# A reserved word cannot be a `callable-name` (`spec/grammar.md:392`), which is what makes each
+# A reserved word cannot be a `callable-name` (`spec/grammar.md:394`), which is what makes each
 # paren row malformed. The rows use Data and Heritage names, so both profiles are active.
 print ( set 1 )
 print ( if 1 )

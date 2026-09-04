@@ -56,7 +56,7 @@ import {
  *   `OL_PROFILE_KEYWORDS` (`ask`/`each`/`tell`, the four event heads).
  * - {@link OL_KEYWORDS} for Core alone. This is the one arm that names a profile, and it is not a
  *   ladder rung: Core's keyword list is *defined* as the profile-independent one
- *   (`keywords.ts`, `spec/grammar.md:410`), so it cannot be reached through a profile-keyed table,
+ *   (`keywords.ts`, `spec/grammar.md:412`), so it cannot be reached through a profile-keyed table,
  *   and a keyword added to it is still picked up here with no edit.
  *
  * **Why one function rather than two similar loops.** Before this, an `OPTIONAL_PROFILE_NAMES`

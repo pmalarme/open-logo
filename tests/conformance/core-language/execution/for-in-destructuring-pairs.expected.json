@@ -1,5 +1,5 @@
 {
-  "description": "Destructuring binder [ :x :y ] binds each 2-element list positionally on every turn (spec/execution-model.md:720-722,1120-1135). Issue #103.",
+  "description": "Destructuring binder [ :x :y ] binds each 2-element list positionally on every turn (spec/execution-model.md:761-763,1161-1176). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -65,7 +65,7 @@ plainly here because "in both directions" over-describes two of them:
    merely different in principle: measured, they disagree on exactly the four word-spelled
    operators `and`, `or`, `not` and `mod`, which are `category: "keyword"` and painted `operator`.
    They also carry different profile semantics — `category` is unconditional
-   (`spec/grammar.md:410`), while `tokenClass` is the class *while the entry's own profile is
+   (`spec/grammar.md:412`), while `tokenClass` is the class *while the entry's own profile is
    active*.
 
 2. **The class is measured, not asserted.** The gate re-paints every name through `highlight()` in
@@ -74,7 +74,7 @@ plainly here because "in both directions" over-describes two of them:
    place — and requires **every position to yield at least one token** and every token in every
    position to carry the declared class. Both halves matter: unioning the classes let a position
    that painted nothing hide behind the others. The eight non-head positions are where the grammar
-   admits a keyword as an ordinary name (`spec/grammar.md:388`), so the manifest's
+   admits a keyword as an ordinary name (`spec/grammar.md:390`), so the manifest's
    `positionIndependence` claim is executed rather than assumed. Two measurements with two
    referents: the inventory is manifest-declared — at **spec version 0.1.0**, **148 names, 97
    `primitive`, 47 `keyword`, 4 `operator`** — while **148 of 148 position-invariant** is a painting

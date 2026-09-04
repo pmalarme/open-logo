@@ -12,7 +12,7 @@ import * as OL from "@openlogo/parser";
  * **Three axes, and only two of them are the profile's to decide.** Visibility and arity are
  * genuinely profile-scoped — `spec/tooling.md:175-176` gates which names are *available*, so
  * without `data` a Data primitive is an unknown callee like any other undeclared name, and its
- * arity is nobody's business. **Reserved-word collision is not.** `spec/grammar.md:410` makes the
+ * arity is nobody's business. **Reserved-word collision is not.** `spec/grammar.md:412` makes the
  * primitives of every optional profile built-in names **unconditionally** — "what a profile decides
  * is whether a name *works*, never whether a program may declare it" — so a conforming 0.4.0
  * implementation raises `ol-reserved-word` on `define dict` with or without the profile claimed.
@@ -179,7 +179,7 @@ test("a struct type name colliding with a define'd procedure raises ol-duplicate
   });
   assert.equal(diagnostics.length, 1);
   // A name the PROGRAM declared is not a name OpenLogo owns, so #838 split this case out of
-  // `ol-reserved-word` (`spec/grammar.md:414`, `spec/error-model.md:126`) and gave it both spans.
+  // `ol-reserved-word` (`spec/grammar.md:416`, `spec/error-model.md:126`) and gave it both spans.
   assert.equal(diagnostics[0].code, "ol-duplicate-definition");
   assert.equal(diagnostics[0].params.name, "point");
   assert.deepEqual(diagnostics[0].params.original_span.start, [1, 8]);
@@ -208,7 +208,7 @@ test("two struct declarations sharing a name are checked in source order: the fi
 });
 
 test("#841: `dict` is a built-in name without the data profile, so `struct dict` raises", () => {
-  // `spec/grammar.md:410` — a profile decides whether a name works, never whether a program may
+  // `spec/grammar.md:412` — a profile decides whether a name works, never whether a program may
   // declare it — so `dict` is a built-in name under Core alone exactly as it is under Data. This is
   // the `ol-reserved-word` half, not `ol-duplicate-definition`'s.
   const ast = parseClean("struct dict [ x ]");

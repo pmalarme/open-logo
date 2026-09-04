@@ -1,5 +1,5 @@
 {
-  "description": "`between` also works on words, ordering them lexicographically like `<`/`>` (spec/execution-model.md:146-166, :771-773): `\"b\" is between \"a\" and \"c\"` is `true`. Issue #99.",
+  "description": "`between` also works on words, ordering them lexicographically like `<`/`>` (spec/execution-model.md:146-166, :812-814): `\"b\" is between \"a\" and \"c\"` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -1,6 +1,6 @@
 // Unit tests for `semanticTokens()` (issue #121): the LSP `textDocument/semanticTokens`-shaped
 // contract layered over `highlight()`'s token-class + delimiter-role output
-// (`spec/tooling.md:274-280`). Coverage mirrors that section's exact modifier vocabulary —
+// (`spec/tooling.md:275-281`). Coverage mirrors that section's exact modifier vocabulary —
 // `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`,
 // `selectorRole` — plus one end-to-end corpus fixture exercising every one of `highlight()`'s 15
 // token classes and 5 bracket delimiter roles at once (integrating issues #119 and #120).

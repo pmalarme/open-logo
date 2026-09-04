@@ -3,7 +3,7 @@
 // The maintainer ruling in `spec/grammar.md:365` is one sentence: **"A program may not declare a
 // built-in name. A program may bind a value to any name."** `spec/grammar.md:384` names the four
 // declaration slots (`define`, the heritage `to`, `struct`, and the first operand of `alias`), and
-// `spec/grammar.md:388` frees every binding form. For the curriculum that has one consequence in
+// `spec/grammar.md:390` frees every binding form. For the curriculum that has one consequence in
 // each direction: a lesson may name a variable, a parameter, a binder, or a dictionary key
 // anything at all, and a lesson may not *declare* a procedure or a record type whose name OpenLogo
 // already owns.
@@ -11,7 +11,7 @@
 // **Why this file exists and the sibling `level-N.test.mjs` files are not enough.** Every other
 // test in this package validates lesson content with `execute()`, which runs `parse()` and then
 // the evaluator — it never calls `check()`. `ol-reserved-word` is a `stage: "semantic"` diagnostic
-// (`spec/grammar.md:392`), so for a *procedure* declaration it is produced only by `check()`: a
+// (`spec/grammar.md:394`), so for a *procedure* declaration it is produced only by `check()`: a
 // lesson containing `define count` or `define forward` runs cleanly through every existing test in
 // this package and would ship. (The runtime's own phase-1 registration guard does catch some
 // `struct` collisions, so the hole is not total — but a procedure declaration, which is what the
@@ -19,8 +19,8 @@
 // putting the curriculum corpus through `check()` as well.
 //
 // **The independent half.** {@link builtInKind} does not ask `check()` whether a name is owned; it
-// evaluates the rule of `spec/grammar.md:363-365,416` directly off the registries `@openlogo/parser`
-// publishes — the keyword list under **every** profile (`spec/grammar.md:410` — profile words are
+// evaluates the rule of `spec/grammar.md:363-365,418` directly off the registries `@openlogo/parser`
+// publishes — the keyword list under **every** profile (`spec/grammar.md:412` — profile words are
 // built-in unconditionally), every primitive table, and every Heritage alias spelling. That is a
 // second, independent derivation of the same rule, so the two halves cross-check each other: a
 // curriculum name is reported the moment *either* the checker or the spec's own registries call it
@@ -49,7 +49,7 @@ import {
 } from "@openlogo/parser";
 
 /**
- * Every primitive table the spec's built-in-name set draws on (`spec/grammar.md:416` — "every
+ * Every primitive table the spec's built-in-name set draws on (`spec/grammar.md:418` — "every
  * primitive … assigned by the C3 primitive matrix and the profile documents"), including the
  * Turtle & Rendering, Educational and Tutor (AI) tables. Listing every one is what makes
  * {@link builtInKind} a derivation of the spec rather than a mirror of the checker's wiring.
@@ -73,7 +73,7 @@ const HERITAGE_ALIASES = new Set(heritageAliasNames());
  * Why `name` is a built-in name under the completed ruling, or `"free"` when a program may declare
  * it. Two things this deliberately does that a naive lookup would not:
  *
- * - **Profiles are never gated.** `spec/grammar.md:410` makes every profile's keywords and
+ * - **Profiles are never gated.** `spec/grammar.md:412` makes every profile's keywords and
  *   primitives built-in names whether or not that profile is claimed.
  * - **The name is folded first.** `spec/grammar.md:13` makes identifiers case-insensitive, so
  *   `define FD` declares the Heritage alias `fd` and must be caught as one.
@@ -243,7 +243,7 @@ test("the alias declaration slot is unreachable, so the corpus gate covers it", 
   assert.deepEqual(declaredNames("alias fd forward"), []);
 });
 
-// AC2: `spec/grammar.md:414` protects `spec/educational-model.md:169` ("Learners build `polygon`
+// AC2: `spec/grammar.md:416` protects `spec/educational-model.md:169` ("Learners build `polygon`
 // from `repeat`") by making the derived Geometry standard library OpenLogo *source* rather than
 // primitives — while the renderer-backed overlays of `spec/educational-model.md:219` stay built in.
 test("the Geometry standard library stays learner-buildable and the overlays stay built in", () => {
@@ -272,7 +272,7 @@ test("the Geometry standard library stays learner-buildable and the overlays sta
 
 // AC4: the meta-commands a learner asks for help with are themselves built-in names, so no lesson
 // may declare one. `challenge` is the Tutor (AI) profile's (`spec/conformance.md:239`, `:244`) and
-// reaches {@link builtInKind} through `tutorPrimitiveArity`; `spec/grammar.md:410` makes it owned
+// reaches {@link builtInKind} through `tutorPrimitiveArity`; `spec/grammar.md:412` makes it owned
 // whether or not that profile is claimed.
 test("no lesson declares an educational meta-command", () => {
   for (const name of ["explain", "why", "hint", "debug", "challenge"]) {

@@ -1,5 +1,5 @@
 // Unit tests for `for ... in`/`for ... from ... to ... by` loop mechanics and binder scoping
-// (issue #103, spec/execution-model.md:340,655-661,1120-1135). Conformance fixtures under
+// (issue #103, spec/execution-model.md:340,696-702,1161-1176). Conformance fixtures under
 // tests/conformance/core-language/execution/for-*.expected.json cover the event/diagnostic shape
 // end to end for the Given/When/Then scenarios; these unit tests fill in what a fixture cannot:
 // runtime-only edge cases (loop-variable scoping ending at runtime, nested repeat/for repcount

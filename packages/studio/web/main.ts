@@ -586,7 +586,7 @@ inputPromptCancelButton.addEventListener("click", () => {
 });
 inputPromptDialog.addEventListener("cancel", (event) => {
   // Escape. Same ending as the Cancel button — the read finishes unanswered, cancelling the run
-  // (`spec/interaction-events.md:156-157`) — routed through the controller so the two paths cannot
+  // (`spec/interaction-events.md:158-159`) — routed through the controller so the two paths cannot
   // diverge.
   event.preventDefault();
   inputPromptController.cancel();

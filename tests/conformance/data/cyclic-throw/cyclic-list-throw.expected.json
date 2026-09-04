@@ -1,5 +1,5 @@
 {
-  "description": "AC1 of issue #494 (findings G4/G5): `throw`'s learner-facing message MUST render a cyclic value via the whole-render memo (spec/execution-model.md:815-837) instead of overflowing the host call stack. `add :l to :l` makes `:l` a self-referential list; `throw :l` must halt with a structured `ol-user-error` (spec/commands.md `throw`, spec/error-model.md) whose message uses the bounded `...` placeholder for the repeated reference, not a host RangeError. Fixed by PR #538's runtime fixup (bc1b70d); this fixture is the missing conformance proof.",
+  "description": "AC1 of issue #494 (findings G4/G5): `throw`'s learner-facing message MUST render a cyclic value via the whole-render memo (spec/execution-model.md:856-878) instead of overflowing the host call stack. `add :l to :l` makes `:l` a self-referential list; `throw :l` must halt with a structured `ol-user-error` (spec/commands.md `throw`, spec/error-model.md) whose message uses the bounded `...` placeholder for the repeated reference, not a host RangeError. Fixed by PR #538's runtime fixup (bc1b70d); this fixture is the missing conformance proof.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #837, maintainer ruling #833): `local first` is ACCEPTED. `local` is a binding form, not one of the grammar's four declaration slots (`define`, the heritage `to`, `struct`, and the first operand of `alias` -- spec/grammar.md:384), and spec/grammar.md:388 names `local <name>` among the forms that MUST accept any name. The evidence for the reclassification is direct -- `local foo` registers nothing callable, so a later `foo` call raises `ol-unknown-command`. The declaration slots keep the full check; reserved-word-define-primitive pins that `define first` collides.",
+  "description": "ol-reserved-word (issue #837, maintainer ruling #833): `local first` is ACCEPTED. `local` is a binding form, not one of the grammar's four declaration slots (`define`, the heritage `to`, `struct`, and the first operand of `alias` -- spec/grammar.md:384), and spec/grammar.md:390 names `local <name>` among the forms that MUST accept any name. The evidence for the reclassification is direct -- `local foo` registers nothing callable, so a later `foo` call raises `ol-unknown-command`. The declaration slots keep the full check; reserved-word-define-primitive pins that `define first` collides.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

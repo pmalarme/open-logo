@@ -1,5 +1,5 @@
 {
-  "description": "issue #837 (maintainer ruling #833): the profile-INACTIVE half of the binding pair. The same three variable bindings check clean under `core-language` alone, and they check clean with `sprites` active too (reserved-bindings-with-sprites). Binding a built-in name is free in every position and under every profile set: spec/grammar.md:388 makes it a normative MUST, and spec/grammar.md:390 explains why enforcement sits at the four declaration slots instead. This is a `\"check\": true` fixture: it asserts the absence of the checker diagnostic, not execution — nothing is drawn and no events are produced.",
+  "description": "issue #837 (maintainer ruling #833): the profile-INACTIVE half of the binding pair. The same three variable bindings check clean under `core-language` alone, and they check clean with `sprites` active too (reserved-bindings-with-sprites). Binding a built-in name is free in every position and under every profile set: spec/grammar.md:390 makes it a normative MUST, and spec/grammar.md:392 explains why enforcement sits at the four declaration slots instead. This is a `\"check\": true` fixture: it asserts the absence of the checker diagnostic, not execution — nothing is drawn and no events are produced.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

@@ -105,7 +105,7 @@ test("at Core-only (turtle-rendering NOT active), forward is still not visible: 
   assert.equal(finding.params.suggestion, undefined);
 });
 
-test("issue #136 / spec/tooling.md:199-206 worked example: with turtle-rendering active, fowad suggests forward", () => {
+test("issue #136 / spec/tooling.md:200-207 worked example: with turtle-rendering active, fowad suggests forward", () => {
   // Parenthesized form, per the same reasoning as the Core-only known-gap test above: an
   // unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` would
   // leave `100` as a stray second statement on the line (a parse-stage ol-bad-token) — orthogonal

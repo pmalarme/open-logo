@@ -170,7 +170,7 @@ test("#838: the AC2 literal still matches the registries it was measured from", 
 });
 
 test("#838 AC2: every built-in name is rejected at `define`, whatever profiles are active", () => {
-  // "REGARDLESS of the active profile set, including Core-only" — `spec/grammar.md:410`: what a
+  // "REGARDLESS of the active profile set, including Core-only" — `spec/grammar.md:412`: what a
   // profile decides is whether a name *works*, never whether a program may declare it. The
   // Core-only column is the one that was failing: it is the profile set a beginner's program runs
   // under, and it is where `define forward` silently stopped the turtle.
@@ -346,7 +346,7 @@ test("#838 AC5: duplicate detection is NOT profile-gated — a struct duplicates
   //
   // The contrast to hold on to: `checker-names.ts` and `checker-arity.ts` DO gate structs on
   // `data`, and rightly — they answer "is this name visible to call", which is exactly what a
-  // profile decides (`spec/grammar.md:410`). This rule answers "may the program declare it", which
+  // profile decides (`spec/grammar.md:412`). This rule answers "may the program declare it", which
   // a profile never decides.
   for (const [label, source, laterLine] of [
     ["struct twice", "struct pt [ x ]\nstruct pt [ y ]\n", 2],
@@ -383,7 +383,7 @@ test("#838 AC3: the Geometry stdlib is a library — defining it is legal, redef
   // Maintainer ruling in #838: `polygon`/`circle`/`arc`/`star`/`area`/`perimeter` have `.logo`
   // files under `stdlib/geometry/`, so they are OpenLogo SOURCE, not names OpenLogo implements.
   // `spec/educational-model.md:169` — "Learners build `polygon` from `repeat`" — depends on the
-  // first `define polygon` staying clean, and `spec/grammar.md:414` makes a SECOND one
+  // first `define polygon` staying clean, and `spec/grammar.md:416` makes a SECOND one
   // `ol-duplicate-definition`, never `ol-reserved-word`. The overlays `grid`/`axes`/`measure` are
   // renderer-backed primitives and stay blocked (pinned by the geometry conformance fixtures).
   const stdlib = ["polygon", "circle", "arc", "star", "area", "perimeter"];
@@ -459,14 +459,14 @@ test("#742: the four Core-backed aliases are rejected, with the surface spelling
 });
 
 test("#841: no Heritage alias depends on a profile gate any more", () => {
-  // `spec/grammar.md:410` makes profile words built-in unconditionally, so no alias spelling may
+  // `spec/grammar.md:412` makes profile words built-in unconditionally, so no alias spelling may
   // be declared under any profile set. Sweeping the whole registry rather than naming groups is the
   // point: a future alias is covered without editing this test, and no two groups of aliases can
   // drift apart from each other.
   for (const alias of OL.heritageAliasNames()) {
     assert.ok(
       collides(alias, CORE_ONLY),
-      `${alias} is a built-in name unconditionally (spec/grammar.md:410,416)`,
+      `${alias} is a built-in name unconditionally (spec/grammar.md:412,418)`,
     );
   }
   // The Core-backed aliases, named explicitly so emptying the registry cannot make this vacuous.
@@ -480,7 +480,7 @@ test("#841: no Heritage alias depends on a profile gate any more", () => {
   for (const alias of HERITAGE_TURTLE_ALIASES) {
     assert.ok(
       collides(alias, CORE_ONLY),
-      `${alias} is a built-in name unconditionally (spec/grammar.md:410,416)`,
+      `${alias} is a built-in name unconditionally (spec/grammar.md:412,418)`,
     );
   }
 });
@@ -564,7 +564,7 @@ test("#746: every Sprites reporter collides while sprites is active", () => {
 test("#841: every Sprites reporter collides while the sprites profile is INACTIVE too", () => {
   // The other half of the pair above, and the discriminating variable is the profile set: the
   // same names, checked with and without `sprites`, must answer identically.
-  // `spec/grammar.md:410` — a profile decides whether a name works, never whether a program may
+  // `spec/grammar.md:412` — a profile decides whether a name works, never whether a program may
   // declare it — so a difference between these two tests would be the defect, not the point.
   for (const reporter of SPRITES_REPORTERS) {
     const raised = reservedWordFindings(`define ${reporter}\nend\n`, CORE_ONLY);

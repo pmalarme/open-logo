@@ -45,7 +45,7 @@ const isReservedWordFinding = (d) => d.code === "ol-reserved-word";
 
 // ── ol-not-a-place: reconciling #79's first cut to the spec worked example ──────────────────
 
-test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:214-220)", () => {
+test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:215-221)", () => {
   const diagnostics = checkSource(":nums = 1\ncount :nums = 3\n");
   const [finding] = diagnostics.filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");
@@ -738,7 +738,7 @@ test("thing is reachable in two categories at once; it is still reported exactly
 });
 
 test("#841: a Core primitive collides even with an EMPTY profile set", () => {
-  // The most extreme statement of `spec/grammar.md:410` available: no profile at all is claimed,
+  // The most extreme statement of `spec/grammar.md:412` available: no profile at all is claimed,
   // and `first` is still a name the program may not declare. Nothing consults the profile set on
   // this axis, and an empty set is the cheapest way to prove it.
   const findings = checkSource("define first :x\n  print :x\nend\n", []).filter(
@@ -751,7 +751,7 @@ test("#841: a Core primitive collides even with an EMPTY profile set", () => {
 test("two define f ... end blocks only flag the second, later occurrence", () => {
   // Issue #838 recoded this from `ol-reserved-word` with `namespace: "procedure"` to
   // `ol-duplicate-definition`: a name the program itself declared is not a name OpenLogo owns
-  // (`spec/grammar.md:414`). The new code carries the earlier declaration's span so the message can
+  // (`spec/grammar.md:416`). The new code carries the earlier declaration's span so the message can
   // name the line the learner already used.
   const findings = checkSource(
     "define f :a\n  print :a\nend\ndefine f :a\n  print :a\nend\n",
@@ -764,7 +764,7 @@ test("two define f ... end blocks only flag the second, later occurrence", () =>
 
 test("local first inside a procedure body is a binding, so it no longer collides", () => {
   // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not one of the four
-  // declaration slots, and `spec/grammar.md:388` makes accepting the name a MUST. `local first`
+  // declaration slots, and `spec/grammar.md:390` makes accepting the name a MUST. `local first`
   // used to report a primitive collision.
   assert.deepEqual(
     checkSource("define g :y\n  local first\n  print :y\nend\n").filter(

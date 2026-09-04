@@ -1,6 +1,6 @@
 // The shared-memory protocol behind the studio's genuinely blocking `input` read (#876).
 //
-// `spec/interaction-events.md:154-157` makes `input` the only blocking read in v0.1, and
+// `spec/interaction-events.md:156-159` makes `input` the only blocking read in v0.1, and
 // `@openlogo/runtime`'s reader is synchronous *because* that is the guarantee by construction. A
 // browser main thread cannot block for a styled prompt, so the interpreter moves to a Worker and
 // parks there on `Atomics.wait` until the main thread writes the answer into shared memory.

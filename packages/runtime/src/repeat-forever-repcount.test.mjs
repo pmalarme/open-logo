@@ -1,5 +1,5 @@
 // Unit tests for `repeat`/`forever` loop mechanics and the `repcount` reporter (issue #104,
-// spec/execution-model.md:652-655, spec/commands.md:796-813). Conformance fixtures under
+// spec/execution-model.md:693-696, spec/commands.md:796-813). Conformance fixtures under
 // tests/conformance/core-language/execution/repeat-*.expected.json and
 // repcount-outside-repeat.expected.json cover the event/diagnostic shape end to end; these unit
 // tests fill in what a fixture cannot: `forever`'s loop mechanics (a real, unbounded `forever`

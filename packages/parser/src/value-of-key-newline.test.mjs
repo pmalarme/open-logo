@@ -305,7 +305,7 @@ test("an incomplete reader does not swallow the `for` statement on the next line
   // nothing else would notice.
   //
   // The `key`-binder rows are the ones the two-word guard alone gets wrong: a `binder` is a `name`
-  // (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:388`), so `key` is a
+  // (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:390`), so `key` is a
   // legal binder and `for key in …` satisfies "the tail is there" while being a loop. Only the word
   // after `key` tells them apart.
   for (const [loop, kind] of [
@@ -514,8 +514,8 @@ test("`for` and `key` remain usable as dictionary keys across a newline", () => 
   // every mutation of it. It is here because `for` and `key` being ordinary keys — legal data, not
   // declarations — is the property a careless continuation would break. Two passages carry that,
   // and both are cited because reviewers have twice disagreed about which one does:
-  // `spec/grammar.md:392` is the precise one for KEYWORDS ("The positions that name data … admit
-  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `:408` states the
+  // `spec/grammar.md:394` is the precise one for KEYWORDS ("The positions that name data … admit
+  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `:410` states the
   // property in the words used here ("Dictionary keys and selector bare keys are data, not
   // declarations, so built-in names are legal keys") — which reaches `for`/`key` because
   // `spec/built-in-names.json` lists both as `category: "keyword"`, and that file is the

@@ -434,7 +434,7 @@ test("a re-entrant wait inside an every handler does not deliver a second OVERLA
   // The handler for `every 2` runs a nested `wait 2`. While that inner wait advances the clock past
   // another due tick for the SAME handler, the handler is already `running`, so the arriving
   // occurrence is QUEUED rather than re-entered — no invocation ever overlaps itself, which is what
-  // "at most one pending invocation" buys (`spec/interaction-events.md:235-242`). The queued
+  // "at most one pending invocation" buys (`spec/interaction-events.md:237-244`). The queued
   // occurrence is not lost: it is drained once the body returns, so the run prints twice. What is
   // pinned here is the absence of OVERLAP, not the absence of a second run — the second `print`
   // provably follows the first rather than interleaving with it.
@@ -690,7 +690,7 @@ test("a queued occurrence still RUNS when the main line has statements left", ()
 
 test("under an explicit forever, an overrunning handler runs back to back until the budget stops it", () => {
   // The counterpart: a learner who wants the timer to keep firing says so, and then
-  // `spec/interaction-events.md:235-242`'s "degrades to running back to back" applies, bounded by
+  // `spec/interaction-events.md:237-244`'s "degrades to running back to back" applies, bounded by
   // the ordinary instruction budget exactly as any non-terminating program is (`:79`). This is what
   // keeps the discard rule honest — without it, "discarded when the run closes" could be satisfied
   // by never draining at all.
@@ -728,7 +728,7 @@ test("further intervals arriving while one is already queued coalesce: the queue
 });
 
 test("the interval clock is FIXED RATE: a late invocation does not re-measure the period", () => {
-  // Maintainer ruling #984, `spec/interaction-events.md:229-233`. A one-time block separates the two
+  // Maintainer ruling #984, `spec/interaction-events.md:231-235`. A one-time block separates the two
   // readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is
   // claimed, so the handler is delayed but its clock is not — intervals stand at ticks 4, 8 and 12,
   // the original grid, and the run prints four times. Under fixed DELAY the period would restart

@@ -1,5 +1,5 @@
 {
-  "description": "A negative by step counts down while var >= end (spec/execution-model.md:657-659). Issue #103.",
+  "description": "A negative by step counts down while var >= end (spec/execution-model.md:698-700). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

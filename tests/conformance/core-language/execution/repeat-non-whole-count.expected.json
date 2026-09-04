@@ -1,5 +1,5 @@
 {
-  "description": "`repeat 3.5 [ print 1 ]` — a non-whole-number count raises `ol-type` (`spec/execution-model.md:652-654`, TYPE checked before RANGE); execution halts before any pass of the body runs.",
+  "description": "`repeat 3.5 [ print 1 ]` — a non-whole-number count raises `ol-type` (`spec/execution-model.md:693-695`, TYPE checked before RANGE); execution halts before any pass of the body runs.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -36,7 +36,7 @@ the **AST**, the **keyword registry**, the **syntax highlighter** (token classes
 - **Highlighting and checking classify from the grammar**, not ad-hoc regex.
 - The keyword list (`src/keywords.ts`) is the single registry shared by highlighter and checker — do
   not fork it. It answers one question only: *may a program **declare** this name?* Binding a
-  built-in name is free in every position (`spec/grammar.md:365,388`), and the `keyword` token class
+  built-in name is free in every position (`spec/grammar.md:365,390`), and the `keyword` token class
   is a separate axis (`mod` and `and` are keywords painted `operator`).
 
 ## Conventions

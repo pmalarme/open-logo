@@ -5,7 +5,7 @@
  * `scripts/examples-gate.mjs` and `scripts/markdown-examples-gate.mjs` already have, and outside the
  * loaded-module coverage set [ADR-0009](../docs/adr/0009-test-layout.md) defines.
  *
- * **Why this exists.** `spec/grammar.md:416` versions the built-in names with the specification —
+ * **Why this exists.** `spec/grammar.md:418` versions the built-in names with the specification —
  * *"there is no second list to keep in step"* — and `:365` governs them with one rule: a program may
  * not **declare** a built-in name, and may **bind** a value to any name. Nothing stated what that
  * set is, and nothing compared the spec to the implementation.
@@ -1553,7 +1553,7 @@ export function wordsBetween(text, open, close) {
  * claim made executable: a bare statement head, an argument, a list element, a `local` binder, a
  * postfix field, an `export` operand, a `for … from` binder, a `for … in` binder, and a `set … to`
  * place. Every one after the first is a position where the grammar admits a keyword as an
- * **ordinary name** (`spec/grammar.md:388`), which is where a positional rule for this class was
+ * **ordinary name** (`spec/grammar.md:390`), which is where a positional rule for this class was
  * refuted (issue #855) — so a class that varied by position is caught here rather than assumed away.
  *
  * Each probe must yield **at least one** matching token. Unioning the classes across probes made a

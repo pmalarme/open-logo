@@ -1,6 +1,6 @@
 /**
  * `ol-bad-token` for a **profile word read as a callee** — issue #864, the profile-conditional half
- * of the value-position rule `spec/grammar.md:392` states:
+ * of the value-position rule `spec/grammar.md:394` states:
  *
  * > A keyword in a position none of these cover has no derivation at all and is a parse error,
  * > never a silently accepted name: `repeat key [ ]` does not read as a call to a procedure named
@@ -41,14 +41,14 @@
  *
  * **Scope: position, not reservation.** This rule decides *what happens when an active profile's
  * word appears where the grammar gives it no callable form*. It deliberately does **not** decide
- * whether those words are built-in names — `spec/grammar.md:410` ("Profile words are built-in names
+ * whether those words are built-in names — `spec/grammar.md:412` ("Profile words are built-in names
  * unconditionally") is `checker-reserved-word.ts`'s subject, and since issue #841 that rule answers
  * it with no profile set at all. The two rules therefore disagree about profiles on purpose: a
  * Core-only program may not **declare** `when`, yet `when` in a value position is an ordinary
  * unknown name rather than an `ol-bad-token`, because nothing has given it a structural role. That
  * is why the gate below is `isProfileKeyword(name, profiles)` and not a profile-blind lookup.
  *
- * **Why the callee, rather than a value-slot walk.** `spec/grammar.md:392` draws the line at what a
+ * **Why the callee, rather than a value-slot walk.** `spec/grammar.md:394` draws the line at what a
  * word is *matched as*: a keyword "is matched as `callable-name` only where the
  * [C3 primitive matrix](commands.md) also gives that word a callable form". That sentence is also
  * what scopes this rule to **six of the seven** profile words — see
@@ -112,7 +112,7 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
 
 /**
  * The profile words the C3 matrix classifies **Kind S — special form**, and therefore the only ones
- * this rule may reject. `spec/grammar.md:392` matches a keyword as `callable-name` "only where the
+ * this rule may reject. `spec/grammar.md:394` matches a keyword as `callable-name` "only where the
  * [C3 primitive matrix](commands.md) also gives that word a callable form", so the C3 **Kind**
  * column is the whole test, and it does not answer the same for all seven profile words:
  *
@@ -131,7 +131,7 @@ function isCallLike(node: AnyNode): node is CallNode | ParenCallNode {
  * (all four block-heads **S**).
  *
  * **`tell` is deliberately exempt, and this is the one distinction the rule turns on.** It is a
- * *command*, not a special form — `spec/grammar.md:410` itself calls it "the Sprites command `tell`
+ * *command*, not a special form — `spec/grammar.md:412` itself calls it "the Sprites command `tell`
  * — a mode switch that takes no block". A command has a callable form, so `tell` genuinely *is* a
  * `callable-name` and `( tell :t )` is a legitimate `parenthesized-call`, exactly as `( forward 5 )`
  * is. Rejecting it here would turn a valid program into an error: measured, `( tell :t )` checked

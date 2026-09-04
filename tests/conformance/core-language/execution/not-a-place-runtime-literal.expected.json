@@ -1,5 +1,5 @@
 {
-  "description": "`3 = 5` assigns to a bare number literal, not a place, raising the runtime's own `ol-not-a-place` (issue #94/#156). The parser structurally accepts a literal in target position precisely so this rule — not an internal-invariant throw — can explain the mistake (`checker-not-a-place.ts`'s doc comment; `spec/tooling.md:214-220`). `params.text` carries the FULL target surface text (`3`), matching the semantic-stage rule from issue #113.",
+  "description": "`3 = 5` assigns to a bare number literal, not a place, raising the runtime's own `ol-not-a-place` (issue #94/#156). The parser structurally accepts a literal in target position precisely so this rule — not an internal-invariant throw — can explain the mistake (`checker-not-a-place.ts`'s doc comment; `spec/tooling.md:215-221`). `params.text` carries the FULL target surface text (`3`), matching the semantic-stage rule from issue #113.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

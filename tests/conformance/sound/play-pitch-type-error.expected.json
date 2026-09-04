@@ -1,5 +1,5 @@
 {
-  "description": "issue #691: each melody pitch MUST be a `note`-accepted scientific-pitch-notation word or the literal \"rest\"; a malformed pitch (here \"h9\" - `h` is not a note letter a-g) raises `ol-type` at runtime with expected:\"pitch\", reusing `note`'s validator and diagnostic identity (spec/interaction-events.md:374-376). No `sound` event is emitted. The instruction event is still emitted before the diagnostic halts the statement.",
+  "description": "issue #691: each melody pitch MUST be a `note`-accepted scientific-pitch-notation word or the literal \"rest\"; a malformed pitch (here \"h9\" - `h` is not a note letter a-g) raises `ol-type` at runtime with expected:\"pitch\", reusing `note`'s validator and diagnostic identity (spec/interaction-events.md:376-378). No `sound` event is emitted. The instruction event is still emitted before the diagnostic halts the statement.",
   "profiles": ["sound"],
   "execute": true,
   "events": [

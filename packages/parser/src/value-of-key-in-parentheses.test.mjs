@@ -180,7 +180,7 @@ test("parenthesized calls and grouping still work beside the reader", () => {
 
 test("`value` and `key` remain legal data beside the parenthesized reader", () => {
   // The other half of #853: tightening expression position must not touch their data roles.
-  // `spec/grammar.md:408` — "Dictionary keys and selector bare keys are data, not declarations,
+  // `spec/grammar.md:410` — "Dictionary keys and selector bare keys are data, not declarations,
   // so built-in names are legal keys."
   const source =
     ':settings = { key: "alpha" value: 42 }\n' +

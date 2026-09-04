@@ -107,7 +107,7 @@ make "size" 120
 - **Kind:** Special form
 - **Argument types:** name or names; the single-name form takes an optional initializer value, the parenthesized multi-name form does not
 - **Result:** —
-- **Description:** Declares one or more names in the **current scope** — the enclosing block if there is one, the procedure frame if the code is in a procedure body, otherwise the root scope — shadowing anything of that name that was visible. `local name = value` evaluates the initializer first, in the enclosing scope, and creates the new binding afterwards from the result, so `local count = :count + 1` reads the outer or `global` `count`.
+- **Description:** Declares one or more names in the **current scope** — the enclosing block if there is one, the procedure frame if the code is in a procedure body, otherwise the root scope — shadowing anything of that name that was visible. `local name = value` evaluates the initializer before the new binding is created, with exactly the visibility the `local` statement itself has, so `local count = :count + 1` reads the `count` that statement could already see.
 - **Concept:** A procedure or a block can have private working memory.
 - **Example:**
 
@@ -118,7 +118,7 @@ define grow :n
 end
 ```
 
-- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the current scope rather than raising an error; at the root scope, where there is no enclosing scope to shadow into, it names a binding in the root scope itself and leaves an existing `global` of that name global.
+- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the current scope rather than raising an error; at the root scope, where there is no enclosing scope to shadow into, it names the root scope's own binding and leaves an existing `global` of that name global.
 
 ### `global`
 
@@ -127,7 +127,7 @@ end
 - **Kind:** Special form
 - **Argument types:** bare name, value
 - **Result:** —
-- **Description:** Declares a **shared** binding in the root scope and gives it an initial value. The name is written bare, without a leading colon, and the initializer is required. A `global` name is the only variable a procedure can see besides its own parameters and locals, for reading and for writing alike, which is what carries shared state across the sealed procedure boundary ([execution-model.md](execution-model.md#variables-scoping-and-procedures)). The declaration is an ordinary top-level instruction and takes effect when it runs.
+- **Description:** Declares a **shared** binding in the root scope and gives it an initial value. The name is written bare, without a leading colon, and the initializer is required. A `global` name is the only variable a procedure can see besides its own parameters and locals, for reading and for writing alike, which is what carries shared state across the sealed procedure boundary ([execution-model.md](execution-model.md#variables-scoping-and-procedures)). The declaration is an ordinary top-level instruction and takes effect when it runs: it marks the root scope's binding of that name shared and assigns the initializer, whether or not a binding of that name already exists there, so re-declaring a `global` assigns again rather than raising `ol-duplicate-definition`.
 - **Concept:** State that several procedures share is declared once, in the open.
 - **Example:**
 
@@ -811,7 +811,7 @@ repeat 3
 end repeat
 ```
 
-- **Possible errors:** `ol-repcount-outside-repeat` when `repcount` is used outside any `repeat` loop.
+- **Possible errors:** `ol-repcount-outside-repeat` when `repcount` appears outside any `repeat` that **lexically encloses it** — including inside a procedure called from a `repeat` body, and inside a handler invocation that runs after its enclosing `repeat` has finished.
 
 ### `for … in …`
 

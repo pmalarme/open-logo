@@ -1,5 +1,5 @@
 // Unit tests for the `local` binding statement (issue #56). `local` is a BINDING form, not one of
-// the grammar's four declaration slots (spec/grammar.md:384,388 — maintainer ruling #833), so it
+// the grammar's four declaration slots (spec/grammar.md:384,390 — maintainer ruling #833), so it
 // registers nothing callable and never raises `ol-reserved-word`; `keyword-binding-forms.test.mjs`
 // pins that. This file confirms the merged parser's exact AST shape for both local-statement forms
 // defined by spec/grammar.md:156
@@ -11,7 +11,7 @@
 // the parser stops after the bare name and reports `ol-bad-token` at `=`; and (b) using the
 // keyword `local` as an ordinary identifier (procedure
 // name, variable read) is accepted with zero diagnostics at the parse stage, which
-// spec/grammar.md:392 states normatively: the declaration slots "admit them too — `define end` and
+// spec/grammar.md:394 states normatively: the declaration slots "admit them too — `define end` and
 // `struct if` **parse**, and are then rejected by the rule above; that is precisely why
 // `ol-reserved-word` is a semantic diagnostic".
 //
@@ -140,6 +140,6 @@ test("local is a keyword per spec/grammar.md:371, and the reader still admits it
   // name would; the keyword spelling changes nothing either way. `define local` is a DECLARATION
   // slot and raises `ol-reserved-word` from `checker-reserved-word.ts` regardless of any binding.
   // That both spellings still *parse* is what `declared-callable-name` expanding to plain
-  // `identifier` buys (spec/grammar.md:167,392). Binding positions proper — `local local`,
+  // `identifier` buys (spec/grammar.md:167,394). Binding positions proper — `local local`,
   // `:local = 1` — are pinned in `keyword-binding-forms.test.mjs`.
 });
