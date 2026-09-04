@@ -61,7 +61,7 @@ test("createTutorOutputController accumulates tutor-output entries across separa
   assert.equal(tutorOutput.getEntries()[0].payload.stage, "nudge");
 
   // A second, independent run's own `hint` invocation starts its OWN progression back at
-  // "nudge" (execute()'s hintProgress resets every call, spec/execution-model.md:773-785) — but
+  // "nudge" (execute()'s hintProgress resets every call, spec/execution-model.md:791-803) — but
   // the PANE's history must still keep both entries, visible side by side.
   controller.run();
   const entries = tutorOutput.getEntries();

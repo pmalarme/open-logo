@@ -227,7 +227,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:774-785` calls for: a mutable map (like `instructionCount`/`addressing`,
+ * `spec/execution-model.md:792-803` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -1800,7 +1800,7 @@ export function executeAssign(
     // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
     // or a bare literal/list) in target position, precisely so this rule — not a blunt parse
     // error — can explain the mistake (`checker-not-a-place.ts`'s doc comment, `spec/grammar.md`,
-    // `spec/tooling.md:215-221`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
+    // `spec/tooling.md:216-222`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
     // reach here as a non-`Place` `node.place`.
     return {
       ok: false,
@@ -5279,7 +5279,7 @@ function comprehensionDuplicateBinder(
 
 /**
  * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
- * examples `:828-874`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * examples `:846-892`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean

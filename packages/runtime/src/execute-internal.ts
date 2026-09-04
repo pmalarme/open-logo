@@ -687,7 +687,7 @@ function homeTurtleForClearScreen(
   source_span: SourceSpan,
 ): void {
   // Position first, its event next, then heading and *its* event — so each payload is the
-  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:785`) and each
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:803`) and each
   // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
   // mutations up front would emit a `move` reporting a heading the turtle no longer had.
   const from: Point = [turtle.x, turtle.y];
@@ -4084,7 +4084,7 @@ function isEducationalMetaCommandCall(
  * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
  * times in a row with nothing in between) all resolving to the SAME real target, rather than
  * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
- * progression (`spec/execution-model.md:774-785`, "for the SAME target") could never observe two
+ * progression (`spec/execution-model.md:792-803`, "for the SAME target") could never observe two
  * calls sharing one target.
  */
 function findPrecedingSiblingStatement(
@@ -4272,7 +4272,7 @@ function dispatchShowRandomizeOrEducationalCommand(
  * `document` plus both endpoints, so two different spans (even in the same document) never
  * collide, and the whole-program fallback span (a distinct, wider span than any single
  * statement) gets its own independent progression, per
- * `spec/execution-model.md:774-785`'s "observable ordering ... for a given target-source-span
+ * `spec/execution-model.md:792-803`'s "observable ordering ... for a given target-source-span
  * value" requirement.
  */
 function hintTargetKey(span: SourceSpan): string {
@@ -4520,7 +4520,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:908-946`).
+ * (`spec/execution-model.md:926-964`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
@@ -4832,7 +4832,7 @@ function callProcedureAsValue(
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1003`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1021`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
@@ -5587,7 +5587,7 @@ export function resolveEffectiveRecursionDepthLimit(
  * slice the exact assignment-target surface text out of it. Issue #332 threads `program` itself
  * onto the environment (`TutorContext.program`, and the source of `hint`'s whole-program fallback
  * span via `program.source_span`) and a fresh `hintProgress` map per run, so the Educational
- * profile's `hint` progression (`spec/execution-model.md:774-785`) starts over — every target
+ * profile's `hint` progression (`spec/execution-model.md:792-803`) starts over — every target
  * begins at `"nudge"` — for each new `execute()` call. `tutorTemplate` resolves
  * `options?.tutorTemplates` to {@link defaultTutorTemplate} when omitted, and `learnerLevel`
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the

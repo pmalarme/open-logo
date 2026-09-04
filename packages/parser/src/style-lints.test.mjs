@@ -404,7 +404,7 @@ function nameCaseNames(source, profiles = ALL_PROFILES) {
 test("ol-style-name-case: every silent row of issue #854's reported table now warns", () => {
   // The defect table verbatim. The first three rows already warned before #854 and must keep
   // warning (a widening must not trade one gap for another); the last four were silent, which is
-  // the bug: `spec/tooling.md:243` requires that "built-ins should be shown lowercase", and
+  // the bug: `spec/tooling.md:244` requires that "built-ins should be shown lowercase", and
   // `forward` is the first command a learner ever types.
   const cases = [
     ["TO f\nreturn 1\nend", ["TO"]],

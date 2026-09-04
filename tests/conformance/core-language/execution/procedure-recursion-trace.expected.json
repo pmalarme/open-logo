@@ -1,5 +1,5 @@
 {
-  "description": "The spec's worked recursive-call trace (spec/execution-model.md:908-946), reproduced verbatim: each recursive invocation gets its own frame, and procedure-enter/return/procedure-exit events nest as the recursion unwinds. Issue #97.",
+  "description": "The spec's worked recursive-call trace (spec/execution-model.md:926-964), reproduced verbatim: each recursive invocation gets its own frame, and procedure-enter/return/procedure-exit events nest as the recursion unwinds. Issue #97.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

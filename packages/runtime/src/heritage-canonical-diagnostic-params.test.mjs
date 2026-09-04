@@ -181,7 +181,7 @@ function astContains(source, kind) {
 const SURFACE_SUBJECT_PARAMS = {
   "ol-not-a-place": {
     text:
-      "`spec/tooling.md:220-221` MANDATES the surface value: `count :nums = 3` → " +
+      "`spec/tooling.md:221-222` MANDATES the surface value: `count :nums = 3` → " +
       '`params={ text: "count :nums" }`. It is a machine-readable quotation of the span, not an ' +
       "identifier — canonicalizing it would make the param disagree with its own source_span, " +
       "and a target such as `1 + 2` or `(first :x)` has no canonical form at all. The runtime " +

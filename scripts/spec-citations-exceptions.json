@@ -118,17 +118,17 @@
       "kind": "stale-citation",
       "issue": "#948",
       "why": "Lands on blank space in execution-model.md: the nearest text above is line 425 (\"result is discarded like any other unused value.\") and below is line 427 (\"`map <var> in <listExpr> [ <expr> ]` returns a fresh list cont…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "bb689b829553a11c"
+      "fingerprint": "ef991985624dc55a"
     }
   ],
   "packages/parser/src/checker-type-field.ts": [
     {
-      "subject": "spec/tooling.md:195",
+      "subject": "spec/tooling.md:196",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in tooling.md: the nearest text above is line 194 (\"| Callable name not known, with arguments after it | `ol-unk…\") and below is line 196 (\"Semantic tools SHOULD also report statically knowable uses o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "05c74c33666adf91"
+      "why": "Lands on blank space in tooling.md: the nearest text above is line 195 (\"| Callable name not known, with arguments after it | `ol-unk…\") and below is line 197 (\"Semantic tools SHOULD also report statically knowable uses o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "f5a74284d75a63ba"
     }
   ],
   "packages/parser/src/heritage-spellings.test.mjs": [
@@ -351,12 +351,12 @@
       "fingerprint": "a767fa5b7e9a1175"
     },
     {
-      "subject": "spec/execution-model.md:785",
+      "subject": "spec/execution-model.md:803",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in execution-model.md: the nearest text above is line 784 (\"| `payload` | Kind-specific typed data. |\") and below is line 786 (\"There are two timing classes:\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "ef2091ae1815f2cb"
+      "why": "Lands on blank space in execution-model.md: the nearest text above is line 802 (\"| `payload` | Kind-specific typed data. |\") and below is line 804 (\"There are two timing classes:\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "c74cc5c1650d3070"
     },
     {
       "subject": "spec/commands.md:1573",
@@ -623,12 +623,12 @@
   ],
   "tests/conformance/data/check/struct-constructor-unknown-field-read.expected.json": [
     {
-      "subject": "spec/tooling.md:195",
+      "subject": "spec/tooling.md:196",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in tooling.md: the nearest text above is line 194 (\"| Callable name not known, with arguments after it | `ol-unk…\") and below is line 196 (\"Semantic tools SHOULD also report statically knowable uses o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "f69711b1c5f2193c"
+      "why": "Lands on blank space in tooling.md: the nearest text above is line 195 (\"| Callable name not known, with arguments after it | `ol-unk…\") and below is line 197 (\"Semantic tools SHOULD also report statically knowable uses o…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "47861eb8c9f9a774"
     }
   ],
   "tests/conformance/data/dict-runtime/dict-read-bad-key-type.expected.json": [

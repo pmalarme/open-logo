@@ -19,7 +19,7 @@
 //      visible-name rule, because they lower onto the same Core AST nodes as their equivalents.
 //   2. Ten short command aliases — `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` (#668). Ordinary
 //      primitive call names (not reserved), so they fall through the profile-blind lexical fallback
-//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,281`), exactly like `forward`.
+//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,282`), exactly like `forward`.
 //      Recognized under an active `heritage` profile by `collectVisibleNames`.
 //   3. Three list-reporter aliases — `bf`/`bl`/`se` (#669). Also ordinary primitive names, but they
 //      appear in EXPRESSION position (as arguments), a different highlighter path than a
@@ -192,7 +192,7 @@ test("highlight: each Heritage form head is a keyword, like its Core equivalent 
 
 test("semanticTokens: each Heritage form head carries no defaultLibrary — it is a keyword, not a primitive", () => {
   // Keyword-class tokens get NO `defaultLibrary` modifier (that modifier is the `primitive`/library
-  // marker, `spec/tooling.md:281`). Assert the class and the absence of the modifier so a form head
+  // marker, `spec/tooling.md:282`). Assert the class and the absence of the modifier so a form head
   // can never be mistaken for a callable primitive.
   const cases = {
     make: 'make "n" 1',
@@ -429,7 +429,7 @@ test("highlight: a mid-edit or malformed reader degrades gracefully — `of` fal
 });
 
 test("semanticTokens: no structural word of the value-of-key reader carries defaultLibrary", () => {
-  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:281`). `of` used to
+  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:282`). `of` used to
   // carry it purely because it was classified `primitive`; with the class corrected the modifier
   // goes with it, which is the half of #785 an LSP client actually consumes.
   const tokens = OL.semanticTokens('print value of :d for key "a"', doc);

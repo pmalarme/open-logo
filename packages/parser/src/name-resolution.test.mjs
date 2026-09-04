@@ -45,7 +45,7 @@ const isReservedWordFinding = (d) => d.code === "ol-reserved-word";
 
 // ── ol-not-a-place: reconciling #79's first cut to the spec worked example ──────────────────
 
-test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:215-221)", () => {
+test("the spec's worked example count :nums = 3 renders the FULL target surface text (spec/tooling.md:216-222)", () => {
   const diagnostics = checkSource(":nums = 1\ncount :nums = 3\n");
   const [finding] = diagnostics.filter(isNotAPlace);
   assert.equal(finding.code, "ol-not-a-place");

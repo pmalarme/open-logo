@@ -696,10 +696,23 @@ or without it.
 ### Evaluation terminates in a value, an effect, or a diagnostic
 
 The check above is the primary mechanism and deliberately not the only one,
-because one class of fault is invisible to it by construction: a program that is
+because one class of fault it cannot decide by construction: a program that is
 entirely valid — every name known, every Kind and arity correct — calling a
-primitive the implementation registered but cannot evaluate. Layer 2 is silent
-there because the program really is correct. The gap is in the implementation.
+primitive the implementation registered but cannot evaluate. Whether an
+evaluation exists is a fact about the evaluator, not about the program's text,
+so Layer 2 has no way to **derive** it. The program really is correct; the gap
+is in the implementation.
+
+An implementation can force a diagnostic there anyway, by hand-withholding such
+a name from the visible vocabulary so that the call reads as unknown. That is
+not a substitute for the rule below, for three reasons. It is a **list**,
+covering exactly the names someone remembered to write down, so a registered
+primitive nobody listed checks clean and then does nothing. It cannot **verify
+itself**, for the reason just given, so it does not notice when it goes stale
+because an evaluation shipped. And it **misattributes the fault**:
+`ol-unknown-command` tells the learner *i don't know how to {name}* about a name
+this specification defines and the implementation registered — our gap,
+described as their typo.
 
 So, terminally: evaluating any statement or expression MUST end in exactly one
 of three outcomes — a value, a completed effect, or a diagnostic. Skipping the
@@ -709,12 +722,17 @@ any callable. An implementation that cannot evaluate a construct MUST say so.
 For a callable this specification defines and the implementation registered but
 does not evaluate, that diagnostic is `ol-not-implemented`
 ([error-model.md](error-model.md)). It means *the name is known and this
-implementation cannot run it yet*, and it is deliberately distinct from
-`ol-unknown-command` and `ol-undefined-var` because it reports the
-implementation's gap rather than a mistake the learner made. Emitting it for a
-primitive of a profile the implementation **claims** is a conformance failure of
-that profile ([conformance.md](conformance.md#conformance-claims)); the code
-exists so the gap is visible, never so that it is permitted.
+implementation cannot run it yet*. An implementation MUST report it rather than
+`ol-unknown-command` for such a name, at any stage, and MUST NOT withhold the
+name from the visible vocabulary in order to manufacture `ol-unknown-command`
+instead: the name **is** known, and keeping *you mistyped a name* apart from *we
+have not built this yet* is the entire reason the two codes are distinct. An
+implementation MAY report `ol-not-implemented` at `semantic` when it knows
+before running that no evaluation exists, and MUST report it at `runtime`
+otherwise. Emitting it for a primitive of a profile the implementation **claims**
+is a conformance failure of that profile
+([conformance.md](conformance.md#conformance-claims)); the code exists so the
+gap is visible, never so that it is permitted.
 
 ### One fault, one diagnostic
 

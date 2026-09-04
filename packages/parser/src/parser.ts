@@ -2494,7 +2494,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:188, :217-222) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:188, :218-223) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`

@@ -18,10 +18,10 @@
  * - `ol-no-value` — a `map`/`filter`/`reduce` body that statically cannot end in a value-producing
  *   expression (`spec/error-model.md:113`, `spec/execution-model.md:406`). Reproduces the spec's
  *   worked example `map num in :nums [ print :num ]` → `ol-no-value { form: "map" }`
- *   (`spec/tooling.md:222-230`). A `return`/`stop` final statement is *not* double-reported here —
+ *   (`spec/tooling.md:223-231`). A `return`/`stop` final statement is *not* double-reported here —
  *   it is already the more specific `ol-return-in-comprehension`.
  * - `ol-duplicate-binder` — a binder name repeated where names must be distinct: a `reduce`
- *   accumulator equal to its item binder (`spec/execution-model.md:426,1043`), or a repeated name in
+ *   accumulator equal to its item binder (`spec/execution-model.md:426,1061`), or a repeated name in
  *   a destructuring pattern — `for [:x :x] in …` or a `map`/`filter`/`reduce [:x :x] in …`
  *   comprehension (issue #440) — (`spec/error-model.md:116`, `spec/tooling.md:191`).
  *
@@ -118,7 +118,7 @@ const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
  * classified here without an edit. A callee no active profile registers (a user procedure, a
  * misspelling, a primitive of an inactive profile) is treated as value-producing: its kind is not
  * statically known, and "Tools MUST NOT report speculative type errors when dynamic values are
- * unknown" (`spec/tooling.md:198-199`).
+ * unknown" (`spec/tooling.md:199-200`).
  */
 export function producesValue(
   node: StatementNode,
