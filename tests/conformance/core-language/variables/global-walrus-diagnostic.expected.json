@@ -1,5 +1,5 @@
 {
-  "description": "`:=` is not an OpenLogo token and the global ruling does not add one, so global count := 0 reports ol-bad-token at the colon and again at the `=` the parser then finds where an expression was expected. The regression twin is `:x := 5`, which stays rejected the same way.",
+  "description": "`:=` is not an OpenLogo token and the global ruling does not add one, so global count := 0 reports ol-bad-token at the colon and again at the `=` the parser then finds where an expression was expected. The `:x := 5` regression twin this guards alongside is measured by its own case in local-variables/global-variables unit tests, not by this fixture.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

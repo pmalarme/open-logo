@@ -293,6 +293,16 @@ export interface AssignNode extends NodeBase {
  * `names` never carries one. It stays an optional field rather than a second node kind because
  * `local count` and `local count = 0` are one production and one declaration; only the initializer
  * differs (`spec/execution-model.md:508-518`).
+ *
+ * **Until issue #824 the initializer is parsed and checked but never evaluated**, because
+ * `@openlogo/runtime` gives a `Local` no effect at all — as it already gave a bare `local count`
+ * none. For most programs that degrades loudly (`ol-undefined-var` on the first read), but where
+ * the declaration **shadows** a binding that already exists, the read finds the outer one and the
+ * program runs to completion with the wrong value and no diagnostic: `:count = 0` / `local count =
+ * 5` / `print :count` prints `0`. That is measured, not predicted, and it is a *regression in kind*
+ * — before this slice the same program was a parse error. It is recorded here rather than guarded,
+ * because the fix is the scoping runtime #824 owns and a guard would be a second, wrong model of
+ * it.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";

@@ -41,6 +41,14 @@
  * binder scopes, by contrast, are checked for *lexical membership*, not order, which is what
  * `spec/execution-model.md`'s frame model actually specifies.
  *
+ * That same order-free frame set is why a `local`'s own initializer is checked against a scope
+ * that already contains the binding the declaration creates, so `local x = :x` does not report
+ * although `spec/execution-model.md:508-515` evaluates the initializer *before* the binding exists.
+ * Fixing it needs a per-statement scope rather than a per-frame set — the same model
+ * `ol-var-not-visible` has to build — and a partial fix would reject the conforming
+ * `local x = 1` / `local x = :x` snapshot idiom `:511-515` exists to allow. Tracked as issue #1102,
+ * scheduled with #825.
+ *
  * A segmented place's base (`:people` in `:people.tom = 1`) is always checked as a **read**, never
  * treated as a declaration — `spec/execution-model.md:251-291` is explicit that there is no
  * intermediate auto-vivification; only a bare, zero-segment `:name = value` can create a new
@@ -197,6 +205,14 @@ function collectGlobalsIn(
       // `procedureFrame` gate `Local` needs does not apply. A misplaced one is
       // `ol-global-outside-root`'s subject (`checker-global-placement.ts`), not this rule's:
       // reporting the name as undefined *as well* would answer one mistake with two diagnostics.
+      //
+      // **That suppression is this rule's alone and must not carry over to `ol-var-not-visible`
+      // (#825).** A learner who wrote `global` in the wrong place still needs the diagnostic whose
+      // message names the fix when a procedure body reads the name. Note too that `globals` below
+      // flattens three different origins — a top-level `local`, a root-level bare assignment, and a
+      // `Global` declaration — which is all `ol-undefined-var` needs and is *not* enough for #825,
+      // whose whole question is whether a root-bound name is `global` or merely top-level. The
+      // `Global` node kind is the discriminator; the flat set is not a settled contract.
       globals.add(node.name.name.toLowerCase());
       collectGlobalsIn(node.value, scopeContext, globals);
       return;

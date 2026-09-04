@@ -70,6 +70,9 @@ function reservedFindings(source, profiles = CORE) {
  * Every binding position `spec/grammar.md:390` names, as a template that puts `name` in it. `make`
  * is absent only because its target is a word literal rather than a name token and it needs the
  * Heritage profile; it gets its own test below.
+ *
+ * `local <name> = <value>` and `global <name> = <value>` are both named in that same normative
+ * sentence and joined the list with issue #823, which is the slice that made either parse.
  */
 const BINDING_FORMS = [
   {
@@ -81,6 +84,14 @@ const BINDING_FORMS = [
     source: (name) => `set ${name} to 1\n`,
   },
   { label: "`local`", source: (name) => `local ${name}\n` },
+  {
+    label: "`local` with an initializer",
+    source: (name) => `local ${name} = 1\n`,
+  },
+  {
+    label: "`global` declaration",
+    source: (name) => `global ${name} = 1\n`,
+  },
   {
     label: "`for … in` binder",
     source: (name) => `for ${name} in [1 2] [ print 1 ]\n`,

@@ -1,0 +1,2 @@
+global totals = map n in [ 1 2 ] [ global bad = 0
+  :n ]

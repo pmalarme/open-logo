@@ -2631,9 +2631,10 @@ export function parse(source: string, document = "<input>"): ParseResult {
    *
    * - the name is **bare**, so `global :count = 0` stops at the `:count` variable token — the same
    *   shape `local :x` and `set :x to 5` are already rejected in;
-   * - the `=` is required, so `global count` stops at whatever follows the name — including the
-   *   `:` of a `global count := 0`, which is why that spelling keeps its `ol-bad-token` without
-   *   `:=` ever becoming a token;
+   * - the `=` is required, so `global count 5` and `global count` both stop at whatever follows the
+   *   name — including the `:` of a `global count := 0`, which is why that spelling keeps its
+   *   `ol-bad-token` (two of them, in fact: the `:`, then the `=` where an expression was expected)
+   *   without `:=` ever becoming a token;
    * - the initializer is required, so `global count =` stops at the end of the line.
    */
   function parseGlobal(): StatementNode | undefined {

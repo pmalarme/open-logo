@@ -1,0 +1,19 @@
+{
+  "description": "The `=` itself is required, not merely an initializer somewhere after the name: global-statement ::= \"global\" name \"=\" expression (spec/grammar.md:157) has no form in which the two operands sit adjacent. This is the case a reader that dropped the `=` check entirely would still pass without — the other negative fixtures all fail for an earlier reason (a colon-name, an end of line, a stray colon), so each of them survives that defect.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/global-missing-equals-diagnostic",
+        "start": [1, 14],
+        "end": [1, 15]
+      },
+      "params": { "text": "5" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

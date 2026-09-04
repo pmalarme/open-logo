@@ -121,6 +121,21 @@ test("local x = with no initializer expression reports ol-bad-token and builds n
   assert.deepEqual(ast.body, []);
 });
 
+test("`local x 5` takes the bare declaration and then rejects the stray operand", () => {
+  // The twin of `global count 5`, and they differ on purpose: `local`'s initializer is OPTIONAL, so
+  // the statement is already complete at the name and the `5` is a stray — where `global count 5`
+  // fails because the `=` its own production requires is missing. The pair pins that the optional
+  // tail did not become a silently-accepted juxtaposition.
+  const { ast, diagnostics } = OL.parse("local x 5", doc);
+
+  assert.equal(ast.body[0].kind, "Local");
+  assert.equal(ast.body[0].value, undefined);
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+});
+
 test("the parenthesized multi-name form takes no initializer (spec/grammar.md:156)", () => {
   const { diagnostics } = OL.parse("(local a = 1)", doc);
 

@@ -104,6 +104,23 @@ test("global count = with no expression is rejected at the end of the line", () 
   assert.deepEqual(ast.body, []);
 });
 
+test("the `=` itself is required: `global count 5` is rejected, not read as an initializer", () => {
+  // The case that pins the `=` check specifically. Every other negative here fails for an EARLIER
+  // reason — a colon-name, an end of line, a stray colon — so a reader that dropped the `=` check
+  // entirely would still pass all of them. `@testing`'s mutation probe M3 survived until this landed.
+  const { ast, diagnostics } = parse("global count 5");
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.deepEqual(diagnostics[0].params, { text: "5" });
+  // No `Global` node is built; the stray `5` is resynced as its own expression statement, which is
+  // what proves the reader did not fold it in as an initializer.
+  assert.deepEqual(
+    ast.body.map((node) => node.kind),
+    ["NumberLit"],
+  );
+});
+
 test("global count := 0 raises ol-bad-token — `:=` is not a token, and this ruling adds none", () => {
   const { diagnostics } = parse("global count := 0");
 
@@ -117,7 +134,14 @@ test("regression guard: `:x := 5` remains rejected exactly as before", () => {
   assert.deepEqual(codesOf(diagnostics), ["ol-bad-token", "ol-bad-token"]);
 });
 
-// --- Reserving the word: the four declaration slots --------------------------
+// --- Reserving the word: the declaration slots -------------------------------
+//
+// `spec/grammar.md:384` names four — `define`, the heritage `to`, `struct`, and the first operand of
+// `alias`. Three are exercised below. `alias` is deliberately absent and that is measured, not
+// overlooked: the reader has no `alias-statement` production yet, so `alias global forward` is an
+// `ol-bad-token` at the parse stage and never reaches the semantic rule at all. That is a
+// pre-existing gap shared by every built-in name (`errors.ts`'s `KEYWORDS_WITH_NO_READER_PRODUCTION`
+// records it for `alias`, `export` and `import`), not something this slice introduces or should fix.
 
 test("define global raises ol-reserved-word with the span of the name itself", () => {
   const diagnostics = checkClean("define global\nend");
@@ -142,6 +166,15 @@ test("the heritage `to global` opener raises ol-reserved-word under the Heritage
   });
 
   assert.deepEqual(codesOf(diagnostics), ["ol-reserved-word"]);
+});
+
+test("the fourth slot, `alias`, has no reader production — so it never reaches the semantic rule", () => {
+  // Measured rather than assumed, so the qualified claim above stays honest: this is a parse-stage
+  // rejection of the `alias` statement itself, identical for every name, not a reserved-word finding.
+  const { diagnostics } = parse("alias global forward");
+
+  assert.deepEqual(codesOf(diagnostics), ["ol-bad-token", "ol-bad-token"]);
+  assert.deepEqual(diagnostics[0].params, { text: "alias" });
 });
 
 // --- Reserving the word does NOT restrict binding (issue #823, correction 1) --
@@ -234,6 +267,35 @@ test("a handler block is a block scope too, so a global inside one is rejected",
       }),
     ),
     ["ol-global-outside-root"],
+  );
+});
+
+test("REGRESSION: a global inside a legal ROOT global's own initializer is still rejected", () => {
+  // The first revision of `globalPlacementRule` exempted a root-level `Global` and skipped its whole
+  // subtree, on the reasoning that the initializer is an expression and `global-statement` is
+  // statement-only. The second half is true and the conclusion does not follow: `spec/grammar.md:144`
+  // makes an `expression-block` a sequence of statements, so a comprehension body — which
+  // `spec/error-model.md:131` names explicitly — can carry one. All three review-gate reviewers found
+  // it; every other root statement kind covered for it, which is why it needs its own test.
+  for (const source of [
+    "global totals = map n in [ 1 2 ] [ global bad = 0\n  :n ]",
+    "global totals = filter n in [ 1 2 ] [ global bad = 0\n  true ]",
+    "global totals = reduce acc n in [ 1 2 ] from 0 [ global bad = 0\n  :acc ]",
+  ]) {
+    assert.deepEqual(
+      codesOf(checkClean(source)),
+      ["ol-global-outside-root"],
+      source,
+    );
+  }
+});
+
+test("the root declaration itself is still exempt — walking its subtree does not report it", () => {
+  // The paired positive control for the regression above: a fix that reported the outer declaration
+  // too would satisfy that test and break this one.
+  assert.deepEqual(
+    checkClean("global totals = map n in [ 1 2 ] [ :n * 2 ]"),
+    [],
   );
 });
 

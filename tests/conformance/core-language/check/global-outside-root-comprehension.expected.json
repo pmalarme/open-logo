@@ -1,0 +1,19 @@
+{
+  "description": "ol-global-outside-root inside a COMPREHENSION BODY reached through a legal root-level global's own initializer. spec/grammar.md:144 makes an expression-block a sequence of statements, so a comprehension body is a block scope (spec/execution-model.md:367-369) that an expression can carry — which is why the placement rule exempts only the root declaration itself and still walks its subtree. All three review-gate reviewers of issue #823 found this exact hole in the first revision, where the outer declaration's whole subtree was skipped and this program checked clean.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-global-outside-root",
+      "source_span": {
+        "document": "core-language/check/global-outside-root-comprehension",
+        "start": [1, 43],
+        "end": [1, 46]
+      },
+      "params": { "name": "bad" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

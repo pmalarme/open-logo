@@ -1,5 +1,5 @@
 {
-  "description": "The initializer is REQUIRED (spec/grammar.md:157 has no optional bracket around \"=\" expression; spec/execution-model.md:549 says so in words), so a bare global count reports ol-bad-token at the end of the line rather than declaring an uninitialised shared name. This is the one place global and local differ in shape: local name is complete on its own.",
+  "description": "The initializer is REQUIRED (spec/grammar.md:157 has no optional bracket around \"=\" expression; spec/execution-model.md:549 says so in words), so a bare global count reports ol-bad-token at the end of the line rather than declaring an uninitialised shared name.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],

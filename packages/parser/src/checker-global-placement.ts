@@ -15,13 +15,19 @@
  * other two (a procedure frame, and a block scope created by *each entry into a block*) are both
  * reached only by descending through some other node. So a `Global` that is a direct element of
  * `program.body` is legal and every other one is not, with no list of "nesting" kinds to keep in
- * step with the grammar: a control form, a handler block, a comprehension body and a bare `[ … ]`
- * statement block are all simply *not* `program.body`, and a node kind added later inherits the
- * right answer instead of needing an entry here.
+ * step with the grammar: a control form, a handler block and a comprehension body are all simply
+ * *not* `program.body`, and a node kind added later inherits the right answer instead of needing an
+ * entry here.
  *
- * A legal root-level declaration is not descended into. Its one child is the initializer, an
- * `expression`, and `global-statement` is statement-only (`spec/grammar.md:100,157`), so no `Global`
- * can be nested inside it — there is nothing below it this rule could find.
+ * **A legal root-level declaration is exempted, but its subtree is still walked.** Only the
+ * declaration itself is at the root; everything below it is not. That distinction is load-bearing
+ * rather than pedantic, because a comprehension is an **expression whose body holds statements**
+ * (`spec/grammar.md:144`, `expression-block ::= "[" { terminator } { statement { terminator } }
+ * "]"`), so a `global` really can be written inside a root `global`'s own initializer — and
+ * `spec/error-model.md:131` names the comprehension body as one of the four places this code
+ * covers. An earlier revision skipped the whole subtree, on the reasoning that the initializer is
+ * an expression and `global-statement` is statement-only; the second half is true and the
+ * conclusion does not follow from it. All three review-gate reviewers caught the same hole.
  *
  * **It takes no profile set.** `global` is Core (`spec/conformance.md`'s Core Language profile), and
  * where a declaration may stand is a property of the grammar rather than of the profiles a run
@@ -72,6 +78,11 @@ export function globalPlacementRule(
   const diagnostics: Diagnostic[] = [];
   for (const statement of program.body) {
     if (statement.kind === "Global") {
+      // Legal *here* — but only this declaration is at the root. Its initializer can still open a
+      // block scope (a comprehension body), so the subtree below it is walked like any other.
+      for (const child of childrenOf(statement)) {
+        reportNestedGlobals(child, diagnostics);
+      }
       continue;
     }
     reportNestedGlobals(statement, diagnostics);

@@ -1,0 +1,19 @@
+{
+  "description": "The local twin of global-missing-equals-diagnostic, and the two differ on purpose. `local count` is a complete statement (spec/grammar.md:156 makes the initializer optional), so the reader takes the bare declaration and then rejects the stray `5` that follows it — where `global count 5` is rejected because the `=` its own production requires is absent. Same surface shape, two different reasons, and the pair is what pins that the optional tail did not become a silently-accepted juxtaposition.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/variables/local-missing-equals-diagnostic",
+        "start": [1, 13],
+        "end": [1, 14]
+      },
+      "params": { "text": "5" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
