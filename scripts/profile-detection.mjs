@@ -400,7 +400,7 @@ export function detectUsedProfiles(source) {
   // Matched on the diagnostic `code` plus an exact, case-insensitive `params.text` value — never on
   // `message` prose, which is not part of a diagnostic's stable identity
   // (`spec/localization.md:223`, "localized prose is separate from diagnostic identity"; the
-  // normative statement is `spec/error-model.md:257`, "Diagnostic identity is `code` plus `params`;
+  // normative statement is `spec/error-model.md:258`, "Diagnostic identity is `code` plus `params`;
   // prose is presentation"). The Heritage `to`/`output`/`op` words are NOT here anymore: since
   // issue #667 they parse into real AST nodes and are detected in the walk below (see
   // `RESERVED_WORD_PROFILES`'s doc comment and #701).

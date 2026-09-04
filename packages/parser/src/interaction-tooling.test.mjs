@@ -553,12 +553,12 @@ test("#841: redefining an Interaction block-head raises under Core-only too", ()
 
 test("check: `wait` is a primitive, so redefining it under an active profile raises ol-reserved-word", () => {
   // `wait` is NOT a profile block-head (contrast the four heads above — it never appears in
-  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:185` makes redefining a *primitive*
+  // `OL_PROFILE_KEYWORDS`), but `spec/tooling.md:186` makes redefining a *primitive*
   // `ol-reserved-word` all the same. That block-head/primitive distinction decides which BRANCH of
   // the checker reports it, and since issue #838 no longer shows up in the diagnostic at all:
   // `spec/error-model.md:125` gives the code `params: { name }` only, and requires that "the words
   // *keyword*, *primitive*, and *alias* MUST NOT appear in the learner message" — because, as
-  // `spec/error-model.md:137` puts it, that is "an implementation distinction the learner never has
+  // `spec/error-model.md:138` puts it, that is "an implementation distinction the learner never has
   // to learn". Sound's identically-shaped `set_tempo`, Geometry's `grid`, and Data's `list` already
   // behaved this way; before I8 `wait` was the only one of those four profiles' primitives a
   // program could silently shadow.

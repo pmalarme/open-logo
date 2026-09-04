@@ -91,7 +91,7 @@ test("all three Heritage forms compose in one program with identical semantics t
 
 test("an `output`/`op` outside any procedure raises the same diagnostic IDENTITY as `return` — canonical params, learner's prose", () => {
   // "No new semantics" covers diagnostics too: identity is `code` plus structured `params`, and the
-  // same condition MUST keep the same params (`spec/error-model.md:255-260`). The three spellings
+  // same condition MUST keep the same params (`spec/error-model.md:256-261`). The three spellings
   // are one condition, so `params.keyword` is the canonical `"return"` for all three (issue #741).
   // Identity, not the whole diagnostic: the `message` still echoes the word the learner typed and
   // the span still covers what they wrote — both presentation, and both deliberately different.

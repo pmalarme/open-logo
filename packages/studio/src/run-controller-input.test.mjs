@@ -119,7 +119,7 @@ test("answering the question completes the run from exactly where it stopped", (
   assert.equal(store.getState().runStatus, "done");
 });
 
-test("dismissing the question ends the read unanswered, cancelling the run (spec/interaction-events.md:158-159)", () => {
+test("dismissing the question ends the read unanswered, cancelling the run (spec/interaction-events.md:162-163)", () => {
   const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
   const host = createTestPromptHost();
   const controller = OL.createRunController(store, { inputPrompt: host });
@@ -699,7 +699,7 @@ test("cancelling the SECOND question keeps the first answer's work and cancels f
   );
 });
 
-test("an answer that reads as a number is reported as one (spec/interaction-events.md:184-185), unchanged by the replay", () => {
+test("an answer that reads as a number is reported as one (spec/interaction-events.md:188-189), unchanged by the replay", () => {
   const store = OL.createStudioState({
     source: [':count = input "how many?"', "print :count + 1"].join("\n"),
   });

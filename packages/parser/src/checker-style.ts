@@ -1,6 +1,6 @@
 /**
  * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 13-code `ol-style-*`
- * family `spec/tooling.md:240-254` registers, sourced from `spec/style-guide.md`). Every finding
+ * family `spec/tooling.md:241-255` registers, sourced from `spec/style-guide.md`). Every finding
  * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
  * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
  *
@@ -18,7 +18,7 @@
  *   (comprehension-body, error-severity) — both reuse the exact same
  *   {@link producesValue}/command-vs-reporter classification from that module so the two never
  *   drift apart. Reproduces the spec's own worked example — the `… end repeat` block form at
- *   `spec/tooling.md:257-266`, written here in its equivalent bracket form:
+ *   `spec/tooling.md:258-267`, written here in its equivalent bracket form:
  *   `repeat 4 [ :side * 2 ]` → `ol-style-useless-value { form: "repeat" }`.
  * - `ol-style-equality-confusion` — a standalone top-level comparison statement (a
  *   `ComparisonChain` containing at least one `==`/`!=`, or a `Call`/`ParenCall` whose callee is
@@ -95,7 +95,7 @@
  *   the helper's own body must not inherit its caller's depth. See {@link collectDeepNesting}.
  * - `ol-style-block-indentation` — a multi-line `Block` (same one-line exemption as above) with
  *   two or more direct statements whose start *columns* disagree ("Indent the contents of `[ ]`
- *   and long `… end` blocks consistently", `spec/tooling.md:246` — the word is "consistently", not
+ *   and long `… end` blocks consistently", `spec/tooling.md:247` — the word is "consistently", not
  *   a specific width, so this rule is deliberately a **consistency** check among sibling
  *   statements, never an absolute-indent-width check, to stay conservative and avoid flagging a
  *   uniformly (if unusually) indented block). The majority column among the block's direct
@@ -105,7 +105,7 @@
  *   `forever`/`for … in`/`for … from … to` body only — never a comprehension body, which the
  *   grammar restricts to `[ … ]` alone, and never a `define … end` procedure body, which has no
  *   bracket form at all) that spans more than one physical line ("Suggest a `… end` block when a
- *   bracketed `[ ]` control body spans multiple lines", `spec/tooling.md:247`). `ast.ts`'s
+ *   bracketed `[ ]` control body spans multiple lines", `spec/tooling.md:248`). `ast.ts`'s
  *   `BlockNode` does not record its own surface delimiter, but {@link isBracketBlock} recovers it
  *   reliably from spans alone — see its doc comment for the exact parser invariant this exploits.
  *   See {@link preferBlockRule}.
@@ -632,7 +632,7 @@ function positionKey(span: Diagnostic["source_span"]): string {
  * statement's own span opens with — see {@link keywordCasingDiagnostic} for why the second case
  * needs the source text, and {@link NON_KEYWORD_SPAN_START_KINDS} for the two positions it skips.
  *
- * `spec/tooling.md:243` states the rule in two halves, and this is the second one: "User
+ * `spec/tooling.md:244` states the rule in two halves, and this is the second one: "User
  * identifiers should be lowercase snake_case with optional `?` or `!`; **built-ins should be shown
  * lowercase**." Issue #854 is what made that half true of built-ins generally rather than of one
  * hand-written sample of them: `PRINT` warned while `FORWARD` — the first command a learner ever
@@ -1056,7 +1056,7 @@ function blockIndentationDiagnostic(
 /**
  * `ol-style-block-indentation` (issue #169): a multi-line `Block` (the same one-line exemption as
  * {@link oneCommandPerLineRule}) whose direct statements' start columns disagree
- * (`spec/tooling.md:246` says blocks should be indented "consistently", not to a specific width,
+ * (`spec/tooling.md:247` says blocks should be indented "consistently", not to a specific width,
  * so this is deliberately a consistency check among the block's own direct statements rather than
  * an absolute-width check — a uniformly, if unusually, indented block is never flagged). The
  * *majority* column among the block's direct statements is the baseline (ties break toward
@@ -1164,7 +1164,7 @@ function checkPreferBlock(
 /**
  * `ol-style-prefer-block` (issue #169): a bracket-form control body — `if`/`while`/`repeat`/
  * `forever`/`for … in`/`for … from … to` only, matching {@link uselessValueRule}'s own six-kind
- * switch — that spans more than one physical line (`spec/tooling.md:247`). A comprehension body
+ * switch — that spans more than one physical line (`spec/tooling.md:248`). A comprehension body
  * is out of scope: the grammar restricts it to `[ … ]` alone (it is "the only body form the
  * block-result rule lets return a value", per `spec/style-guide.md`), so it can never be
  * rewritten as `… end`. A `define … end` procedure body is likewise out of scope: it has no
@@ -1215,12 +1215,12 @@ export function preferBlockRule(
  * `REPEATING_HANDLER_HEADS` is the **outer** set: handlers that fire again and again **on the tick
  * clock**, so a registration inside one runs once per firing with nothing but elapsed time driving
  * it. Only `every` qualifies. The other three all repeat — `when` is persistent since maintainer
- * ruling #984 (`spec/interaction-events.md:206-211`), exactly as `on_key` and `on_click` always
+ * ruling #984 (`spec/interaction-events.md:210-215`), exactly as `on_key` and `on_click` always
  * were — but each of them repeats only as often as something **outside the program** makes it
  * repeat: a key press, a click, or a host delivering a named event. That is the ruling's control
  * case, and it is why the outer set is keyed on the tick clock rather than on repetition alone.
  * Treating `when` as an outer would flag `when "start" [ every 10 [ shoot ] ]`, which registers
- * exactly one handler — `"start"` occurs once per run (`spec/interaction-events.md:200-204`) — and
+ * exactly one handler — `"start"` occurs once per run (`spec/interaction-events.md:204-208`) — and
  * is the ordinary way a learner opens a game.
  *
  * `HANDLER_HEADS` is the **inner** set: every registration form, not merely the repeating ones,

@@ -25,7 +25,7 @@
 //      so they now check clean with the profile active and stay `ol-unknown-command` without it.
 //      Issue #746 then closed the mirror-image hole: being a *primitive* rather than a keyword
 //      decides which BRANCH of the checker reports a redefinition, not
-//      whether it is reportable at all (`spec/tooling.md:185`), so `define who` collides under
+//      whether it is reportable at all (`spec/tooling.md:186`), so `define who` collides under
 //      an active profile exactly as `define grid`/`define wait` do — and, since issue #841 retired
 //      the profile gate on declarations, without the profile too. Only CALL visibility is still
 //      profile-gated: `who` under Core alone is `ol-unknown-command` at a call and
@@ -444,7 +444,7 @@ test("#841: redefining a Sprites block-head raises under Core-only too", () => {
 test("check: redefining a Sprites reporter under an active profile raises ol-reserved-word", () => {
   // Issue #746. Until this fix the reporters were the one Sprites shape a program could silently
   // shadow: this test asserted `define who … end` checked *clean* under an active profile, which
-  // pinned the defect rather than the rule. `spec/tooling.md:185` is a normative Layer-2 "Required
+  // pinned the defect rather than the rule. `spec/tooling.md:186` is a normative Layer-2 "Required
   // behavior" row listing **primitive** beside "keyword" — and profile primitives count there
   // whether or not their profile is claimed — so `new_turtle`/`who`/`turtles` (C3 Kind-R
   // primitives) collide exactly
@@ -452,7 +452,7 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   //
   // The reporter/block-head distinction this file exists to keep separate is preserved in the
   // checker's BRANCHES, but is no longer visible in the diagnostic: issue #838 removed the
-  // `namespace` param, because `spec/error-model.md:125,133-142` makes keyword-vs-primitive "an
+  // `namespace` param, because `spec/error-model.md:125,134-143` makes keyword-vs-primitive "an
   // implementation distinction the learner never has to learn". `params.name` is the surface
   // spelling the learner wrote, at that name's own span (#737).
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {

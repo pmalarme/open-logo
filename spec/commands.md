@@ -811,7 +811,7 @@ repeat 3
 end repeat
 ```
 
-- **Possible errors:** `ol-repcount-outside-repeat` when `repcount` appears outside any `repeat` that **lexically encloses it** — including inside a procedure called from a `repeat` body, and inside a handler invocation that runs after its enclosing `repeat` has finished.
+- **Possible errors:** `ol-repcount-outside-repeat` when `repcount` appears outside any `repeat` whose body the code runs as part of — including inside a procedure called from a `repeat` body, and inside a handler block, whose invocation is never on a turn of any loop.
 
 ### `for … in …`
 

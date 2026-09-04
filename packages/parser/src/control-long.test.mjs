@@ -342,7 +342,7 @@ test("a destructuring binder with a bare (non-colon) name `for [x] in …` raise
 });
 
 test("an empty destructuring binder `for [] in …` reports the empty binder exactly once", () => {
-  // This pinned "exactly one `ol-unmatched-bracket`, no duplicate" until `spec/error-model.md:166-170`
+  // This pinned "exactly one `ol-unmatched-bracket`, no duplicate" until `spec/error-model.md:167-171`
   // made the delimiter class agnostic: the `[` and `]` here are correctly matched two characters
   // apart, so what is wrong is the EMPTY binder between them, and `ol-bad-token` alone is
   // authoritative (issue #947). The "exactly once" half is what the original test was for and is

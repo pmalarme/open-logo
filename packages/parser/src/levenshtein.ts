@@ -1,6 +1,6 @@
 /**
  * Classic Levenshtein edit distance (insertion, deletion, substitution — each cost 1), used by
- * the checker's did-you-mean machinery (`spec/error-model.md:140-148`,
+ * the checker's did-you-mean machinery (`spec/error-model.md:141-149`,
  * `spec/tooling.md:178-180`). Callers normalize both operands with OpenLogo's case-insensitive
  * name comparison *before* calling this — the function itself is a plain string-distance
  * primitive with no OpenLogo-specific casing rule baked in, so it stays reusable by every future

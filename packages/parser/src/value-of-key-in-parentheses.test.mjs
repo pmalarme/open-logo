@@ -200,7 +200,7 @@ test("a bare `value` in parentheses is still rejected", () => {
   //
   // This used to filter for the one CORRECT diagnostic in order to avoid pinning two false
   // `ol-unmatched-paren` that a balanced `( value )` also reported — a defect (issue #879) that a
-  // stack-neutral fixture would have made normative. Those are gone: `spec/error-model.md:166-170`
+  // stack-neutral fixture would have made normative. Those are gone: `spec/error-model.md:167-171`
   // now forbids reporting a matched delimiter as unmatched, and the parser complies, so the whole
   // diagnostic list can be asserted and the reason for the filter no longer exists.
   const diagnostics = allDiagnostics("print (value)\n");

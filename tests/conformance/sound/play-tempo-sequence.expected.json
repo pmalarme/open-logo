@@ -1,5 +1,5 @@
 {
-  "description": "issue #691 (headless-stream self-sufficiency, extending #690's `note-tempo-change-sequence`): `set_tempo 60` then `play [\"c4\" 1 \"e4\" 2]`. `play` emits the melody's beat durations verbatim; the tempo lives in the earlier `set_tempo` event. A downstream replay tool therefore has COMPLETE information (tempo from the `set_tempo` event x beat durations from the melody) to render wall-clock timing, so no runtime beat cursor is needed - durations are carried verbatim in beats (spec/interaction-events.md:342-343), not converted at emit. Each sound event follows its instruction event.",
+  "description": "issue #691 (headless-stream self-sufficiency, extending #690's `note-tempo-change-sequence`): `set_tempo 60` then `play [\"c4\" 1 \"e4\" 2]`. `play` emits the melody's beat durations verbatim; the tempo lives in the earlier `set_tempo` event. A downstream replay tool therefore has COMPLETE information (tempo from the `set_tempo` event x beat durations from the melody) to render wall-clock timing, so no runtime beat cursor is needed - durations are carried verbatim in beats (spec/interaction-events.md:346-347), not converted at emit. Each sound event follows its instruction event.",
   "profiles": ["sound"],
   "execute": true,
   "events": [

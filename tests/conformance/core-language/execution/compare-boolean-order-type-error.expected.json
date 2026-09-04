@@ -1,5 +1,5 @@
 {
-  "description": "Ordering (`<`) is defined only for two numbers or two words; a boolean operand raises `ol-type` naming the expected concept \"number or word\" (spec/execution-model.md:812-814, error-model.md `ol-type`). Execution halts at the failing statement, so only its `instruction` event is kept \u2014 no `print` event. Issue #96.",
+  "description": "Ordering (`<`) is defined only for two numbers or two words; a boolean operand raises `ol-type` naming the expected concept \"number or word\" (spec/execution-model.md:849-851, error-model.md `ol-type`). Execution halts at the failing statement, so only its `instruction` event is kept \u2014 no `print` event. Issue #96.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

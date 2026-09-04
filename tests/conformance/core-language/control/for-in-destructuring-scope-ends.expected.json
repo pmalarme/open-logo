@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring `for [:x :y] in <expr>` binder (spec/grammar.md:128,137-138) lives only within its own loop body: reads of `:x`/`:y` inside the body are fine, but reading `:x` again after `end for` has no visible declaration in scope, so it raises `ol-undefined-var` (spec/execution-model.md:1174). This is the destructuring-specific case of the binder-not-leaked rule — the existing `core-language/check/undefined-var-binder-not-leaked` fixture only covers a bare-name `for ... in` binder.",
+  "description": "A destructuring `for [:x :y] in <expr>` binder (spec/grammar.md:128,137-138) lives only within its own loop body: reads of `:x`/`:y` inside the body are fine, but reading `:x` again after `end for` has no visible declaration in scope, so it raises `ol-undefined-var` (spec/execution-model.md:1211). This is the destructuring-specific case of the binder-not-leaked rule — the existing `core-language/check/undefined-var-binder-not-leaked` fixture only covers a bare-name `for ... in` binder.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

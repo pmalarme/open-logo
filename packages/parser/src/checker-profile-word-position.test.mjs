@@ -152,8 +152,8 @@ test("the message names the word and the closest legal form, in the lowercase Lo
   // harness cannot compare prose. It can: a fixture opts in with `"compareMessages": true` (issue
   // #1025). This wording deliberately does not opt in. `spec/error-model.md:110` makes the
   // `ol-bad-token` message a SHOULD ("point at the unexpected text and mention the closest legal
-  // form when clear"), `:257-260` makes identity `code` plus `params` and asks tests to assert
-  // those, and `:262-264` positively permits a template author to reorder, inflect, or soften this
+  // form when clear"), `:258-261` makes identity `code` plus `params` and asks tests to assert
+  // those, and `:263-265` positively permits a template author to reorder, inflect, or soften this
   // prose — so freezing this English sentence in a stack-neutral fixture would oblige every
   // conforming implementation to emit it verbatim. The opt-in is for messages the spec fixes
   // itself, such as `:125`'s `ol-reserved-word`. Swept over every rejected word rather than

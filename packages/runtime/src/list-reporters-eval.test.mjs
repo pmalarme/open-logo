@@ -1,5 +1,5 @@
 // Unit tests for the Core list reporters' runtime evaluation (issue #101, spec/commands.md
-// "Words and lists", spec/execution-model.md:751-786). Conformance fixtures under
+// "Words and lists", spec/execution-model.md:788-823). Conformance fixtures under
 // tests/conformance/core-language/execution/list-reporter-*.expected.json cover the primary
 // literal-observable positive/negative cases end to end. These unit tests fill in what a fixture
 // cannot: every dynamically-reachable diagnostic path exercised directly (not via

@@ -1,5 +1,5 @@
 {
-  "description": "Reading an unbound mixed-case `:SomeVar` raises `ol-undefined-var` whose `params.name` is the case-insensitive resolution identity `somevar`, NOT the source casing — so the runtime guard agrees with the semantic checker's folded `params.name` for the same condition (issue #1005). Variable resolution folds case (`lookupVar`), so one condition must have one diagnostic identity (`spec/error-model.md:255-260`).",
+  "description": "Reading an unbound mixed-case `:SomeVar` raises `ol-undefined-var` whose `params.name` is the case-insensitive resolution identity `somevar`, NOT the source casing — so the runtime guard agrees with the semantic checker's folded `params.name` for the same condition (issue #1005). Variable resolution folds case (`lookupVar`), so one condition must have one diagnostic identity (`spec/error-model.md:256-261`).",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

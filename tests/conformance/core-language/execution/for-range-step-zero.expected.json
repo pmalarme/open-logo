@@ -1,5 +1,5 @@
 {
-  "description": "for ... by 0 never reaches end and raises ol-range (spec/execution-model.md:700-701). Issue #103.",
+  "description": "for ... by 0 never reaches end and raises ol-range (spec/execution-model.md:737-738). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

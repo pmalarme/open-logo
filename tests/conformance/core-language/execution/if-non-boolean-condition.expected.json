@@ -1,5 +1,5 @@
 {
-  "description": "`if 5 [ print 1 ]` raises `ol-not-boolean` (`spec/execution-model.md:693`, `spec/error-model.md:123`): there is no truthiness, so a number condition is never coerced. The `If` statement's own `instruction` event is emitted, but the condition failure stops execution before the then-branch ever runs. Issue #100.",
+  "description": "`if 5 [ print 1 ]` raises `ol-not-boolean` (`spec/execution-model.md:730`, `spec/error-model.md:123`): there is no truthiness, so a number condition is never coerced. The `If` statement's own `instruction` event is emitted, but the condition failure stops execution before the then-branch ever runs. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

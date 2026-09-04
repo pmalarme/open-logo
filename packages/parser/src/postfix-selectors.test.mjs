@@ -195,7 +195,7 @@ test("a spaced comprehension body is never treated as a selector on the collecti
 });
 
 test("an empty selector :nums[] reports the missing key, not a phantom unmatched bracket", () => {
-  // `spec/error-model.md:166-170` MUST NOT: the `[` and `]` here are correctly matched in the
+  // `spec/error-model.md:167-171` MUST NOT: the `[` and `]` here are correctly matched in the
   // source, so the defect is the missing `key-term` between them and `ol-bad-token` alone is
   // authoritative. This used to report `ol-unmatched-bracket` against a `]` one character from its
   // own `[` (issue #947).

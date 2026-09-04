@@ -351,6 +351,11 @@ binding exists. One sentence decides every case below:
 > **A name is born where it is first assigned, lives until that scope ends, and a
 > procedure's edge is sealed.**
 
+"Lives until that scope ends" is about **visibility**: once the scope has ended,
+no code written outside it can name that binding. A binding a still-pending
+handler holds stays alive, as
+[Frames, handlers, and lifetime](#frames-handlers-and-lifetime) explains.
+
 ### Scopes and bindings
 
 A **binding** attaches a value to a name inside a **scope**. There are exactly
@@ -384,14 +389,26 @@ Visibility is decided by where the code is written, never by who called it.
 - Inside a **procedure body**, exactly three things are visible: the procedure's
   own parameters, the bindings its body has already created, and names declared
   `global`. **Every other variable of every enclosing scope is invisible** — not
-  merely unwritable. Reading one raises `ol-undefined-var`.
+  merely unwritable. Reading one raises `ol-var-not-visible`, which names the
+  procedure whose boundary hid it; reading a name that is bound nowhere at all
+  raises `ol-undefined-var` as usual.
 
 A binding an enclosing scope provides — a parameter, or a `global` — is visible
 throughout the scope regardless of where it is read or written. A binding a scope
 creates for itself is visible from the point the statement that creates it has
-run; a read before that point raises `ol-undefined-var`. Both the evaluator and
-the semantic checker MUST resolve names in statement order within a scope, so
-that they agree about which binding a name reaches.
+run; a read before that point raises `ol-undefined-var`, or `ol-var-not-visible`
+when an enclosing scope binds the name and the procedure boundary is what hides
+it. A binding an enclosing **block or root** scope creates is visible to an
+inline block from that block's own position in the enclosing scope, and to a
+deferred handler block whenever the handler fires.
+
+The evaluator resolves names as execution reaches them. The semantic checker MUST
+resolve them lexically and conservatively: it reports a name only when **no**
+execution order could make that name visible at the read. Within one scope's
+straight-line statement list the two therefore agree exactly, which is what makes
+a procedure reading a name its boundary hides a `check()`-stage diagnostic; across
+scope boundaries the checker never reports a name that a later declaration or a
+deferred handler could reach.
 
 The procedure boundary is deliberately stricter than the enclosing-scope access
 most languages permit. Everything a procedure touches is named at its boundary,
@@ -409,11 +426,12 @@ end
 ```
 
 `draw_steps` cannot see the top-level `:count`, so `forward :count * 10` raises
-`ol-undefined-var`. The diagnostic fires on the **read**, because the read comes
-first; had the write come first it would have created a binding in the scope
-where the write appears — here the `repeat` body, born fresh on every turn —
-which is correct, because that is a genuinely different variable. The fix is one
-word at the top level: `global count = 0`.
+`ol-var-not-visible`, whose message names the boundary — `:count is not defined
+inside draw_steps` — and offers the fix. The diagnostic fires on the **read**,
+because the read comes first; had the write come first it would have created a
+binding in the scope where the write appears — here the `repeat` body, born fresh
+on every turn — which is correct, because that is a genuinely different variable.
+The fix is one word at the top level: `global count = 0`.
 
 The boundary governs the **variable** namespace only. The callable namespace —
 primitives, procedures, struct constructors, and alias spellings, all registered
@@ -463,8 +481,9 @@ order rather than from scoping: `:people.tom = <value>` resolves its base
 `:people` as a read before assigning (see
 [Assignable places and mutation](#assignable-places-and-mutation)). Inside a
 procedure that cannot see `people`, `:people = <value>` therefore creates a new
-local binding silently, while `:people.tom = <value>` raises `ol-undefined-var`
-on the base. Only the second one needs an existing value to write into.
+local binding silently, while `:people.tom = <value>` raises
+`ol-var-not-visible` on the base. Only the second one needs an existing value to
+write into.
 
 ### `local`
 
@@ -475,21 +494,23 @@ anything of that name that was visible.
 
 `local name = value` is the same declaration with an initializer. **The
 initializer is evaluated before the new binding is created, with exactly the
-visibility the `local` statement itself has — the current scope minus the binding
-being declared.** `local count = :count + 1` therefore reads whatever `count` the
-statement could already see — a parameter, an earlier binding of the same scope,
-an enclosing block's binding, or a `global` — rather than raising
-`ol-undefined-var` on the binding it is about to create, which is what makes
-snapshotting a shared value into a same-named local possible.
+visibility the `local` statement itself has — the current scope minus any new
+binding the declaration creates.** `local count = :count + 1` therefore reads
+whatever `count` the statement could already see — a parameter, an earlier
+binding of the same scope, an enclosing block's binding, or a `global` — rather
+than raising `ol-undefined-var` on the binding it is about to create, which is
+what makes snapshotting a shared value into a same-named local possible.
 
 The initializer belongs to the single-name form only. The parenthesized
 multi-name form `(local a b …)` declares its names without initializers.
 
 At the root scope there is no enclosing scope to shadow into, so `local name`
 names the root scope's own binding of that name. When a `global` binding of that
-name already exists there, `local` leaves it global — a second, procedure-
-invisible binding beside it would hide shared state from every procedure without
-saying so — and `local name = value` assigns the initializer to it.
+name already exists there, `local` leaves it global — a second, procedure-invisible
+binding beside it would hide shared state from every procedure without saying so
+— and `local name = value` assigns the initializer to it. The initializer still
+sees that binding, since `local` at the root scope names it rather than creating
+a new one.
 
 `local` behaves identically in a procedure and in a block:
 
@@ -549,8 +570,13 @@ gives that word.
 
 A module's own root scope is its own. `import` shares procedures and alias
 declarations, never variables (see [Reader pipeline](#reader-pipeline)), so a
-`global` an imported module declares is not visible to the importing program, and
-`global` grants no cross-document visibility that `import` does not already give.
+`global` a module declares is shared by that module's own procedures and is
+invisible to the importing program, and `global` grants no cross-document
+visibility that `import` does not already give. A procedure resolves the `global`
+names it reads in the root scope of the document that declares the procedure,
+whichever document called it. When a module's top-level instructions run — and so
+when its `global` declarations take effect — is owned by the **Modules** profile
+and is not settled here.
 
 ### Blocks update what they can see
 
@@ -610,14 +636,17 @@ does **not** capture the frame it appears in, while a handler block written in
 the same place does. The two look similarly nested and capture differently
 because one is a declaration and the other is a block.
 
-A handler block is **not** a procedure body, wherever it is written. `return`,
-`output`, `op`, and `stop` inside one are therefore outside any procedure and
-raise `ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler
-was registered inside a `define`. Capturing the registering frame's bindings does
-not make the handler part of that procedure's control flow: without this
-boundary, a `return` in a handler that fires while the registering call is still
-on the stack would be consumed as that call's own result, and one that fires
-after it returned would have no procedure to leave at all.
+A **handler invocation** is a separate, deferred instruction, not part of the
+control flow of the call that registered the handler. `return`, `output`, `op`,
+and `stop` inside a handler block are therefore outside any procedure and raise
+`ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler was
+registered inside a `define`. Capturing the registering frame's bindings does not
+put the handler into that procedure's control flow: without this boundary a
+`return` in a handler firing while the registering call was still on the stack
+would be consumed as that call's own result, and one firing after it returned
+would have no procedure to leave. A control-form body is different, because it
+runs as part of the statement that contains it — see
+[Procedures](#procedures).
 
 ### `repcount` is lexical
 
@@ -630,12 +659,12 @@ does. The Sprites addressing model is deliberately different: `ask`, `tell`, and
 `each` carry dynamic *turtle state*, not a name binding, so they are unaffected
 by this rule.
 
-Lexical enclosure is necessary but not sufficient: the enclosing `repeat` must
-also be running the turn the code executes in. A handler block written inside a
-`repeat` body keeps that body's bindings after the loop finishes (see
-[Frames, handlers, and lifetime](#frames-handlers-and-lifetime)), but an
-invocation that runs after the loop has finished is on no turn at all, so
-`repcount` in it raises `ol-repcount-outside-repeat`.
+A **handler invocation is never on a turn of any `repeat`.** It is a separate,
+deferred instruction rather than part of the loop that registered it, so
+`repcount` inside a handler block raises `ol-repcount-outside-repeat` however the
+loop is placed and whether or not it has finished. Lexical enclosure is therefore
+necessary but not sufficient: it must be enclosure by a `repeat` whose body the
+code runs as part of.
 
 ### Procedures
 
@@ -657,8 +686,16 @@ extra arguments beyond the fixed default arity, use the parenthesized call form:
 `ol-not-enough-inputs` or `ol-too-many-inputs`.
 
 `return value` exits the current procedure and provides its value. `output` and
-`op` are heritage aliases. A procedure that reaches `return` is usable as a
-reporter; a procedure that does not is a command. Using a command procedure
+`op` are heritage aliases. A control-form body does not interpose a procedure
+boundary: a `return` or `stop` inside an `if`, `while`, `repeat`, `for`, or
+`forever` body exits the procedure that body is written in, which is what lets a
+recursive procedure return from inside its base-case `if`. A comprehension body
+and a handler block are the two exceptions — the first raises
+`ol-return-in-comprehension`, and the second is a deferred invocation outside any
+procedure (see
+[Frames, handlers, and lifetime](#frames-handlers-and-lifetime)). A procedure
+that reaches `return` is usable as a reporter; a procedure that does not is a
+command. Using a command procedure
 where a value is required raises `ol-no-output` at the call site. A `return`,
 `output`, or `op` outside any procedure raises `ol-return-outside-proc`. `stop`
 exits a procedure early without a value and outside any procedure raises

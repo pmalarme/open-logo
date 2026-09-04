@@ -105,7 +105,7 @@ test("at Core-only (turtle-rendering NOT active), forward is still not visible: 
   assert.equal(finding.params.suggestion, undefined);
 });
 
-test("issue #136 / spec/tooling.md:200-207 worked example: with turtle-rendering active, fowad suggests forward", () => {
+test("issue #136 / spec/tooling.md:201-208 worked example: with turtle-rendering active, fowad suggests forward", () => {
   // Parenthesized form, per the same reasoning as the Core-only known-gap test above: an
   // unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` would
   // leave `100` as a stray second statement on the line (a parse-stage ol-bad-token) — orthogonal
@@ -124,7 +124,7 @@ test("issue #136 / spec/tooling.md:200-207 worked example: with turtle-rendering
   );
 });
 
-test("did-you-mean tie-break (spec/error-model.md:146-147): a Core word beats an optional-profile word at the same edit distance", () => {
+test("did-you-mean tie-break (spec/error-model.md:147-148): a Core word beats an optional-profile word at the same edit distance", () => {
   // "clea" is Levenshtein distance 1 from BOTH the reserved word "clear" (Core) and the Turtle &
   // Rendering primitive "clean" (optional profile) — a genuine tie now that turtle names are
   // registered (issue #136). The spec requires Core to win the tie, never lexicographic order

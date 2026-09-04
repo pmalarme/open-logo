@@ -143,7 +143,7 @@
  * ## #769 — the `input` prompt and the synchronous reader
  * `@openlogo/runtime`'s host reader (#681,
  * `ExecuteOptions.hostInput.read?: (prompt: string) => string | undefined`) is **synchronous**:
- * `spec/interaction-events.md:156-159` requires that no OpenLogo instruction and no handler block
+ * `spec/interaction-events.md:160-163` requires that no OpenLogo instruction and no handler block
  * runs until a read finishes, and a synchronous call is that guarantee by construction. `execute()`
  * itself never yields either (see the Stop caveat above), so a same-thread browser host cannot
  * suspend inside `read` to await a styled, keyboard-operable, screen-reader-announced prompt. That
@@ -169,7 +169,7 @@
  * the events already drawn — see `prepare()`), and no consumer double-counts, because
  * `run-log.ts`/`tutor-output-pane.ts` accumulate only on the `"running"` → terminal transition a
  * probe never reaches. From the learner's side the program stops at the question and continues from
- * exactly there, which is what `:156-159` asks a host to show.
+ * exactly there, which is what `:160-163` asks a host to show.
  *
  * ## #881 — why "attempt *k+1* begins with attempt *k*" is now unconditional
  * Before #881 that claim carried a qualifier: it held only "for a program whose prefix is
@@ -295,7 +295,7 @@
  * clicked the canvas, and got silence.
  *
  * `deliverKey`/`deliverClick` close that, and Stop schedules the `"stop"` named event
- * (`spec/interaction-events.md:200-204`: `"stop"` is "a requested stop notification **before**
+ * (`spec/interaction-events.md:204-208`: `"stop"` is "a requested stop notification **before**
  * termination"). All three go through the same mechanism — and share its one honest limit: a
  * scheduled occurrence fires only if the program's tick clock actually reaches its tick, and only a
  * `wait` pause advances that clock. A program that never waits therefore receives nothing, Stop
@@ -327,7 +327,7 @@
  * `packages/studio/README.md`:
  * - a program is responsive for as many inputs as the learner gives it, because the old counter's
  *   cap at the program's tick count was an artifact. Delivery nonetheless **closes for a program
- *   whose clock offers no further yield** (`spec/interaction-events.md:246-252`), which #1039's
+ *   whose clock offers no further yield** (`spec/interaction-events.md:250-256`), which #1039's
  *   maintainer ruling settled: *"If the program is ended it should refuse it. If there is a `wait`
  *   the program is not ended — it is still running."* {@link createRunController}'s
  *   `programIsStillRunning` is that test; its doc records why neither `runStatus` nor
@@ -377,7 +377,7 @@
  *   `on_key`/`on_click`/`when`, so the run's own trace stream answers this. A program that never
  *   registers one is not re-executed at all, which is what keeps this slice a no-op — not merely a
  *   cheap operation — for every non-interactive program and every test that predates it.
- * - **No `input` question is outstanding right now.** `spec/interaction-events.md:156-159` forbids
+ * - **No `input` question is outstanding right now.** `spec/interaction-events.md:160-163` forbids
  *   running a handler block "until the read finishes" — an *until*, so the block is transient. Until
  *   #976 the studio was stricter: once a chain had asked anything the window stayed shut for the rest
  *   of its life, because a delivery was then scheduled at a synthetic tick that could land *before*
@@ -400,7 +400,7 @@
  * under a host that settles across event-loop turns — is still *scheduled*, and replayed when that
  * attempt lands. Refusing it made the recorded schedule
  * depend on settlement pacing (measured: the same two calls recorded two entries under a synchronous
- * host and one under a deferred one) and dropped the key outright, where `:139-141` requires the most
+ * host and one under a deferred one) and dropped the key outright, where `:143-145` requires the most
  * recent key and click state to be preserved.
  *
  * *Before* that first settlement the registration gate has nothing to read — `run()` clears
@@ -612,7 +612,7 @@ export interface RunController {
   step(): void;
   /**
    * Deliver one key press to the running program (#952), as the OpenLogo key word
-   * `spec/interaction-events.md:269-273` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
+   * `spec/interaction-events.md:273-277` defines — `"left"`, `"space"`, `"a"`, and so on. Browser
    * key names are normalized to that vocabulary by `key-words.ts`'s `normalizeKeyWord`, never here.
    *
    * The press is scheduled at the tick the program has actually reached and the current chain is
@@ -655,7 +655,7 @@ export interface RunController {
   deliverKey(key: string): boolean;
   /**
    * Deliver one activation of the drawing surface to the running program (#952) — a pointer click
-   * **or** "an equivalent accessible action" (`spec/interaction-events.md:289-290`), which is why
+   * **or** "an equivalent accessible action" (`spec/interaction-events.md:293-294`), which is why
    * this takes no pointer coordinates: OpenLogo v0.1 standardizes no click-position reporter, so a
    * keyboard-reachable activation control is exactly as complete a click as a mouse is.
    *
@@ -735,7 +735,7 @@ type HostInputOccurrence = HostInputEvent extends infer Member
 /**
  * Did this run register a `<name>` event handler (#952)? `when`, `every`, `on_key`, and `on_click`
  * each emit the ordinary catch-all `primitive` event carrying their own name "after the handler is
- * registered" (`spec/interaction-events.md:168-170`), so the run's own trace stream is the record —
+ * registered" (`spec/interaction-events.md:172-174`), so the run's own trace stream is the record —
  * this never re-parses the source or second-guesses the runtime.
  *
  * It is what keeps delivery a **no-op** rather than merely a cheap operation for a program that
@@ -945,7 +945,7 @@ export function createRunController(
   let chainHandlerDeliveries: readonly HandlerDelivery[] = [];
   // #976 — the tick at which this chain's most recently answered `input` completed, or `null` when
   // none has. A tick is not a fine enough boundary to order a delivery against a read that finished
-  // *within* it: `spec/interaction-events.md:156-159` blocks handlers only until the read finishes,
+  // *within* it: `spec/interaction-events.md:160-163` blocks handlers only until the read finishes,
   // but a delivery scheduled at that same tick can be dispatched at the tick's checkpoint, which
   // precedes the read in program order. Measured: without this clamp, a program whose read is the
   // last thing before the end replays `["Ada"]` into `["turned","Ada"]` — the line the learner had
@@ -971,7 +971,7 @@ export function createRunController(
   // that attempt lands, rather than refused. Refusing made the recorded schedule depend on
   // settlement pacing (measured: the same two calls recorded two entries under a synchronous host
   // and one under a deferred one) and dropped the key outright, where
-  // `spec/interaction-events.md:139-141` requires the most recent key/click state to be preserved.
+  // `spec/interaction-events.md:143-145` requires the most recent key/click state to be preserved.
   let deliveredScheduleLength = 0;
   // Guards the delivery drain against re-entering itself when a host settles synchronously — the
   // same shape `pump()` uses, for the same reason.
@@ -1097,7 +1097,7 @@ export function createRunController(
       }
       if (answer === undefined) {
         // The learner dismissed the question, so the read really did end unanswered — which is the
-        // one other ending `spec/interaction-events.md:158-159` allows. Publish the cancellation
+        // one other ending `spec/interaction-events.md:162-163` allows. Publish the cancellation
         // this attempt already produced.
         commitCancelledRead();
         state.setRunStatus("stopped");
@@ -1217,7 +1217,7 @@ export function createRunController(
         // #952 (review round 5/6) — the `"stop"` notification block may itself reach an `input`.
         // That read belongs to an attempt started *after* the question Stop already withdrew, and
         // the program is terminating, so it ends the only other way
-        // `spec/interaction-events.md:158-159` allows. Withdrawn **here**, keyed to this exact
+        // `spec/interaction-events.md:162-163` allows. Withdrawn **here**, keyed to this exact
         // attempt: under a host that settles across event-loop turns the read does not exist when
         // `stop()` returns, and a check that only asked "is a notification outstanding" withdrew a
         // later, unrelated chain's question instead. Withdrawing before `then` also means the
@@ -1307,7 +1307,7 @@ export function createRunController(
     // `wait 9` produced identical `[505, 505, 505]` delays over an identical 1515 total.
     //
     // The step is priced BEFORE it runs, which is why this reads the animation controller's own
-    // `nextStepEndIndex()` rather than charging the step that just finished: `:164-166`'s case —
+    // `nextStepEndIndex()` rather than charging the step that just finished: `:168-170`'s case —
     // "hold itself open with a long `wait` while those handlers drive the animation" — is a
     // *trailing* wait, and a trailing step has no successor to charge. Measured, pricing backwards
     // left `on_key … / wait 20` and `… / wait 1` both at 1010.
@@ -1596,7 +1596,7 @@ export function createRunController(
    * delivery would be clamped to ({@link currentDeliveryFloorTick}) against the last tick the
    * program's own clock yielded at ({@link lastTickTheRunYieldedAt}). `null` there means the run
    * never yielded at all: no `forever`-with-a-pause, no `wait`, nothing that
-   * `spec/interaction-events.md:246-252` recognises as holding the run open — so it is ended.
+   * `spec/interaction-events.md:250-256` recognises as holding the run open — so it is ended.
    *
    * ## Why this survives the immediate scheduler
    * The two predicates review argued over for three rounds — `runStatus` and `animation.status` —
@@ -1621,7 +1621,7 @@ export function createRunController(
    *
    * ## What it does NOT close — measured, not assumed
    * "Ended" here means **the program's clock offers no further yield**. That is narrower than
-   * `spec/interaction-events.md:246-252`'s "the run closes when the main line has finished", and a
+   * `spec/interaction-events.md:250-256`'s "the run closes when the main line has finished", and a
    * program that waited and *then* finished still reads live. Three presses each, immediate
    * scheduler, each row identical at the merge-base `492cdff7` — so this predicate neither causes
    * nor fixes any of them:
@@ -1653,7 +1653,7 @@ export function createRunController(
       // and the conservative answer is to let the delivery be SCHEDULED. `drainDeliveredInput`
       // already defers such a delivery rather than refusing it, for the reason #952 review finding 2
       // records: refusing makes the recorded schedule depend on settlement pacing and drops the key,
-      // where `spec/interaction-events.md:139-141` requires the most recent key/click state to be
+      // where `spec/interaction-events.md:143-145` requires the most recent key/click state to be
       // preserved. `reclampUndeliveredTail` then re-judges its tick against the fresh settlement.
       //
       // Measured without this line, exactly two tests fail: `#976 AC2: a DEFERRED delivery is
@@ -1725,7 +1725,7 @@ export function createRunController(
   /**
    * Is this chain accepting delivered input at all (#952, narrowed by #976)? It must be live —
    * `run()` opens the window, Stop and Reset close it, and a lazy `step()` preparation never opens
-   * it — no question may be outstanding (`spec/interaction-events.md:156-159` forbids running a
+   * it — no question may be outstanding (`spec/interaction-events.md:160-163` forbids running a
    * handler block until a read finishes), and the answer chain must not be mid-pump.
    *
    * The `pumping` check is what keeps a prompt host that answers **synchronously from inside
@@ -1733,12 +1733,12 @@ export function createRunController(
    * hang the "#881" section above describes.
    *
    * **#976 removed the fourth check.** Until this slice a chain that had *ever* asked a question
-   * refused delivery for the rest of its life, which is stricter than `:156-159` — the spec blocks
+   * refused delivery for the rest of its life, which is stricter than `:160-163` — the spec blocks
    * handlers only "until the read finishes". That gate existed because a delivery was scheduled at a
    * synthetic tick that could land *before* the read, rewriting history the learner had already
    * observed. #985's tick timeline removes the cause: a delivery is now scheduled at the tick the
    * learner is actually looking at, which is never earlier than the read they have already answered.
-   * `pendingRead === null` is what enforces `:156-159` itself, and it is transient exactly as the
+   * `pendingRead === null` is what enforces `:160-163` itself, and it is transient exactly as the
    * spec's "until" is.
    */
   function acceptsHostInput(): boolean {
@@ -1766,7 +1766,7 @@ export function createRunController(
    * Deliberately **narrow**: it gates the two learner-facing deliveries only, not
    * {@link acceptsHostInput}, which also gates `drainDeliveredInput`'s loop and Stop's `when "stop"`
    * notification. `"stop"` is the program's own pre-termination hook
-   * (`spec/interaction-events.md:200-204`) rather than input arriving at a live program, and the
+   * (`spec/interaction-events.md:204-208`) rather than input arriving at a live program, and the
    * drain loop must stay free to replay an occurrence already accepted.
    *
    * Both halves of that boundary are measured, and they do not behave alike:
@@ -1918,13 +1918,13 @@ export function createRunController(
     chainGeneration += 1;
     pauseAnimation();
     const withdrewPendingRead = withdrawPendingRead();
-    // #952 — `spec/interaction-events.md:200-204` makes `"stop"` "a requested stop notification
+    // #952 — `spec/interaction-events.md:204-208` makes `"stop"` "a requested stop notification
     // BEFORE termination", so the notification is delivered while the program can still act on it,
     // by one final replay of the chain with the named event scheduled. Gated exactly like a key or
     // click: the window must be open, the chain must never have asked a question, and the program
     // must actually have registered a `when` handler — so a Stop on any program that did not is
     // byte-for-byte the Stop it always was. A withdrawn question suppresses it too, because
-    // `:156-159` forbids running a handler block for a read that ended unanswered.
+    // `:160-163` forbids running a handler block for a read that ended unanswered.
     const notifies = !withdrewPendingRead && acceptsHostInputFor("when");
     chainAcceptsHostInput = false;
     // Latched BEFORE the notification attempt so that attempt cannot settle the run as `"done"`

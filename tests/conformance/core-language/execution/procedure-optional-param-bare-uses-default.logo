@@ -1,5 +1,5 @@
 # The fixed-arity (bare) call form uses the optional parameter's default value
-# (spec/execution-model.md:643-654). The parenthesized-call-with-extra-args form is covered by
+# (spec/execution-model.md:672-683). The parenthesized-call-with-extra-args form is covered by
 # procedure-call-paren-extra-arg.logo.
 define greet (:name "world")
   print :name

@@ -74,7 +74,7 @@ test("submit() finishes the read with the learner's answer and takes the questio
   assert.equal(controller.getView().prompt, "");
 });
 
-test("cancel() ends the read unanswered — the runtime reader's own `undefined` (spec/interaction-events.md:158-159)", () => {
+test("cancel() ends the read unanswered — the runtime reader's own `undefined` (spec/interaction-events.md:162-163)", () => {
   const controller = OL.createInputPromptController();
   const recorder = createResponderRecorder();
   controller.present({ prompt: "who?" }, recorder.respond);

@@ -56,7 +56,7 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
 
 /**
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
- * NOT change program meaning. `spec/tooling.md:239-253` registers 13 `ol-style-*` codes; issue
+ * NOT change program meaning. `spec/tooling.md:240-254` registers 13 `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
  * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
  * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —

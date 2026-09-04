@@ -18,7 +18,7 @@
 //      quietly shrinking the guard.
 //   2. **`ol-reserved-word` carries `params: { name }` and nothing else**, and its one sentence
 //      never says *keyword*, *primitive* or *alias* (`spec/error-model.md:125`, issue #883).
-//   3. **`ol-duplicate-definition` carries BOTH spans** (`spec/error-model.md:126,144-147`).
+//   3. **`ol-duplicate-definition` carries BOTH spans** (`spec/error-model.md:126,145-148`).
 //
 // Every assertion that can be is driven off the **registry** — `heritageAliasNames()`,
 // `OL_CHECK_PROFILES` — rather than a hand-kept list, so a future slice that adds an alias is

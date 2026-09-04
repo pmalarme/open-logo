@@ -272,7 +272,7 @@ test("raises ol-not-a-place for a parenthesized reporter call target", () => {
 
 test("raises ol-not-a-place for a bare number-literal assignment target", () => {
   // The parser structurally accepts a literal in target position (`checker-not-a-place.ts`'s
-  // doc comment; `spec/tooling.md:215-221`) precisely so this rule — not an internal-invariant
+  // doc comment; `spec/tooling.md:216-222`) precisely so this rule — not an internal-invariant
   // throw — can explain the mistake with its full surface text.
   const env = createEnvironment();
   const result = executeAssign(parseStatement("3 = 5"), env);

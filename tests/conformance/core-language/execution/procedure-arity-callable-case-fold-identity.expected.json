@@ -1,5 +1,5 @@
 {
-  "description": "A user procedure declared `Double` (mixed case) called as `DOUBLE` with too few arguments raises ol-not-enough-inputs whose params.callable is the definition's declared spelling `Double`, not the call site casing nor a lowercasing — case-insensitive identifiers can never make the call spelling the diagnostic identity (spec/error-model.md:255-260), and a mixed-case declaration is what distinguishes the declared-spelling rule from mere lowercasing (matching check-side issue #874). Issue #1005.",
+  "description": "A user procedure declared `Double` (mixed case) called as `DOUBLE` with too few arguments raises ol-not-enough-inputs whose params.callable is the definition's declared spelling `Double`, not the call site casing nor a lowercasing — case-insensitive identifiers can never make the call spelling the diagnostic identity (spec/error-model.md:256-261), and a mixed-case declaration is what distinguishes the declared-spelling rule from mere lowercasing (matching check-side issue #874). Issue #1005.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

@@ -4,7 +4,7 @@ import * as OL from "@openlogo/parser";
 
 /**
  * Unit tests for the Data profile's semantic-checker registration (issue #405, M4 audit finding
- * F3, `spec/tooling.md:172-185`). `dict`/`keys`/`values`/`type_of`/`reverse`/`pick`/`sort` and a
+ * F3, `spec/tooling.md:172-186`). `dict`/`keys`/`values`/`type_of`/`reverse`/`pick`/`sort` and a
  * `struct`'s constructor call must be recognized by `check()` — visibility (no
  * `ol-unknown-command`), exact arity (`ol-not-enough-inputs`/`ol-too-many-inputs`), and reserved-word
  * collision (`ol-reserved-word`).

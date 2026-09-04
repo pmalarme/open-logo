@@ -1,5 +1,5 @@
 {
-  "description": "A reporter procedure (reaches `return`) called in expression position: `procedure-enter`/`return`/`procedure-exit` bracket the call (spec/execution-model.md:338-689, 775-813). Issue #97.",
+  "description": "A reporter procedure (reaches `return`) called in expression position: `procedure-enter`/`return`/`procedure-exit` bracket the call (spec/execution-model.md:338-726, 775-813). Issue #97.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

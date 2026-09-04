@@ -111,14 +111,18 @@ That program prints `10`. This is a rule about lifetime, not about values: block
 are still not values, and v0.1 still has no lambda and no first-class procedure
 value.
 
-`return` and `stop` inside a handler block follow their ordinary rule — a handler
-block is not a procedure body, so they are outside any procedure and raise
-`ol-return-outside-proc` or `ol-stop-outside-proc` even when the handler was
+A **handler invocation** is a separate, deferred instruction, not part of the
+control flow of the call that registered the handler. `return`, `output`, `op`,
+and `stop` inside a handler block are therefore outside any procedure and raise
+`ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler was
 registered inside a `define`. Capturing the registering frame's bindings does not
-put the handler inside that procedure's control flow: a `return` in a handler
-firing while the registering call is still on the stack would otherwise be
-consumed as that call's own result, and one firing after it returned would have
-no procedure to leave.
+put the handler into that procedure's control flow: without this boundary a
+`return` in a handler firing while the registering call was still on the stack
+would be consumed as that call's own result, and one firing after it returned
+would have no procedure to leave. A control-form body is different, because it
+runs as part of the statement that contains it, so a `return` in an `if` body
+still exits the procedure that body is written in
+([execution-model.md](execution-model.md#procedures)).
 
 A `global` declaration is legal only at the root scope, so a handler block never
 contains one; `global name = value` inside a handler raises

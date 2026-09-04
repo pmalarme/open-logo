@@ -15,9 +15,9 @@
  * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
  * for a `repcount` reporter used outside any enclosing `repeat`. Issue #103 adds `for`'s own
  * diagnostics: `ol-type` for a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:701-702` — Core `for ... in` is list-only), `ol-range` for a
- * `for ... from ... to ... by 0` step (`spec/execution-model.md:700-701`), a destructuring
- * pattern/element length mismatch (`spec/execution-model.md:764-765`), and `ol-duplicate-binder`
+ * (`spec/execution-model.md:738-739` — Core `for ... in` is list-only), `ol-range` for a
+ * `for ... from ... to ... by 0` step (`spec/execution-model.md:737-738`), a destructuring
+ * pattern/element length mismatch (`spec/execution-model.md:801-802`), and `ol-duplicate-binder`
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
  * `stage: "runtime"` since `execute()` never runs `check()`.
@@ -120,7 +120,7 @@ export interface ArithmeticTypeErrorParams {
  * {@link ArithmeticTypeErrorParams}, but `expected` widens to the ordering concepts: a mismatched
  * operand names the other operand's concept (`"number"`/`"word"`), and a wholly non-orderable
  * operand (boolean/list) names `"number or word"` — the two categories ordering is defined for
- * (`spec/execution-model.md:812-814`).
+ * (`spec/execution-model.md:849-851`).
  */
 export interface OrderingTypeErrorParams {
   readonly expected: "number" | "word" | "number or word";
@@ -184,7 +184,7 @@ export interface UnknownKeyParams {
 
 /**
  * Params for an `ol-type` raised by a list-mutator statement (`add`/`remove`/`insert`/`clear`,
- * `spec/data-structures.md:73-93`, `spec/execution-model.md:751-786`) whose target is not a list,
+ * `spec/data-structures.md:73-93`, `spec/execution-model.md:788-823`) whose target is not a list,
  * or by `insert`'s position argument that is not a number. Issue #322 widens this for the dict
  * half of `clear` (target may be a list or dict) and for `remove key … from`, whose target must
  * be a dict specifically (`spec/data-structures.md:221-234`). Same `{expected, actual, value,
@@ -223,7 +223,7 @@ export interface NotBooleanErrorParams {
 
 /**
  * Params for an `ol-type` raised when a value that must be a whole number is not one
- * (`spec/execution-model.md:693-695` fixes the TYPE-before-RANGE order for `repeat`, one of the
+ * (`spec/execution-model.md:730-732` fixes the TYPE-before-RANGE order for `repeat`, one of the
  * callers). `operation` names the primitive that raised it.
  */
 export interface WholeNumberTypeErrorParams {
@@ -241,7 +241,7 @@ export interface NegativeCountParams {
 /**
  * Params for an `ol-range` raised by a `forward`/`back` distance that is not finite
  * (`Infinity`/`-Infinity`, reachable via arithmetic overflow — e.g. `power 10 1000` —
- * `spec/execution-model.md:821` — "OpenLogo never exposes NaN or Infinity as learner-facing
+ * `spec/execution-model.md:858` — "OpenLogo never exposes NaN or Infinity as learner-facing
  * results"). Movement math (`x + d·sin h`) would otherwise silently corrupt the turtle's
  * position with a non-finite or `NaN` coordinate (`0 · Infinity` is `NaN` in IEEE 754) instead of
  * raising a diagnostic.
@@ -286,7 +286,7 @@ export interface NonFiniteHeadingParams {
  * (`Infinity`/`-Infinity`, reachable via arithmetic overflow). Unlike {@link NonFiniteDistanceParams}
  * (where a finite distance can still corrupt movement math via `0 · Infinity === NaN`), a
  * non-finite `set_xy` coordinate is set directly onto the turtle's position with no arithmetic in
- * between — but `spec/execution-model.md:821` ("OpenLogo never exposes NaN or Infinity as
+ * between — but `spec/execution-model.md:858` ("OpenLogo never exposes NaN or Infinity as
  * learner-facing results") still forbids handing the turtle an infinite position outright, so the
  * guard is the same. `axis` names which argument was non-finite for the diagnostic's `params`.
  */
@@ -298,7 +298,7 @@ export interface NonFiniteCoordinateParams {
 
 /**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:701-702` — Core `for ... in` is list-only; dict iteration is a later
+ * (`spec/execution-model.md:738-739` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
  */
 export interface ForInNotListParams {
@@ -308,7 +308,7 @@ export interface ForInNotListParams {
 
 /**
  * Params for an `ol-range` raised by a `for ... by 0` step
- * (`spec/execution-model.md:700-701` — a step of `0` never reaches `end`, so it is rejected
+ * (`spec/execution-model.md:737-738` — a step of `0` never reaches `end`, so it is rejected
  * rather than silently looping forever).
  */
 export interface ForStepZeroParams {
@@ -318,7 +318,7 @@ export interface ForStepZeroParams {
 
 /**
  * Params for an `ol-range` raised by a destructuring binder/element length mismatch
- * (`spec/execution-model.md:764-765` — "a short or long pattern mismatch raises `ol-range`"):
+ * (`spec/execution-model.md:801-802` — "a short or long pattern mismatch raises `ol-range`"):
  * `length` is the pattern's own arity, `value` the element's actual length (`0` for a non-list
  * element, which can never match a non-empty pattern).
  */
@@ -330,7 +330,7 @@ export interface PatternLengthMismatchParams {
 
 /**
  * Params for an `ol-type` raised by a comprehension (`map`/`filter`/`reduce`) iterable that is
- * not a list (`spec/execution-model.md:722-726` — every comprehension form ranges over a list).
+ * not a list (`spec/execution-model.md:759-763` — every comprehension form ranges over a list).
  * Same shape as {@link ForInNotListParams} plus the comprehension's own `form`, since `ol-type`'s
  * `operation` names the offending construct.
  */
@@ -386,7 +386,7 @@ type CanonicalEscapeKeyword = "return" | "stop";
  * else.
  *
  * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
- * params (`spec/error-model.md:255-260`). Heritage is "alternate spellings only, no new semantics"
+ * params (`spec/error-model.md:256-261`). Heritage is "alternate spellings only, no new semantics"
  * (`spec/conformance.md#heritage`), so an executed `output 5` and an executed `return 5` at top
  * level are ONE condition and must carry one machine-readable identity — the surface spelling
  * belongs in the prose, never in the params. Shares the parser's registry precisely so the two
@@ -526,7 +526,7 @@ export interface BadColorParams {
  * number that is not a positive finite value — `spec/commands.md`'s `set_width` entry: "The width
  * MUST be a positive number." `0`/negative widths fail that requirement directly; `Infinity`
  * technically satisfies "positive" but would hand `@openlogo/turtle`'s reducer/renderer an
- * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md:821` —
+ * infinite stroke width for every subsequent `draw-segment` (`spec/execution-model.md:858` —
  * "OpenLogo never exposes NaN or Infinity as learner-facing results"), so it is folded into the
  * same `ol-range` guard rather than treated as valid. Only reached once {@link requireNumber} has
  * already confirmed the argument is a number at all (a non-number raises `ol-type` first, per
@@ -540,7 +540,7 @@ export interface NonPositiveWidthParams {
 
 /**
  * Params for an `ol-range` raised by `set_tempo` (issue #689) when its argument is a number but not
- * positive and finite (`spec/interaction-events.md:337` — "one positive number"; the default tempo
+ * positive and finite (`spec/interaction-events.md:341` — "one positive number"; the default tempo
  * is `120`). Only reached once {@link requireNumber} has already confirmed the argument is a number
  * at all (a non-number raises `ol-type` first, mirroring {@link NonPositiveWidthParams}'s
  * `set_width` order). `value` is rendered as `String(value)` for the same JSON-safety reason as
@@ -849,7 +849,7 @@ export const runtimeDiag = {
    * `values.ts`'s case-folded slot map): `.X`, `.x`, and `.x` all address one field, so a missing
    * `.Missing` and `.MISSING` name the *same* absent field — one condition. As with
    * `ol-undefined-var` (issue #1005), the diagnostic identity (`code` + `params`,
-   * `spec/error-model.md:255-260`) must reflect that single condition, so `field` is folded to its
+   * `spec/error-model.md:256-261`) must reflect that single condition, so `field` is folded to its
    * case-insensitive resolution identity here and in `resolveRecordField`, and the message uses the
    * same folded spelling so message and param never disagree. `type` is not folded: a record's
    * `type` is always the single declared struct-name spelling (`values.ts` stores the declared
@@ -965,7 +965,7 @@ export const runtimeDiag = {
   /**
    * `ol-type`: a value that must be a whole number is not one. Raised only through
    * {@link requireWholeNumber}, whose `operation` argument names the primitive, so this diagnostic
-   * is not scoped to any one caller — `spec/execution-model.md:693-695` fixes the TYPE-before-RANGE
+   * is not scoped to any one caller — `spec/execution-model.md:730-732` fixes the TYPE-before-RANGE
    * order for `repeat`, one of those callers. `expected` is fixed to `"whole number"` (rather than
    * the generic `"number"` {@link typeMismatch} uses) so the message names the concept precisely.
    */
@@ -982,7 +982,7 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:693-695` fixes the
+   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:730-732` fixes the
    * TYPE-before-RANGE order for `repeat`, one of the two callers; `spec/error-model.md:101` lists
    * "a negative whole-number `repeat` count" as one instance of `ol-range`). `operation` names the
    * primitive that raised it. Only reached once
@@ -1002,7 +1002,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `forward`/`back` distance is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md:821`). Only reached once
+   * overflow, e.g. `forward power 10 1000` — `spec/execution-model.md:858`). Only reached once
    * {@link requireNumber} has already confirmed the value is a number; a finite `distance` never
    * reaches this check.
    */
@@ -1020,7 +1020,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `left`/`right` turn angle is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md:821`, same rationale as
+   * overflow, e.g. `right power 10 1000` — `spec/execution-model.md:858`, same rationale as
    * {@link nonFiniteDistance}: `Infinity % 360` is `NaN`, which would otherwise corrupt the
    * turtle's heading instead of raising a diagnostic). Only reached once {@link requireNumber} has
    * already confirmed the value is a number; a finite `angle` never reaches this check.
@@ -1039,7 +1039,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a `set_heading` angle is `Infinity`/`-Infinity` (reachable via arithmetic
-   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md:821`, same rationale as
+   * overflow, e.g. `set_heading power 10 1000` — `spec/execution-model.md:858`, same rationale as
    * {@link nonFiniteAngle}: `Infinity % 360` is `NaN`, which would otherwise corrupt the turtle's
    * heading instead of raising a diagnostic). Only reached once {@link requireNumber} has already
    * confirmed the value is a number; a finite `angle` never reaches this check.
@@ -1059,7 +1059,7 @@ export const runtimeDiag = {
   /**
    * `ol-range`: a `set_xy` `x`/`y` argument is `Infinity`/`-Infinity` (reachable via arithmetic
    * overflow, e.g. `set_xy power 10 1000 0`). Unlike {@link nonFiniteDistance}, no arithmetic
-   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md:821`
+   * turns this into `NaN` — the coordinate is set directly — but `spec/execution-model.md:858`
    * still forbids an infinite learner-facing position. Only reached once {@link requireNumber}
    * has already confirmed the value is a number; a finite coordinate never reaches this check.
    */
@@ -1092,7 +1092,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `for ... in` iterable is not a list — Core's `for ... in` only iterates lists
-   * (`spec/execution-model.md:701-702`); dict iteration is a later, profile-specific form.
+   * (`spec/execution-model.md:738-739`); dict iteration is a later, profile-specific form.
    */
   forInNotList(
     source_span: SourceSpan,
@@ -1108,7 +1108,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `map`/`filter`/`reduce` iterable is not a list
-   * (`spec/execution-model.md:722-726` — every comprehension form ranges over a list, same
+   * (`spec/execution-model.md:759-763` — every comprehension form ranges over a list, same
    * restriction as `ForIn`). `params.operation` names the specific comprehension form.
    */
   comprehensionNotList(
@@ -1125,7 +1125,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: `for ... from ... to ... by 0` — a step of `0` never reaches `end`
-   * (`spec/execution-model.md:700-701`), unlike a step merely pointing away from `end` (which
+   * (`spec/execution-model.md:737-738`), unlike a step merely pointing away from `end` (which
    * simply runs the body zero times, no diagnostic).
    */
   forStepZero(source_span: SourceSpan): Diagnostic {
@@ -1139,7 +1139,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a destructuring binder's pattern and an iterated element disagree on length
-   * (`spec/execution-model.md:764-765`). `params.value` is the element's actual length (`0` for a
+   * (`spec/execution-model.md:801-802`). `params.value` is the element's actual length (`0` for a
    * non-list element).
    */
   patternLengthMismatch(
@@ -1234,7 +1234,7 @@ export const runtimeDiag = {
    * which makes it an error that "MUST NOT be a silent override").
    *
    * `source_span` points at the later declaration and `params.original_span` at the earlier one:
-   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:144-147`
+   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:145-148`
    * requires supplying `original_span` rather than folding the earlier location into the prose.
    * Same code, params and spans as the parser's `checker-reserved-word.ts` (issue #839) — only
    * `stage` differs, `"runtime"` here for the same reason {@link runtimeDiag.reservedWord} gives.
@@ -1255,7 +1255,7 @@ export const runtimeDiag = {
   /**
    * `ol-no-output`: a procedure was called where a value is required, but the invocation reached
    * the end of its body (or `stop`) without ever executing `return`/`output`/`op`
-   * (`spec/execution-model.md:659-665`, `spec/error-model.md:114`). Raised at the CALL site, not
+   * (`spec/execution-model.md:688-702`, `spec/error-model.md:114`). Raised at the CALL site, not
    * inside the procedure's own body — the procedure itself ran to completion without error.
    */
   noOutput(source_span: SourceSpan, procedure: string): Diagnostic {
@@ -1287,7 +1287,7 @@ export const runtimeDiag = {
    * Heritage registry. That is what keeps "both stages agree on identity" true: the parser
    * canonicalized this param in issue #737, so until issue #741 canonicalized this copy too the
    * same `output 5` carried `keyword: "return"` when checked and `keyword: "output"` when executed —
-   * one condition with two machine-readable identities, which `spec/error-model.md:255-260`
+   * one condition with two machine-readable identities, which `spec/error-model.md:256-261`
    * forbids. The prose message still echoes the learner's own word; that is the localization
    * boundary and is permitted.
    */
@@ -1540,7 +1540,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range` (issue #689) — `set_tempo`'s argument is a number but not positive and finite
-   * (`spec/interaction-events.md:337`: "one positive number"). Only reached once
+   * (`spec/interaction-events.md:341`: "one positive number"). Only reached once
    * {@link requireNumber} has already confirmed the value is a number. See
    * {@link NonPositiveTempoParams}.
    */

@@ -432,7 +432,7 @@ test("challenge is classified a command even though it has no checker visibility
   // `ol-unknown-command`. Its Kind is registered nonetheless, so a comprehension body ending in it
   // now reports BOTH codes where before issue #932 it reported only the first. Pinned as measured
   // rather than left to be discovered: the two rules answer different questions (is this name
-  // visible? does this statement produce a value?), and `spec/tooling.md:179-192` gives them
+  // visible? does this statement produce a value?), and `spec/tooling.md:179-193` gives them
   // separate rows.
   assert.deepEqual(
     checkCodes(":x = map n in [1 2 3] [ challenge ]", [

@@ -458,8 +458,8 @@ test("compare() compares a diagnostic message when — and only when — the fix
   // The opt-in is the explicit per-fixture `"compareMessages": true`, NOT the presence of a
   // `message` key: the corpus carried 306 messages written while the documented behaviour was
   // "message is not compared", and reading those as consent would have frozen ~275 English
-  // sentences that spec/error-model.md:262-264 positively permits an implementation to reword.
-  // spec/error-model.md:255-260 stays the default — identity is code+params. :125 is the case this
+  // sentences that spec/error-model.md:263-265 positively permits an implementation to reword.
+  // spec/error-model.md:256-261 stays the default — identity is code+params. :125 is the case this
   // exists for: it prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT
   // inside it, and #751 and #871 both shipped a message violating that while the corpus stayed
   // green, because compare() dropped `message` unconditionally.
@@ -2686,7 +2686,7 @@ test("loadFixture rejects a non-array executeOptions.hostInput.responses", () =>
 
 test("loadFixture rejects a non-string entry in executeOptions.hostInput.responses", () => {
   // The bare JSON number `42` is the tempting mistake: it would look like proof of the number branch
-  // while skipping the very parse (`spec/interaction-events.md:184-185`) that branch is about. An
+  // while skipping the very parse (`spec/interaction-events.md:188-189`) that branch is about. An
   // answer is the raw TEXT the learner typed, so it must be written `"42"`.
   const loaded = loadHostInputFixture("host-input-responses-not-string", {
     profiles: ["core-language"],
@@ -2852,7 +2852,7 @@ test("produce forwards executeOptions.hostInput to execute() so a headless fixtu
 
 test("produce forwards executeOptions.hostInput.responses to execute() so a headless fixture can answer a read", () => {
   // The other half of the same seam (issue #681): scripted answers reach `execute()` verbatim, so a
-  // fixture's `input` read reports the value `spec/interaction-events.md:184-185` prescribes.
+  // fixture's `input` read reports the value `spec/interaction-events.md:188-189` prescribes.
   const result = produce(
     'print input "q"',
     "test-doc",

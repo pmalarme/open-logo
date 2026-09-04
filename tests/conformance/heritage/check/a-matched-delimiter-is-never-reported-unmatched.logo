@@ -1,4 +1,4 @@
-# Issues #947, #879 and #980, the negative direction. `spec/error-model.md:166-170` is a
+# Issues #947, #879 and #980, the negative direction. `spec/error-model.md:167-171` is a
 # delimiter-agnostic MUST NOT: *"on any recovery path, for any malformed input, a parser MUST NOT
 # raise any unmatched-delimiter diagnostic — the class whose members in v0.1 are
 # `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` — for a delimiter that is,

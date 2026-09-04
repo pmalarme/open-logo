@@ -13,7 +13,7 @@
  * {@link ExecSignal} — `"normal"`/`"halt"` (its original two outcomes, renamed) plus `"return"`/
  * `"stop"` — so a control form's body (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`)
  * transparently propagates a `return`/`stop` up to the nearest enclosing procedure, rather than
- * only stopping its own loop (`spec/execution-model.md:659-665`). {@link runProcedure} is the
+ * only stopping its own loop (`spec/execution-model.md:688-702`). {@link runProcedure} is the
  * shared call mechanics reachable from both a statement-position call (dispatched directly, right
  * here) and an expression-position call (`evaluate.ts`'s `evaluateCall`, via the `callProcedure`
  * callback threaded onto `Environment` — see `evaluate.ts`'s doc comment for why a direct import
@@ -221,7 +221,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
 
 /**
  * Move the turtle `distance` units along its current heading and emit the `move` effect-event
- * `spec/execution-model.md:896-897` requires, reporting the position change and heading. A
+ * `spec/execution-model.md:933-934` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
  * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
@@ -229,7 +229,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md:1236`), positive for `forward`.
  *
- * Movement math is `spec/execution-model.md:849-850`'s `(x + d·sin h, y + d·cos h)`: heading `0`
+ * Movement math is `spec/execution-model.md:886-887`'s `(x + d·sin h, y + d·cos h)`: heading `0`
  * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
  * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
  * from the `+y` axis produce once converted from degrees to radians.
@@ -354,7 +354,7 @@ function executeTurtleMoveCall(
     // `power 10 1000` — see `comparison-equality.test.mjs`), but `moveTurtle`'s `d·sin h`/`d·cos h`
     // can turn that into `NaN` whenever `sin`/`cos` of the heading is exactly `0` (IEEE 754
     // `0 * Infinity` is `NaN`), silently corrupting the emitted position instead of raising a
-    // diagnostic (`spec/execution-model.md:821` — "OpenLogo never exposes NaN or Infinity as
+    // diagnostic (`spec/execution-model.md:858` — "OpenLogo never exposes NaN or Infinity as
     // learner-facing results").
     return halt(
       runtimeDiag.nonFiniteDistance(arg.source_span, {
@@ -386,9 +386,9 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
 
 /**
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
- * counter-clockwise, i.e. `left` — `spec/execution-model.md:841`) and emit the `turn` effect-event
- * `spec/execution-model.md:898` requires (`{from, to}`, both headings in degrees). The new heading
- * is normalized to `[0,360)` (`spec/execution-model.md:842`) — never left negative or `>= 360`.
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md:878`) and emit the `turn` effect-event
+ * `spec/execution-model.md:935` requires (`{from, to}`, both headings in degrees). The new heading
+ * is normalized to `[0,360)` (`spec/execution-model.md:879`) — never left negative or `>= 360`.
  *
  * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
  * position or drawing event follows it.
@@ -414,7 +414,7 @@ function turnTurtle(
  * Validate and run a `left`/`right` statement matched by {@link isTurtleTurnCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), negated for `left` (turning counter-clockwise is a negative heading
- * delta, since `right`/clockwise is positive — `spec/execution-model.md:841`), then delegated to
+ * delta, since `right`/clockwise is positive — `spec/execution-model.md:878`), then delegated to
  * {@link turnTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
@@ -466,7 +466,7 @@ function executeTurtleTurnCall(
     // Same rationale as `executeTurtleMoveCall`'s non-finite-distance guard: `requireNumber`
     // accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow), but `Infinity % 360` is
     // `NaN`, which would otherwise corrupt the turtle's heading instead of raising a diagnostic
-    // (`spec/execution-model.md:821`).
+    // (`spec/execution-model.md:858`).
     return halt(
       runtimeDiag.nonFiniteAngle(arg.source_span, {
         operation: callableName.toLowerCase() as "left" | "right",
@@ -687,7 +687,7 @@ function homeTurtleForClearScreen(
   source_span: SourceSpan,
 ): void {
   // Position first, its event next, then heading and *its* event — so each payload is the
-  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:956`) and each
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:993`) and each
   // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
   // mutations up front would emit a `move` reporting a heading the turtle no longer had.
   const from: Point = [turtle.x, turtle.y];
@@ -1533,7 +1533,7 @@ function setHeadingTo(
  * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
  * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
  * result" rationale as {@link executeTurtleMoveCall}'s non-finite-distance guard —
- * `spec/execution-model.md:821`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * `spec/execution-model.md:858`). Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
  *
@@ -1693,7 +1693,7 @@ function executeTurtleHeadingCall(
   if (!Number.isFinite(angle.value)) {
     // Same rationale as `executeTurtleTurnCall`'s non-finite-angle guard: `requireNumber` accepts
     // `Infinity`/`-Infinity`, but `Infinity % 360` is `NaN`, which would otherwise corrupt the
-    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:821`).
+    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:858`).
     return halt(
       runtimeDiag.nonFiniteHeading(arg.source_span, {
         operation: callableName.toLowerCase() as "set_heading" | "seth",
@@ -1711,7 +1711,7 @@ function executeTurtleHeadingCall(
 }
 
 /**
- * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:334-347`). Same
+ * Is `statement` a call to `set_tempo` (issue #689; `spec/interaction-events.md:338-351`). Same
  * shape/convention as {@link isTurtleWidthCall} — a Sound-profile primitive with a single numeric
  * argument. Sound command names are ordinary primitive names (not reserved block-heads) when the
  * profile is present, so this is a plain `Call`/`ParenCall` callee-name match.
@@ -1727,7 +1727,7 @@ function isSoundSetTempoCall(statement: StatementNode): boolean {
  * Validate and run a `set_tempo` statement matched by {@link isSoundSetTempoCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), which must additionally be positive and finite
- * (`spec/interaction-events.md:337` — "one positive number") or `runtimeDiag.nonPositiveTempo`
+ * (`spec/interaction-events.md:341` — "one positive number") or `runtimeDiag.nonPositiveTempo`
  * raises `ol-range` — folding `Infinity` into the same guard as `0`/negative, exactly as
  * {@link executeTurtleWidthCall} does for a width. On success, sets `environment.sound.tempo` and
  * emits one `sound` event
@@ -1795,7 +1795,7 @@ function executeSoundSetTempoCall(
 }
 
 /**
- * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:384-399`). Same
+ * Is `statement` a call to `beep` (issue #689; `spec/interaction-events.md:388-403`). Same
  * shape/convention as {@link isTurtleGridCall} — a bare 0-arity Sound-profile primitive.
  */
 function isSoundBeepCall(statement: StatementNode): boolean {
@@ -1808,7 +1808,7 @@ function isSoundBeepCall(statement: StatementNode): boolean {
 /**
  * Validate and run a `beep` statement matched by {@link isSoundBeepCall}: exactly zero arguments
  * (`ol-too-many-inputs` otherwise), then emit one `sound` event carrying a {@link BeepSoundPayload}.
- * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:392`)
+ * `beep` schedules "one short implementation-defined alert sound" (`spec/interaction-events.md:396`)
  * — the runtime models that scheduling purely as the event emission, never as a real audio device,
  * so the event is emitted unconditionally even in a muted environment ("Implementations that cannot
  * play audio, or that run in a muted classroom environment, MUST still emit `sound` events"),
@@ -1844,7 +1844,7 @@ function executeSoundBeepCall(
 }
 
 /**
- * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:349-366`). Same
+ * Is `statement` a call to `note` (issue #690; `spec/interaction-events.md:353-370`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`note` takes a pitch word and a duration number).
  */
@@ -1968,7 +1968,7 @@ function executeSoundNoteCall(
 }
 
 /**
- * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:401-416`). Same
+ * Is `statement` a call to `rest` (issue #690; `spec/interaction-events.md:405-420`). Same
  * shape/convention as {@link isSoundSetTempoCall} — a single-numeric-argument Sound-profile
  * primitive.
  */
@@ -2050,7 +2050,7 @@ function executeSoundRestCall(
 }
 
 /**
- * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:368-382`). Same
+ * Is `statement` a call to `play` (issue #691; `spec/interaction-events.md:372-386`). Same
  * shape/convention as {@link isSoundSetTempoCall} — an ordinary Sound-profile primitive-name match
  * (`play` takes one melody list).
  */
@@ -2065,7 +2065,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  * Validate and run a `play <melody-list>` statement matched by {@link isSoundPlayCall}: exactly one
  * argument (`ol-not-enough-inputs`/`ol-too-many-inputs` otherwise) that MUST be a list (`ol-type`,
  * `expected: "list"`). The melody list is pitch/duration pairs in sequence, so "The list length
- * MUST be even" (`spec/interaction-events.md:376-378`) — an odd length raises `ol-range`
+ * MUST be even" (`spec/interaction-events.md:380-382`) — an odd length raises `ol-range`
  * ({@link runtimeDiag.oddMelodyLength}). Each pair is then resolved in order: the pitch MUST be a
  * word that is either the literal `"rest"` or a well-formed scientific-pitch-notation pitch accepted
  * by `note` (`ol-type`, reusing `note`'s two-stage `expected: "word"`/`expected: "pitch"` checks),
@@ -2075,7 +2075,7 @@ function isSoundPlayCall(statement: StatementNode): boolean {
  *
  * On success `play` genuinely *sequences* the melody — every step is resolved to a `{ pitch,
  * duration }` {@link MelodyStep} (durations carried verbatim in beats, never converted here —
- * `spec/interaction-events.md:342-343`) — and emits exactly one
+ * `spec/interaction-events.md:346-347`) — and emits exactly one
  * `sound` event carrying the whole ordered melody ({@link PlaySoundPayload}), AFTER the melody has
  * been scheduled (`spec/interaction-events.md`'s trace-stream rule: "Sound commands emit `sound`
  * events after sound state has been scheduled"). The event is emitted unconditionally even in a
@@ -2331,11 +2331,11 @@ function executeWaitCall(
     );
   }
   // Dispatch every due handler on each tick the pause advances through, in the normative same-tick
-  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:132-137`) —
+  // order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:136-141`) —
   // `dispatchDueHandlers` composes the four buckets and first moves any host-scheduled key/click/
   // named events due at this tick into the pending queues. This is what makes registered
   // `every`/`on_key`/`on_click` handlers "still fire" while a `wait` pause elapses, only the
-  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:161-166`).
+  // top-level instructions after the `wait` being deferred (`spec/interaction-events.md:165-170`).
   //
   // Both per-tick callbacks below share ONE `interruption` stash: `runWait` reports only "keep
   // pausing" or "abort" (`interaction.ts`'s callbacks are plain booleans to stay free of the
@@ -2471,7 +2471,7 @@ function countHandlerInvocation(delivery: HandlerDelivery | undefined): void {
  * handler to run — carrying the `when` keyword's own span, so replay attributes the run to the
  * registration site — then execute the handler body, whose own effects emit the ordinary
  * after-effect events. Marks nothing: a `when` registration is **persistent** and runs "each time the
- * named event occurs, once per occurrence" (`spec/interaction-events.md:206-211`, maintainer ruling
+ * named event occurs, once per occurrence" (`spec/interaction-events.md:210-215`, maintainer ruling
  * #984), exactly like {@link invokeOnKeyHandler}/{@link invokeOnClickHandler}. Returns the body's
  * {@link ExecSignal} so a `halt` (a runtime error or a cancelled budget inside the handler)
  * propagates and stops the whole run, per `spec/interaction-events.md`'s "Errors and cancellation". A
@@ -2536,7 +2536,7 @@ function invokeWhenHandler(
  *
  * Only the handler **just registered** fires, never the whole `"start"` cohort: the run's single
  * `"start"` occurrence is what each handler is catching as it registers, and handlers registered
- * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:206-211`,
+ * earlier already caught it. That is what keeps persistence (`spec/interaction-events.md:210-215`,
  * ruling #984 — a handler is never retired, so nothing filters an already-delivered one out) from
  * re-firing every earlier `"start"` handler on each new registration. Persistence is observable
  * instead when an event occurs again, which for `"start"`/`"stop"` cannot happen in v0.1 and for a
@@ -2622,7 +2622,7 @@ function executeHandlerBody(
 
 /**
  * The main-line boundary for one **loop iteration** (maintainer ruling #984,
- * `spec/interaction-events.md:237-252`), returning a halting {@link ExecSignal} or `undefined`.
+ * `spec/interaction-events.md:241-256`), returning a halting {@link ExecSignal} or `undefined`.
  *
  * `executeStatements` already offers a boundary before each statement, so a non-empty body has one
  * per unit of progress and needs nothing here — firing again per iteration would drain twice for the
@@ -2660,7 +2660,7 @@ const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
  *
  * The ids are **deduplicated by stable id, in first-occurrence order**: what `tell`/`ask` establish
  * is an addressed **set** (`spec/turtles-and-sprites.md:44` "turtle commands run for an **addressed
- * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:844`), so a turtle
+ * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:881`), so a turtle
  * listed twice is one member. A turtle command then "applies once for each addressed turtle"
  * (`spec/turtles-and-sprites.md:113`) and `each` runs "once per turtle in the current `tell` or `ask`
  * set" (`:78`) — one run per member, on **every** path (issue #748: deduplicating only inside `each`
@@ -2931,7 +2931,7 @@ function isEveryStatement(statement: StatementNode): boolean {
  * statement boundary, never at some later checkpoint the program might never supply. That is the
  * spec's required "queue that occurrence and run it once the handler is free", capped at one pending
  * invocation
- * (`spec/interaction-events.md:237-244`). Returns the body's
+ * (`spec/interaction-events.md:241-248`). Returns the body's
  * {@link ExecSignal} so a `halt` propagates and stops the whole run ("Errors and cancellation"); a
  * `return`/`stop` that escapes the body is converted HERE into its
  * `ol-return-outside-proc`/`ol-stop-outside-proc` diagnostic (a handler block is not a procedure
@@ -3173,14 +3173,14 @@ function dispatchDueHandlers(
   }
   // Drain the one-slot `every` queues ONCE, after this tick's batch. A handler is free the moment
   // its body returns, and the spec requires a queued occurrence to run "once the handler is free"
-  // (`spec/interaction-events.md:237-244`) — NOT at whatever later checkpoint the program happens to
+  // (`spec/interaction-events.md:241-248`) — NOT at whatever later checkpoint the program happens to
   // supply. Deferring it to the next tick silently drops the occurrence whenever the program's
   // `wait`s are exhausted first, which is the "drop the missed occurrence" reading ruling #984
   // rejects.
   //
   // Draining once per dispatch rather than looping until the queues are empty is the other half of
   // that ruling: "the run's lifetime is the main line's business — an `every` handler does not
-  // extend it" (`spec/interaction-events.md:246-252`). A drained invocation whose own body outruns
+  // extend it" (`spec/interaction-events.md:250-256`). A drained invocation whose own body outruns
   // the interval re-queues, and looping here would run that occurrence too, and the next,
   // manufacturing ticks the main line never asked for until the budget raised `ol-limit`. Instead
   // the re-queued occurrence waits for the next checkpoint the MAIN LINE provides. A program that
@@ -3981,7 +3981,7 @@ function executeShowCall(
  *
  * With no seed, a fresh implementation-chosen seed is drawn from the generator itself
  * ({@link drawImplementationSeed} — the entry: "With no seed the implementation chooses a seed",
- * and `spec/execution-model.md:900-901`: "`randomize` with no input uses an implementation seed").
+ * and `spec/execution-model.md:937-938`: "`randomize` with no input uses an implementation seed").
  * Issue #865 moved that choice off the wall clock so a run a host pinned with
  * `ExecuteOptions.randomSeed` stays deterministic even when the program reseeds itself; see
  * {@link drawImplementationSeed} for why an unseeded run is unaffected. With a seed, the entry
@@ -4008,7 +4008,7 @@ function executeRandomizeCall(
   }
   if (statement.args.length === 0) {
     // Issue #865: the implementation's own seed is derived by advancing the generator's state
-    // rather than by reading the wall clock. `spec/execution-model.md:900-901` ("`randomize` with
+    // rather than by reading the wall clock. `spec/execution-model.md:937-938` ("`randomize` with
     // no input uses an implementation seed") leaves the choice entirely to the implementation, and
     // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
     // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
@@ -4084,7 +4084,7 @@ function isEducationalMetaCommandCall(
  * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
  * times in a row with nothing in between) all resolving to the SAME real target, rather than
  * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
- * progression (`spec/execution-model.md:945-956`, "for the SAME target") could never observe two
+ * progression (`spec/execution-model.md:982-993`, "for the SAME target") could never observe two
  * calls sharing one target.
  */
 function findPrecedingSiblingStatement(
@@ -4272,7 +4272,7 @@ function dispatchShowRandomizeOrEducationalCommand(
  * `document` plus both endpoints, so two different spans (even in the same document) never
  * collide, and the whole-program fallback span (a distinct, wider span than any single
  * statement) gets its own independent progression, per
- * `spec/execution-model.md:945-956`'s "observable ordering ... for a given target-source-span
+ * `spec/execution-model.md:982-993`'s "observable ordering ... for a given target-source-span
  * value" requirement.
  */
 function hintTargetKey(span: SourceSpan): string {
@@ -4281,7 +4281,7 @@ function hintTargetKey(span: SourceSpan): string {
 
 /**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
- * (`spec/execution-model.md:693`, `spec/error-model.md:123`). `operation` names the leading
+ * (`spec/execution-model.md:730`, `spec/error-model.md:123`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
  * `runtimeDiag.notBoolean` builder issue #95 added for `and`/`or`/`not` rather than duplicating it.
  * Returns the propagated evaluation failure, the `ol-not-boolean` diagnostic, or the boolean.
@@ -4318,7 +4318,7 @@ function evaluateCondition(
  * `stop` reached). Every control-form body below (`If`/`While`/`Repeat`/`Forever`/`ForIn`/
  * `ForRange`) now propagates ANY non-`"normal"` signal straight up unchanged rather than only
  * checking for `"halt"` — this is what makes a `stop`/`return` nested inside a loop inside a
- * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:659-665`).
+ * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:688-702`).
  * {@link runProcedure} is the only place that ever *consumes* a `"return"`/`"stop"` signal; if one
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
@@ -4344,7 +4344,7 @@ function halt(diagnostic: Diagnostic): ExecSignal {
  * The canonical callable identity a primitive's arity diagnostic must carry, matching what the
  * static checker reports (`checker-arity.ts`: `heritageActive && node.canonical ? node.canonical :
  * lower`). OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
- * diagnostic's identity (`spec/error-model.md:255-260`): `SHOW` and `show` are one primitive, one
+ * diagnostic's identity (`spec/error-model.md:256-261`): `SHOW` and `show` are one primitive, one
  * condition, and must report one `callable`. A Heritage alias carries its Core `canonical` on the
  * call node (`fd` → `forward`); any primitive that actually executes has an active profile providing
  * it, so `canonical ?? lower` is the runtime's exact analogue of the checker's rule (issue #1005).
@@ -4520,7 +4520,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:1079-1117`).
+ * (`spec/execution-model.md:1116-1154`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
@@ -4585,7 +4585,7 @@ function runProcedureBody(
   const name = node.callee.name.toLowerCase();
   const def = environment.procedures.get(name) as ProcedureDefNode;
   // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be a
-  // diagnostic's identity (`spec/error-model.md:255-260`). The static checker reports the
+  // diagnostic's identity (`spec/error-model.md:256-261`). The static checker reports the
   // *definition's* declared spelling (`checker-arity.ts` `params.callable`); the runtime must
   // agree, so arity diagnostics carry `def.name.name`, not `node.callee.name` (issue #1005).
   const declaredName = def.name.name;
@@ -4696,7 +4696,7 @@ function runProcedureBody(
  * Call a user procedure from an expression/reporter position (`print area :r`): like
  * {@link runProcedure}, but a command result (`null` — the procedure never reached `return`)
  * is `ol-no-output` here, since a value is required in this position
- * (`spec/execution-model.md:659-665`). Wired onto every execution `Environment`'s
+ * (`spec/execution-model.md:688-702`). Wired onto every execution `Environment`'s
  * `callProcedure` field so `evaluate.ts`'s `evaluateCall` can reach it without importing this
  * module (see this file's header comment).
  */
@@ -4779,7 +4779,7 @@ function callProcedureAsValue(
  * `ol-stop-outside-proc`.
  *
  * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
- * otherwise (`spec/execution-model.md:693`) — and runs exactly one branch: `thenBody` when
+ * otherwise (`spec/execution-model.md:730`) — and runs exactly one branch: `thenBody` when
  * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
  * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
  * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
@@ -4797,7 +4797,7 @@ function callProcedureAsValue(
  * separate slice).
  *
  * A `Repeat` statement (issue #104) evaluates `count`, then validates it TYPE then RANGE, in that
- * exact order (`spec/execution-model.md:693-695`): a non-whole-number count raises `ol-type`
+ * exact order (`spec/execution-model.md:730-732`): a non-whole-number count raises `ol-type`
  * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
  * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
  * pushes that pass's 1-based turn onto `environment.repeatTurns` before running `body` and pops it after —
@@ -4813,13 +4813,13 @@ function callProcedureAsValue(
  * `while`.
  *
  * A `ForIn` statement (issue #103) evaluates `iterable` — it must be a list, `ol-type` otherwise
- * (`spec/execution-model.md:701-702`; Core `for ... in` is list-only, dict iteration is a later
+ * (`spec/execution-model.md:738-739`; Core `for ... in` is list-only, dict iteration is a later
  * profile) — then runs `body` once per element, in order, binding `binder` fresh each pass via
  * `evaluate.ts`'s {@link pushLoopFrame}. A bare-name binder binds the whole element; a
  * destructuring binder (`evaluate.ts`'s {@link bindElement}) binds each of its names positionally
  * from the element, which must
  * itself be a list of exactly that many items (`ol-range` otherwise —
- * `spec/execution-model.md:764-765`). A duplicate name within one destructuring pattern
+ * `spec/execution-model.md:801-802`). A duplicate name within one destructuring pattern
  * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
  * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
  *
@@ -4827,12 +4827,12 @@ function callProcedureAsValue(
  * a number, `ol-type` otherwise ({@link requireNumber}, which unlike `repeat`'s count is not
  * restricted to whole numbers) — then iterates `variable` from `from` to `to` inclusive, adding
  * `step` each pass: with a positive step the body runs while `variable` is at most `to`, with a
- * negative step while it is at least `to` (`spec/execution-model.md:696-700`). A step pointing
+ * negative step while it is at least `to` (`spec/execution-model.md:733-737`). A step pointing
  * away from `to` (e.g. `from 1 to 5 by -1`) runs `body` zero times, no diagnostic; a step of `0`
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1174`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1211`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
@@ -4840,7 +4840,7 @@ function callProcedureAsValue(
  * both still work correctly across a nested `for`. Every control-form body below propagates ANY
  * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
  * — so a `stop` or `return` nested inside a loop nested inside a procedure exits the *procedure*,
- * not just that loop (`spec/execution-model.md:659-665`).
+ * not just that loop (`spec/execution-model.md:688-702`).
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
@@ -4941,7 +4941,7 @@ function executeStatements(
   environment: Environment,
 ): ExecSignal {
   for (const rawStatement of statements) {
-    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:237-252`). Runs
+    // The main line's statement boundary (ruling #984, `spec/interaction-events.md:241-256`). Runs
     // before each statement so a queued `every` occurrence gets its "once the handler is free" turn
     // while the main line has not finished, and NOT after the last statement — that missing final
     // boundary is exactly what makes the ruling's discard-at-close observable. The hook is carried on
@@ -5587,7 +5587,7 @@ export function resolveEffectiveRecursionDepthLimit(
  * slice the exact assignment-target surface text out of it. Issue #332 threads `program` itself
  * onto the environment (`TutorContext.program`, and the source of `hint`'s whole-program fallback
  * span via `program.source_span`) and a fresh `hintProgress` map per run, so the Educational
- * profile's `hint` progression (`spec/execution-model.md:945-956`) starts over — every target
+ * profile's `hint` progression (`spec/execution-model.md:982-993`) starts over — every target
  * begins at `"nudge"` — for each new `execute()` call. `tutorTemplate` resolves
  * `options?.tutorTemplates` to {@link defaultTutorTemplate} when omitted, and `learnerLevel`
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the
@@ -5657,7 +5657,7 @@ function createExecutionEnvironment(
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
-    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:156-158`
+    // `hostInput.read` can read what has already been emitted — `spec/interaction-events.md:160-162`
     // permits rendering already-emitted events while `input` waits, and the reader receives only the
     // prompt, so without this seam that allowance is unreachable. It IS the array `runProgram`
     // returns; supplying it only makes the stream readable earlier. See `index.ts`.
@@ -5827,7 +5827,7 @@ function wholeSourceSpan(source: string, document: string): SourceSpan {
 
 /**
  * Run the program's top level, giving a queued `every` occurrence a chance to run **between
- * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:237-252`).
+ * top-level statements** (maintainer ruling #984, `spec/interaction-events.md:241-256`).
  *
  * The end-of-tick drain in {@link dispatchDueHandlers} covers the occurrences that were queued while
  * a `wait` was still advancing the clock, but a drained invocation's own body can outrun the

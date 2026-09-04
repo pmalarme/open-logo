@@ -1,5 +1,5 @@
 // Unit tests for comprehension evaluation: map/filter/reduce (issue #105,
-// spec/execution-model.md:671-783, worked examples :1178-1214). Conformance fixtures under
+// spec/execution-model.md:708-820, worked examples :1215-1251). Conformance fixtures under
 // tests/conformance/core-language/comprehensions/*.expected.json cover the primary
 // event/diagnostic shapes end to end (the spec's own worked map/reduce traces, destructuring item
 // binders, and the headline diagnostics). These unit tests fill in what a fixture cannot: every
@@ -69,7 +69,7 @@ test("reduce's accumulator name case-folds: declared `Sum`, read `:sum` (issue #
   assert.deepEqual(printedValues(result), [6]);
 });
 
-test("reduce over an empty list returns `from` unchanged (spec/execution-model.md:706)", () => {
+test("reduce over an empty list returns `from` unchanged (spec/execution-model.md:743)", () => {
   const result = execute(
     ":total = reduce sum n in [] from 42 [ :sum + :n ]\nprint :total",
     doc,
@@ -84,7 +84,7 @@ test("map over an empty list produces an empty list, no diagnostic", () => {
   assert.deepEqual(printedValues(result), [[]]);
 });
 
-test("a destructuring item binder destructures each element positionally (spec/execution-model.md:761-763)", () => {
+test("a destructuring item binder destructures each element positionally (spec/execution-model.md:798-800)", () => {
   const result = execute(
     ":corners = [[1 2] [3 4]]\n:xs = map [:x :y] in :corners [ :x ]\nprint :xs",
     doc,

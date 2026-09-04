@@ -23,7 +23,7 @@ export interface SoundState {
 
 /**
  * The tempo before any `set_tempo` runs: "The default tempo is 120 beats per minute"
- * (`spec/interaction-events.md:342-343`).
+ * (`spec/interaction-events.md:346-347`).
  */
 export const DEFAULT_TEMPO = 120;
 

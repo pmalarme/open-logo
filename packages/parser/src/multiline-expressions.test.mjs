@@ -926,7 +926,7 @@ test("#1021: a head short of an input keeps the branch's pre-existing recovery",
   assert.match(literalHead[0], /don't know how to read 2/);
   assert.match(literalHead[1], /needs a new line of its own/);
 
-  // `spec/error-model.md:166-173` is the MUST NOT that governs every recovery path: no
+  // `spec/error-model.md:167-174` is the MUST NOT that governs every recovery path: no
   // unmatched-delimiter diagnostic for a delimiter that is in fact matched. These parentheses are
   // matched, so no amount of wreckage inside them may produce `ol-unmatched-paren`.
   for (const source of ["print (round - 1)", "print (round == 1)"]) {

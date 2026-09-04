@@ -62,7 +62,7 @@ export interface TutorCommandMetadata {
  * The shared input contract for a baseline meta-command invocation
  * (`spec/educational-model.md:420-434`: "the parsed program, source spans, trace events,
  * diagnostics, and known command metadata"), plus the hint-stage progression state the spec
- * requires a host to track itself (`spec/execution-model.md:944-956` — progression state "is a
+ * requires a host to track itself (`spec/execution-model.md:981-993` — progression state "is a
  * property of the host implementation, not the wire event itself").
  */
 export interface TutorContext {
@@ -73,7 +73,7 @@ export interface TutorContext {
   /**
    * The selected instruction or statement-range the command's output should describe, when one
    * is selected (`explain`/`why`/`debug` MAY concern the whole program instead, per
-   * `spec/execution-model.md:930`'s `target-source-span` rule).
+   * `spec/execution-model.md:967`'s `target-source-span` rule).
    */
   readonly target?: AnyNode;
   /** The trace/event stream produced by execution so far, in increasing `seq` order. */
@@ -87,7 +87,7 @@ export interface TutorContext {
   /**
    * The previous `hint` stage already shown for this `target`'s span, when `command` is
    * `"hint"` and this is a repeated request — used to compute the next stage in the
-   * nudge → concept → partial → last-resort progression (`spec/execution-model.md:944-956`).
+   * nudge → concept → partial → last-resort progression (`spec/execution-model.md:981-993`).
    * Absent for a `target` whose progression has not started yet, and irrelevant for
    * `explain`/`why`/`debug`.
    */
