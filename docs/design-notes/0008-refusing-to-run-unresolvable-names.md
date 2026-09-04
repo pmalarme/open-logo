@@ -82,11 +82,13 @@ parsed clean, checked clean, and quietly did nothing.
 
 Measured at `2a1888c1`, the withholding trick makes this class **observationally identical** to a
 misspelling: `challenge` and `print (wibble 2)` produce the same code, at the same stage, with the
-same shape of params, and the same silence from `execute()`. Nothing a learner or a test could
-observe distinguished *"this name does not exist"* from *"this name exists and we withheld it"*. That
-indistinguishability is the sharpest argument for a separate code, and it is the argument no code can
-preserve, because the fix destroys the evidence for it (issue #1087 captures the behaviour before it
-goes).
+same shape of params, and the same silence from `execute()`. Nothing in the diagnostic stream or the
+event stream — the only things a learner sees, and the only things the conformance corpus asserts on
+— distinguished *"this name does not exist"* from *"this name exists and we withheld it"*. The sole
+distinguisher was an introspection export, `namesAwaitingAnEvaluator()`, whose very existence is an
+admission of the problem. That indistinguishability is the sharpest argument for a separate code, and
+it is the argument no code can preserve, because the fix destroys the evidence for it (issue #1087
+captures the behaviour before it goes).
 
 A learner cannot tell these three apart from the outside, because from the outside all three look
 identical: the turtle did not move and the language said nothing. The question this record answers
@@ -147,15 +149,16 @@ emitting `ol-not-implemented` is work the implementing slice owes (#815; the `ch
 
 **A command used where a value is required is `ol-no-output`.** No new code: the rule already
 existed and simply was not being applied to built-ins. At `2a1888c1`
-`spec/execution-model.md:369-371` scoped it to a *procedure* — "a procedure that does not [reach
-`return`] is a command. Using a command **procedure** where a value is required raises `ol-no-output`
-at the call site" — while `spec/commands.md:15` already classified every built-in primitive on the
-same axis, where "Kind is **Command**, **Reporter**, or **Special form**." `forward` **is** a
-command, so the sentence already described the right outcome for the wrong set of callees. The change
-was one generalized word, and the merged text now carries it: the same lines read "a procedure that
-does not is a **command** — the same Kind the C3 matrix gives a built-in such as `forward`", and
-"Using a command of either kind where a value is required raises `ol-no-output` at the call site"
-(`spec/execution-model.md:369-371`).
+`spec/execution-model.md:369-371` scoped it to a procedure — "a procedure that does not [reach
+`return`] is a command. Using a command procedure where a value is required raises `ol-no-output` at
+the call site" — where the operative word, the one this decision changed, is *procedure*. Meanwhile
+`spec/commands.md:15` already classified every built-in primitive on the same axis, where "Kind is
+**Command**, **Reporter**, or **Special form**." `forward` **is** a command, so the sentence already
+described the right outcome for the wrong set of callees. The change was one generalized word, and
+the merged text now carries it: the same lines read "a procedure that does not is a **command** — the
+same Kind the C3 matrix gives a built-in such as `forward`", and "Using a command of either kind
+where a value is required raises `ol-no-output` at the call site" (`spec/execution-model.md:369-371`;
+the bold there is the source's).
 
 Where that is caught differs by what is knowable statically. A built-in **command or reporter**'s
 Kind is part of its registration row and cannot be left unstated (`packages/parser/src/signatures.ts`,
@@ -485,9 +488,10 @@ procedure that fails to report a value cannot be decided statically in general, 
 - **The gate is only as good as the profile set it is given.** This decision moves the active
   profile set from a detail of the checker's configuration onto the critical path of every run: get
   it wrong and a correct turtle program is refused. `spec/tooling.md:176-177` binds the semantic
-  *layer* to the active profile set; what the gate additionally needs — that the set be the run's own
-  and be nameable by whoever starts the run — is settled at `spec/execution-model.md:673-680`, which
-  rules a fixed Core-Language-only set "specifically not conforming" for exactly this reason. It is
+  layer to the active profile set and, since #814's text merged, adds that when it runs as the gate
+  the set "MUST be the run's own"; `spec/execution-model.md:673-680` states the same requirement from
+  the run's side and adds the part only it can — that the set be nameable by whoever starts the run —
+  ruling a fixed Core-Language-only set "specifically not conforming" for exactly this reason. It is
   also work, not merely a rule to honour: at `2a1888c1` `execute()` accepted no profile set at all,
   and `check()`'s own default was Core Language alone.
 - **The semantic stage acquires a new obligation: it must not be wrong.** A false positive used to be
@@ -558,10 +562,11 @@ text is the contract.
 | The check runs under the run's own profile set, nameable by the caller | `spec/execution-model.md:673-680`, over `spec/tooling.md:176-177` |
 | Warnings never stop a run | `spec/execution-model.md:682-685` |
 | Running unchecked is opt-out, never the default | `spec/execution-model.md:687-694` |
-| The terminal rule — a value, an effect, or a diagnostic | `spec/execution-model.md:696` ([Evaluation terminates…](../../spec/execution-model.md#evaluation-terminates-in-a-value-an-effect-or-a-diagnostic)) |
+| The terminal rule — a value, an effect, or a diagnostic | `spec/execution-model.md:717-720`, under [Evaluation terminates…](../../spec/execution-model.md#evaluation-terminates-in-a-value-an-effect-or-a-diagnostic) (`spec/execution-model.md:696`) |
 | The #358 implementation-gap class gets its own code | `ol-not-implemented`, `spec/error-model.md:131`; the prohibition on faking it with `ol-unknown-command` at `spec/execution-model.md:725-728` |
 | `ol-no-output` generalized from "command procedure" to "command" | `spec/execution-model.md:369-371` and `spec/error-model.md:114`, now staged `semantic or runtime` |
-| De-duplication and precedence — the learner sees the typo | `spec/execution-model.md:737` ([One fault, one diagnostic](../../spec/execution-model.md#one-fault-one-diagnostic)), precedence at `spec/execution-model.md:750` |
+| De-duplication — one fault, one report | `spec/execution-model.md:741-748`, under [One fault, one diagnostic](../../spec/execution-model.md#one-fault-one-diagnostic) (`spec/execution-model.md:737`) |
+| Precedence — the learner sees the typo, not the stray argument | `spec/execution-model.md:750-766`, with the general boundary at `spec/execution-model.md:768-770` |
 
 Two consequences a reader should carry away. First, this record's argument is now the *rationale* for
 merged normative text rather than for a pending decision, so nothing here needs to be read as
