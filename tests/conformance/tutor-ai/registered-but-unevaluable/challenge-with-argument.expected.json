@@ -1,0 +1,21 @@
+{
+  "description": "NO-REGRESSION fixture for saga #811 (issue #1087). Unlike its two siblings in this directory this asserts CORRECT behaviour that must survive the fix unchanged, and the distinction is normative rather than incidental: spec/conformance.md:239 makes `challenge`'s canonical signature normative, and the arity table row at spec/conformance.md:244 gives it Kind Command with Arity 0 — so arity 0 is the contract and an excess input is a real error whatever #815 does about the missing evaluator. (spec/ai-tutor.md describes `challenge` at length but is marked Status: Informative, stated outright at spec/conformance.md:236, so it is not the source of this claim.) It is rejected at PARSE as `ol-bad-token` (stage `parse` per spec/error-model.md:110) with `params.text` naming the offending token, so nothing executes and `events` is empty — the identical cascade `fowad 100` produces, measured alongside it. Recorded because the arity path and the missing-evaluator path are independent: #815 must make bare `challenge` stop being silent WITHOUT disturbing this.",
+  "profiles": ["core-language", "educational", "tutor-ai"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "tutor-ai/registered-but-unevaluable/challenge-with-argument",
+        "start": [1, 11],
+        "end": [1, 14]
+      },
+      "params": {
+        "text": "\"x\""
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}
