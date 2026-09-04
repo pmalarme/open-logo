@@ -144,6 +144,25 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
     `randomSeed` creates is that two runs sharing a seed *agree*, and a fixture is one source to one
     expected stream, so cross-run determinism stays a unit-test concern
     (`packages/runtime/src/random-randomize.test.mjs`).
+  - **`profiles`** (array of profile identifiers, issue #815) is the conformance profile set the
+    **run** claims, and therefore the set the check it performs before Phase 2 uses —
+    `spec/execution-model.md:673-680` requires one value to govern both. It is distinct from the
+    fixture's own top-level `profiles`, which selects which DAG subsets the fixture *runs in*; this
+    one is forwarded to `execute()`. Name it when the expected answer DEPENDS on the claim: the
+    same `fowad 100` reports `suggestion: "forward"` under a set including Turtle & Rendering and
+    no suggestion under Core Language alone. Omitted, `execute()` uses the profiles this
+    implementation actually claims (`@openlogo/core`'s `SUPPORTED_PROFILES`), which is what it in
+    fact executes under.
+  - **`styleChecks`** (boolean, issue #815) opts the run into `check()`'s Layer-3 style lints — the
+    `execute`-side counterpart of the `style` key above. It is what makes the gate's **severity**
+    rule observable in a file: `spec/execution-model.md:682-685` requires that a warning never stop
+    a run, so a fixture whose only finding is `ol-style-*` must still emit its events. See
+    `core-language/check-before-execution/style-warning-still-runs`.
+  - **`runUnchecked`** (boolean, issue #815) is the spec's own opt-out
+    (`spec/execution-model.md:687-694`): run the program despite `error`-severity **semantic**
+    diagnostics, which are still delivered. Use it only to assert the runtime's OWN copy of a rule
+    the checker also decides — a checked run never reaches those copies. It does not reach Layer 1:
+    a program that cannot be read still does not run.
   - **Function-valued options are rejected as unknown keys**, with the offending key named in the
     error, rather than silently dropped: JSON cannot express a function, so
     `executeOptions.tutorTemplates` (the injectable Educational template) and `hostInput.read` (the
@@ -303,6 +322,14 @@ and the reference runtime currently render it as the literal `...` (see `CYCLIC_
 `packages/runtime/src/evaluate.ts`); a future spec clarification may pin this down more precisely,
 at which point both the runtime and any fixture asserting rendered text would need to move
 together.
+
+### Reading a fixture's *kind* from its description, not its directory
+
+A fixture that **characterizes a defect** and a fixture that **pins correct behaviour** are
+structurally identical — same keys, same shapes — and they sit side by side in the same directory.
+The only signal that separates them is the first word of the `description`. So when a defect is
+fixed, flip by **description**, never by path: a directory-wide flip inverts the invariants while
+every test still passes, which is the failure mode #1082 describes one level up.
 
 ## Running
 
