@@ -1751,9 +1751,48 @@ test("ol-style-ambiguous-continuation: escaped quote in string before comment �
   assert.deepEqual(diagnostics, []);
 });
 
-test("ol-style-ambiguous-continuation: comment-only preceding lines — negative literal fires", () => {
-  // All lines between start and -5 are comments; exercises loop exhaustion.
+test("ol-style-ambiguous-continuation: comment-only preceding lines — first element silent", () => {
+  // All lines between [ and -5 are comments; -5 is the first element, so
+  // no left operand for subtraction exists — suppressed.
   const diagnostics = checkStyle("print [\n# comment\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: first element in list — silent", () => {
+  // `[\n-5 ]` — `-5` is the first element; `- 5` would be `ol-bad-token`.
+  const diagnostics = checkStyle("print [\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: and trailing — suppressed", () => {
+  // `and` already locks continuation; `-5` is unambiguously the right operand.
+  const diagnostics = checkStyle(":x = true and\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: or trailing — suppressed", () => {
+  const diagnostics = checkStyle(":x = false or\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: comparison trailing — suppressed", () => {
+  const diagnostics = checkStyle(":x = :y ==\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: block comment on previous line — not confused with trailing /", () => {
+  // `1 /* c */` stripped to `1` — trailing `/` from `*/` must not match division.
+  const diagnostics = checkStyle("print [ 1 /* c */\n-5 ]").filter(
     isAmbiguousContinuation,
   );
   assert.equal(diagnostics.length, 1);

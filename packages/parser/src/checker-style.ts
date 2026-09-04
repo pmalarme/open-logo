@@ -1613,7 +1613,10 @@ function ambiguousContinuationDiagnostic(
   };
 }
 
-/** Strip trailing line comments (`#`/`//`) and whitespace from a line. */
+/**
+ * Strip trailing comments (`#`, `//`, and `/* … *​/`) and whitespace from a
+ * line, respecting string literals. Returns the code-only prefix, trimmed.
+ */
 function stripTrailingComment(line: string): string {
   let inString = false;
   for (let i = 0; i < line.length; i++) {
@@ -1632,6 +1635,22 @@ function stripTrailingComment(line: string): string {
     if (line[i] === "#") return line.slice(0, i).trimEnd();
     if (line[i] === "/" && line[i + 1] === "/")
       return line.slice(0, i).trimEnd();
+    // Skip `/* … */` block comments (single-line only in this helper).
+    if (line[i] === "/" && line[i + 1] === "*") {
+      const close = line.indexOf("*/", i + 2);
+      if (close !== -1) {
+        // Replace the comment span with a single space so surrounding
+        // tokens don't accidentally merge when we trimEnd() later.
+        line = line.slice(0, i) + " " + line.slice(close + 2);
+        // Re-examine the same index (now points past the space).
+        i--;
+        continue;
+      }
+      // Unclosed `/*` on this line — in valid programs the comment spans
+      // multiple lines and `groupingDepthPerLine` already marks subsequent
+      // lines with Infinity depth, so the trailing-op scan never reaches
+      // them. Treat the rest of this line as non-comment content.
+    }
   }
   return line.trimEnd();
 }
@@ -1737,32 +1756,50 @@ export function ambiguousContinuationRule(
                 stripped.endsWith("-") ||
                 stripped.endsWith("*") ||
                 stripped.endsWith("/") ||
-                /\bmod$/i.test(stripped);
+                stripped.endsWith("=") ||
+                stripped.endsWith("<") ||
+                stripped.endsWith(">") ||
+                /\b(?:mod|and|or)$/i.test(stripped);
               break;
             }
             if (!trailingOp) {
-              const ch1 = trimmed[1];
-              if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
-                const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
-                if (literal !== undefined) {
-                  const indent = lineText.length - trimmed.length;
-                  const col = indent + 1;
-                  const message =
-                    "This line starts with `" +
-                    literal +
-                    "` (a negative number). Adding a space after `-` would make it subtraction, continuing the previous line.";
-                  diagnostics.push(
-                    ambiguousContinuationDiagnostic(
-                      document,
-                      lineNum,
-                      col,
-                      literal.length,
-                      literal,
-                      "new-statement",
-                      message,
-                    ),
-                  );
-                  flaggedLines.add(lineNum);
+              // Also suppress when this is the first element after `[` — there
+              // is no left operand for subtraction, so the alternative reading
+              // (adding a space) would produce `ol-bad-token`, not a valid
+              // different program.
+              let firstElement = false;
+              for (let prev = lineNum - 1; prev >= startLine; prev--) {
+                const stripped = stripTrailingComment(lines[prev - 1]!);
+                if (stripped.length === 0) continue;
+                firstElement = stripped.endsWith("[");
+                break;
+              }
+              if (firstElement) {
+                // no-op: `-5` is the first list element, no ambiguity
+              } else {
+                const ch1 = trimmed[1];
+                if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
+                  const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
+                  if (literal !== undefined) {
+                    const indent = lineText.length - trimmed.length;
+                    const col = indent + 1;
+                    const message =
+                      "This line starts with `" +
+                      literal +
+                      "` (a negative number). Adding a space after `-` would make it subtraction, continuing the previous line.";
+                    diagnostics.push(
+                      ambiguousContinuationDiagnostic(
+                        document,
+                        lineNum,
+                        col,
+                        literal.length,
+                        literal,
+                        "new-statement",
+                        message,
+                      ),
+                    );
+                    flaggedLines.add(lineNum);
+                  }
                 }
               }
             }
