@@ -96,8 +96,8 @@ wait 8
 ```
 
 The three handlers MUST print `10`, `20`, and `30` — not the same value three
-times. Per-turn capture in a loop is **not yet implemented** — the reader in this
-repository reuses one binding and prints `30` three times, tracked by #824.
+times. Per-turn capture in a loop is **not yet implemented** — the runtime in
+this repository reuses one binding and prints `30` three times, tracked by #824.
 
 **A scope lives as long as any handler registered inside it may still run** — a
 block scope as much as a procedure frame. A handler registered in a procedure
@@ -121,13 +121,16 @@ control flow of the call that registered the handler. `return`, `output`, `op`,
 and `stop` inside a handler block are therefore outside any procedure and raise
 `ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler was
 registered inside a `define`. Capturing the registering frame's bindings does not
-put the handler into that procedure's control flow: without this boundary a
-`return` in a handler firing while the registering call was still on the stack
-would be consumed as that call's own result, and one firing after it returned
-would have no procedure to leave. A control-form body is different, because it
-runs as part of the statement that contains it, so a `return` in an `if` body
-still exits the procedure that body is written in
-([execution-model.md](execution-model.md#procedures)).
+put the handler into that procedure's control flow: without this rule a `return`
+in a handler firing while the registering call was still on the stack would be
+consumed as that call's own result, and one firing after it returned would have
+no procedure to leave. Every other block is different, because it runs as part of
+the statement that contains it, so a `return` in an `if` body still reaches the
+procedure that body is written in
+([execution-model.md](execution-model.md#procedures)). This is a rule about
+control flow, not visibility: a handler block is an ordinary block scope and sees
+its enclosing chain, which is why a top-level handler can read and write a plain
+top-level name.
 
 A `global` declaration is legal only at the root scope, so a handler block never
 contains one; `global name = value` inside a handler raises

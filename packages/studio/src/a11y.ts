@@ -174,7 +174,7 @@ export interface FocusStop {
  * ("focus movement between source, output, state text, and canvas"); the source editor's own
  * `textbox` stop (#315/#279) is unchanged. #952 adds `canvas-activate` immediately after the canvas:
  * `on_click` fires when the drawing surface "is clicked **or activated by an equivalent accessible
- * action**" (`spec/interaction-events.md:298-299`), and a tab-reachable button beside the surface it
+ * action**" (`spec/interaction-events.md:301-302`), and a tab-reachable button beside the surface it
  * activates is that action — see `canvas-interaction.ts` for why it is a separate control rather
  * than Enter/Space on the canvas itself.
  */

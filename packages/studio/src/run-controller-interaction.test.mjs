@@ -40,7 +40,7 @@ const ON_CLICK_SOURCE = [
   "wait 5",
 ].join("\n");
 
-/** A `when "stop"` program — the notification `spec/interaction-events.md:209-213` defines. */
+/** A `when "stop"` program — the notification `spec/interaction-events.md:212-216` defines. */
 const WHEN_STOP_SOURCE = ['when "stop" [', '  print "bye"', "]", "wait 5"].join(
   "\n",
 );
@@ -601,7 +601,7 @@ test('#952: Stop delivers the when "stop" notification before termination', () =
   assert.deepEqual(
     store.getState().output,
     ["bye"],
-    'spec/interaction-events.md:209-213 — "stop" notifies the program before termination',
+    'spec/interaction-events.md:212-216 — "stop" notifies the program before termination',
   );
   assert.equal(store.getState().runStatus, "stopped");
 });
@@ -718,7 +718,7 @@ test("#952: reset() discards the schedule, so the next run starts a genuinely fr
   assert.equal(recorder.requests.at(-1).hostInputEvents[0].kind, "click");
 });
 
-test("#952: a delivery is refused while an input question is outstanding (spec/interaction-events.md:165-168)", () => {
+test("#952: a delivery is refused while an input question is outstanding (spec/interaction-events.md:168-171)", () => {
   const store = OL.createStudioState({
     source: [
       'on_key "left" [',
@@ -791,8 +791,8 @@ test("#985: a program stays responsive for as many presses as the learner makes 
   // went silent: the number of presses a learner could make equalled the program's tick count, which
   // is an artifact of the counter rather than anything the program or the spec says.
   //
-  // `spec/interaction-events.md:438-441` names what stops delivery — "Cancellation stops future
-  // handler delivery and sound scheduling" — and `:209-213` makes `"stop"` a *requested*
+  // `spec/interaction-events.md:441-444` names what stops delivery — "Cancellation stops future
+  // handler delivery and sound scheduling" — and `:212-216` makes `"stop"` a *requested*
   // notification. Neither names tick exhaustion, so there is no normative exhaustion stop
   // condition to preserve. Scheduling against the real clock, each press lands at the tick the
   // program is actually at, and the run stays interactive until Stop or Reset closes it — exactly
@@ -826,7 +826,7 @@ test("#985: a program stays responsive for as many presses as the learner makes 
 test("#952 (review finding 2): the recorded schedule does NOT depend on how fast the host settles", () => {
   // Under a host that settles a turn later, a delivery lands while an execution is still in flight.
   // Refusing it there made the same two calls record two entries synchronously and one deferred —
-  // a schedule shaped by host timing, and a key dropped where spec/interaction-events.md:148-150
+  // a schedule shaped by host timing, and a key dropped where spec/interaction-events.md:151-153
   // requires the most recent key state to be preserved.
   const store = OL.createStudioState({ source: ON_KEY_SOURCE });
   const deferred = createDeferredHost();
@@ -861,7 +861,7 @@ test("#952 (review finding 2): the recorded schedule does NOT depend on how fast
     deferred.requests.at(-1).hostInputEvents.length,
     3,
     "every press must reach the schedule — a press arriving while an execution is unsettled is " +
-      "buffered, never dropped (spec/interaction-events.md:148-150 requires the most recent key " +
+      "buffered, never dropped (spec/interaction-events.md:151-153 requires the most recent key " +
       "state to be preserved)",
   );
   assert.deepEqual(
@@ -908,7 +908,7 @@ test("#952 (review finding 2): a deferred host and a synchronous host record the
 
 test("#976: a chain that has asked a question keeps accepting delivered input once the read finishes", () => {
   // #952 refused delivery for the rest of any chain that had asked a question. That was stricter
-  // than `spec/interaction-events.md:165-168`, which blocks handlers only "until the read finishes
+  // than `spec/interaction-events.md:168-171`, which blocks handlers only "until the read finishes
   // or the program is cancelled" — an "until", not a "forever". The refusal existed because a
   // delivery was scheduled at a synthetic tick that could land BEFORE the read, so the replay
   // reached an earlier point than the learner had observed: a question they never saw, output they
@@ -917,7 +917,7 @@ test("#976: a chain that has asked a question keeps accepting delivered input on
   // #985's tick timeline removes that cause. A delivery is scheduled at the tick the learner is
   // actually looking at, which is never earlier than a read they have already answered, so the
   // permanent gate is DELETED rather than narrowed and `pendingRead === null` alone enforces
-  // `:165-168`. What must be asserted is therefore both halves: the key is delivered, AND the
+  // `:168-171`. What must be asserted is therefore both halves: the key is delivered, AND the
   // history the learner observed is not rewritten — the failure mode here produces no diagnostic.
   //
   // ## Why this runs over a LEAD SWEEP rather than one program
@@ -1252,7 +1252,7 @@ test("#985: the boolean answers whether THIS press ran a handler — false for a
 
   // #985 — a repeat press is now scheduled at the tick the program is at rather than at tick n, so
   // it fires like the first. The old expectation here (`false`, because `wait 1` "never reaches
-  // tick 2") was pinning the synthetic counter's exhaustion artifact; `:438-441` names cancellation
+  // tick 2") was pinning the synthetic counter's exhaustion artifact; `:441-444` names cancellation
   // as what stops delivery, and nothing names tick exhaustion.
   assert.equal(
     controller.deliverKey("left"),
@@ -2025,7 +2025,7 @@ test("#985 (known limitation): under the synchronous replay host a handler regis
 test("#985: a handler that raises still reports true — the block-head marker precedes the failure", () => {
   // This is the axis that broke the event-stream-length formulation: a raising handler SHORTENS the
   // stream, so a length proxy reports "nothing responded" for a handler that ran. Counting the
-  // block-head marker `spec/interaction-events.md:159-160` mandates is monotonic on the error path.
+  // block-head marker `spec/interaction-events.md:162-163` mandates is monotonic on the error path.
   const store = OL.createStudioState({
     source: ["on_click [", "  print :nope", "]", "wait 5"].join("\n"),
   });
@@ -2167,7 +2167,7 @@ test("#985 F4: a delivery replay resumes pacing at the tick already spent, not f
   // The resume seed, whose own comment names the consequence: "without this the first step after a
   // delivery replay would be charged the whole run's elapsed ticks." Measured with it deleted, on
   // this exact program: the first replay step takes **15655 ms** instead of 505 — a 15-second freeze
-  // on every key press, at default speed, in precisely the `spec/interaction-events.md:173-175`
+  // on every key press, at default speed, in precisely the `spec/interaction-events.md:176-178`
   // program this feature exists to serve. `deliverKey` still returns `true`, the output is still
   // correct, and there is no diagnostic. The suite was green.
   const delays = [];
@@ -2258,7 +2258,7 @@ test("#985 F4: a program with no `wait` is paced exactly as before — the ~90% 
 });
 
 test("#985 F4: a long `wait` holds the run open while handlers drive the animation", () => {
-  // `spec/interaction-events.md:173-175` — "This is what lets a program register its handlers and
+  // `spec/interaction-events.md:176-178` — "This is what lets a program register its handlers and
   // then hold itself open with a long `wait` while those handlers drive the animation."
   //
   // This must be measured with a **hand-driven** scheduler, not the immediate one. Review showed
@@ -2296,7 +2296,7 @@ test("#985 F4: a long `wait` holds the run open while handlers drive the animati
     "…with a step genuinely pending, not drained",
   );
 
-  // Delivered WHILE the wait is outstanding — the property `:173-175` describes.
+  // Delivered WHILE the wait is outstanding — the property `:176-178` describes.
   assert.equal(
     controller.deliverKey("a"),
     true,
@@ -2504,7 +2504,7 @@ test('#976: Stop re-clamps its own notification — a `when "stop"` registered m
   //
   // `scheduleHostInput` gives a first occurrence tick 0. `when "stop"` here registers only after the
   // leading `wait 2`, so a tick-0 notification is consumed before the handler exists and the
-  // pre-termination notification `spec/interaction-events.md:209-213` requires is lost with no
+  // pre-termination notification `spec/interaction-events.md:212-216` requires is lost with no
   // diagnostic. Measured with `reclampUndeliveredTail()` removed from `stop()`: output `[]`.
   //
   // Paced, not immediate: the floor is `tickAtEventIndex(chainTickTimeline, drawnEventCount)`, so a
@@ -2631,7 +2631,7 @@ test("#985: a re-entrant press never lands before the presses that preceded it",
 test("#1039 AC1: a genuinely ENDED program refuses a key and a click — with no execution at all", () => {
   // "Genuinely ended" per the ruling: the main line has finished, and there is no `wait`, no
   // `forever`, and no pending handler work holding the run open
-  // (`spec/interaction-events.md:255-261` — "A handler does not extend the run's lifetime; that is
+  // (`spec/interaction-events.md:258-264` — "A handler does not extend the run's lifetime; that is
   // the main line's business").
   const store = OL.createStudioState({
     source: [
@@ -2703,7 +2703,7 @@ test("#1039 AC2: a program pausing in a `wait` is NOT ended — its handler runs
 });
 
 test("#1039 AC3: a `forever` that yields holds the run open the same way a long `wait` does", () => {
-  // `spec/interaction-events.md:255-261` names `forever` and a long `wait` as *the* two ways a
+  // `spec/interaction-events.md:258-264` names `forever` and a long `wait` as *the* two ways a
   // program keeps its handlers alive, so both must read "still running" here.
   //
   // The title says "that yields" because the yield is what the predicate reads, and this fixture's
@@ -2771,7 +2771,7 @@ test("#1039 AC3: a `forever` that yields holds the run open the same way a long 
  * than making a number *wrong*:
  *
  * - `acceptsHostInputFor` is called from `acceptsLearnerInputFor`, and from `stop()` passing
- *   `"when"`, which is ungated by design (`spec/interaction-events.md:209-213`; pinned by
+ *   `"when"`, which is ungated by design (`spec/interaction-events.md:212-216`; pinned by
  *   `#952 (QA finding 1)`'s replay count).
  * - `acceptsLearnerInputFor` is called from `deliverKey`, passing `"on_key"`, and from
  *   `deliverClick`, passing `"on_click"` — this map's entries. Those registration words are what the
@@ -2888,8 +2888,8 @@ test("#1039: `wait 0` is a yield, so a program that ends on one is still not end
   // nothing. A predicate reading only the timeline turns the first into the second — a learner-
   // visible regression with no diagnostic, which is exactly what this test refuses.
   //
-  // `rubber-duck` argued the other side: `:318-322` says `wait 0` yields "without adding a visible
-  // delay" while `:170-175`/`:255-261` keep handlers alive with a *long* wait, so a trailing
+  // `rubber-duck` argued the other side: `:321-325` says `wait 0` yields "without adding a visible
+  // delay" while `:173-178`/`:258-264` keep handlers alive with a *long* wait, so a trailing
   // `wait 0` is arguably ended. The ruling this slice implements says the opposite in terms — "if
   // there is a `wait` the program is not ended" — so the ruling is what is encoded, and the tension
   // is reported to `@orchestrator` for the maintainer rather than resolved here.
@@ -2959,7 +2959,7 @@ test("#1039: a chain whose read finished on the program's last tick is ended too
 test("#1039: the shapes this predicate deliberately still accepts", () => {
   // `rubber-duck`'s round-1 blocking finding 1 and `@interpreter`'s non-blocking 6, pinned rather
   // than described. "Ended" here means **the program's clock offers no further yield**, which is
-  // narrower than `spec/interaction-events.md:255-261`'s "the run closes once the main line has
+  // narrower than `spec/interaction-events.md:258-264`'s "the run closes once the main line has
   // finished". The shapes that fall in the gap are enumerated below rather than counted — a count
   // was stated as three and `@interpreter` then measured a fourth.
   //
@@ -3024,7 +3024,7 @@ test("#1039: the shapes this predicate deliberately still accepts", () => {
     "and nothing reports it — the silence is the reason this shape is worth pinning rather than describing",
   );
 
-  // 3. The main line has finished, which `:255-261` calls the run closing — but the clock yielded,
+  // 3. The main line has finished, which `:258-264` calls the run closing — but the clock yielded,
   //    so the predicate reads live.
   const finished = play(`${KEY}\nwait 3\nforward 10`);
   assert.deepEqual(finished.presses, [true, true, true]);

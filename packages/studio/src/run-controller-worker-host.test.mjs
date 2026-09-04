@@ -532,7 +532,7 @@ test("the question is put to the learner over the picture the program has alread
   // The regression this slice had to avoid. A Worker parked inside the reader is called with the
   // prompt and nothing else, so without `ExecuteOptions.observedEvents` (#876) it could not report
   // what had been drawn, and the question would appear over a BLANK canvas — worse than #769, which
-  // draws the square and then asks. `spec/interaction-events.md:165-167` permits exactly this
+  // draws the square and then asks. `spec/interaction-events.md:168-170` permits exactly this
   // ("the implementation MAY continue rendering already-emitted trace events").
   const store = OL.createStudioState({ source: DRAW_THEN_ASK_SOURCE });
   const { host } = createBlockingHost();
@@ -620,7 +620,7 @@ test("an error thrown while presenting a question is not swallowed by the run lo
 
 test("dismissing the question publishes the run's own cancellation, not an invented one", () => {
   // Under a Worker host the read really does end unanswered inside a live execution, so the
-  // diagnostic the learner sees is the runtime's — `spec/interaction-events.md:167-168`'s other
+  // diagnostic the learner sees is the runtime's — `spec/interaction-events.md:170-171`'s other
   // ending for a read — rather than anything this module made up.
   const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
   const { host } = createBlockingHost();
@@ -768,7 +768,7 @@ test("a fresh Run after Stop starts a genuinely new execution", () => {
 /**
  * A program that asks a question and THEN expects key presses — the shape #976 exists for. Before
  * this slice the studio refused every press after the question, permanently, which is stricter than
- * `spec/interaction-events.md:165-168` ("until the read finishes").
+ * `spec/interaction-events.md:168-171` ("until the read finishes").
  */
 const ASK_THEN_ON_KEY_SOURCE = [
   ':name = input "who?"',

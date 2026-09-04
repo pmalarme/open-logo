@@ -829,7 +829,7 @@ test("a nested `wait` inside a handler cannot overtake older same-tick invocatio
 });
 
 test("a persistent `when` handler fires once per occurrence when its event is pending twice", () => {
-  // `when` is PERSISTENT (maintainer ruling #984, `spec/interaction-events.md:215-220`): its block
+  // `when` is PERSISTENT (maintainer ruling #984, `spec/interaction-events.md:218-223`): its block
   // runs "each time the named event occurs, once per occurrence". Two deliveries of the same named
   // event in one tick therefore fire the handler twice, exactly as two presses of the same key fire
   // an `on_key` handler twice. Before the ruling this printed once, from a one-shot `fired` flag.
@@ -849,7 +849,7 @@ test("a persistent `when` handler fires once per occurrence when its event is pe
 test("a persistent `when` handler fires again when its event occurs on a later tick", () => {
   // The across-tick half of the same ruling, and the case the conformance corpus recorded as
   // measured one-shot behaviour before #984: the same event delivered at tick 1 and tick 2 fires the
-  // handler on BOTH ticks. A vendor-prefixed word (`spec/interaction-events.md:212-213`) is used
+  // handler on BOTH ticks. A vendor-prefixed word (`spec/interaction-events.md:215-216`) is used
   // because `"start"`/`"stop"` occur once per run and so cannot tell the two readings apart.
   const source = ['when "acme.shake" [ print 1 ]', "wait 2"].join("\n");
   const result = execute(source, doc, {

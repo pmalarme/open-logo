@@ -1,5 +1,5 @@
 {
-  "description": "The fixed-arity (bare) call form binds the optional parameter's default value (spec/execution-model.md:690-701). Issue #97.",
+  "description": "The fixed-arity (bare) call form binds the optional parameter's default value (spec/execution-model.md:693-704). Issue #97.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

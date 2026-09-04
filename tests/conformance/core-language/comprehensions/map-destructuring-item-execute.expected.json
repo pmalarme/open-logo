@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring item binder destructures each element positionally in map, reusing #103's ForIn binder machinery (spec/execution-model.md:817-819). Issue #105.",
+  "description": "A destructuring item binder destructures each element positionally in map, reusing #103's ForIn binder machinery (spec/execution-model.md:822-824). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

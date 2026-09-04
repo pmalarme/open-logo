@@ -405,10 +405,12 @@ handler block whenever the handler fires.
 The choice between the two codes is **lexical, not temporal**: if any scope
 enclosing the read binds the name anywhere in the declaring document, a
 boundary-hidden read is `ol-var-not-visible`, whether or not that binding has
-been created by the time the read executes; `ol-undefined-var` is for a name no
-enclosing scope binds at all. That is what keeps `ol-var-not-visible` decidable
-at the `semantic` stage. A name declared `global` is not boundary-hidden, so a
-read that runs before its declaration line is an ordinary `ol-undefined-var`.
+been created by the time the read executes; `ol-undefined-var` is every other
+failed read — a name no scope binds at all, and a block's read of an enclosing
+binding created later in the enclosing scope. That is what keeps
+`ol-var-not-visible` decidable at the `semantic` stage. A name declared `global`
+is not boundary-hidden, so a read that runs before its declaration line is an
+ordinary `ol-undefined-var`.
 
 The evaluator resolves names as execution reaches them. The semantic checker MUST
 resolve them lexically and conservatively: it reports a name only when **no**
@@ -626,7 +628,7 @@ wait 8
 
 Each registration captures its own `:n`, so the three handlers MUST print `10`,
 `20`, and `30`. Per-turn capture in a loop is **not yet implemented** — the
-reader in this repository reuses one binding and prints `30` three times, which
+runtime in this repository reuses one binding and prints `30` three times, which
 is issue #821's loop case, tracked by #824.
 
 A scope's bindings last as long as anything can still reach them. **A scope — a
@@ -652,16 +654,17 @@ the same place does. The two look similarly nested and capture differently
 because one is a declaration and the other is a block.
 
 A **handler invocation** is a separate, deferred instruction, not part of the
-control flow of the call that registered the handler. `return`, `output`, `op`,
-and `stop` inside a handler block are therefore outside any procedure and raise
-`ol-return-outside-proc` or `ol-stop-outside-proc`, even when the handler was
-registered inside a `define`. Capturing the registering frame's bindings does not
-put the handler into that procedure's control flow: without this boundary a
-`return` in a handler firing while the registering call was still on the stack
-would be consumed as that call's own result, and one firing after it returned
-would have no procedure to leave. A control-form body is different, because it
-runs as part of the statement that contains it — see
-[Procedures](#procedures).
+control flow of the call that registered the handler. `return`, `output`, `op`, and `stop` inside a handler block are therefore outside
+any procedure and raise `ol-return-outside-proc` or `ol-stop-outside-proc`, even
+when the handler was registered inside a `define`. Capturing the registering
+frame's bindings does not put the handler into that procedure's control flow:
+without this rule a `return` in a handler firing while the registering call was
+still on the stack would be consumed as that call's own result, and one firing
+after it returned would have no procedure to leave. Every other block — an `if`,
+`while`, `repeat`, `for`, or `forever` body, or a profile block such as `ask` or
+`each` — runs as part of the statement that contains it, so a `return` inside one
+still reaches the procedure that body is written in (see
+[Procedures](#procedures)).
 
 ### `repcount` is lexical
 
@@ -704,15 +707,17 @@ extra arguments beyond the fixed default arity, use the parenthesized call form:
 `ol-not-enough-inputs` or `ol-too-many-inputs`.
 
 `return value` exits the current procedure and provides its value. `output` and
-`op` are heritage aliases. A block **other than a comprehension body or a handler
-block** does not interpose a procedure boundary: a `return` or `stop` inside an
-`if`, `while`, `repeat`, `for`, or `forever` body — or inside a profile block
-such as `ask` or `each` — exits the procedure that body is written in, which is
-what lets a recursive procedure return from inside its base-case `if`. The two
-that do interpose one are a comprehension body, which raises
-`ol-return-in-comprehension`, and a handler block, whose invocation is deferred
-and therefore outside any procedure (see
-[Frames, handlers, and lifetime](#frames-handlers-and-lifetime)). A procedure
+`op` are heritage aliases. A `return` or `stop` reaches the procedure the block
+is written in through any block except a comprehension body or a handler block —
+including an `if`, `while`, `repeat`, `for`, or `forever` body, or a profile
+block such as `ask` or `each` — which is what lets a recursive procedure return
+from inside its base-case `if`. The two exceptions are a comprehension body,
+which raises `ol-return-in-comprehension`, and a handler block, whose invocation
+is deferred and therefore outside any procedure (see
+[Frames, handlers, and lifetime](#frames-handlers-and-lifetime)). Neither
+exception is a *visibility* boundary: both are ordinary block scopes that see
+their enclosing chain, and only the sealed edge of a procedure body hides names.
+A procedure
 that reaches `return` is usable as a reporter; a procedure that does not is a
 command. Using a command procedure
 where a value is required raises `ol-no-output` at the call site. A `return`,

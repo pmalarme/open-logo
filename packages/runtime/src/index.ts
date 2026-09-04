@@ -5,7 +5,7 @@
  *
  * {@link execute} is the foundational execution entry point (issue #90): it parses a source
  * document and walks the program's top-level statements, emitting one `instruction` start event
- * per statement (`spec/execution-model.md:919-960` — the `instruction` event is the unit of
+ * per statement (`spec/execution-model.md:924-965` — the `instruction` event is the unit of
  * "one step"). Issue #93 gave Core literals and arithmetic (`+ - * / mod` plus
  * `abs sqrt int round power`) a runtime value via {@link evaluate} and added a minimal `print`
  * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized
@@ -178,12 +178,12 @@ export interface ExecuteResult {
  *   Defaults to {@link DEFAULT_LEARNER_LEVEL} (`"1"`, the first/movement level,
  *   `spec/educational-model.md`'s level table) — the least-prior-knowledge assumption when a
  *   caller does not track curriculum progression itself.
- * - `hostInput` (issue #686, slice I7 — `spec/interaction-events.md:148-150`) — a {@link HostInput}
+ * - `hostInput` (issue #686, slice I7 — `spec/interaction-events.md:151-153`) — a {@link HostInput}
  *   object whose `events` field is a tick-scheduled list of key presses, clicks, and named events a
  *   *host* (a studio, a terminal claim, a test) would have delivered to the running program, so
  *   `on_key`/`on_click`/`when` handlers can be proven to fire — and to fire in the normative
- *   same-tick order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:141-146`)
- *   — from a pure headless `execute()` call with no real input device. The spec (`:148-150`) requires
+ *   same-tick order (`when` → `on_key` → `on_click` → due `every`, `spec/interaction-events.md:144-149`)
+ *   — from a pure headless `execute()` call with no real input device. The spec (`:151-153`) requires
  *   an implementation to "preserve the most recent key and click state needed to deliver the next
  *   handler consistently"; this option is that preserved pending state, supplied up front. Each
  *   {@link HostInputEvent} names the `tick` at which it becomes pending; `dispatchDueHandlers` moves
@@ -248,7 +248,7 @@ export interface ExecuteResult {
  *   It exists for exactly one caller: a host suspended inside {@link HostInput.read}. The reader is
  *   called with the prompt and nothing else, so without this a host that blocks there — a Worker
  *   using `Atomics.wait`, say — cannot see what the program has drawn or printed so far, and must
- *   show the learner a question over a blank canvas. `spec/interaction-events.md:165-167` explicitly
+ *   show the learner a question over a blank canvas. `spec/interaction-events.md:168-170` explicitly
  *   permits the opposite ("While `input` is waiting, the implementation **MAY** continue rendering
  *   already-emitted trace events"), and this is the seam that makes that allowance reachable.
  *
@@ -284,7 +284,7 @@ export interface ExecuteResult {
  *   directions — too eager steals the editor's keys and the page's scrolling from the ~90% of
  *   programs with no interaction, too lazy scrolls the studio away while a learner plays a game. The
  *   registration `primitive` event carries only the primitive's *name*
- *   (`spec/interaction-events.md:177-179`), never its key word, so answering it previously meant
+ *   (`spec/interaction-events.md:180-182`), never its key word, so answering it previously meant
  *   parsing the source and pairing declarations to registration events **by source position**. This
  *   sink is the runtime handing over the key word it already had.
  *
@@ -344,7 +344,7 @@ export interface HostInput {
    * takes entry 0, the second entry 1, and so on, wherever those reads occur — top level, a
    * procedure body, a loop, or an event handler block all draw from this one queue. Each entry is
    * the raw text a learner would have typed; `input` then reports it per
-   * `spec/interaction-events.md:193-194` (text that parses as an OpenLogo number literal reports a
+   * `spec/interaction-events.md:196-197` (text that parses as an OpenLogo number literal reports a
    * **number**, anything else reports a **word** preserving the entered text), so `["42", "tom"]`
    * scripts one numeric answer followed by one word answer.
    *
@@ -354,7 +354,7 @@ export interface HostInput {
    * before the run starts, not an answer that depends on what the program has done so far.
    *
    * Defaults to an empty queue. A read with no answer left can never finish, so it takes the only
-   * other ending `spec/interaction-events.md:167-168` allows and the program is cancelled with
+   * other ending `spec/interaction-events.md:170-171` allows and the program is cancelled with
    * `ol-limit` — deliberately, rather than inventing an answer the learner never gave.
    */
   readonly responses?: readonly string[];
@@ -364,13 +364,13 @@ export interface HostInput {
    * prompt word, which since the #768 ruling IS the text a learner sees (a word prints verbatim, so
    * nothing is rendered on the way out), and the read stays outstanding for exactly the duration of
    * that call. Returning a string finishes the read with that submitted
-   * text (classified by `spec/interaction-events.md:193-194` exactly as a scripted answer is);
+   * text (classified by `spec/interaction-events.md:196-197` exactly as a scripted answer is);
    * returning `undefined` means the host cannot or will not answer, which ends the read the only
-   * other way `:167-168` allows — the program is cancelled.
+   * other way `:170-171` allows — the program is cancelled.
    *
-   * This is how a real host both **displays the prompt** (`:191`) and holds the read open: the
+   * This is how a real host both **displays the prompt** (`:194`) and holds the read open: the
    * reader IS the outstanding read, so a caller can observe, from inside it, that no further
-   * OpenLogo instruction and no event handler block has run — the normative MUST at `:165-168`,
+   * OpenLogo instruction and no event handler block has run — the normative MUST at `:168-171`,
    * which is why `interaction-input-blocking.test.mjs` probes the window through this seam. Wiring
    * it to a browser prompt in `@openlogo/studio` is issue **#769**.
    *
@@ -384,9 +384,9 @@ export interface HostInput {
 
 /**
  * A host's live `input` reader (issue #681). Called with the prompt word — the text to show the
- * learner (`spec/interaction-events.md:186`: the prompt MUST be a `word`) — and reports
+ * learner (`spec/interaction-events.md:189`: the prompt MUST be a `word`) — and reports
  * the text the learner submitted, or `undefined` to leave the read unanswered and cancel the run.
- * Synchronous by design: `spec/interaction-events.md:165-168` requires that no OpenLogo instruction
+ * Synchronous by design: `spec/interaction-events.md:168-171` requires that no OpenLogo instruction
  * and no handler block run until the read finishes, and a synchronous call is that guarantee by
  * construction — there is no suspension point at which anything else could be scheduled.
  */

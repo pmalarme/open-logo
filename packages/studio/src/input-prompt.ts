@@ -9,7 +9,7 @@
  * the single point of contact between the two.
  *
  * ## The seam, and why it is `present`/`respond` rather than a return value
- * `@openlogo/runtime`'s reader is **synchronous** — `spec/interaction-events.md:165-168` requires
+ * `@openlogo/runtime`'s reader is **synchronous** — `spec/interaction-events.md:168-171` requires
  * that no OpenLogo instruction and no handler block runs until the read finishes, and a synchronous
  * call is that guarantee by construction. A browser cannot block its event loop for an arbitrary
  * styled, keyboard-operable, screen-reader-announced prompt, so this host is deliberately
@@ -80,7 +80,7 @@ export interface InputPromptRequest {
 /**
  * How a host reports the end of one outstanding read: the learner's answer, or `undefined` when
  * they dismissed the question — which is exactly the runtime reader's own `undefined`, cancelling
- * the run (`spec/interaction-events.md:167-168`'s only other ending for a read).
+ * the run (`spec/interaction-events.md:170-171`'s only other ending for a read).
  */
 export type InputPromptResponder = (answer: string | undefined) => void;
 
@@ -189,7 +189,7 @@ export interface InputPromptController extends InputPromptHost {
   submit(answer: string): void;
   /**
    * End the outstanding read unanswered — the learner dismissed the question, which cancels the
-   * run (`spec/interaction-events.md:167-168`). A no-op when nothing is outstanding.
+   * run (`spec/interaction-events.md:170-171`). A no-op when nothing is outstanding.
    */
   cancel(): void;
 }

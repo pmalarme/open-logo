@@ -22,7 +22,7 @@ import type {
 } from "@openlogo/core";
 import type { TutorContext } from "./tutor-context.js";
 
-/** The four `hint` stages in escalation order (`spec/execution-model.md:1000-1012`). */
+/** The four `hint` stages in escalation order (`spec/execution-model.md:1005-1017`). */
 const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
   "nudge",
   "concept",

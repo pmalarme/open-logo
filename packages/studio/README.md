@@ -183,7 +183,7 @@ shapes with an **attempt chain**.
   `InputPromptHost`: the run controller `present()`s one outstanding question through it, and the
   learner ends it with `submit(answer)` or `cancel()`. `cancel()` *is* the runtime reader's own
   `undefined` — the read ends unanswered, which cancels the run
-  (`spec/interaction-events.md:167-168`). `dismiss()` is the third path: Stop/Reset withdraw a
+  (`spec/interaction-events.md:170-171`). `dismiss()` is the third path: Stop/Reset withdraw a
   question without answering it, so the responder is dropped rather than called.
   `mapInputPromptRequestToView` is the one place the visible/hidden + label decisions are made, so
   `web/main.ts` stays a branch-free wiring layer.
@@ -295,7 +295,7 @@ appends to live, so the stream is readable **during** execution rather than only
 returns. Rely on its contents, not on identity: for a program that runs it is the same array
 `ExecuteResult.events` reports, but a call returning before an execution environment exists — a
 parse failure, say — never reaches the sink and reports its own separate empty array.
-`spec/interaction-events.md:165-167` explicitly permits continuing to render
+`spec/interaction-events.md:168-170` explicitly permits continuing to render
 already-emitted events while `input` waits, and this is the seam that makes that allowance reachable.
 
 **A settlement carries reduced output, not just events.** Structured clone drops class prototypes: an
@@ -345,7 +345,7 @@ parsed and executed, never that any of its interaction did anything.
 installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
 
 - `deliverKey(keyWord)` — one key press, as the lowercase word
-  `spec/interaction-events.md:278-282` defines.
+  `spec/interaction-events.md:281-285` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
 `deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** — read
@@ -470,9 +470,9 @@ announcing it would file a run-log entry per keystroke.
   (measured: `step()` then `run()` leaves `runStatus` at `"running"` and refuses delivery). That
   fails safe — it refuses, never intercepts;
 - the program actually registered a handler of that kind, according to its own `primitive` trace
-  event (`spec/interaction-events.md:177-179`), so a non-interactive program is never re-executed by
+  event (`spec/interaction-events.md:180-182`), so a non-interactive program is never re-executed by
   a stray keystroke;
-- **no `input` question is outstanding right now.** `spec/interaction-events.md:165-168` blocks
+- **no `input` question is outstanding right now.** `spec/interaction-events.md:168-171` blocks
   handlers *until the read finishes*, and this is exactly that — a transient block, matching the
   spec's "until". Until #976 the studio was stricter: a chain that had *ever* asked a question
   refused delivery for the rest of its life, because a delivery was then scheduled at a synthetic
@@ -489,7 +489,7 @@ announcing it would file a run-log entry per keystroke.
 | --- | --- | --- |
 | `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
 | `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes |
-| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:165-168`: a delivery must not land at or before a read it should have followed | yes, 1 test |
+| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:168-171`: a delivery must not land at or before a read it should have followed | yes, 1 test |
 
 **The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
 an occurrence appended **re-entrantly during** `drainDeliveredInput`'s loop — the re-clamp runs once
@@ -517,7 +517,7 @@ re-derive them — that enumeration is what caught the bug below:
 Deleting the schedule-time copy without adding the second call was
 a regression review caught: `stop()` does not drain, so its `when "stop"` notification kept tick 0,
 was consumed during a leading `wait` before the handler had registered, and the pre-termination
-notification `spec/interaction-events.md:209-213` requires was lost with no diagnostic. One function
+notification `spec/interaction-events.md:212-216` requires was lost with no diagnostic. One function
 called twice rather than a floor duplicated at each site, because duplication is exactly the
 redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests.
 
@@ -570,7 +570,7 @@ one and costs 2. An ordinary drawing step spends no tick and costs exactly 1, so
 the Interaction profile paces exactly as it did before.
 
 The step is priced **before** it runs, from `TurtleAnimationController.nextStepEndIndex()`, not
-after. That matters for `spec/interaction-events.md:173-175` — "hold itself open with a long `wait`
+after. That matters for `spec/interaction-events.md:176-178` — "hold itself open with a long `wait`
 while those handlers drive the animation" — because that is a *trailing* `wait`, and a trailing step
 has no successor to charge: pricing backwards left `wait 20` and `wait 1` both at 1010. Asking the
 animation controller rather than re-deriving the step boundary keeps #1022's single definition
@@ -583,10 +583,10 @@ Two consequences, both deliberate:
   an artifact of the counter rather than a decision.
 
   **Delivery closes for a program whose clock offers no further yield (#1039).** An earlier version
-  of this bullet argued from `spec/interaction-events.md:438-441` that *cancellation* is what "stops future
+  of this bullet argued from `spec/interaction-events.md:441-444` that *cancellation* is what "stops future
   handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
-  `:438-441` says cancellation stops delivery, it does **not** say cancellation is the only way a run
-  closes — and `:255-257` says plainly that once the main line has finished "the run closes". The
+  `:441-444` says cancellation stops delivery, it does **not** say cancellation is the only way a run
+  closes — and `:258-260` says plainly that once the main line has finished "the run closes". The
   maintainer then ruled: *"If the program is ended it should refuse it. If there is a `wait` the
   program is not ended — it is still running."*
 
@@ -623,7 +623,7 @@ Two consequences, both deliberate:
   whose `input` finished on the program's last tick is refused up front instead of losing the press
   silently.
 
-  **"Ended" here means the clock offers no further yield**, which is narrower than `:255-261`'s "the
+  **"Ended" here means the clock offers no further yield**, which is narrower than `:258-264`'s "the
   run closes once the main line has finished". The shapes that fall in the gap are enumerated here
   rather than counted — an earlier revision said "three" and `@interpreter` then measured a fourth.
   All are measured identical at `492cdff7`, so this predicate neither causes nor fixes them, and
@@ -677,13 +677,13 @@ settlement has landed, a delivery arriving while a later attempt is in flight �
 host that settles across event-loop turns — is still *scheduled* and replayed when that attempt lands.
 Refusing it made the recorded schedule depend on
 settlement pacing (measured: the same two calls recorded two entries under a synchronous host and one
-under a deferred one) and dropped the key, where `:148-150` requires the most recent key and click state
+under a deferred one) and dropped the key, where `:151-153` requires the most recent key and click state
 to be preserved. *Before* that first settlement the registration gate has nothing to read, so a
 delivery in that one-settlement-wide window is refused and dropped — it fails safe, but the
 pacing-independence claim is genuinely "after the run's first settlement".
 
 **Stop notifies the program first.** `"stop"` is "a requested stop notification **before**
-termination" (`:209-213`), so `stop()` schedules it as a named event and replays once before latching
+termination" (`:212-216`), so `stop()` schedules it as a named event and replays once before latching
 the cancellation signal — but only for a program that registered a `when` handler, so every other
 Stop is byte-for-byte the Stop it always was. Subject to the tick limit above: a program with no
 `wait` never reaches the notification's tick. If the notification block itself reaches an `input`,
@@ -691,7 +691,7 @@ that read is withdrawn rather than left answerable over a `"stopped"` run.
 
 ### Supported key words
 
-`spec/interaction-events.md:281-282` asks implementations to document theirs.
+`spec/interaction-events.md:284-285` asks implementations to document theirs.
 `src/key-words.ts`'s `normalizeKeyWord` maps a browser `KeyboardEvent.key` onto:
 
 | Key | Word |
@@ -720,7 +720,7 @@ wait 300
 ### The pointer, and its accessible equivalent
 
 `on_click` fires when the surface "is clicked **or activated by an equivalent accessible action**"
-(`:271-272`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
+(`:274-275`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
 
 - the canvas's own pointer `click`;
 - `#canvas-activate-button`, a real, labelled, tab-reachable button the browser natively operates
@@ -730,7 +730,7 @@ wait 300
 It is a **separate control** rather than Enter/Space on the focused canvas because the canvas is also
 the keyboard surface: `"enter"` and `"space"` are key words in their own right, so a learner writing
 `on_key "space"` must receive a space press, not an activation. Carrying no click *position* is not a
-shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:273-275`), which
+shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:276-278`), which
 is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
 
 Arrows, space, and the paging keys have their browser default suppressed — but **only on synchronous

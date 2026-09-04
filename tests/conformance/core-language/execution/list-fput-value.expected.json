@@ -1,5 +1,5 @@
 {
-  "description": "`fput` prepends a value to a fresh list, never mutating the argument list (spec/commands.md \"fput\"; spec/execution-model.md:807-842). Issue #101.",
+  "description": "`fput` prepends a value to a fresh list, never mutating the argument list (spec/commands.md \"fput\"; spec/execution-model.md:812-847). Issue #101.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

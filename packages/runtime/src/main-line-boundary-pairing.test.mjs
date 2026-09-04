@@ -1,5 +1,5 @@
 // The main-line boundary rule, asserted as a MECHANISM rather than left as a convention
-// (maintainer ruling #984, `spec/interaction-events.md:246-261`).
+// (maintainer ruling #984, `spec/interaction-events.md:249-264`).
 //
 // ## Why this test exists
 //

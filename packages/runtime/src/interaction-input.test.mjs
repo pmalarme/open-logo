@@ -1,4 +1,4 @@
-// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:183-194`,
+// Unit tests for `input <prompt>` (issue #681, slice I2 — `spec/interaction-events.md:186-197`,
 // `spec/conformance.md:167-169`). `input` is the Interaction & Events profile's Kind-R reporter:
 // it displays a prompt, waits for the learner to enter one value, and reports a **number** when the
 // submitted text parses as an OpenLogo number literal or a **word** preserving the entered text
@@ -46,10 +46,10 @@ function printedValues(result) {
     .flatMap((event) => event.payload.values);
 }
 
-// --- `spec/interaction-events.md:193-194`: number literal → number, anything else → word ---------
+// --- `spec/interaction-events.md:196-197`: number literal → number, anything else → word ---------
 
 test("a submitted answer that parses as a number literal reports a NUMBER", () => {
-  // `spec/interaction-events.md:193-194`: "If the submitted text parses as an OpenLogo number
+  // `spec/interaction-events.md:196-197`: "If the submitted text parses as an OpenLogo number
   // literal, the reporter returns a number."
   //
   // Discriminated by TYPE, not by arithmetic. `:answer + 1` would prove nothing here: OpenLogo's `+`
@@ -80,7 +80,7 @@ test("arithmetic would NOT discriminate the two branches — the regression guar
 });
 
 test("a submitted answer that is not a number literal reports a WORD preserving the entered text", () => {
-  // The other half of `:193-194`: "Otherwise it returns a word preserving the entered text." Asks
+  // The other half of `:196-197`: "Otherwise it returns a word preserving the entered text." Asks
   // the SAME type question as the number test above, and gets the opposite answer — which is what
   // makes the two a discriminating pair rather than two runs of one assertion.
   const result = runWithAnswers(
@@ -157,7 +157,7 @@ test("interpretSubmittedText reports a word for anything that is not exactly one
 // --- The after-effects a read produces: the `primitive` event, and downstream events -------------
 
 test("a completed read emits exactly one catch-all `primitive` event naming input — and no new kind", () => {
-  // `spec/interaction-events.md:162-163`: "primitives without a more specific kind emit
+  // `spec/interaction-events.md:165-166`: "primitives without a more specific kind emit
   // `primitive`". #657 ruled out a new event kind, so this is the ONLY event a read itself adds.
   const result = runWithAnswers('print input "q"', ["tom"]);
   assert.deepEqual(result.diagnostics, []);
@@ -258,7 +258,7 @@ test("takeInputResponse advances one entry per call and reports exhaustion with 
 // --- The unanswered read: the spec's other ending, never an invented answer ---------------------
 
 test("a read with no scripted answer cancels the run (ol-limit) rather than inventing one", () => {
-  // `spec/interaction-events.md:167-168` gives a blocking read exactly two endings: it "finishes or
+  // `spec/interaction-events.md:170-171` gives a blocking read exactly two endings: it "finishes or
   // the program is cancelled". A headless run with no answer cannot reach the first, so it takes the
   // second — deliberately, because reporting a made-up empty word would let the program run on as
   // if the learner had answered.
@@ -318,11 +318,11 @@ test("an empty scripted answer is a real answer — the empty word — not an ex
   assert.deepEqual(printedValues(result), [true]);
 });
 
-// --- `spec/interaction-events.md:186`/`:188`: the prompt MUST be a word ---------------------------
+// --- `spec/interaction-events.md:189`/`:191`: the prompt MUST be a word ---------------------------
 
 test("a prompt that is not a word raises ol-type", () => {
-  // `spec/interaction-events.md:186`/`:188`: "**Args:** one prompt, which MUST be a `word`" /
-  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:432-436`)
+  // `spec/interaction-events.md:189`/`:191`: "**Args:** one prompt, which MUST be a `word`" /
+  // "**Errors:** `ol-type` if the prompt is not a `word`", which the profile's error table (`:435-439`)
   // classes as "an argument has the wrong type".
   //
   // The maintainer's ruling on issue #768 narrowed this from #681's scalar set: `number` and

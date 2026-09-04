@@ -2686,7 +2686,7 @@ test("loadFixture rejects a non-array executeOptions.hostInput.responses", () =>
 
 test("loadFixture rejects a non-string entry in executeOptions.hostInput.responses", () => {
   // The bare JSON number `42` is the tempting mistake: it would look like proof of the number branch
-  // while skipping the very parse (`spec/interaction-events.md:193-194`) that branch is about. An
+  // while skipping the very parse (`spec/interaction-events.md:196-197`) that branch is about. An
   // answer is the raw TEXT the learner typed, so it must be written `"42"`.
   const loaded = loadHostInputFixture("host-input-responses-not-string", {
     profiles: ["core-language"],
@@ -2852,7 +2852,7 @@ test("produce forwards executeOptions.hostInput to execute() so a headless fixtu
 
 test("produce forwards executeOptions.hostInput.responses to execute() so a headless fixture can answer a read", () => {
   // The other half of the same seam (issue #681): scripted answers reach `execute()` verbatim, so a
-  // fixture's `input` read reports the value `spec/interaction-events.md:193-194` prescribes.
+  // fixture's `input` read reports the value `spec/interaction-events.md:196-197` prescribes.
   const result = produce(
     'print input "q"',
     "test-doc",
