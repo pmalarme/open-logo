@@ -1801,3 +1801,24 @@ test("ol-style-ambiguous-continuation: block comment on previous line — not co
     reading: "new-statement",
   });
 });
+
+test("ol-style-ambiguous-continuation: not trailing — suppressed", () => {
+  // `not` expects a right operand; `-5` is unambiguously it.
+  const diagnostics = checkStyle(":x = not\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: multi-line block comment before -5 — fires", () => {
+  // The `*/` closing line has Infinity depth and is skipped; `1` on the
+  // first line has no trailing operator, so the ambiguity is real.
+  const diagnostics = checkStyle(
+    "print [ 1\n/* comment\ncontinued */\n-5 ]",
+  ).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+});

@@ -1749,6 +1749,9 @@ export function ambiguousContinuationRule(
             // ends with an infix operator, since that already locked continuation.
             let trailingOp = false;
             for (let prev = lineNum - 1; prev >= startLine; prev--) {
+              // Skip lines inside multi-line tokens (triple-quoted strings,
+              // block comments) — their content is data, not code.
+              if (depths[prev - 1]! === Infinity) continue;
               const stripped = stripTrailingComment(lines[prev - 1]!);
               if (stripped.length === 0) continue; // blank or comment-only
               trailingOp =
@@ -1759,7 +1762,7 @@ export function ambiguousContinuationRule(
                 stripped.endsWith("=") ||
                 stripped.endsWith("<") ||
                 stripped.endsWith(">") ||
-                /\b(?:mod|and|or)$/i.test(stripped);
+                /\b(?:mod|and|or|not)$/i.test(stripped);
               break;
             }
             if (!trailingOp) {
@@ -1769,6 +1772,7 @@ export function ambiguousContinuationRule(
               // different program.
               let firstElement = false;
               for (let prev = lineNum - 1; prev >= startLine; prev--) {
+                if (depths[prev - 1]! === Infinity) continue;
                 const stripped = stripTrailingComment(lines[prev - 1]!);
                 if (stripped.length === 0) continue;
                 firstElement = stripped.endsWith("[");
