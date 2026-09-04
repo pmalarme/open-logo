@@ -84,11 +84,16 @@ Measured at `2a1888c1`, the withholding trick makes this class **observationally
 misspelling: `challenge` and `print (wibble 2)` produce the same code, at the same stage, with the
 same shape of params, and the same silence from `execute()`. Nothing in the diagnostic stream or the
 event stream — the only things a learner sees, and the only things the conformance corpus asserts on
-— distinguished *"this name does not exist"* from *"this name exists and we withheld it"*. The sole
-distinguisher was an introspection export, `namesAwaitingAnEvaluator()`, whose very existence is an
-admission of the problem. That indistinguishability is the sharpest argument for a separate code, and
-it is the argument no code can preserve, because the fix destroys the evidence for it (issue #1087
-captures the behaviour before it goes).
+— distinguished *"this name does not exist"* from *"this name exists and we withheld it"*. The
+withholding even reached the arity source, so the stray-token path could not separate them either:
+`challenge "x"` and `wibble "x"` both report `ol-bad-token` on the argument and `ol-unknown-command`
+on the callee. What could still tell them apart was the parser's own registry introspection —
+`namesAwaitingAnEvaluator()` names the withheld set outright, and `isActiveProfileCommandName`
+answers `true` for `challenge` and `false` for `wibble` — an API surface whose very existence is an
+admission of the problem, and which no learner and no conformance fixture consults. That
+indistinguishability is the sharpest argument for a separate code, and it is the argument no code can
+preserve, because the fix destroys the evidence for it (issue #1087 captures the behaviour before it
+goes).
 
 A learner cannot tell these three apart from the outside, because from the outside all three look
 identical: the turtle did not move and the language said nothing. The question this record answers
