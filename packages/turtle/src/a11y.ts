@@ -100,7 +100,7 @@ function formatDescribedNumber(value: number): string {
 /**
  * Renders a heading for a spoken description. Identical to {@link formatDescribedNumber} except
  * that a heading which *rounds up* to a full turn is spoken as `0`, because
- * `spec/rendering.md:67` and `spec/execution-model.md:985` both normalize headings into `[0,360)`
+ * `spec/rendering.md:67` and `spec/execution-model.md:986` both normalize headings into `[0,360)`
  * — `heading 360 degrees` names a value the model never holds.
  *
  * This is reachable, not defensive: measured on the base of this change, `right 359.9999` and

@@ -90,7 +90,7 @@ const IMPLEMENTATION_RESEED_STRIDE = 0x9e3779b9;
 
 /**
  * Choose the implementation's *own* next seed for a no-argument `randomize`
- * (`spec/execution-model.md:962-963`: "`randomize` with no input uses an implementation seed";
+ * (`spec/execution-model.md:963-964`: "`randomize` with no input uses an implementation seed";
  * `spec/commands.md`'s `randomize` entry: "with no seed the implementation chooses a seed"). Both
  * leave that choice entirely to the implementation, so deriving it from the generator's current
  * state is conforming.

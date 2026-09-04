@@ -227,7 +227,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:1007-1018` calls for: a mutable map (like `instructionCount`/`addressing`,
+ * `spec/execution-model.md:1008-1019` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -792,7 +792,7 @@ function assignVar(
   root.set(key, value);
 }
 
-// --- Loop/comprehension binder helpers (spec/execution-model.md:801-805) --------------------
+// --- Loop/comprehension binder helpers (spec/execution-model.md:802-806) --------------------
 //
 // Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
 // comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
@@ -816,7 +816,7 @@ export type DestructuringBinder = Extract<
 
 /**
  * Push a fresh body-local frame binding `bindings` (name → value) onto `environment`, nearest-first, for
- * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:801-803` ("body-local
+ * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:802-804` ("body-local
  * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
  * `environment` itself is never mutated, so once the caller stops using the returned value the binding is
  * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
@@ -855,7 +855,7 @@ export function findDuplicateBinderName(
 
 /**
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
- * destructuring pattern destructures it positionally (`spec/execution-model.md:801-805`). A list
+ * destructuring pattern destructures it positionally (`spec/execution-model.md:802-806`). A list
  * element destructures by index; an {@link OLRecord} element destructures by its declared field
  * order (`fields()`/`get()`, `spec/data-structures.md:329-345`) — derived into a plain values array
  * *before* the arity check below, so a record whose field count disagrees with the pattern's arity
@@ -1889,7 +1889,7 @@ function writeIndexedPlace(
  * TARGET`, `insert … in TARGET at …`) to the shared list it must mutate in place. Evaluating a
  * supported target (`:name`, a postfix `:l[i]`, or any list-valued reporter) yields the *same*
  * array reference the binding holds, so a `push`/`splice`/`length = 0` on it is observed through
- * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:837-847`). A target that
+ * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:838-848`). A target that
  * does not evaluate to a list raises `ol-type` (`spec/data-structures.md:79`). `OLValue`'s list
  * arm is `readonly`, so the cast to a mutable array mirrors {@link writeIndexedPlace}'s own
  * in-place write. `clear`'s target may also be a dict (issue #322), so it uses its own sibling
@@ -1922,7 +1922,7 @@ function evaluateListTarget(
 }
 
 /**
- * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:837-847`):
+ * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:838-848`):
  * append `value` to the list `target` in place. `value` then `target` are evaluated left to right;
  * either operand being an expression kind this profile does not yet evaluate leaves the whole
  * statement a deferred no-op — matching {@link executeAssign}/`print`, so an unimplemented operand
@@ -2696,11 +2696,11 @@ function evaluateLogical(
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------
 //
-// spec/execution-model.md:849-876. `==`/`!=` compare any two values to a boolean and never
+// spec/execution-model.md:850-877. `==`/`!=` compare any two values to a boolean and never
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
- * The canonical printed form of a number (`spec/execution-model.md:19,864-866`): whole values
+ * The canonical printed form of a number (`spec/execution-model.md:19,865-867`): whole values
  * print without a decimal, non-whole values are trimmed to at most 10 significant digits. So
  * `5 == "5"` is `true`, `5 == "05"` is `false` (5 prints as `"5"`, not `"05"`), and a word
  * carrying more than 10 significant digits cannot equal the number it looks like.
@@ -2771,7 +2771,7 @@ function primitivePrintedForm(value: OLValue): string | undefined {
   }
   if (value instanceof OLTurtle) {
     // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
-    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:906`): a turtle is an opaque
+    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:907`): a turtle is an opaque
     // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
     // state, which would make `print :t` non-deterministic across movement/pen changes.
     return `turtle #${formatNumber(value.id)}`;
@@ -2987,7 +2987,7 @@ function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
  * but it is an opaque *identity* value, not an aliasable container: its own per-turtle drawing state
  * is captured into trace events at the moment each effect is emitted, never through this
  * value-graph copy, and its identity must be preserved so a snapshotted turtle still `==` the
- * original (`spec/execution-model.md:906`). So a turtle is copied by keeping the same reference,
+ * original (`spec/execution-model.md:907`). So a turtle is copied by keeping the same reference,
  * exactly like a primitive — only lists/dicts/records are structurally cloned below.
  */
 function isSnapshotLeaf(
@@ -3067,7 +3067,7 @@ export function snapshotValue(
 }
 
 /**
- * Normative `==` for OpenLogo's value types (`spec/execution-model.md:849-876` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md:850-877` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
  * boolean identity; structural list equality; structural dict equality (same key set, pairwise
  * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict
@@ -3112,7 +3112,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
     return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
   }
   if (a instanceof OLTurtle) {
-    // Turtles compare by identity, never by state (`spec/execution-model.md:906`): a turtle equals
+    // Turtles compare by identity, never by state (`spec/execution-model.md:907`): a turtle equals
     // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
     // guarantee holds even if a turtle value reaches this comparison through two different routes
     // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
@@ -3130,7 +3130,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
 
 /**
  * Structural list equality that terminates on cyclic or shared structure
- * (`spec/execution-model.md:868-872`). `inProgress` holds the reference pairs currently on the
+ * (`spec/execution-model.md:869-873`). `inProgress` holds the reference pairs currently on the
  * comparison stack; re-encountering a pair while it is still in progress is the cyclic back-edge,
  * treated as equal for that branch (bisimulation, not identity short-circuiting). Each pair is
  * removed once its comparison completes, so `inProgress` stays a faithful stack rather than a
@@ -3169,7 +3169,7 @@ function listEqual(
 }
 
 /**
- * Structural dict equality (issue #322, `spec/execution-model.md:860`): same key set and pairwise
+ * Structural dict equality (issue #322, `spec/execution-model.md:861`): same key set and pairwise
  * `==`, order-independent. Sibling of {@link listEqual} — same cyclic/shared-structure memoization
  * strategy, reusing the same `inProgress` stack since a dict can nest lists and vice versa.
  */
@@ -3249,7 +3249,7 @@ function recordEqual(
 
 /**
  * Lexicographic comparison of two words by Unicode code point
- * (`spec/execution-model.md:875`). `Array.from` iterates by code point (not UTF-16 code unit),
+ * (`spec/execution-model.md:876`). `Array.from` iterates by code point (not UTF-16 code unit),
  * so astral characters sort by their true scalar value. Returns a negative number, `0`, or a
  * positive number when `a` sorts before, equal to, or after `b`.
  */
@@ -3306,7 +3306,7 @@ function numberOrdering(
 /**
  * Ordering (`< > <= >=`) is defined only for two numbers (compared numerically) or two words
  * (compared lexicographically); every other pair raises `ol-type`
- * (`spec/execution-model.md:874-876`). When the left operand is itself non-orderable
+ * (`spec/execution-model.md:875-877`). When the left operand is itself non-orderable
  * (boolean/list) the diagnostic points at it and names the expected concept `"number or word"`;
  * otherwise the right operand does not match the left's type and the diagnostic points at the
  * right, naming the left's concept.
@@ -3808,12 +3808,12 @@ function evaluatePrefixIsA(
 }
 
 // --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/word/count (issue #101,
-// #234; spec/commands.md "Words and lists", spec/execution-model.md:813-848) ---------------------
+// #234; spec/commands.md "Words and lists", spec/execution-model.md:814-849) ---------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
 // lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`word` always
 // return a *fresh* value (never mutate an argument list in place); nested element references
-// are shared, only the outer array is copied (`spec/execution-model.md:813-848`'s
+// are shared, only the outer array is copied (`spec/execution-model.md:814-849`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md:125-141`), not Core — they are evaluated just below `count`, sharing
 // this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
@@ -3968,7 +3968,7 @@ function evaluateButlast(
 
 /**
  * `fput`/`lput` — a *fresh* list with `value` prepended/appended to `list`
- * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:813-848` — never mutates `list`).
+ * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:814-849` — never mutates `list`).
  * A non-list second argument raises `ol-type`.
  */
 function evaluateFputOrLput(
@@ -4583,7 +4583,7 @@ function evaluatePos(
  * `towards x y` — the heading (`[0,360)`) from the turtle's current position toward `(x, y)`
  * (`spec/commands.md` "towards"). `Math.atan2(dx, dy)` (arguments in `(x, y)` order, not the usual
  * `(y, x)`) directly yields OL's compass-bearing convention — `0` points up/`+y`, `right`/clockwise
- * is positive — matching `spec/execution-model.md:904` and verified against the spec's own worked
+ * is positive — matching `spec/execution-model.md:905` and verified against the spec's own worked
  * example: `towards 100 0` from the origin is `90` (dx=100, dy=0 → atan2(100,0) = 90°).
  * {@link normalizeHeading} folds the `atan2` result's `(-180,180]` range into `[0,360)`, same as
  * every other heading-producing path. Non-number `x`/`y` raise `ol-type`
@@ -4942,10 +4942,10 @@ function evaluateRandom(
   );
 }
 
-// --- Comprehensions: map / filter / reduce (spec/execution-model.md:733-845, issue #105) ------
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md:734-846, issue #105) ------
 //
 // Comprehensions are value-producing *expressions* usable anywhere an expression is
-// (`spec/execution-model.md:733-737`), so — unlike a procedure body, which can contain arbitrary
+// (`spec/execution-model.md:734-738`), so — unlike a procedure body, which can contain arbitrary
 // control flow and genuinely needs `execute-internal.ts`'s full `executeStatements` dispatcher —
 // every spec worked example and acceptance criterion for a comprehension body is a single
 // bracketed expression-block whose *last* statement supplies the result
@@ -5278,14 +5278,14 @@ function comprehensionDuplicateBinder(
 }
 
 /**
- * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:733-845`, worked
- * examples `:1061-1107`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:734-846`, worked
+ * examples `:1062-1108`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
  * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
- * empty, `spec/execution-model.md:768`).
+ * empty, `spec/execution-model.md:769`).
  */
 /**
  * Run the main line's statement-boundary hook at a comprehension iteration and report a halting

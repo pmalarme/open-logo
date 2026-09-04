@@ -13,7 +13,7 @@
  * {@link ExecSignal} — `"normal"`/`"halt"` (its original two outcomes, renamed) plus `"return"`/
  * `"stop"` — so a control form's body (`If`/`While`/`Repeat`/`Forever`/`ForIn`/`ForRange`)
  * transparently propagates a `return`/`stop` up to the nearest enclosing procedure, rather than
- * only stopping its own loop (`spec/execution-model.md:710-727`). {@link runProcedure} is the
+ * only stopping its own loop (`spec/execution-model.md:711-728`). {@link runProcedure} is the
  * shared call mechanics reachable from both a statement-position call (dispatched directly, right
  * here) and an expression-position call (`evaluate.ts`'s `evaluateCall`, via the `callProcedure`
  * callback threaded onto `Environment` — see `evaluate.ts`'s doc comment for why a direct import
@@ -221,7 +221,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
 
 /**
  * Move the turtle `distance` units along its current heading and emit the `move` effect-event
- * `spec/execution-model.md:958-959` requires, reporting the position change and heading. A
+ * `spec/execution-model.md:959-960` requires, reporting the position change and heading. A
  * `draw-segment` reporting the same endpoints plus the pen color/width active at the moment the
  * segment is created (`spec/rendering.md`'s "Line segments" section) follows it **only while the
  * pen is down** (the current turtle's `penDown`) — `spec/rendering.md`'s "Line segments" section: a segment
@@ -229,7 +229,7 @@ function isTurtleMoveCall(statement: StatementNode): boolean {
  * but leaves no trail (issue #206, `pen_up`/`pen_down`). `distance` is negative for `back`
  * (`back n` == `forward -n`, `spec/commands.md:1236`), positive for `forward`.
  *
- * Movement math is `spec/execution-model.md:911-912`'s `(x + d·sin h, y + d·cos h)`: heading `0`
+ * Movement math is `spec/execution-model.md:912-913`'s `(x + d·sin h, y + d·cos h)`: heading `0`
  * points up (`+y`), and `right` turns clockwise, so increasing heading rotates the direction of
  * travel clockwise from up — exactly what `Math.sin`/`Math.cos` of a heading measured clockwise
  * from the `+y` axis produce once converted from degrees to radians.
@@ -354,7 +354,7 @@ function executeTurtleMoveCall(
     // `power 10 1000` — see `comparison-equality.test.mjs`), but `moveTurtle`'s `d·sin h`/`d·cos h`
     // can turn that into `NaN` whenever `sin`/`cos` of the heading is exactly `0` (IEEE 754
     // `0 * Infinity` is `NaN`), silently corrupting the emitted position instead of raising a
-    // diagnostic (`spec/execution-model.md:883` — "OpenLogo never exposes NaN or Infinity as
+    // diagnostic (`spec/execution-model.md:884` — "OpenLogo never exposes NaN or Infinity as
     // learner-facing results").
     return halt(
       runtimeDiag.nonFiniteDistance(arg.source_span, {
@@ -386,9 +386,9 @@ function isTurtleTurnCall(statement: StatementNode): boolean {
 
 /**
  * Turn the turtle by `deltaDegrees` (positive turns clockwise, i.e. `right`; negative turns
- * counter-clockwise, i.e. `left` — `spec/execution-model.md:903`) and emit the `turn` effect-event
- * `spec/execution-model.md:960` requires (`{from, to}`, both headings in degrees). The new heading
- * is normalized to `[0,360)` (`spec/execution-model.md:904`) — never left negative or `>= 360`.
+ * counter-clockwise, i.e. `left` — `spec/execution-model.md:904`) and emit the `turn` effect-event
+ * `spec/execution-model.md:961` requires (`{from, to}`, both headings in degrees). The new heading
+ * is normalized to `[0,360)` (`spec/execution-model.md:905`) — never left negative or `>= 360`.
  *
  * Turning has no `move`/`draw-segment` counterpart: it only rotates, never translates, so no
  * position or drawing event follows it.
@@ -414,7 +414,7 @@ function turnTurtle(
  * Validate and run a `left`/`right` statement matched by {@link isTurtleTurnCall}: exactly one
  * numeric argument (`ol-not-enough-inputs`/`ol-too-many-inputs`/`ol-type` otherwise, via
  * {@link requireNumber}), negated for `left` (turning counter-clockwise is a negative heading
- * delta, since `right`/clockwise is positive — `spec/execution-model.md:903`), then delegated to
+ * delta, since `right`/clockwise is positive — `spec/execution-model.md:904`), then delegated to
  * {@link turnTurtle}. Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
@@ -466,7 +466,7 @@ function executeTurtleTurnCall(
     // Same rationale as `executeTurtleMoveCall`'s non-finite-distance guard: `requireNumber`
     // accepts `Infinity`/`-Infinity` (reachable via arithmetic overflow), but `Infinity % 360` is
     // `NaN`, which would otherwise corrupt the turtle's heading instead of raising a diagnostic
-    // (`spec/execution-model.md:883`).
+    // (`spec/execution-model.md:884`).
     return halt(
       runtimeDiag.nonFiniteAngle(arg.source_span, {
         operation: callableName.toLowerCase() as "left" | "right",
@@ -687,7 +687,7 @@ function homeTurtleForClearScreen(
   source_span: SourceSpan,
 ): void {
   // Position first, its event next, then heading and *its* event — so each payload is the
-  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:1018`) and each
+  // point-in-time snapshot at the moment of emission (`spec/execution-model.md:1019`) and each
   // effect event follows the state change it describes (`spec/rendering.md:84`). Collapsing both
   // mutations up front would emit a `move` reporting a heading the turtle no longer had.
   const from: Point = [turtle.x, turtle.y];
@@ -1533,7 +1533,7 @@ function setHeadingTo(
  * (via {@link requireNumber}), `ol-range` ({@link runtimeDiag.nonFiniteCoordinate}) for a
  * `set_xy` argument that is `Infinity`/`-Infinity` (same "never expose a non-finite learner-facing
  * result" rationale as {@link executeTurtleMoveCall}'s non-finite-distance guard —
- * `spec/execution-model.md:883`). Returns an {@link ExecSignal} to halt on, or `undefined` for
+ * `spec/execution-model.md:884`). Returns an {@link ExecSignal} to halt on, or `undefined` for
  * {@link executeStatements} to `continue` on success (including the "left un-evaluated" case for
  * an unsupported argument expression, mirroring `forward`/`back`'s handling).
  *
@@ -1693,7 +1693,7 @@ function executeTurtleHeadingCall(
   if (!Number.isFinite(angle.value)) {
     // Same rationale as `executeTurtleTurnCall`'s non-finite-angle guard: `requireNumber` accepts
     // `Infinity`/`-Infinity`, but `Infinity % 360` is `NaN`, which would otherwise corrupt the
-    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:883`).
+    // turtle's heading instead of raising a diagnostic (`spec/execution-model.md:884`).
     return halt(
       runtimeDiag.nonFiniteHeading(arg.source_span, {
         operation: callableName.toLowerCase() as "set_heading" | "seth",
@@ -2660,7 +2660,7 @@ const NOT_A_PROFILE_STATEMENT = Symbol("not-a-profile-statement");
  *
  * The ids are **deduplicated by stable id, in first-occurrence order**: what `tell`/`ask` establish
  * is an addressed **set** (`spec/turtles-and-sprites.md:44` "turtle commands run for an **addressed
- * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:906`), so a turtle
+ * set**"), and turtle `==` is "Same turtle identity" (`spec/execution-model.md:907`), so a turtle
  * listed twice is one member. A turtle command then "applies once for each addressed turtle"
  * (`spec/turtles-and-sprites.md:113`) and `each` runs "once per turtle in the current `tell` or `ask`
  * set" (`:78`) — one run per member, on **every** path (issue #748: deduplicating only inside `each`
@@ -3981,7 +3981,7 @@ function executeShowCall(
  *
  * With no seed, a fresh implementation-chosen seed is drawn from the generator itself
  * ({@link drawImplementationSeed} — the entry: "With no seed the implementation chooses a seed",
- * and `spec/execution-model.md:962-963`: "`randomize` with no input uses an implementation seed").
+ * and `spec/execution-model.md:963-964`: "`randomize` with no input uses an implementation seed").
  * Issue #865 moved that choice off the wall clock so a run a host pinned with
  * `ExecuteOptions.randomSeed` stays deterministic even when the program reseeds itself; see
  * {@link drawImplementationSeed} for why an unseeded run is unaffected. With a seed, the entry
@@ -4008,7 +4008,7 @@ function executeRandomizeCall(
   }
   if (statement.args.length === 0) {
     // Issue #865: the implementation's own seed is derived by advancing the generator's state
-    // rather than by reading the wall clock. `spec/execution-model.md:962-963` ("`randomize` with
+    // rather than by reading the wall clock. `spec/execution-model.md:963-964` ("`randomize` with
     // no input uses an implementation seed") leaves the choice entirely to the implementation, and
     // deriving it keeps a run that a host pinned with `ExecuteOptions.randomSeed` deterministic
     // END TO END — a clock read here would silently re-enter entropy and undo that seed. An
@@ -4084,7 +4084,7 @@ function isEducationalMetaCommandCall(
  * unconditionally) is what keeps a run of CONSECUTIVE meta-commands (e.g. `hint` called three
  * times in a row with nothing in between) all resolving to the SAME real target, rather than
  * each one targeting the previous meta-command's own call site — without that skip, `hint`'s
- * progression (`spec/execution-model.md:1007-1018`, "for the SAME target") could never observe two
+ * progression (`spec/execution-model.md:1008-1019`, "for the SAME target") could never observe two
  * calls sharing one target.
  */
 function findPrecedingSiblingStatement(
@@ -4272,7 +4272,7 @@ function dispatchShowRandomizeOrEducationalCommand(
  * `document` plus both endpoints, so two different spans (even in the same document) never
  * collide, and the whole-program fallback span (a distinct, wider span than any single
  * statement) gets its own independent progression, per
- * `spec/execution-model.md:1007-1018`'s "observable ordering ... for a given target-source-span
+ * `spec/execution-model.md:1008-1019`'s "observable ordering ... for a given target-source-span
  * value" requirement.
  */
 function hintTargetKey(span: SourceSpan): string {
@@ -4281,7 +4281,7 @@ function hintTargetKey(span: SourceSpan): string {
 
 /**
  * Evaluate an `if`/`while` condition and require it to be a boolean — there is no truthiness
- * (`spec/execution-model.md:755`, `spec/error-model.md:123`). `operation` names the leading
+ * (`spec/execution-model.md:756`, `spec/error-model.md:123`). `operation` names the leading
  * form (`"if"`/`"while"`) for the `ol-not-boolean` diagnostic's `params.operation`, reusing the
  * `runtimeDiag.notBoolean` builder issue #95 added for `and`/`or`/`not` rather than duplicating it.
  * Returns the propagated evaluation failure, the `ol-not-boolean` diagnostic, or the boolean.
@@ -4318,7 +4318,7 @@ function evaluateCondition(
  * `stop` reached). Every control-form body below (`If`/`While`/`Repeat`/`Forever`/`ForIn`/
  * `ForRange`) now propagates ANY non-`"normal"` signal straight up unchanged rather than only
  * checking for `"halt"` — this is what makes a `stop`/`return` nested inside a loop inside a
- * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:710-727`).
+ * procedure exit the whole procedure, not just that loop (`spec/execution-model.md:711-728`).
  * {@link runProcedure} is the only place that ever *consumes* a `"return"`/`"stop"` signal; if one
  * reaches {@link runProgram}'s top level instead, no procedure was there to catch it, so it is
  * converted to `ol-return-outside-proc`/`ol-stop-outside-proc`.
@@ -4520,7 +4520,7 @@ type ProcedureOutcome =
  * but only on a clean or `return`/`stop` outcome (a `"halt"` outcome skips it, matching the
  * existing convention that a diagnostic stops the trace with no further events at all). This
  * ordering reproduces the spec's worked recursive-call trace exactly
- * (`spec/execution-model.md:1141-1179`).
+ * (`spec/execution-model.md:1142-1180`).
  *
  * Before any of that, the call is checked against `environment.callDepth`'s length — the current
  * procedure-call nesting depth — against {@link Environment.recursionDepthLimit}: exceeding it
@@ -4696,7 +4696,7 @@ function runProcedureBody(
  * Call a user procedure from an expression/reporter position (`print area :r`): like
  * {@link runProcedure}, but a command result (`null` — the procedure never reached `return`)
  * is `ol-no-output` here, since a value is required in this position
- * (`spec/execution-model.md:710-727`). Wired onto every execution `Environment`'s
+ * (`spec/execution-model.md:711-728`). Wired onto every execution `Environment`'s
  * `callProcedure` field so `evaluate.ts`'s `evaluateCall` can reach it without importing this
  * module (see this file's header comment).
  */
@@ -4779,7 +4779,7 @@ function callProcedureAsValue(
  * `ol-stop-outside-proc`.
  *
  * An `If` statement (issue #100) evaluates `condition` — requiring a boolean, `ol-not-boolean`
- * otherwise (`spec/execution-model.md:755`) — and runs exactly one branch: `thenBody` when
+ * otherwise (`spec/execution-model.md:756`) — and runs exactly one branch: `thenBody` when
  * `condition` is `true`, `elseBody` when it is `false` and present, or neither (no further events)
  * when it is `false` and there is no `else`. Both the bracketed and long-form `… end` bodies parse
  * to the identical `BlockNode` shape, so they execute identically — there is nothing here that
@@ -4797,7 +4797,7 @@ function callProcedureAsValue(
  * separate slice).
  *
  * A `Repeat` statement (issue #104) evaluates `count`, then validates it TYPE then RANGE, in that
- * exact order (`spec/execution-model.md:755-757`): a non-whole-number count raises `ol-type`
+ * exact order (`spec/execution-model.md:756-758`): a non-whole-number count raises `ol-type`
  * ({@link requireWholeNumber}); otherwise a negative count raises `ol-range`
  * (`runtimeDiag.negativeCount`); `repeat 0` runs `body` zero times with no diagnostic. Each pass
  * pushes that pass's 1-based turn onto `environment.repeatTurns` before running `body` and pops it after —
@@ -4813,13 +4813,13 @@ function callProcedureAsValue(
  * `while`.
  *
  * A `ForIn` statement (issue #103) evaluates `iterable` — it must be a list, `ol-type` otherwise
- * (`spec/execution-model.md:763-764`; Core `for ... in` is list-only, dict iteration is a later
+ * (`spec/execution-model.md:764-765`; Core `for ... in` is list-only, dict iteration is a later
  * profile) — then runs `body` once per element, in order, binding `binder` fresh each pass via
  * `evaluate.ts`'s {@link pushLoopFrame}. A bare-name binder binds the whole element; a
  * destructuring binder (`evaluate.ts`'s {@link bindElement}) binds each of its names positionally
  * from the element, which must
  * itself be a list of exactly that many items (`ol-range` otherwise —
- * `spec/execution-model.md:826-827`). A duplicate name within one destructuring pattern
+ * `spec/execution-model.md:827-828`). A duplicate name within one destructuring pattern
  * (`for [:x :x] in ...`) raises `ol-duplicate-binder`, checked once up front via
  * {@link findDuplicateBinderName} since it is a static property of the pattern, not the data.
  *
@@ -4827,12 +4827,12 @@ function callProcedureAsValue(
  * a number, `ol-type` otherwise ({@link requireNumber}, which unlike `repeat`'s count is not
  * restricted to whole numbers) — then iterates `variable` from `from` to `to` inclusive, adding
  * `step` each pass: with a positive step the body runs while `variable` is at most `to`, with a
- * negative step while it is at least `to` (`spec/execution-model.md:758-762`). A step pointing
+ * negative step while it is at least `to` (`spec/execution-model.md:759-763`). A step pointing
  * away from `to` (e.g. `from 1 to 5 by -1`) runs `body` zero times, no diagnostic; a step of `0`
  * raises `ol-range` (`runtimeDiag.forStepZero`) since it would otherwise never reach `to`.
  * `variable` is bound fresh each pass via {@link pushLoopFrame}, same as `ForIn`'s binder.
  *
- * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1236`): each
+ * Both loops' binders are fresh **body-local** bindings (`spec/execution-model.md:340,1237`): each
  * pass runs `body` against a *new* {@link Environment} with one extra frame in front of `environment`'s
  * own frames, so the binding is visible inside `body` but never leaks past the loop — `environment` itself
  * is never mutated. `environment.repeatTurns` (same array reference) and `environment.foreverIterationLimit` are
@@ -4840,7 +4840,7 @@ function callProcedureAsValue(
  * both still work correctly across a nested `for`. Every control-form body below propagates ANY
  * non-`"normal"` signal from `executeStatements` straight back up — including `"return"`/`"stop"`
  * — so a `stop` or `return` nested inside a loop nested inside a procedure exits the *procedure*,
- * not just that loop (`spec/execution-model.md:710-727`).
+ * not just that loop (`spec/execution-model.md:711-728`).
  *
  * Statement kinds this issue does not give meaning to (e.g. a bare arithmetic expression, or any
  * call this evaluator does not know) still emit their `instruction` event but do not evaluate —
@@ -5587,7 +5587,7 @@ export function resolveEffectiveRecursionDepthLimit(
  * slice the exact assignment-target surface text out of it. Issue #332 threads `program` itself
  * onto the environment (`TutorContext.program`, and the source of `hint`'s whole-program fallback
  * span via `program.source_span`) and a fresh `hintProgress` map per run, so the Educational
- * profile's `hint` progression (`spec/execution-model.md:1007-1018`) starts over — every target
+ * profile's `hint` progression (`spec/execution-model.md:1008-1019`) starts over — every target
  * begins at `"nudge"` — for each new `execute()` call. `tutorTemplate` resolves
  * `options?.tutorTemplates` to {@link defaultTutorTemplate} when omitted, and `learnerLevel`
  * resolves `options?.learnerLevel` to {@link DEFAULT_LEARNER_LEVEL} when omitted (the

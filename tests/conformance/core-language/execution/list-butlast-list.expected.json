@@ -1,5 +1,5 @@
 {
-  "description": "`butlast` on a list reports a fresh list with every element but the last (spec/commands.md \"butlast\"; spec/execution-model.md:813-848 — never mutates the input). Issue #101.",
+  "description": "`butlast` on a list reports a fresh list with every element but the last (spec/commands.md \"butlast\"; spec/execution-model.md:814-849 — never mutates the input). Issue #101.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

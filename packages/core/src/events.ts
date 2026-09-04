@@ -57,7 +57,7 @@ export const OL_EVENT_KINDS = [
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
 /**
- * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:1004` is
+ * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:1005` is
  * explicit: "`turtle-id` | Turtle identity; present only when the event is turtle-specific,
  * otherwise absent", and `spec/turtles-and-sprites.md:113` scopes the identity requirement to
  * explaining "which turtle moved or changed".
@@ -355,7 +355,7 @@ export interface InstructionPayload {
 /**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
- * default applied when the caller omitted them (`spec/execution-model.md:1141-1179`'s worked
+ * default applied when the caller omitted them (`spec/execution-model.md:1142-1180`'s worked
  * recursive-call trace, e.g. `{name:"countdown", args:[2]}`).
  */
 export interface ProcedureEnterPayload {
@@ -365,9 +365,9 @@ export interface ProcedureEnterPayload {
 
 /**
  * Payload for a `procedure-exit` event: the callee's canonical name and its result
- * (`spec/execution-model.md:1141-1179`, e.g. `{name:"countdown", result:0}`). `result` is `null`
+ * (`spec/execution-model.md:1142-1180`, e.g. `{name:"countdown", result:0}`). `result` is `null`
  * when the invocation is a command — it finished (or `stop`ped) without reaching `return`
- * (`spec/execution-model.md:710-727`) — rather than `0`/`false`/an empty list, which are
+ * (`spec/execution-model.md:711-728`) — rather than `0`/`false`/an empty list, which are
  * themselves ordinary result values.
  */
 export interface ProcedureExitPayload {
@@ -377,7 +377,7 @@ export interface ProcedureExitPayload {
 
 /**
  * Payload for a `return` event: the value supplied to `return`/`output`/`op`
- * (`spec/execution-model.md:1141-1179`, e.g. `{value:0}`). Emitted only when a procedure actually
+ * (`spec/execution-model.md:1142-1180`, e.g. `{value:0}`). Emitted only when a procedure actually
  * reaches a `return`; a command invocation (falls through, or `stop`s) never emits one.
  */
 export interface ReturnPayload {
@@ -441,7 +441,7 @@ export type TutorCommand = "explain" | "why" | "hint" | "debug";
  * The four progressive stages of `hint` (`spec/educational-model.md#hint`). A `hint` invocation
  * for a given `target-source-span` starts at `"nudge"` and escalates one stage per repeated
  * request, up to `"last-resort"`, which then repeats rather than revealing a full solution
- * (`spec/execution-model.md:1006-1018`). Present in {@link TutorOutputPayload} only when
+ * (`spec/execution-model.md:1007-1019`). Present in {@link TutorOutputPayload} only when
  * `command` is `"hint"`.
  */
 export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
@@ -547,7 +547,7 @@ export type TutorOutputPayload =
 /**
  * The name of a primitive that emits a `primitive` event. `primitive` is the **generic catch-all**
  * effect kind — "the generic catch-all for a primitive without a more specific event"
- * (`spec/execution-model.md:1069`) — so it is profile-neutral and the set of emitters is
+ * (`spec/execution-model.md:1070`) — so it is profile-neutral and the set of emitters is
  * **open-ended**: any current or future primitive that lacks a more specific event kind emits one.
  * This alias is therefore an open `string`, not a closed union, so a new emitter never requires
  * re-opening this contract. The current M5 emitters are the Interaction & Events forms
@@ -593,7 +593,7 @@ export type PrimitiveName = string;
  * restoring the previous set on the way out all reduce through one rule.
  *
  * The set lives in the payload rather than the envelope's `turtle_id`, which is normatively
- * "present only when the event is turtle-specific" (`spec/execution-model.md:1004`): addressing
+ * "present only when the event is turtle-specific" (`spec/execution-model.md:1005`): addressing
  * concerns a *set* of turtles, so an addressing event is never turtle-specific and MUST NOT be
  * stamped with one turtle's id.
  */
@@ -605,7 +605,7 @@ export interface AddressingSnapshot {
 /**
  * Payload for a `primitive` event: the canonical {@link PrimitiveName} of the primitive whose
  * effect the event records. `primitive` is the generic catch-all effect kind for a primitive
- * without a more specific event (`spec/execution-model.md:1069`) — profile-neutral, not scoped to
+ * without a more specific event (`spec/execution-model.md:1070`) — profile-neutral, not scoped to
  * any one profile — and `name` is what lets replay/debug tools tell those primitives apart. The
  * event is emitted after the effect it describes (after a `wait` pause completes, or after a handler
  * is registered), so no timing or tick data lives in the payload — the stream carries no timing or
@@ -617,7 +617,7 @@ export interface AddressingSnapshot {
  * which the Interaction registration *forms* `when`/`every`/`on_key`/`on_click` emit `primitive`
  * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:166-167`).
  * It is deliberately NOT a new registered `kind`: the registry's `kind` values are normative and
- * closed (`spec/execution-model.md:1055-1060`, "One registered event kind"), the only sanctioned
+ * closed (`spec/execution-model.md:1056-1061`, "One registered event kind"), the only sanctioned
  * un-registered kinds are vendor-namespaced extensions (`vendor_name.event_name`) which by
  * definition may not be recorded as portable conformance behavior, and reusing the catch-all keeps
  * every existing consumer correct with no change — an addressing-unaware renderer simply sees one
@@ -632,7 +632,7 @@ export interface PrimitivePayload {
 
 /**
  * Compile-time regression guard for the finding that `primitive` is the profile-neutral generic
- * catch-all (`spec/execution-model.md:1069`): its `name` must stay an OPEN type so a future primitive
+ * catch-all (`spec/execution-model.md:1070`): its `name` must stay an OPEN type so a future primitive
  * from any profile is representable without re-opening this contract. `AssertAssignable<T, V>`
  * requires `V extends T`, so this alias only compiles while the non-interaction literal
  * `"some_future_primitive"` is assignable to `PrimitiveName`; if `PrimitiveName` is ever narrowed
@@ -770,7 +770,7 @@ export interface SpawnTurtlePayload {
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
  * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}) and
  * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}); and `primitive`, the
- * profile-neutral generic catch-all (`spec/execution-model.md:1069`, via {@link PrimitivePayload} —
+ * profile-neutral generic catch-all (`spec/execution-model.md:1070`, via {@link PrimitivePayload} —
  * which also carries the Sprites {@link AddressingSnapshot} for `tell`/`ask`/`each`);
  * other kinds (e.g. `error`) refine their payload with their feature slice.
  */

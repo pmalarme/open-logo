@@ -1,5 +1,5 @@
 {
-  "description": "for ... in requires a list iterable (spec/execution-model.md:763-764); a non-list value (a number) raises ol-type. Issue #103.",
+  "description": "for ... in requires a list iterable (spec/execution-model.md:764-765); a non-list value (a number) raises ol-type. Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

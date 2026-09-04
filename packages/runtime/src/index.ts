@@ -5,7 +5,7 @@
  *
  * {@link execute} is the foundational execution entry point (issue #90): it parses a source
  * document and walks the program's top-level statements, emitting one `instruction` start event
- * per statement (`spec/execution-model.md:925-966` — the `instruction` event is the unit of
+ * per statement (`spec/execution-model.md:926-967` — the `instruction` event is the unit of
  * "one step"). Issue #93 gave Core literals and arithmetic (`+ - * / mod` plus
  * `abs sqrt int round power`) a runtime value via {@link evaluate} and added a minimal `print`
  * event. Issue #98 completes `print`: the single-value `print value` form and the parenthesized

@@ -25,7 +25,7 @@
  * growing history — never replacing or dropping an earlier entry. This is what makes repeated
  * `hint` invocations visible as a sequence of progressive stages rather than just the latest one:
  * whether the learner writes several `hint` statements in one program (progressing within a
- * single `execute()` call, per `spec/execution-model.md:1006-1018`) or re-runs the program multiple
+ * single `execute()` call, per `spec/execution-model.md:1007-1019`) or re-runs the program multiple
  * times, every stage the learner has seen stays in the pane's history.
  *
  * ## Absent until a meta-command runs ({@link TutorOutputPaneView.isVisible})

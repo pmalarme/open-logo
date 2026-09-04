@@ -124,10 +124,10 @@ registered inside a `define`. Capturing the registering frame's bindings does no
 put the handler into that procedure's control flow: without this rule a `return`
 in a handler firing while the registering call was still on the stack would be
 consumed as that call's own result, and one firing after it returned would have
-no procedure to leave. Every block except a comprehension body is different,
-because it runs as part of the statement that contains it, so a `return` in an
-`if` body still reaches the procedure that body is written in; a comprehension
-body raises `ol-return-in-comprehension`
+no procedure to leave. Every block other than a handler block or a comprehension
+body is different, because it runs as part of the statement that contains it, so
+a `return` in an `if` body still reaches the procedure that body is written in; a
+comprehension body raises `ol-return-in-comprehension`
 ([execution-model.md](execution-model.md#procedures)). This is a rule about
 control flow, not visibility: a handler block is an ordinary block scope and sees
 its enclosing chain, which is why a top-level handler can read and write a plain
