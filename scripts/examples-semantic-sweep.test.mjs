@@ -1,15 +1,16 @@
 // The no-false-positive sweep for saga #811 (issue #816 item 7).
 //
 // Saga #811's defect is that a statement containing an unresolvable name runs silently. The `[spec]`
-// ruling that chooses the fix (#814) is still open, and one of its live options routes `check()`'s
-// semantic diagnostics to whoever RUNS a program rather than only to whoever lints one. Any such
-// solution is only an improvement if the checker is quiet on programs that are correct — a checker
-// that reports a name as unknown because the profile owning it was not in the active set would turn
-// every learner's turtle program red. That exact false positive is the documented reason
-// `packages/studio/src/diagnostics.ts` still defaults `semanticCheck` to `false`. This sweep is
-// therefore the gate that stops any checker-surfacing solution from being worse than the bug; it is
-// deliberately agnostic about which option #814 picks, and stays valuable even if the fix lands
-// entirely in the evaluator, since the studio would still surface checker output.
+// ruling that chooses the fix (#814) has since merged, and it routes part of the answer through the
+// checker: `spec/tooling.md:193` makes a built-in Command in value position MUST-reportable there as
+// `ol-no-output`. Any solution that surfaces checker output to a learner is only an improvement if
+// the checker is quiet on programs that are correct — a checker that reports a name as unknown
+// because the profile owning it was not in the active set would turn every learner's turtle program
+// red. That exact false positive is the documented reason `packages/studio/src/diagnostics.ts` still
+// defaults `semanticCheck` to `false`. This sweep is therefore the gate that stops the fix from
+// being worse than the bug; it is deliberately agnostic about which stage ends up reporting what,
+// and stays valuable however #815 divides the work, since the studio would still surface checker
+// output.
 //
 // It sweeps every `spec/examples/*.logo` file under TWO profile sets, because a false positive can
 // come from either side:

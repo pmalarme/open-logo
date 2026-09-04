@@ -345,12 +345,15 @@ Three rules keep the characterization fixtures from becoming a trap:
 
 - **Each one names the ruling that will retire it, and promises only what it can.** An `execute()`
   characterization fixture states that it locks today's defective behaviour and must be **flipped**
-  when the blocking `[spec]` ruling lands (#814) and the runtime slice implements it (#815). A
-  `check()` fixture makes a *different* promise, because #814 has not chosen a contract yet: a
-  shape-A one is already correct and expected to survive unchanged, while a shape-B one records
-  that `check()` is silent and says explicitly that a checker-routed fix must make it gain a
-  diagnostic whereas an evaluator-side fix leaves it as written. A future reader must never mistake
-  any of them for a statement about the contract.
+  now that the blocking `[spec]` ruling has merged (#814) and the runtime slice implements it
+  (#815). A `check()` fixture makes a *different* promise, because the two shapes reach the checker
+  differently: a shape-A one is already correct and expected to survive unchanged, while a shape-B
+  one records that `check()` is silent today and must **gain** an `ol-no-output` — `spec/tooling.md:193`
+  makes a built-in Command in value position statically decidable and MUST-reportable at the
+  checker, naming `wait forward 5`, `repeat forward 5 [ … ]` and `right forward 5` explicitly, and
+  `spec/error-model.md:114` puts that code at stage `semantic` for a built-in. Before the ruling
+  landed that outcome was genuinely open, and these fixtures said so; it is now decided. A future
+  reader must never mistake any of them for a statement about the contract.
 - **Their neighbours are the opposite.** `arity-still-diagnosed/` and `profile-argument/` assert
   **correct** behaviour that must survive the fix unchanged, and all four say so.
   `recursion-collapses-silently-execute` is paired with `recursion-baseline-unaffected` for the same
