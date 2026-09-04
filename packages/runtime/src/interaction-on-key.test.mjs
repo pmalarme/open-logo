@@ -100,7 +100,9 @@ test("a non-word key argument (boolean) raises ol-type", () => {
 test("a key argument that fails to evaluate surfaces its own diagnostic, not ol-type", () => {
   // `:missing` is a supported argument shape (a variable reference) but evaluating it fails with
   // `ol-undefined-var`; `on_key` halts on that and never reaches the word-type check or registration.
-  const result = execute("on_key :missing [ forward 20 ]", doc);
+  const result = execute("on_key :missing [ forward 20 ]", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   assert.deepEqual(effectEvents(result), []);
@@ -110,13 +112,18 @@ test("an unsupported key argument leaves the statement un-evaluated (no crash, n
   // A nested command call (`forward 5`) is not a supported `on_key` key argument in this slice's
   // evaluator; the statement is left un-evaluated (its instruction event still emits) rather than
   // throwing or diagnosing — the same "defer if unsupported" convention `wait`/`when` use.
-  const result = execute("on_key forward 5 [ forward 20 ]", doc);
+  const result = execute("on_key forward 5 [ forward 20 ]", doc, {
+    runUnchecked: true,
+  });
   // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
   // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
-  // per-form special case — which is precisely the inconsistency #716 recorded.
+  // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
+  // `runUnchecked` opt-out the program runs anyway, and the evaluator — which has no
+  // expression-position branch for a command — adds `ol-not-implemented`: two true statements
+  // about one call, one from each side of the seam this slice closes.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-no-output"],
+    ["ol-no-output", "ol-not-implemented"],
   );
   assert.deepEqual(effectEvents(result), []);
 });

@@ -150,10 +150,12 @@ test("note reports a command used as its duration, never a silent no-op", () => 
   // Issue #815: `forward` is a Command, so using it where a value is required is the statically
   // decidable `ol-no-output` of `spec/tooling.md:193` — reported, rather than quietly turning the
   // whole `note` into nothing. The arity finding beside it is the same call's other fault.
-  const result = execute('note "c4" forward', "main.logo");
+  const result = execute('note "c4" forward', "main.logo", {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output"],
+    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
@@ -162,10 +164,12 @@ test("note reports a command used as its pitch, never a silent no-op", () => {
   // Issue #815: `(forward)` is a Command in value position, which `spec/tooling.md:193` makes a
   // statically decidable `ol-no-output` — so the run is refused with a reason instead of being
   // abandoned. The arity finding beside it is the same call's other, independent fault.
-  const result = execute("note (forward) 1", "main.logo");
+  const result = execute("note (forward) 1", "main.logo", {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output"],
+    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
@@ -260,10 +264,12 @@ test("rest propagates a runtime error from evaluating the duration expression", 
 });
 
 test("rest reports a command used as its duration, never a silent no-op", () => {
-  const result = execute("rest forward", "main.logo");
+  const result = execute("rest forward", "main.logo", {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output"],
+    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });

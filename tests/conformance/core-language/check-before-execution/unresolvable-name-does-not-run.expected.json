@@ -1,0 +1,21 @@
+{
+  "description": "Issue #815: a program that fails the check does not run (`spec/execution-model.md:659-664`) — \"no instruction executes, no trace event is emitted\". Measured before this slice, this program printed 1 and 3 while the middle statement vanished with no diagnostic at all, which is the defect saga #811 exists to remove: a wrong program that looks right. The whole program is now refused, and the learner is told which name OpenLogo does not know.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check-before-execution/unresolvable-name-does-not-run",
+        "start": [2, 8],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

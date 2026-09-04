@@ -1,0 +1,22 @@
+{
+  "description": "Issue #815: *one fault, one diagnostic* (`spec/execution-model.md:750-766`). An unresolvable callable has unknown arity, so `100` has no grammatical home and the reader raises `ol-bad-token` for it — but that token is not the fault, and the spec forbids reporting it \"in its place or beside it\". What survives is `ol-unknown-command` with the did-you-mean computed over the VISIBLE vocabulary, which is why `suggestion` is `forward` here: Turtle & Rendering is in this run's profile set. The sibling fixture under Core Language alone reports the same fault with no suggestion.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/misspelled-command-with-an-argument",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "name": "fowad",
+        "suggestion": "forward"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

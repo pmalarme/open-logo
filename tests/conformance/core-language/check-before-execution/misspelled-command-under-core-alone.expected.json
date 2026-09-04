@@ -1,0 +1,24 @@
+{
+  "description": "Issue #815: the other half of `spec/execution-model.md:761-765`. The same program as the Turtle & Rendering fixture, run under a profile set that does NOT claim Turtle & Rendering: `ol-bad-token` is still suppressed, and the did-you-mean is absent because `forward` is not visible to suggest. The answer depends on the run's own claim, which is why `executeOptions.profiles` names it here rather than leaving it to the implementation's default.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": {
+    "profiles": ["core-language"]
+  },
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check-before-execution/misspelled-command-under-core-alone",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "name": "fowad"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

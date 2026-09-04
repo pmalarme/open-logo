@@ -147,15 +147,18 @@ test("execute evaluates a parenthesized `(print value)` call the same as the pla
 test("execute reports the unresolvable unsupported print argument instead of skipping the call", () => {
   // A call to a name unknown to both the builtin whitelist and the procedure registry stays
   // unsupported (issue #322 made `.field` and dict literals themselves fully supported).
-  const result = execute("print (nonexistent_builtin 1)", "main.logo");
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("print (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("execute evaluates the variadic `(print a b …)` form, carrying every value in order", () => {
@@ -179,14 +182,15 @@ test("execute reports the unresolvable variadic print instead of skipping the ca
   // un-evaluated (only its `instruction` event fires), even though its first operand (`1`) would
   // evaluate cleanly on its own.
   const result = execute("(print 1 (nonexistent_builtin 1))", "main.logo");
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("execute stops mid-variadic-print when a later operand fails to evaluate", () => {
@@ -230,7 +234,9 @@ test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(pr
   // therefore the case where the check before execution finds nothing, the program runs, and the
   // runtime guard is the only thing standing between a learner and a silent no-op — reported at
   // `stage: "runtime"`, unlike its bare sibling above.
-  const result = execute("(print)", "main.logo");
+  const result = execute("(print)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -303,15 +309,18 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
 test("execute reports the unresolvable unsupported `show` argument instead of skipping the call", () => {
   // A call to a name unknown to both the builtin whitelist and the procedure registry is not
   // a supported expression — the same deferral `print` uses.
-  const result = execute("show (nonexistent_builtin 1)", "main.logo");
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("show (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("execute stops and returns the diagnostic when a `show` argument fails to evaluate", () => {

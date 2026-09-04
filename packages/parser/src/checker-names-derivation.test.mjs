@@ -124,15 +124,13 @@ test("every registered primitive of an active profile is callable without ol-unk
   // reads as unknown: the name is known, and a call to one this implementation cannot evaluate is
   // `ol-not-implemented` at the layer that knows, never `ol-unknown-command` here. So the exact
   // expectation is now the empty set, and any name that stops being visible fails naming itself.
-  const notVisible = [];
-  for (const profile of OL.OL_CHECK_PROFILES) {
-    const profiles = ["core-language", profile];
-    for (const name of OL.profilePrimitiveNames(profile)) {
-      if (checkCodes(name, profiles).includes("ol-unknown-command")) {
-        notVisible.push(name);
-      }
-    }
-  }
+  const notVisible = OL.OL_CHECK_PROFILES.flatMap((profile) =>
+    OL.profilePrimitiveNames(profile).filter((name) =>
+      checkCodes(name, ["core-language", profile]).includes(
+        "ol-unknown-command",
+      ),
+    ),
+  );
   assert.deepEqual([...new Set(notVisible)].sort(), []);
 });
 

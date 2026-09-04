@@ -92,13 +92,17 @@ test("last on a boolean raises ol-type", () => {
 });
 
 test("first propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print first :missing", doc);
+  const result = execute("print first :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(first) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (first)", doc);
+  const result = execute("print (first)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -109,7 +113,9 @@ test("(first) with no input raises ol-not-enough-inputs", () => {
 });
 
 test("(last) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (last)", doc);
+  const result = execute("print (last)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "last",
@@ -175,7 +181,9 @@ test("butfirst on a number raises ol-type", () => {
 });
 
 test("butlast propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print butlast :missing", doc);
+  const result = execute("print butlast :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -190,7 +198,9 @@ test("butfirst never mutates its list argument", () => {
 });
 
 test("(butfirst) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (butfirst)", doc);
+  const result = execute("print (butfirst)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -201,7 +211,9 @@ test("(butfirst) with no input raises ol-not-enough-inputs", () => {
 });
 
 test("(butlast) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (butlast)", doc);
+  const result = execute("print (butlast)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "butlast",
@@ -257,19 +269,25 @@ test("lput on a non-list second argument raises ol-type", () => {
 });
 
 test("fput propagates a value-evaluation failure before checking the list", () => {
-  const result = execute("print fput :missing [1]", doc);
+  const result = execute("print fput :missing [1]", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("lput propagates a list-evaluation failure", () => {
-  const result = execute("print lput 1 :missing", doc);
+  const result = execute("print lput 1 :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(fput 1) with only one input raises ol-not-enough-inputs", () => {
-  const result = execute("print (fput 1)", doc);
+  const result = execute("print (fput 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -280,7 +298,9 @@ test("(fput 1) with only one input raises ol-not-enough-inputs", () => {
 });
 
 test("(lput) with no inputs raises ol-not-enough-inputs", () => {
-  const result = execute("print (lput)", doc);
+  const result = execute("print (lput)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "lput",
@@ -321,13 +341,17 @@ test("sentence never mutates a list argument", () => {
 });
 
 test("sentence propagates an argument evaluation failure", () => {
-  const result = execute("print sentence :missing [1]", doc);
+  const result = execute("print sentence :missing [1]", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(sentence) with no inputs raises ol-not-enough-inputs", () => {
-  const result = execute("print (sentence)", doc);
+  const result = execute("print (sentence)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -338,7 +362,9 @@ test("(sentence) with no inputs raises ol-not-enough-inputs", () => {
 });
 
 test("(sentence 1) with only one input raises ol-not-enough-inputs", () => {
-  const result = execute("print (sentence 1)", doc);
+  const result = execute("print (sentence 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "sentence",
@@ -386,13 +412,17 @@ test("word raises ol-type when an argument is a boolean, not a word", () => {
 });
 
 test("word propagates an argument evaluation failure", () => {
-  const result = execute('print word :missing "bar"', doc);
+  const result = execute('print word :missing "bar"', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(word) with no inputs raises ol-not-enough-inputs", () => {
-  const result = execute("print (word)", doc);
+  const result = execute("print (word)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -403,7 +433,9 @@ test("(word) with no inputs raises ol-not-enough-inputs", () => {
 });
 
 test('(word "a") with only one input raises ol-not-enough-inputs', () => {
-  const result = execute('print (word "a")', doc);
+  const result = execute('print (word "a")', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "word",
@@ -456,13 +488,17 @@ test("count on a boolean raises ol-type", () => {
 });
 
 test("count propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print count :missing", doc);
+  const result = execute("print count :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(count) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (count)", doc);
+  const result = execute("print (count)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

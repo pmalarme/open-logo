@@ -371,13 +371,18 @@ test("an unsupported count argument leaves the statement un-evaluated (no crash,
   // evaluator; the statement is left un-evaluated (its instruction event still emits) rather than
   // throwing or diagnosing — the same "defer if unsupported" convention `wait`/`when` and the
   // turtle commands use, so a later slice can widen the evaluator without this slice pre-judging it.
-  const result = execute('every forward 5 [ print "x" ]', doc);
+  const result = execute('every forward 5 [ print "x" ]', doc, {
+    runUnchecked: true,
+  });
   // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
   // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
-  // per-form special case — which is precisely the inconsistency #716 recorded.
+  // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
+  // `runUnchecked` opt-out the program runs anyway, and the evaluator — which has no
+  // expression-position branch for a command — adds `ol-not-implemented`: two true statements
+  // about one call, one from each side of the seam this slice closes.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-no-output"],
+    ["ol-no-output", "ol-not-implemented"],
   );
   assert.deepEqual(effectEvents(result), []);
 });
@@ -385,7 +390,9 @@ test("an unsupported count argument leaves the statement un-evaluated (no crash,
 test("a count argument that evaluates to a diagnostic halts before registration", () => {
   // `:missing` is a supported argument node, but evaluating it fails (unbound). The evaluation
   // diagnostic propagates and no handler is registered — no `primitive(every)`, no handler run.
-  const result = execute('every :missing [ print "x" ]', doc);
+  const result = execute('every :missing [ print "x" ]', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   assert.deepEqual(effectEvents(result), []);
@@ -413,13 +420,17 @@ test("a runtime error inside an every handler body halts the whole run", () => {
 });
 
 test("a return escaping an every handler body is ol-return-outside-proc", () => {
-  const result = execute("every 2 [ return 1 ]\nwait 2", doc);
+  const result = execute("every 2 [ return 1 ]\nwait 2", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });
 
 test("a stop escaping an every handler body is ol-stop-outside-proc", () => {
-  const result = execute("every 2 [ stop ]\nwait 2", doc);
+  const result = execute("every 2 [ stop ]\nwait 2", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-stop-outside-proc");
 });
@@ -429,7 +440,9 @@ test("a return escaping an every handler registered inside a proc is still ol-re
   // `return` that escapes it is the outside-proc diagnostic, not silently consumed as `setup`'s own
   // return (mirrors `when`'s boundary conversion).
   const program = "define setup\n  every 2 [ return 1 ]\nend\nsetup\nwait 2";
-  const result = execute(program, doc);
+  const result = execute(program, doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });

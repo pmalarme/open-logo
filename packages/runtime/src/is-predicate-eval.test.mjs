@@ -59,7 +59,9 @@ test("`is empty` on a number raises ol-type naming 'list, dict, or word'", () =>
 });
 
 test("`is empty` propagates an undefined-operand diagnostic instead of evaluating", () => {
-  const result = execute("print :missing is empty", doc);
+  const result = execute("print :missing is empty", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -88,7 +90,9 @@ test("`empty?` prefix form raises ol-type with operation 'empty?'", () => {
 });
 
 test("`empty?` prefix form propagates an operand evaluation failure", () => {
-  const result = execute("print empty? :missing", doc);
+  const result = execute("print empty? :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -119,7 +123,9 @@ test("`is member of` on a non-list collection raises ol-type naming 'list or dic
 });
 
 test("`is member of` propagates a collection-expression evaluation failure", () => {
-  const result = execute("print (2 is member of :missing)", doc);
+  const result = execute("print (2 is member of :missing)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -148,13 +154,17 @@ test("`member?` prefix form raises ol-type with operation 'member?'", () => {
 });
 
 test("`member?` prefix form propagates a value-argument evaluation failure", () => {
-  const result = execute("print member? :missing [1 2 3]", doc);
+  const result = execute("print member? :missing [1 2 3]", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("`member?` prefix form propagates a collection-argument evaluation failure", () => {
-  const result = execute("print member? 2 :missing", doc);
+  const result = execute("print member? 2 :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -197,14 +207,18 @@ test("`is a` with an unrecognized type word raises ol-unknown-type", () => {
 });
 
 test("`is a` is case-sensitive, matching the checker's own CORE_TYPE_WORDS", () => {
-  const result = execute('print (5 is a "Number")', doc);
+  const result = execute('print (5 is a "Number")', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-unknown-type");
   assert.deepEqual(result.diagnostics[0].params, { name: "Number" });
 });
 
 test("`is a` propagates an undefined-operand diagnostic instead of evaluating", () => {
-  const result = execute('print (:missing is a "number")', doc);
+  const result = execute('print (:missing is a "number")', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -234,26 +248,34 @@ test("`is_a?` prefix form raises ol-type when the type argument is not a word", 
 });
 
 test("`is_a?` prefix form recognizes the Sprites `turtle` type word: a non-turtle is a clean false, not ol-unknown-type (issue #665)", () => {
-  const result = execute('print is_a? 5 "turtle"', doc);
+  const result = execute('print is_a? 5 "turtle"', doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(printedValues(result), [false]);
 });
 
 test("`is_a?` prefix form raises ol-unknown-type when the type argument is an unrecognized word", () => {
-  const result = execute('print is_a? 5 "banana"', doc);
+  const result = execute('print is_a? 5 "banana"', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-unknown-type");
   assert.deepEqual(result.diagnostics[0].params, { name: "banana" });
 });
 
 test("`is_a?` prefix form propagates a value-argument evaluation failure", () => {
-  const result = execute('print is_a? :missing "number"', doc);
+  const result = execute('print is_a? :missing "number"', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("`is_a?` prefix form propagates a type-argument evaluation failure", () => {
-  const result = execute("print is_a? 5 :missing", doc);
+  const result = execute("print is_a? 5 :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -388,13 +410,17 @@ test("`between` with a mismatched (number) high bound against a word value raise
 });
 
 test("`between` propagates an undefined low-bound evaluation failure", () => {
-  const result = execute("print (5 is between :missing and 5)", doc);
+  const result = execute("print (5 is between :missing and 5)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("`between` propagates an undefined high-bound evaluation failure", () => {
-  const result = execute("print (5 is between 1 and :missing)", doc);
+  const result = execute("print (5 is between 1 and :missing)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });

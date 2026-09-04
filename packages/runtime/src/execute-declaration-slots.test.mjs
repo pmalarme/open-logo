@@ -1260,7 +1260,9 @@ test("a cross-depth duplicate is reported in BOTH orientations, always naming th
   for (const [label, [source, later, earlier]] of Object.entries(
     orientations,
   )) {
-    const [diagnostic] = execute(source, doc).diagnostics;
+    const [diagnostic] = execute(source, doc, {
+      runUnchecked: true,
+    }).diagnostics;
     assert.equal(diagnostic.code, "ol-duplicate-definition", label);
     assert.deepEqual(diagnostic.source_span.start, later, label);
     assert.deepEqual(diagnostic.params.original_span.start, earlier, label);

@@ -168,7 +168,9 @@ test("tell of a list containing a non-turtle raises ol-type on the offending ite
 });
 
 test("a tell argument that references an undefined variable surfaces that diagnostic (not a tell type error)", () => {
-  const result = execute("tell :missing", "main.logo");
+  const result = execute("tell :missing", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -181,9 +183,11 @@ test("a tell argument that is not yet evaluable (a call to an unregistered name)
     ":a = new_turtle\ntell (nonexistent_builtin 1)\nforward 50",
     "main.logo",
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],

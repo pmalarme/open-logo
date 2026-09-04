@@ -225,13 +225,20 @@ test("a repeat with an unsupported-expression count is left un-executed, like ot
   // `(nonexistent_builtin 1)` calls an unregistered procedure; the whole `Repeat`
   // statement is skipped rather than raising, matching the existing "unsupported operand"
   // convention for `print`/`Assign`.
-  const result = execute("repeat (nonexistent_builtin 1) [\n  print 1\n]", doc);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute(
+    "repeat (nonexistent_builtin 1) [\n  print 1\n]",
+    doc,
+    {
+      runUnchecked: true,
+    },
+  );
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });

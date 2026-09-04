@@ -24,7 +24,9 @@ test("bare `grid` emits exactly one overlay event with the default spacing", () 
 });
 
 test("`(grid 50)` is rejected with ol-too-many-inputs, not executed", () => {
-  const result = execute("(grid 50)", doc);
+  const result = execute("(grid 50)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.equal(overlayEvents(result).length, 0);
@@ -41,7 +43,9 @@ test("bare `axes` emits exactly one overlay event with no extra data", () => {
 });
 
 test("`(axes 1)` is rejected with ol-too-many-inputs, not executed", () => {
-  const result = execute("(axes 1)", doc);
+  const result = execute("(axes 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.equal(overlayEvents(result).length, 0);
@@ -68,7 +72,9 @@ test("`measure` after moving/turning snapshots the CURRENT position and heading,
 });
 
 test("`(measure 1)` is rejected with ol-too-many-inputs, not executed", () => {
-  const result = execute("(measure 1)", doc);
+  const result = execute("(measure 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.equal(overlayEvents(result).length, 0);

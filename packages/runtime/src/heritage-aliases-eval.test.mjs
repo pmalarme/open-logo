@@ -179,7 +179,9 @@ test("a user procedure whose name is an alias is rejected at registration, so it
   // Was: `define fd :x … end` made `fd` the user's procedure and the statement chokepoint had to
   // avoid rewriting `fd` to `forward`. `fd` is an alias spelling of a primitive, so declaring it is
   // now `ol-reserved-word` — the shadow the guard protected against cannot be created.
-  const result = execute("define fd :x\n  print :x\nend\nfd 99\n", doc);
+  const result = execute("define fd :x\n  print :x\nend\nfd 99\n", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
     [["ol-reserved-word", { name: "fd" }]],
@@ -190,7 +192,9 @@ test("a user procedure whose name is an alias is rejected at registration, so it
 test("an alias whose CANONICAL name is declared is rejected at registration, so the alias can never reach a user procedure", () => {
   // The mirror case: overriding `forward` itself so `fd` would dispatch to the user's procedure.
   // `forward` is a Turtle & Rendering primitive, so the declaration is rejected first.
-  const result = execute("define forward :x\n  print :x\nend\nfd 7\n", doc);
+  const result = execute("define forward :x\n  print :x\nend\nfd 7\n", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
     [["ol-reserved-word", { name: "forward" }]],
@@ -218,7 +222,9 @@ test("an alias whose CANONICAL name is declared is rejected at registration, so 
 
 test("#787: the reporter-position crash repro is now rejected at registration", () => {
   // The literal crash repro from the issue: `define forward … end` then `print fd`.
-  const result = execute("define forward\n  return 55\nend\nprint fd\n", doc);
+  const result = execute("define forward\n  return 55\nend\nprint fd\n", doc, {
+    runUnchecked: true,
+  });
   // Issue #815: the check before execution sees the whole program, so `print fd` is judged too —
   // `fd` spells the Command `forward`, which cannot supply `print` a value (`ol-no-output`) and
   // was given none of its own (`ol-not-enough-inputs`). The declaration collision is still there,
@@ -292,7 +298,9 @@ test("#787: a user procedure named like the alias is rejected in reporter positi
   // name was itself a registered procedure, `resolveHeritageAliasName` returned the surface name.
   // `define fd` is now `ol-reserved-word`, so that guard's precondition is gone from this direction
   // as well.
-  const result = execute("define fd\n  return 55\nend\nprint fd\n", doc);
+  const result = execute("define fd\n  return 55\nend\nprint fd\n", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
     [

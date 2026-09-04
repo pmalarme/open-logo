@@ -107,10 +107,10 @@ test("every registered primitive of every profile is arity-checked when its prof
         )}`,
       );
       const [finding] = diagnostics;
-      if (finding.code === "ol-unknown-command") {
-        notYetVisible.push(name);
-        continue;
-      }
+      // Issue #815 emptied this bucket: no registered primitive of an ACTIVE profile is withheld
+      // any more, so a name landing here is a regression in `collectVisibleNames` rather than the
+      // one recorded exception it used to be. It is asserted by name, immediately, instead of being
+      // collected — a collected-then-compared empty set costs a branch nothing can ever take.
       assert.equal(
         finding.code,
         "ol-too-many-inputs",

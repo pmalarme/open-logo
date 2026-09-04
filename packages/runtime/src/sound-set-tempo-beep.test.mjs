@@ -149,10 +149,14 @@ test("set_tempo reports the unresolvable unsupported argument expression instead
   // A parenthesized call to an unknown callable is an argument expression this slice's evaluator
   // does not give a value to; mirroring `set_width`, the statement is left un-evaluated rather than
   // throwing.
-  const result = execute("set_tempo (nonexistent_builtin 1)", "main.logo");
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("set_tempo (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],

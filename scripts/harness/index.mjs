@@ -13,7 +13,7 @@ import {
   OLDict,
   OLRecord,
 } from "@openlogo/core";
-import { check, parse } from "@openlogo/parser";
+import { check, OL_CHECK_PROFILES, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { detectUsedProfiles } from "../profile-detection.mjs";
 
@@ -536,6 +536,9 @@ export function validateExecuteOptions(executeOptions) {
     "learnerLevel",
     "hostInput",
     "randomSeed",
+    "profiles",
+    "styleChecks",
+    "runUnchecked",
   ]);
   for (const key of Object.keys(executeOptions)) {
     if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
@@ -549,6 +552,9 @@ export function validateExecuteOptions(executeOptions) {
     learnerLevel,
     hostInput,
     randomSeed,
+    profiles,
+    styleChecks,
+    runUnchecked,
   } = executeOptions;
   if (
     instructionBudget !== undefined &&
@@ -607,6 +613,40 @@ export function validateExecuteOptions(executeOptions) {
   // `random` at all having a stable, reproducible expected stream.
   if (randomSeed !== undefined && typeof randomSeed !== "number") {
     return `"executeOptions.randomSeed" must be a number`;
+  }
+  // The three keys issue #815 added, all of them properties of the RUN rather than of the program
+  // (`spec/execution-model.md:632-694`):
+  //
+  // - "profiles" is the conformance profile set the run claims, and therefore the set its own check
+  //   uses — the spec requires one value to govern both. A fixture names it to express an answer
+  //   that DEPENDS on the claim, which is the only way to write `challenge` under Tutor or
+  //   `fowad 100`'s profile-dependent did-you-mean as a file.
+  // - "styleChecks" opts the run into the Layer-3 lints. It is what makes the severity test
+  //   observable: a program whose only finding is `ol-style-*` must still RUN.
+  // - "runUnchecked" is the spec's opt-out, and a fixture using it is asserting the runtime's own
+  //   copy of a rule the check also decides.
+  //
+  // Each is validated as strictly as the keys above, for the same reason: a misspelled or
+  // mistyped one must be rejected here rather than silently dropped, leaving a file that looks
+  // like proof of a profile-dependent answer while actually running under the default set.
+  if (profiles !== undefined) {
+    if (!Array.isArray(profiles)) {
+      return `"executeOptions.profiles" must be an array of profile identifiers`;
+    }
+    for (const [index, profile] of profiles.entries()) {
+      if (typeof profile !== "string") {
+        return `"executeOptions.profiles[${index}]" must be a string`;
+      }
+      if (!OL_CHECK_PROFILES.includes(profile)) {
+        return `"executeOptions.profiles[${index}]" is not a known profile identifier (known: ${OL_CHECK_PROFILES.join(", ")})`;
+      }
+    }
+  }
+  if (styleChecks !== undefined && typeof styleChecks !== "boolean") {
+    return `"executeOptions.styleChecks" must be a boolean`;
+  }
+  if (runUnchecked !== undefined && typeof runUnchecked !== "boolean") {
+    return `"executeOptions.runUnchecked" must be a boolean`;
   }
   return null;
 }

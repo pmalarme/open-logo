@@ -2486,6 +2486,61 @@ function loadHostInputFixture(name, spec) {
   });
 }
 
+test("loadFixture validates the three run-shape executeOptions keys issue #815 added", () => {
+  // Each of these is a property of the RUN rather than of the program, so a mistyped one would
+  // leave a file that LOOKS like proof of a profile-dependent answer, or of the severity rule, or
+  // of the opt-out, while actually running under the defaults. Rejected at load, like every other
+  // key the harness forwards.
+  const cases = [
+    [
+      { profiles: "core-language" },
+      '"executeOptions.profiles" must be an array',
+    ],
+    [{ profiles: [1] }, '"executeOptions.profiles[0]" must be a string'],
+    [
+      { profiles: ["core-langauge"] },
+      '"executeOptions.profiles[0]" is not a known profile identifier',
+    ],
+    [{ styleChecks: "yes" }, '"executeOptions.styleChecks" must be a boolean'],
+    [
+      { runUnchecked: "yes" },
+      '"executeOptions.runUnchecked" must be a boolean',
+    ],
+  ];
+  for (const [executeOptions, expected] of cases) {
+    const loaded = loadHostInputFixture(
+      `run-shape-${Object.keys(executeOptions)[0]}-${JSON.stringify(executeOptions).length}`,
+      {
+        profiles: ["core-language"],
+        execute: true,
+        executeOptions,
+        events: [],
+        diagnostics: [],
+      },
+    );
+    assert.ok(loaded.error, JSON.stringify(executeOptions));
+    assert.ok(
+      loaded.error.includes(expected),
+      `expected ${expected}, got ${loaded.error}`,
+    );
+  }
+});
+
+test("loadFixture accepts the three run-shape executeOptions keys when well-formed", () => {
+  const loaded = loadHostInputFixture("run-shape-accepted", {
+    profiles: ["core-language"],
+    execute: true,
+    executeOptions: {
+      profiles: ["core-language", "turtle-rendering"],
+      styleChecks: true,
+      runUnchecked: false,
+    },
+    events: [],
+    diagnostics: [],
+  });
+  assert.equal(loaded.error, undefined);
+});
+
 test("loadFixture rejects an unknown executeOptions key (closes the typo-masking hole for every future key)", () => {
   const loaded = loadHostInputFixture("unknown-execute-option", {
     profiles: ["core-language"],

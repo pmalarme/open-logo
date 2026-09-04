@@ -117,14 +117,15 @@ test("for ... in whose iterable is an expression kind this evaluator does not gi
     "for n in (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("for ... from whose `from` is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
@@ -132,14 +133,15 @@ test("for ... from whose `from` is an unsupported expression reports the unresol
     "for i from (nonexistent_builtin 1) to 5 [\n  print 1\n]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("for ... to whose `to` is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
@@ -147,14 +149,15 @@ test("for ... to whose `to` is an unsupported expression reports the unresolvabl
     "for i from 1 to (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("for ... by whose step is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
@@ -162,14 +165,15 @@ test("for ... by whose step is an unsupported expression reports the unresolvabl
     "for i from 1 to 5 by (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("for ... from a non-number raises ol-type", () => {

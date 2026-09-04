@@ -19,21 +19,20 @@
  * is covered with no edit here.
  *
  * **How "value position" is decided.** A statement list — `Program.body` and every `Block.body` —
- * is the *only* place a bare command call is legitimate, and a **list literal** is data rather than
- * any kind of position at all. Everything else `childrenOf` reaches is a value slot by construction,
- * so the rule walks the tree carrying those two facts and reports any command call that is in
- * neither. That is what makes it uniform: it enumerates the two statement containers rather than
- * the many expression slots, and the expression slots are what keep growing.
+ * is the *only* place a bare command call is legitimate. Everything else `childrenOf` reaches is a
+ * value slot by construction, so the rule walks the tree carrying that one fact and reports any
+ * command call that is not a statement. That is what makes it uniform: it enumerates the two
+ * statement containers rather than the many expression slots, and the expression slots are what
+ * keep growing.
  *
- * The list-literal exclusion is load-bearing rather than defensive. `[ … ]` spells both a block and
- * a list, so the reader can and does build a `Call` node inside a `ListLit` — measured, the recovery
- * AST for `on_click "extra" [ print "x" ]` holds exactly that — and a command name inside a list is
- * a **word**, not a call site that owes anyone a value. Reporting there would manufacture a finding
- * about text that is not itself wrong, which is the discipline `spec/execution-model.md:779-781`
- * asks of every recovery path.
+ * A **list literal's elements are value expressions** — `spec/grammar.md:208` spells the production
+ * `"[" [ expression { expression } ] "]"` and `spec/data-structures.md:51` calls them "whitespace-
+ * separated value expressions" — so they are value positions like any other and are deliberately
+ * NOT carved out. OpenLogo lists are not classic Logo's word lists: `[a b c]` is three calls, and
+ * a list of words is written `["a" "b" "c"]`.
  *
- * **The one exclusion that is not written down here.** A comprehension body's final statement *is* a
- * statement, so it is never reported — and `spec/tooling.md:189` requires exactly that: a
+ * **The one exclusion, and it is not written down here.** A comprehension body's final statement
+ * *is* a statement, so it is never reported — and `spec/tooling.md:189` requires exactly that: a
  * `map`/`filter`/`reduce` body whose final expression calls a built-in command "has no
  * value-producing final expression, so it belongs" to `ol-no-value`, which
  * `checker-control-flow.ts` already reports. That falls out of the statement/value split rather
@@ -84,8 +83,8 @@ export function commandInValuePositionRule(
 ): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
-  const scan = (node: AnyNode, inValuePosition: boolean, inList: boolean) => {
-    if (inValuePosition && !inList && isCall(node)) {
+  const scan = (node: AnyNode, inValuePosition: boolean) => {
+    if (inValuePosition && isCall(node)) {
       const name = canonicalCalleeName(node);
       if (isActiveProfileCommandName(name, profiles)) {
         diagnostics.push({
@@ -98,14 +97,13 @@ export function commandInValuePositionRule(
         });
       }
     }
-    const listed = inList || node.kind === "ListLit";
     const childInValuePosition =
       node.kind !== "Program" && node.kind !== "Block";
     for (const child of childrenOf(node)) {
-      scan(child, childInValuePosition, listed);
+      scan(child, childInValuePosition);
     }
   };
 
-  scan(program, false, false);
+  scan(program, false);
   return diagnostics;
 }

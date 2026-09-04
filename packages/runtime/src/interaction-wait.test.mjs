@@ -327,13 +327,17 @@ test("wait and every use ONE type vocabulary for every ol-type input class (issu
 });
 
 test("wait with no argument raises ol-not-enough-inputs", () => {
-  const result = execute("wait", doc);
+  const result = execute("wait", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
 });
 
 test("(wait a b) with too many arguments raises ol-too-many-inputs", () => {
-  const result = execute("(wait 1 2)", doc);
+  const result = execute("(wait 1 2)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
 });
@@ -344,13 +348,18 @@ test("a wait argument the evaluator cannot support leaves the call un-evaluated 
   // instruction event still emits) rather than throwing or diagnosing — the same "defer if
   // unsupported" convention the turtle commands use, so a later slice can widen the evaluator
   // without this slice having pre-judged the argument.
-  const result = execute("wait forward 5", doc);
+  const result = execute("wait forward 5", doc, {
+    runUnchecked: true,
+  });
   // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
   // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
-  // per-form special case — which is precisely the inconsistency #716 recorded.
+  // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
+  // `runUnchecked` opt-out the program runs anyway, and the evaluator — which has no
+  // expression-position branch for a command — adds `ol-not-implemented`: two true statements
+  // about one call, one from each side of the seam this slice closes.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-no-output"],
+    ["ol-no-output", "ol-not-implemented"],
   );
   assert.deepEqual(effectEvents(result), []);
 });
@@ -358,7 +367,9 @@ test("a wait argument the evaluator cannot support leaves the call un-evaluated 
 test("a supported wait argument that evaluates to an error surfaces that diagnostic and emits no primitive event", () => {
   // `:missing` is a supported argument shape (a variable reference), but evaluating it fails with
   // `ol-undefined-var`; `wait` halts on that diagnostic and never runs the pause.
-  const result = execute("wait :missing", doc);
+  const result = execute("wait :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   assert.deepEqual(effectEvents(result), []);

@@ -5845,12 +5845,18 @@ function executeMainLine(
  * check already reported cannot ordinarily recur at run time, because the program does not run;
  * under the opt-out above it can, and the second report MUST be suppressed rather than delivered."
  *
- * {@link dedupeDiagnostics} does most of it, on the spec's own fault identity. One case needs the
- * rule stated on its own, and it is the reason this is a named function rather than a `[...a, ...b]`
- * spread: a runtime `ol-unknown-command` carries no `suggestion`, while the check's copy of the
- * *same* callee does, so their `params` differ and fault identity alone would deliver both. A span
- * holds exactly one callee, so two `ol-unknown-command` findings at one span are one fault by
- * construction — and the check's, which has the did-you-mean, is the one the learner should read.
+ * {@link dedupeDiagnostics} does most of it, on the spec's own fault identity — `code` + `params` +
+ * `source_span`. What it cannot reach is the case where the two stages describe one fault at
+ * different **granularities**, and both shapes of that are real: the semantic checker points
+ * `ol-return-outside-proc` at the control word while the runtime points it at the whole `return :n`
+ * statement, and a runtime `ol-unknown-command` carries no `suggestion` because the did-you-mean is
+ * computed over the visible vocabulary, which is a Layer-2 concept.
+ *
+ * So the rule stated here is the one that covers both, and it is deliberately one rule rather than
+ * a list of codes: a run-time finding is the second report of a static one when they share a `code`
+ * and their spans **overlap**. A span that contains another is the same construct read at a coarser
+ * grain, so two findings of one code over one construct are one fault — and the check's copy, which
+ * is the earlier and (for did-you-mean) the more helpful of the two, is the one kept.
  */
 function mergeRunDiagnostics(
   checked: readonly Diagnostic[],
@@ -5861,14 +5867,26 @@ function mergeRunDiagnostics(
   }
   const alreadyReported = checked.some(
     (diagnostic) =>
-      diagnostic.code === "ol-unknown-command" &&
-      raised.code === "ol-unknown-command" &&
-      diagnostic.source_span.start[0] === raised.source_span.start[0] &&
-      diagnostic.source_span.start[1] === raised.source_span.start[1],
+      diagnostic.code === raised.code &&
+      spansOverlap(diagnostic.source_span, raised.source_span),
   );
   return [
     ...dedupeDiagnostics(alreadyReported ? checked : [...checked, raised]),
   ];
+}
+
+/**
+ * Do two half-open `[start, end)` source ranges share any text? Compared on `(line, column)` pairs
+ * rather than absolute offsets, because that is what a {@link SourceSpan} carries.
+ *
+ * The `document` is deliberately not compared: both spans come from the same `execute()` call and
+ * therefore from the same document by construction, so a check would be an unreachable branch
+ * rather than a safeguard.
+ */
+function spansOverlap(left: SourceSpan, right: SourceSpan): boolean {
+  const before = (a: SourceSpan["start"], b: SourceSpan["start"]): boolean =>
+    a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+  return before(left.start, right.end) && before(right.start, left.end);
 }
 
 /**
@@ -5915,10 +5933,20 @@ export function runProgram(
     // because Layer-3 style lints are warnings returned in this same collection, so a presence test
     // "silently converts a style opinion into a refusal to run a correct program". Measured: a
     // correct `FORWARD 100` reports `ol-style-name-case` at `severity: "warning"`.
-    const blocked = diagnostics.some(
+    //
+    // The opt-out reaches Layer 2 only. `spec/execution-model.md:687-694` permits running a program
+    // "despite `error`-severity **semantic** diagnostics", and its motivating case — a teaching tool
+    // that runs an exercise up to its first mistake — presupposes a program that can be READ. A
+    // parse failure leaves a recovery AST, not the learner's program, so running it would execute
+    // something they never wrote; measured, `repeat 4` + `forward 10` executes 13 events' worth of a
+    // shape the reader invented.
+    const errors = diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error",
     );
-    if (blocked && options?.runUnchecked !== true) {
+    const unreadable = errors.some(
+      (diagnostic) => diagnostic.stage === "parse",
+    );
+    if (errors.length > 0 && (unreadable || options?.runUnchecked !== true)) {
       return { events: [], diagnostics };
     }
 

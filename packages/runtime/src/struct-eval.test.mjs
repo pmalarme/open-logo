@@ -49,21 +49,27 @@ test("a struct may be constructed before its textual declaration (phase-1 regist
 });
 
 test("constructor under-supply raises ol-not-enough-inputs (arity == field count)", () => {
-  const result = execute("struct point [ x y ]\n:p = point 3", doc);
+  const result = execute("struct point [ x y ]\n:p = point 3", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-not-enough-inputs");
   assert.deepEqual(diag.params, { callable: "point", expected: 2, actual: 1 });
 });
 
 test("constructor over-supply (parenthesized) raises ol-too-many-inputs", () => {
-  const result = execute("struct point [ x y ]\n:p = (point 3 4 5)", doc);
+  const result = execute("struct point [ x y ]\n:p = (point 3 4 5)", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-too-many-inputs");
   assert.deepEqual(diag.params, { callable: "point", expected: 2, actual: 3 });
 });
 
 test("a failing constructor argument propagates its diagnostic", () => {
-  const result = execute("struct point [ x y ]\n:p = point 3 :missing", doc);
+  const result = execute("struct point [ x y ]\n:p = point 3 :missing", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-undefined-var");
   assert.equal(diag.params.name, "missing");
@@ -163,14 +169,18 @@ test("type_of on a non-record raises ol-type", () => {
 });
 
 test("(type_of) with no argument raises ol-not-enough-inputs", () => {
-  const result = execute("print (type_of)", doc);
+  const result = execute("print (type_of)", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-not-enough-inputs");
   assert.equal(diag.params.callable, "type_of");
 });
 
 test("type_of propagates a failing argument's diagnostic", () => {
-  const result = execute("print type_of :missing", doc);
+  const result = execute("print type_of :missing", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-undefined-var");
   assert.equal(diag.params.name, "missing");
@@ -312,7 +322,9 @@ test("throwing a record formats it via printedForm in the ol-user-error message"
 // --- phase-1 declaration-slot collisions ------------------------------------------------------
 
 test("a struct type name declared twice raises ol-duplicate-definition carrying both spans", () => {
-  const result = execute("struct point [ x y ]\nstruct point [ a b ]", doc);
+  const result = execute("struct point [ x y ]\nstruct point [ a b ]", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-duplicate-definition");
   assert.deepEqual(diag.params, {
@@ -331,29 +343,39 @@ test("a struct type name declared twice raises ol-duplicate-definition carrying 
 });
 
 test("a struct name colliding with a keyword raises ol-reserved-word", () => {
-  const result = execute("struct if [ x y ]", doc);
+  const result = execute("struct if [ x y ]", doc, {
+    runUnchecked: true,
+  });
   const diag = onlyDiagnostic(result);
   assert.equal(diag.code, "ol-reserved-word");
   assert.deepEqual(diag.params, { name: "if" });
 });
 
 test("a struct name colliding with a Core primitive raises ol-reserved-word", () => {
-  const result = execute("struct print [ x y ]", doc);
+  const result = execute("struct print [ x y ]", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(onlyDiagnostic(result).params, { name: "print" });
 });
 
 test("a struct name colliding with a Turtle primitive raises ol-reserved-word", () => {
-  const result = execute("struct forward [ x y ]", doc);
+  const result = execute("struct forward [ x y ]", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(onlyDiagnostic(result).params, { name: "forward" });
 });
 
 test("a struct name colliding with a Data primitive raises ol-reserved-word", () => {
-  const result = execute("struct dict [ x y ]", doc);
+  const result = execute("struct dict [ x y ]", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(onlyDiagnostic(result).params, { name: "dict" });
 });
 
 test("a struct name colliding with an Educational primitive raises ol-reserved-word", () => {
-  const result = execute("struct explain [ x y ]", doc);
+  const result = execute("struct explain [ x y ]", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(onlyDiagnostic(result).params, { name: "explain" });
 });
 
@@ -374,7 +396,9 @@ test("every collision is reported, the first one first", () => {
   // Issue #815: phase-1 registration still halts at the first collision, but the check before it
   // sees the whole program, so both declarations are reported — and in source order, which is the
   // one a learner reads first.
-  const result = execute("struct forward [ x y ]\nstruct back [ a b ]", doc);
+  const result = execute("struct forward [ x y ]\nstruct back [ a b ]", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => [
       diagnostic.code,

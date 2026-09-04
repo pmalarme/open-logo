@@ -88,7 +88,9 @@ test("reading xcor/ycor/heading/pos emits no move/turn/draw-segment/change event
 // --- xcor / ycor / heading / pos arity: ol-too-many-inputs -----------------------------------
 
 test("(xcor 1) raises ol-too-many-inputs", () => {
-  const result = execute("print (xcor 1)", doc);
+  const result = execute("print (xcor 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -99,7 +101,9 @@ test("(xcor 1) raises ol-too-many-inputs", () => {
 });
 
 test("(ycor 1) raises ol-too-many-inputs", () => {
-  const result = execute("print (ycor 1)", doc);
+  const result = execute("print (ycor 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -110,7 +114,9 @@ test("(ycor 1) raises ol-too-many-inputs", () => {
 });
 
 test("(heading 1) raises ol-too-many-inputs", () => {
-  const result = execute("print (heading 1)", doc);
+  const result = execute("print (heading 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -121,7 +127,9 @@ test("(heading 1) raises ol-too-many-inputs", () => {
 });
 
 test("(pos 1) raises ol-too-many-inputs", () => {
-  const result = execute("print (pos 1)", doc);
+  const result = execute("print (pos 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -132,7 +140,9 @@ test("(pos 1) raises ol-too-many-inputs", () => {
 });
 
 test("(pos 1 2) raises ol-too-many-inputs with the full over-supplied count", () => {
-  const result = execute("print (pos 1 2)", doc);
+  const result = execute("print (pos 1 2)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].params, {
     callable: "pos",
@@ -242,25 +252,33 @@ test("distance with a non-number second argument raises ol-type", () => {
 });
 
 test("towards propagates the first argument's evaluation failure instead of evaluating the second", () => {
-  const result = execute("print towards :missing 0", doc);
+  const result = execute("print towards :missing 0", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("towards propagates the second argument's evaluation failure", () => {
-  const result = execute("print towards 100 :missing", doc);
+  const result = execute("print towards 100 :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("distance propagates the first argument's evaluation failure instead of evaluating the second", () => {
-  const result = execute("print distance :missing 0", doc);
+  const result = execute("print distance :missing 0", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("distance propagates the second argument's evaluation failure", () => {
-  const result = execute("print distance 0 :missing", doc);
+  const result = execute("print distance 0 :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -268,7 +286,9 @@ test("distance propagates the second argument's evaluation failure", () => {
 // --- towards / distance arity: ol-not-enough-inputs / ol-too-many-inputs ---------------------
 
 test("towards with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("print (towards)", doc);
+  const result = execute("print (towards)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -279,7 +299,9 @@ test("towards with no arguments raises ol-not-enough-inputs", () => {
 });
 
 test("towards with one argument raises ol-not-enough-inputs", () => {
-  const result = execute("print (towards 100)", doc);
+  const result = execute("print (towards 100)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -290,7 +312,9 @@ test("towards with one argument raises ol-not-enough-inputs", () => {
 });
 
 test("towards with three arguments raises ol-too-many-inputs", () => {
-  const result = execute("print (towards 100 0 5)", doc);
+  const result = execute("print (towards 100 0 5)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -301,7 +325,9 @@ test("towards with three arguments raises ol-too-many-inputs", () => {
 });
 
 test("distance with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("print (distance)", doc);
+  const result = execute("print (distance)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -312,7 +338,9 @@ test("distance with no arguments raises ol-not-enough-inputs", () => {
 });
 
 test("distance with three arguments raises ol-too-many-inputs", () => {
-  const result = execute("print (distance 100 0 5)", doc);
+  const result = execute("print (distance 100 0 5)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -325,10 +353,14 @@ test("distance with three arguments raises ol-too-many-inputs", () => {
 // --- unsupported argument expression: left un-evaluated, mirroring #209's `.field` precedent --
 
 test("towards with an unsupported argument is left un-executed", () => {
-  const result = execute("print towards (nonexistent_builtin 1) 0", doc);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("print towards (nonexistent_builtin 1) 0", doc, {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -337,10 +369,14 @@ test("towards with an unsupported argument is left un-executed", () => {
 });
 
 test("distance with an unsupported argument is left un-executed", () => {
-  const result = execute("print distance (nonexistent_builtin 1) 0", doc);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("print distance (nonexistent_builtin 1) 0", doc, {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],

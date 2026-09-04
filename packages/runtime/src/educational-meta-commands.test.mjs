@@ -189,7 +189,9 @@ test("a user-defined procedure named `explain` is rejected at registration, not 
   // rule (ruling #833 rule 3) removes shadowing entirely: `explain` is an Educational primitive, so
   // declaring it is `ol-reserved-word` and NOTHING runs. Kept as an inversion rather than deleted so
   // that re-legalising the declaration re-reddens the assertion that used to guard the shadow path.
-  const result = execute("define explain\nprint 42\nend\nexplain", doc);
+  const result = execute("define explain\nprint 42\nend\nexplain", doc, {
+    runUnchecked: true,
+  });
   const [diagnostic] = result.diagnostics;
   assert.equal(result.diagnostics.length, 1);
   assert.equal(diagnostic.code, "ol-reserved-word");
@@ -208,7 +210,9 @@ test("a user-defined procedure named `explain` is rejected at registration, not 
 
 test("a procedure named `hint` is rejected at registration, so no call can be a shadowed meta-command", () => {
   const source = "define hint\nprint 1\nend\nforward 10\nhint\nexplain";
-  const result = execute(source, doc);
+  const result = execute(source, doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-reserved-word");
   assert.deepEqual(result.diagnostics[0].params, { name: "hint" });

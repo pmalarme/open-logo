@@ -160,7 +160,9 @@ test("a user procedure named `bf` is rejected at registration, so the alias can 
   // the surface name was a registered procedure. `bf` is an alias spelling of the Core `butfirst`,
   // so `spec/grammar.md`'s declaration-slot rule now rejects the declaration itself — kept as an
   // inversion so re-legalising it reddens this assertion instead of silently dropping the guard.
-  const result = execute("to bf :x\n  print :x\nend\nbf 7\n", doc);
+  const result = execute("to bf :x\n  print :x\nend\nbf 7\n", doc, {
+    runUnchecked: true,
+  });
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
     [["ol-reserved-word", { name: "bf" }]],

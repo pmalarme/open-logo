@@ -188,21 +188,27 @@ test("reduce whose accumulator name collides with its bare item binder raises ol
 });
 
 test("a body with no value-producing final statement raises ol-no-value (spec's own worked example)", () => {
-  const result = execute(":out = map n in [1] [ print :n ]\nprint :out", doc);
+  const result = execute(":out = map n in [1] [ print :n ]\nprint :out", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-no-value");
   assert.deepEqual(result.diagnostics[0].params, { form: "map" });
 });
 
 test("an empty comprehension body ([ ]) raises ol-no-value — an empty body is vacuously a supported shape", () => {
-  const result = execute(":out = map n in [1] [ ]\nprint :out", doc);
+  const result = execute(":out = map n in [1] [ ]\nprint :out", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-no-value");
   assert.deepEqual(result.diagnostics[0].params, { form: "map" });
 });
 
 test("a `stop` as a comprehension body's only statement raises ol-return-in-comprehension, not ol-stop-outside-proc", () => {
-  const result = execute(":out = map n in [1] [ stop ]\nprint :out", doc);
+  const result = execute(":out = map n in [1] [ stop ]\nprint :out", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-in-comprehension");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -212,7 +218,9 @@ test("a `stop` as a comprehension body's only statement raises ol-return-in-comp
 });
 
 test("a `return` as a comprehension body's final statement raises ol-return-in-comprehension, not ol-return-outside-proc", () => {
-  const result = execute(":out = map n in [1] [ return :n ]\nprint :out", doc);
+  const result = execute(":out = map n in [1] [ return :n ]\nprint :out", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-in-comprehension");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -379,14 +387,15 @@ test("a comprehension whose body ends in an expression kind this evaluator does 
     ":out = map n in [1] [ (nonexistent_builtin 1) ]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("a comprehension whose body has a leading statement kind this evaluator does not implement (If) reports it", () => {
@@ -413,15 +422,22 @@ test("a comprehension whose body has a leading statement kind this evaluator doe
 });
 
 test("a comprehension whose iterable is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
-  const result = execute(":out = map n in (nonexistent_builtin 1) [ :n ]", doc);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute(
+    ":out = map n in (nonexistent_builtin 1) [ :n ]",
+    doc,
+    {
+      runUnchecked: true,
+    },
+  );
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("a reduce whose `from` seed is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
@@ -429,14 +445,15 @@ test("a reduce whose `from` seed is an expression kind this evaluator does not i
     ":out = reduce sum n in [1] from (nonexistent_builtin 1) [ :sum ]",
     doc,
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  assert.equal(result.events.length, 0);
 });
 
 test("a comprehension nested as another comprehension's final body expression evaluates correctly", () => {
@@ -473,7 +490,9 @@ test("comprehension binders shadow an outer variable of the same name only for t
 
 test("a comprehension body ending in a non-Core command raises ol-no-value (issue #932)", () => {
   for (const body of ["forward :n", "home", "beep", "fd :n", "grid"]) {
-    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc, {
+      runUnchecked: true,
+    });
     assert.deepEqual(
       result.diagnostics.map((finding) => finding.code),
       ["ol-no-value"],
@@ -485,7 +504,9 @@ test("a comprehension body ending in a non-Core command raises ol-no-value (issu
 
 test("a comprehension body ending in a non-Core reporter is not reported ol-no-value (issue #932)", () => {
   for (const body of ["xcor", ":n * 2", "count [1 2]"]) {
-    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc);
+    const result = execute(`:out = map n in [1 2 3] [ ${body} ]`, doc, {
+      runUnchecked: true,
+    });
     assert.deepEqual(
       result.diagnostics,
       [],

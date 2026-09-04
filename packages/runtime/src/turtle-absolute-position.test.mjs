@@ -241,11 +241,14 @@ test("execute propagates a failing set_xy y-argument expression instead of movin
 });
 
 test("execute reports the unresolvable unsupported set_xy argument instead of skipping the call", () => {
-  const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo");
-  assert.equal(result.events.length, 0);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -399,11 +402,14 @@ test("execute propagates a failing set_heading argument expression instead of tu
 });
 
 test("execute reports the unresolvable unsupported set_heading argument instead of skipping the call", () => {
-  const result = execute("set_heading (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.events.length, 0);
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  const result = execute("set_heading (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],

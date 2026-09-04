@@ -95,13 +95,17 @@ test("an `output`/`op` outside any procedure raises the same diagnostic IDENTITY
   // are one condition, so `params.keyword` is the canonical `"return"` for all three (issue #741).
   // Identity, not the whole diagnostic: the `message` still echoes the word the learner typed and
   // the span still covers what they wrote — both presentation, and both deliberately different.
-  const core = execute("return 5", doc).diagnostics;
+  const core = execute("return 5", doc, {
+    runUnchecked: true,
+  }).diagnostics;
   assert.equal(core.length, 1);
   assert.equal(core[0].code, "ol-return-outside-proc");
   assert.deepEqual(core[0].params, { keyword: "return" });
 
   for (const spelling of ["output", "op"]) {
-    const heritage = execute(`${spelling} 5`, doc).diagnostics;
+    const heritage = execute(`${spelling} 5`, doc, {
+      runUnchecked: true,
+    }).diagnostics;
     assert.equal(heritage.length, 1);
     assert.equal(heritage[0].code, core[0].code);
     assert.equal(heritage[0].stage, core[0].stage);

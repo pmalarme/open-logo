@@ -267,7 +267,9 @@ test("ask inside a repeat restores its scope on every iteration", () => {
 });
 
 test("an ask argument that references an undefined variable surfaces that diagnostic (not an ask type error)", () => {
-  const result = execute("ask :missing [ forward 10 ]", "main.logo");
+  const result = execute("ask :missing [ forward 10 ]", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -281,9 +283,11 @@ test("an ask argument that is not yet evaluable (a call to an unregistered name)
     ":a = new_turtle\nask (nonexistent_builtin 1) [ forward 10 ]\nforward 50",
     "main.logo",
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
-  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
-  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
