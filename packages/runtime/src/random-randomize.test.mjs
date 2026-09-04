@@ -192,10 +192,9 @@ test("randomize with an unsupported argument is left un-executed", () => {
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  // The seed argument is deferred (not evaluated), but `randomize` itself is still skipped as a
-  // whole statement, and the following `print random 10` still runs fine off the default random
-  // number generator.
-  assert.equal(printedValues(result).length, 1);
+  // Nothing runs at all now, so the following `print random 10` never reports either — the
+  // program is refused as a whole rather than partly executed around an unreadable statement.
+  assert.deepEqual(printedValues(result), []);
 });
 
 // --- random: ol-type for a non-whole bound (checked before ol-range) ---------------------------

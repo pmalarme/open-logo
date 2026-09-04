@@ -183,12 +183,17 @@ test("`is a` recognizes list and boolean type words too", () => {
   assert.deepEqual(printedValues(boolResult), [true]);
 });
 
-test("`is a` with an unrecognized type word raises ol-unknown-type at stage=runtime", () => {
-  const result = execute('print (5 is a "banana")', doc);
+test("`is a` with an unrecognized type word raises ol-unknown-type", () => {
+  // Issue #815: the checker reports this statically too, and its copy is identical to the runtime
+  // one, so under the spec's `runUnchecked` opt-out the runtime twin runs and is then collapsed
+  // into the check's report (`spec/execution-model.md:741-748`). One fault, one diagnostic — the
+  // stage that survives is the earlier one.
+  const result = execute('print (5 is a "banana")', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-unknown-type");
   assert.deepEqual(result.diagnostics[0].params, { name: "banana" });
-  assert.equal(result.diagnostics[0].stage, "runtime");
 });
 
 test("`is a` is case-sensitive, matching the checker's own CORE_TYPE_WORDS", () => {

@@ -111,7 +111,13 @@ test("an unsupported key argument leaves the statement un-evaluated (no crash, n
   // evaluator; the statement is left un-evaluated (its instruction event still emits) rather than
   // throwing or diagnosing — the same "defer if unsupported" convention `wait`/`when` use.
   const result = execute("on_key forward 5 [ forward 20 ]", doc);
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
+  // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
+  // per-form special case — which is precisely the inconsistency #716 recorded.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-no-output"],
+  );
   assert.deepEqual(effectEvents(result), []);
 });
 

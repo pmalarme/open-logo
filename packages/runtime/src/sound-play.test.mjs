@@ -272,6 +272,13 @@ test("play propagates a runtime error from evaluating the melody expression", ()
 
 test("play leaves an unsupported argument expression un-evaluated (no event, no error)", () => {
   const result = execute("play forward", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
+  // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
+  // per-form special case — which is precisely the inconsistency #716 recorded.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-enough-inputs",
+    "ol-no-output"],
+  );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });

@@ -219,9 +219,20 @@ test("an alias whose CANONICAL name is declared is rejected at registration, so 
 test("#787: the reporter-position crash repro is now rejected at registration", () => {
   // The literal crash repro from the issue: `define forward … end` then `print fd`.
   const result = execute("define forward\n  return 55\nend\nprint fd\n", doc);
+  // Issue #815: the check before execution sees the whole program, so `print fd` is judged too —
+  // `fd` spells the Command `forward`, which cannot supply `print` a value (`ol-no-output`) and
+  // was given none of its own (`ol-not-enough-inputs`). The declaration collision is still there,
+  // and still the reason nothing runs.
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
-    [["ol-reserved-word", { name: "forward" }]],
+    [
+      [
+        "ol-not-enough-inputs",
+        { callable: "forward", expected: 1, actual: 0 },
+      ],
+      ["ol-no-output", { procedure: "forward" }],
+      ["ol-reserved-word", { name: "forward" }],
+    ],
   );
   assert.deepEqual(
     result.events,
@@ -287,7 +298,10 @@ test("#787: a user procedure named like the alias is rejected in reporter positi
   const result = execute("define fd\n  return 55\nend\nprint fd\n", doc);
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
-    [["ol-reserved-word", { name: "fd" }]],
+    [
+      ["ol-no-output", { procedure: "forward" }],
+      ["ol-reserved-word", { name: "fd" }],
+    ],
   );
   assert.deepEqual(result.events, [], "nothing runs");
 });

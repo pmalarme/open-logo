@@ -288,6 +288,5 @@ test("an ask argument that is not yet evaluable (a call to an unregistered name)
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  const moveList = moves(result.events);
-  assert.deepEqual(moveList, [[null, [0, 50]]]);
+  assert.deepEqual(moves(result.events), []);
 });

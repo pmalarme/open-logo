@@ -250,15 +250,7 @@ test("a statement-position procedure call with an unsupported argument (e.g. an 
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  const printed = result.events.filter((event) => event.kind === "print");
-  assert.deepEqual(printed, []);
-  const instructions = result.events.filter(
-    (event) => event.kind === "instruction",
-  );
-  assert.deepEqual(
-    instructions.map((event) => event.payload.statement_kind),
-    ["ProcedureDef", "Call"],
-  );
+  assert.deepEqual(result.events, []);
 });
 
 test("a parenthesized statement-position procedure call with an unsupported argument is also left un-evaluated", () => {

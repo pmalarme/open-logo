@@ -188,10 +188,11 @@ test("a tell argument that is not yet evaluable (a call to an unregistered name)
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  // The deferred `tell` never made addressing explicit, so the following `forward` runs on the
-  // still-default (unstamped) main turtle.
-  const move = result.events.find((event) => event.kind === "move");
-  assert.equal(move.turtle_id, undefined);
+  // Nothing runs at all now, so the following `forward` never moves either.
+  assert.equal(
+    result.events.some((event) => event.kind === "move"),
+    false,
+  );
 });
 
 test("`each` is now run by SP4 (#676): at top level it runs its block once for the default turtle", () => {

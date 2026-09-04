@@ -55,13 +55,17 @@ test("the first spawned turtle gets id 1 (one past the reserved main turtle) and
   assert.deepEqual(spawnIds, [1, 2, 3]);
 });
 
-test("a bare new_turtle statement spawns nothing — only using its value has the effect", () => {
+test("a bare new_turtle statement is evaluated for effect, and does spawn", () => {
+  // Issue #815 changed this. A bare expression statement runs for effect and its value is
+  // discarded (`spec/execution-model.md:214-227`'s block-result rule) — but no statement executor
+  // claimed a reporter call, so it used to fall off the end of the dispatcher and do *nothing*,
+  // the silent no-op this saga exists to remove. The terminal rule now evaluates it, which for a
+  // reporter that spawns means the spawn happens.
   const result = execute("new_turtle", "main.logo");
   assert.deepEqual(result.diagnostics, []);
-  // Just the statement's own `instruction` event; no spawn-turtle.
-  assert.equal(
-    result.events.some((event) => event.kind === "spawn-turtle"),
-    false,
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "spawn-turtle"],
   );
 });
 

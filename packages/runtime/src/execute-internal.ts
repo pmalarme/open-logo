@@ -5924,7 +5924,15 @@ export function runProgram(
 
     const registration = registerDeclarations(program);
     if (!registration.ok) {
-      return { events: [], diagnostics: [registration.diagnostic] };
+      // Phase 1 declines too, and its finding joins the check's rather than replacing them: under
+      // `runUnchecked` the check has already reported, and dropping those would break the opt-out's
+      // own requirement that it "MUST still deliver the diagnostics it declined to act on"
+      // (`spec/execution-model.md:687-694`). Where phase 1 and the check found the same fault, the
+      // second report collapses into the first.
+      return {
+        events: [],
+        diagnostics: mergeRunDiagnostics(diagnostics, registration.diagnostic),
+      };
     }
 
     environment = createExecutionEnvironment(

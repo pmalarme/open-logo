@@ -370,8 +370,19 @@ test("a struct name colliding with a user procedure raises ol-duplicate-definiti
   });
 });
 
-test("only the first collision halts the program (later structs are skipped)", () => {
+test("every collision is reported, the first one first", () => {
+  // Issue #815: phase-1 registration still halts at the first collision, but the check before it
+  // sees the whole program, so both declarations are reported — and in source order, which is the
+  // one a learner reads first.
   const result = execute("struct forward [ x y ]\nstruct back [ a b ]", doc);
-  const diag = onlyDiagnostic(result);
-  assert.equal(diag.params.name, "forward");
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => [
+      diagnostic.code,
+      diagnostic.params.name,
+    ]),
+    [
+      ["ol-reserved-word", "forward"],
+      ["ol-reserved-word", "back"],
+    ],
+  );
 });

@@ -179,7 +179,12 @@ function bothStages(source) {
     fromCheck: declarationSlotIdentity(checked),
     fromExecuteRow: comparableRow(ran.diagnostics),
     fromCheckRow: comparableRow(checked),
-    executeDiagnosticCount: ran.diagnostics.length,
+    // Counted over the declaration-slot findings only, for the reason `declarationSlotIdentity`
+    // itself exists (see its doc comment): a wrapper may legitimately add a finding of its own —
+    // a comprehension body that declares and nothing else has no value to report, so it also
+    // raises `ol-no-value`. Issue #815 made that visible here by running the check inside
+    // `execute()`; counting the raw list would then fail for a reason this product is not about.
+    executeDiagnosticCount: declarationSlotIdentity(ran.diagnostics).length,
     events: ran.events.length,
   };
 }
@@ -1323,11 +1328,13 @@ test("EVERY built-in name — all 148, not just the two the cross-product sample
 
 test("a built-in name declared twice reports ol-reserved-word, never degrading into a duplicate", () => {
   // A built-in name is never recorded as a first declaration, so the second `define forward` cannot
-  // be reported as a duplicate of the first. `execute()` halts at the first collision, so what this
-  // pins at runtime is that the FIRST declaration is already the reserved-word error; `check()`,
-  // which reports every finding, is asserted alongside to show BOTH are reserved-word.
+  // be reported as a duplicate of the first.
+  // Issue #815: `execute()` checks before it runs, and the check reports EVERY finding — so both
+  // declarations are now reported through `execute()` exactly as `check()` reports them below.
+  // What this pins is unchanged and is the point: neither is a duplicate.
   const source = "define forward\nend\ndefine forward\nend";
   assert.deepEqual(executeIdentity(source), [
+    ["ol-reserved-word", { name: "forward" }],
     ["ol-reserved-word", { name: "forward" }],
   ]);
   const { ast } = parse(source, doc);
@@ -1337,7 +1344,11 @@ test("a built-in name declared twice reports ol-reserved-word, never degrading i
   );
 });
 
-test("the first collision in source order halts the run, whichever code it carries", () => {
+test("the first collision reported is the first in source order, whichever code it carries", () => {
+  // Issue #815 moved WHO decides this. Phase-1 registration still halts at the first collision, but
+  // the check before it runs sees the whole program and reports every one — so what reaches a
+  // learner is the full list, and the property worth pinning is that it is in SOURCE order. The
+  // depth-mixed row below is what makes that non-trivial, exactly as before.
   const duplicateFirst =
     "define tally\n  print 1\nend\ndefine tally\n  print 2\nend\ndefine forward\n  print 3\nend";
   const builtInFirst =
@@ -1354,9 +1365,10 @@ test("the first collision in source order halts the run, whichever code it carri
   // pass would instead reach the depth-0 duplicate on line 7 and report the wrong code entirely.
   const nestedBuiltInBeforeTopLevelDuplicate =
     "define outer\n  define forward\n  end\nend\ndefine dup\nend\ndefine dup\nend";
-  assert.deepEqual(executeIdentity(nestedBuiltInBeforeTopLevelDuplicate), [
-    ["ol-reserved-word", { name: "forward" }],
-  ]);
+  assert.deepEqual(
+    executeIdentity(nestedBuiltInBeforeTopLevelDuplicate).map(([code]) => code),
+    ["ol-reserved-word", "ol-duplicate-definition"],
+  );
 });
 
 // ---------------------------------------------------------------------------
