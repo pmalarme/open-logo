@@ -89,9 +89,14 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `forward`", (
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec’s own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   // The static checker's arity rule never runs inside `execute()` — it only calls `parse()` —
   // so this is the sole runtime guard against silently treating a callee-only `forward` as a
   // no-op (mirrors `print`'s equivalent zero-argument test in `index.test.mjs`).
@@ -114,9 +119,14 @@ test("execute raises ol-too-many-inputs for a parenthesized `(back a b)` call", 
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec’s own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   const result = execute("(back 10 20)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.deepEqual(result.diagnostics, [

@@ -1,0 +1,132 @@
+{
+  "description": "REGRESSION WALL for saga #811 (issue #815): the check before execution decides by SEVERITY, and this is the second fixture defending that — a normative MUST should not rest on one. `spec/execution-model.md:666-671` says an implementation \"MUST decide by severity and MUST NOT treat a non-empty diagnostic list as a refusal to run\", because Layer 3 style lints are warnings a checker MAY return in the same collection, so a presence test \"silently converts a style opinion into a refusal to run a correct program\"; `:682-685` adds that a style opinion \"is not a reason to withhold a learner's drawing\". This program is CORRECT OpenLogo written in uppercase, so with `styleChecks` on it earns TWO `ol-style-name-case` warnings and no error. Its sibling `style-warning-still-runs` uses a single statement; this one puts the offending words inside a `repeat` body, so the events it must still emit are a whole loop's worth rather than one statement's — the difference between the two fixtures is the amount of drawing a presence test would destroy, and swapping the gate to `diagnostics.length > 0` empties this stream of all seven events.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "executeOptions": {
+    "styleChecks": true
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "move",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 20],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 22]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 20],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": {
+        "name": "REPEAT"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    },
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/style-warnings-inside-a-loop-still-run",
+        "start": [1, 12],
+        "end": [1, 19]
+      },
+      "params": {
+        "name": "FORWARD"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

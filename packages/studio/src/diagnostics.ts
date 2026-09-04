@@ -23,11 +23,15 @@
  * ## Semantic checking (`check()`) is opt-in, not default
  * `@openlogo/parser`'s `check()` (epic #108) is the Layer-2/3 entry point this controller is
  * wired to accept — interface-level readiness for #125's AC — but it is **not** run by default
- * yet: `check()` was being called here with Core Language alone, under which an ordinary turtle
- * program like `forward 100` is falsely flagged `ol-unknown-command`. Issue #815 settled that — a
- * run checks itself under the profile set it CLAIMS (`spec/execution-model.md:673-680`), and
- * `execute()` now does so before Phase 2, which means the Run path already surfaces these findings
- * and turning this on would DUPLICATE them rather than add them. Pass
+ * yet. The reason is **duplication, not false positives** — a distinction worth stating precisely,
+ * because the older rationale (that `check()` here ran under Core Language alone and so would flag
+ * `forward 100` as `ol-unknown-command`) stopped being true at issue #740, which made this
+ * controller pass `options.profiles ?? STUDIO_PROFILES`. Measured against the base of this slice,
+ * `check(parse("forward 100").ast, { profiles: STUDIO_PROFILES })` already returned no
+ * diagnostics. What settles it now is issue #815: a run checks itself under the profile set it
+ * CLAIMS (`spec/execution-model.md:673-680`), and `execute()` does so before Phase 2, so the Run
+ * path already surfaces these findings and turning this on would DUPLICATE them rather than add
+ * them. Pass
  * `semanticCheck: true` (see epic #813) to layer semantic/style diagnostics into
  * the exact same unified `diagnostics` field — no rendering-side change needed when that flag
  * flips, because {@link toDiagnosticsView} already renders every stage identically.
@@ -120,8 +124,8 @@ export interface DiagnosticsControllerOptions {
   /**
    * Opt into Layer-2 semantic checking (`@openlogo/parser`'s `check()`, epic #108) on every
    * re-check, appended after the Layer-1 parse diagnostics. Defaults to `false` — see this
-   * module's doc comment for why turning it on today would falsely flag ordinary turtle
-   * programs.
+   * module's doc comment for why: the Run path already reports these findings, so turning it on
+   * would duplicate them rather than falsely flag anything.
    */
   readonly semanticCheck?: boolean;
   /**

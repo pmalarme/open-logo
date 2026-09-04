@@ -1,0 +1,37 @@
+{
+  "description": "REGRESSION WALL for saga #811 (issue #815), guarding the terminal rule at its SECOND site — `evaluateCall`'s, reached when an unresolvable name stands in argument position. Its sibling `terminal-rule-comprehension-body` guards the comprehension-body site; this one exists because silencing `packages/runtime/src/evaluate.ts`'s terminal (returning a value instead of raising) left the whole conformance corpus green at 1002/1002 while only JavaScript unit tests noticed — measured, and the gap a domain-QA review found in this slice's own first round. `spec/execution-model.md:717-720` requires evaluation to end in \"a value, a completed effect, or a diagnostic\" and says skipping the construct \"is not one of them, at any depth, in any argument position\" — this fixture is that last clause. `executeOptions.runUnchecked` is load-bearing rather than decorative: without it the check before execution refuses the program first (`spec/execution-model.md:661-664`) and the runtime terminal is never reached, so a fixture written without it would assert the gate and quietly assert nothing about the site it is named for. The opt-out still delivers the diagnostic (`spec/execution-model.md:687-694`), which is why one is expected here. The trailing `print \"after\"` is the load-bearing part of the EVENTS assertion: it never runs, so the stream holds a single `instruction`. With the terminal silenced the first `print` emits its own event and the sentinel emits two more — measured as [instruction, print, instruction, print] — so this fixture reddens on exactly the mutation the diagnostics alone cannot see, because the surviving `ol-unknown-command` is the CHECKER's copy either way and is identical in both worlds.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "executeOptions": {
+    "runUnchecked": true
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/check-before-execution/terminal-rule-argument-position",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "core-language/check-before-execution/terminal-rule-argument-position",
+        "start": [1, 8],
+        "end": [1, 14]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

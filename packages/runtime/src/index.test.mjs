@@ -207,9 +207,14 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () 
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec's own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic carries the checker's stage and prose.
+  //
+  // Reachable is not asserted: the surviving report is the CHECK's, so deleting the runtime guard
+  // leaves a diagnostic assertion green. The guard's own contribution is that the run STOPS, which
+  // is why the event-count assertion below is the load-bearing half — and why
+  // `runtime-guards-halt.test.mjs` pins that property across the guards systematically.
   const result = execute("print", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -270,9 +275,14 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () =
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec’s own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   const result = execute("show", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
@@ -289,9 +299,14 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec’s own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   // `show`'s bare form always groups exactly one argument (its fixed arity), so the only way to
   // reach the runtime with more than one is the parenthesized form — which `parse()` accepts
   // structurally as-is, deferring arity enforcement to `check()` (semantic stage) or, since a bare

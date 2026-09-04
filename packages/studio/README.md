@@ -874,12 +874,13 @@ runtime's own per-call pacing to enforce, is now a learner-controllable slider:
   `state.diagnostics` field and render through the exact same {@link toDiagnosticsView} — there is
   no separate ad-hoc "runtime error" UI.
 - **Semantic checking is opt-in**, not automatic: pass `semanticCheck: true` to also run `check()`
-  after every parse. It defaulted to `false` because `check()` was being called with Core Language alone, under which
-  an ordinary turtle program like `forward 100` is falsely flagged `ol-unknown-command`. Issue #815
-  settled the underlying question — a run checks itself under the profile set it CLAIMS
-  (`spec/execution-model.md:673-680`), and `execute()` now does exactly that, so `forward 100`
-  checks clean — which makes this pane's opt-in a studio-side question about DUPLICATE reporting
-  rather than a workaround for a false positive. Revisiting it belongs to epic #813; no
+  after every parse. The reason is **duplicate reporting, not false positives**, and the difference
+  matters because the older rationale — that `check()` ran here under Core Language alone, so
+  `forward 100` would be flagged `ol-unknown-command` — stopped being true at issue #740, which made
+  the controller pass `options.profiles ?? STUDIO_PROFILES`. Issue #815 settles the underlying
+  question — a run checks itself under the profile set it CLAIMS
+  (`spec/execution-model.md:673-680`), and `execute()` now does exactly that, so the Run path
+  already surfaces these findings. Revisiting the pane's opt-in belongs to epic #813; no
   rendering-side change is needed when it flips.
 - `toDiagnosticsView(diagnostics)` — the pure projection from a raw `Diagnostic[]` to a rendering
   model (`items`/`errorCount`/`warningCount`/`isEmpty`). It keys off `code`/`severity`/`stage`/

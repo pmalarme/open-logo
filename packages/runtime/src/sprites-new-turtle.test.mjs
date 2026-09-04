@@ -142,9 +142,14 @@ test("each sprites reporter with an argument is an arity diagnostic, not a crash
   // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
   // checker decides statically — so the program is refused before Phase 2 and the runtime guard
   // below would never be reached. `runUnchecked` is the spec’s own opt-out
-  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   // Parenthesized calls so the extra argument reaches the runtime's arity check rather than being
   // rejected earlier; exercises the `requireExactArgs` guard in all of new_turtle/who/turtles.
   for (const source of [

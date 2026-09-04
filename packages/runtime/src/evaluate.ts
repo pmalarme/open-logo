@@ -82,6 +82,14 @@ import type {
   WordLitNode,
 } from "@openlogo/parser";
 import { isBuiltInName, isPrimitiveCommandName } from "@openlogo/parser";
+import {
+  activeProfilePrimitiveArityRange,
+  canonicalOfHeritageAlias,
+  isActiveProfileCommandName,
+  isKeyword,
+} from "@openlogo/parser";
+import type { CheckProfile } from "@openlogo/parser";
+import { SUPPORTED_PROFILES } from "@openlogo/core";
 import { runtimeDiag } from "./errors.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
@@ -240,6 +248,26 @@ export interface CancellationSignal {
 export interface Environment {
   readonly frames: readonly Frame[];
   readonly repeatTurns: number[];
+  /**
+   * The conformance profile set **this run claims** — the same value the check before execution
+   * used, never a second one computed alongside it.
+   *
+   * `spec/execution-model.md:673-680` requires that "the active conformance profile set the
+   * semantic layer uses MUST be the set the run itself uses", that the set "MUST be nameable by
+   * whoever starts the run — it is a property of the run, not a constant of the implementation",
+   * and closes with "One value MUST govern both the check and the run". Carrying it here is what
+   * makes the last sentence literally true: `runProgram` resolves the set once and hands the same
+   * array to `analyze()` and to `createExecutionEnvironment`, so the two cannot drift.
+   *
+   * Without it the run was profile-blind while the check was not, which is observable and wrong in
+   * both directions. Measured under `{ profiles: ["core-language"], runUnchecked: true }`:
+   * `challenge` reported `ol-unknown-command` *and* `ol-not-implemented` — two contradictory
+   * answers about one name, where `spec/error-model.md:131` requires the name to "resolve under the
+   * run's active profile set" before `ol-not-implemented` applies at all and says plainly that "a
+   * call under a profile the run does not claim is still `ol-unknown-command`". A child environment
+   * inherits this by spreading its parent, so a procedure body is judged under the same set.
+   */
+  readonly profiles: readonly CheckProfile[];
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
   readonly events: TraceEvent[];
@@ -597,6 +625,10 @@ export function createEnvironment(): Environment {
   return {
     frames: [new Map()],
     repeatTurns: [],
+    // The implementation's own supported set. This bare environment models one expression
+    // evaluation rather than a run someone started, so there is nobody to name a narrower set;
+    // `execute()` overrides it with the run's claimed set (`spec/execution-model.md:673-680`).
+    profiles: SUPPORTED_PROFILES,
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
@@ -1961,6 +1993,55 @@ function withResolvedCallee(
   return { ...node, callee: { ...node.callee, name } };
 }
 
+/**
+ * Does `name` resolve to a primitive under `profiles`?
+ *
+ * Two lookups, because a Heritage alias is not a registry entry of its own: the profile-keyed
+ * primitive registry answers for a canonical name, and an alias resolves only when **Heritage
+ * itself is active** and its canonical target is also active. `spec/conformance.md:150` makes
+ * aliases "alternate spellings only — no new semantics", which is exactly why the spelling cannot
+ * carry visibility its own profile does not grant: measured, `fd 10` under Core + Turtle &
+ * Rendering without Heritage must not run, while the same program with Heritage active must.
+ *
+ * Always ask it the name **as written**. Canonicalising first — which several call paths do before
+ * dispatch — would launder `fd` through `forward`'s Turtle & Rendering visibility and re-admit a
+ * profile the run never claimed.
+ */
+export function resolvesUnderProfiles(
+  name: string,
+  profiles: readonly CheckProfile[],
+): boolean {
+  if (activeProfilePrimitiveArityRange(name, profiles) !== undefined) {
+    return true;
+  }
+  if (!profiles.includes("heritage")) {
+    return false;
+  }
+  const canonical = canonicalOfHeritageAlias(name.toLowerCase());
+  return (
+    canonical !== undefined &&
+    activeProfilePrimitiveArityRange(canonical, profiles) !== undefined
+  );
+}
+
+/**
+ * Does OpenLogo know `name` **for this run** — the question `ol-not-implemented` and
+ * `ol-unknown-command` divide between them?
+ *
+ * Two sources, because the profile set gates one of them and not the other. A **primitive** is
+ * known only when an active profile registers it: `spec/error-model.md:131` says "a call under a
+ * profile the run does not claim is still `ol-unknown-command`, because there the name does not
+ * resolve". A **keyword** is known unconditionally — `spec/grammar.md:408` keeps the reserved-word
+ * set a property of the language version rather than of the profile set a run happens to claim, so
+ * gating one here would make the same word known or unknown depending on the caller.
+ */
+export function knownUnderProfiles(
+  name: string,
+  profiles: readonly CheckProfile[],
+): boolean {
+  return isKeyword(name) || resolvesUnderProfiles(name, profiles);
+}
+
 function evaluateCall(
   node: ArithmeticCallNode,
   environment: Environment,
@@ -2114,8 +2195,9 @@ function evaluateCall(
   // precisely because the defect this slice fixes stood in front of it. The gates are gone, and
   // this answers instead.
   //
-  // The **code** turns on what OpenLogo knows about the name, and the three answers are genuinely
-  // different facts about three different faults (`spec/error-model.md:97,114,131`):
+  // The **code** turns on what OpenLogo knows about the name *under this run's claimed profile
+  // set*, and the three answers are genuinely different facts about three different faults
+  // (`spec/error-model.md:97,114,131`):
   //
   // - a registered **Command** reports no value, so asking one for a value is `ol-no-output` — the
   //   runtime twin of `checker-command-in-value-position.ts`'s rule. Calling this
@@ -2125,11 +2207,19 @@ function evaluateCall(
   //   known and this implementation cannot run it yet*, our gap and not the learner's.
   // - anything else is the learner's typo, and stays `ol-unknown-command`.
   //
+  // Each test is profile-aware, and that is load-bearing rather than tidy. `spec/error-model.md:131`
+  // makes the name resolving "under the run's active profile set" part of what `ol-not-implemented`
+  // MEANS, and adds that "a call under a profile the run does not claim is still
+  // `ol-unknown-command`, because there the name does not resolve". Judged profile-blind, a run
+  // claiming Core Language alone answered `ol-not-implemented` for `challenge` while the check
+  // answered `ol-unknown-command` for the same call — two contradictory claims about one name,
+  // which the de-duplication rule cannot collapse because they are different codes.
+  //
   // A checked run reaches none of these: the gate refuses the program first.
   // {@link ExecuteOptions.runUnchecked} is what makes them reachable, and there the check has
   // already reported the same fault, so `runProgram` suppresses the second copy
   // (`spec/execution-model.md:746-748`).
-  if (isPrimitiveCommandName(name)) {
+  if (isActiveProfileCommandName(node.callee.name, environment.profiles)) {
     return {
       ok: false,
       diagnostic: runtimeDiag.noOutputFromCommand(
@@ -2140,9 +2230,15 @@ function evaluateCall(
   }
   return {
     ok: false,
-    diagnostic: isBuiltInName(name)
+    diagnostic: knownUnderProfiles(node.callee.name, environment.profiles)
       ? runtimeDiag.notImplemented(node.callee.source_span, name)
-      : runtimeDiag.unknownCommand(node.callee.source_span, name),
+      : // Names what the learner WROTE. `name` has been through
+        // `resolveHeritageAliasName`, so for an alias under a run that does not claim Heritage it
+        // holds the Core name the alias spells — and telling a learner `forward` is unknown when
+        // they wrote `fd` describes a program they did not write. It also keeps this identical to
+        // the check's own report of the same fault, so the two collapse under the de-duplication
+        // rule instead of arriving as two.
+        runtimeDiag.unknownCommand(node.callee.source_span, node.callee.name),
   };
 }
 
@@ -4909,7 +5005,7 @@ function runComprehensionBody(
     }
     if (
       (expression.kind === "Call" || expression.kind === "ParenCall") &&
-      isPrimitiveCommandName(expression.callee.name)
+      isActiveProfileCommandName(expression.callee.name, environment.profiles)
     ) {
       // A LEADING body statement legitimately runs for effect — the block-result rule discards its
       // value (`spec/execution-model.md:214-227`) — so a command is correct OpenLogo here, and

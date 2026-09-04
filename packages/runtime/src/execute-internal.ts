@@ -74,6 +74,7 @@ import type {
 import {
   analyze,
   isBuiltInName,
+  activeProfilePrimitiveArityRange,
   isPrimitiveCommandName,
   walk,
 } from "@openlogo/parser";
@@ -106,6 +107,7 @@ import {
   type EvalResult,
   type Frame,
   type ProcedureRegistry,
+  knownUnderProfiles,
   type StructRegistry,
   type TurtleAddressing,
   type TurtleState,
@@ -4887,6 +4889,37 @@ function canonicalizeHeritageAliasCall(
   };
 }
 
+/**
+ * The `ol-unknown-command` a statement's callee earns when it names a built-in **no active profile
+ * of this run registers**, or `undefined` when the statement may proceed.
+ *
+ * Judged on `rawStatement` — the callee exactly as the learner spelled it — for the reason given at
+ * the call site: a Heritage alias is available only when Heritage is active, so canonicalising
+ * first would launder `fd` through `forward`'s visibility.
+ *
+ * A name no profile registers at all is left alone rather than reported here: it may be a user
+ * procedure, and if it is not, `evaluateCall`'s terminal rule reports it with the same code.
+ */
+function inactiveProfileCallee(
+  rawStatement: StatementNode,
+  environment: Environment,
+): Diagnostic | undefined {
+  if (rawStatement.kind !== "Call" && rawStatement.kind !== "ParenCall") {
+    return undefined;
+  }
+  const spelled = rawStatement.callee.name;
+  if (environment.procedures.has(spelled.toLowerCase())) {
+    return undefined;
+  }
+  if (!isBuiltInName(spelled)) {
+    return undefined;
+  }
+  if (knownUnderProfiles(spelled, environment.profiles)) {
+    return undefined;
+  }
+  return runtimeDiag.unknownCommand(rawStatement.callee.source_span, spelled);
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
@@ -4924,6 +4957,29 @@ function executeStatements(
       source_span: statement.source_span,
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
+
+    // **The run obeys the same profile set the check did** (`spec/execution-model.md:673-680`,
+    // issue #815). Every `is*Call` predicate below is profile-blind, so without this the run would
+    // execute primitives the run's claimed set does not contain — the check and the run governed by
+    // two different values, where the spec closes with "One value MUST govern both the check and
+    // the run". Measured before this guard, under `{ profiles: ["core-language"] }`: `forward 10`
+    // was reported `ol-unknown-command` and *still moved and drew*.
+    //
+    // It reads the RAW callee spelling, before `canonicalizeHeritageAliasCall` rewrote it, because
+    // an alias is only available when Heritage itself is active: canonicalising first would let
+    // `fd` inherit `forward`'s visibility from Turtle & Rendering alone and quietly re-admit a
+    // profile the run never claimed. A user procedure shadows nothing here — a built-in name cannot
+    // be redefined (`ol-reserved-word`) — so an unresolvable name is the learner's, and
+    // `spec/error-model.md:131` names the answer: "a call under a profile the run does not claim is
+    // still `ol-unknown-command`, because there the name does not resolve".
+    //
+    // The `instruction` event above is already emitted, deliberately: the statement was reached and
+    // the trace should show where the program stopped, which is the same shape the terminal rule
+    // produces for `challenge`.
+    const inactive = inactiveProfileCallee(rawStatement, environment);
+    if (inactive !== undefined) {
+      return halt(inactive);
+    }
 
     const writeResult = dispatchAssignOrListMutator(statement, environment);
     if (writeResult !== undefined) {
@@ -5623,11 +5679,13 @@ function createExecutionEnvironment(
   foreverIterationLimit: number | undefined,
   options: ExecuteOptions | undefined,
   source: string,
+  profiles: readonly CheckProfile[],
 ): Environment {
   const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
+    profiles,
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
@@ -5875,7 +5933,7 @@ function executeMainLine(
  * overlap test would swallow — differ in their params and are both still delivered. The check's
  * copy is the one kept: it is the earlier report and, for did-you-mean, the more helpful one.
  */
-function mergeRunDiagnostics(
+export function mergeRunDiagnostics(
   checked: readonly Diagnostic[],
   raised: Diagnostic | undefined,
 ): readonly Diagnostic[] {
@@ -5956,15 +6014,29 @@ export function runProgram(
   // can point at the deepest procedure call reached; before it exists (an overflow during parsing)
   // the guard falls back to a whole-source span.
   let environment: Environment | undefined;
+  // Hoisted out of the `try` so the `catch` can still deliver them. `spec/execution-model.md:687-694`
+  // requires the unchecked-run opt-out to "still deliver the diagnostics it declined to act on", and
+  // Layer 3 style warnings are equally owed to the caller — but a native stack overflow escaping
+  // from deep inside execution used to land in a `catch` that could not see a `const` declared
+  // inside the `try`, so the recovery returned its own diagnostic alone and silently dropped
+  // everything the check had already found.
+  let checkDiagnostics: readonly Diagnostic[] = [];
   try {
+    // The profile set is resolved ONCE, here, and the same value reaches both the check and the
+    // run. `spec/execution-model.md:673-680`: the set the semantic layer uses "MUST be the set the
+    // run itself uses", it "MUST be nameable by whoever starts the run", and "One value MUST govern
+    // both the check and the run" — so this must stay a single binding rather than the same
+    // expression written twice.
+    const runProfiles = options?.profiles ?? RUN_PROFILES;
     // The check before execution (`spec/execution-model.md:632-694`, issue #815). `analyze` runs
     // Layer 1 and Layer 2 over the whole program — never one and then the other conditionally, so
     // the precedence rule can see both — under THIS run's profile set, which is the same value the
     // run itself uses.
     const { ast: program, diagnostics } = analyze(source, document, {
-      profiles: options?.profiles ?? RUN_PROFILES,
+      profiles: runProfiles,
       style: options?.styleChecks === true,
     });
+    checkDiagnostics = diagnostics;
     // **Severity, never presence.** `spec/execution-model.md:666-671`: "An implementation MUST
     // decide by severity and MUST NOT treat a non-empty diagnostic list as a refusal to run",
     // because Layer-3 style lints are warnings returned in this same collection, so a presence test
@@ -6007,6 +6079,7 @@ export function runProgram(
       foreverIterationLimit,
       options,
       source,
+      runProfiles,
     );
     const signal = executeMainLine(program.body, environment);
     const diagnostic =
@@ -6022,12 +6095,25 @@ export function runProgram(
       diagnostics: mergeRunDiagnostics(diagnostics, diagnostic),
     };
   } catch (error) {
-    return recoverFromNativeStackOverflow(
+    const recovered = recoverFromNativeStackOverflow(
       error,
       environment?.lastCallSpan.span ?? wholeSourceSpan(source, document),
       environment?.events ?? [],
       environment?.recursionDepthLimit ?? HOST_SAFE_RECURSION_DEPTH,
     );
+    // Whatever the check found still belongs to the caller. An overflow during PARSING leaves
+    // `checkDiagnostics` empty, so this is a no-op there; an overflow during execution is the case
+    // the opt-out's "MUST still deliver the diagnostics it declined to act on" covers, and style
+    // warnings are owed either way. Folded one at a time through the same merge the normal exit
+    // uses, so a recovery diagnostic that restates something the check already reported collapses
+    // by the same rule rather than a second one written here.
+    return {
+      events: recovered.events,
+      diagnostics: recovered.diagnostics.reduce<readonly Diagnostic[]>(
+        (merged, diagnostic) => mergeRunDiagnostics(merged, diagnostic),
+        checkDiagnostics,
+      ),
+    };
   }
 }
 

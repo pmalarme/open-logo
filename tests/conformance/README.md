@@ -372,9 +372,18 @@ evaluator (`challenge`), which was classified exactly like a name that does not 
 only one of the three whose directory also carries a `node:test`, because the fact worth preserving
 there is a **relation between two programs** and a fixture pairs one source with one expected stream.
 
-**Issue #815 retired every one of them** once the #814 `[spec]` ruling merged: 24 gained the
-diagnostic they were waiting for and now read `REGRESSION WALL`, while 16 were correct all along and
-were left byte-for-byte untouched.
+**Issue #815 retired every one of them** once the #814 `[spec]` ruling merged. **23** now read
+`REGRESSION WALL`: 22 of those gained the diagnostic they had been waiting for, and `challenge-check`
+went the other way — it *lost* the `ol-unknown-command` it used to assert and now expects an **empty**
+diagnostics list, because `spec/tooling.md:194` lets a checker report `ol-not-implemented` only when
+it knows before running that no evaluation exists, and this one does not. A 24th, `challenge-with-argument`,
+was already correct and keeps its `NO-REGRESSION` label and its `events`/`diagnostics` byte-for-byte;
+it changed only to name the profile set the run claims. The remaining **16** were correct all along
+and were left byte-for-byte untouched.
+
+Re-derive these numbers rather than trusting them: a substring search for `REGRESSION WALL` returns
+24 because a *different* fixture mentions the phrase mid-sentence, so count fixtures whose
+`description` **starts with** it.
 
 **How to flip one, and the mistake to avoid.** Flip by the **first word of each fixture's
 `description`**, never by directory. A characterization fixture and a baseline fixture are

@@ -85,8 +85,18 @@ export function commandInValuePositionRule(
 
   const scan = (node: AnyNode, inValuePosition: boolean) => {
     if (inValuePosition && isCall(node)) {
-      const name = canonicalCalleeName(node);
-      if (isActiveProfileCommandName(name, profiles)) {
+      // Gated on the spelling the learner **wrote**, reported under the callee's **canonical**
+      // spelling. The two differ only for a Heritage short alias, and conflating them is a real
+      // fault rather than a tidiness point: `isActiveProfileCommandName` resolves an alias only
+      // when Heritage is active, so asking it about the written `fd` correctly declines under a run
+      // that does not claim Heritage — where the call is `ol-unknown-command`, not a command in the
+      // wrong position. Asking it about the pre-canonicalised `forward` instead let `print fd 5`
+      // report `ol-no-output` for a name the run could not resolve at all, alongside the
+      // `ol-unknown-command` it had already earned: two answers to one question.
+      // `spec/error-model.md:114` still requires `procedure` to carry "the built-in's canonical
+      // spelling", so the report itself is unchanged for an alias the run CAN resolve.
+      if (isActiveProfileCommandName(node.callee.name, profiles)) {
+        const name = canonicalCalleeName(node);
         diagnostics.push({
           code: "ol-no-output",
           source_span: node.source_span,
