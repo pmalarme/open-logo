@@ -43,6 +43,7 @@ import type {
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { DEFAULT_CHECK_PROFILES } from "./check.js";
+import { resolveGlobalVariableOccurrences } from "./global-variable-resolution.js";
 import { parse } from "./parser.js";
 import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
@@ -105,6 +106,20 @@ export interface Token {
    * from `spec/tooling.md:282`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
+  /**
+   * Present on **every** `:variable` token and no other class: `true` when this occurrence resolves
+   * to a binding the program declared `global`, `false` when it resolves to anything else — a
+   * parameter, a `local` that shadows a same-named global, a binder, or an ordinary top-level name.
+   * Total on purpose, so a consumer can tell "a variable that is not global" from "not a variable".
+   * **It follows resolution, not spelling** (issue #826): see `global-variable-resolution.ts` for
+   * the scope model, the spec clauses behind it, and the two cases it knowingly does not reach (a
+   * `set`/`make` target, which is not a `:variable` token at all, and a deferred handler body).
+   *
+   * `semantic-tokens.ts` surfaces it as the `global` semantic-token modifier, which is the channel
+   * an editor should consume: the token **class** stays `:variable`, on the same
+   * one-class-plus-modifier precedent `spec/tooling.md:83-84` sets for the five bracket roles.
+   */
+  readonly global?: boolean;
 }
 
 /**
@@ -433,6 +448,25 @@ export function highlight(
   // (see `ast.ts`'s `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they
   // never reach this `:variable`-classed set at all — only a real `variable`-kind token can.
   const paramDeclIndexes = new Set<number>();
+  // Which `:variable` tokens resolve to a `global` binding (issue #826). Computed from the AST by
+  // its own module rather than inline here, because the answer needs an ordered, scope-aware walk
+  // (a `local` shadows from its own statement onward) that the `visit()` pass below — a generic,
+  // order-free `walk` — cannot express. Positions are mapped back to raw token indexes through the
+  // same `byStart` lookup every other marker uses.
+  const globalVarIndexes = new Set<number>();
+  for (const position of resolveGlobalVariableOccurrences(program)) {
+    const index = byStart.get(posKey(position));
+    // Both conditions are **defensive, not discriminating**. Every position the resolver reports
+    // comes from a `VarRef` or a `Place` base, whose span always starts at the `:` of a real
+    // `variable`-kind token, so no known source reaches this with a missing index or a different
+    // kind — QA tried eight shapes, including malformed and truncated input, and could not
+    // construct one (issue #826 review, round 1, mutation M4). They stay because dropping them
+    // would make a future AST or lexer change mis-paint a *neighbouring* token silently, and a
+    // wrong paint at a wrong span is worse than no paint.
+    if (index !== undefined && lex[index]?.kind === "variable") {
+      globalVarIndexes.add(index);
+    }
+  }
 
   /**
    * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
@@ -1059,6 +1093,7 @@ export function highlight(
           text: token.text,
           source_span: token.source_span,
           declaration: paramDeclIndexes.has(index),
+          global: globalVarIndexes.has(index),
         };
       case "lbrace":
       case "rbrace":
