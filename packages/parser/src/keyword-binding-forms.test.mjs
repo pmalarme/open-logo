@@ -308,7 +308,7 @@ test("non-regression: `define` and `struct` still reject every keyword", () => {
 
 test("non-regression: `define` keeps its full check, now split across two codes", () => {
   // Issue #838 divided the old four-category `namespace` between two codes that each mean one
-  // thing (`spec/error-model.md:132-141`): a keyword or primitive is `ol-reserved-word` ("OpenLogo
+  // thing (`spec/error-model.md:133-142`): a keyword or primitive is `ol-reserved-word` ("OpenLogo
   // owns this name"), while an earlier procedure or struct declaration is `ol-duplicate-definition`
   // ("something already declares this name") carrying both spans. All four situations are still
   // caught; only the reporting changed.

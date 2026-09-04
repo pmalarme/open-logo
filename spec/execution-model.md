@@ -27,8 +27,8 @@ OpenLogo values are dynamically typed. The v0.1 types are:
 There are **no arrays**, **no first-class procedure values**, and **no null** in
 v0.1. Absence is represented by not having a value: an undefined variable raises
 `ol-undefined-var`, a missing required dict key on read raises `ol-unknown-key`,
-and a procedure used as a reporter without reaching `return` raises
-`ol-no-output`.
+and a command — a built-in command, or a procedure that does not reach `return`
+— used where a value is required raises `ol-no-output`.
 
 Words that parse as numbers are accepted where a number is expected. Booleans do
 not coerce to numbers or words. There is no truthiness: `if`, `while`, `and`,
@@ -87,8 +87,8 @@ write procedures and localized aliases in a natural order.
    imported module already registered raises `ol-duplicate-definition`, which
    MUST NOT be a silent override. See
    [grammar.md](grammar.md#keywords-primitives-and-built-in-names).
-3. **Phase 2: execution.** Top-level instructions execute in source order using
-   the registered callable and record-type tables.
+3. **Phase 2: execution.** Only a program that passed [Checking before execution](#checking-before-execution) runs.
+   Top-level instructions execute in source order using the registered callable and record-type tables.
 
 `import "name"` loads exported procedures and alias declarations from a module.
 Localization packs are ordinary modules that add aliases, for example
@@ -367,8 +367,8 @@ extra arguments beyond the fixed default arity, use the parenthesized call form:
 
 `return value` exits the current procedure and provides its value. `output` and
 `op` are heritage aliases. A procedure that reaches `return` is usable as a
-reporter; a procedure that does not is a command. Using a command procedure
-where a value is required raises `ol-no-output` at the call site. A `return`,
+reporter; a procedure that does not is a **command** — the same Kind the [C3 matrix](commands.md) gives a built-in such as `forward`.
+Using a command of either kind where a value is required raises `ol-no-output` at the call site: `wait forward 5` is the built-in case, `wait p` the procedure case. A `return`,
 `output`, or `op` outside any procedure raises `ol-return-outside-proc`. `stop`
 exits a procedure early without a value and outside any procedure raises
 `ol-stop-outside-proc`.
@@ -437,7 +437,7 @@ The binder names must differ; duplicates raise `ol-duplicate-binder`.
 Comprehension bodies are bracketed expression-blocks only. They must end in a
 value-producing expression, cannot contain `return`/`output`/`op`/`stop`, and may
 call ordinary procedures. If the final expression calls a procedure that never
-returns, `ol-no-output` is raised at that call site.
+returns, `ol-no-output` is raised at that call site; a final expression that calls a **built-in** command produces no value statically, so the block-result rule above raises `ol-no-value` for the body instead.
 
 ## Records and destructuring
 
@@ -628,6 +628,157 @@ Movement by distance `d` at heading `h` updates position to
 `y`. `home` moves to `(0,0)` and sets heading to `0`. `clear_screen` clears the
 drawing and homes the turtle (position `(0,0)`, heading `0`) while preserving the pen state, color, width, visibility, and background.
 `clean` clears the drawing only.
+
+## Checking before execution
+
+A program is checked before it runs, and a program that fails the check does not
+run. The obligation is the implementation's, not its caller's: anything that
+offers to *run* OpenLogo source MUST perform the check itself and MUST NOT
+assume a host ran one first. A contract that only a host can honor is a contract
+that will be missed, and the failure it produces is the worst one this language
+has — a wrong program that looks right.
+
+The check is not a fourth thing bolted onto the [reader
+pipeline](#reader-pipeline); it is the step **between Phase 1 and Phase 2**, and
+it sits there because the language's own semantics put it there. Resolving a
+name needs the callable table Phase 1 registers: in
+
+```text
+define p :a :b
+  print :a
+end
+p 50 wibble
+```
+
+`wibble` is unresolvable but `p` is not, and only Phase 1 knows that. Nor is
+declining to run novel — Phase 1 already declines, raising `ol-reserved-word` or
+`ol-duplicate-definition` before a single instruction executes. Running one
+stage of a program's diagnosis and discarding the next is the inconsistency this
+rule removes.
+
+So, before Phase 2 begins, an implementation MUST run Layer 1 (lex and parse)
+and Layer 2 (semantic) of [tooling.md](tooling.md) over the whole program. If
+either layer reports a diagnostic of `severity: error`, **Phase 2 MUST NOT
+begin**: no instruction executes, no trace event is emitted, and the diagnostics
+are delivered to the caller — after the de-duplication and precedence rules
+below have been applied to them, and otherwise unaltered.
+
+**The test is on severity, not on the presence of diagnostics.** An
+implementation MUST decide by severity and MUST NOT treat a non-empty diagnostic
+list as a refusal to run. The two are not interchangeable: Layer 3 style lints
+are warnings that a checker MAY return in the same collection as Layer 1 and
+Layer 2 findings, so a presence test silently converts a style opinion into a
+refusal to run a correct program.
+
+**The check runs under the run's own profile set.** The active conformance
+profile set the semantic layer uses MUST be the set the run itself uses, and
+that set MUST be nameable by whoever starts the run — it is a property of the
+run, not a constant of the implementation. An implementation MUST NOT check
+under a narrower set than it executes under, and a fixed **Core Language**-only
+set is specifically not conforming: under it `forward 100` is an unknown
+command, so an implementation that also claims Turtle & Rendering would refuse
+to run a correct program. One value MUST govern both the check and the run.
+
+**Warnings never stop a run.** Only `severity: error` prevents Phase 2. Layer 3
+style lints (`ol-style-*`) are warnings by construction and MUST NOT prevent a
+program from running; neither may any other warning. A style opinion is not a
+reason to withhold a learner's drawing.
+
+**Running an unchecked program is opt-out, never the default.** An
+implementation MAY offer a host-level option that runs a program despite
+`error`-severity semantic diagnostics — a teaching tool that deliberately runs
+an exercise up to its first mistake is the motivating case. Such an option MUST
+be off by default, MUST be requested explicitly for the run it applies to, and
+MUST still deliver the diagnostics it declined to act on. It changes whether the
+program also runs; it never restores silence. The terminal rule below holds with
+or without it.
+
+### Evaluation terminates in a value, an effect, or a diagnostic
+
+The check above is the primary mechanism and deliberately not the only one,
+because there is one class of fault it cannot decide by construction: a program
+that is entirely valid — every name known, every Kind and arity correct —
+calling a primitive the implementation registered but cannot evaluate. Whether
+an evaluation exists is a fact about the evaluator, not about the program's
+text, so Layer 2 has no way to **derive** it. The program really is correct; the
+gap is in the implementation.
+
+An implementation can force a diagnostic there anyway, by hand-withholding such
+a name from the visible vocabulary so that the call reads as unknown. That is
+not a substitute for the rule below, for three reasons. It is a **list**,
+covering exactly the names someone remembered to write down, so a registered
+primitive nobody listed checks clean and then does nothing. It cannot **verify
+itself**, for the reason just given, so it does not notice when it goes stale
+because an evaluation shipped. And it **misattributes the fault**:
+`ol-unknown-command` tells the learner *i don't know how to {name}* about a name
+this specification defines and the implementation registered — our gap,
+described as their typo.
+
+So, terminally: evaluating any statement or expression MUST end in exactly one
+of three outcomes — a value, a completed effect, or a diagnostic. Skipping the
+construct is not one of them, at any depth, in any argument position, and for
+any callable. An implementation that cannot evaluate a construct MUST say so.
+
+For a callable this specification defines and the implementation registered but
+does not evaluate, that diagnostic is `ol-not-implemented`
+([error-model.md](error-model.md)). It means *the name is known and this
+implementation cannot run it yet*. An implementation MUST report it rather than
+`ol-unknown-command` for such a name, at any stage, and MUST NOT withhold the
+name from the visible vocabulary in order to manufacture `ol-unknown-command`
+instead: the name **is** known, and keeping *you mistyped a name* apart from *we
+have not built this yet* is the entire reason the two codes are distinct. An
+implementation MAY report `ol-not-implemented` at `semantic` when it knows
+before running that no evaluation exists, and MUST report it at `runtime`
+otherwise. Emitting it for a primitive of a profile the implementation **claims**
+is a conformance failure of that profile
+([conformance.md](conformance.md#conformance-claims)); the code exists so the
+gap is visible, never so that it is permitted.
+
+### One fault, one diagnostic
+
+Two rules keep a learner reading one message, and the most useful one.
+
+**De-duplication.** Two findings describe the same fault when they carry the
+same `code`, the same `params`, and the same `source_span` — diagnostic identity
+as [error-model.md](error-model.md) defines it, plus the location. An
+implementation MUST report such a fault once. `stage` is not part of the
+comparison: it records when the fault was found, not which fault it is. A fault
+the check already reported cannot ordinarily recur at run time, because the
+program does not run; under the opt-out above it can, and the second report MUST
+be suppressed rather than delivered.
+
+**Precedence.** Where one construct would otherwise produce two findings, the
+one that names the repair the learner has to make is authoritative and the other
+MUST NOT be reported. The case that matters is the commonest learner typo — a
+misspelled command that has an argument:
+
+```text
+fowad 100
+```
+
+An unresolvable callable has unknown arity, so `100` has no grammatical home and
+is easily mistaken for the fault. It is not the fault. An implementation MUST
+report `ol-unknown-command` with `name: "fowad"` and, per
+[error-model.md](error-model.md)'s did-you-mean rule, a `suggestion` computed
+over the **visible** vocabulary — `suggestion: "forward"` when Turtle &
+Rendering is in the run's profile set, and no `suggestion` when it is not,
+because `forward` is not visible to suggest. It MUST NOT report `ol-bad-token`
+with `text: "100"` in its place or beside it.
+
+Generally: a token whose **only** fault is that it follows a callable name
+nothing in the program resolves MUST NOT carry a diagnostic of its own. The word
+*only* is the whole boundary, and it is narrow in both directions. A token with
+an independent fault is still reported on its own account — the unmatched `]` in
+`fowad 100 ]` raises `ol-unmatched-bracket` as it always would, because that
+bracket is wrong whatever the callee turns out to be. And a resolvable callee is
+untouched by this rule, so the cases that already report well keep reporting: in
+`forward 100 200`, and in `f 1 2` for a one-parameter `f`, the callee resolves
+and its arity is known, so the extra argument is a genuine finding and still
+raises `ol-bad-token`.
+
+This is the same discipline [error-model.md](error-model.md) already requires of
+delimiter recovery — a recovery path must not manufacture a second, worse
+finding about text that is not itself wrong.
 
 ## Execution safety
 
@@ -925,6 +1076,7 @@ for:
 
 - the value/type model and equality matrix;
 - reader pre-pass and two-phase execution;
+- checking before execution, and the rule that evaluation never ends in silence;
 - prefix fixed-arity evaluation and variadic parenthesized calls;
 - the block-result rule;
 - assignable places and nested mutation;

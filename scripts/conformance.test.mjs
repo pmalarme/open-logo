@@ -458,8 +458,8 @@ test("compare() compares a diagnostic message when — and only when — the fix
   // The opt-in is the explicit per-fixture `"compareMessages": true`, NOT the presence of a
   // `message` key: the corpus carried 306 messages written while the documented behaviour was
   // "message is not compared", and reading those as consent would have frozen ~275 English
-  // sentences that spec/error-model.md:261-263 positively permits an implementation to reword.
-  // spec/error-model.md:254-259 stays the default — identity is code+params. :125 is the case this
+  // sentences that spec/error-model.md:262-264 positively permits an implementation to reword.
+  // spec/error-model.md:255-260 stays the default — identity is code+params. :125 is the case this
   // exists for: it prescribes the sentence AND makes *keyword*/*primitive*/*alias* a MUST NOT
   // inside it, and #751 and #871 both shipped a message violating that while the corpus stayed
   // green, because compare() dropped `message` unconditionally.

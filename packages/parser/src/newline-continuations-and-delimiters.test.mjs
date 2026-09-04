@@ -12,7 +12,7 @@
 // **B — the recovery path reports a matched delimiter as unmatched.** `parseParenthesized` reported
 // its `(` unmatched whenever the inner expression failed, without ever checking whether the `)` was
 // present, and `unexpected()` mapped *any* stray closer to an unmatched-delimiter diagnostic. Both
-// violate `spec/error-model.md:165-169`, which is delimiter-agnostic: *"on any recovery path, for
+// violate `spec/error-model.md:166-170`, which is delimiter-agnostic: *"on any recovery path, for
 // any malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic … for a delimiter
 // that is, in fact, correctly matched in the source."*
 //

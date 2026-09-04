@@ -1,5 +1,5 @@
 {
-  "description": "Check-side twin: the static checker reports params.callable `right` (the primitive's canonical identity) for a mixed-case call `RIGHT`, matching the runtime execute()-side fixture, so both stages share one diagnostic identity for one condition (spec/error-model.md:254-259). Issue #1005.",
+  "description": "Check-side twin: the static checker reports params.callable `right` (the primitive's canonical identity) for a mixed-case call `RIGHT`, matching the runtime execute()-side fixture, so both stages share one diagnostic identity for one condition (spec/error-model.md:255-260). Issue #1005.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "events": [],

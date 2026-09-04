@@ -55,8 +55,8 @@ profile or the whole DAG. The runner discovers every `*.expected.json` and pairs
   Inside an opted-in fixture the grain is per diagnostic: only those that carry a `message` have
   their prose asserted, so a fixture can pin one sentence and leave its siblings free.
 
-  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md:254-259`
-  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `:261-263`
+  **Opt in only where the spec fixes the words.** The default is what `spec/error-model.md:255-260`
+  asks for — "diagnostic identity is `code` plus `params`; prose is presentation" — and `:262-264`
   positively permits a template author to "reorder, inflect, or soften" a message, so most learner
   wording is presentation a conforming implementation may change. Freezing it would make this corpus
   resist a change the spec allows. `ol-reserved-word` is the case this exists for: `:125` prescribes

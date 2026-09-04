@@ -4,7 +4,7 @@
 // ## Why this file exists, and why it is here rather than beside the parser's guard
 //
 // Diagnostic identity is `code` plus structured `params`, and the SAME condition MUST keep the same
-// code AND the same params (`spec/error-model.md:254-259`, "Localization boundary"). Heritage is
+// code AND the same params (`spec/error-model.md:255-260`, "Localization boundary"). Heritage is
 // defined as "alternate spellings only, no new semantics" (`spec/conformance.md#heritage`), so a
 // Heritage spelling and its Core twin are the same condition: their diagnostics must agree in `code`
 // and in every param whose subject is not the learner's own text. Only the prose `message` — and the
@@ -181,7 +181,7 @@ function astContains(source, kind) {
 const SURFACE_SUBJECT_PARAMS = {
   "ol-not-a-place": {
     text:
-      "`spec/tooling.md:218-219` MANDATES the surface value: `count :nums = 3` → " +
+      "`spec/tooling.md:221-222` MANDATES the surface value: `count :nums = 3` → " +
       '`params={ text: "count :nums" }`. It is a machine-readable quotation of the span, not an ' +
       "identifier — canonicalizing it would make the param disagree with its own source_span, " +
       "and a target such as `1 + 2` or `(first :x)` has no canonical form at all. The runtime " +
@@ -611,7 +611,7 @@ test("every alias twin reaches a CANONICAL-carrying field, not just a spelling-i
         callable,
         canonical,
         `alias ${alias}: params.callable must be the canonical "${canonical}", never the surface ` +
-          `spelling (spec/error-model.md:254-259)`,
+          `spelling (spec/error-model.md:255-260)`,
       );
     }
   }
@@ -647,7 +647,7 @@ test("the worded `value of … for key` reader reports EXACTLY the Core selector
           expected.params,
           `${twin.note}: diagnostic ${index} params must be exactly the Core selector's — a Heritage ` +
             `spelling in any field is a divergent machine-readable identity ` +
-            `(spec/error-model.md:254-259)`,
+            `(spec/error-model.md:255-260)`,
         );
       }
     }
@@ -698,7 +698,7 @@ test("an EXECUTED Heritage program's diagnostics match its Core twin's in code a
           `${twin.note}: diagnostic ${index} (${actual.code}) param "${field}" diverged with the ` +
             `spelling — ${JSON.stringify(value)} vs ${JSON.stringify(expected.params[field])}. ` +
             `Diagnostic identity is code + params and the same condition must keep the same ` +
-            `params (spec/error-model.md:254-259); Heritage adds no new semantics ` +
+            `params (spec/error-model.md:255-260); Heritage adds no new semantics ` +
             `(spec/conformance.md#heritage). Canonicalize the param at its source, or — if this ` +
             `FIELD's subject genuinely IS the learner's own text — add it to ` +
             `SURFACE_SUBJECT_PARAMS with the spec citation that says so.`,
@@ -729,7 +729,7 @@ test("no runtime diagnostic param carries a Heritage surface spelling, outside t
             !pattern.test(rendered),
             `${twin.note}: ${diagnostic.code} param "${field}" = ${rendered} contains the ` +
               `Heritage spelling "${spelling}". Params are canonical; prose is presentation ` +
-              `(spec/error-model.md:254-259).`,
+              `(spec/error-model.md:255-260).`,
           );
         }
       }

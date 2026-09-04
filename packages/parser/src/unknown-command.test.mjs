@@ -105,11 +105,13 @@ test("at Core-only (turtle-rendering NOT active), forward is still not visible: 
   assert.equal(finding.params.suggestion, undefined);
 });
 
-test("issue #136 / spec/tooling.md:198-205 worked example: with turtle-rendering active, fowad suggests forward", () => {
+test("issue #136 / spec/tooling.md:201-208 worked example: with turtle-rendering active, fowad suggests forward", () => {
   // Parenthesized form, per the same reasoning as the Core-only known-gap test above: an
-  // unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` would
-  // leave `100` as a stray second statement on the line (a parse-stage ol-bad-token) — orthogonal
-  // to this rule. `(fowad 100)` groups the argument explicitly, isolating the semantic finding.
+  // unrecognized bare callee's arity falls back to 0 in the reader, so a bare `fowad 100` leaves
+  // `100` as a stray second statement on the line and today reports a parse-stage ol-bad-token
+  // blaming the argument rather than the typo. The #814 ruling makes that non-conforming — see
+  // `One fault, one diagnostic` in spec/execution-model.md — so it is an implementation gap owned
+  // by #815, not a property of this rule. `(fowad 100)` isolates the semantic finding.
   const [finding] = checkSource("(fowad 100)", [
     "core-language",
     "turtle-rendering",
@@ -124,7 +126,7 @@ test("issue #136 / spec/tooling.md:198-205 worked example: with turtle-rendering
   );
 });
 
-test("did-you-mean tie-break (spec/error-model.md:145-146): a Core word beats an optional-profile word at the same edit distance", () => {
+test("did-you-mean tie-break (spec/error-model.md:146-147): a Core word beats an optional-profile word at the same edit distance", () => {
   // "clea" is Levenshtein distance 1 from BOTH the reserved word "clear" (Core) and the Turtle &
   // Rendering primitive "clean" (optional profile) — a genuine tie now that turtle names are
   // registered (issue #136). The spec requires Core to win the tie, never lexicographic order

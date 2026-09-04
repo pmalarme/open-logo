@@ -227,7 +227,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
+ * `spec/execution-model.md:792-803` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -1363,7 +1363,7 @@ function evaluateDictLit(
  * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
  * prints. That identical prose is a *consequence* of reusing the Core builder rather than the
  * requirement itself: what the spec fixes is the machine-readable half — identity is `code` plus
- * `params` and prose is presentation (`spec/error-model.md:254-259`) — so reusing the one builder
+ * `params` and prose is presentation (`spec/error-model.md:255-260`) — so reusing the one builder
  * is what makes the Heritage guarantee hold where it is actually asserted.
  *
  * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
@@ -1800,7 +1800,7 @@ export function executeAssign(
     // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
     // or a bare literal/list) in target position, precisely so this rule — not a blunt parse
     // error — can explain the mistake (`checker-not-a-place.ts`'s doc comment, `spec/grammar.md`,
-    // `spec/tooling.md:213-219`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
+    // `spec/tooling.md:216-222`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
     // reach here as a non-`Place` `node.place`.
     return {
       ok: false,
@@ -4813,7 +4813,7 @@ function evaluateInput(
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
     // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
     // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
-    // presentation (`spec/error-model.md:254-259`), so what a second builder would risk is a drift
+    // presentation (`spec/error-model.md:255-260`), so what a second builder would risk is a drift
     // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
     // "cancelled" }` identical to an externally cancelled run in any build, localized or not. The
     // span still points at the waiting `input`, which tells a learner *where* the run stopped.
@@ -5279,7 +5279,7 @@ function comprehensionDuplicateBinder(
 
 /**
  * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
- * examples `:695-741`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * examples `:846-892`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean

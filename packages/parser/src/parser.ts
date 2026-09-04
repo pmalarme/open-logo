@@ -370,7 +370,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * The delimiter tokens that are **genuinely** unmatched in this token stream, keyed by their
    * start position (unique per token). Computed once, up front, by the standard stack walk.
    *
-   * `spec/error-model.md:165-169` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
+   * `spec/error-model.md:166-170` is a delimiter-agnostic MUST NOT: *"on any recovery path, for any
    * malformed input, a parser MUST NOT raise any unmatched-delimiter diagnostic — the class whose
    * members in v0.1 are `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` —
    * for a delimiter that is, in fact, correctly matched in the source."* Whether a delimiter is
@@ -423,7 +423,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * Is `token` a delimiter that is genuinely unmatched in the source? Every unmatched-delimiter
    * diagnostic raised from a **recovery** path is gated on this, so a *matched* delimiter can never
-   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:165-169`).
+   * be reported as unmatched no matter which recovery path reaches it (`spec/error-model.md:166-170`).
    *
    * Four sites report without calling it: the end-of-input branches of the list literal, the dict
    * literal, the parenthesized call, and the block body. Each sits inside `if (token.kind === "eof")`.
@@ -459,7 +459,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
    * When `open` really has no closer, that *is* the defect and the unmatched-delimiter diagnostic is
    * correct. When it has one, the delimiters are balanced and the defect is whatever is sitting here
    * instead — so this reports **that token** rather than the delimiter
-   * (`spec/error-model.md:165-169`: *"`ol-bad-token` alone is authoritative for the malformed-input
+   * (`spec/error-model.md:166-170`: *"`ol-bad-token` alone is authoritative for the malformed-input
    * class"*).
    *
    * Substituting, rather than staying silent, is the load-bearing half. Every caller reports and
@@ -510,7 +510,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
   /**
    * The diagnostic for a token the grammar cannot use here. A **closing** delimiter is reported as
    * unmatched only when it genuinely is — otherwise the offending token is the malformed input
-   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:165-169`). Before
+   * beside it, and `ol-bad-token` alone is authoritative (`spec/error-model.md:166-170`). Before
    * this gate, `print [ 1 + ]` reported `ol-unmatched-bracket` against a `]` that is correctly
    * matched two characters from its `[` (issues #947, #879).
    */
@@ -2125,7 +2125,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     //   diagnostic is not a grouping artifact: the bare, unparenthesized `round -` reports the same
     //   one on the same token. The trailing `1` and `)` are then reported downstream, by the
     //   group's tail and by the statement loop — three diagnostics from three sites, one per stray
-    //   token. `spec/error-model.md:165-172`'s MUST NOT is upheld throughout, since
+    //   token. `spec/error-model.md:166-173`'s MUST NOT is upheld throughout, since
     //   {@link findUnmatchedDelimiters} answers from the source: no `ol-unmatched-paren` is raised
     //   for these correctly-matched parentheses.
     //
@@ -2494,7 +2494,7 @@ export function parse(source: string, document = "<input>"): ParseResult {
     // A reporter/call, a bare literal, or a parenthesized expression used as an assignment target —
     // `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2][1] = 5`, `(:x) = 2` — is not a place.
     // Recognize the structure here so the semantic checker can flag it with `ol-not-a-place`
-    // (spec/tooling.md:188, :215-220) instead of a blunt parse error; `=` is the only op that
+    // (spec/tooling.md:188, :218-223) instead of a blunt parse error; `=` is the only op that
     // survives to this fall-through, so a bare `text === "="` guard is sufficient. A genuinely bare
     // `:name` never reaches this fall-through before `=` (it is always routed through
     // `colonAssignmentAhead()`/`parseColonAssignment()` into a proper `Place`), so a `VarRef`/`Place`
