@@ -1,0 +1,148 @@
+/**
+ * *One fault, one diagnostic* — `spec/execution-model.md:737-781`'s **precedence** half, applied
+ * across Layer 1's and Layer 2's collections once they have been merged (issue #815).
+ *
+ * The de-duplication half lives in `@openlogo/core` ({@link dedupeDiagnostics}), because it needs
+ * nothing but the findings themselves. Precedence needs the **program**, so it lives here.
+ *
+ * ## The fault it removes
+ *
+ * ```text
+ * fowad 100
+ * ```
+ *
+ * An unresolvable callable has unknown arity, so the reader gives `100` no grammatical home: it
+ * ends the `fowad` statement and reads `100` as a statement of its own, which on the same line is a
+ * run-on and raises `ol-bad-token`. That token is not the fault, and the spec says so outright —
+ * the run MUST report `ol-unknown-command` with `name: "fowad"` and "MUST NOT report
+ * `ol-bad-token` with `text: "100"` in its place or beside it" (`spec/execution-model.md:755-766`).
+ * `spec/error-model.md:110` carries the same rule from `ol-bad-token`'s own side of the registry.
+ *
+ * ## The boundary, which is narrow in both directions
+ *
+ * Only a token whose **only** fault is following an unresolvable callee is suppressed
+ * (`spec/execution-model.md:768-777`). Two things follow, and both are pinned by fixtures:
+ *
+ * - **An independent fault is still reported.** `fowad 100 ]` keeps its `ol-unmatched-bracket`,
+ *   "because that bracket is wrong whatever the callee turns out to be"; `fowad @@@` keeps the
+ *   lexer's own `ol-bad-token`s, because those characters are not OpenLogo tokens at all.
+ * - **A resolvable callee is untouched.** `forward 100 200`, and `f 1 2` for a one-parameter `f`,
+ *   still raise `ol-bad-token`: the callee resolves, its arity is known, so the extra argument is a
+ *   genuine finding.
+ *
+ * ## How an orphan is recognised, and why it is derived rather than described
+ *
+ * The suppression is keyed off the `ol-unknown-command` findings the semantic layer **actually
+ * produced**, not off a second opinion about which names resolve. That matters because the answer
+ * is profile-dependent — `spec/execution-model.md:761-765` requires `fowad 100` to report
+ * `suggestion: "forward"` under a set including Turtle & Rendering and no suggestion under Core
+ * Language alone — and a rule that recomputed visibility here could disagree with the rule that
+ * reported it.
+ *
+ * The AST does the rest. A statement the reader could not attach to the preceding call becomes a
+ * statement of its own in the very same statement list, so `fowad 100` reads as
+ * `[Call(fowad), NumberLit(100)]` (measured). An **orphan** is therefore a statement whose
+ * predecessor in its list is either an unresolvable call or itself an orphan — the chain is what
+ * covers `fowad 100 200` — and which begins on the line its predecessor ended on, which is exactly
+ * the run-on condition the reader used to raise the finding. A parse `ol-bad-token` starting where
+ * an orphan starts is that orphan's own diagnostic, and nothing else is touched.
+ */
+
+import type { Diagnostic } from "@openlogo/core";
+import { dedupeDiagnostics } from "@openlogo/core";
+import type { AnyNode, ProgramNode, StatementNode } from "./ast.js";
+import { walk } from "./ast.js";
+
+/**
+ * The callee spans of every `ol-unknown-command` finding in `diagnostics`, as `"line:column"` keys.
+ * `checker-unknown-command.ts` reports at the callee's own span, and a `Call`/`ParenCall` node
+ * starts at its callee, so a call node is unresolvable exactly when its span **start** is in this
+ * set.
+ */
+function unresolvableCalleeStarts(
+  diagnostics: readonly Diagnostic[],
+): ReadonlySet<string> {
+  const starts = new Set<string>();
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.code === "ol-unknown-command") {
+      const [line, column] = diagnostic.source_span.start;
+      starts.add(`${line}:${column}`);
+    }
+  }
+  return starts;
+}
+
+/** Whether `statement` is a call whose callee nothing in the program resolves. */
+function isUnresolvableCall(
+  statement: StatementNode,
+  unresolvable: ReadonlySet<string>,
+): boolean {
+  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
+    return false;
+  }
+  const [line, column] = statement.source_span.start;
+  return unresolvable.has(`${line}:${column}`);
+}
+
+/**
+ * The start positions of every **orphan** statement: one the reader could only read as a statement
+ * of its own because the call before it, on the same line, had unknown arity. See the module doc
+ * comment for why an orphan is a statement-list neighbour rather than a token offset.
+ */
+function orphanStarts(
+  program: ProgramNode,
+  unresolvable: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const starts = new Set<string>();
+  const scanList = (body: readonly StatementNode[]): void => {
+    let previous: StatementNode | undefined;
+    let previousWasOrphan = false;
+    for (const statement of body) {
+      const orphaned: boolean =
+        previous !== undefined &&
+        (previousWasOrphan || isUnresolvableCall(previous, unresolvable)) &&
+        statement.source_span.start[0] === previous.source_span.end[0];
+      if (orphaned) {
+        const [line, column] = statement.source_span.start;
+        starts.add(`${line}:${column}`);
+      }
+      previousWasOrphan = orphaned;
+      previous = statement;
+    }
+  };
+  walk(program, (node: AnyNode) => {
+    if (node.kind === "Program" || node.kind === "Block") {
+      scanList(node.body);
+    }
+  });
+  return starts;
+}
+
+/**
+ * Apply both halves of *one fault, one diagnostic* to the merged Layer 1 + Layer 2 findings for
+ * `program`: de-duplicate by fault identity, then drop each `ol-bad-token` whose only fault is that
+ * it follows a callable name nothing in the program resolves.
+ *
+ * The input order is preserved, so the reader still sees findings in source-and-layer order.
+ */
+export function applyOneFaultRules(
+  program: ProgramNode,
+  diagnostics: readonly Diagnostic[],
+): readonly Diagnostic[] {
+  const deduped = dedupeDiagnostics(diagnostics);
+  const unresolvable = unresolvableCalleeStarts(deduped);
+  if (unresolvable.size === 0) {
+    return deduped;
+  }
+  const orphans = orphanStarts(program, unresolvable);
+  if (orphans.size === 0) {
+    return deduped;
+  }
+  return deduped.filter((diagnostic) => {
+    if (diagnostic.code !== "ol-bad-token") {
+      return true;
+    }
+    const [line, column] = diagnostic.source_span.start;
+    return !orphans.has(`${line}:${column}`);
+  });
+}

@@ -51,11 +51,18 @@ import type {
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
-import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
+import {
+  OLTurtle,
+  SUPPORTED_PROFILES,
+  dedupeDiagnostics,
+  makeSpan,
+  typeNameOf,
+} from "@openlogo/core";
 import { OL_TURTLE_SPECIFIC_EVENT_KINDS } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
+  CheckProfile,
   ExpressionNode,
   ParenCallNode,
   ProcedureDefNode,
@@ -64,7 +71,7 @@ import type {
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
-import { isBuiltInName, parse, walk } from "@openlogo/parser";
+import { analyze, isBuiltInName, walk } from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import { isValidPitch } from "./pitch.js";
@@ -83,7 +90,6 @@ import {
   executeRemove,
   executeRemoveKey,
   findDuplicateBinderName,
-  isSupportedArgument,
   printedForm,
   pushLoopFrame,
   snapshotValue,
@@ -153,10 +159,17 @@ import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
  * regardless of argument count: a zero-argument `print`/`(print)` is handled separately in
  * {@link executeStatements}, since `execute()` runs `parse()` only (not the semantic checker), so
  * the checker's static `ol-not-enough-inputs` rule never sees it here.
+ *
+ * Returns a plain `boolean`, not a `statement is CallNode | ParenCallNode` predicate, and the
+ * distinction is load-bearing rather than stylistic: this matches *one* callee name, so while the
+ * positive branch really does hold a call, the **negative** branch does not exclude one — a
+ * `forward 100` statement is not a `print` call and is still a `CallNode`. A type predicate makes
+ * the compiler believe otherwise, and it silently narrowed every later `statement.kind === "Call"`
+ * test in `executeStatements` to `never` (issue #815, found when the terminal rule needed exactly
+ * such a test). {@link isWaitCall}, {@link isShowCall}, and {@link isRandomizeCall} already had
+ * this shape; these two are now consistent with them, at the cost of one cast at each call site.
  */
-function isPrintCall(
-  statement: StatementNode,
-): statement is CallNode | ParenCallNode {
+function isPrintCall(statement: StatementNode): boolean {
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print"
@@ -327,9 +340,6 @@ function executeTurtleMoveCall(
     );
   }
   const [arg] = moveCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Fix the acting turtle BEFORE the argument runs. A turtle command applies to the turtle(s)
   // addressed when the statement began ({@link runPerTurtleCommand}'s `addressedIds` snapshot), so
   // a `tell` reached from the argument — necessarily via a procedure call — must change the
@@ -445,9 +455,6 @@ function executeTurtleTurnCall(
     );
   }
   const [arg] = turnCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -877,9 +884,6 @@ function executeTurtleColorCall(
     );
   }
   const [arg] = colorCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -962,9 +966,6 @@ function executeTurtleBackgroundCall(
     );
   }
   const [arg] = backgroundCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1043,9 +1044,6 @@ function executeTurtleWidthCall(
     );
   }
   const [arg] = widthCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1405,9 +1403,6 @@ function executeTurtleShapeCall(
     );
   }
   const [arg] = shapeCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1571,12 +1566,6 @@ function executeTurtlePositionCall(
     return undefined;
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
-  if (
-    !isSupportedArgument(xArg, environment) ||
-    !isSupportedArgument(yArg, environment)
-  ) {
-    return undefined;
-  }
   // Acting turtle pinned before the arguments run — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const xResult = evaluate(xArg, environment);
@@ -1673,9 +1662,6 @@ function executeTurtleHeadingCall(
     );
   }
   const [arg] = headingCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1763,9 +1749,6 @@ function executeSoundSetTempoCall(
     );
   }
   const [arg] = tempoCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1906,9 +1889,6 @@ function executeSoundNoteCall(
   // first operand, so its diagnostic must win over anything about the duration. Preflighting both
   // args together would let an unsupported *duration* expression (e.g. `note "bad" forward`)
   // short-circuit to `undefined` and silently swallow the pitch's `ol-type` (rubber-duck, #690).
-  if (!isSupportedArgument(pitchArg, environment)) {
-    return undefined;
-  }
   const pitchResult = evaluate(pitchArg, environment);
   if (!pitchResult.ok) {
     return halt(pitchResult.diagnostic);
@@ -1930,9 +1910,6 @@ function executeSoundNoteCall(
         operation: "note",
       }),
     );
-  }
-  if (!isSupportedArgument(durationArg, environment)) {
-    return undefined;
   }
   const durationResult = evaluate(durationArg, environment);
   if (!durationResult.ok) {
@@ -2018,9 +1995,6 @@ function executeSoundRestCall(
     );
   }
   const [arg] = restCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2110,9 +2084,6 @@ function executeSoundPlayCall(
     );
   }
   const [melodyArg] = playCall.args as [ExpressionNode];
-  if (!isSupportedArgument(melodyArg, environment)) {
-    return undefined;
-  }
   const melodyResult = evaluate(melodyArg, environment);
   if (!melodyResult.ok) {
     return halt(melodyResult.diagnostic);
@@ -2307,9 +2278,6 @@ function executeWaitCall(
     );
   }
   const [arg] = waitCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2556,9 +2524,6 @@ function executeWhenStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [eventArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(eventArg, environment)) {
-    return undefined;
-  }
   const eventResult = evaluate(eventArg, environment);
   if (!eventResult.ok) {
     return halt(eventResult.diagnostic);
@@ -2732,9 +2697,6 @@ function executeTell(
   // `tell`'s single-argument arity is enforced at parse/check time (its `PROFILE_STATEMENT_FORMS`
   // entry is `argCount: 1`), so exactly one argument always reaches here.
   const [arg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2853,9 +2815,6 @@ function executeAsk(
   // `PROFILE_STATEMENT_FORMS` entry is `argCount: 1, hasBlock: true`), so exactly one argument and a
   // block always reach here.
   const [arg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -3222,9 +3181,6 @@ function executeEveryStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [countArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(countArg, environment)) {
-    return undefined;
-  }
   const countResult = evaluate(countArg, environment);
   if (!countResult.ok) {
     return halt(countResult.diagnostic);
@@ -3404,9 +3360,6 @@ function executeOnKeyStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [keyArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(keyArg, environment)) {
-    return undefined;
-  }
   const keyResult = evaluate(keyArg, environment);
   if (!keyResult.ok) {
     return halt(keyResult.diagnostic);
@@ -3880,9 +3833,6 @@ function executePrintCall(
   // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
   // event but are left un-evaluated for the slice that implements the unsupported
   // operand's expression kind.
-  if (!statement.args.every((arg) => isSupportedArgument(arg, environment))) {
-    return undefined;
-  }
   const rawValues: OLValue[] = [];
   let failure: Diagnostic | undefined;
   for (const arg of statement.args) {
@@ -3950,9 +3900,6 @@ function executeShowCall(
   // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
   // meaning to.
   const arg = statement.args[0] as ExpressionNode;
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const result = evaluate(arg, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
@@ -4023,9 +3970,6 @@ function executeRandomizeCall(
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
   // an expression kind this issue's evaluator gives meaning to.
   const seedNode = statement.args[0] as ExpressionNode;
-  if (!isSupportedArgument(seedNode, environment)) {
-    return undefined;
-  }
   const result = evaluate(seedNode, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
@@ -4044,11 +3988,10 @@ function executeRandomizeCall(
  * (issue #331) parses all four as ordinary zero-arity `Call`/`ParenCall` nodes — no dedicated AST
  * node kind — matching the existing Turtle/Data precedent ({@link isShowCall}/
  * {@link isRandomizeCall} above), so this predicate has the identical shape: a plain `boolean`
- * checking `statement.callee.name` case-insensitively against the four command names.
+ * checking `statement.callee.name` case-insensitively against the four command names. See
+ * {@link isPrintCall} for why `boolean` rather than a type predicate is the correct signature here.
  */
-function isEducationalMetaCommandCall(
-  statement: StatementNode,
-): statement is CallNode | ParenCallNode {
+function isEducationalMetaCommandCall(statement: StatementNode): boolean {
   if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
     return false;
   }
@@ -4099,7 +4042,9 @@ function findPrecedingSiblingStatement(
       candidate !== undefined &&
       !(
         isEducationalMetaCommandCall(candidate) &&
-        !procedures.has(candidate.callee.name.toLowerCase())
+        !procedures.has(
+          (candidate as CallNode | ParenCallNode).callee.name.toLowerCase(),
+        )
       )
     ) {
       return candidate;
@@ -4262,7 +4207,11 @@ function dispatchShowRandomizeOrEducationalCommand(
     );
   }
   if (isEducationalMetaCommandCall(statement)) {
-    return executeEducationalMetaCommand(statement, statements, environment);
+    return executeEducationalMetaCommand(
+      statement as CallNode | ParenCallNode,
+      statements,
+      environment,
+    );
   }
   return NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND;
 }
@@ -4875,9 +4824,6 @@ function executeProcedureCallStatement(
   call: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal {
-  if (!call.args.every((arg) => isSupportedArgument(arg, environment))) {
-    return NORMAL_SIGNAL;
-  }
   const outcome = runProcedure(call, environment);
   if (!outcome.ok) {
     return halt(outcome.diagnostic);
@@ -4994,7 +4940,10 @@ function executeStatements(
     }
 
     if (isPrintCall(statement)) {
-      const signal = executePrintCall(statement, environment);
+      const signal = executePrintCall(
+        statement as CallNode | ParenCallNode,
+        environment,
+      );
       if (signal !== undefined) {
         if (signal.kind === "halt") {
           return signal;
@@ -5093,9 +5042,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Return") {
-      if (!isSupportedArgument(statement.value, environment)) {
-        continue;
-      }
       const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
@@ -5125,9 +5071,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Throw") {
-      if (!isSupportedArgument(statement.value, environment)) {
-        continue;
-      }
       const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
@@ -5140,9 +5083,6 @@ function executeStatements(
     }
 
     if (statement.kind === "If") {
-      if (!isSupportedArgument(statement.condition, environment)) {
-        continue;
-      }
       const condition = evaluateCondition(
         statement.condition,
         environment,
@@ -5162,9 +5102,6 @@ function executeStatements(
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedArgument(statement.condition, environment)) {
-        continue;
-      }
       for (;;) {
         const limitDiagnostic = checkExecutionLimits(
           environment,
@@ -5205,9 +5142,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedArgument(statement.count, environment)) {
-        continue;
-      }
       const countResult = evaluate(statement.count, environment);
       if (!countResult.ok) {
         return halt(countResult.diagnostic);
@@ -5301,9 +5235,6 @@ function executeStatements(
           );
         }
       }
-      if (!isSupportedArgument(statement.iterable, environment)) {
-        continue;
-      }
       const iterableResult = evaluate(statement.iterable, environment);
       if (!iterableResult.ok) {
         return halt(iterableResult.diagnostic);
@@ -5352,14 +5283,6 @@ function executeStatements(
     }
 
     if (statement.kind === "ForRange") {
-      if (
-        !isSupportedArgument(statement.from, environment) ||
-        !isSupportedArgument(statement.to, environment) ||
-        (statement.by !== undefined &&
-          !isSupportedArgument(statement.by, environment))
-      ) {
-        continue;
-      }
       const fromResult = evaluate(statement.from, environment);
       if (!fromResult.ok) {
         return halt(fromResult.diagnostic);
@@ -5451,6 +5374,27 @@ function executeStatements(
           return signal;
         }
       }
+      continue;
+    }
+
+    // The terminal rule at **statement** position (`spec/execution-model.md:717-720`, issue #815),
+    // the twin of `evaluate.ts`'s in `evaluateCall`. Every dispatch above declined this statement,
+    // so if it is a call there is no executor for its callee, and skipping it is not one of the
+    // three endings evaluation may have. Before this, such a statement emitted its `instruction`
+    // event and then did nothing at all: measured, `challenge` parsed clean, checked clean under
+    // Tutor, ran, produced nothing, and reported nothing.
+    //
+    // The check is deliberately narrowed to a **callable**, which is what `ol-not-implemented` is
+    // about and all the statement kinds still falling through here are not: `ProcedureDef` and
+    // `StructDef` are declarations Phase 1 already registered, and a bare literal statement is an
+    // evaluation with no effect to skip.
+    if (statement.kind === "Call" || statement.kind === "ParenCall") {
+      const name = statement.callee.name.toLowerCase();
+      return halt(
+        isBuiltInName(name)
+          ? runtimeDiag.notImplemented(statement.callee.source_span, name)
+          : runtimeDiag.unknownCommand(statement.callee.source_span, name),
+      );
     }
   }
 
@@ -5470,6 +5414,21 @@ function executeStatements(
  */
 export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
 export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
+
+/**
+ * {@link ExecuteOptions.profiles}' default: the conformance profiles this implementation actually
+ * claims, read straight from `@openlogo/core`'s feature-detection metadata.
+ *
+ * `spec/execution-model.md:673-680` requires one value to govern both the check and the run, and
+ * singles out the wrong default by name: "a fixed **Core Language**-only set is specifically not
+ * conforming: under it `forward 100` is an unknown command, so an implementation that also claims
+ * Turtle & Rendering would refuse to run a correct program." `@openlogo/parser`'s
+ * `DEFAULT_CHECK_PROFILES` is exactly that set — correct for a *checker* whose caller has made no
+ * claim, and wrong for a *run*, which has already made one. Deriving from `SUPPORTED_PROFILES`
+ * rather than restating it means a profile this implementation starts (or stops) claiming reaches
+ * the run gate with no edit here, so the check can never be narrower than the run.
+ */
+const RUN_PROFILES: readonly CheckProfile[] = SUPPORTED_PROFILES;
 
 /**
  * The highest procedure-call recursion depth the interpreter will honor regardless of what a
@@ -5878,6 +5837,41 @@ function executeMainLine(
 }
 
 /**
+ * The diagnostics one completed run reports: the check's findings first, then whatever the run
+ * itself raised — with the *second report of a fault the check already made* suppressed, as
+ * `spec/execution-model.md:746-748` requires.
+ *
+ * That suppression only ever has work to do under {@link ExecuteOptions.runUnchecked}: "A fault the
+ * check already reported cannot ordinarily recur at run time, because the program does not run;
+ * under the opt-out above it can, and the second report MUST be suppressed rather than delivered."
+ *
+ * {@link dedupeDiagnostics} does most of it, on the spec's own fault identity. One case needs the
+ * rule stated on its own, and it is the reason this is a named function rather than a `[...a, ...b]`
+ * spread: a runtime `ol-unknown-command` carries no `suggestion`, while the check's copy of the
+ * *same* callee does, so their `params` differ and fault identity alone would deliver both. A span
+ * holds exactly one callee, so two `ol-unknown-command` findings at one span are one fault by
+ * construction — and the check's, which has the did-you-mean, is the one the learner should read.
+ */
+function mergeRunDiagnostics(
+  checked: readonly Diagnostic[],
+  raised: Diagnostic | undefined,
+): readonly Diagnostic[] {
+  if (raised === undefined) {
+    return [...checked];
+  }
+  const alreadyReported = checked.some(
+    (diagnostic) =>
+      diagnostic.code === "ol-unknown-command" &&
+      raised.code === "ol-unknown-command" &&
+      diagnostic.source_span.start[0] === raised.source_span.start[0] &&
+      diagnostic.source_span.start[1] === raised.source_span.start[1],
+  );
+  return [
+    ...dedupeDiagnostics(alreadyReported ? checked : [...checked, raised]),
+  ];
+}
+
+/**
  * Parse `source` and run it, sharing {@link execute}'s and
  * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
@@ -5889,8 +5883,9 @@ function executeMainLine(
  * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
  * it reaches here) — this is `ol-return-outside-proc`/`ol-stop-outside-proc` (issue #97), the
  * runtime's own copy of the semantic checker's rule of the same name
- * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
- * `execute()` runs `parse()` only, never `check()`.
+ * (`packages/parser/src/checker-control-flow.ts`, issue #114). Since issue #815 wired the check
+ * below, a top-level `return` is normally caught statically and this path is reached only under
+ * {@link ExecuteOptions.runUnchecked}.
  */
 export function runProgram(
   source: string,
@@ -5907,8 +5902,23 @@ export function runProgram(
   // the guard falls back to a whole-source span.
   let environment: Environment | undefined;
   try {
-    const { ast: program, diagnostics } = parse(source, document);
-    if (diagnostics.length > 0) {
+    // The check before execution (`spec/execution-model.md:632-694`, issue #815). `analyze` runs
+    // Layer 1 and Layer 2 over the whole program — never one and then the other conditionally, so
+    // the precedence rule can see both — under THIS run's profile set, which is the same value the
+    // run itself uses.
+    const { ast: program, diagnostics } = analyze(source, document, {
+      profiles: options?.profiles ?? RUN_PROFILES,
+      style: options?.styleChecks === true,
+    });
+    // **Severity, never presence.** `spec/execution-model.md:666-671`: "An implementation MUST
+    // decide by severity and MUST NOT treat a non-empty diagnostic list as a refusal to run",
+    // because Layer-3 style lints are warnings returned in this same collection, so a presence test
+    // "silently converts a style opinion into a refusal to run a correct program". Measured: a
+    // correct `FORWARD 100` reports `ol-style-name-case` at `severity: "warning"`.
+    const blocked = diagnostics.some(
+      (diagnostic) => diagnostic.severity === "error",
+    );
+    if (blocked && options?.runUnchecked !== true) {
       return { events: [], diagnostics };
     }
 
@@ -5936,7 +5946,7 @@ export function runProgram(
             : undefined;
     return {
       events: environment.events,
-      diagnostics: diagnostic ? [diagnostic] : [],
+      diagnostics: mergeRunDiagnostics(diagnostics, diagnostic),
     };
   } catch (error) {
     return recoverFromNativeStackOverflow(

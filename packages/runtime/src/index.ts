@@ -43,6 +43,7 @@
  */
 
 import type { Diagnostic, TraceEvent } from "@openlogo/core";
+import type { CheckProfile } from "@openlogo/parser";
 import type { TickBoundary } from "./interaction.js";
 import { runProgram } from "./execute-internal.js";
 import type { CancellationSignal } from "./evaluate.js";
@@ -63,7 +64,6 @@ export {
   executeInsert,
   executeRemove,
   formatNumber,
-  isSupportedExpression,
   printedForm,
   snapshotValue,
   turtleStateFor,
@@ -306,6 +306,39 @@ export interface ExecuteResult {
  *   byte-identical `events` and `diagnostics`. Both default to omitted, in which case nothing is
  *   recorded and no record is allocated. Pass a **fresh empty array** per run, for the same reason
  *   `observedEvents` requires one.
+ * - `profiles` (issue #815) — **the conformance profile set this run claims**, and therefore the one
+ *   the check before it runs under. `spec/execution-model.md:673-680` requires exactly one value to
+ *   govern both: "An implementation MUST NOT check under a narrower set than it executes under, and
+ *   a fixed **Core Language**-only set is specifically not conforming: under it `forward 100` is an
+ *   unknown command, so an implementation that also claims Turtle & Rendering would refuse to run a
+ *   correct program." The set is a property of the run and MUST be nameable by whoever starts it,
+ *   which is why it is here rather than a constant inside the checker.
+ *
+ *   Defaults to `@openlogo/core`'s {@link SUPPORTED_PROFILES} — the profiles this implementation
+ *   actually claims in its feature-detection metadata, which is the only default that cannot make
+ *   the check and the run disagree. Narrowing it is meaningful: a caller teaching Core Language
+ *   alone can pass `["core-language"]` and have `forward 100` reported as an unknown command, which
+ *   is the correct answer *for that claim*.
+ * - `styleChecks` (issue #815) — run the Layer-3 style lints as part of that check and deliver their
+ *   findings alongside the run's. They are **warnings**, and `spec/execution-model.md:682-685` is
+ *   categorical that a warning never stops a run: "A style opinion is not a reason to withhold a
+ *   learner's drawing." So a program whose only finding is `ol-style-*` runs, emits its events, and
+ *   reports the warning — which is the observable difference between the severity test the spec
+ *   requires and the presence test it forbids.
+ *
+ *   Defaults to `false`, matching `check()`'s own default, so an ordinary run's diagnostics are
+ *   unchanged.
+ * - `runUnchecked` (issue #815) — run the program **despite** `error`-severity semantic diagnostics.
+ *   This is the opt-out `spec/execution-model.md:687-694` permits for "a teaching tool that
+ *   deliberately runs an exercise up to its first mistake". Three properties are normative and all
+ *   three are honored here: it is **off by default**, it is requested **per run** rather than
+ *   configured once, and it "MUST still deliver the diagnostics it declined to act on" — so the
+ *   findings are reported exactly as they would have been, beside whatever the run then produced.
+ *   It changes whether the program also runs; it never restores silence.
+ *
+ *   It does not disable the check, and it does not reach Layer 1: a program that cannot be *read*
+ *   has no statements to run up to a first mistake. `spec/execution-model.md:693-694` also holds the
+ *   terminal rule open across it, so an unevaluable callable still reports `ol-not-implemented`.
  */
 export interface ExecuteOptions {
   readonly instructionBudget?: number;
@@ -319,6 +352,9 @@ export interface ExecuteOptions {
   readonly handlerRegistrations?: HandlerRegistration[];
   readonly handlerDeliveries?: HandlerDelivery[];
   readonly tickTimeline?: TickBoundary[];
+  readonly profiles?: readonly CheckProfile[];
+  readonly styleChecks?: boolean;
+  readonly runUnchecked?: boolean;
 }
 
 /**
@@ -393,10 +429,15 @@ export interface HostInput {
 export type HostInputReader = (prompt: string) => string | undefined;
 
 /**
- * Parse `source` and execute its top-level statements, emitting one `instruction` event per
- * statement with a monotonic `seq` starting at 0. If parsing produced any diagnostic the
- * program is not execution-valid, so no events are emitted and the parse diagnostics are
- * returned unchanged.
+ * Parse `source`, **check it**, and execute its top-level statements, emitting one `instruction`
+ * event per statement with a monotonic `seq` starting at 0.
+ *
+ * The check is not optional and not the caller's job: `spec/execution-model.md:634-639` puts the
+ * obligation on "anything that offers to *run* OpenLogo source". So Layer 1 (lex and parse) and
+ * Layer 2 (semantic) both run over the whole program before Phase 2 begins, under this run's own
+ * profile set ({@link ExecuteOptions.profiles}), and a finding of `severity: "error"` means no
+ * instruction executes and no trace event is emitted. The test is on **severity**, never on the
+ * presence of diagnostics — see {@link ExecuteOptions.styleChecks}.
  *
  * A single root {@link Environment} (issue #94) is created once per `execute()` call and threaded
  * through every statement, so an assignment in one statement is visible to every later read in

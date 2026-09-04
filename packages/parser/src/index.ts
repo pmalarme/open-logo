@@ -76,25 +76,25 @@ export type { ParseResult } from "./parser.js";
 export { check, DEFAULT_CHECK_PROFILES, OL_CHECK_PROFILES } from "./check.js";
 export type { CheckOptions, CheckProfile, CheckResult } from "./check.js";
 
+// The check-before-execution entry point (`spec/execution-model.md:632-694`, issue #815): Layer 1
+// and Layer 2 over one program, merged under the one-fault rules. `applyOneFaultRules` is exported
+// beside it because a caller running the layers itself — the studio's diagnostics pane does — still
+// owes the learner one message per fault.
+export { analyze } from "./analyze.js";
+export type { AnalyzeOptions, AnalyzeResult } from "./analyze.js";
+export { applyOneFaultRules } from "./one-fault.js";
+
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 
 export { isBuiltInName } from "./built-in-names.js";
 
 // The did-you-mean tie-break's profile classification (`spec/error-model.md:211-212`, issue #966).
-// Exported because it is a CLAIM about the registry — "is this an optional-profile word?" — and its
-// only production caller consults it through `collectVisibleNames`, which deliberately withholds a
-// name no evaluator can run. `challenge` was misclassified as Core for exactly as long as nothing
-// could ask: the classification was unreachable from outside, so no test could name it and a
-// hand-written ladder drifted unobserved. A claim that must be executable has to be callable.
+// Exported because it is a CLAIM about the registry — "is this an optional-profile word?" —
+// `challenge` was misclassified as Core for exactly as long as nothing could ask: the
+// classification was unreachable from outside, so no test could name it and a hand-written ladder
+// drifted unobserved. A claim that must be executable has to be callable.
 export { isOptionalProfileName } from "./checker-names.js";
-
-// The registered primitives the checker withholds from the visible-name set because no evaluator
-// can run them yet (`challenge`, issue #838). Exported for the same reason: it is a claim, and the
-// only enforcement that can live in this package is a test asserting each entry is a name some
-// profile really registers. Whether an evaluator has since shipped is a fact about
-// `@openlogo/runtime` and stays a human step.
-export { namesAwaitingAnEvaluator } from "./checker-names.js";
 
 export {
   isKeyword,

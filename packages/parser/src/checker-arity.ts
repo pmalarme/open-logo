@@ -48,24 +48,19 @@
  * that separation is **structural** rather than incidental: a primitive callee is arity-checked
  * only when {@link collectVisibleNames} — the very set `ol-unknown-command` itself consults —
  * holds its name, so both rules read one shared answer to "is this callee known here?" instead of
- * two lists that can drift apart. It is what lets the Tutor profile's `challenge` sit in the arity
- * registry alongside every other profile while it still has no checker visibility and no runtime:
- * today it is reported `ol-unknown-command` alone, and the slice that makes it visible inherits its
- * arity check for free. Grammar operator calls (`+`, `and`, comparison heads, …) are likewise never
- * registered as primitives, so they fall through the same "unknown arity → skip" path.
+ * two lists that can drift apart. Grammar operator calls (`+`, `and`, comparison heads, …) are
+ * never registered as primitives, so they fall through the same "unknown arity → skip" path.
  *
- * ## The one way this derivation can still degrade
+ * ## The derivation no longer has a hand-written escape
  * `collectVisibleNames` **is** derived from the same profile-keyed registries since issue #966, so
  * a profile registered in the arity registry (which the compiler forces) is made visible with no
- * edit to `checker-names.ts` at all. What stays hand-written there is the *withholding*: the
- * one-entry `NAMES_AWAITING_AN_EVALUATOR` set, which today holds `challenge` alone because the
- * Tutor profile has no evaluator and a name that checks clean and then does nothing is the silent
- * no-op this repository refuses. A name added to that set — or left in it after its evaluator
- * shipped — falls through the guard above and reports `ol-unknown-command` instead of an arity
- * finding. That degrades *gracefully* — no false positive, and the honest "I don't know this name"
- * is the better of the two — and it is not silent: `profile-arity-derivation.test.mjs`'s DAG sweep
- * collects every registered-but-invisible name and asserts the set is exactly `["challenge"]`, so a
- * second one fails that test by name.
+ * edit to `checker-names.ts` at all. What used to stay hand-written there was a *withholding* — a
+ * one-entry set holding the Tutor profile's `challenge`, on the ground that it had no evaluator —
+ * and a name in it fell through the guard above and reported `ol-unknown-command` instead of an
+ * arity finding. Issue #815 retired it, because `spec/error-model.md:131` forbids withholding a
+ * registered name to make its call read as unknown. `challenge` therefore inherits its arity check
+ * like every other registered primitive whose profile is active, and the "unknown arity → skip"
+ * path is now reached only by names no active profile registers.
  *
  * ## `params.callable` is the name as its definition declares it
  * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same

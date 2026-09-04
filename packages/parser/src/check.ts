@@ -20,7 +20,10 @@
  * last Layer-2 (error) rule registered. Issue #667's Heritage form-head gate
  * (`checker-heritage-form.ts`) registers second, right after `ol-unknown-command`, since it too
  * reports an `ol-unknown-command` for an unrecognized command spelling — the Heritage
- * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive.
+ * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive. Issue #815's
+ * `checker-command-in-value-position.ts` (`ol-no-output` for a built-in Command used where a value
+ * is required, `spec/tooling.md:193`) registers after `arityRule`: a call's shape is settled before
+ * its Kind is judged.
  *
  * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
  * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
@@ -33,6 +36,7 @@
 import type { Diagnostic } from "@openlogo/core";
 import type { ProgramNode } from "./ast.js";
 import { arityRule } from "./checker-arity.js";
+import { commandInValuePositionRule } from "./checker-command-in-value-position.js";
 import { controlFlowRule } from "./checker-control-flow.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
@@ -143,6 +147,7 @@ const RULES: readonly CheckRule[] = [
   unknownTypeRule,
   unknownFieldRule,
   arityRule,
+  commandInValuePositionRule,
   notAPlaceRule,
   undefinedVarRule,
   declarationSlotRule,

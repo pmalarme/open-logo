@@ -1268,6 +1268,33 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-not-implemented`: a callable this specification defines, and this implementation
+   * registered — so the name resolves under the run's active profile set and carries a registered
+   * arity — reached no evaluation (`spec/error-model.md:131`,
+   * `spec/execution-model.md:717-735`). It reports **this implementation's** gap, not a mistake in
+   * the program, which is the whole reason it must stay distinct from `ol-unknown-command`.
+   *
+   * The message is the one `spec/error-model.md:131` prescribes verbatim, and its two halves both
+   * carry weight: *i know the word* is what `ol-unknown-command` cannot say, and *that is my gap,
+   * not your mistake* is the "without blame" the same line requires. It is written here rather than
+   * in `@openlogo/core`'s shared prose module because only this package produces it — the boundary
+   * that module's own doc comment draws.
+   *
+   * `stage` is `"runtime"`. The spec permits `"semantic"` "when the implementation knows before
+   * running that no evaluation exists", and declining that permission is fully conforming: whether
+   * an evaluation exists is a fact about this package, and `@openlogo/parser` — which owns the
+   * semantic stage — must not depend on it.
+   */
+  notImplemented(source_span: SourceSpan, name: string): Diagnostic {
+    return runtimeError(
+      "ol-not-implemented",
+      source_span,
+      { name },
+      `i know the word ${name}, but i can't run it yet. that is my gap, not your mistake.`,
+    );
+  },
+
+  /**
    * `ol-user-error`: `throw <value>` halted execution with a learner-facing message
    * (`spec/error-model.md:120`). `message` is the thrown word itself, or — when the thrown value
    * is not a word — its canonical printed form, exactly as `print` would show it.
@@ -1459,6 +1486,27 @@ export const runtimeDiag = {
       source_span,
       { name },
       `i don't know a type called "${name}" — try number, word, list, or boolean.`,
+    );
+  },
+
+  /**
+   * `ol-unknown-command`: a callee name nothing in the program resolves reached the evaluator
+   * (`spec/error-model.md:97`). It is the terminal rule's answer for a name OpenLogo does **not**
+   * define — the counterpart to {@link runtimeDiag.notImplemented}, which answers for one it does.
+   *
+   * A checked run never reaches it: the check before execution reports the same fault statically
+   * and refuses to start Phase 2 (`spec/execution-model.md:659-664`). Only
+   * `ExecuteOptions.runUnchecked` can, and there `runProgram` suppresses this second copy of a
+   * fault the check already reported (`spec/execution-model.md:746-748`) — which is why it carries
+   * no `suggestion`: the did-you-mean is computed over the **visible vocabulary**, a Layer-2
+   * concept, and the finding a learner actually reads is the static one that has it.
+   */
+  unknownCommand(source_span: SourceSpan, name: string): Diagnostic {
+    return runtimeError(
+      "ol-unknown-command",
+      source_span,
+      { name },
+      `i don't know how to ${name}. check the spelling, or define it first.`,
     );
   },
 

@@ -7,14 +7,15 @@
  * ("MUST use the active conformance profile set when deciding which primitives and profile
  * block-heads are available"), never a hardcoded "every optional profile active".
  *
- * **The name universes are derived, with two explicit exceptions.** Both exports below go through
+ * **The name universes are derived, with one explicit exception.** Both exports below go through
  * {@link profileContributedNames}, which sweeps the profile-keyed registries — `signatures.ts`'s
  * `PROFILE_PRIMITIVES` and `keywords.ts`'s `OL_PROFILE_KEYWORDS` — so a profile that gains a table
- * is covered the moment it lands, and **no profile and no name is enumerated by hand**. Exactly two
- * things are named here rather than derived, and both are claims rather than omissions: Core's
+ * is covered the moment it lands, and **no profile and no name is enumerated by hand**. Exactly one
+ * thing is named here rather than derived, and it is a claim rather than an omission: Core's
  * profile-independent {@link OL_KEYWORDS}, which by definition cannot come from a profile-keyed
- * table, and the one-entry {@link NAMES_AWAITING_AN_EVALUATOR} withholding. Neither grows when a
- * profile is added, which is the property a spread ladder cannot have.
+ * table. It does not grow when a profile is added, which is the property a spread ladder cannot
+ * have. (A second exception, a one-entry withholding of `challenge`, was retired by issue #815 —
+ * see {@link collectVisibleNames}.)
  *
  * That is issue #966's subject: this module previously kept a
  * spread ladder *and* a nine-branch profile chain, both hand-extended one slice at a time, and the
@@ -127,66 +128,26 @@ export function collectDeclaredNames(
 }
 
 /**
- * Registered primitives a program may not yet **call**, because a profile registered the name
- * before any evaluator could run it.
- *
- * `challenge` is the only one: issue #838 registered `TUTOR_PRIMITIVE_ARITY` so the name would stop
- * being invisible to every parser component at once, but `@openlogo/runtime` has no evaluator for
- * it. Making it visible here would let `challenge` check clean and then do nothing at run time,
- * which is precisely the "silent no-op" this repository refuses: **both halves of a name's
- * registration — checker visibility and a runtime that can run it — land in the same slice**, so a
- * program that checks clean is a program the runtime can actually execute. Until that slice,
- * `ol-unknown-command` is the honest answer.
- *
- * It is an **exception to a derivation, not a second list** — the shape issue #885 proved and epic
- * #900 cites as its own precedent ("derived `NON_PRIMARY_NAMES` from the registry minus an explicit
- * allowlist"). Names still come from the registries; only the deliberate withholding is written
- * down, so shipping Tutor's evaluator is one line deleted here rather than an arm someone must
- * remember to add. Note it deliberately does **not** narrow {@link isOptionalProfileName}: whether
- * `challenge` is an optional-profile word is a question about the registry, not about what runs
- * today, and answering it correctly now is what makes that slice a deletion.
- *
- * **What checks it, stated exactly.** This module cannot verify the claim itself — "an evaluator
- * exists" is a fact about `@openlogo/runtime`, which the parser must not depend on — so the entry
- * is a **manual cross-package exception**, and no test here can detect that an evaluator has since
- * shipped. What {@link namesAwaitingAnEvaluator} makes checkable is the half that lives in this
- * package: `checker-names-derivation.test.mjs` asserts every entry is a name some profile actually
- * registers, so a typo or a name left behind after its table was removed fails rather than silently
- * withholding nothing, and `profile-arity-derivation.test.mjs` pins that `challenge` is the only
- * name withheld, so a second one cannot be added unremarked. Retiring the entry stays a human step,
- * which is why it is one line with its reason beside it.
- */
-const NAMES_AWAITING_AN_EVALUATOR: ReadonlySet<string> = new Set(["challenge"]);
-
-/**
- * The registered primitives the checker deliberately withholds from
- * {@link collectVisibleNames} because no evaluator can run them yet. See
- * {@link NAMES_AWAITING_AN_EVALUATOR} for why the exception exists and what does — and does not —
- * enforce it.
- *
- * Exported because it is a **claim**, and a claim nothing can call is a claim nothing can check.
- * The `challenge` misclassification survived precisely because the set it belonged to was
- * unreachable from outside the module, so no test could name it.
- */
-export function namesAwaitingAnEvaluator(): readonly string[] {
-  return [...NAMES_AWAITING_AN_EVALUATOR].sort();
-}
-
-/**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to
  * OpenLogo's canonical spelling (identifiers are case-insensitive).
  *
  * Each active profile contributes exactly what {@link profileContributedNames} says it owns — its
  * primitives, its reserved statement heads, and (for Core) the structural keywords — so a profile
  * that is not in `profiles` contributes nothing and a profile registered later contributes without
- * an edit here. That is `spec/tooling.md:175-176`'s requirement ("MUST use the active conformance
+ * an edit here. That is `spec/tooling.md:174-177`'s requirement ("MUST use the active conformance
  * profile set when deciding which primitives and profile block-heads are available") expressed as a
  * sweep rather than as one hand-written `if (active.has(<profile>))` branch per profile — the shape
  * that had already drifted from the registry it mirrored (issue #966).
  *
- * The sweep withholds {@link NAMES_AWAITING_AN_EVALUATOR}, which is the one thing visibility asks
- * that the registry cannot answer. This is where this set and {@link isOptionalProfileName}'s
- * legitimately differ: both read the same profile registries, and only *callability* is filtered.
+ * **The sweep withholds nothing** (issue #815). It used to hold back one registered primitive,
+ * `challenge`, on the ground that no evaluator could run it, so the call would read as unknown.
+ * `spec/error-model.md:131` now forbids exactly that: an implementation "MUST NOT report
+ * `ol-unknown-command` for such a name, at any stage, including by withholding it from the visible
+ * vocabulary so that the call reads as unknown: the name is known." Withholding also misattributed
+ * the fault — it told a learner *i don't know how to challenge* about a word this specification
+ * defines and this implementation registered. A registered name whose profile is active is
+ * therefore visible here, and a call to one the evaluator cannot run reports `ol-not-implemented`
+ * where the gap actually is (`spec/execution-model.md:717-735`).
  *
  * Two things a *program* declares are added on top, and they carry different gates. Every `define`d
  * procedure is added **unconditionally** — procedures are not profile-owned, and declaration order
@@ -204,9 +165,7 @@ export function collectVisibleNames(
 
   for (const profile of active) {
     for (const name of profileContributedNames(profile)) {
-      if (!NAMES_AWAITING_AN_EVALUATOR.has(name)) {
-        names.add(name);
-      }
+      names.add(name);
     }
   }
 

@@ -49,6 +49,7 @@ export const OL_DIAGNOSTIC_CODES = [
   "ol-unknown-field",
   "ol-unknown-key",
   "ol-not-a-place",
+  "ol-not-implemented",
 ] as const;
 
 /** A stable `ol-*` diagnostic code from the normative registry. */
@@ -126,3 +127,57 @@ export interface Diagnostic {
 export function isDiagnosticCode(value: string): value is DiagnosticCode {
   return (OL_DIAGNOSTIC_CODES as readonly string[]).includes(value);
 }
+
+/**
+ * The identity of one *fault*, as `spec/execution-model.md:741-748` defines it for the
+ * de-duplication rule: `code` + `params` (diagnostic identity per `spec/error-model.md:255-260`)
+ * plus `source_span` (the location). `message` is derived prose and `stage` is deliberately
+ * **excluded** — the spec says outright that `stage` "records when the fault was found, not which
+ * fault it is", so the same fault reported at `semantic` and again at `runtime` is one fault.
+ *
+ * `params` keys are sorted before serializing so two findings that carry the same entries in a
+ * different insertion order compare equal. Two rules can legitimately build the same params object
+ * field-by-field in different orders, and an identity that depended on that order would silently
+ * let the duplicate through.
+ */
+function faultIdentity(diagnostic: Diagnostic): string {
+  const params = Object.keys(diagnostic.params)
+    .sort()
+    .map((key) => [key, diagnostic.params[key]]);
+  return JSON.stringify([
+    diagnostic.code,
+    diagnostic.source_span.document,
+    diagnostic.source_span.start,
+    diagnostic.source_span.end,
+    params,
+  ]);
+}
+
+/**
+ * Report each fault once — `spec/execution-model.md:741-748`'s **de-duplication** half of *one
+ * fault, one diagnostic*. Findings sharing a {@link faultIdentity} collapse to the FIRST one, and
+ * the surviving order is the input order, so the earliest and most specific report is the one a
+ * learner reads.
+ *
+ * It lives in core because more than one producer now has to obey it: the reader collapses the two
+ * findings its own recovery paths can push for a single fault, and the check-before-run gate
+ * (`spec/execution-model.md:632-694`) merges Layer 1's and Layer 2's collections, where the same
+ * fault can legitimately be found twice — once statically, once again at run time under the
+ * unchecked-run opt-out. A rule two packages implement separately is a rule they can drift on.
+ */
+export function dedupeDiagnostics(
+  diagnostics: readonly Diagnostic[],
+): readonly Diagnostic[] {
+  const seen = new Set<string>();
+  const result: Diagnostic[] = [];
+  for (const diagnostic of diagnostics) {
+    const identity = faultIdentity(diagnostic);
+    if (seen.has(identity)) {
+      continue;
+    }
+    seen.add(identity);
+    result.push(diagnostic);
+  }
+  return result;
+}
+

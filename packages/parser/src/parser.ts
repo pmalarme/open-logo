@@ -27,7 +27,7 @@
  * Heritage-active gating is again the checker's concern.
  */
 
-import { makeSpan } from "@openlogo/core";
+import { dedupeDiagnostics, makeSpan } from "@openlogo/core";
 import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";
 import { ast } from "./ast.js";
 import type {
@@ -3353,33 +3353,5 @@ export function parse(source: string, document = "<input>"): ParseResult {
   }
 
   const program = parseProgram();
-  return { ast: program, diagnostics: dedupeDiagnostics(diagnostics) };
-}
-
-/**
- * Error-recovery in a few places (e.g. `is member` missing `of`, then falling through into a
- * failed collection parse; `set :x to …`'s bad-token recovery) can independently push two
- * diagnostics for the very same finding. Collapse any diagnostic whose `(code, source_span,
- * params)` triple is byte-identical to an earlier one, keeping the FIRST occurrence and the
- * original order. `message` is deliberately excluded from the identity key — it is derived
- * prose, not part of a diagnostic's identity. Diagnostics at a *different* span (e.g.
- * `print 1, 2`'s two `ol-bad-token` findings) are distinct findings and both survive.
- */
-function dedupeDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
-  const seen = new Set<string>();
-  const result: Diagnostic[] = [];
-  for (const diagnostic of diagnostics) {
-    const key = JSON.stringify([
-      diagnostic.code,
-      diagnostic.source_span.start,
-      diagnostic.source_span.end,
-      diagnostic.params,
-    ]);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push(diagnostic);
-  }
-  return result;
+  return { ast: program, diagnostics: [...dedupeDiagnostics(diagnostics)] };
 }

@@ -34,6 +34,7 @@ export {
   builtInNameOwnershipSentence,
 } from "./diagnostic-messages.js";
 export {
+  dedupeDiagnostics,
   isDiagnosticCode,
   OL_DIAGNOSTIC_CODES,
   OL_STYLE_DIAGNOSTIC_CODES,
