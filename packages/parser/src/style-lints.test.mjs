@@ -1279,3 +1279,291 @@ test("ol-style-nested-handler: never fires unless style checking is opted into",
   }).diagnostics;
   assert.deepEqual(diagnostics.filter(isNestedHandler), []);
 });
+
+// --- ol-style-ambiguous-continuation ----------------------------------------------------------
+
+const isAmbiguousContinuation = (d) =>
+  d.code === "ol-style-ambiguous-continuation";
+
+// Case A: leading infix operator on continuation line
+
+test("ol-style-ambiguous-continuation: `print 10\\n- 5` flags the leading `- ` as continuation", () => {
+  const diagnostics = checkStyle("print 10\n- 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-style-ambiguous-continuation");
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-",
+    reading: "continuation",
+  });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+  // Span covers the `-` on line 2
+  assert.deepEqual(diagnostics[0].source_span.start, [2, 1]);
+  assert.deepEqual(diagnostics[0].source_span.end, [2, 2]);
+});
+
+test("ol-style-ambiguous-continuation: `print 10\\n+ 2` flags leading `+`", () => {
+  const diagnostics = checkStyle("print 10\n+ 2").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `print 10\\n* 5` flags leading `*`", () => {
+  const diagnostics = checkStyle("print 10\n* 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "*",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `print 10\\n/ 2` flags leading `/`", () => {
+  const diagnostics = checkStyle("print 10\n/ 2").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "/",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `print 10\\nmod 3` flags leading `mod`", () => {
+  const diagnostics = checkStyle("print 10\nmod 3").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "mod",
+    reading: "continuation",
+  });
+});
+
+// Case B: leading negative literal on new statement
+
+test("ol-style-ambiguous-continuation: `print 10\\n-5` flags the leading `-5` as new-statement", () => {
+  const diagnostics = checkStyle("print 10\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+  // Span covers `-5` on line 2
+  assert.deepEqual(diagnostics[0].source_span.start, [2, 1]);
+  assert.deepEqual(diagnostics[0].source_span.end, [2, 3]);
+});
+
+test("ol-style-ambiguous-continuation: `-3.14` as negative literal", () => {
+  const diagnostics = checkStyle("print 10\n-3.14").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-3.14",
+    reading: "new-statement",
+  });
+});
+
+// Negative tests — must stay silent
+
+test("ol-style-ambiguous-continuation: `print 10\\nprint 20` is silent", () => {
+  const diagnostics = checkStyle("print 10\nprint 20").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: single-line `print 10 - 5` is silent", () => {
+  const diagnostics = checkStyle("print 10 - 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: inside parens `print (10\\n- 5)` is silent", () => {
+  const diagnostics = checkStyle("print (10\n- 5)").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: after control form `repeat 4 [ ]\\n-5` is silent", () => {
+  const diagnostics = checkStyle("repeat 4 [ ]\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: after `if` `if true [ print 1 ]\\n-5` is silent", () => {
+  const diagnostics = checkStyle("if true [ print 1 ]\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: inside a block fires once, not twice", () => {
+  const diagnostics = checkStyle("repeat 4 [\nprint 10\n- 5\n]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: comment line `// foo` is silent", () => {
+  const diagnostics = checkStyle("print 10\n// this is a comment\n+ 2").filter(
+    isAmbiguousContinuation,
+  );
+  // The `+ 2` on line 3 should still flag since it continues print 10
+  const cont = diagnostics.filter((d) => d.params.reading === "continuation");
+  assert.equal(cont.length, 1);
+  assert.deepEqual(cont[0].params, { token: "+", reading: "continuation" });
+});
+
+test("ol-style-ambiguous-continuation: never fires without style opt-in", () => {
+  const src = "print 10\n- 5";
+  const { ast: program } = OL.parse(src, doc);
+  const diagnostics = OL.check(program, { source: src }).diagnostics;
+  assert.deepEqual(diagnostics.filter(isAmbiguousContinuation), []);
+});
+
+test("ol-style-ambiguous-continuation: indented continuation still flags", () => {
+  const diagnostics = checkStyle("print 10\n  - 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-",
+    reading: "continuation",
+  });
+  // Column accounts for indentation (1-based, 2 spaces + 1)
+  assert.deepEqual(diagnostics[0].source_span.start, [2, 3]);
+});
+
+test("ol-style-ambiguous-continuation: `-:x` (no space) on continuation line flags minus as infix", () => {
+  const src = ":x = 3\nprint 10\n-:x";
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: trailing-operator continuation with non-operator next line is silent", () => {
+  // `print 10 +\n5` — the `5` on line 2 is not an infix operator, so no lint.
+  const diagnostics = checkStyle("print 10 +\n5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: trailing-operator continuation with -5 next line is silent", () => {
+  // `print 10 +\n-5` — a single statement; `-5` is a negative literal operand,
+  // not an ambiguous leading token (the trailing `+` already guaranteed continuation).
+  const diagnostics = checkStyle("print 10 +\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: blank continuation line inside multi-line statement is silent", () => {
+  // `print 10 +\n\n5` — the blank line is a continuation interior; no operator found.
+  const diagnostics = checkStyle("print 10 +\n\n5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `mod` followed by tab on continuation line flags", () => {
+  const diagnostics = checkStyle("print 10\nmod\t2").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "mod",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `-0.5` negative decimal as new statement flags", () => {
+  const diagnostics = checkStyle("print 10\n-0.5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-0.5",
+    reading: "new-statement",
+  });
+});
+
+test("ol-style-ambiguous-continuation: repeat header continuation flags", () => {
+  // `repeat 10\n+ 5 [...]` — the `+ 5` on line 2 is a header continuation
+  const diagnostics = checkStyle("repeat 10\n+ 5 [ print 1 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `add ... to` followed by -5 flags Case B", () => {
+  const src = ":xs = []\nadd 1 to :xs\n-5";
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `tell` followed by -5 flags Case B", () => {
+  const src = "tell 0\n-5";
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+});
+
+test("ol-style-ambiguous-continuation: block-bearing profile statement (`ask`) suppresses Case B", () => {
+  const diagnostics = checkStyle("ask 0 [ print 1 ]\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `mod(3)` on continuation line flags", () => {
+  const diagnostics = checkStyle("print 10\nmod(3)").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "mod",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: map comprehension body fires once, not twice", () => {
+  const src = ":ys = map x in [1] [\nprint 10\n- 5\n]";
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+});

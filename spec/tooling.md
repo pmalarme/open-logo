@@ -251,6 +251,7 @@ it MUST keep the code identity stable when the rule is enabled.
 | `ol-style-deep-nesting` | Deep unlabeled nesting should be refactored or labeled with matching `end <form>` where long blocks are used. |
 | `ol-style-hidden-abstraction` | A shortcut procedure such as `draw_square 100` hides a concept that the surrounding lesson expects the learner to build from `repeat`. |
 | `ol-style-nested-handler` | An `every` handler whose block lexically contains another handler registration, which accumulates handlers without bound: each firing can add one more. Handlers registered inside `on_key`/`on_click` blocks are not flagged, because a key press or click is bounded by the user. The check is lexical, so a registration reached only through a procedure call is not reported. |
+| `ol-style-ambiguous-continuation` | A continuation line begins with an infix operator (`+`, `-`, `*`, `/`, `mod`), or a new statement begins with a negative literal (such as `-5`) directly after a statement that would accept `- 5` as continuation. The message names both readings and states which one the parser chose (`spec/grammar.md:34`). |
 
 Example style diagnostics:
 
