@@ -74,6 +74,7 @@ import type {
 import {
   analyze,
   isBuiltInName,
+  suggestionForUnknownName,
   isPrimitiveCommandName,
   walk,
 } from "@openlogo/parser";
@@ -4911,7 +4912,11 @@ function inactiveProfileCallee(
     const head = rawStatement.keyword.name;
     return knownUnderProfiles(head, environment.profiles)
       ? undefined
-      : runtimeDiag.unknownCommand(rawStatement.keyword.source_span, head);
+      : runtimeDiag.unknownCommand(
+          rawStatement.keyword.source_span,
+          head,
+          environment.suggestionFor(head),
+        );
   }
   // A DECLARATION whose profile is inactive is refused for the same reason: without this, a run
   // claiming Core Language alone declared a `struct` and then executed its constructor — and the
@@ -4942,7 +4947,11 @@ function inactiveProfileCallee(
   if (knownUnderProfiles(spelled, environment.profiles)) {
     return undefined;
   }
-  return runtimeDiag.unknownCommand(rawStatement.callee.source_span, spelled);
+  return runtimeDiag.unknownCommand(
+    rawStatement.callee.source_span,
+    spelled,
+    environment.suggestionFor(spelled),
+  );
 }
 
 function executeStatements(
@@ -5711,6 +5720,7 @@ function createExecutionEnvironment(
     frames: [new Map()],
     repeatTurns: [],
     profiles,
+    suggestionFor: (name) => suggestionForUnknownName(name, program, profiles),
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
@@ -5936,77 +5946,35 @@ function executeMainLine(
 
 /**
  * The diagnostics one completed run reports: the check's findings first, then whatever the run
- * itself raised — with the *second report of a fault the check already made* suppressed, as
- * `spec/execution-model.md:746-748` requires.
+ * itself raised, de-duplicated on **the spec's own fault identity and nothing wider**.
  *
- * That suppression only ever has work to do under {@link ExecuteOptions.runUnchecked}: "A fault the
+ * `spec/execution-model.md:741-748` defines that identity exactly — the same `code`, the same
+ * `params`, the same `source_span`, with `stage` deliberately excluded — and requires such a fault
+ * to be reported once. `:663-664` requires the delivered set to be "otherwise unaltered", which is
+ * what forbids suppressing anything the identity rule does not match. So {@link dedupeDiagnostics},
+ * which implements exactly that identity, is the whole of the rule and this function is only the
+ * concatenation.
+ *
+ * **An earlier version of this widened the identity** — same `code`, *overlapping* spans, and
+ * `params` in a subset relation — to absorb three places where the two stages described one fault
+ * at different granularities. That was a non-normative alteration of the delivered set, and the
+ * repair was to remove the divergences rather than to tolerate them: `ol-no-output` now carries the
+ * whole call's span at both stages, and a runtime `ol-unknown-command` carries the same
+ * `suggestion` because both stages call `@openlogo/parser`'s one did-you-mean implementation. Two
+ * reports of one fault are now identical, so the normative rule collapses them; where they are not
+ * identical they are genuinely two findings, and both are owed to the learner.
+ *
+ * The suppression only ever has work to do under {@link ExecuteOptions.runUnchecked}: "A fault the
  * check already reported cannot ordinarily recur at run time, because the program does not run;
  * under the opt-out above it can, and the second report MUST be suppressed rather than delivered."
- *
- * {@link dedupeDiagnostics} does most of it, on the spec's own fault identity — `code` + `params` +
- * `source_span`. What it cannot reach is the case where the two stages describe one fault at
- * different **granularities**, and both shapes of that are real: the semantic checker points
- * `ol-return-outside-proc` at the control word while the runtime points it at the whole `return :n`
- * statement, and a runtime `ol-unknown-command` carries no `suggestion` because the did-you-mean is
- * computed over the visible vocabulary, which is a Layer-2 concept.
- *
- * So the rule stated here extends fault identity along exactly those two axes and no further. A
- * run-time finding is the second report of a static one when all three hold: the same `code`,
- * **overlapping** spans (one construct read at a coarser grain), and `params` where one side's
- * entries are a **subset** of the other's (the same fault described with more or less detail). Two
- * genuinely different faults that happen to share a code inside one construct — the case a bare
- * overlap test would swallow — differ in their params and are both still delivered. The check's
- * copy is the one kept: it is the earlier report and, for did-you-mean, the more helpful one.
  */
 export function mergeRunDiagnostics(
   checked: readonly Diagnostic[],
   raised: Diagnostic | undefined,
 ): readonly Diagnostic[] {
-  if (raised === undefined) {
-    return [...checked];
-  }
-  const alreadyReported = checked.some(
-    (diagnostic) =>
-      diagnostic.code === raised.code &&
-      spansOverlap(diagnostic.source_span, raised.source_span) &&
-      paramsAgree(diagnostic.params, raised.params),
-  );
   return [
-    ...dedupeDiagnostics(alreadyReported ? checked : [...checked, raised]),
+    ...dedupeDiagnostics(raised === undefined ? checked : [...checked, raised]),
   ];
-}
-
-/**
- * Do two `params` objects describe the same fault at different levels of detail — that is, is one
- * side's set of entries a subset of the other's, agreeing on every key they share? `{ name }` and
- * `{ name, suggestion }` agree; `{ name: "a" }` and `{ name: "b" }` do not.
- */
-function paramsAgree(
-  left: Readonly<Record<string, unknown>>,
-  right: Readonly<Record<string, unknown>>,
-): boolean {
-  const [narrow, wide] =
-    Object.keys(left).length <= Object.keys(right).length
-      ? [left, right]
-      : [right, left];
-  return Object.keys(narrow).every(
-    (key) =>
-      key in wide && JSON.stringify(narrow[key]) === JSON.stringify(wide[key]),
-  );
-}
-
-/**
- * Do two half-open `[start, end)` source ranges share any text? Compared on `(line, column)` pairs
- * rather than absolute offsets, because that is what a {@link SourceSpan} carries.
- *
- * The `document` is deliberately not compared: both spans come from the same `execute()` call and
- * therefore from the same document by construction, so a check would be an unreachable branch
- * rather than a safeguard.
- */
-function spansOverlap(left: SourceSpan, right: SourceSpan): boolean {
-  const before = (a: SourceSpan["start"], b: SourceSpan["start"]): boolean =>
-    a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
-  return before(left.start, right.end) && before(right.start, left.end);
 }
 
 /**

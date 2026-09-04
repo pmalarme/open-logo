@@ -84,6 +84,12 @@ export { analyze } from "./analyze.js";
 export type { AnalyzeOptions, AnalyzeResult } from "./analyze.js";
 export { applyOneFaultRules } from "./one-fault.js";
 
+// The did-you-mean computation, shared with `@openlogo/runtime` so that a runtime
+// `ol-unknown-command` reached under the unchecked-run opt-out is byte-identical to the check's and
+// collapses under the normative de-duplication rule instead of arriving beside it
+// (`spec/execution-model.md:741-748`).
+export { suggestionForUnknownName } from "./checker-unknown-command.js";
+
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 

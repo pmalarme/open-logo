@@ -39,35 +39,41 @@
 //
 // The at-risk class is defined by the mechanism, not by inspection: a runtime guard is masked
 // exactly when **the checker can emit the same code for the same program**, because de-duplication
-// (`spec/execution-model.md:746-748`) then keeps the checker's copy and the runtime's contribution
-// disappears from `diagnostics`. That filter is enumerable. Intersecting the codes built in
-// `packages/runtime/src/errors.ts` with those pushed by `packages/parser/src/checker-*.ts` gives
-// **27 runtime codes, 15 of them maskable**. The other 12 (`ol-div-zero`, `ol-type`, `ol-range`,
-// `ol-limit`, `ol-not-boolean`, `ol-user-error`, …) have no checker twin, so they survive as
-// `stage: "runtime"` and the ordinary tests already assert them.
+// (`spec/execution-model.md:741-748`) then keeps the checker's copy and the runtime's contribution
+// disappears from `diagnostics`. That filter is enumerable — intersect the codes built in
+// `packages/runtime/src/errors.ts` with those pushed by `packages/parser/src/checker-*.ts` — and it
+// is worth re-deriving rather than trusting a number written here:
 //
-// **The unit is a raise SITE, not a code, and this file learned that the expensive way.** Those 15
-// codes are raised from **83 distinct sites** across `execute-internal.ts` and `evaluate.ts`, and
-// sites under one code do not behave alike. `ol-unknown-type` has two: the prefix `is_a?` reports at
+//   git grep -o 'ol-[a-z-]*' -- packages/runtime/src/errors.ts | sort -u
+//   git grep -o 'ol-[a-z-]*' -- 'packages/parser/src/checker-*.ts' | sort -u
+//
+// Codes with no checker twin (`ol-div-zero`, `ol-type`, `ol-range`, `ol-limit`, `ol-not-boolean`,
+// `ol-user-error`, …) are not at risk: they survive as `stage: "runtime"` and the ordinary tests
+// already assert them.
+//
+// **The unit is a raise SITE, not a code, and this file learned that the expensive way.** Sites
+// under one code do not behave alike. `ol-unknown-type` has two: the prefix `is_a?` reports at
 // `stage: "runtime"` and is protected by conformance fixtures, while the worded `5 is a "banana"`
 // reports at `semantic` and was completely unprotected — its guard could be deleted with the halt
-// suite, conformance and all 5030 tests green. An earlier version of this note excused the whole
-// code on the strength of the protected sibling. That was prose justifying an absence, and the
-// absence was real.
+// suite, conformance and the whole test suite green. An earlier version of this note excused the
+// whole code on the strength of the protected sibling. That was prose justifying an absence, and
+// the absence was real.
 //
-// So the honest statement, at site granularity:
+// **No completeness is claimed, and the counts that used to be here are gone.** They were wrong
+// twice — a count of codes reported as a count of sites, then a count of cases that miscounted
+// itself — and `AGENTS.md` is explicit that a derived count in prose is an unenforced assertion.
+// What is true and checkable: every case below is a maskable site, each was measured to halt with
+// the surviving diagnostic reading `stage: "semantic"`, and **the maskable sites this file does not
+// list are not covered by anything**. Three codes have no halt to assert at any site, each for its
+// own measured reason — `ol-too-many-inputs` (refused at parse as `ol-bad-token`, so unreachable
+// through `execute()`), and `ol-duplicate-definition` / `ol-reserved-word` (registration-phase: the
+// whole program is refused before any statement runs, so there is no partial run to truncate).
 //
-//   - **12 sites are covered here**, one per code for twelve of the fifteen codes.
-//   - **3 codes have no halt to assert at any site**, each for its own measured reason —
-//     `ol-too-many-inputs` (refused at parse as `ol-bad-token`; unreachable through `execute()`),
-//     and `ol-duplicate-definition` / `ol-reserved-word` (registration-phase: the whole program is
-//     refused before any statement runs, so there is no partial run to truncate — `events` is `[]`).
-//   - **The remaining sites are NOT enumerated**, and no completeness is claimed for them. Where a
-//     code has one site, covering it covers the code; where it has several — `ol-too-many-inputs`
-//     29, `ol-not-enough-inputs` 21, `ol-return-outside-proc` 5, `ol-stop-outside-proc` 5,
-//     `ol-unknown-command` 5, `ol-duplicate-binder` 4, `ol-undefined-var` 4, `ol-no-output` 2,
-//     `ol-unknown-type` 2 — one covered site says nothing about its siblings, as `ol-unknown-type`
-//     demonstrates.
+// **Two cases below are weaker than the rest, and say so rather than being quietly counted.**
+// Top-level `return` and `stop` terminate through their own control signals before `runProgram`
+// builds a diagnostic, so deleting the diagnostic construction alone leaves both the event
+// assertion and the merged-diagnostic assertion green. They are kept because the halt itself is
+// still worth pinning, but they are control paths, not load-bearing diagnostic raise sites.
 //
 // **The second suppression mechanism was checked too, and does not extend the class.** This slice
 // also implements the precedence rule, which suppresses a *different* code (`ol-bad-token` beside an
@@ -78,9 +84,8 @@
 // in a set precedence examines.
 //
 // **What would falsify this** is either the frame or the granularity: a masking route that is
-// neither same-code de-duplication nor precedence, or — far likelier — one of the 71 maskable raise
-// sites this file does not cover turning out to be masked and unprotected, exactly as the worded
-// `is a` was.
+// neither same-code de-duplication nor precedence, or — far likelier — a maskable raise site this
+// file does not list turning out to be masked and unprotected, exactly as the worded `is a` was.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -466,21 +471,39 @@ test("a declaration of an inactive profile does not run its constructor", () => 
   );
 });
 
-test("the claimed profile set cannot be changed after the run has been checked", () => {
+test("the claimed profile set cannot be widened DURING the run", () => {
   // `spec/execution-model.md:680` — "One value MUST govern both the check and the run" — is not
-  // satisfied if a caller can hand in an array and then mutate it. Measured before the array was
-  // copied: adding `turtle-rendering` from inside a synchronous host callback made the check report
-  // `forward` unknown and the run then move and draw it.
-  const profiles = ["core-language"];
-  const result = execute("forward 100\n", doc, {
+  // satisfied if a caller can hand in an array and then mutate it. An earlier version of this test
+  // mutated `profiles` *after* `execute()` returned, which proves nothing: `execute()` is
+  // synchronous, so the run is already over and the assertion passes whether the array was copied
+  // or aliased. A reviewer caught that, and the fix is to mutate from inside the run.
+  //
+  // `hostInput.read` is the seam that makes it possible: it is called synchronously mid-run
+  // (`spec/interaction-events.md:108-111` requires no instruction to advance until the read
+  // finishes), so widening the caller's array there is exactly the hostile case. Interaction &
+  // Events is claimed because `input` belongs to it — without that the run halts at the `input`
+  // itself and the callback never fires, which is how the first attempt at this test silently
+  // measured nothing. Turtle & Rendering is the profile the host tries to smuggle in.
+  const profiles = ["core-language", "interaction-events"];
+  let widenedDuringRun = false;
+  const result = execute(':answer = input "go"\nforward 100\n', doc, {
     profiles,
     runUnchecked: true,
+    hostInput: {
+      read: () => {
+        profiles.push("turtle-rendering");
+        widenedDuringRun = true;
+        return "ok";
+      },
+    },
   });
-  profiles.push("turtle-rendering");
-  assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
-    "mutating the caller's array must not retroactively widen the run",
+
+  assert.ok(widenedDuringRun, "the host callback must actually have run");
+  assert.ok(
+    !result.events.some(
+      (event) => event.kind === "move" || event.kind === "draw-segment",
+    ),
+    "widening the caller's array mid-run must not admit a primitive the run never claimed",
   );
 });
 

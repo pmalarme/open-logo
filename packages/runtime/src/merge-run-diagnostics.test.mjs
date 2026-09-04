@@ -1,24 +1,28 @@
 // Direct tests for `mergeRunDiagnostics`, the function that decides whether the runtime's copy of a
 // fault the check already reported is a duplicate or a second finding.
 //
-// It is tested here rather than through `execute()` because **no source program can currently tell
-// its `paramsAgree` conjunct apart from a version that always returns `true`** — measured: neutering
-// that conjunct leaves `npm run test` green and conformance at 1002/1002. A domain-QA review found
-// exactly that and was right to call the doc comment's assurance unverified.
+// **It implements the spec's identity and nothing wider, and that is the point of this file.** An
+// earlier version extended fault identity along two axes — *overlapping* spans rather than equal
+// ones, and `params` in a subset relation rather than equal ones — to absorb three places where the
+// two stages described one fault at different granularities. `spec/execution-model.md:741-743`
+// makes identity exactly `code` + `params` + `source_span`, and `:663-664` requires the delivered
+// set to be "otherwise unaltered", so that widening was a non-normative alteration: it suppressed
+// findings the contract says must be delivered.
 //
-// The conjunct is kept rather than deleted, and this file is why the decision is checkable instead
-// of asserted. It guards a failure this slice genuinely produced: while `evaluateCall`'s terminal
-// still named the *canonical* spelling of a Heritage alias, `print fd 5` under a run not claiming
-// Heritage raised a runtime `ol-unknown-command{name:"forward"}` whose span overlapped the check's
-// `ol-unknown-command{name:"fd"}`. With `paramsAgree` in place those stayed two findings, which is
-// what made the discrepancy visible; without it the runtime's copy would have been silently
-// absorbed by a diagnostic about a different word. The bug is fixed — the terminal now names what
-// the learner wrote — so the discriminating case no longer arises from a program, and the identity
-// rule is pinned directly instead.
+// The repair was to remove the divergences rather than tolerate them. `ol-no-output` now carries
+// the whole call's span at both stages; `ol-return-outside-proc` and `ol-return-in-comprehension`
+// are narrowed to the control word at both; and a runtime `ol-unknown-command` carries the same
+// `suggestion` because both stages call `@openlogo/parser`'s single did-you-mean implementation.
+// Measured after: across seventeen probe programs under the unchecked-run opt-out, **zero** report
+// any code twice.
 //
-// `spec/error-model.md:255-260` makes diagnostic identity `code` + `params` + `source_span`;
-// `spec/execution-model.md:746-748` is the de-duplication rule this implements, with `stage`
-// deliberately excluded so a checker report and its runtime twin collapse.
+// So the tests below pin both directions — identical findings collapse, and findings that differ in
+// span or params are two findings and are both delivered. The second direction is the one that
+// keeps this honest: it is what makes a future divergence fail loudly here instead of being
+// silently absorbed.
+//
+// `spec/error-model.md:255-260` defines diagnostic identity; `spec/execution-model.md:744-745`
+// excludes `stage` from it, so a checker report and its runtime twin collapse.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -41,15 +45,47 @@ function diagnostic(code, params, start, end, stage) {
 }
 
 test("a runtime twin of a fault the check reported collapses into it", () => {
-  // Same code, same params, and a runtime span that CONTAINS the check's — the ordinary case, and
-  // the reason spans are compared by overlap rather than equality: the checker points at the
-  // control word while the runtime points at the whole statement.
+  // The whole of the rule: identical `code`, `params` and `source_span`, differing only in `stage`,
+  // which `spec/execution-model.md:744-745` explicitly excludes — "it records when the fault was
+  // found, not which fault it is".
   const checked = [
     diagnostic(
       "ol-no-output",
       { procedure: "forward" },
       [1, 6],
-      [1, 20],
+      [1, 15],
+      "semantic",
+    ),
+  ];
+  const raised = diagnostic(
+    "ol-no-output",
+    { procedure: "forward" },
+    [1, 6],
+    [1, 15],
+    "runtime",
+  );
+  assert.deepEqual(
+    mergeRunDiagnostics(checked, raised).map((entry) => [
+      entry.code,
+      entry.stage,
+    ]),
+    [["ol-no-output", "semantic"]],
+    "the surviving report is the check's, and the stage difference must not keep both",
+  );
+});
+
+test("a DIFFERENT span is a different finding, and both are delivered", () => {
+  // The boundary the widening used to blur. `spec/execution-model.md:741-743` makes the
+  // `source_span` part of fault identity, and `:663-664` requires the delivered set to be
+  // "otherwise unaltered" — so a runtime report at a coarser span is not the same fault and MUST
+  // NOT be suppressed. This is what forced the two stages to agree at the source instead: the
+  // repair for a divergence is to remove it, not to tolerate it here.
+  const checked = [
+    diagnostic(
+      "ol-no-output",
+      { procedure: "forward" },
+      [1, 6],
+      [1, 15],
       "semantic",
     ),
   ];
@@ -60,46 +96,13 @@ test("a runtime twin of a fault the check reported collapses into it", () => {
     [1, 13],
     "runtime",
   );
-  const merged = mergeRunDiagnostics(checked, raised);
-  assert.deepEqual(
-    merged.map((entry) => [entry.code, entry.stage]),
-    [["ol-no-output", "semantic"]],
-    "the surviving report is the check's, and the stage difference must not keep both",
-  );
+  assert.equal(mergeRunDiagnostics(checked, raised).length, 2);
 });
 
-test("params discriminate: a runtime fault naming a different callable is NOT a duplicate", () => {
-  // The conjunct this file exists for. Identical code, overlapping spans, different `params` — two
-  // genuinely different faults inside one construct. Widening the identity by dropping the params
-  // test swallows the second, which is the failure mode the doc comment claims is impossible; this
-  // is the assertion that makes the claim true rather than merely written.
-  const checked = [
-    diagnostic(
-      "ol-unknown-command",
-      { name: "fd" },
-      [1, 7],
-      [1, 9],
-      "semantic",
-    ),
-  ];
-  const raised = diagnostic(
-    "ol-unknown-command",
-    { name: "forward" },
-    [1, 7],
-    [1, 9],
-    "runtime",
-  );
-  const merged = mergeRunDiagnostics(checked, raised);
-  assert.deepEqual(
-    merged.map((entry) => entry.params.name),
-    ["fd", "forward"],
-    "a runtime diagnostic about a different name must survive the merge",
-  );
-});
-
-test("params agreement is subset-shaped, not equality-shaped", () => {
-  // The check's `ol-unknown-command` carries a `suggestion` the runtime cannot compute, so equality
-  // would keep both copies of one fault. Agreement on the keys they share is the rule.
+test("DIFFERENT params are a different finding, and both are delivered", () => {
+  // Same reasoning on the other axis. A runtime `ol-unknown-command` missing the `suggestion` the
+  // check computed would land here — which is why the runtime now calls `@openlogo/parser`'s own
+  // did-you-mean rather than reporting a coarser copy.
   const checked = [
     diagnostic(
       "ol-unknown-command",
@@ -116,7 +119,7 @@ test("params agreement is subset-shaped, not equality-shaped", () => {
     [1, 6],
     "runtime",
   );
-  assert.equal(mergeRunDiagnostics(checked, raised).length, 1);
+  assert.equal(mergeRunDiagnostics(checked, raised).length, 2);
 });
 
 test("the code discriminates: a different code at the same span is NOT a duplicate", () => {

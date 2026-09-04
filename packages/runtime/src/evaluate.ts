@@ -268,6 +268,20 @@ export interface Environment {
    * inherits this by spreading its parent, so a procedure body is judged under the same set.
    */
   readonly profiles: readonly CheckProfile[];
+  /**
+   * The did-you-mean suggestion for an unresolvable callable, bound to this run's program and
+   * claimed profile set.
+   *
+   * It exists so the runtime's `ol-unknown-command` is **identical** to the check's, rather than a
+   * coarser copy of it. `spec/execution-model.md:741-748` makes two findings the same fault only
+   * when `code`, `params` and `source_span` all match, so a runtime report missing the
+   * `suggestion` the check computed is a *different* finding and would be delivered beside it. The
+   * function is `@openlogo/parser`'s own, not a second implementation — a second one would drift.
+   *
+   * `createEnvironment()` binds a function returning `undefined`: that bare environment models one
+   * expression evaluation and has no program whose vocabulary could be searched.
+   */
+  readonly suggestionFor: (name: string) => string | undefined;
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
   readonly events: TraceEvent[];
@@ -629,6 +643,7 @@ export function createEnvironment(): Environment {
     // evaluation rather than a run someone started, so there is nobody to name a narrower set;
     // `execute()` overrides it with the run's claimed set (`spec/execution-model.md:673-680`).
     profiles: SUPPORTED_PROFILES,
+    suggestionFor: () => undefined,
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
@@ -2077,6 +2092,7 @@ function evaluateCall(
       diagnostic: runtimeDiag.unknownCommand(
         node.callee.source_span,
         node.callee.name,
+        environment.suggestionFor(node.callee.name),
       ),
     };
   }
@@ -2256,7 +2272,11 @@ function evaluateCall(
     return {
       ok: false,
       diagnostic: runtimeDiag.noOutputFromCommand(
-        node.callee.source_span,
+        // The **whole call**, matching `checker-command-in-value-position.ts`'s span rather than
+        // the callee word. `spec/error-model.md:114` puts this diagnostic at "the offending call
+        // site", and the two stages must agree byte-for-byte or the normative de-duplication rule
+        // (`spec/execution-model.md:741-748`) does not see them as one fault and delivers both.
+        node.source_span,
         name,
       ),
     };
@@ -2271,7 +2291,11 @@ function evaluateCall(
         // they wrote `fd` describes a program they did not write. It also keeps this identical to
         // the check's own report of the same fault, so the two collapse under the de-duplication
         // rule instead of arriving as two.
-        runtimeDiag.unknownCommand(node.callee.source_span, node.callee.name),
+        runtimeDiag.unknownCommand(
+          node.callee.source_span,
+          node.callee.name,
+          environment.suggestionFor(node.callee.name),
+        ),
   };
 }
 

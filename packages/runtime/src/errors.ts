@@ -1347,7 +1347,18 @@ export const runtimeDiag = {
     };
     return runtimeError(
       "ol-return-outside-proc",
-      source_span,
+      // Narrowed to the **control word**, matching `checker-control-flow.ts`'s `controlWordSpan`
+      // exactly. `spec/tooling.md:189` says to point at the control word, and the callers here hand
+      // in the whole `return :n` statement's span — so without this the runtime's copy of a fault
+      // the check already reported has a different `source_span`, which under
+      // `spec/execution-model.md:741-748` makes it a *different* finding that is delivered beside
+      // the first instead of collapsing into it. Measured before this: `return 1` under the
+      // unchecked-run opt-out reported `ol-return-outside-proc` twice.
+      {
+        document: source_span.document,
+        start: source_span.start,
+        end: [source_span.start[0], source_span.start[1] + keyword.length],
+      },
       { ...params },
       `${keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
     );
@@ -1467,7 +1478,16 @@ export const runtimeDiag = {
     };
     return runtimeError(
       "ol-return-in-comprehension",
-      source_span,
+      // Narrowed to the control word for the same reason as `returnOutsideProc` above: the checker
+      // points here (`spec/tooling.md:189`) and the two reports must be byte-identical to collapse
+      // under `spec/execution-model.md:741-748`. Measured before this, a `return` in a
+      // comprehension body reported twice under the unchecked-run opt-out. `stop` carries no
+      // operand, so its statement span already IS the control word and the arithmetic is a no-op.
+      {
+        document: source_span.document,
+        start: source_span.start,
+        end: [source_span.start[0], source_span.start[1] + keyword.length],
+      },
       { ...params },
       `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
     );
@@ -1521,12 +1541,22 @@ export const runtimeDiag = {
    * no `suggestion`: the did-you-mean is computed over the **visible vocabulary**, a Layer-2
    * concept, and the finding a learner actually reads is the static one that has it.
    */
-  unknownCommand(source_span: SourceSpan, name: string): Diagnostic {
+  unknownCommand(
+    source_span: SourceSpan,
+    name: string,
+    suggestion?: string,
+  ): Diagnostic {
+    // `name` is case-folded and `suggestion` is the check's own computation, passed in rather than
+    // recomputed, so this report is byte-identical to the semantic one for the same fault and
+    // collapses under `spec/execution-model.md:741-748` instead of arriving beside it.
+    const lower = name.toLowerCase();
     return runtimeError(
       "ol-unknown-command",
       source_span,
-      { name },
-      `i don't know how to ${name}. check the spelling, or define it first.`,
+      suggestion === undefined ? { name: lower } : { name: lower, suggestion },
+      suggestion === undefined
+        ? `i don't know how to ${lower}. check the spelling, or define it first.`
+        : `i don't know how to ${lower}. did you mean ${suggestion}?`,
     );
   },
 

@@ -198,6 +198,31 @@ function messageFor(name: string, suggestion: string | undefined): string {
  * grammar operator) raises one diagnostic, with a suggestion when a visible candidate is within
  * edit distance 2.
  */
+/**
+ * The did-you-mean suggestion this specification requires for an unresolvable callable, computed
+ * over the **visible** vocabulary of `program` under `profiles`.
+ *
+ * Exported so `@openlogo/runtime` can produce a byte-identical `ol-unknown-command` when it reaches
+ * the same fault under the unchecked-run opt-out. That matters normatively rather than
+ * cosmetically: `spec/execution-model.md:741-748` defines two findings as the same fault only when
+ * `code`, `params` and `source_span` all match, and requires the second report to be "suppressed
+ * rather than delivered". A runtime copy missing the `suggestion` the check computed is, by that
+ * definition, a *different* finding — so it would be delivered beside the first, and the learner
+ * would read one fault twice. One implementation of the rule, used by both stages, is what makes
+ * the two reports identical instead of merely similar.
+ */
+export function suggestionForUnknownName(
+  name: string,
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): string | undefined {
+  return bestSuggestion(
+    name.toLowerCase(),
+    collectVisibleNames(program, profiles),
+    collectDeclaredNames(program),
+  );
+}
+
 export function unknownCommandRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],

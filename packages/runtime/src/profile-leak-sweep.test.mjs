@@ -36,7 +36,10 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { activeProfilePrimitiveArityRange } from "@openlogo/parser";
+import {
+  activeProfilePrimitiveArityRange,
+  OL_CHECK_PROFILES,
+} from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const REPO_ROOT = join(
@@ -47,11 +50,18 @@ const REPO_ROOT = join(
 );
 
 /**
- * The profile DAG of `spec/conformance.md`, as dependency closures.
+ * The profile DAG of `spec/conformance.md:288-305`, as dependency closures.
  *
  * Needed because "every profile except this one" is not simply the complement: dropping `data` must
  * also drop `geometry` and `heritage`, or the name would be re-admitted through a dependent's
  * closure and the negative control would be testing nothing.
+ *
+ * **Transcribed from the normative tree, annotations included.** `:305` makes the `(also depends
+ * on …)` edges normative, and getting one wrong silently shrinks the sweep rather than failing it:
+ * omitting Heritage's dependency on Turtle & Rendering left all thirteen Heritage aliases unable to
+ * act under their "own" closure, so every one of them dropped out of the acting set and was never
+ * tested in either direction. The `covers every profile` test below is the guard against that
+ * happening again for a profile added later.
  */
 const PROFILE_DEPENDENCIES = {
   "core-language": [],
@@ -59,9 +69,11 @@ const PROFILE_DEPENDENCIES = {
   sprites: ["core-language", "turtle-rendering"],
   geometry: ["core-language", "turtle-rendering", "data"],
   data: ["core-language"],
-  heritage: ["core-language", "data"],
+  heritage: ["core-language", "data", "turtle-rendering"],
   "interaction-events": ["core-language"],
   sound: ["core-language"],
+  modules: ["core-language"],
+  localization: ["core-language", "modules"],
   educational: ["core-language"],
   "tutor-ai": ["core-language", "educational"],
 };
@@ -98,6 +110,29 @@ function effectsOf(source, profiles) {
 }
 
 /**
+ * Candidate call shapes for `name`, in both statement and value position.
+ *
+ * Registry arity is not enough on its own, and both gaps were measured. A **Heritage alias** has no
+ * registry entry of its own, so `activeProfilePrimitiveArityRange` returns `undefined` and an
+ * arity-derived call is the bare word — which raises an arity fault before it can act, silently
+ * dropping all thirteen aliases out of the acting set. And a **reporter** produces a value rather
+ * than an event, so a statement-position call shows no effect even when it evaluates perfectly;
+ * wrapping it in `print` turns evaluation into an observable `print` event. Widening to arities 0-2
+ * in both positions took the acting set from 35 of 69 to 61 of 69.
+ */
+function candidateCalls(name) {
+  const shapes = [];
+  for (let arity = 0; arity <= 2; arity += 1) {
+    for (const argument of CANDIDATE_ARGUMENTS) {
+      const args = arity > 0 ? ` ${Array(arity).fill(argument).join(" ")}` : "";
+      shapes.push(`${name}${args}\n`, `print ${name}${args}\n`);
+      if (arity === 0) break;
+    }
+  }
+  return shapes;
+}
+
+/**
  * Every non-Core primitive paired with a call that demonstrably makes it act under its own profile
  * closure. A name with no such call is excluded rather than counted as a pass — it would be a
  * silent zero.
@@ -109,31 +144,83 @@ function actingSet() {
       continue;
     }
     const own = closureOf(entry.profile);
-    const range = activeProfilePrimitiveArityRange(entry.name, own);
-    const arity = range ? range.min : 0;
-    for (const argument of CANDIDATE_ARGUMENTS) {
-      const source =
-        entry.name +
-        (arity > 0 ? ` ${Array(arity).fill(argument).join(" ")}` : "") +
-        "\n";
-      if (effectsOf(source, own).length > 0) {
-        acting.push({ ...entry, source, own });
-        break;
-      }
+    const source = candidateCalls(entry.name).find(
+      (candidate) => effectsOf(candidate, own).length > 0,
+    );
+    if (source !== undefined) {
+      acting.push({ ...entry, source, own });
     }
   }
   return acting;
 }
 
+/**
+ * The non-Core primitives no call this file can synthesise makes act, and which the negatives below
+ * therefore do NOT test. Pinned as a set rather than a count so a name joining them appears in the
+ * diff by name.
+ *
+ * Each is excluded because its operand shape is outside the four candidate arguments, not because
+ * it is uninteresting: `challenge` has no evaluator at all (issue #815's third fault class);
+ * `input` needs host input; `keys`, `values` and `type_of` need a dict or a typed operand; `note`
+ * and `play` need note/melody words; `set_shape` needs a registered shape word.
+ */
+const EXCLUDED_NAMES = [
+  "challenge",
+  "input",
+  "keys",
+  "note",
+  "play",
+  "set_shape",
+  "type_of",
+  "values",
+];
+
 const ACTING = actingSet();
+
+/** Every non-Core primitive in the manifest — the denominator the sweep is accountable to. */
+const NON_CORE_PRIMITIVES = BUILT_INS.filter(
+  (entry) =>
+    entry.profile !== "core-language" && entry.category === "primitive",
+);
+
+test("the dependency table covers every profile the checker knows", () => {
+  // Guards the failure that shrank this sweep silently: a profile missing from the table gets an
+  // empty closure, so its names cannot act under their "own" profile and drop out of the acting set
+  // without any test failing. Keyed off `OL_CHECK_PROFILES` so a profile added to the language
+  // fails here rather than quietly narrowing the sweep.
+  assert.deepEqual(
+    [...OL_CHECK_PROFILES].filter(
+      (profile) => PROFILE_DEPENDENCIES[profile] === undefined,
+    ),
+    [],
+  );
+});
 
 test("the sweep has something to measure: non-Core primitives do act under their own profile", () => {
   // The control. If this collapses, every negative below passes for free and asserts nothing —
   // which is exactly what an earlier version of this file did.
   assert.ok(
-    ACTING.length >= 30,
+    ACTING.length >= 45,
     `only ${ACTING.length} non-Core primitives could be made to act; the sweep has gone vacuous`,
   );
+});
+
+test("every non-Core primitive is either swept or accounted for", () => {
+  // The honest denominator. A name is excluded only because no call this file can synthesise makes
+  // it act — a reporter needing a live turtle, a command whose effect is not an event, an operand
+  // shape the four candidate arguments do not cover. Excluded names are NOT tested by the negatives
+  // below, and saying so here is the difference between a sweep and a claim of completeness.
+  const excluded = NON_CORE_PRIMITIVES.filter(
+    (entry) => !ACTING.some((acting) => acting.name === entry.name),
+  );
+  assert.equal(
+    ACTING.length + excluded.length,
+    NON_CORE_PRIMITIVES.length,
+    "every non-Core primitive must be in exactly one of the two buckets",
+  );
+  // Pinned as a set, not a count, so adding a primitive that cannot be exercised shows up as a
+  // named addition in the diff rather than as a number nobody re-derives.
+  assert.deepEqual(excluded.map((entry) => entry.name).sort(), EXCLUDED_NAMES);
 });
 
 test("the leak detector fires when nothing is banned", () => {

@@ -397,10 +397,17 @@ git diff --name-only --diff-filter=AM 38b9a497 -- 'tests/conformance/**/*.expect
 #    carry the label too; it is the label for any fixture locking a fixed defect
 git grep -l '"description": "REGRESSION WALL' -- 'tests/conformance/**/*.expected.json'
 
-# 3. fixtures in the six directories left byte-for-byte UNTOUCHED — smaller than the count of
+# 3. fixtures in the six directories left byte-for-byte UNTOUCHED. This is a set DIFFERENCE, not
+#    a diff: `git diff` lists what CHANGED, which is the opposite quantity, and listing it under
+#    this heading was this paragraph's fourth counting error. It is also smaller than the count of
 #    baseline LABELS, because a labelled-baseline fixture may still have changed for an unrelated
-#    reason (`challenge-with-argument` gained a claimed profile set; its data did not move)
-git diff --name-only 38b9a497 HEAD -- 'tests/conformance/**/*.expected.json'
+#    reason — `challenge-with-argument` gained a claimed profile set, and eleven stage-consistency
+#    baselines had a stale sentence corrected, all with their `events`/`diagnostics` unmoved.
+comm -23 \
+  <(git ls-files 'tests/conformance/*/unresolvable-name/*.expected.json' \
+       'tests/conformance/*/command-in-value-position/*.expected.json' \
+       'tests/conformance/tutor-ai/registered-but-unevaluable/*.expected.json' | sort) \
+  <(git diff --name-only 38b9a497 HEAD -- 'tests/conformance/**/*.expected.json' | sort)
 ```
 
 **How to flip one, and the mistake to avoid.** Flip by the **first word of each fixture's
