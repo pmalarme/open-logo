@@ -5,5 +5,5 @@
 # `canonical` for a Heritage alias — which is exactly what the static checker reports
 # (checker-arity.ts). OpenLogo identifiers are case-insensitive, so the call spelling can never be
 # the diagnostic's identity, and both `check()` and `execute()` must agree on it
-# (spec/error-model.md:254-259; issue #1005).
+# (spec/error-model.md:255-260; issue #1005).
 RIGHT

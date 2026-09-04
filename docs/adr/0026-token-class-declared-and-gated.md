@@ -34,7 +34,7 @@ claims layered on — and each claimed more than it checked.
 #855 measured and refuted was **derivation from data that already existed**: a positional rule
 (refuted by `local end` / `export end` / `:p.end` all painting `keyword`), and "the keyword list
 minus the operators" (refuted because the class also *adds* four words that are not built-in names
-at all). **Declaring the class as new, first-class data was never attempted.** `spec/grammar.md:378`
+at all). **Declaring the class as new, first-class data was never attempted.** `spec/grammar.md:380`
 says the token class and the keyword list are independent sets and that neither determines the
 other; it does not say the class cannot be written down. "Cannot be derived from the existing
 lists" and "cannot be recorded at all" are different claims, and both #841 and #959's own framing
@@ -65,7 +65,7 @@ plainly here because "in both directions" over-describes two of them:
    merely different in principle: measured, they disagree on exactly the four word-spelled
    operators `and`, `or`, `not` and `mod`, which are `category: "keyword"` and painted `operator`.
    They also carry different profile semantics — `category` is unconditional
-   (`spec/grammar.md:408`), while `tokenClass` is the class *while the entry's own profile is
+   (`spec/grammar.md:410`), while `tokenClass` is the class *while the entry's own profile is
    active*.
 
 2. **The class is measured, not asserted.** The gate re-paints every name through `highlight()` in
@@ -74,7 +74,7 @@ plainly here because "in both directions" over-describes two of them:
    place — and requires **every position to yield at least one token** and every token in every
    position to carry the declared class. Both halves matter: unioning the classes let a position
    that painted nothing hide behind the others. The eight non-head positions are where the grammar
-   admits a keyword as an ordinary name (`spec/grammar.md:386`), so the manifest's
+   admits a keyword as an ordinary name (`spec/grammar.md:388`), so the manifest's
    `positionIndependence` claim is executed rather than assumed. Two measurements with two
    referents: the inventory is manifest-declared — at **spec version 0.1.0**, **148 names, 97
    `primitive`, 47 `keyword`, 4 `operator`** — while **148 of 148 position-invariant** is a painting
@@ -234,5 +234,5 @@ Stated because the mechanism it replaces failed three times by claiming more tha
   where the row's wording changed, the quoting comments were updated in the same change.
 - The enumeration lives under `spec/`, so it stays maintainer-owned via `CODEOWNERS` exactly as the
   row was. What changed is that CI now has an opinion about whether it is true.
-- This does not make the token class *derivable* — it makes it *declared*. `spec/grammar.md:378`'s
+- This does not make the token class *derivable* — it makes it *declared*. `spec/grammar.md:380`'s
   independence is untouched, and nothing here infers a paint from reserved-list membership.

@@ -1,5 +1,5 @@
 {
-  "description": "The prefix predicate `member?` is a Core fixed-arity alternative to the worded `is member of` and shares its evaluation path (spec/commands.md:673-689): `member? 2 [1 2 3]` is `true`. Issue #99.",
+  "description": "The prefix predicate `member?` is a Core fixed-arity alternative to the worded `is member of` and shares its evaluation path (spec/commands.md:694-710): `member? 2 [1 2 3]` is `true`. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

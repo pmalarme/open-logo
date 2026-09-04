@@ -1,4 +1,4 @@
-# A reporter procedure (reaches `return`) called in expression position (spec/execution-model.md:338-385).
+# A reporter procedure (reaches `return`) called in expression position (spec/execution-model.md:338-648).
 define square :n
   return :n * :n
 end

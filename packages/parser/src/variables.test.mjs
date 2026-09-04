@@ -1,7 +1,7 @@
 // Unit tests for variable reads and places (issue #48). These target AST shapes NOT already
 // asserted by parse.test.mjs: the VarRef-vs-Place distinction for a bare `:name` read, dotted
 // colon-place segments on both a read and a `=` assignment, and bare places after `set … to`
-// (simple and dotted) — per spec/grammar.md:103-108,244 assignment always goes through a
+// (simple and dotted) — per spec/grammar.md:104-109,246 assignment always goes through a
 // colon-place, while a bare place only ever appears between `set` and `to`.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only its

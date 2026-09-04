@@ -1,5 +1,5 @@
 {
-  "description": "Two dicts built with the same key/value pairs in different insertion order are structurally equal via `==` (issue #322, `spec/execution-model.md:447-469` uniform-access collections row); equality does not depend on insertion order.",
+  "description": "Two dicts built with the same key/value pairs in different insertion order are structurally equal via `==` (issue #322, `spec/execution-model.md:710-732` uniform-access collections row); equality does not depend on insertion order.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [

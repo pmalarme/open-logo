@@ -3,7 +3,7 @@
 # never the call site's casing (`DOUBLE`) nor a lowercasing — OpenLogo identifiers are
 # case-insensitive, so the call spelling can never be the diagnostic's identity, and a MIXED-case
 # declaration is what pins "declared spelling" apart from "lowercased call site"
-# (spec/error-model.md:254-259; issue #1005, matching the check-side arity-procedure-declared-spelling
+# (spec/error-model.md:255-260; issue #1005, matching the check-side arity-procedure-declared-spelling
 # fixture of issue #874).
 define Double :a :b
   return :a + :b

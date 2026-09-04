@@ -78,6 +78,52 @@ by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
 block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
+A handler block captures the **bindings** visible where it is written, by
+reference and not as a snapshot of their values, under the scoping rules of
+[execution-model.md](execution-model.md#variables-scoping-and-procedures). Two
+consequences follow, and both are normative.
+
+**Each registration captures its own bindings.** Every entry into a scope creates
+fresh bindings, so a loop that registers one handler per turn gives each handler
+the names born on its own turn:
+
+```logo
+repeat 3 [ :n = repcount * 10   every 5 [ print :n ] ]
+wait 8
+```
+
+The three handlers print `10`, `20`, and `30` — not the same value three times.
+
+**A procedure frame lives as long as any handler registered inside it may still
+run.** A handler registered in a procedure body keeps working after the call that
+registered it has returned, reading the parameters and locals of the frame it was
+written in:
+
+```logo
+define setup :speed
+  every 5 [ print :speed ]
+end
+setup 10
+wait 8
+```
+
+That program prints `10`. This is a rule about lifetime, not about values: blocks
+are still not values, and v0.1 still has no lambda and no first-class procedure
+value.
+
+`return` and `stop` inside a handler block follow their ordinary rule — they exit
+the procedure the block is written in. When that procedure's original call has
+already returned, the handler invocation is what remains of it, so the invocation
+ends cleanly. A handler block written at the top level is outside any procedure,
+so `return` raises `ol-return-outside-proc` and `stop` raises
+`ol-stop-outside-proc` there, exactly as in any other top-level block.
+
+A `global` declaration is legal only at the root scope, so a handler block never
+contains one; `global name = value` inside a handler raises
+`ol-global-outside-root`. A handler block MAY update any binding visible where it
+is written, which is what lets a top-level `on_click [ :score = :score + 1 ]`
+maintain a plain top-level `:score` with no declaration at all.
+
 When an event fires, the implementation enqueues a handler invocation. Handler
 invocations MUST run on the same OpenLogo execution thread as ordinary
 instructions so learner-visible state changes remain deterministic. If several

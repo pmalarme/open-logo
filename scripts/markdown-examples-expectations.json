@@ -124,6 +124,22 @@
   ],
   "spec/commands.md": [
     {
+      "fingerprint": "44264c31feed3464",
+      "excerpt": "define grow :n",
+      "kind": "implementation-behind",
+      "why": "The `local` C3 entry now specifies the initializer form `local name = value` ruled by issue #821. The reader does not parse it yet, so it stops at the `=` and reports ol-bad-token; the spec is ahead and the parser slice catches up.",
+      "codes": ["ol-bad-token"],
+      "issue": "#823"
+    },
+    {
+      "fingerprint": "cd0b131f4c2fd442",
+      "excerpt": "global count = 0",
+      "kind": "implementation-behind",
+      "why": "The `global` C3 entry's example. `global` is not a reader keyword yet, so the line reads as a call to an unknown `global` followed by the `count` reporter and a stray `=`; the codes are that misreading, not a defect in the block.",
+      "codes": ["ol-bad-token", "ol-not-enough-inputs", "ol-unknown-command"],
+      "issue": "#823"
+    },
+    {
       "fingerprint": "ebc8abb1c53eaeea",
       "excerpt": "set size to 100",
       "kind": "prose-fragment",
@@ -285,6 +301,35 @@
     }
   ],
   "spec/execution-model.md": [
+    {
+      "fingerprint": "23b9704f5627136b",
+      "excerpt": "global count = 0",
+      "kind": "implementation-behind",
+      "why": "The `global` worked example of the scoping ruling (issue #821). `global` is not a reader keyword yet, so the declaration misreads as a call and `:count` is then unbound at the `print`; the block is the specified form and the reader catches up.",
+      "codes": [
+        "ol-bad-token",
+        "ol-not-enough-inputs",
+        "ol-undefined-var",
+        "ol-unknown-command"
+      ],
+      "issue": "#823"
+    },
+    {
+      "fingerprint": "3198c91b12a83c19",
+      "excerpt": "global count = 0",
+      "kind": "implementation-behind",
+      "why": "The `local`-shadows-`global` worked example of the scoping ruling (issue #821). Both `global name = value` and `local name = value` await the parser slice, so the declarations misread today.",
+      "codes": ["ol-bad-token", "ol-not-enough-inputs", "ol-unknown-command"],
+      "issue": "#823"
+    },
+    {
+      "fingerprint": "2f53a6b6a4d9b21a",
+      "excerpt": "define countdown :n",
+      "kind": "implementation-behind",
+      "why": "The recursion example showing one `step` binding per frame. It uses `local step = :n`, whose initializer form the reader does not parse yet, so it reports ol-bad-token at the `=`.",
+      "codes": ["ol-bad-token"],
+      "issue": "#823"
+    },
     {
       "fingerprint": "208faeb514581756",
       "excerpt": "forward random 100",

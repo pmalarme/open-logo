@@ -181,7 +181,7 @@ profile block-heads are available.
 | Unknown command, reporter, procedure, primitive, or active-profile form | `ol-unknown-command` | Provide did-you-mean suggestions using Levenshtein distance ≤2 over visible names. |
 | Not enough inputs for a fixed-arity or selected call form | `ol-not-enough-inputs` | Include callable name, expected count, and actual count. |
 | Too many inputs outside parenthesized alternate/variadic forms | `ol-too-many-inputs` | Include callable name and explain when parentheses are required. |
-| Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. |
+| Undefined variable read | `ol-undefined-var` | Point at the `:variable` token or place head that reads an unbound value. Visibility is the sealed lexical model of [execution-model.md](execution-model.md#variables-scoping-and-procedures): inside a procedure body only its parameters, the names its body has already bound, and `global` names are visible, so a procedure reading a plain non-`global` top-level name is an undefined read, not an outer reference. |
 | Declaring a built-in name — a keyword, a primitive, or an alias spelling of one — in a declaration slot | `ol-reserved-word` | Apply at the four declaration slots only: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`; profile keywords and primitives count there whether or not their profile is claimed. Do **not** apply at `local` or any other binding form — binding a value to a built-in name is legal everywhere and MUST NOT raise this or any other diagnostic ([grammar.md](grammar.md#keywords-primitives-and-built-in-names)). A name the program itself already declared is `ol-duplicate-definition` instead. |
 | Unknown struct type in a type position | `ol-unknown-type` | Use only when a type position (the type word of `is a` / `is_a?`) names no registered type; an unknown callable or constructor name in call position is `ol-unknown-command`. |
 | Unknown record field | `ol-unknown-field` | Use for record field reads and writes; struct fields are fixed and never upsert. |
@@ -190,6 +190,7 @@ profile block-heads are available.
 | `return`, `output`, or `op` outside a procedure | `ol-return-outside-proc` | Point at the control word. |
 | `return`, `output`, `op`, or `stop` inside `map`/`filter`/`reduce` | `ol-return-in-comprehension` | Explain that comprehensions report the last expression; `stop` is a control-flow escape too, so it belongs to the same diagnostic family. |
 | Repeated `reduce` or pattern binder name | `ol-duplicate-binder` | Include the repeated binder name. |
+| `global name = value` outside the root scope | `ol-global-outside-root` | Apply inside a procedure body, a control-form body, a handler block, or a comprehension body. Include the declared name and say the declaration belongs at the top level; `local` is the form for a private name here. |
 
 Semantic tools SHOULD also report statically knowable uses of runtime C10 codes, such as
 `ol-not-boolean` for a literal non-boolean condition, `ol-type` for a literal non-number used as

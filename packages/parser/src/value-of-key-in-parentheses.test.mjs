@@ -1,11 +1,11 @@
 // Guard tests for the Heritage `value of … for key …` reader **inside parentheses** (issue #830).
 //
-// `spec/grammar.md` derives the reader there. `primary` (`spec/grammar.md:193-204`) offers both
-// `parenthesized-expression` (:199, defined :213) and `value-of-reader` (:203, defined :217), so
+// `spec/grammar.md` derives the reader there. `primary` (`spec/grammar.md:195-206`) offers both
+// `parenthesized-expression` (:201, defined :215) and `value-of-reader` (:205, defined :219), so
 // `expression → … → primary → value-of-reader` makes `( value of :d for key "a" )` a
 // `parenthesized-expression` wrapping a `value-of-reader`.
 //
-// The bug this file locks shut: the `(` path committed to `parenthesized-call` (:215) as soon as
+// The bug this file locks shut: the `(` path committed to `parenthesized-call` (:217) as soon as
 // the head looked like a `callable-name`, so `value` became the callee and the reader was never
 // entered — `ol-bad-token`, no `ValueOfKey` node. #885 fixed it *incidentally*, by deriving
 // `NON_PRIMARY_NAMES` from `OL_KEYWORDS` (which contains `value`): `isCalleeName` now answers
@@ -167,8 +167,8 @@ test("`value` and `key` are still registered keywords, which is what keeps them 
 });
 
 test("parenthesized calls and grouping still work beside the reader", () => {
-  // The `(` path's other two roles must be untouched: `parenthesized-call` (`spec/grammar.md:215`)
-  // and plain `parenthesized-expression` (:213).
+  // The `(` path's other two roles must be untouched: `parenthesized-call` (`spec/grammar.md:217`)
+  // and plain `parenthesized-expression` (:215).
   const { ast: grouped } = OL.parse("print ( 1 + 2 )\n", doc);
   assert.deepEqual(parenCallCallees(grouped), []);
   assert.deepEqual(allDiagnostics("print ( 1 + 2 )\n"), []);
@@ -180,7 +180,7 @@ test("parenthesized calls and grouping still work beside the reader", () => {
 
 test("`value` and `key` remain legal data beside the parenthesized reader", () => {
   // The other half of #853: tightening expression position must not touch their data roles.
-  // `spec/grammar.md:406` — "Dictionary keys and selector bare keys are data, not declarations,
+  // `spec/grammar.md:408` — "Dictionary keys and selector bare keys are data, not declarations,
   // so built-in names are legal keys."
   const source =
     ':settings = { key: "alpha" value: 42 }\n' +
@@ -200,7 +200,7 @@ test("a bare `value` in parentheses is still rejected", () => {
   //
   // This used to filter for the one CORRECT diagnostic in order to avoid pinning two false
   // `ol-unmatched-paren` that a balanced `( value )` also reported — a defect (issue #879) that a
-  // stack-neutral fixture would have made normative. Those are gone: `spec/error-model.md:165-169`
+  // stack-neutral fixture would have made normative. Those are gone: `spec/error-model.md:166-170`
   // now forbids reporting a matched delimiter as unmatched, and the parser complies, so the whole
   // diagnostic list can be asserted and the reason for the filter no longer exists.
   const diagnostics = allDiagnostics("print (value)\n");

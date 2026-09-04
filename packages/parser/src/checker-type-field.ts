@@ -10,7 +10,7 @@
  * word that names neither a built-in type nor a declared struct raises `ol-unknown-type`
  * (`spec/error-model.md`: `params = { name }`, `stage: semantic`). The prefix `is_a? value type`
  * form is deliberately *not* checked here: its type argument is an ordinary, dynamically evaluated
- * call argument, and `spec/tooling.md:198-200` requires tools MUST NOT report speculative type
+ * call argument, and `spec/tooling.md:199-201` requires tools MUST NOT report speculative type
  * errors when dynamic values are unknown.
  *
  * **`ol-unknown-field`** is the record-field half, split between a pure resolver
@@ -19,11 +19,11 @@
  * `struct` declaration, formally part of the **Data** profile (`spec/data-structures.md`).
  * {@link unknownFieldRule} wires the *statically knowable* slice: a `.field` **read** whose base is
  * a direct struct-constructor call — `(point 0 0).z` — has a type the checker knows exactly, so an
- * unknown field is reported at `check()` time (`spec/tooling.md:193`: a tool SHOULD report a
+ * unknown field is reported at `check()` time (`spec/tooling.md:194`: a tool SHOULD report a
  * statically knowable use of an otherwise-runtime code; `:186` lists `ol-unknown-field` in the
  * checker table). It deliberately does **not** touch a `:p.field` access: statically resolving that
  * needs `:p`'s struct type, which in turn needs tracking a variable's type across assignments —
- * exactly the speculative inference `spec/tooling.md:196-200` forbids when a value is only known
+ * exactly the speculative inference `spec/tooling.md:197-201` forbids when a value is only known
  * dynamically. The runtime (`@openlogo/runtime`) therefore stays the authoritative source of
  * `ol-unknown-field` for the variable-base case: it validates every field read/write against the
  * record's actual declared fields at execution time (issue #329), reusing this module's
@@ -164,7 +164,7 @@ export interface RecordFieldAccess {
  * against a declared `x`. The diagnostic carries `params = { type, field }`, plus `write: true` for
  * a write (`spec/error-model.md`: `type`, `field`, optional `write`), at `stage: "semantic"`
  * because a static tool is reporting a statically knowable use of this otherwise-runtime code
- * (`spec/tooling.md:132`, `:196-198`).
+ * (`spec/tooling.md:132`, `:197-199`).
  *
  * This is the pure resolution logic for `ol-unknown-field`. {@link unknownFieldRule} is the
  * Data-profile walk that builds a {@link RecordFieldAccess} for every statically typed
@@ -183,7 +183,7 @@ export function resolveRecordField(
 
   // Field names are identifiers, so access folds case (`spec/grammar.md:13`): `.Missing` and
   // `.MISSING` name the same absent field — one condition, one diagnostic identity
-  // (`spec/error-model.md:254-259`). Report the folded field name (its case-insensitive resolution
+  // (`spec/error-model.md:255-260`). Report the folded field name (its case-insensitive resolution
   // identity), matching `@openlogo/runtime`'s `unknownField` so the static and runtime halves agree
   // whatever the source casing (issue #1005). `type` is already canonical (the declared spelling).
   const params: Record<string, unknown> = access.write
@@ -260,7 +260,7 @@ function structConstructorType(base: ExpressionNode): string | undefined {
  * feature; when Data is inactive the constructor name is not a known callee at all
  * (`ol-unknown-command`'s concern) and there is no static record type to resolve against.
  *
- * Scope is deliberately narrow (`spec/tooling.md:196` forbids speculative inference):
+ * Scope is deliberately narrow (`spec/tooling.md:197` forbids speculative inference):
  * - **Direct struct-constructor base only.** `(point 0 0).z` is checked; a `:variable.field` base
  *   is not — inferring `:p`'s struct type across assignments is the forbidden speculation, so the
  *   runtime stays authoritative there (issue #329).

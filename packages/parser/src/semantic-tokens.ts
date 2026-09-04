@@ -1,7 +1,7 @@
 /**
  * The LSP `textDocument/semanticTokens`-shaped contract (issue #121) layered over
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
- * integration" section of `spec/tooling.md:274-280`. It never re-lexes or re-classifies: every
+ * integration" section of `spec/tooling.md:275-281`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
  * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and
@@ -17,7 +17,7 @@
  *    `:param` (`highlight.ts`'s `paramDeclIndexes`, exposed the same way via `declaration`);
  *    every other `:variable` token is a `reference` (a read, or an assignment/place target).
  *    `local`/`for`/comprehension binders parse as bare `name` tokens, or — for a destructuring
- *    `[ :x :y ]` pattern (`spec/grammar.md:136-137`) — as `:variable` tokens with no dedicated
+ *    `[ :x :y ]` pattern (`spec/grammar.md:137-138`) — as `:variable` tokens with no dedicated
  *    binding-site resolution here (see `ast.ts`'s `Binder`), so a destructured name's own `:x`
  *    token still surfaces only as a `reference`, never a `declaration`.
  *  - `:variable` reads of a `map`/`filter`/`reduce` binder or `reduce` accumulator inside that
@@ -53,7 +53,7 @@ import type {
 import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md:278-280`, in the document's own
+ * The LSP-style semantic-token modifiers from `spec/tooling.md:279-281`, in the document's own
  * order.
  */
 export const OL_TOKEN_MODIFIERS = [
@@ -152,7 +152,7 @@ function modifiersFor(
 
 /**
  * The lowercase name(s) a comprehension binder introduces: one for a bare `name`, or one per
- * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`, mirroring
+ * `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:137-138`, mirroring
  * `checker-undefined-var.ts`'s own `binderNames` helper for `for … in`/comprehension binders).
  */
 function namesOf(binder: Binder): string[] {

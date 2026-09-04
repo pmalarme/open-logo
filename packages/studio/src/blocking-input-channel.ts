@@ -4,7 +4,7 @@
  * (or a cancellation) across a thread boundary.
  *
  * ## Why a protocol module at all
- * `spec/interaction-events.md:108-111` makes `input` the only blocking read in v0.1, and
+ * `spec/interaction-events.md:154-157` makes `input` the only blocking read in v0.1, and
  * `@openlogo/runtime`'s reader (`ExecuteOptions.hostInput.read`) is synchronous **because** that is
  * the guarantee by construction. A browser's main thread cannot block for a styled, keyboard-
  * operable prompt, so #876 moves the interpreter into a Worker and blocks *there*: the Worker parks
@@ -120,7 +120,7 @@ export type BlockingReadOutcome =
       /**
        * The read ended without an answer — the learner dismissed the question, or Stop/Reset
        * cancelled the run. Both map onto the runtime reader's own `undefined`
-       * (`spec/interaction-events.md:110-111`), so they need not be distinguished here.
+       * (`spec/interaction-events.md:156-157`), so they need not be distinguished here.
        */
       readonly kind: "dismissed";
     };
@@ -242,7 +242,7 @@ export function deliverBlockingAnswer(
 /**
  * End the outstanding read without an answer — the learner dismissed the question. The waiting
  * interpreter's `read` returns `undefined`, which cancels the program exactly as
- * `spec/interaction-events.md:110-111` describes.
+ * `spec/interaction-events.md:156-157` describes.
  */
 export function dismissBlockingRead(
   channel: BlockingInputChannel,

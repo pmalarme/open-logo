@@ -1,4 +1,4 @@
-// Unit tests for Core comprehensions (`map`/`filter`/`reduce`) per spec/grammar.md:131-134,
+// Unit tests for Core comprehensions (`map`/`filter`/`reduce`) per spec/grammar.md:132-135,
 // 338-348 — validating the ALREADY-MERGED parser (packages/parser/src/parser.ts,
 // parseComprehension), plus (issue #72) the destructuring `[:x :y]` binder support added to that
 // same function, mirroring `for … in`'s destructuring binder from issue #91.
@@ -136,7 +136,7 @@ test("filter used as a call argument keeps the comprehension node in expression 
 //
 // `map`/`filter`/`reduce` reuse the same `parseDestructuringBinder()` helper #91 gave `for … in`,
 // so a `[:x :y]` binder parses to the shared `DestructuringBinderNode` (`ast.ts`'s `Binder`
-// union) per spec/grammar.md:136-137. `reduce` keeps its bare-name accumulator; only its item
+// union) per spec/grammar.md:137-138. `reduce` keeps its bare-name accumulator; only its item
 // binder may destructure.
 
 test("map with a `[:x :y]` destructuring binder parses to a DestructuringBinder node with each name's own span", () => {

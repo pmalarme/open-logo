@@ -1,5 +1,5 @@
 {
-  "description": "The Heritage `make \"name\" value` spelling (spec/grammar.md:105, spec/conformance.md:270 — alternate spelling, no new semantics) lowers to the same Assign shape as `set … to`, so `make \"count\" 7` binds `count` and the later `print :count` prints 7. Tagged profile:heritage; the source uses no Core-forbidden construct, so it also parses/executes on the saga branch before the Heritage form-head profile gate (issue #667) lands.",
+  "description": "The Heritage `make \"name\" value` spelling (spec/grammar.md:106, spec/conformance.md:270 — alternate spelling, no new semantics) lowers to the same Assign shape as `set … to`, so `make \"count\" 7` binds `count` and the later `print :count` prints 7. Tagged profile:heritage; the source uses no Core-forbidden construct, so it also parses/executes on the saga branch before the Heritage form-head profile gate (issue #667) lands.",
   "profiles": ["heritage"],
   "execute": true,
   "events": [

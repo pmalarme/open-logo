@@ -657,7 +657,7 @@ test("every Turtle & Rendering one-word spelling resolves to a canonical of equa
   assert.equal(realParserApi.canonicalOfTurtleAlias("SETXY"), "set_xy");
   assert.equal(realParserApi.canonicalOfTurtleAlias("forward"), undefined);
   assert.equal(realParserApi.canonicalOfTurtleAlias("fd"), undefined);
-  // Both spellings still enumerate: `spec/grammar.md:414` makes every alias spelling a built-in
+  // Both spellings still enumerate: `spec/grammar.md:416` makes every alias spelling a built-in
   // name, so a consumer asking what the profile registers must be told about `setxy` too.
   const names = realParserApi.profilePrimitiveNames("turtle-rendering");
   assert.equal(names.includes("setxy"), true);

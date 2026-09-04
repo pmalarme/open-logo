@@ -14,7 +14,7 @@ import * as OL from "@openlogo/parser";
  * `grid`/`axes`/`measure` must raise `ol-reserved-word` when the
  * `geometry` profile is active — the checker's static parity counterpart to the runtime's own
  * `isPrimitiveName()` collision guard (#403) — and, since issue #841, when it is inactive too:
- * `spec/grammar.md:408` makes every profile's primitives built-in names unconditionally, so the
+ * `spec/grammar.md:410` makes every profile's primitives built-in names unconditionally, so the
  * active and inactive cases below must agree name for name.
  * (Issue #838 removed that diagnostic's `namespace` param; `local` became a binding form under
  * ruling #833 and raises nothing at all — the one axis a profile set still does not move.)
@@ -188,7 +188,7 @@ test("a define colliding with a Geometry primitive raises ol-reserved-word", () 
 
 test("a local naming a Geometry primitive is a binding, so it raises nothing", () => {
   // Reversed by maintainer ruling #833 (issue #837): `local` is a binding form, not a declaration
-  // slot, and `spec/grammar.md:386` makes accepting the name a MUST. The `define`/`struct` rows
+  // slot, and `spec/grammar.md:388` makes accepting the name a MUST. The `define`/`struct` rows
   // above are the declaration slots and keep their collision assertions.
   for (const name of ["grid", "axes", "measure"]) {
     const ast = parseClean(`define greet\n  local ${name}\nend`);
@@ -201,8 +201,8 @@ test("a local naming a Geometry primitive is a binding, so it raises nothing", (
 
 test("#841: without the geometry profile, define/struct grid/axes/measure still raise — only local stays free", () => {
   // Both axes at once, and they answer differently on purpose. The DECLARATION slots (`define`,
-  // `struct`) are profile-independent — `spec/grammar.md:408`, retired gate, issue #841 — while
-  // `local` is a BINDING form that `spec/grammar.md:386` makes a MUST to accept, so it raises
+  // `struct`) are profile-independent — `spec/grammar.md:410`, retired gate, issue #841 — while
+  // `local` is a BINDING form that `spec/grammar.md:388` makes a MUST to accept, so it raises
   // nothing whether or not `geometry` is claimed. Keeping all three in one test is what stops a
   // future change from flipping the wrong one.
   for (const name of ["grid", "axes", "measure"]) {

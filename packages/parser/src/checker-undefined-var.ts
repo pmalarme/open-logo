@@ -64,7 +64,7 @@ import type { CheckProfile } from "./check.js";
 
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
- * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:136-137`).
+ * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:137-138`).
  * Resolving which destructured name a given read maps to is out of scope here (#114); every
  * destructured name is simply visible throughout the loop/comprehension body, same as today's
  * single bare-name binder.

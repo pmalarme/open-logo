@@ -19,13 +19,13 @@
 //      visible-name rule, because they lower onto the same Core AST nodes as their equivalents.
 //   2. Ten short command aliases — `fd`/`bk`/`lt`/`rt`/`pu`/`pd`/`st`/`ht`/`cs`/`pr` (#668). Ordinary
 //      primitive call names (not reserved), so they fall through the profile-blind lexical fallback
-//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,279`), exactly like `forward`.
+//      to `primitive` + `defaultLibrary` (`spec/tooling.md:31,280`), exactly like `forward`.
 //      Recognized under an active `heritage` profile by `collectVisibleNames`.
 //   3. Three list-reporter aliases — `bf`/`bl`/`se` (#669). Also ordinary primitive names, but they
 //      appear in EXPRESSION position (as arguments), a different highlighter path than a
 //      statement-head call — still `primitive` + `defaultLibrary`, like `butfirst`/`sentence`.
 //   4. The `value of <dict> for key <key>` reader (#670). A four-word grammar production
-//      (`spec/grammar.md:217`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
+//      (`spec/grammar.md:219`) lowering to a dedicated `ValueOfKeyNode`. All four of its words are
 //      `keyword` and none carries `defaultLibrary`. `value`/`for`/`key` because they are reserved
 //      words (`spec/tooling.md:92`); `of` because `spec/tooling.md:97-99` — the normative
 //      highlighter instruction — marks these contextual words `keyword` "only inside an
@@ -36,11 +36,11 @@
 //      naming `of` a structural word beside its three reserved siblings — `spec/tooling.md:30`
 //      names `of` among the contextual words that take the `keyword` class in the structural
 //      positions it describes, and
-//      `spec/grammar.md:380` calls it "the contextual preposition in the heritage
-//      `value of … for key` reader". Those passages now match: `spec/grammar.md:234`,
-//      `spec/execution-model.md:156-159`, and `spec/commands.md:461` each keep their
+//      `spec/grammar.md:382` calls it "the contextual preposition in the heritage
+//      `value of … for key` reader". Those passages now match: `spec/grammar.md:236`,
+//      `spec/execution-model.md:156-159`, and `spec/commands.md:482` each keep their
 //      "after `is`" claim scoped to their own subject and name this reader as `of`'s other
-//      structural position (#856), and `spec/grammar.md:380` had already folded its reader
+//      structural position (#856), and `spec/grammar.md:382` had already folded its reader
 //      parenthetical into the sentence (#875), ending the tension it carried from the spec's
 //      initial commit. None of them governs the token-class model that `spec/tooling.md` owns.
 //
@@ -118,7 +118,7 @@ function commandAliasCall(alias) {
 }
 
 /**
- * Every structural word of the `value of … for key` reader (`spec/grammar.md:217`) — all four are
+ * Every structural word of the `value of … for key` reader (`spec/grammar.md:219`) — all four are
  * `keyword`. `value`/`for`/`key` are reserved words; `of` is the contextual preposition this
  * production recognizes positionally (issue #785).
  */
@@ -192,7 +192,7 @@ test("highlight: each Heritage form head is a keyword, like its Core equivalent 
 
 test("semanticTokens: each Heritage form head carries no defaultLibrary — it is a keyword, not a primitive", () => {
   // Keyword-class tokens get NO `defaultLibrary` modifier (that modifier is the `primitive`/library
-  // marker, `spec/tooling.md:279`). Assert the class and the absence of the modifier so a form head
+  // marker, `spec/tooling.md:280`). Assert the class and the absence of the modifier so a form head
   // can never be mistaken for a callable primitive.
   const cases = {
     make: 'make "n" 1',
@@ -306,7 +306,7 @@ test("highlight: `of` is a keyword in BOTH positions `spec/tooling.md:97-99` nam
 });
 
 test("highlight: `of` outside a reader-recognized position stays an ordinary name, not a keyword", () => {
-  // The other direction of `spec/tooling.md:97-99` / `spec/grammar.md:380`: `of` is *contextual*,
+  // The other direction of `spec/tooling.md:97-99` / `spec/grammar.md:382`: `of` is *contextual*,
   // not reserved, so it remains freely usable as a variable, a procedure name, and a dict key. This
   // is what the reader fix must not break — being `keyword` in one production must not lock the
   // spelling globally the way a reserved word does.
@@ -429,7 +429,7 @@ test("highlight: a mid-edit or malformed reader degrades gracefully — `of` fal
 });
 
 test("semanticTokens: no structural word of the value-of-key reader carries defaultLibrary", () => {
-  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:279`). `of` used to
+  // `defaultLibrary` asserts standard-library membership (`spec/tooling.md:280`). `of` used to
   // carry it purely because it was classified `primitive`; with the class corrected the modifier
   // goes with it, which is the half of #785 an LSP client actually consumes.
   const tokens = OL.semanticTokens('print value of :d for key "a"', doc);

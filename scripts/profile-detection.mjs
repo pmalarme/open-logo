@@ -400,7 +400,7 @@ export function detectUsedProfiles(source) {
   // Matched on the diagnostic `code` plus an exact, case-insensitive `params.text` value — never on
   // `message` prose, which is not part of a diagnostic's stable identity
   // (`spec/localization.md:223`, "localized prose is separate from diagnostic identity"; the
-  // normative statement is `spec/error-model.md:256`, "Diagnostic identity is `code` plus `params`;
+  // normative statement is `spec/error-model.md:257`, "Diagnostic identity is `code` plus `params`;
   // prose is presentation"). The Heritage `to`/`output`/`op` words are NOT here anymore: since
   // issue #667 they parse into real AST nodes and are detected in the walk below (see
   // `RESERVED_WORD_PROFILES`'s doc comment and #701).
@@ -492,7 +492,7 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "Assign" && node.form === "make") {
-      // The Heritage assignment spelling `make "name" value` (`spec/grammar.md:107`,
+      // The Heritage assignment spelling `make "name" value` (`spec/grammar.md:108`,
       // `spec/conformance.md:274`). Since issue #151 it parses as an `Assign` node whose
       // `form` records the surface spelling — NOT a `Call` — so it is detected here by that form,
       // not by a callee name in `HERITAGE_CALLEE_NAMES`. It is an alternate spelling with no new
@@ -501,7 +501,7 @@ export function detectUsedProfiles(source) {
       return;
     }
     if (node.kind === "ProcedureDef" && node.keyword === "to") {
-      // The Heritage procedure-definition spelling `to name … end` (`spec/grammar.md:148`,
+      // The Heritage procedure-definition spelling `to name … end` (`spec/grammar.md:149`,
       // `spec/conformance.md#heritage`). As of issue #667 (slice H2) it parses into the SAME
       // `ProcedureDef` node as Core `define`, discriminated by `keyword` — NOT the parse-time
       // `ol-bad-token` it produced before, so it is detected here by that `keyword` (see #701:
@@ -514,7 +514,7 @@ export function detectUsedProfiles(source) {
       node.kind === "Return" &&
       (node.keyword === "output" || node.keyword === "op")
     ) {
-      // The Heritage return spellings `output value` / `op value` (`spec/grammar.md:152`,
+      // The Heritage return spellings `output value` / `op value` (`spec/grammar.md:153`,
       // `spec/conformance.md#heritage`). As of issue #667 (slice H2) they parse into the SAME
       // `Return` node as Core `return`, discriminated by `keyword` — NOT the parse-time
       // `ol-bad-token` they produced before — so they are detected here by that `keyword` (see

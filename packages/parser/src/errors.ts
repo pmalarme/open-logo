@@ -29,14 +29,14 @@ function parseError(
 }
 
 /**
- * The Core keywords `spec/grammar.md:160-162` gives a real production — `alias-statement`,
+ * The Core keywords `spec/grammar.md:162-164` gives a real production — `alias-statement`,
  * `import-statement`, `export-statement` — that `parser.ts` does not implement, so each raises
  * `ol-bad-token` for its own grammar-correct spelling (`alias forward fd`, `export square`,
  * `import "shapes"`, all measured).
  *
  * They are excluded from {@link misplacedKeywordClause} because for them the sentence's **causality**
  * would be false. Everywhere else the reader rejects a keyword, the grammar is the reason: a keyword
- * in a position none of `spec/grammar.md:390`'s name-admitting positions cover *"has no derivation at
+ * in a position none of `spec/grammar.md:392`'s name-admitting positions cover *"has no derivation at
  * all and is a parse error"*. For these three the grammar permits the word exactly where it stands
  * and the **implementation** is behind, so blaming OpenLogo's ownership would teach a learner
  * something untrue about the language. They keep the bare message until the reader can read them.
@@ -115,7 +115,7 @@ export const parseDiag = {
    * - **The reader is profile-blind by design** (`reserved-word-value-position.test.mjs`; it is why
    *   issue #864 needed a semantic checker), yet every word issue #878 names is an optional-profile
    *   word. `spec/conformance.md:102-104` puts `add`, `remove`, `clear`, `insert`, dicts and structs
-   *   in **Data**; `spec/grammar.md:390` says a bare `value` heads the heritage reader *"where
+   *   in **Data**; `spec/grammar.md:392` says a bare `value` heads the heritage reader *"where
    *   Heritage is present, and nothing at all where it is not"*. Quoting such a form would answer a
    *   learner who copies it with `ol-unknown-command` — for `make`, with `did you mean set?`,
    *   contradicting the hint that sent them there. This is the load-bearing reason.
@@ -130,7 +130,7 @@ export const parseDiag = {
    * *"…so it cannot be read as a name here"*, and review showed the causal tail is false often enough
    * to matter: substituting an ordinary name, `struct point wibble` and `remove 1 wibble :sizes` are
    * rejected too — those slots want `[` and `from` — so ownership is the actual cause at **four of
-   * the six** probed positions, not all six. `spec/grammar.md:390` guarantees only the weaker
+   * the six** probed positions, not all six. `spec/grammar.md:392` guarantees only the weaker
    * proposition, that a keyword outside its name-admitting positions is *"a parse error"* with *"no
    * derivation at all"*. Naming the cause correctly needs the grammar slot, which this shared builder
    * never sees, so the sentence asserts what is true everywhere and stops.
@@ -148,7 +148,7 @@ export const parseDiag = {
    *
    * **The prescribed second clause, `choose another name.`, is deliberately dropped and must not be
    * restored here**: that advice is right for `ol-reserved-word`, which fires on a *declaration*, and
-   * wrong for this code, because `spec/grammar.md:386` makes binding a keyword legal — `local set` and
+   * wrong for this code, because `spec/grammar.md:388` makes binding a keyword legal — `local set` and
    * `for set in [ 1 2 3 ] [ print :set ]` are conforming programs — and renaming repairs only three
    * of the six positions above. A test pins the binding half, and another pins that the clause stays
    * out.

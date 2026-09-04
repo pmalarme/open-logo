@@ -241,7 +241,7 @@ function validateHostInput(hostInput) {
  * entry.
  *
  * Each entry MUST be a **string**: it is the raw text a learner would have typed, and `input`
- * classifies it as a number or a word by parsing it (`spec/interaction-events.md:136-137`). A
+ * classifies it as a number or a word by parsing it (`spec/interaction-events.md:182-183`). A
  * fixture writing the bare JSON number `42` instead of `"42"` is therefore rejected here rather than
  * silently reaching `execute()` — it would look like proof of the number branch while actually
  * skipping the very parse that branch is about. Validated as strictly as `events` above, for the
@@ -264,7 +264,7 @@ function validateHostResponses(responses) {
 
 /**
  * The five fields a fixture's expected diagnostic must always carry — its **identity** under
- * `spec/error-model.md:254-259` ("diagnostic identity is `code` plus `params`; prose is
+ * `spec/error-model.md:255-260` ("diagnostic identity is `code` plus `params`; prose is
  * presentation"), plus the span, stage and severity, because a fixture asserts *where* and *when*
  * too.
  */
@@ -398,8 +398,8 @@ export function loadFixture(fixture) {
   // diagnostic `message` load-bearing. It is DELIBERATELY explicit rather than inferred from the
   // presence of a `message` key, and the validations below are the point of the design.
   //
-  // The default stays what `spec/error-model.md:254-259` asks for — "Tests and editor tools SHOULD
-  // assert codes and params, not English text" — and that is not a formality: `:261-263` positively
+  // The default stays what `spec/error-model.md:255-260` asks for — "Tests and editor tools SHOULD
+  // assert codes and params, not English text" — and that is not a formality: `:262-264` positively
   // permits a template author to "reorder, inflect, or soften prose", so most learner wording is
   // presentation a conforming implementation may change. Opt in only where the spec fixes the words
   // themselves; `ol-reserved-word` (`:125`) is the case this was built for, since it prescribes the
@@ -1187,7 +1187,7 @@ export function diffStream(label, keyField, expected, actual) {
 }
 
 /**
- * The five fields that are a diagnostic's **identity** under `spec/error-model.md:254-259`:
+ * The five fields that are a diagnostic's **identity** under `spec/error-model.md:255-260`:
  * "diagnostic identity is `code` plus `params`; prose is presentation", with the span, stage and
  * severity carried alongside because a fixture asserts *where* and *when* too. Every fixture is
  * compared on these, always.

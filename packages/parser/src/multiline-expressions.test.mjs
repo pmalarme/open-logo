@@ -321,7 +321,7 @@ test("no word operator this admits can begin a statement", () => {
 // --- a word operator after a complete entry value: key, or continuation? -------------------------
 //
 // `and`, `or`, `mod` and `is` are legal key names, so after a complete entry value the word is
-// genuinely ambiguous. `spec/grammar.md:314`'s **Entry lookahead** rule settles it by the token that
+// genuinely ambiguous. `spec/grammar.md:316`'s **Entry lookahead** rule settles it by the token that
 // follows, *"ignoring any line breaks between the two"* — which is what makes the one-line and
 // multi-line spellings agree (issue #944, maintainer ruling option 4).
 //
@@ -646,8 +646,8 @@ test("#944: the one-line word-key spellings now parse as two entries", () => {
 // defines `parenthesized-expression` and `parenthesized-call` "without saying how to disambiguate",
 // making it a grammar ambiguity needing a `[spec]` ruling. **That premise was wrong, and #1021
 // measured it.** The grammar is unambiguous here: `(pi == pi)` has no derivation as a
-// `parenthesized-call` (`==` is not an `expression`, :215) and exactly one as a
-// `parenthesized-expression` (:213). It was a reader defect all along, and needed no spec change.
+// `parenthesized-call` (`==` is not an `expression`, :217) and exactly one as a
+// `parenthesized-expression` (:215). It was a reader defect all along, and needed no spec change.
 //
 // So this is the positive replacement, in the shape #944's flip above established. The controls
 // that surrounded the defect are kept exactly as they were — they were clean before and must stay
@@ -664,11 +664,11 @@ test("#709/#1021: a group headed by a zero-arity reporter parses as an expressio
 });
 
 test("#709/#1021: every binary operator is admitted, `-` included", () => {
-  // All of `spec/grammar.md:181-190`'s infix operators: the ten symbolic ones plus the worded
+  // All of `spec/grammar.md:183-192`'s infix operators: the ten symbolic ones plus the worded
   // `mod`, `and`, `or` and `is`. `-` is in the list on purpose: an earlier revision of #1021
   // declared it unresolvable without arity, which measurement disproved — spaced `- 1` continues
   // the expression while glued `-1` opens an argument, and the reader already tells those apart by
-  // adjacency (`spec/grammar.md:60,230`).
+  // adjacency (`spec/grammar.md:60,232`).
   for (const operator of [
     "== pi",
     "!= pi",
@@ -748,7 +748,7 @@ test("#1021: the lookahead does not swallow a parenthesized call", () => {
 // #1021 fixed the branch by asking one question — *does an infix operator follow the head?* — and
 // this comment claimed "the grammar makes that lookahead total". It is not: an infix operator is not
 // the only thing the grammar lets follow a complete `primary`. A **postfix segment** does too
-// (`spec/grammar.md:192`, `postfix-expression ::= primary { selector | "." identifier }`), and the
+// (`spec/grammar.md:194`, `postfix-expression ::= primary { selector | "." identifier }`), and the
 // branch was blind to both of its spellings, so the parenthesized and bare readings disagreed.
 //
 // Measured at `f3066730`, before the fix, with the `origin`/`pair` prelude below:
@@ -813,7 +813,7 @@ test("#1025: a group headed by a callable with a glued selector reads exactly li
 test("#1025: a SPACED `[` after the head keeps the parenthesized call — adjacency is the discriminator", () => {
   // The negative half, and the reason `mayBeginPostfixAt` asks `peekAdjacent` rather than just
   // "is the next token a `[`". A selector binds only when glued (`:durations[:i]`), so a spaced
-  // `( pair [1] )` is still `parenthesized-call` (`spec/grammar.md:215`) passing a one-element list
+  // `( pair [1] )` is still `parenthesized-call` (`spec/grammar.md:217`) passing a one-element list
   // — which is what the parenthesized-call form is FOR, and it deliberately does NOT agree with the
   // bare `pair [1]`, a complete `pair` call followed by a stray list. Measured, and asserted here,
   // because an earlier revision of this fix's branch comment claimed those two spellings agreed:
@@ -840,7 +840,7 @@ test("#1025: a SPACED `[` after the head keeps the parenthesized call — adjace
 test("#1025: the postfix lookahead is NOT asked of the `and`/`or` heads, which are no primaries", () => {
   // The regression an earlier revision of this fix shipped, caught in review. `and`/`or` are
   // keywords admitted as heads here only because this parenthesized form is the one place they are
-  // callable (`spec/grammar.md:390`) — they answer false to `isCalleeName` and can never be the
+  // callable (`spec/grammar.md:392`) — they answer false to `isCalleeName` and can never be the
   // base of a postfix expression. Treating a glued `[` after one as a selector declined the call
   // branch, and `and` is then no primary at all: two `ol-bad-token`s for a legal variadic call.
   for (const head of ["and", "or"]) {
@@ -926,7 +926,7 @@ test("#1021: a head short of an input keeps the branch's pre-existing recovery",
   assert.match(literalHead[0], /don't know how to read 2/);
   assert.match(literalHead[1], /needs a new line of its own/);
 
-  // `spec/error-model.md:165-172` is the MUST NOT that governs every recovery path: no
+  // `spec/error-model.md:166-173` is the MUST NOT that governs every recovery path: no
   // unmatched-delimiter diagnostic for a delimiter that is in fact matched. These parentheses are
   // matched, so no amount of wreckage inside them may produce `ol-unmatched-paren`.
   for (const source of ["print (round - 1)", "print (round == 1)"]) {

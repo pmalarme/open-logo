@@ -2,14 +2,14 @@
 // dotted `.identifier` postfix covered in place-selectors.test.mjs (issue #49). These exercise the
 // parser's public `parse` surface and the semantic `check` surface against the built
 // `@openlogo/parser` package, covering:
-//   * every key-term form (spec/grammar.md:111): number, word literal, `:name` read, a bare
+//   * every key-term form (spec/grammar.md:112): number, word literal, `:name` read, a bare
 //     identifier as a *literal word key* (reserved words included), and a parenthesized expression;
 //   * selectors interleaved with dotted fields in source order (`:a.b[1].c`);
 //   * selector assignment targets, both `:place = value` and `set bare to value`;
 //   * lexical adjacency disambiguation — a spaced `[ … ]` is NOT a selector; and
 //   * the `ol-not-a-place` semantic diagnostic for a reporter/call used as an assignment target.
 //
-// Spans are asserted where they pin the selector's own `source_span` (spec/grammar.md:111).
+// Spans are asserted where they pin the selector's own `source_span` (spec/grammar.md:112).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -195,7 +195,7 @@ test("a spaced comprehension body is never treated as a selector on the collecti
 });
 
 test("an empty selector :nums[] reports the missing key, not a phantom unmatched bracket", () => {
-  // `spec/error-model.md:165-169` MUST NOT: the `[` and `]` here are correctly matched in the
+  // `spec/error-model.md:166-170` MUST NOT: the `[` and `]` here are correctly matched in the
   // source, so the defect is the missing `key-term` between them and `ol-bad-token` alone is
   // authoritative. This used to report `ol-unmatched-bracket` against a `]` one character from its
   // own `[` (issue #947).

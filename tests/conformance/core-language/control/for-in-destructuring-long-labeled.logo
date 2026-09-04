@@ -1,5 +1,5 @@
 # Core `for ... in` long `... end for` form with a destructuring `[ :x :y ]` binder
-# (spec/grammar.md:127,136-137,333-335).
+# (spec/grammar.md:128,137-138,335-337).
 for [:x :y] in :points
   print :x
   print :y

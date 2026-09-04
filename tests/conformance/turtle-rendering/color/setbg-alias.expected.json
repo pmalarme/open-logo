@@ -1,5 +1,5 @@
 {
-  "description": "issue #208: `setbg` is a Turtle & Rendering-profile (not Heritage) one-word alias of `set_background` (spec/commands.md:1539) - behaves identically, here with an `[r g b]` list normalized to an `rgb(r, g, b)` string.",
+  "description": "issue #208: `setbg` is a Turtle & Rendering-profile (not Heritage) one-word alias of `set_background` (spec/commands.md:1560) - behaves identically, here with an `[r g b]` list normalized to an `rgb(r, g, b)` string.",
   "profiles": ["turtle-rendering"],
   "execute": true,
   "events": [

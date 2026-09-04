@@ -142,7 +142,7 @@ export interface DictLitNode extends NodeBase {
 
 /**
  * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
- * `spec/grammar.md:217`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
+ * `spec/grammar.md:219`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
  * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
  * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
  * narrower {@link SelectorSegment} key-term grammar.
@@ -186,7 +186,7 @@ export interface ParenCallNode extends NodeBase {
 
 /**
  * One postfix segment of a place written as `.identifier`: a literal field or key that is never
- * evaluated (`spec/grammar.md:109,256`). Its sibling {@link SelectorSegment} covers the bracketed
+ * evaluated (`spec/grammar.md:110,258`). Its sibling {@link SelectorSegment} covers the bracketed
  * `[ key-term ]` form.
  */
 export interface FieldSegment {
@@ -197,7 +197,7 @@ export interface FieldSegment {
 
 /**
  * One postfix segment of a place written as a bracketed selector `[ key-term ]`
- * (`spec/grammar.md:110-111`). Unlike a {@link FieldSegment}, the key is a first-class
+ * (`spec/grammar.md:111-112`). Unlike a {@link FieldSegment}, the key is a first-class
  * expression: a `number`/`word` literal, a `:name` read ({@link VarRefNode}), a bare identifier
  * (a literal word key, carried as a {@link WordLitNode}), or a parenthesized expression. It
  * carries its own span so tooling can point at exactly the `[ … ]`.
@@ -228,7 +228,7 @@ export interface PlaceNode extends NodeBase {
 }
 
 /**
- * A postfix read over an arbitrary expression base — `spec/grammar.md:192`'s
+ * A postfix read over an arbitrary expression base — `spec/grammar.md:194`'s
  * `postfix-expression ::= primary { selector | "." identifier }`, which permits a postfix after
  * *any* primary, not only a `:name` (that narrower, variable-rooted case stays a {@link PlaceNode}
  * so assignment targets are unaffected). Covers a selector/field read directly off a list/dict
@@ -263,13 +263,13 @@ export interface PostfixExpressionNode extends NodeBase {
  * preserves the surface spelling. `make` is a Heritage-profile *alternate spelling only* with no
  * new semantics (`spec/conformance.md:270`, `spec/execution-model.md:318`), so it lowers to the
  * exact same {@link AssignNode} shape as `set … to` — its target is the bare name carried by the
- * word literal (`spec/grammar.md:107`, `make-assignment ::= "make" word-literal expression`),
+ * word literal (`spec/grammar.md:108`, `make-assignment ::= "make" word-literal expression`),
  * grown into a zero-segment {@link PlaceNode} just like `set name to …`.
  *
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
  * place). The parser also accepts a non-place expression here — a reporter/command call such as
  * `first :x = 5`, or a bare literal/list such as `3 = 5`/`count :nums = 3` — purely so the
- * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:213-219`)
+ * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:214-220`)
  * at `stage: "semantic"` instead of a blunt parse error. The runtime only ever sees a `Place`,
  * because `check()` rejects every non-place target first.
  */
@@ -284,7 +284,7 @@ export interface AssignNode extends NodeBase {
  * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
  * names carry their own spans so the checker can point `ol-duplicate-binder`
  * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
- * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:386`.)
+ * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:388`.)
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
@@ -357,7 +357,7 @@ export interface ForeverNode extends NodeBase {
 /**
  * A `for … in` / `map` / `filter` / `reduce` binder: either a bare `name`, or a destructuring
  * `[ :name { :name } ]` pattern that binds one or more names positionally
- * (`spec/grammar.md:136-137`).
+ * (`spec/grammar.md:137-138`).
  */
 export interface DestructuringBinderNode extends NodeBase {
   readonly kind: "DestructuringBinder";
@@ -463,7 +463,7 @@ export interface ThrowNode extends NodeBase {
 /**
  * `add value to target` — append `value` to the list `target` (Data profile,
  * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
- * `spec/execution-model.md:447-482`). A statement, never a reporter — it mutates in place and
+ * `spec/execution-model.md:710-745`). A statement, never a reporter — it mutates in place and
  * returns nothing. Runtime evaluation lands in its own Data-profile slice.
  */
 export interface AddNode extends NodeBase {
@@ -521,7 +521,7 @@ export interface ClearNode extends NodeBase {
 
 /**
  * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
- * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:155-156`'s
+ * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:159-160`'s
  * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
  * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has

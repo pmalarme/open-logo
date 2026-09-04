@@ -9,7 +9,7 @@
 //   1. Block-head forms `tell`/`ask`/`each` lower to a `ProfileStatement` and are keywords of the
 //      Sprites profile (`spec/turtles-and-sprites.md#reserved-words-in-this-profile`, C1 #663).
 //      Their PAINT is profile-gated — `isKeyword` matches them only while Sprites is active — while
-//      their DECLARATION is not: `spec/grammar.md:408` makes profile words built-in names
+//      their DECLARATION is not: `spec/grammar.md:410` makes profile words built-in names
 //      unconditionally, #855 realigned the profile documents, and #841 retired the checker gate, so
 //      **declaring** one — `define` or `struct`, not a binding — raises `ol-reserved-word` whether
 //      or not the profile is claimed. The Layer-2 checker was taught to treat them as visible
@@ -407,7 +407,7 @@ test("check: that same program under Core-only flags each Sprites name as unknow
 
 test("check: redefining a Sprites block-head under an active profile raises ol-reserved-word", () => {
   // `tell`/`ask`/`each` were once reserved only while Sprites was active (C1 #663), a gate
-  // `spec/grammar.md:408` overruled and issue #841 removed — so this test's Core-only twin below
+  // `spec/grammar.md:410` overruled and issue #841 removed — so this test's Core-only twin below
   // must agree with it head for head. The reporters are NOT keywords in any profile — they collide
   // through the checker's *primitive* branch instead (issue #746, asserted by the reporter
   // redefinition tests below), which since issue #838 is a difference in branch only: both report
@@ -426,7 +426,7 @@ test("check: redefining a Sprites block-head under an active profile raises ol-r
 });
 
 test("#841: redefining a Sprites block-head raises under Core-only too", () => {
-  // `spec/grammar.md:408` and `spec/turtles-and-sprites.md:154`: a profile decides whether a name
+  // `spec/grammar.md:410` and `spec/turtles-and-sprites.md:154`: a profile decides whether a name
   // works, never whether a program may declare it. So this must match the profile-ACTIVE test above
   // head for head — a difference between the two would be the defect.
   for (const head of Object.keys(SPRITES_BLOCK_HEADS)) {
@@ -452,7 +452,7 @@ test("check: redefining a Sprites reporter under an active profile raises ol-res
   //
   // The reporter/block-head distinction this file exists to keep separate is preserved in the
   // checker's BRANCHES, but is no longer visible in the diagnostic: issue #838 removed the
-  // `namespace` param, because `spec/error-model.md:125,132-141` makes keyword-vs-primitive "an
+  // `namespace` param, because `spec/error-model.md:125,133-142` makes keyword-vs-primitive "an
   // implementation distinction the learner never has to learn". `params.name` is the surface
   // spelling the learner wrote, at that name's own span (#737).
   for (const reporter of Object.keys(SPRITES_REPORTERS)) {

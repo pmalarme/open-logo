@@ -1,5 +1,5 @@
 {
-  "description": "A nested `repeat 2 [ repeat 2 [ print repcount ] ]`: `repcount` always reads the nearest-enclosing `repeat`'s turn (`spec/commands.md:775-792` — \"when several repeat loops are nested, repcount refers to the nearest one\"), so the inner loop's turn resets to 1 then 2 on every pass of the outer loop, printing 1, 2, 1, 2. Issue #104.",
+  "description": "A nested `repeat 2 [ repeat 2 [ print repcount ] ]`: `repcount` always reads the nearest-enclosing `repeat`'s turn (`spec/commands.md:796-813` — \"when several repeat loops are nested, repcount refers to the nearest one\"), so the inner loop's turn resets to 1 then 2 on every pass of the outer loop, printing 1, 2, 1, 2. Issue #104.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

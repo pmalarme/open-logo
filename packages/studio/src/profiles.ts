@@ -23,7 +23,7 @@
  * reading the same set — must treat it as an available name rather than an unknown command.
  *
  * What a profile set decides is exactly that: **whether a name works**, never whether a program may
- * declare it. Profile words are built-in names *unconditionally* (`spec/grammar.md:408`), so
+ * declare it. Profile words are built-in names *unconditionally* (`spec/grammar.md:410`), so
  * `ol-reserved-word` is not a profile-conditional judgement and nothing here should be read as
  * making it one.
  *

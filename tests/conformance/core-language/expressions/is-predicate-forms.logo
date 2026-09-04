@@ -1,4 +1,4 @@
-# All four Core worded is-predicate forms (spec/grammar.md:181-184), each a lone comparison-level
+# All four Core worded is-predicate forms (spec/grammar.md:183-186), each a lone comparison-level
 # expression so it stays a single IsPredicate node. Operand-first, matching the grammar.
 print :x is empty
 print :x is member of [1 2 3]

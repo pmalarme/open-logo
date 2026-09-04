@@ -2,7 +2,7 @@
 // control-long.test.mjs (#58) or #91's own tests: exact binder `source_span`s (bare name,
 // `ForRange` variable, `DestructuringBinderNode`, and each destructured name), the `by` step's
 // own span and its absence when omitted, and destructuring-binder read resolution via `check()`
-// (spec/grammar.md:127,136-137,142-143). These validate the already-merged parser; they do not
+// (spec/grammar.md:128,137-138,143-144). These validate the already-merged parser; they do not
 // change it.
 //
 // Spans are half-open `[start, end)` with 1-based `[line, column]` positions, per

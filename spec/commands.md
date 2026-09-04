@@ -69,7 +69,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 - **Kind:** Special form
 - **Argument types:** assignable place, value
 - **Result:** —
-- **Description:** Assigns a value to a colon-form place such as `:size`, `:nums[1]`, `:p.x`, or `:people.tom.age`. An undefined simple variable becomes global unless a lexical local exists. Writing a missing dictionary key at the final selector upserts it.
+- **Description:** Assigns a value to a colon-form place such as `:size`, `:nums[1]`, `:p.x`, or `:people.tom.age`. Assignment updates the nearest visible binding; when no binding of that name is visible, it creates one in the current scope ([execution-model.md](execution-model.md#variables-scoping-and-procedures)). Inside a procedure only its parameters, the names its body has already bound, and `global` names are visible, so assigning any other name creates a procedure-local binding instead of reaching outside. Writing a missing dictionary key at the final selector upserts it.
 - **Concept:** A variable or nested place can name a changing value.
 - **Example:**
 
@@ -88,7 +88,7 @@ OpenLogo has no `function` primitive, no `f(x,y)` call syntax, no lambda syntax,
 - **Kind:** Special form
 - **Argument types:** bare assignable place, value
 - **Result:** —
-- **Description:** Worded assignment using the same place rules as `=` but without the leading colon on the target.
+- **Description:** Worded assignment using the same place rules as `=` but without the leading colon on the target. It resolves a name the same way `=` does: nearest visible binding, otherwise a new binding in the current scope.
 - **Concept:** The same idea can be expressed with explicit learner-readable words.
 - **Example:**
 
@@ -102,24 +102,45 @@ make "size" 120
 
 ### `local`
 
-- **Signature:** `local name`; `(local a b …)` for multiple names
+- **Signature:** `local name`; `local name = value`; `(local a b …)` for multiple names
 - **Aliases:** none
 - **Kind:** Special form
-- **Argument types:** name or names
+- **Argument types:** name or names; the single-name form takes an optional initializer value, the parenthesized multi-name form does not
 - **Result:** —
-- **Description:** Declares one or more names local to the current procedure frame.
-- **Concept:** A procedure can have private working memory.
+- **Description:** Declares one or more names in the **current scope** — the enclosing block if there is one, the procedure frame if the code is in a procedure body, otherwise the root scope — shadowing anything of that name that was visible. `local name = value` evaluates the initializer first, in the enclosing scope, and creates the new binding afterwards from the result, so `local count = :count + 1` reads the outer or `global` `count`.
+- **Concept:** A procedure or a block can have private working memory.
 - **Example:**
 
 ```logo
 define grow :n
-  local total
-  :total = :n + 1
+  local total = :n + 1
   return :total
 end
 ```
 
-- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the top-level program frame rather than raising an error.
+- **Possible errors:** none from the name itself. `local` binds a name rather than declaring a callable, so any name is legal, including a keyword or a primitive. Used outside any procedure, `local` introduces the name in the current scope rather than raising an error; at the root scope, where there is no enclosing scope to shadow into, it names a binding in the root scope itself and leaves an existing `global` of that name global.
+
+### `global`
+
+- **Signature:** `global name = value`
+- **Aliases:** none
+- **Kind:** Special form
+- **Argument types:** bare name, value
+- **Result:** —
+- **Description:** Declares a **shared** binding in the root scope and gives it an initial value. The name is written bare, without a leading colon, and the initializer is required. A `global` name is the only variable a procedure can see besides its own parameters and locals, for reading and for writing alike, which is what carries shared state across the sealed procedure boundary ([execution-model.md](execution-model.md#variables-scoping-and-procedures)). The declaration is an ordinary top-level instruction and takes effect when it runs.
+- **Concept:** State that several procedures share is declared once, in the open.
+- **Example:**
+
+```logo
+global count = 0
+define bump
+  :count = :count + 1
+end
+bump
+print :count
+```
+
+- **Possible errors:** `ol-global-outside-root` when the declaration appears anywhere but the root scope — inside a procedure body, a block, or a handler.
 
 ### `thing`
 
@@ -780,7 +801,7 @@ end repeat
 - **Kind:** Reporter
 - **Argument types:** none
 - **Result:** number
-- **Description:** Reports the current 1-based iteration count of the innermost enclosing `repeat`. When several `repeat` loops are nested, `repcount` refers to the nearest one.
+- **Description:** Reports the current 1-based iteration count of the innermost `repeat` that **lexically encloses it** — the one it is written inside. When several `repeat` loops are nested, `repcount` refers to the nearest enclosing one. Enclosure is lexical, never dynamic: a procedure called from inside a `repeat` body has no enclosing `repeat` of its own, so `repcount` in that procedure raises `ol-repcount-outside-repeat`.
 - **Concept:** A loop can know which turn it is on.
 - **Example:**
 

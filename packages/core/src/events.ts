@@ -57,7 +57,7 @@ export const OL_EVENT_KINDS = [
 export type EventKind = (typeof OL_EVENT_KINDS)[number];
 
 /**
- * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:638` is
+ * The registered kinds whose envelope **may carry** a `turtle_id`. `spec/execution-model.md:901` is
  * explicit: "`turtle-id` | Turtle identity; present only when the event is turtle-specific,
  * otherwise absent", and `spec/turtles-and-sprites.md:113` scopes the identity requirement to
  * explaining "which turtle moved or changed".
@@ -224,7 +224,7 @@ export interface StampPayload {
 /**
  * Payload for a `print` event: the evaluated {@link OLValue}s, in argument order — one element
  * for the single-value `print value` form, two or more for the parenthesized variadic
- * `(print a b …)` form (`spec/commands.md:142-158`). Values are carried raw, not pre-formatted
+ * `(print a b …)` form (`spec/commands.md:163-179`). Values are carried raw, not pre-formatted
  * text, matching every other effect payload here (e.g. `move`'s raw coordinates): a consumer
  * renders learner-visible text from them via the shared canonical-printed-form rule
  * (`@openlogo/runtime`'s `printedForm`, `spec/execution-model.md:19`).
@@ -277,7 +277,7 @@ export interface PrintPayload {
  *
  * **No claim is made that two independent implementations emit identical values here.** An earlier
  * wording of this invariant asserted exactly that, twice, and was false both times: a registered
- * argument may be computed (`every (random 1 3) [ … ]`), and `spec/commands.md:353-378` promises
+ * argument may be computed (`every (random 1 3) [ … ]`), and `spec/commands.md:374-399` promises
  * reproducible randomness only *within* an implementation, so conformant implementations may
  * legitimately disagree. What is claimed is narrower and true: within a run, this field reports the
  * argument the program itself registered the handler with. That is also all a consumer needs, since
@@ -355,7 +355,7 @@ export interface InstructionPayload {
 /**
  * Payload for a `procedure-enter` event: the callee's canonical name and its evaluated argument
  * values, in parameter order — required arguments as supplied, trailing optional ones with their
- * default applied when the caller omitted them (`spec/execution-model.md:775-813`'s worked
+ * default applied when the caller omitted them (`spec/execution-model.md:1038-1076`'s worked
  * recursive-call trace, e.g. `{name:"countdown", args:[2]}`).
  */
 export interface ProcedureEnterPayload {
@@ -365,9 +365,9 @@ export interface ProcedureEnterPayload {
 
 /**
  * Payload for a `procedure-exit` event: the callee's canonical name and its result
- * (`spec/execution-model.md:775-813`, e.g. `{name:"countdown", result:0}`). `result` is `null`
+ * (`spec/execution-model.md:1038-1076`, e.g. `{name:"countdown", result:0}`). `result` is `null`
  * when the invocation is a command — it finished (or `stop`ped) without reaching `return`
- * (`spec/execution-model.md:368-374`) — rather than `0`/`false`/an empty list, which are
+ * (`spec/execution-model.md:618-624`) — rather than `0`/`false`/an empty list, which are
  * themselves ordinary result values.
  */
 export interface ProcedureExitPayload {
@@ -377,7 +377,7 @@ export interface ProcedureExitPayload {
 
 /**
  * Payload for a `return` event: the value supplied to `return`/`output`/`op`
- * (`spec/execution-model.md:775-813`, e.g. `{value:0}`). Emitted only when a procedure actually
+ * (`spec/execution-model.md:1038-1076`, e.g. `{value:0}`). Emitted only when a procedure actually
  * reaches a `return`; a command invocation (falls through, or `stop`s) never emits one.
  */
 export interface ReturnPayload {
@@ -441,7 +441,7 @@ export type TutorCommand = "explain" | "why" | "hint" | "debug";
  * The four progressive stages of `hint` (`spec/educational-model.md#hint`). A `hint` invocation
  * for a given `target-source-span` starts at `"nudge"` and escalates one stage per repeated
  * request, up to `"last-resort"`, which then repeats rather than revealing a full solution
- * (`spec/execution-model.md:640-652`). Present in {@link TutorOutputPayload} only when
+ * (`spec/execution-model.md:903-915`). Present in {@link TutorOutputPayload} only when
  * `command` is `"hint"`.
  */
 export type TutorHintStage = "nudge" | "concept" | "partial" | "last-resort";
@@ -547,14 +547,14 @@ export type TutorOutputPayload =
 /**
  * The name of a primitive that emits a `primitive` event. `primitive` is the **generic catch-all**
  * effect kind — "the generic catch-all for a primitive without a more specific event"
- * (`spec/execution-model.md:703`) — so it is profile-neutral and the set of emitters is
+ * (`spec/execution-model.md:966`) — so it is profile-neutral and the set of emitters is
  * **open-ended**: any current or future primitive that lacks a more specific event kind emits one.
  * This alias is therefore an open `string`, not a closed union, so a new emitter never requires
  * re-opening this contract. The current M5 emitters are the Interaction & Events forms
  * `wait`/`when`/`every`/`on_key`/`on_click` ("primitives without a more specific kind emit
- * `primitive`", `spec/interaction-events.md:105-106`; "wait emits a `primitive` event after the
+ * `primitive`", `spec/interaction-events.md:151-152`; "wait emits a `primitive` event after the
  * pause completes … event registration forms emit `primitive` events after the handler is
- * registered", `spec/interaction-events.md:120-122`), but the type deliberately does not close over
+ * registered", `spec/interaction-events.md:166-168`), but the type deliberately does not close over
  * them.
  */
 export type PrimitiveName = string;
@@ -593,7 +593,7 @@ export type PrimitiveName = string;
  * restoring the previous set on the way out all reduce through one rule.
  *
  * The set lives in the payload rather than the envelope's `turtle_id`, which is normatively
- * "present only when the event is turtle-specific" (`spec/execution-model.md:638`): addressing
+ * "present only when the event is turtle-specific" (`spec/execution-model.md:901`): addressing
  * concerns a *set* of turtles, so an addressing event is never turtle-specific and MUST NOT be
  * stamped with one turtle's id.
  */
@@ -605,7 +605,7 @@ export interface AddressingSnapshot {
 /**
  * Payload for a `primitive` event: the canonical {@link PrimitiveName} of the primitive whose
  * effect the event records. `primitive` is the generic catch-all effect kind for a primitive
- * without a more specific event (`spec/execution-model.md:703`) — profile-neutral, not scoped to
+ * without a more specific event (`spec/execution-model.md:966`) — profile-neutral, not scoped to
  * any one profile — and `name` is what lets replay/debug tools tell those primitives apart. The
  * event is emitted after the effect it describes (after a `wait` pause completes, or after a handler
  * is registered), so no timing or tick data lives in the payload — the stream carries no timing or
@@ -615,9 +615,9 @@ export interface AddressingSnapshot {
  * (`spec/turtles-and-sprites.md:17`'s C3 rows), which change the addressed turtle set and have no
  * more specific event kind — exactly the case `primitive` exists for, and the same reading under
  * which the Interaction registration *forms* `when`/`every`/`on_key`/`on_click` emit `primitive`
- * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:105-106`).
+ * ("primitives without a more specific kind emit `primitive`", `spec/interaction-events.md:151-152`).
  * It is deliberately NOT a new registered `kind`: the registry's `kind` values are normative and
- * closed (`spec/execution-model.md:689-694`, "One registered event kind"), the only sanctioned
+ * closed (`spec/execution-model.md:952-957`, "One registered event kind"), the only sanctioned
  * un-registered kinds are vendor-namespaced extensions (`vendor_name.event_name`) which by
  * definition may not be recorded as portable conformance behavior, and reusing the catch-all keeps
  * every existing consumer correct with no change — an addressing-unaware renderer simply sees one
@@ -632,7 +632,7 @@ export interface PrimitivePayload {
 
 /**
  * Compile-time regression guard for the finding that `primitive` is the profile-neutral generic
- * catch-all (`spec/execution-model.md:703`): its `name` must stay an OPEN type so a future primitive
+ * catch-all (`spec/execution-model.md:966`): its `name` must stay an OPEN type so a future primitive
  * from any profile is representable without re-opening this contract. `AssertAssignable<T, V>`
  * requires `V extends T`, so this alias only compiles while the non-interaction literal
  * `"some_future_primitive"` is assignable to `PrimitiveName`; if `PrimitiveName` is ever narrowed
@@ -660,9 +660,9 @@ type _PrimitivePayloadAddressingStaysOptional = AssertAssignable<
 
 /**
  * Payload for a `sound` event emitted by `set_tempo` (Sound profile,
- * `spec/interaction-events.md:286-299`): the tempo, in beats per minute, that `set_tempo` set.
+ * `spec/interaction-events.md:332-345`): the tempo, in beats per minute, that `set_tempo` set.
  * Durations elsewhere in the stream are carried in beats and interpreted at the current tempo
- * (`spec/interaction-events.md:294-295`). A positive number (`ol-range` otherwise);
+ * (`spec/interaction-events.md:340-341`). A positive number (`ol-range` otherwise);
  * the default before any `set_tempo`
  * is `120`.
  */
@@ -673,7 +673,7 @@ export interface SetTempoSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `note` (Sound profile,
- * `spec/interaction-events.md:301-318`): one pitched sound scheduled at the current tempo. `pitch`
+ * `spec/interaction-events.md:347-364`): one pitched sound scheduled at the current tempo. `pitch`
  * is a scientific-pitch-notation word with lowercase canonical spelling (e.g. `"c4"`, `"fs4"`,
  * `"bb3"`); `duration` is a positive number of beats.
  */
@@ -685,7 +685,7 @@ export interface NoteSoundPayload {
 
 /**
  * One scheduled step of a `play` melody: a pitch word accepted by `note` or the word `"rest"`, and
- * its positive beat `duration` (`spec/interaction-events.md:320-334` — the melody list is
+ * its positive beat `duration` (`spec/interaction-events.md:366-380` — the melody list is
  * pitch/duration pairs in sequence). The runtime resolves the flat, even-length melody list into
  * these ordered pairs before emitting the event.
  */
@@ -696,7 +696,7 @@ export interface MelodyStep {
 
 /**
  * Payload for a `sound` event emitted by `play` (Sound profile,
- * `spec/interaction-events.md:320-334`): the resolved melody, as an ordered list of pitch/duration
+ * `spec/interaction-events.md:366-380`): the resolved melody, as an ordered list of pitch/duration
  * {@link MelodyStep}s, scheduled in sequence at the current tempo.
  */
 export interface PlaySoundPayload {
@@ -706,7 +706,7 @@ export interface PlaySoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `beep` (Sound profile,
- * `spec/interaction-events.md:336-351`): one short, implementation-defined alert sound. It carries
+ * `spec/interaction-events.md:382-397`): one short, implementation-defined alert sound. It carries
  * no parameters — the spec pins none — so the discriminant `command` is the whole payload.
  */
 export interface BeepSoundPayload {
@@ -715,9 +715,9 @@ export interface BeepSoundPayload {
 
 /**
  * Payload for a `sound` event emitted by `rest` (Sound profile,
- * `spec/interaction-events.md:353-368`): scheduled silence of `duration` beats at the current
+ * `spec/interaction-events.md:399-414`): scheduled silence of `duration` beats at the current
  * tempo. `rest` emits a `sound` event "so replay tools can show the silent interval"
- * (`spec/interaction-events.md:362`). `duration` is a positive number.
+ * (`spec/interaction-events.md:408`). `duration` is a positive number.
  */
 export interface RestSoundPayload {
   readonly command: "rest";
@@ -728,7 +728,7 @@ export interface RestSoundPayload {
  * The `sound` event's payload — a discriminated union on `command`, one arm per Sound-profile
  * primitive ({@link SetTempoSoundPayload}, {@link NoteSoundPayload}, {@link PlaySoundPayload},
  * {@link BeepSoundPayload}, {@link RestSoundPayload}). Sound commands emit a `sound` event after
- * the sound state has been scheduled (`spec/interaction-events.md:120-121`); the payload carries
+ * the sound state has been scheduled (`spec/interaction-events.md:166-167`); the payload carries
  * only what each command deterministically schedules (pitch, duration in beats, tempo), never
  * wall-clock timing or audio frames — those are a rendering concern, not part of the deterministic,
  * headless stream.
@@ -770,7 +770,7 @@ export interface SpawnTurtlePayload {
  * `tutor-output` (Educational profile, via {@link TutorOutputPayload}), and `overlay` (Geometry
  * profile, via {@link OverlayPayload}); `sound` (Sound profile, via {@link SoundPayload}) and
  * `spawn-turtle` (Sprites profile, via {@link SpawnTurtlePayload}); and `primitive`, the
- * profile-neutral generic catch-all (`spec/execution-model.md:703`, via {@link PrimitivePayload} —
+ * profile-neutral generic catch-all (`spec/execution-model.md:966`, via {@link PrimitivePayload} —
  * which also carries the Sprites {@link AddressingSnapshot} for `tell`/`ask`/`each`);
  * other kinds (e.g. `error`) refine their payload with their feature slice.
  */

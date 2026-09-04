@@ -1,4 +1,4 @@
-# Issue #962. The Heritage `value of … for key …` reader (`spec/grammar.md:217`'s
+# Issue #962. The Heritage `value of … for key …` reader (`spec/grammar.md:219`'s
 # `value-of-reader`) is ONE expression, so `spec/grammar.md:34` — "Within a single expression, list
 # literal, dict literal, or parenthesized group, newlines are insignificant" — governs the slots
 # inside it. Before the fix the reader stopped at a newline before its required `for key` tail, so

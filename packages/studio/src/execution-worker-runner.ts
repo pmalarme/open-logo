@@ -3,7 +3,7 @@
  * `@openlogo/runtime`'s `execute()` off the main thread and **parks inside the `input` reader**
  * until the learner answers.
  *
- * This is where `spec/interaction-events.md:108-111` is finally honoured without reconciliation:
+ * This is where `spec/interaction-events.md:154-157` is finally honoured without reconciliation:
  * the reader is synchronous, so no OpenLogo instruction and no handler block runs until the read
  * finishes — and the wait is a genuine `Atomics.wait`, not a cancellation the studio replays past.
  *
@@ -24,14 +24,14 @@
  *   structured clone drops class prototypes and `printedForm` throws on a cloned `OLDict` — see
  *   `execution-host.ts`'s doc comment.
  *
- * `spec/interaction-events.md:108-110` explicitly permits this ("the implementation **MAY** continue
+ * `spec/interaction-events.md:154-156` explicitly permits this ("the implementation **MAY** continue
  * rendering already-emitted trace events"), and before the `observedEvents` seam that allowance was
  * unreachable.
  *
  * ## Why a read is answered from the FIFO before it is put to the learner (#976)
  * Parking is the *second* thing this reader tries, not the first. Until #976 a chain that had asked
  * a question refused host input for the rest of its life, so this host never re-ran a program past a
- * read and could always park. #976 deletes that refusal — `:108-111` blocks handlers only "until the
+ * read and could always park. #976 deletes that refusal — `:154-157` blocks handlers only "until the
  * read finishes" — so a key press now replays the chain, and a reader that always parked would
  * **re-ask every question the learner had already answered**, one modal per press.
  *

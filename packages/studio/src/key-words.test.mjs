@@ -4,7 +4,7 @@ import * as OL from "@openlogo/studio";
 
 /**
  * `key-words.ts` (#952) — the studio's documented `on_key` vocabulary and the normalization
- * `spec/interaction-events.md:221-225` asks for ("Implementations SHOULD document their supported
+ * `spec/interaction-events.md:267-271` asks for ("Implementations SHOULD document their supported
  * key words and SHOULD normalize physical keyboard input to those lowercase words **for
  * accessibility**").
  *
@@ -21,7 +21,7 @@ test("#952: the four arrows normalize to the spec's own examples", () => {
   assert.equal(OL.normalizeKeyWord("ArrowDown"), "down");
 });
 
-test("#952: the named keys spec/interaction-events.md:222-224 lists are reachable by their spelled word", () => {
+test("#952: the named keys spec/interaction-events.md:268-270 lists are reachable by their spelled word", () => {
   assert.equal(OL.normalizeKeyWord(" "), "space");
   assert.equal(OL.normalizeKeyWord("Enter"), "enter");
 });

@@ -1,4 +1,4 @@
-# Issues #947, #879 and #980, the negative direction. `spec/error-model.md:165-169` is a
+# Issues #947, #879 and #980, the negative direction. `spec/error-model.md:166-170` is a
 # delimiter-agnostic MUST NOT: *"on any recovery path, for any malformed input, a parser MUST NOT
 # raise any unmatched-delimiter diagnostic — the class whose members in v0.1 are
 # `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` — for a delimiter that is,
@@ -14,7 +14,7 @@
 # really has no partner IS still reported — without which a parser could satisfy this file by
 # never emitting the class at all.
 #
-# A reserved word cannot be a `callable-name` (`spec/grammar.md:390`), which is what makes each
+# A reserved word cannot be a `callable-name` (`spec/grammar.md:392`), which is what makes each
 # paren row malformed. The rows use Data and Heritage names, so both profiles are active.
 print ( set 1 )
 print ( if 1 )

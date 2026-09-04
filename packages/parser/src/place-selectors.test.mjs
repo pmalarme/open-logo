@@ -1,12 +1,12 @@
 // Unit tests for nested places and postfix chains (issue #49). These target AST shapes NOT
 // already asserted by parse.test.mjs or the merged variables.test.mjs (issue #48): a deeply
 // (3+ level) dotted field chain, a dotted place used inside expression positions where postfix
-// precedence over comparison/other operators matters (spec/grammar.md:107-111,188,216-230), and
+// precedence over comparison/other operators matters (spec/grammar.md:108-112,190,218-232), and
 // the actual (verified against the built parser) diagnostic behavior for a malformed postfix
 // (a trailing dot with no following field name).
 //
 // This file targets the dotted `.identifier` postfix form (issue #49); the bracketed
-// `[ key-term ]` selector form (`spec/grammar.md:112`, `selector ::= "[" key-term "]"`) is
+// `[ key-term ]` selector form (`spec/grammar.md:113`, `selector ::= "[" key-term "]"`) is
 // implemented and covered separately in postfix-selectors.test.mjs (issue #79). The cases below
 // exercise the dotted-field postfix and its interaction with precedence and diagnostics.
 //

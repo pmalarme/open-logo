@@ -222,7 +222,7 @@ export function createWorkerExecutionHost(
         events: report.events,
         output: report.output,
         tutorOutput: report.tutorOutput,
-        // A suspended run has not failed: `spec/interaction-events.md:108-111` is waiting, not
+        // A suspended run has not failed: `spec/interaction-events.md:154-157` is waiting, not
         // cancelling, so there is nothing to publish. The replay host withholds a diagnostic here
         // for the opposite reason — it really did cancel the attempt.
         diagnostics: [],

@@ -22,9 +22,9 @@
  * and the checker's diagnostics read a program under the same profiles.
  *
  * The token classes are normative (`spec/tooling.md:8`) and an LSP `textDocument/semanticTokens`
- * response returns "the token classes in this document" (`:278-280`), so this adapter has no
+ * response returns "the token classes in this document" (`:279-281`), so this adapter has no
  * licence to classify differently from a batch `highlight()` given the same source and profile set.
- * (`spec/tooling.md:294-295`'s explicit batch-parity MUST is about *diagnostics*, not tokens — the
+ * (`spec/tooling.md:295-296`'s explicit batch-parity MUST is about *diagnostics*, not tokens — the
  * token obligation is the normative-class one above.)
  */
 

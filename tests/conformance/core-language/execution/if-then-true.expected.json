@@ -1,5 +1,5 @@
 {
-  "description": "`if true [ print 1 ]` runs the then-branch (`spec/commands.md:721`): the `If` statement's own `instruction` event is followed by the branch's `Call`/`print` events, then execution continues with the following `print 2`. Issue #100.",
+  "description": "`if true [ print 1 ]` runs the then-branch (`spec/commands.md:742`): the `If` statement's own `instruction` event is followed by the branch's `Call`/`print` events, then execution continues with the following `print 2`. Issue #100.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

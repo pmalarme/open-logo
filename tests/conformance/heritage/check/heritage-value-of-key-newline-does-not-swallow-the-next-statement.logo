@@ -11,8 +11,8 @@
 # one changes the rows below.
 #
 # `for` is the one word the reader crosses a newline for that can also BEGIN a statement
-# (`for-in-statement`/`for-range-statement`, `spec/grammar.md:129-130`), and `key` is a legal
-# `binder` (`:386`), so `for key in …` and `for key from …` look exactly like this reader's tail
+# (`for-in-statement`/`for-range-statement`, `spec/grammar.md:130-131`), and `key` is a legal
+# `binder` (`:388`), so `for key in …` and `for key from …` look exactly like this reader's tail
 # while being loops. Each reader below raises exactly one `ol-bad-token` anchored at the **newline**
 # ("end of line"): an anchor naming a word from the following line is the observable signature of a
 # reader that reached past the newline it should have released. Nine readers means nine such

@@ -453,7 +453,7 @@ function findInstructionAtSpan(
 
 /**
  * The two `kind`s the runtime pushes as bookkeeping *before* their effect
- * (`spec/execution-model.md:575`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
+ * (`spec/execution-model.md:838`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
  * statement — including the `why`/`explain` meta-command's own — gets an `instruction` start
  * event, and every procedure call gets a `procedure-enter` start event before its body runs.
  * Neither describes anything that actually happened yet, so `findRelevantEvent` must never

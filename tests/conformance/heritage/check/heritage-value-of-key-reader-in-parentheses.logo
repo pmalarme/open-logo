@@ -1,11 +1,11 @@
 # Issue #830: the Heritage `value of … for key …` reader must be reachable INSIDE parentheses.
-# `spec/grammar.md` derives it there — `primary` (:193-204) offers both `parenthesized-expression`
-# (:199, defined :213) and `value-of-reader` (:203, defined :217), so
+# `spec/grammar.md` derives it there — `primary` (:195-206) offers both `parenthesized-expression`
+# (:201, defined :215) and `value-of-reader` (:205, defined :219), so
 # `expression → … → primary → value-of-reader` makes `( value of :d for key "a" )` a
 # `parenthesized-expression` wrapping a `value-of-reader`.
 #
 # This once failed with `ol-bad-token`: the `(` path took `value` as a `parenthesized-call`
-# callee (:215) and never entered the reader. #885 fixed it incidentally by deriving
+# callee (:217) and never entered the reader. #885 fixed it incidentally by deriving
 # `NON_PRIMARY_NAMES` from the keyword registry, which contains `value` — so `isCalleeName`
 # now rejects it and the `(` path falls through to the reader. Nothing pinned that, hence this
 # fixture: the reader must stay reachable through every parenthesized shape.

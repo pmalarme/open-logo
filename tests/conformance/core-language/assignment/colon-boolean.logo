@@ -1,3 +1,3 @@
-# The colon-place form with boolean values (`true`/`false`), per spec/grammar.md:103.
+# The colon-place form with boolean values (`true`/`false`), per spec/grammar.md:104.
 :flag = true
 :other = false

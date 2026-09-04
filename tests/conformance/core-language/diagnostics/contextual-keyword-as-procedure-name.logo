@@ -1,5 +1,5 @@
 # The contextual keywords `empty`, `member`, `of`, and `a` are NOT built-in names
-# (spec/grammar.md:380): they are structural by POSITION only -- in the `is` predicate forms, and
+# (spec/grammar.md:382): they are structural by POSITION only -- in the `is` predicate forms, and
 # additionally in the Heritage `value of ... for key` reader for `of` -- and stay ordinary names
 # everywhere else. A declaration slot is one of those "everywhere else" positions, so each is a
 # legal procedure name in the callable namespace and calling it resolves cleanly. This is the

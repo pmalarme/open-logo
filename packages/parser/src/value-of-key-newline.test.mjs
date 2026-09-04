@@ -1,6 +1,6 @@
 // Guard tests for a newline **inside** the Heritage `value of … for key …` reader (issue #962).
 //
-// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md:217`) is a
+// `value-of-reader ::= "value" "of" expression "for" "key" expression` (`spec/grammar.md:219`) is a
 // single expression, and `spec/grammar.md:34` says newlines are insignificant inside one. The
 // reader nonetheless stopped at the newline before its required `for key` tail, so every spelling
 // below raised `ol-bad-token` — and wrapped in parentheses it raised `ol-unmatched-paren` twice
@@ -298,14 +298,14 @@ test("a newline still terminates a statement", () => {
 
 test("an incomplete reader does not swallow the `for` statement on the next line", () => {
   // `for` is the one word this reader crosses a newline for that can also BEGIN a statement
-  // (`for-in-statement`/`for-range-statement`, `spec/grammar.md:129-130`). The newline is therefore
+  // (`for-in-statement`/`for-range-statement`, `spec/grammar.md:130-131`). The newline is therefore
   // only crossed when the whole two-word `for key` tail follows it AND `key` is not the loop's own
   // binder. Without those guards the loops below would be consumed into the broken reader's error
   // recovery and vanish from the tree — and this program is already invalid, which is exactly why
   // nothing else would notice.
   //
   // The `key`-binder rows are the ones the two-word guard alone gets wrong: a `binder` is a `name`
-  // (`spec/grammar.md:138`) and a reserved keyword is legal in that slot (`:386`), so `key` is a
+  // (`spec/grammar.md:139`) and a reserved keyword is legal in that slot (`:388`), so `key` is a
   // legal binder and `for key in …` satisfies "the tail is there" while being a loop. Only the word
   // after `key` tells them apart.
   for (const [loop, kind] of [
@@ -514,8 +514,8 @@ test("`for` and `key` remain usable as dictionary keys across a newline", () => 
   // every mutation of it. It is here because `for` and `key` being ordinary keys — legal data, not
   // declarations — is the property a careless continuation would break. Two passages carry that,
   // and both are cited because reviewers have twice disagreed about which one does:
-  // `spec/grammar.md:390` is the precise one for KEYWORDS ("The positions that name data … admit
-  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `:406` states the
+  // `spec/grammar.md:392` is the precise one for KEYWORDS ("The positions that name data … admit
+  // keywords freely: a plain `name`, … a `key-term`, a `dict-key` …"), and `:408` states the
   // property in the words used here ("Dictionary keys and selector bare keys are data, not
   // declarations, so built-in names are legal keys") — which reaches `for`/`key` because
   // `spec/built-in-names.json` lists both as `category: "keyword"`, and that file is the

@@ -9,7 +9,7 @@
  *
  * Every stage is built only from data already on the context (the learner's level and, when
  * known, the target callee's metadata) — never from the learner's actual challenge parameters —
- * so the guardrail in `spec/execution-model.md:629-639` holds unconditionally: no stage, not even
+ * so the guardrail in `spec/execution-model.md:892-902` holds unconditionally: no stage, not even
  * `"last-resort"`, can ever assemble into a complete, ready-to-run OpenLogo program. Stage 3
  * ("partial") and stage 4 ("last-resort") each surface a worked *skeleton* for the learner's
  * current level's concept, but every skeleton uses `‹placeholder›` markers (guillemets are not
@@ -35,7 +35,7 @@ const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
 
 /**
  * Computes the next stage in the progression given the previously shown stage for this
- * `target-source-span`, per `spec/execution-model.md:640-652`: absent -> `"nudge"`; each known
+ * `target-source-span`, per `spec/execution-model.md:903-915`: absent -> `"nudge"`; each known
  * stage escalates by one; `"last-resort"` (or any stage past it) stays at `"last-resort"` rather
  * than fabricating a fifth stage.
  */

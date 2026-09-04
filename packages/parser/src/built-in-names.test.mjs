@@ -101,7 +101,7 @@ test("alias resolution is depth-1, so the recursion terminates by construction",
 });
 
 test("the predicate takes no profile set, so supplying one changes nothing", () => {
-  // `spec/grammar.md:408`: a profile decides whether a name works, never whether a program may
+  // `spec/grammar.md:410`: a profile decides whether a name works, never whether a program may
   // declare it. The extra argument is ignored, which is exactly the property being pinned — there
   // is no profile parameter for a caller to get wrong.
   for (const name of [
@@ -125,7 +125,7 @@ test("the predicate takes no profile set, so supplying one changes nothing", () 
 
 test("isKeywordInAnyProfile is unconditional where isKeyword stays gated", () => {
   // The split issue #841 introduced. `spec/tooling.md:30` gates the PAINT axis on the active
-  // profile ("while their profile is active"); `spec/grammar.md:408` refuses to gate the
+  // profile ("while their profile is active"); `spec/grammar.md:410` refuses to gate the
   // DECLARATION axis. Both read `OL_PROFILE_KEYWORDS`, so this pins that they disagree only about
   // *when* a word counts — never about which words there are.
   for (const [profile, words] of Object.entries(OL.OL_PROFILE_KEYWORDS)) {

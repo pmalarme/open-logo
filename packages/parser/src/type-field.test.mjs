@@ -257,7 +257,7 @@ test("stays silent on an `=` assignment target, leaving it to ol-not-a-place", (
 
 test("does not statically check a field on a variable base (runtime-authoritative)", () => {
   // The speculation boundary: inferring :p's struct type across assignments is exactly the
-  // inference `spec/tooling.md:196` forbids, so `:p.z` is left entirely to the runtime (#329).
+  // inference `spec/tooling.md:197` forbids, so `:p.z` is left entirely to the runtime (#329).
   assert.deepEqual(
     fieldFindings("struct point [ x y ]\n:p = point 0 0\nprint :p.z", DATA),
     [],
