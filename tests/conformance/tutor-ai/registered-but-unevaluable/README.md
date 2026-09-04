@@ -35,9 +35,10 @@ i don't know how to challenge. check the spelling, or define it with 'define'.
 i don't know how to wibble. check the spelling, or define it with 'define'.
 ```
 
-— and for `challenge` that advice is **impossible to follow**: `define challenge` reports
-`ol-reserved-word`, at check and at run time. The learner is told to do the one thing they are
-structurally forbidden from doing.
+— and for `challenge` **neither remediation it offers can resolve the problem**: the spelling is
+already correct, so checking it changes nothing, and the other option is forbidden —
+`define challenge` reports `ol-reserved-word`, at check and at run time. The learner is handed two
+suggestions, one useless and one prohibited, for a fault that is not theirs.
 
 That identity is the strongest available argument for the `ol-not-implemented` code the #814 ruling
 introduces, and **the fix destroys it**: once #815 lands, `challenge` stops reporting

@@ -182,6 +182,22 @@ test("the comparison bites: two differently-classified programs are not equal", 
     observeExecute(DIFFERENTLY_CLASSIFIED),
     observeExecute(REGISTERED_BUT_UNEVALUABLE),
   );
+
+  // And for the third parameter in the file: `observeCheck`'s `profiles`. An `observeCheck` that
+  // ignored the profile set it was handed would leave every test here green, because the only
+  // comparison whose sole varying input is `profiles` is the one that EXPECTS no difference
+  // ("turning the Tutor (AI) profile on does not make the name available") — so an inert parameter
+  // would make it compare a value to itself, silently hollowing out this slice's load-bearing
+  // claim that the withholding is unconditional rather than an inactive-profile artifact.
+  //
+  // `challenge` cannot witness that, precisely because it is withheld under every profile set, so
+  // the witness has to come from outside: `forward` is a Turtle & Rendering primitive, unknown
+  // under Core alone and visible once `turtle-rendering` is active. This is the same profile-
+  // argument pair PR #1081 pins as fixtures.
+  assert.notDeepEqual(
+    observeCheck("forward 100\n", ["core-language"]),
+    observeCheck("forward 100\n", ["core-language", "turtle-rendering"]),
+  );
 });
 
 test("a registered-but-unevaluable name is classified exactly like an unknown one", () => {
@@ -200,7 +216,9 @@ test("and both then run silently, emitting only a statement marker", () => {
   assert.deepEqual(
     observeExecute(REGISTERED_BUT_UNEVALUABLE),
     observeExecute(GENUINELY_UNKNOWN),
-    "the two programs are also indistinguishable at run time",
+    "the two programs produce the same run-time diagnostic classification and the same event-kind " +
+      "sequence (the event source spans differ, as they must — different programs, different " +
+      "offsets)",
   );
   // Stated positively as well as relationally: an equality alone would also be satisfied if BOTH
   // programs started reporting something correct, so this pins which side of the equality we are on.
