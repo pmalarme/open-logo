@@ -5166,15 +5166,30 @@ function isSupportedLeadingBodyStatement(
  * structurally supported (as above). A **Command** call is also structurally supported even though
  * {@link evaluate} never gives it a value — {@link runComprehensionBody} correctly turns it into
  * `ol-no-value` (it is command-shaped, not a not-yet-implemented shape), reproducing the spec's own
- * worked example `map num in :nums [ print :num ]` → `ol-no-value`. Any other expression-shaped
- * statement is supported when {@link isSupportedExpression} says so.
+ * worked example `map num in :nums [ print :num ]` → `ol-no-value`. The three **binding** statements
+ * `Assign`/`Local`/`Global` are supported for exactly the same reason and reach exactly the same
+ * outcome: they are ordinary statements that produce no value, so a body ending in one violates the
+ * block-result rule (`spec/execution-model.md:217-230`) and MUST raise `ol-no-value` — not vanish.
+ *
+ * "Not supported" is not a soft failure here: an unsupported final statement makes
+ * `isSupportedComprehensionBody` reject the whole comprehension, and the enclosing expression then
+ * evaluates to nothing at all, silently, with no diagnostic — a wrong answer rather than a missing
+ * feature. That is what `print map n in [1] [ local x = :n ]` used to do, found by the review gate's
+ * logic/spec reviewer. Any other expression-shaped statement is supported when
+ * {@link isSupportedExpression} says so.
  */
 function isSupportedFinalBodyStatement(
   statement: StatementNode,
   procedures: ProcedureRegistry,
   structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
-  if (statement.kind === "Return" || statement.kind === "Stop") {
+  if (
+    statement.kind === "Return" ||
+    statement.kind === "Stop" ||
+    statement.kind === "Assign" ||
+    statement.kind === "Local" ||
+    statement.kind === "Global"
+  ) {
     return true;
   }
   if (

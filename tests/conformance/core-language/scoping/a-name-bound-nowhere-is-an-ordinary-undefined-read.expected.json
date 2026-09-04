@@ -1,0 +1,73 @@
+{
+  "description": "The NEGATIVE of `ol-var-not-visible`, and the reason the two codes are distinguishable at all: a procedure reading a name that NO scope binds anywhere raises the ordinary `ol-undefined-var` (spec/error-model.md:102 — \"every failed read the sealed procedure boundary is not the cause of\"). Added at @testing's request during the review gate, which measured that an implementation reporting `ol-var-not-visible` for EVERY failed read inside a procedure passed all 984 fixtures: the boundary code was pinned only in its positive direction, so nothing in the stack-neutral corpus said when NOT to report it. The one existing fixture pairing `ol-undefined-var` with a `define` is check-only and reads at the top level, so it never reaches this runtime path.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "compareMessages": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-bound-nowhere-is-an-ordinary-undefined-read",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-bound-nowhere-is-an-ordinary-undefined-read",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-name-bound-nowhere-is-an-ordinary-undefined-read",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "name": "peek",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-bound-nowhere-is-an-ordinary-undefined-read",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-name-bound-nowhere-is-an-ordinary-undefined-read",
+        "start": [2, 9],
+        "end": [2, 17]
+      },
+      "params": {
+        "name": "nowhere"
+      },
+      "message": ":nowhere has no value yet — try assigning it with :nowhere = ... first.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

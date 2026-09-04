@@ -659,7 +659,7 @@ test("`global` is case-insensitive like every other name", () => {
   );
 });
 
-// --- Binders: already correct, locked (spec/execution-model.md:778-808) ------------------------
+// --- Binders: already correct, locked (spec/execution-model.md:769-808) ------------------------
 
 test("a `for … in` binder is body-local and leaves a same-named outer binding alone", () => {
   assert.deepEqual(
@@ -723,6 +723,26 @@ test("a comprehension body MAY update a binding its enclosing scope holds", () =
     ),
     [[1, 2, 3], 3],
   );
+});
+
+test("a comprehension body ENDING in a binding statement raises ol-no-value — it never vanishes", () => {
+  // The second half of the same defect, found by the review gate's logic/spec reviewer in round 2:
+  // an unsupported FINAL statement rejects the whole comprehension just as an unsupported leading
+  // one does, so `print map n in [1] [ local x = :n ]` printed nothing with no diagnostic. A body
+  // must end in a value-producing expression (`spec/execution-model.md:217-230,804-807`), and a
+  // binding statement produces none — so the outcome is `ol-no-value`, exactly as for a body ending
+  // in a command. All three binding forms are checked, because they share one classification.
+  for (const source of [
+    "print map n in [1] [ local x = :n ]",
+    "print map n in [1] [ global bad = 0 ]",
+    "print map n in [1] [ :x = :n ]",
+  ]) {
+    assert.equal(
+      soleDiagnosticOf(source).code,
+      "ol-no-value",
+      `expected ol-no-value for ${JSON.stringify(source)}`,
+    );
+  }
 });
 
 test("a bare `local` replaces an earlier binding of the same name in the SAME block scope", () => {
