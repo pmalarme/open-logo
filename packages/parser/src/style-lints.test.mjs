@@ -1455,14 +1455,12 @@ test("ol-style-ambiguous-continuation: indented continuation still flags", () =>
   assert.deepEqual(diagnostics[0].source_span.start, [2, 3]);
 });
 
-test("ol-style-ambiguous-continuation: `-:x` (no space) on continuation line flags minus as infix", () => {
+test("ol-style-ambiguous-continuation: `-:x` (no space) on continuation line — silent (no ambiguity)", () => {
+  // Both `-:x` and `- :x` parse identically as subtraction; removing the
+  // space would not create a negative literal, so there is no ambiguity.
   const src = ":x = 3\nprint 10\n-:x";
   const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
-  assert.equal(diagnostics.length, 1);
-  assert.deepEqual(diagnostics[0].params, {
-    token: "-",
-    reading: "continuation",
-  });
+  assert.deepEqual(diagnostics, []);
 });
 
 test("ol-style-ambiguous-continuation: trailing-operator continuation with non-operator next line is silent", () => {
@@ -1821,4 +1819,52 @@ test("ol-style-ambiguous-continuation: multi-line block comment before -5 — fi
     token: "-5",
     reading: "new-statement",
   });
+});
+
+// --- Round-8 fixes: non-numeric operand suppression & block-comment opener ---
+
+test("ol-style-ambiguous-continuation: `- :x` on continuation — silent (no ambiguity)", () => {
+  // Both `- :x` and `-:x` parse as subtraction; no negative-literal reading.
+  const diagnostics = checkStyle("print 10\n- :x").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `-:x` (glued) on continuation — silent", () => {
+  const diagnostics = checkStyle("print 10\n-:x").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `- foo` on continuation — silent", () => {
+  const diagnostics = checkStyle("print 10\n- foo").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `-foo` (glued) on continuation — silent", () => {
+  const diagnostics = checkStyle("print 10\n-foo").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `/*` opener line skipped by backward scan", () => {
+  // `-5` after a block comment whose opener follows `[` — the backward scan
+  // must strip the `/*` opener so it reaches `[` and recognises first element.
+  const diagnostics = checkStyle("print [\n/* comment\n*/\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `/*` opener with trailing op — silent", () => {
+  // `1 +` has a trailing `+`, so the sub-case trailing-op suppresses.
+  const diagnostics = checkStyle("print [ 1 +\n/* comment\n*/\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
 });

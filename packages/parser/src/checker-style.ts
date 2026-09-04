@@ -1646,10 +1646,9 @@ function stripTrailingComment(line: string): string {
         i--;
         continue;
       }
-      // Unclosed `/*` on this line — in valid programs the comment spans
-      // multiple lines and `groupingDepthPerLine` already marks subsequent
-      // lines with Infinity depth, so the trailing-op scan never reaches
-      // them. Treat the rest of this line as non-comment content.
+      // Unclosed `/*` — opening line of a multi-line block comment.
+      // Everything from `/*` onward is comment text.
+      return line.slice(0, i).trimEnd();
     }
   }
   return line.trimEnd();
@@ -1721,27 +1720,57 @@ export function ambiguousContinuationRule(
           const trimmed = lineText.trimStart();
           const operator = leadingInfixOperator(trimmed);
           if (operator !== undefined) {
-            const indent = lineText.length - trimmed.length;
-            const col = indent + 1;
-            const name = INFIX_OPERATOR_NAMES.get(operator)!;
+            // For `-`, suppress when the operand is not a digit: both
+            // `- :x` and `-:x` parse identically as subtraction, so there
+            // is no genuine ambiguity.  Only `- <digit>` vs `-<digit>`
+            // changes the parse (subtraction vs negative literal).
+            if (operator === "-") {
+              const afterOp = trimmed.slice(1).trimStart();
+              const firstAfter = afterOp[0];
+              if (
+                firstAfter === undefined ||
+                firstAfter < "0" ||
+                firstAfter > "9"
+              ) {
+                // No ambiguity — fall through to the negative-literal
+                // sub-case check (which will also reject non-digits).
+              } else {
+                const indent = lineText.length - trimmed.length;
+                const col = indent + 1;
+                const name = INFIX_OPERATOR_NAMES.get(operator)!;
+                const message = `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`;
+                diagnostics.push(
+                  ambiguousContinuationDiagnostic(
+                    document,
+                    lineNum,
+                    col,
+                    operator.length,
+                    operator,
+                    "continuation",
+                    message,
+                  ),
+                );
+                flaggedLines.add(lineNum);
+              }
+            } else {
+              const indent = lineText.length - trimmed.length;
+              const col = indent + 1;
+              const name = INFIX_OPERATOR_NAMES.get(operator)!;
+              const message = `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
 
-            const message =
-              operator === "-"
-                ? `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`
-                : `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
-
-            diagnostics.push(
-              ambiguousContinuationDiagnostic(
-                document,
-                lineNum,
-                col,
-                operator.length,
-                operator,
-                "continuation",
-                message,
-              ),
-            );
-            flaggedLines.add(lineNum);
+              diagnostics.push(
+                ambiguousContinuationDiagnostic(
+                  document,
+                  lineNum,
+                  col,
+                  operator.length,
+                  operator,
+                  "continuation",
+                  message,
+                ),
+              );
+              flaggedLines.add(lineNum);
+            }
           } else if (trimmed[0] === "-") {
             // Sub-case: negative literal inside a multi-line statement (e.g. in
             // a list literal). Adding a space would make it subtraction. Skip
