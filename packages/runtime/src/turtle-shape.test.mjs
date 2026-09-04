@@ -214,7 +214,7 @@ test("set_shape with two arguments raises ol-too-many-inputs", () => {
   });
 });
 
-test("set_shape leaves an unsupported argument expression un-evaluated", () => {
+test("set_shape reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   const result = execute("set_shape (nonexistent_builtin 1)", "main.logo");
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
   // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never

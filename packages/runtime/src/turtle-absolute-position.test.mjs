@@ -240,7 +240,7 @@ test("execute propagates a failing set_xy y-argument expression instead of movin
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
 
-test("execute leaves an unsupported set_xy argument un-evaluated, emitting no move event", () => {
+test("execute reports the unresolvable unsupported set_xy argument instead of skipping the call", () => {
   const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo");
   assert.equal(result.events.length, 0);
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
@@ -396,7 +396,7 @@ test("execute propagates a failing set_heading argument expression instead of tu
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
 
-test("execute leaves an unsupported set_heading argument un-evaluated, emitting no turn event", () => {
+test("execute reports the unresolvable unsupported set_heading argument instead of skipping the call", () => {
   const result = execute("set_heading (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 0);
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before

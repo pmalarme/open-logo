@@ -170,7 +170,7 @@ test("execute raises ol-range for a left turn angle that overflows to -Infinity"
   });
 });
 
-test("execute leaves an unsupported turn-angle argument un-evaluated, emitting no turn event", () => {
+test("execute reports the unresolvable unsupported turn-angle argument instead of skipping the call", () => {
   // `(nonexistent_builtin 1)` is a call to an unregistered procedure — this slice's evaluator
   // does not attempt it (mirrors the equivalent forward/back test) — left un-evaluated rather
   // than raising, matching print's precedent.

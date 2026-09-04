@@ -143,7 +143,7 @@ test("parenthesized set_tempo with two arguments raises ol-too-many-inputs", () 
   });
 });
 
-test("set_tempo leaves an unsupported argument expression un-evaluated (no crash, no sound event)", () => {
+test("set_tempo reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   // A parenthesized call to an unknown callable is an argument expression this slice's evaluator
   // does not give a value to; mirroring `set_width`, the statement is left un-evaluated rather than
   // throwing.

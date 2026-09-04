@@ -168,7 +168,7 @@ test("setwidth with two arguments raises ol-too-many-inputs with its own identit
   assert.equal(result.diagnostics[0].params.callable, "setwidth");
 });
 
-test("set_width leaves an unsupported argument expression un-evaluated", () => {
+test("set_width reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   const result = execute("set_width (nonexistent_builtin 1)", "main.logo");
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
   // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never

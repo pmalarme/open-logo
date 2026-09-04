@@ -14,7 +14,13 @@ import { execute } from "@openlogo/runtime";
 const doc = "acceptance.logo";
 
 test("for ... in binds the bare-name binder body-local: it does not leak past the loop", () => {
-  const result = execute("for n in [1 2 3] [\n  print :n\n]\nprint :n", doc);
+    // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
+  // so a checked run is refused before the loop ever runs. `runUnchecked` is the spec's opt-out
+  // (`spec/execution-model.md:687-694`), and keeps this the RUNTIME scoping test it was written to
+  // be: the loop runs, and the binder is gone once it ends.
+  const result = execute("for n in [1 2 3] [\n  print :n\n]\nprint :n", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   // The loop itself ran to completion first: three prints from inside the body.
@@ -25,7 +31,13 @@ test("for ... in binds the bare-name binder body-local: it does not leak past th
 });
 
 test("for ... from ... to binds the range variable body-local: it does not leak past the loop", () => {
-  const result = execute("for i from 1 to 3 [\n  print :i\n]\nprint :i", doc);
+    // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
+  // so a checked run is refused before the loop ever runs. `runUnchecked` is the spec's opt-out
+  // (`spec/execution-model.md:687-694`), and keeps this the RUNTIME scoping test it was written to
+  // be: the loop runs, and the binder is gone once it ends.
+  const result = execute("for i from 1 to 3 [\n  print :i\n]\nprint :i", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   const printedInsideLoop = result.events
@@ -97,7 +109,7 @@ test("destructuring a non-list element raises ol-range with length 0 (never matc
   });
 });
 
-test("for ... in whose iterable is an expression kind this evaluator does not give meaning to is skipped, not raised", () => {
+test("for ... in whose iterable is an expression kind this evaluator does not give meaning to reports the unresolvable callee instead of skipping the loop", () => {
   // `(nonexistent_builtin 1)` is a call to a name this evaluator does not know; the whole `ForIn`
   // statement is skipped rather than raising, matching the existing "unsupported operand"
   // convention for `print`/`Assign`/`Repeat`.
@@ -113,10 +125,9 @@ test("for ... in whose iterable is an expression kind this evaluator does not gi
     ["ol-unknown-command"],
   );
   assert.equal(result.events.length, 0);
-  assert.equal(result.events[0].payload.statement_kind, "ForIn");
 });
 
-test("for ... from whose `from` is an unsupported expression is skipped, not raised", () => {
+test("for ... from whose `from` is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
   const result = execute(
     "for i from (nonexistent_builtin 1) to 5 [\n  print 1\n]",
     doc,
@@ -129,10 +140,9 @@ test("for ... from whose `from` is an unsupported expression is skipped, not rai
     ["ol-unknown-command"],
   );
   assert.equal(result.events.length, 0);
-  assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
-test("for ... to whose `to` is an unsupported expression is skipped, not raised", () => {
+test("for ... to whose `to` is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
   const result = execute(
     "for i from 1 to (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
@@ -145,10 +155,9 @@ test("for ... to whose `to` is an unsupported expression is skipped, not raised"
     ["ol-unknown-command"],
   );
   assert.equal(result.events.length, 0);
-  assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
-test("for ... by whose step is an unsupported expression is skipped, not raised", () => {
+test("for ... by whose step is an unsupported expression reports the unresolvable callee instead of skipping the loop", () => {
   const result = execute(
     "for i from 1 to 5 by (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
@@ -161,7 +170,6 @@ test("for ... by whose step is an unsupported expression is skipped, not raised"
     ["ol-unknown-command"],
   );
   assert.equal(result.events.length, 0);
-  assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
 test("for ... from a non-number raises ol-type", () => {

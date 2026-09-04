@@ -234,5 +234,4 @@ test("a repeat with an unsupported-expression count is left un-executed, like ot
     ["ol-unknown-command"],
   );
   assert.equal(result.events.length, 0);
-  assert.equal(result.events[0].payload.statement_kind, "Repeat");
 });

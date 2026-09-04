@@ -204,7 +204,7 @@ test("setbg raises ol-too-many-inputs with two arguments", () => {
   });
 });
 
-test("set_color leaves an unsupported argument expression un-evaluated (no diagnostic, no event)", () => {
+test("set_color reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   // Mirrors turtle-movement.test.mjs's equivalent test: a call to an unregistered procedure is
   // reported unsupported by `isSupportedExpression` and the statement is left un-evaluated
   // (still no diagnostic, no event).
@@ -232,7 +232,7 @@ test("set_color propagates a diagnostic raised while evaluating its argument", (
   assert.equal(result.diagnostics[0].code, "ol-type");
 });
 
-test("set_background leaves an unsupported argument expression un-evaluated (no diagnostic, no event)", () => {
+test("set_background reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   const result = execute("set_background (nonexistent_builtin 1)", "main.logo");
   assert.equal(result.events.length, 0);
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
