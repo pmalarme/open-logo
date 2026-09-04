@@ -106,7 +106,13 @@ test("set_color raises ol-bad-color for a value of the wrong type entirely", () 
 });
 
 test("set_color raises ol-not-enough-inputs with zero arguments (parenthesized form)", () => {
-  const result = execute("(set_color)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(set_color)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -117,7 +123,13 @@ test("set_color raises ol-not-enough-inputs with zero arguments (parenthesized f
 });
 
 test("setcolor raises ol-too-many-inputs with two arguments", () => {
-  const result = execute('(setcolor "blue" "red")', "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute('(setcolor "blue" "red")', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -159,7 +171,13 @@ test("setbg raises ol-bad-color with its own operation identity", () => {
 });
 
 test("set_background raises ol-not-enough-inputs with zero arguments", () => {
-  const result = execute("(set_background)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(set_background)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -170,7 +188,13 @@ test("set_background raises ol-not-enough-inputs with zero arguments", () => {
 });
 
 test("setbg raises ol-too-many-inputs with two arguments", () => {
-  const result = execute('(setbg "green" "blue")', "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute('(setbg "green" "blue")', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -185,9 +209,14 @@ test("set_color leaves an unsupported argument expression un-evaluated (no diagn
   // reported unsupported by `isSupportedExpression` and the statement is left un-evaluated
   // (still no diagnostic, no event).
   const result = execute("set_color (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
-  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.events.length, 0);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("set_color propagates a diagnostic raised while evaluating its argument", () => {
@@ -205,9 +234,14 @@ test("set_color propagates a diagnostic raised while evaluating its argument", (
 
 test("set_background leaves an unsupported argument expression un-evaluated (no diagnostic, no event)", () => {
   const result = execute("set_background (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
-  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.events.length, 0);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("set_background propagates a diagnostic raised while evaluating its argument", () => {

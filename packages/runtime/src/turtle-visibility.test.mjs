@@ -93,7 +93,13 @@ test("execute accepts the parenthesized call form for a zero-argument hide_turtl
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized show_turtle with an argument", () => {
-  const result = execute("(show_turtle 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(show_turtle 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0], {
@@ -101,13 +107,19 @@ test("execute raises ol-too-many-inputs for a parenthesized show_turtle with an 
     source_span: result.diagnostics[0].source_span,
     params: { callable: "show_turtle", expected: 0, actual: 1 },
     message: result.diagnostics[0].message,
-    stage: "runtime",
+    stage: "semantic",
     severity: "error",
   });
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized hide_turtle with two arguments", () => {
-  const result = execute("(hide_turtle 1 2)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(hide_turtle 1 2)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");

@@ -89,7 +89,13 @@ test("execute accepts the parenthesized call form for a zero-argument pen_up", (
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized pen_up with an argument", () => {
-  const result = execute("(pen_up 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(pen_up 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0], {
@@ -97,13 +103,19 @@ test("execute raises ol-too-many-inputs for a parenthesized pen_up with an argum
     source_span: result.diagnostics[0].source_span,
     params: { callable: "pen_up", expected: 0, actual: 1 },
     message: result.diagnostics[0].message,
-    stage: "runtime",
+    stage: "semantic",
     severity: "error",
   });
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized pen_down with two arguments", () => {
-  const result = execute("(pen_down 1 2)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(pen_down 1 2)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");

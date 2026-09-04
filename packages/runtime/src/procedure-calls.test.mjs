@@ -243,7 +243,13 @@ test("a statement-position procedure call with an unsupported argument (e.g. an 
     'define p :x\n  print "ran"\nend\np (nonexistent_builtin 1)',
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   const printed = result.events.filter((event) => event.kind === "print");
   assert.deepEqual(printed, []);
   const instructions = result.events.filter(
@@ -260,7 +266,13 @@ test("a parenthesized statement-position procedure call with an unsupported argu
     'define p :x :y\n  print "ran"\nend\n(p (nonexistent_builtin 1) 2)',
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   const printed = result.events.filter((event) => event.kind === "print");
   assert.deepEqual(printed, []);
 });

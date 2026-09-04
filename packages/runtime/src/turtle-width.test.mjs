@@ -109,7 +109,13 @@ test("set_width raises ol-range for a non-finite width reachable via arithmetic 
 });
 
 test("set_width with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("set_width", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("set_width", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -120,14 +126,26 @@ test("set_width with no arguments raises ol-not-enough-inputs", () => {
 });
 
 test("setwidth with no arguments raises ol-not-enough-inputs with its own identity", () => {
-  const result = execute("setwidth", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("setwidth", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.equal(result.diagnostics[0].params.callable, "setwidth");
 });
 
 test("set_width with two arguments raises ol-too-many-inputs", () => {
-  const result = execute("(set_width 4 5)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(set_width 4 5)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -138,7 +156,13 @@ test("set_width with two arguments raises ol-too-many-inputs", () => {
 });
 
 test("setwidth with two arguments raises ol-too-many-inputs with its own identity", () => {
-  const result = execute("(setwidth 4 5)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(setwidth 4 5)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.equal(result.diagnostics[0].params.callable, "setwidth");
@@ -146,7 +170,13 @@ test("setwidth with two arguments raises ol-too-many-inputs with its own identit
 
 test("set_width leaves an unsupported argument expression un-evaluated", () => {
   const result = execute("set_width (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.diagnostics.length, 0);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   assert.equal(
     result.events.some((event) => event.kind === "width-change"),
     false,

@@ -379,11 +379,14 @@ test("a comprehension whose body ends in an expression kind this evaluator does 
     ":out = map n in [1] [ (nonexistent_builtin 1) ]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
   assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(result.events.length, 0);
 });
 
 test("a comprehension whose body has a leading statement kind this evaluator does not implement (If) is deferred entirely, no diagnostic", () => {
@@ -400,11 +403,14 @@ test("a comprehension whose body has a leading statement kind this evaluator doe
 
 test("a comprehension whose iterable is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
   const result = execute(":out = map n in (nonexistent_builtin 1) [ :n ]", doc);
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
   assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(result.events.length, 0);
 });
 
 test("a reduce whose `from` seed is an expression kind this evaluator does not implement is deferred entirely, no diagnostic", () => {
@@ -412,11 +418,14 @@ test("a reduce whose `from` seed is an expression kind this evaluator does not i
     ":out = reduce sum n in [1] from (nonexistent_builtin 1) [ :sum ]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
   assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(result.events.length, 0);
 });
 
 test("a comprehension nested as another comprehension's final body expression evaluates correctly", () => {

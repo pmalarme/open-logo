@@ -110,7 +110,13 @@ test("set_tempo raises ol-range for a non-finite tempo (Infinity via overflow)",
 });
 
 test("set_tempo with no argument raises ol-not-enough-inputs", () => {
-  const result = execute("set_tempo", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("set_tempo", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -121,7 +127,13 @@ test("set_tempo with no argument raises ol-not-enough-inputs", () => {
 });
 
 test("parenthesized set_tempo with two arguments raises ol-too-many-inputs", () => {
-  const result = execute("(set_tempo 90 100)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(set_tempo 90 100)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -136,7 +148,13 @@ test("set_tempo leaves an unsupported argument expression un-evaluated (no crash
   // does not give a value to; mirroring `set_width`, the statement is left un-evaluated rather than
   // throwing.
   const result = execute("set_tempo (nonexistent_builtin 1)", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   assert.equal(
     result.events.some((event) => event.kind === "sound"),
     false,
@@ -176,7 +194,13 @@ test("beep emits its sound event deterministically even with no audio device (mu
 });
 
 test("parenthesized beep with an argument raises ol-too-many-inputs", () => {
-  const result = execute("(beep 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(beep 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

@@ -90,18 +90,28 @@ test("`add` propagates a failing value expression", () => {
   assert.equal(runError(":l = [1]\nadd (1 / 0) to :l").code, "ol-div-zero");
 });
 
-test("`add` with an unsupported value expression is a deferred no-op", () => {
+test("`add` with an unsupported value expression reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\nadd (nonexistent_builtin 1) to :l\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\nadd (nonexistent_builtin 1) to :l\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
-test("`add` with an unsupported target expression is a deferred no-op", () => {
+test("`add` with an unsupported target expression reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\nadd 5 to (nonexistent_builtin 1)\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\nadd 5 to (nonexistent_builtin 1)\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
 // --- `remove … from` ------------------------------------------------------------------------
@@ -151,11 +161,16 @@ test("`remove` propagates a failing value expression", () => {
   );
 });
 
-test("`remove` with an unsupported operand is a deferred no-op", () => {
+test("`remove` with an unsupported operand reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1 2]\nremove (nonexistent_builtin 1) from :l\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1 2]\nremove (nonexistent_builtin 1) from :l\nprint :l"),
-    [[1, 2]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
 // --- `insert … in … at` ---------------------------------------------------------------------
@@ -263,25 +278,40 @@ test("`insert` checks the target type before evaluating the position, short-circ
   });
 });
 
-test("`insert` with an unsupported value operand is a deferred no-op", () => {
+test("`insert` with an unsupported value operand reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\ninsert (nonexistent_builtin 1) in :l at 1\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\ninsert (nonexistent_builtin 1) in :l at 1\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
-test("`insert` with an unsupported target operand is a deferred no-op", () => {
+test("`insert` with an unsupported target operand reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\ninsert 5 in (nonexistent_builtin 1) at 1\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\ninsert 5 in (nonexistent_builtin 1) at 1\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
-test("`insert` with an unsupported position operand is a deferred no-op", () => {
+test("`insert` with an unsupported position operand reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\ninsert 5 in :l at (nonexistent_builtin 1)\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\ninsert 5 in :l at (nonexistent_builtin 1)\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
 // --- `clear` --------------------------------------------------------------------------------
@@ -311,11 +341,16 @@ test("`clear` of a non-list target raises ol-type", () => {
   });
 });
 
-test("`clear` with an unsupported target expression is a deferred no-op", () => {
+test("`clear` with an unsupported target expression reports the unresolvable callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing. The check before
+  // execution now refuses the program, so the list is unchanged for a reason the learner is
+  // told (`spec/execution-model.md:659-664`).
+  const { events, diagnostics } = execute(":l = [1]\nclear (nonexistent_builtin 1)\nprint :l", doc);
   assert.deepEqual(
-    lastPrint(":l = [1]\nclear (nonexistent_builtin 1)\nprint :l"),
-    [[1]],
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(events.length, 0);
 });
 
 // --- `remove key … from` (dict runtime, issue #322) + wiring --------------------------------
@@ -375,22 +410,29 @@ test("`remove key … from` raises ol-type when the key is neither word nor numb
   });
 });
 
-test("`remove key … from` is a deferred no-op when the key expression is unsupported", () => {
-  assert.deepEqual(
-    lastPrint(
-      ":x = { a: 1 }\nremove key (nonexistent_builtin 1) from :x\nprint count :x",
-    ),
-    [1],
+test("`remove key … from` reports the unresolvable key callee, never a silent no-op", () => {
+  // Issue #815: this used to run, mutate nothing, and report nothing.
+  const { events, diagnostics } = execute(
+    ":x = { a: 1 }\nremove key (nonexistent_builtin 1) from :x\nprint count :x",
+    doc,
   );
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(events.length, 0);
 });
 
-test("`remove key … from` is a deferred no-op when the target expression is unsupported", () => {
-  assert.deepEqual(
-    lastPrint(
-      ':x = { a: 1 }\nremove key "a" from (nonexistent_builtin 1)\nprint count :x',
-    ),
-    [1],
+test("`remove key … from` reports the unresolvable target callee, never a silent no-op", () => {
+  const { events, diagnostics } = execute(
+    ':x = { a: 1 }\nremove key "a" from (nonexistent_builtin 1)\nprint count :x',
+    doc,
   );
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(events.length, 0);
 });
 
 test("`clear` propagates a failing target expression's diagnostic", () => {

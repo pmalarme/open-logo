@@ -105,8 +105,14 @@ test("for ... in whose iterable is an expression kind this evaluator does not gi
     "for n in (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.events.length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
   assert.equal(result.events[0].payload.statement_kind, "ForIn");
 });
 
@@ -115,8 +121,14 @@ test("for ... from whose `from` is an unsupported expression is skipped, not rai
     "for i from (nonexistent_builtin 1) to 5 [\n  print 1\n]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.events.length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
@@ -125,8 +137,14 @@ test("for ... to whose `to` is an unsupported expression is skipped, not raised"
     "for i from 1 to (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.events.length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 
@@ -135,8 +153,14 @@ test("for ... by whose step is an unsupported expression is skipped, not raised"
     "for i from 1 to 5 by (nonexistent_builtin 1) [\n  print 1\n]",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.events.length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
   assert.equal(result.events[0].payload.statement_kind, "ForRange");
 });
 

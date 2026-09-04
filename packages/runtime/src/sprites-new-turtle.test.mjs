@@ -135,6 +135,12 @@ test("is_a? reports true for a turtle obtained from new_turtle (C3 deferral: pos
 });
 
 test("each sprites reporter with an argument is an arity diagnostic, not a crash (covers every arity guard)", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
   // Parenthesized calls so the extra argument reaches the runtime's arity check rather than being
   // rejected earlier; exercises the `requireExactArgs` guard in all of new_turtle/who/turtles.
   for (const source of [
@@ -142,7 +148,7 @@ test("each sprites reporter with an argument is an arity diagnostic, not a crash
     ":x = (who 1)",
     ":x = (turtles 1)",
   ]) {
-    const result = execute(source, "main.logo");
+    const result = execute(source, "main.logo", { runUnchecked: true });
     assert.equal(result.diagnostics.length >= 1, true, source);
     assert.equal(result.diagnostics[0].code, "ol-too-many-inputs", source);
   }

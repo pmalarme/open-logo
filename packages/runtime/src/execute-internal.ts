@@ -5379,22 +5379,22 @@ function executeStatements(
 
     // The terminal rule at **statement** position (`spec/execution-model.md:717-720`, issue #815),
     // the twin of `evaluate.ts`'s in `evaluateCall`. Every dispatch above declined this statement,
-    // so if it is a call there is no executor for its callee, and skipping it is not one of the
-    // three endings evaluation may have. Before this, such a statement emitted its `instruction`
-    // event and then did nothing at all: measured, `challenge` parsed clean, checked clean under
-    // Tutor, ran, produced nothing, and reported nothing.
+    // so if it is a call there is no *executor* for its callee — but that is not the same as there
+    // being no evaluation: a bare expression statement such as `1 + 1` is a `Call` the block-result
+    // rule says to run for effect and discard (`spec/execution-model.md:214-227`). So the ending is
+    // decided by actually evaluating it, which is the one thing that cannot be wrong: a reporter
+    // reports and its value is discarded, and a callee with no evaluation at all reaches
+    // `evaluateCall`'s terminal and raises there, naming the right code for the right reason.
     //
-    // The check is deliberately narrowed to a **callable**, which is what `ol-not-implemented` is
-    // about and all the statement kinds still falling through here are not: `ProcedureDef` and
-    // `StructDef` are declarations Phase 1 already registered, and a bare literal statement is an
-    // evaluation with no effect to skip.
+    // Before this, such a statement emitted its `instruction` event and then did nothing at all:
+    // measured, `challenge` parsed clean, checked clean under Tutor, ran, produced nothing, and
+    // reported nothing. Every other statement kind still falling through is genuinely nothing to
+    // run — `ProcedureDef` and `StructDef` are declarations Phase 1 already registered.
     if (statement.kind === "Call" || statement.kind === "ParenCall") {
-      const name = statement.callee.name.toLowerCase();
-      return halt(
-        isBuiltInName(name)
-          ? runtimeDiag.notImplemented(statement.callee.source_span, name)
-          : runtimeDiag.unknownCommand(statement.callee.source_span, name),
-      );
+      const outcome = evaluate(statement as ExpressionNode, environment);
+      if (!outcome.ok) {
+        return halt(outcome.diagnostic);
+      }
     }
   }
 

@@ -281,7 +281,13 @@ test("an ask argument that is not yet evaluable (a call to an unregistered name)
     ":a = new_turtle\nask (nonexistent_builtin 1) [ forward 10 ]\nforward 50",
     "main.logo",
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   const moveList = moves(result.events);
   assert.deepEqual(moveList, [[null, [0, 50]]]);
 });

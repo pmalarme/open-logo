@@ -185,7 +185,13 @@ test("randomize with an unsupported argument is left un-executed", () => {
     "(randomize (nonexistent_builtin 1))\nprint random 10",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   // The seed argument is deferred (not evaluated), but `randomize` itself is still skipped as a
   // whole statement, and the following `print random 10` still runs fine off the default random
   // number generator.

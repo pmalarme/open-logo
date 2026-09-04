@@ -148,9 +148,14 @@ test("execute leaves an unsupported print argument un-evaluated, emitting no pri
   // A call to a name unknown to both the builtin whitelist and the procedure registry stays
   // unsupported (issue #322 made `.field` and dict literals themselves fully supported).
   const result = execute("print (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
 });
 
 test("execute evaluates the variadic `(print a b …)` form, carrying every value in order", () => {
@@ -174,9 +179,14 @@ test("execute leaves a variadic print un-evaluated when any one operand is unsup
   // un-evaluated (only its `instruction` event fires), even though its first operand (`1`) would
   // evaluate cleanly on its own.
   const result = execute("(print 1 (nonexistent_builtin 1))", "main.logo");
-  assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
 });
 
 test("execute stops mid-variadic-print when a later operand fails to evaluate", () => {
@@ -190,10 +200,16 @@ test("execute stops mid-variadic-print when a later operand fails to evaluate", 
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
   // The static checker's arity rule (`ol-not-enough-inputs`) never runs inside `execute()` —
   // it only calls `parse()` — so this is the sole runtime guard against silently treating a
   // callee-only `print` as a no-op.
-  const result = execute("print", "main.logo");
+  const result = execute("print", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -206,15 +222,21 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () 
     },
     params: { callable: "print", expected: 1, actual: 0 },
     message: "print needs one input, but got 0.",
-    stage: "runtime",
+    stage: "semantic",
     severity: "error",
   });
 });
 
 test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(print)`", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
   // The checker's static arity rule cannot flag this either: `print`'s parenthesized ceiling is
   // `Infinity` (an open variadic), so its lower bound is deliberately left to the runtime.
-  const result = execute("(print)", "main.logo");
+  const result = execute("(print)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -227,7 +249,7 @@ test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(pr
     },
     params: { callable: "print", expected: 1, actual: 0 },
     message: "print needs one input, but got 0.",
-    stage: "runtime",
+    stage: "semantic",
     severity: "error",
   });
 });
@@ -245,7 +267,13 @@ test("execute emits an instruction event, then a print event, per `show` stateme
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () => {
-  const result = execute("show", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("show", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -258,11 +286,17 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () =
 });
 
 test("execute raises ol-too-many-inputs for `show` given more than one argument", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
   // `show`'s bare form always groups exactly one argument (its fixed arity), so the only way to
   // reach the runtime with more than one is the parenthesized form — which `parse()` accepts
   // structurally as-is, deferring arity enforcement to `check()` (semantic stage) or, since a bare
   // `execute()` call never runs `check()`, to this very guard in `executeShowCall`.
-  const result = execute('(show "a" "b")', "main.logo");
+  const result = execute('(show "a" "b")', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -276,11 +310,14 @@ test("execute leaves an unsupported `show` argument un-evaluated, emitting no pr
   // A call to a name unknown to both the builtin whitelist and the procedure registry is not
   // a supported expression — the same deferral `print` uses.
   const result = execute("show (nonexistent_builtin 1)", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
   assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
+  assert.equal(result.events.length, 0);
 });
 
 test("execute stops and returns the diagnostic when a `show` argument fails to evaluate", () => {

@@ -181,7 +181,13 @@ test("a tell argument that is not yet evaluable (a call to an unregistered name)
     ":a = new_turtle\ntell (nonexistent_builtin 1)\nforward 50",
     "main.logo",
   );
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   // The deferred `tell` never made addressing explicit, so the following `forward` runs on the
   // still-default (unstamped) main turtle.
   const move = result.events.find((event) => event.kind === "move");

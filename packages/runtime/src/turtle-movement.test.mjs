@@ -86,10 +86,16 @@ test("execute evaluates a parenthesized `(forward value)` call the same as the p
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument `forward`", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
   // The static checker's arity rule never runs inside `execute()` — it only calls `parse()` —
   // so this is the sole runtime guard against silently treating a callee-only `forward` as a
   // no-op (mirrors `print`'s equivalent zero-argument test in `index.test.mjs`).
-  const result = execute("forward", "main.logo");
+  const result = execute("forward", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.deepEqual(result.diagnostics, [
@@ -98,14 +104,20 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `forward`", (
       source_span: { document: "main.logo", start: [1, 1], end: [1, 8] },
       params: { callable: "forward", expected: 1, actual: 0 },
       message: "forward needs one input, but got 0.",
-      stage: "runtime",
+      stage: "semantic",
       severity: "error",
     },
   ]);
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized `(back a b)` call", () => {
-  const result = execute("(back 10 20)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  const result = execute("(back 10 20)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.deepEqual(result.diagnostics, [
     {
@@ -113,7 +125,7 @@ test("execute raises ol-too-many-inputs for a parenthesized `(back a b)` call", 
       source_span: { document: "main.logo", start: [1, 2], end: [1, 6] },
       params: { callable: "back", expected: 1, actual: 2 },
       message: "back takes one input, but got 2.",
-      stage: "runtime",
+      stage: "semantic",
       severity: "error",
     },
   ]);
@@ -185,7 +197,12 @@ test("execute leaves an unsupported forward argument un-evaluated, emitting no m
   // is left un-evaluated so `isSupportedExpression` reports this operand unsupported and the
   // statement is left un-evaluated (still no diagnostic).
   const result = execute("forward (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
-  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.events.length, 0);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });

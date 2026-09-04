@@ -226,7 +226,13 @@ test("a repeat with an unsupported-expression count is left un-executed, like ot
   // statement is skipped rather than raising, matching the existing "unsupported operand"
   // convention for `print`/`Assign`.
   const result = execute("repeat (nonexistent_builtin 1) [\n  print 1\n]", doc);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.events.length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.equal(result.events.length, 0);
   assert.equal(result.events[0].payload.statement_kind, "Repeat");
 });

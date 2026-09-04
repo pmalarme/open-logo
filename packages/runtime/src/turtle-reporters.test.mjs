@@ -326,12 +326,24 @@ test("distance with three arguments raises ol-too-many-inputs", () => {
 
 test("towards with an unsupported argument is left un-executed", () => {
   const result = execute("print towards (nonexistent_builtin 1) 0", doc);
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   assert.deepEqual(printedValues(result), []);
 });
 
 test("distance with an unsupported argument is left un-executed", () => {
   const result = execute("print distance (nonexistent_builtin 1) 0", doc);
-  assert.deepEqual(result.diagnostics, []);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. The check before
+  // execution refuses the program (`spec/execution-model.md:659-664`), so the effect below never
+  // happens — but for a reason the learner is told, which is the whole point of the slice.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
   assert.deepEqual(printedValues(result), []);
 });
