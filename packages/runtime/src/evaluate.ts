@@ -4777,12 +4777,13 @@ function statementHeadWord(
   statement: StatementNode,
   source: string | undefined,
 ): string {
-  const line = source?.split("\n")[statement.source_span.start[0] - 1];
+  const lines = source === undefined ? [] : source.split("\n");
+  const line = lines[statement.source_span.start[0] - 1] ?? "";
   const head = line
-    ?.slice(statement.source_span.start[1] - 1)
+    .slice(statement.source_span.start[1] - 1)
     .trimStart()
     .split(/\s/)[0];
-  return head === undefined || head === "" ? statement.kind : head;
+  return head === "" ? statement.kind : (head as string);
 }
 
 /**

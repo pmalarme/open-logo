@@ -15,8 +15,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { OL_CHECK_PROFILES } from "@openlogo/parser";
-import { execute } from "@openlogo/runtime";
+import { OL_CHECK_PROFILES, parse } from "@openlogo/parser";
+import { createEnvironment, evaluate, execute } from "@openlogo/runtime";
 
 const doc = "check-before-execution.logo";
 
@@ -199,6 +199,22 @@ test("a comprehension body this evaluator cannot run says so, naming the form", 
   assert.deepEqual(finding.params, { name: "if" });
 });
 
+test("without source text the unrunnable form is named by its node kind, never left silent", () => {
+  // `createEnvironment()` is public API, so a host can evaluate an AST it never had source text
+  // for. The head word is read out of the source precisely so it prints what the learner wrote, and
+  // when there is no source the node kind is the only name left — a worse word, never a missing
+  // diagnostic, which is what the terminal rule actually requires.
+  const { ast } = parse(
+    ":out = map n in [1] [\n  if true [ print 1 ]\n  :n\n]",
+    doc,
+  );
+  const comprehension = ast.body[0].value;
+  const result = evaluate(comprehension, createEnvironment());
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-not-implemented");
+  assert.deepEqual(result.diagnostic.params, { name: "If" });
+});
+
 test("a bare expression statement is evaluated for effect, not skipped", () => {
   // `spec/execution-model.md:214-227`'s block-result rule. No statement executor claims a reporter
   // call, so `new_turtle` used to fall off the end of the dispatcher and spawn nothing at all.
@@ -328,6 +344,7 @@ test("the runtime's own arity guards still fire when the check is bypassed", () 
     ["(explain 1)", "ol-too-many-inputs"],
     ["print (input)", "ol-not-enough-inputs"],
     ["define p\n  print 1\nend\n(p 1)", "ol-too-many-inputs"],
+    ["define p :a\n  print :a\nend\n(p)", "ol-not-enough-inputs"],
   ]) {
     const { diagnostics } = execute(source, doc, { runUnchecked: true });
     assert.equal(
@@ -343,6 +360,7 @@ test("a reporter propagates a diagnostic raised while evaluating its own operand
     "print (uppercase (1 / 0))",
     "print (input (1 / 0))",
     "add 1 to (1 / 0)",
+    "print (list 1 (1 / 0))",
   ]) {
     assert.deepEqual(
       codes(source, { runUnchecked: true }),
@@ -383,9 +401,11 @@ test("the runtime's own duplicate-binder guard still fires when the check is byp
   assert.equal(accumulator.code, "ol-duplicate-binder");
 });
 
-test("a return or stop escaping an event handler body is the runtime's to report", () => {
-  // A handler block is not a procedure, and the handler is only ever REACHED at run time, so this
-  // pair has no static twin at all — the check cannot know a handler fired.
+test("a return or stop escaping an event handler body is still the runtime's to report", () => {
+  // A handler block is not a procedure, so an escape inside one is `ol-return-outside-proc`. The
+  // checker decides that statically, so a checked run is refused before the handler could ever
+  // fire; the opt-out is what still reaches the runtime's own copy — the one a host driving
+  // `execute()` with no checker would depend on.
   for (const [source, code] of [
     ['on_key "a" [ return 1 ]\nwait 2', "ol-return-outside-proc"],
     ['on_key "a" [ stop ]\nwait 2', "ol-stop-outside-proc"],
@@ -393,6 +413,7 @@ test("a return or stop escaping an event handler body is the runtime's to report
     ["on_click [ stop ]\nwait 2", "ol-stop-outside-proc"],
   ]) {
     const result = execute(source, doc, {
+      runUnchecked: true,
       hostInput: {
         events: [
           { tick: 1, kind: "key", key: "a" },

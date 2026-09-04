@@ -232,25 +232,24 @@ test("ol-too-many-inputs' message pluralizes the expected count singularly for a
 });
 
 test("a statement-position procedure call with an unsupported argument (e.g. an unknown callee) is left un-evaluated, not thrown", () => {
-  // A call to a name unknown to both the builtin whitelist and the procedure registry is
-  // unsupported — `isSupportedExpression` reports it unsupported. `print`'s own argument loop
-  // already leaves an unsupported operand un-evaluated rather than reaching `evaluate()`; a
-  // statement-position user-procedure call (`p (nonexistent_builtin 1)`, as opposed to an
-  // expression-position one, which `evaluate.ts`'s own gate already protects) must do the same,
-  // instead of falling straight into `evaluate()` and throwing a host exception for the
-  // still-unimplemented callee.
+  // A statement-position user-procedure call gates its own arguments, unlike an expression-position
+  // one — so this is the path that has to reach the unresolvable callee and raise, rather than skip
+  // the whole call. `runUnchecked` is the spec's opt-out (`spec/execution-model.md:687-694`) and is
+  // what still exercises it: the check reports the same fault first, the run proceeds anyway, and
+  // the two identical reports collapse to one (`spec/execution-model.md:741-748`).
   const result = execute(
     'define p :x\n  print "ran"\nend\np (nonexistent_builtin 1)',
     doc,
+    { runUnchecked: true },
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
-  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
-  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
-  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
-  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
+  );
+  assert.deepEqual(
+    result.events.filter((event) => event.kind === "print"),
+    [],
+    "the procedure body never ran, so nothing was printed",
   );
 });
 
@@ -258,6 +257,7 @@ test("a parenthesized statement-position procedure call with an unsupported argu
   const result = execute(
     'define p :x :y\n  print "ran"\nend\n(p (nonexistent_builtin 1) 2)',
     doc,
+    { runUnchecked: true },
   );
   // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
   // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own

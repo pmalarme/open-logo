@@ -176,23 +176,19 @@ test("a tell argument that references an undefined variable surfaces that diagno
 });
 
 test("a tell argument that is not yet evaluable (a call to an unregistered name) is left un-evaluated, changing nothing", () => {
-  // Mirrors the movement package's "unsupported forward argument" test: an argument that
-  // `isSupportedExpression` reports unsupported (here a call to an unregistered builtin) defers the
-  // whole statement — no addressing change, no diagnostic — exactly like every other command.
+  // Mirrors the movement package's unresolvable-argument test: under the spec's `runUnchecked`
+  // opt-out the run proceeds, the evaluator reaches the callee and raises, so the `tell` never
+  // makes addressing explicit and nothing after it runs.
   const result = execute(
     ":a = new_turtle\ntell (nonexistent_builtin 1)\nforward 50",
     "main.logo",
+    { runUnchecked: true },
   );
-  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
-  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
-  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
-  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
-  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
   );
-  // Nothing runs at all now, so the following `forward` never moves either.
+  // The `tell` never completed, so the following `forward` never ran either.
   assert.equal(
     result.events.some((event) => event.kind === "move"),
     false,

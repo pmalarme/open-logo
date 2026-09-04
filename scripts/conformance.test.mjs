@@ -298,14 +298,19 @@ test("produce threads shouldStyle through to check()'s Layer-3 style lints", () 
 // depth at the harness level rather than removed, since deleting test coverage is out of this
 // issue's scope. Prefer the `packages/runtime/**` tests as the canonical/idiomatic home for new
 // runtime-error-path coverage going forward; this file's job is the harness, not the runtime.
+//
+// Issue #815: all four now use `1 / 0` rather than `:undef`, for the reason the parenthetical above
+// already gives for the runtime tests. `execute()` checks before it runs, and an unbound read is a
+// fault the check decides — so a program using one no longer runs at all, and these tests would be
+// asserting the gate rather than the propagation they exist for.
 test("produce/execute propagates a failing `for` `from` expression's diagnostic", () => {
   const result = produce(
-    "for i from :undef to 5 [\n  print :i\n]",
+    "for i from (1 / 0) to 5 [\n  print :i\n]",
     "test-doc",
     true,
   );
   assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
   assert.deepEqual(
     result.events.filter((event) => event.kind === "print"),
     [],
@@ -314,12 +319,12 @@ test("produce/execute propagates a failing `for` `from` expression's diagnostic"
 
 test("produce/execute propagates a failing `for` `to` expression's diagnostic", () => {
   const result = produce(
-    "for i from 1 to :undef [\n  print :i\n]",
+    "for i from 1 to (1 / 0) [\n  print :i\n]",
     "test-doc",
     true,
   );
   assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
   assert.deepEqual(
     result.events.filter((event) => event.kind === "print"),
     [],
@@ -328,12 +333,12 @@ test("produce/execute propagates a failing `for` `to` expression's diagnostic", 
 
 test("produce/execute propagates a failing `for` `by` expression's diagnostic", () => {
   const result = produce(
-    "for i from 1 to 5 by :undef [\n  print :i\n]",
+    "for i from 1 to 5 by (1 / 0) [\n  print :i\n]",
     "test-doc",
     true,
   );
   assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
   assert.deepEqual(
     result.events.filter((event) => event.kind === "print"),
     [],
@@ -342,12 +347,12 @@ test("produce/execute propagates a failing `for` `by` expression's diagnostic", 
 
 test("produce/execute propagates a failing statement inside a `for` range body, stopping the loop", () => {
   const result = produce(
-    "for i from 1 to 5 [\n  print :undef\n]",
+    "for i from 1 to 5 [\n  print (1 / 0)\n]",
     "test-doc",
     true,
   );
   assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-undefined-var");
+  assert.equal(result.diagnostics[0].code, "ol-div-zero");
   // The loop stopped on its first pass: no print event ever completed.
   assert.deepEqual(
     result.events.filter((event) => event.kind === "print"),
