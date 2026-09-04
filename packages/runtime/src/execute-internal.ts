@@ -57,10 +57,13 @@ import type {
   BlockNode,
   CallNode,
   ExpressionNode,
+  GlobalNode,
+  LocalNode,
   ParenCallNode,
   ProcedureDefNode,
   ProfileStatementNode,
   ProgramNode,
+  SpannedName,
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
@@ -85,7 +88,6 @@ import {
   findDuplicateBinderName,
   isSupportedArgument,
   printedForm,
-  pushLoopFrame,
   snapshotValue,
   requireNumber,
   requireWholeNumber,
@@ -93,12 +95,20 @@ import {
   type AssignResult,
   type Environment,
   type EvalResult,
-  type Frame,
   type ProcedureRegistry,
   type StructRegistry,
   type TurtleAddressing,
   type TurtleState,
 } from "./evaluate.js";
+import {
+  declareGlobal,
+  declareLocalNames,
+  declareLocalWithValue,
+  isRootScope,
+  pushBlockScope,
+  pushLoopFrame,
+  type Frame,
+} from "./scope.js";
 import { runtimeDiag } from "./errors.js";
 import {
   claimDueEveryHandlers,
@@ -2601,11 +2611,32 @@ function executeWhenStatement(
 }
 
 /**
- * Run one handler block with the main-line statement boundary SUPPRESSED for its duration
- * (ruling #984). A handler body is not the main line: opening a boundary inside it would let a
- * drained `every` occurrence re-enter its own handler, and would keep the run alive on work the
- * program never asked for. Restores the previous hook on every exit path, including a halt, so a
- * handler that stops the run cannot leave the main line permanently boundary-less.
+ * Run one handler block, in a **fresh block scope stacked on the scope the handler captured**, with
+ * the main-line statement boundary SUPPRESSED for its duration (ruling #984).
+ *
+ * `environment` here is the registering scope itself, held by reference rather than as a snapshot
+ * of its values (`spec/execution-model.md:617-637`): a handler resolves the names it reads when it
+ * fires, so it sees a binding the captured scope created after the registration ran, and — because
+ * every scope entry has its own frame — each turn of a loop that registers a handler captures its
+ * own bindings. That scope stays alive for as long as the handler may still run, which needs no
+ * explicit lifetime machinery: the captured {@link Environment} holds its frames, so a procedure
+ * frame outlives the call that made it exactly when a registered handler still refers to it.
+ *
+ * The invocation is a **separate, deferred instruction** rather than part of the control flow that
+ * registered it, and two things follow. `return`/`stop` escaping it are outside any procedure (the
+ * callers turn those signals into `ol-return-outside-proc`/`ol-stop-outside-proc`). And a
+ * `repcount` whose nearest lexically enclosing `repeat` is *outside* the handler block raises
+ * `ol-repcount-outside-repeat` "however the loop is placed and whether or not it has finished"
+ * (`spec/execution-model.md:682-690`) — which is why the body runs with its own empty
+ * `repeatTurns` rather than the registering scope's still-active one. A `repeat` written *inside*
+ * the handler block pushes onto that fresh stack and works normally.
+ *
+ * The block scope also gives the body the ordinary block lifetime: a name it creates is its own and
+ * dies with the invocation, while an assignment to a name the captured scope binds still updates
+ * that binding — the `on_click [ :score = :score + 1 ]` idiom.
+ *
+ * Restores the previous main-line hook on every exit path, including a halt, so a handler that stops
+ * the run cannot leave the main line permanently boundary-less.
  */
 function executeHandlerBody(
   body: readonly StatementNode[],
@@ -2614,7 +2645,10 @@ function executeHandlerBody(
   const suppressed = environment.mainLineBoundary.fn;
   environment.mainLineBoundary.fn = undefined;
   try {
-    return executeStatements(body, environment);
+    return executeStatements(body, {
+      ...pushBlockScope(environment),
+      repeatTurns: [],
+    });
   } finally {
     environment.mainLineBoundary.fn = suppressed;
   }
@@ -2879,7 +2913,7 @@ function executeAsk(
       "ask",
       statement.source_span,
     );
-    const signal = executeStatements(block.body, environment);
+    const signal = executeStatements(block.body, pushBlockScope(environment));
     // A block that runs to completion returns the `normal` signal; `ask` is a statement, not a
     // reporter, so it must fall through to the next statement — return `undefined` ("handled,
     // continue"). A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) still propagates out so
@@ -3337,7 +3371,7 @@ function executeEach(
       if (iterationBoundary) {
         return iterationBoundary;
       }
-      const signal = executeStatements(block.body, environment);
+      const signal = executeStatements(block.body, pushBlockScope(environment));
       // A non-normal signal (`stop`/`return`/`output`/`op`/`halt`) stops the loop and propagates out,
       // so a diagnostic or early exit in one iteration is never masked by a later one.
       if (signal.kind !== "normal") {
@@ -3807,29 +3841,115 @@ function dispatchTurtleCommandOnce(
 }
 
 /**
- * Dispatch the statements that write a place or mutate a list/dict value in place — `Assign`
- * (`set … to` / `<place> = …`) plus the five Data-profile mutators `add`/`remove`/`insert`/
- * `clear` (issue #188, `spec/data-structures.md:73-93`) and `RemoveKey` (dict key deletion, issue
- * #322, `spec/data-structures.md:229`) — to their evaluators in `evaluate.ts`. Returns the
- * evaluator's {@link AssignResult} (a clean `ok`, or its `ol-type`/`ol-range` diagnostic), or
- * `undefined` when `statement` is none of them — so {@link executeStatements} falls through to its
- * remaining handlers.
+ * `local name` / `local name = value` / `(local a b …)` — declare names in the **current scope**
+ * (`spec/commands.md:103-122`, `spec/execution-model.md:501-543`).
  *
- * `Assign` and the five mutators share one dispatch — and therefore one result local in
- * {@link executeStatements} — on purpose. `executeStatements` recurses once per procedure call, so
- * every extra local it declares widens the per-level stack frame; a *second* result local there for
- * the mutators pushed the deep-recursion budget test of the day over the native call-stack limit,
- * exactly as {@link executeShowCall}'s doc comment warns. Folding them together keeps that frame at
- * its original width. See {@link executeTurtleMoveCall}'s canonical frame-width note for that
+ * The whole subtlety is the order of the two steps for the initializer form: **evaluate first, bind
+ * second.** The initializer is evaluated with exactly the visibility the `local` statement itself
+ * has — the current scope *minus* the binding it is about to create — which is what lets
+ * `local count = :count + 1` read the `count` the statement could already see (a parameter, an
+ * earlier binding of the same scope, an enclosing block's binding, or a `global`) rather than
+ * raising `ol-undefined-var` on the binding being declared. Snapshotting a shared value into a
+ * same-named local is the reason that rule exists, and doing the two steps the other way round
+ * would break exactly it.
+ *
+ * The initializer belongs to the single-name form only (`spec/execution-model.md:517-518`), so the
+ * grammar guarantees `names` holds exactly one name whenever `value` is present; the parenthesized
+ * multi-name form never carries one.
+ */
+function executeLocal(
+  statement: LocalNode,
+  environment: Environment,
+): AssignResult {
+  if (statement.value === undefined) {
+    declareLocalNames(
+      environment,
+      statement.names.map((name) => name.name),
+    );
+    return { ok: true };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareLocalWithValue(
+    environment,
+    (statement.names[0] as SpannedName).name,
+    result.value,
+  );
+  return { ok: true };
+}
+
+/**
+ * `global name = value` — mark the root scope's binding of `name` shared and assign the initializer
+ * (`spec/commands.md:123-140`, `spec/execution-model.md:545-583`).
+ *
+ * The declaration is **legal only at the root scope** and raises `ol-global-outside-root` anywhere
+ * else — inside a procedure body, a control-form body, a handler block, or a comprehension body.
+ * {@link isRootScope} is that whole test: the root scope is the one place where the frame chain is
+ * the root frame alone and no procedure body is running, so every nested position fails it without
+ * a per-form list to keep in sync. The placement is checked **before** the initializer runs, so a
+ * misplaced declaration has no effect at all.
+ *
+ * `global` "takes effect when it runs" like any other top-level instruction, so a read that happens
+ * before the declaration line — including an early-firing handler — finds no binding and raises
+ * `ol-undefined-var`, which needs no code here: nothing is bound until this runs.
+ */
+function executeGlobal(
+  statement: GlobalNode,
+  environment: Environment,
+): AssignResult {
+  if (!isRootScope(environment)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.globalOutsideRoot(statement.name.source_span, {
+        name: statement.name.name,
+      }),
+    };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareGlobal(environment, statement.name.name, result.value);
+  return { ok: true };
+}
+
+/**
+ * Dispatch the statements that bind a name or write into a value — `Assign`
+ * (`set … to` / `<place> = …`), the two binding declarations `Local`/`Global`
+ * (`spec/execution-model.md:501-583`), plus the five Data-profile mutators `add`/`remove`/`insert`/
+ * `clear` (issue #188, `spec/data-structures.md:73-93`) and `RemoveKey` (dict key deletion, issue
+ * #322, `spec/data-structures.md:229`). Returns the executor's {@link AssignResult} (a clean `ok`,
+ * or its diagnostic), or `undefined` when `statement` is none of them — so
+ * {@link executeStatements} falls through to its remaining handlers.
+ *
+ * All eight share one dispatch — and therefore one result local in {@link executeStatements} — on
+ * purpose. `executeStatements` recurses once per procedure call, so every extra local it declares
+ * widens the per-level stack frame; a *second* result local there for the mutators pushed the
+ * deep-recursion budget test of the day over the native call-stack limit, exactly as
+ * {@link executeShowCall}'s doc comment warns. Folding them together keeps that frame at its
+ * original width, which is also why the two declarations were added here rather than as their own
+ * branch further down. See {@link executeTurtleMoveCall}'s canonical frame-width note for that
  * test's history and the ceiling enforced today.
  */
-function dispatchAssignOrListMutator(
+function dispatchWriteStatement(
   statement: StatementNode,
   environment: Environment,
 ): AssignResult | undefined {
   switch (statement.kind) {
     case "Assign":
       return executeAssign(statement, environment);
+    case "Local":
+      return executeLocal(statement, environment);
+    case "Global":
+      return executeGlobal(statement, environment);
     case "Add":
       return executeAdd(statement, environment);
     case "Remove":
@@ -4633,6 +4753,13 @@ function runProcedureBody(
       calleeFrame,
       environment.frames[environment.frames.length - 1] as Frame,
     ],
+    // The seal (`spec/execution-model.md:389-394`): the callee's chain is its own frame stacked
+    // straight onto the shared root frame, so every binding of every scope the CALLER is in — its
+    // own locals, the block it called from — is not merely unwritable but absent. `procedure`
+    // records whose boundary that is, which is what lets `scope.ts` hide the root frame's
+    // non-`global` names and what `ol-var-not-visible` reports. The definition's declared spelling
+    // is used, not the call site's, matching the enter/exit events and every arity diagnostic.
+    procedure: declaredName,
     repeatTurns: [],
   };
   const boundArgs: OLValue[] = [];
@@ -4974,7 +5101,7 @@ function executeStatements(
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
 
-    const writeResult = dispatchAssignOrListMutator(statement, environment);
+    const writeResult = dispatchWriteStatement(statement, environment);
     if (writeResult !== undefined) {
       if (!writeResult.ok) {
         return halt(writeResult.diagnostic);
@@ -5154,7 +5281,7 @@ function executeStatements(
       const branch = condition.value
         ? statement.thenBody.body
         : (statement.elseBody?.body ?? []);
-      const signal = executeStatements(branch, environment);
+      const signal = executeStatements(branch, pushBlockScope(environment));
       if (signal.kind !== "normal") {
         return signal;
       }
@@ -5196,7 +5323,10 @@ function executeStatements(
         if (!condition.value) {
           break;
         }
-        const signal = executeStatements(statement.body.body, environment);
+        const signal = executeStatements(
+          statement.body.body,
+          pushBlockScope(environment),
+        );
         if (signal.kind !== "normal") {
           return signal;
         }
@@ -5249,7 +5379,10 @@ function executeStatements(
           return iterationBoundary;
         }
         environment.repeatTurns.push(turn);
-        const signal = executeStatements(statement.body.body, environment);
+        const signal = executeStatements(
+          statement.body.body,
+          pushBlockScope(environment),
+        );
         environment.repeatTurns.pop();
         if (signal.kind !== "normal") {
           return signal;
@@ -5283,7 +5416,10 @@ function executeStatements(
         if (iterationBoundary) {
           return iterationBoundary;
         }
-        const signal = executeStatements(statement.body.body, environment);
+        const signal = executeStatements(
+          statement.body.body,
+          pushBlockScope(environment),
+        );
         if (signal.kind !== "normal") {
           return signal;
         }
@@ -5653,6 +5789,12 @@ function createExecutionEnvironment(
   const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
+    // The root scope: no procedure body is running, and nothing is `global` until a declaration
+    // says so. Both are inherited unchanged by every derived environment except a procedure call's
+    // (which sets `procedure`) — `globals` is deliberately one shared, mutable set for the whole
+    // run, so a declaration observed anywhere is observed everywhere.
+    procedure: undefined,
+    globals: new Set(),
     repeatTurns: [],
     procedures,
     structs,

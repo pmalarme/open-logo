@@ -50,6 +50,7 @@ export const OL_DIAGNOSTIC_CODES = [
   "ol-unknown-key",
   "ol-not-a-place",
   "ol-global-outside-root",
+  "ol-var-not-visible",
 ] as const;
 
 /** A stable `ol-*` diagnostic code from the normative registry. */

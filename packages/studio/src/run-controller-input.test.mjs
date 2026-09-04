@@ -888,6 +888,11 @@ test("issue #881: the scenario that used to make a replay diverge now completes 
   // implementation that drew per attempt instead of per chain still diverges here.
   const store = OL.createStudioState({
     source: [
+      // `:answer` is created at the top level, before the `if`, because a name born inside a block
+      // dies at its `]` (`spec/execution-model.md:595-615`) while a block MAY update a binding its
+      // enclosing scope already holds. Either branch therefore writes through to the one binding
+      // `print :answer` reads — which is what this test is about; the scoping is incidental.
+      ':answer = "unasked"',
       'if (random 2) == 0 [ :answer = input "A?" ] else [ :answer = input "B?" ]',
       "print :answer",
     ].join("\n"),
@@ -992,8 +997,11 @@ function createSeedQueue(seeds) {
   };
 }
 
-/** Chooses WHICH question to ask from an unseeded `random` — issue #881's exact program class. */
+/** Chooses WHICH question to ask from an unseeded `random` — issue #881's exact program class.
+ * `:answer` is created before the `if` so both branches update the one binding `print :answer`
+ * reads: a name born inside a block dies at its `]` (`spec/execution-model.md:595-615`). */
 const RANDOM_BRANCH_SOURCE = [
+  ':answer = "unasked"',
   'if (random 2) == 0 [ :answer = input "how many sides?" ] else [ :answer = input "what colour?" ]',
   "print :answer",
 ].join("\n");

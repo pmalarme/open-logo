@@ -1,5 +1,5 @@
 {
-  "description": "issue #766, abnormal exit 2 of 4 — `return`. A `return` propagating out of an `ask` block unwinds to the caller with a reported value; the `ask` scope's restoration still runs and still publishes the previous `tell :a` set, so the stream and the runtime agree on what is addressed once the reporter's value is printed.",
+  "description": "issue #766, abnormal exit 2 of 4 — `return`. A `return` propagating out of an `ask` block unwinds to the caller with a reported value; the `ask` scope's restoration still runs and still publishes the previous `tell :a` set, so the stream and the runtime agree on what is addressed once the reporter's value is printed. Issue #1099/#824: the turtle handle reaches the procedure as a PARAMETER rather than as a top-level name its body reads, because the sealed procedure boundary (spec/execution-model.md:389-394) makes that read `ol-var-not-visible`. This is an ADDRESSING fixture, not a scoping one, and the migration was measured to keep it so: the only change to the stream is that `procedure-enter`'s `args` now carries the handle, while every addressing, movement, print, and restore event stays byte-identical.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -113,7 +113,7 @@
       "source_span": {
         "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
         "start": [7, 1],
-        "end": [7, 14]
+        "end": [7, 17]
       },
       "payload": {
         "statement_kind": "Call"
@@ -125,11 +125,15 @@
       "source_span": {
         "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
         "start": [7, 7],
-        "end": [7, 14]
+        "end": [7, 17]
       },
       "payload": {
         "name": "first_x",
-        "args": []
+        "args": [
+          {
+            "id": 2
+          }
+        ]
       }
     },
     {
@@ -249,7 +253,7 @@
       "source_span": {
         "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
         "start": [7, 7],
-        "end": [7, 14]
+        "end": [7, 17]
       },
       "payload": {
         "name": "first_x",
@@ -262,7 +266,7 @@
       "source_span": {
         "document": "sprites/addressing-restored-on-return/addressing-restored-on-return",
         "start": [7, 1],
-        "end": [7, 14]
+        "end": [7, 17]
       },
       "payload": {
         "values": [0]

@@ -83,6 +83,12 @@ import type {
 } from "@openlogo/parser";
 import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import type { Frame } from "./scope.js";
+import {
+  assignVariable,
+  pushLoopFrame,
+  readVariable,
+} from "./scope.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
@@ -124,17 +130,19 @@ function fail(diagnostic: Diagnostic): EvalResult {
   return { ok: false, diagnostic };
 }
 
-// --- Environment: the variable binding model (spec/execution-model.md:316-327) --------------
+// --- Environment: the variable binding model (spec/execution-model.md:338-379) --------------
 //
-// A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
-// the last frame is always the root/global frame — the top-level program runs directly in it.
-// Issue #94 only ever has the root frame; procedure call frames (issue #97) push additional
-// entries onto the front of `frames` without otherwise changing this shape. Keys are always the
-// case-folded (lowercased) identifier: identifiers are case-insensitive (`spec/grammar.md:13`),
-// so every binder and every `lookupVar`/`assignVar` folds the name before it touches a frame.
+// A frame is one scope's name→binding table. `Environment.frames` is nearest-first, and the last
+// frame is always the root frame — the top-level program runs directly in it. Procedure calls and
+// block entries push additional entries onto the front without otherwise changing this shape.
+// Keys are always the case-folded (lowercased) identifier: identifiers are case-insensitive
+// (`spec/grammar.md:13`), so every binder folds the name before it touches a frame.
+//
+// The *rules* that read this shape — what a scope can see, what an assignment targets, where a
+// `local`/`global` declaration lands — all live in `scope.ts`, which is the single statement of
+// `spec/execution-model.md`'s § Variables, scoping, and procedures. Nothing here re-derives them.
 
-/** One lexical scope: a mutable name→value binding table, keyed by case-folded identifier. */
-export type Frame = Map<string, OLValue>;
+export type { Binding, Frame } from "./scope.js";
 
 /**
  * The whole-program name→definition table issue #97's `execute-internal.ts` builds once, up
@@ -239,6 +247,29 @@ export interface CancellationSignal {
  */
 export interface Environment {
   readonly frames: readonly Frame[];
+  /**
+   * The **declared spelling of the procedure whose body is executing**, or `undefined` at the root
+   * scope — the one bit `scope.ts` needs to apply the sealed procedure boundary
+   * (`spec/execution-model.md:389-394`), and the `procedure` param `ol-var-not-visible` carries
+   * (`spec/error-model.md:132`).
+   *
+   * A plain field rather than a shared mutable box, because unlike `instructionCount` it is a
+   * property of *where code is written*, not of the run: it is set once when a call builds its
+   * callee environment and then inherited unchanged by every block scope inside that body, so a
+   * handler block registered in a procedure body still reports that procedure when it fires long
+   * after the call returned.
+   */
+  readonly procedure: string | undefined;
+  /**
+   * The case-folded names a `global name = value` declaration has marked **shared**
+   * (`spec/execution-model.md:545-583`) — the only root-scope bindings a procedure body can see.
+   *
+   * A shared mutable set (like `instructionCount`/`addressing`) rather than a plain field, so a
+   * declaration that runs at the top level is observed by every environment already derived from
+   * the run's root one — including the captured environment of a handler registered before the
+   * declaration line ran.
+   */
+  readonly globals: Set<string>;
   readonly repeatTurns: number[];
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
@@ -596,6 +627,8 @@ export function createEnvironment(): Environment {
   const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
+    procedure: undefined,
+    globals: new Set(),
     repeatTurns: [],
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
@@ -754,51 +787,38 @@ export function chargeHandlerFiring(
   return undefined;
 }
 
-/** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
-function lookupVar(
-  environment: Environment,
-  name: string,
-): OLValue | undefined {
-  const key = name.toLowerCase();
-  for (const frame of environment.frames) {
-    const value = frame.get(key);
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
 /**
- * `:name = value` / `set name to value`: mutate the nearest existing binding, or create one in
- * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md:322-324`).
- * Assignment to an unbound name never fails — it always creates a global. `createEnvironment` is
- * the only way to build an {@link Environment} and always seeds at least the root frame, so the
- * cast below (rather than a defensive throw no caller could ever trigger) is safe.
+ * The diagnostic for a read that found no visible binding — the single place this package turns
+ * `scope.ts`'s `VariableRead` verdict into one of the two codes `spec/error-model.md:102,132`
+ * distinguishes. `hiddenBy` names the procedure whose sealed boundary hid an existing binding
+ * (`ol-var-not-visible`, whose message must name that boundary and the `global` fix); every other
+ * failed read is the ordinary `ol-undefined-var`.
+ *
+ * Both are raised at `stage: "runtime"` even though the registry stage of `ol-var-not-visible` is
+ * `semantic` — the same convention as `ol-not-a-place`/`ol-repcount-outside-repeat` here, since
+ * `execute()` never runs `check()`. The checker's own `ol-var-not-visible` (issue #825) is the
+ * lexical, conservative statement of the same rule; the two agree on `code` and `params`, which is
+ * a diagnostic's identity.
  */
-function assignVar(
-  environment: Environment,
+function failedRead(
+  source_span: SourceSpan,
   name: string,
-  value: OLValue,
-): void {
-  const key = name.toLowerCase();
-  for (const frame of environment.frames) {
-    if (frame.has(key)) {
-      frame.set(key, value);
-      return;
-    }
-  }
-  const root = environment.frames[environment.frames.length - 1] as Frame;
-  root.set(key, value);
+  hiddenBy: string | undefined,
+): Diagnostic {
+  return hiddenBy === undefined
+    ? runtimeDiag.undefinedVar(source_span, name)
+    : runtimeDiag.varNotVisible(source_span, { name, procedure: hiddenBy });
 }
 
-// --- Loop/comprehension binder helpers (spec/execution-model.md:802-806) --------------------
+// --- Loop/comprehension binder helpers (spec/execution-model.md:778-808) --------------------
 //
 // Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
 // comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
 // against the same `Binder` shape (a bare name, or a destructuring pattern), so the logic lives
 // here rather than duplicated in both files. `execute-internal.ts` already imports this module,
-// so keeping the shared helpers here (never the reverse) is the only cycle-free placement.
+// so keeping the shared helpers here (never the reverse) is the only cycle-free placement. The
+// frame the bound names land in is pushed by `scope.ts`'s `pushLoopFrame`, so a binder's names get
+// the same fresh-per-entry block scope every other body does.
 
 /**
  * A `for ... in`/comprehension binder (`spec/grammar.md:137-138`): a bare name, or a
@@ -813,24 +833,6 @@ export type DestructuringBinder = Extract<
   Binder,
   { kind: "DestructuringBinder" }
 >;
-
-/**
- * Push a fresh body-local frame binding `bindings` (name → value) onto `environment`, nearest-first, for
- * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:802-804` ("body-local
- * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
- * `environment` itself is never mutated, so once the caller stops using the returned value the binding is
- * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
- * every recursive call). `repeatTurns`/`callDepth` are threaded through unchanged (same array
- * reference) so a loop/comprehension nested inside a `repeat`/procedure call still sees the right
- * `repcount`/call depth.
- */
-export function pushLoopFrame(
-  environment: Environment,
-  bindings: ReadonlyMap<string, OLValue>,
-): Environment {
-  const frame: Frame = new Map(bindings);
-  return { ...environment, frames: [frame, ...environment.frames] };
-}
 
 /**
  * The first name in a destructuring pattern that repeats an earlier one in the same pattern
@@ -1295,11 +1297,11 @@ export function evaluate(
       return ok(values);
     }
     case "VarRef": {
-      const value = lookupVar(environment, node.name);
-      if (value === undefined) {
-        return fail(runtimeDiag.undefinedVar(node.source_span, node.name));
+      const read = readVariable(environment, node.name);
+      if (!read.found) {
+        return fail(failedRead(node.source_span, node.name, read.hiddenBy));
       }
-      return ok(value);
+      return ok(read.value);
     }
     case "Place":
       return readPlace(node, environment);
@@ -1410,14 +1412,14 @@ function evaluateValueOfKey(
  * `spec/data-structures.md:191`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
-  const base = lookupVar(environment, node.base.name);
-  if (base === undefined) {
+  const read = readVariable(environment, node.base.name);
+  if (!read.found) {
     return fail(
-      runtimeDiag.undefinedVar(node.base.source_span, node.base.name),
+      failedRead(node.base.source_span, node.base.name, read.hiddenBy),
     );
   }
 
-  let current: OLValue = base;
+  let current: OLValue = read.value;
   for (const segment of node.segments) {
     const step = resolvePlaceSegment(current, segment, environment, false);
     if (!step.ok) {
@@ -1746,11 +1748,13 @@ function evaluateThing(
       }),
     );
   }
-  const value = lookupVar(environment, argResult.value);
-  if (value === undefined) {
-    return fail(runtimeDiag.undefinedVar(argNode.source_span, argResult.value));
+  const read = readVariable(environment, argResult.value);
+  if (!read.found) {
+    return fail(
+      failedRead(argNode.source_span, argResult.value, read.hiddenBy),
+    );
   }
-  return ok(value);
+  return ok(read.value);
 }
 
 /**
@@ -1828,7 +1832,7 @@ export function executeAssign(
   }
 
   if (place.segments.length === 0) {
-    assignVar(environment, place.base.name, valueResult.value);
+    assignVariable(environment, place.base.name, valueResult.value);
     return { ok: true };
   }
   return writeIndexedPlace(place, valueResult.value, environment);
@@ -1849,19 +1853,20 @@ function writeIndexedPlace(
   value: OLValue,
   environment: Environment,
 ): AssignResult {
-  const base = lookupVar(environment, place.base.name);
-  if (base === undefined) {
+  const read = readVariable(environment, place.base.name);
+  if (!read.found) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.undefinedVar(
+      diagnostic: failedRead(
         place.base.source_span,
         place.base.name,
+        read.hiddenBy,
       ),
     };
   }
 
   const segments = place.segments;
-  let container: OLValue = base;
+  let container: OLValue = read.value;
   for (let i = 0; i < segments.length - 1; i++) {
     const step = resolvePlaceSegment(
       container,

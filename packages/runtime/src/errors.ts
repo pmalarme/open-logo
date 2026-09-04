@@ -681,6 +681,26 @@ export interface InputPromptNotWordParams {
   readonly actual: OLTypeName;
 }
 
+/**
+ * Params for `ol-var-not-visible` (`spec/error-model.md:132`): the name whose read failed, and the
+ * procedure whose sealed boundary is the reason it failed. `procedure` is what distinguishes this
+ * code from `ol-undefined-var`, so it is part of the identity, not decoration — a message that did
+ * not name the boundary would leave a learner staring at a variable that is plainly right there.
+ */
+export interface VariableNotVisibleParams {
+  readonly name: string;
+  readonly procedure: string;
+}
+
+/**
+ * Params for `ol-global-outside-root` (`spec/error-model.md:131`): the declared name, in the source
+ * spelling the declaration used. Identical in shape to the checker's rule of the same name
+ * (`checker-global-placement.ts`) so the two stages report one identity for one defect.
+ */
+export interface GlobalOutsideRootParams {
+  readonly name: string;
+}
+
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
 export const runtimeDiag = {
   /**
@@ -802,6 +822,62 @@ export const runtimeDiag = {
       source_span,
       { name: resolvedName },
       `:${resolvedName} has no value yet — try assigning it with :${resolvedName} = ... first.`,
+    );
+  },
+
+  /**
+   * `ol-var-not-visible`: a procedure body read a name that the root scope binds but the **sealed
+   * procedure boundary** hides — not one of the procedure's parameters, not a binding its body has
+   * already made, and not a `global` (`spec/execution-model.md:389-394`,
+   * `spec/error-model.md:132`).
+   *
+   * `spec/error-model.md:132` makes two requirements of the prose that a generic "undefined
+   * variable" message would not meet, and both are load-bearing for a learner who can see the name
+   * right there at the top level: the message MUST **name the boundary** — `:{name} is not defined
+   * inside {procedure}` — and the suggestion MUST **name the fix**, `global {name} = …`. That fix is
+   * one word at the top level, and saying so is the whole point of giving this defect its own code
+   * rather than folding it into `ol-undefined-var`.
+   *
+   * `name` is case-folded for the same reason {@link undefinedVar}'s is (resolution is
+   * case-insensitive, so `:Count` and `:count` are one condition), while `procedure` carries the
+   * **definition's declared spelling** — the identity every other procedure-naming diagnostic and
+   * the `procedure-enter`/`exit` events already use, never the call site's spelling.
+   *
+   * Registry stage is `semantic` (the checker decides it lexically, issue #825), but raised here at
+   * `stage: "runtime"` for the same reason as `ol-not-a-place`/`ol-repcount-outside-repeat`:
+   * `execute()` never runs `check()`, so the runtime needs its own guard for the same defect and
+   * must report it under the same code and params.
+   */
+  varNotVisible(
+    source_span: SourceSpan,
+    params: VariableNotVisibleParams,
+  ): Diagnostic {
+    const resolvedName = params.name.toLowerCase();
+    return runtimeError(
+      "ol-var-not-visible",
+      source_span,
+      { name: resolvedName, procedure: params.procedure },
+      `:${resolvedName} is not defined inside ${params.procedure} — a procedure only sees its own inputs and names declared global, so declare it at the top level with global ${resolvedName} = ... to share it.`,
+    );
+  },
+
+  /**
+   * `ol-global-outside-root`: a `global name = value` declaration ran somewhere other than the root
+   * scope — inside a procedure body, a control-form body, a handler block, or a comprehension body
+   * (`spec/execution-model.md:561-563`, `spec/commands.md:140`). Registry stage is `semantic` and
+   * `checker-global-placement.ts` decides it lexically; this is the runtime's own guard for the same
+   * defect, at `stage: "runtime"` since `execute()` never runs `check()`, carrying the same `name`
+   * param and the same prose so the two stages report one identity.
+   */
+  globalOutsideRoot(
+    source_span: SourceSpan,
+    params: GlobalOutsideRootParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-global-outside-root",
+      source_span,
+      { name: params.name },
+      `global ${params.name} belongs at the top level of your program. to make a private name here, write local ${params.name} = ...`,
     );
   },
 

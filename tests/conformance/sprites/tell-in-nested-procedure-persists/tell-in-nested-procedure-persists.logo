@@ -4,12 +4,12 @@ tell :b
 forward 20
 tell :a
 forward 10
-define inner
-  tell :b
+define inner :t
+  tell :t
 end
-define outer
-  inner
+define outer :t
+  inner :t
 end
-outer
+outer :b
 print who
 print ycor

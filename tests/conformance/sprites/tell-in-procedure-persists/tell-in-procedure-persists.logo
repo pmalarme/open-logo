@@ -5,9 +5,9 @@ forward 10
 tell :b
 forward 20
 tell :a
-define go
-  tell :b
+define go :t
+  tell :t
 end
-go
+go :b
 print who
 print ycor

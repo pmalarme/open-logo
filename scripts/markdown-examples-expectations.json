@@ -124,14 +124,6 @@
   ],
   "spec/commands.md": [
     {
-      "fingerprint": "cd0b131f4c2fd442",
-      "excerpt": "global count = 0",
-      "kind": "implementation-behind",
-      "why": "The `global` C3 entry's example. Issue #823 made `global count = 0` parse and check clean, so what is left is runtime scoping: `execute()` gives the declaration no effect yet, exactly as it gives a bare `local` none, so `:count` is unbound at the `print`. Issue #824 binds it.",
-      "codes": ["ol-undefined-var"],
-      "issue": "#824"
-    },
-    {
       "fingerprint": "ebc8abb1c53eaeea",
       "excerpt": "set size to 100",
       "kind": "prose-fragment",
@@ -293,30 +285,6 @@
     }
   ],
   "spec/execution-model.md": [
-    {
-      "fingerprint": "23b9704f5627136b",
-      "excerpt": "global count = 0",
-      "kind": "implementation-behind",
-      "why": "The `local`-shadows-`global` worked example of the scoping ruling (issue #821). Both declarations parse and check clean since issue #823; what is left is runtime scoping — `execute()` gives neither declaration an effect yet, so `:count` is unbound at the read inside `f`. Issue #824 binds them and seals the procedure boundary this block is about.",
-      "codes": ["ol-undefined-var"],
-      "issue": "#824"
-    },
-    {
-      "fingerprint": "3198c91b12a83c19",
-      "excerpt": "global count = 0",
-      "kind": "implementation-behind",
-      "why": "The `global` worked example of the scoping ruling (issue #821). The declaration parses and checks clean since issue #823; `execute()` gives it no effect yet, so `:count` is unbound at the read inside `bump`. Issue #824 binds it.",
-      "codes": ["ol-undefined-var"],
-      "issue": "#824"
-    },
-    {
-      "fingerprint": "2f53a6b6a4d9b21a",
-      "excerpt": "define countdown :n",
-      "kind": "implementation-behind",
-      "why": "The recursion example showing one `step` binding per frame. `local step = :n` parses and checks clean since issue #823; `execute()` does not evaluate a `local` initializer yet, so `:step` is unbound at the `print`. Issue #824 binds it, per frame.",
-      "codes": ["ol-undefined-var"],
-      "issue": "#824"
-    },
     {
       "fingerprint": "208faeb514581756",
       "excerpt": "forward random 100",

@@ -1,5 +1,5 @@
 {
-  "description": "issue #782 (the self-heal path): a turtle command issued AFTER a callee's `tell` applies to the newly addressed turtle, and the reading taken BEFORE it is already correct. `go` runs `tell :b`; the very next statement's `ycor` must report :b's y of 20 — not the :a (y 10) the caller had addressed — and only then does `forward 40` move :b from 20 to 60, emitting one `move`/`draw-segment` pair carrying `turtle_id: 2`, the acting turtle's identity (`spec/turtles-and-sprites.md:46,113`). That first read is what makes this fixture able to fail: the defect was only observable in the window between the call returning and the next turtle command, because re-establishing the addressed set (any turtle command, `tell`, `ask`, or `each`) re-derived the stale per-`Environment` cache and healed it. A fixture that only looked after the command would pass on the broken runtime too.",
+  "description": "issue #782 (the self-heal path): a turtle command issued AFTER a callee's `tell` applies to the newly addressed turtle, and the reading taken BEFORE it is already correct. `go` runs `tell :t` on the `:b` it was handed; the very next statement's `ycor` must report :b's y of 20 — not the :a (y 10) the caller had addressed — and only then does `forward 40` move :b from 20 to 60, emitting one `move`/`draw-segment` pair carrying `turtle_id: 2`, the acting turtle's identity (`spec/turtles-and-sprites.md:46,113`). That first read is what makes this fixture able to fail: the defect was only observable in the window between the call returning and the next turtle command, because re-establishing the addressed set (any turtle command, `tell`, `ask`, or `each`) re-derived the stale per-`Environment` cache and healed it. A fixture that only looked after the command would pass on the broken runtime too. Issue #1099/#824: the turtle handle reaches the procedure as a PARAMETER rather than as a top-level name its body reads, because the sealed procedure boundary (spec/execution-model.md:389-394) makes that read `ol-var-not-visible`. This is an ADDRESSING fixture, not a scoping one, and the migration was measured to keep it so: the only change to the stream is that `procedure-enter`'s `args` now carries the handle, while every addressing, movement, print, and restore event stays byte-identical.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -255,7 +255,7 @@
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "statement_kind": "Call"
@@ -267,11 +267,15 @@
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "name": "go",
-        "args": []
+        "args": [
+          {
+            "id": 2
+          }
+        ]
       }
     },
     {
@@ -308,7 +312,7 @@
       "source_span": {
         "document": "sprites/tell-in-procedure-then-turtle-command/tell-in-procedure-then-turtle-command",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "name": "go",

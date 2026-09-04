@@ -1,5 +1,5 @@
 {
-  "description": "issue #782: a `tell` two call frames deep persists exactly as one frame deep does. `spec/turtles-and-sprites.md:46` attaches no scoping to `tell`; `ask` is the form the spec explicitly restores (`:58`), and `each` (`:78`) narrows per iteration within the current set — so a procedure body, at any depth, re-scopes nothing. `outer` calls `inner`, which runs `tell :b`; both `procedure-exit` events pass with no restoring addressing `primitive` between them, and afterwards `who` reports :b (turtle 2) while `ycor` reports :b's own y of 20 — not the :a (y 10) the caller had addressed. This pins the current turtle as ONE shared fact rather than a per-call-frame one: with a per-`Environment` cache, each nested call gets its own copy, so the deeper the `tell` the staler the caller's reading.",
+  "description": "issue #782: a `tell` two call frames deep persists exactly as one frame deep does. `spec/turtles-and-sprites.md:46` attaches no scoping to `tell`; `ask` is the form the spec explicitly restores (`:58`), and `each` (`:78`) narrows per iteration within the current set — so a procedure body, at any depth, re-scopes nothing. `outer` calls `inner`, which runs `tell :t` on the `:b` it was handed; both `procedure-exit` events pass with no restoring addressing `primitive` between them, and afterwards `who` reports :b (turtle 2) while `ycor` reports :b's own y of 20 — not the :a (y 10) the caller had addressed. This pins the current turtle as ONE shared fact rather than a per-call-frame one: with a per-`Environment` cache, each nested call gets its own copy, so the deeper the `tell` the staler the caller's reading. Issue #1099/#824: the turtle handle reaches the procedure as a PARAMETER rather than as a top-level name its body reads, because the sealed procedure boundary (spec/execution-model.md:389-394) makes that read `ol-var-not-visible`. This is an ADDRESSING fixture, not a scoping one, and the migration was measured to keep it so: the only change to the stream is that `procedure-enter`'s `args` now carries the handle, while every addressing, movement, print, and restore event stays byte-identical.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -239,7 +239,7 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [13, 1],
-        "end": [13, 6]
+        "end": [13, 9]
       },
       "payload": {
         "statement_kind": "Call"
@@ -251,11 +251,15 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [13, 1],
-        "end": [13, 6]
+        "end": [13, 9]
       },
       "payload": {
         "name": "outer",
-        "args": []
+        "args": [
+          {
+            "id": 2
+          }
+        ]
       }
     },
     {
@@ -264,7 +268,7 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [11, 3],
-        "end": [11, 8]
+        "end": [11, 11]
       },
       "payload": {
         "statement_kind": "Call"
@@ -276,11 +280,15 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [11, 3],
-        "end": [11, 8]
+        "end": [11, 11]
       },
       "payload": {
         "name": "inner",
-        "args": []
+        "args": [
+          {
+            "id": 2
+          }
+        ]
       }
     },
     {
@@ -317,7 +325,7 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [11, 3],
-        "end": [11, 8]
+        "end": [11, 11]
       },
       "payload": {
         "name": "inner",
@@ -330,7 +338,7 @@
       "source_span": {
         "document": "sprites/tell-in-nested-procedure-persists/tell-in-nested-procedure-persists",
         "start": [13, 1],
-        "end": [13, 6]
+        "end": [13, 9]
       },
       "payload": {
         "name": "outer",
