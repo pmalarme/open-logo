@@ -2039,7 +2039,7 @@ export function knownUnderProfiles(
   name: string,
   profiles: readonly CheckProfile[],
 ): boolean {
-  return isKeyword(name) || resolvesUnderProfiles(name, profiles);
+  return isKeyword(name, profiles) || resolvesUnderProfiles(name, profiles);
 }
 
 function evaluateCall(
@@ -2047,6 +2047,27 @@ function evaluateCall(
   environment: Environment,
 ): EvalResult {
   const name = resolveHeritageAliasName(node, environment.procedures);
+  // **Before dispatch, not after it.** This guard first sat with the terminal rule at the bottom of
+  // this function, which was wrong for every name that HAS an implemented branch above: `xcor`,
+  // `pos` and `distance` reached their evaluators and answered normally under a run claiming Core
+  // Language alone, so `print xcor` reported `ol-unknown-command` and still printed `0`. The
+  // statement-level counterpart (`inactiveProfileCallee`) was already placed before its dispatch
+  // chain; only the expression half was late, so the two halves disagreed about the same name
+  // depending on where it appeared. `spec/execution-model.md:680` — "One value MUST govern both the
+  // check and the run" — is not satisfied by a check that runs only where no evaluator exists.
+  if (
+    !environment.procedures.has(node.callee.name.toLowerCase()) &&
+    isBuiltInName(node.callee.name) &&
+    !knownUnderProfiles(node.callee.name, environment.profiles)
+  ) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.unknownCommand(
+        node.callee.source_span,
+        node.callee.name,
+      ),
+    };
+  }
   if (isBinaryArithmeticOperator(name)) {
     return evaluateBinaryArithmetic(node, name, environment);
   }

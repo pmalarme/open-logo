@@ -4904,6 +4904,32 @@ function inactiveProfileCallee(
   rawStatement: StatementNode,
   environment: Environment,
 ): Diagnostic | undefined {
+  // A profile FORM — `when`, `every`, `on_key`, `on_click`, `tell`, `ask`, `each` — is not a `Call`,
+  // so it needs its own arm rather than falling through this one. Its head word is a keyword only
+  // "while their profile is active" (`spec/tooling.md:30`), and measured before this arm, a run
+  // claiming Core Language alone registered a `when "start"` handler and ran its body.
+  if (rawStatement.kind === "ProfileStatement") {
+    const head = rawStatement.keyword.name;
+    return knownUnderProfiles(head, environment.profiles)
+      ? undefined
+      : runtimeDiag.unknownCommand(rawStatement.keyword.source_span, head);
+  }
+  // A DECLARATION whose profile is inactive is refused for the same reason: without this, a run
+  // claiming Core Language alone declared a `struct` and then executed its constructor — and the
+  // constructor call cannot be caught by the arm below, because `point` is a user-declared name
+  // rather than a built-in.
+  //
+  // The Data profile is named directly rather than asked of `knownUnderProfiles`, because that
+  // function answers AVAILABILITY while `struct` is also a profile-independent RESERVED word: it is
+  // a keyword everywhere so that `define struct` is illegal for the language *version* rather than
+  // for a profile set (`spec/grammar.md:408`) — exactly the distinction `built-in-names.ts`
+  // documents, where only the calling question consults the active set. `struct` belongs to Data
+  // (`spec/data-structures.md`), so Data is the question to ask.
+  if (rawStatement.kind === "StructDef") {
+    return environment.profiles.includes("data")
+      ? undefined
+      : runtimeDiag.unknownCommand(rawStatement.source_span, "struct");
+  }
   if (rawStatement.kind !== "Call" && rawStatement.kind !== "ParenCall") {
     return undefined;
   }
@@ -6027,7 +6053,13 @@ export function runProgram(
     // run itself uses", it "MUST be nameable by whoever starts the run", and "One value MUST govern
     // both the check and the run" — so this must stay a single binding rather than the same
     // expression written twice.
-    const runProfiles = options?.profiles ?? RUN_PROFILES;
+    //
+    // **Copied, not aliased.** Holding the caller's array would let a host mutate the set after the
+    // check and before or during the run — a synchronous `hostInput.read` callback is enough, and
+    // measured: adding `turtle-rendering` during an `input` made the checker report `forward`
+    // unknown and the runtime then move and draw it. One value cannot govern both phases if either
+    // phase can be given a different one halfway through.
+    const runProfiles = [...(options?.profiles ?? RUN_PROFILES)];
     // The check before execution (`spec/execution-model.md:632-694`, issue #815). `analyze` runs
     // Layer 1 and Layer 2 over the whole program — never one and then the other conditionally, so
     // the precedence rule can see both — under THIS run's profile set, which is the same value the

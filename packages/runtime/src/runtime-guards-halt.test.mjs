@@ -29,6 +29,42 @@
 // its runtime too-many-inputs guard is unreachable through `execute()` — measured, `events` is
 // empty for those, and listing them here would assert the parse gate while appearing to assert the
 // guard.
+//
+// ## How this set was established, and what would falsify it
+//
+// **A count of cases is not a count of mechanisms covered, and the count is what everyone reads.**
+// The first version of this file had eleven cases and looked broad; six of them were the same code
+// (`ol-not-enough-inputs`) reached through different commands, so it was wide in commands and
+// narrow in mechanism. That is the illusion this note exists to prevent.
+//
+// The at-risk class is defined by the mechanism, not by inspection: a runtime guard is masked
+// exactly when **the checker can emit the same code for the same program**, because de-duplication
+// (`spec/execution-model.md:746-748`) then keeps the checker's copy and the runtime's contribution
+// disappears from `diagnostics`. That is enumerable. Intersecting the codes built in
+// `packages/runtime/src/errors.ts` with those pushed by `packages/parser/src/checker-*.ts` gives
+// **27 runtime codes, 15 of them maskable**. The other 12 (`ol-div-zero`, `ol-type`, `ol-range`,
+// `ol-limit`, `ol-not-boolean`, `ol-user-error`, …) have no checker twin, so they survive as
+// `stage: "runtime"` and the ordinary tests already assert them.
+//
+// Of those 15: **11 are covered here**, and **4 have no halt to assert**, each for its own measured
+// reason rather than one convenient story —
+//   - `ol-too-many-inputs` — refused at parse as `ol-bad-token`; unreachable through `execute()`.
+//   - `ol-duplicate-definition`, `ol-reserved-word` — registration-phase: the whole program is
+//     refused before any statement runs, so there is no partial run to truncate (`events` is `[]`).
+//   - `ol-unknown-type` — measured NOT masked despite the code overlap; it surfaces as
+//     `ol-unknown-type/runtime`, so it is already assertable.
+//
+// **The second suppression mechanism was checked too, and does not extend the class.** This slice
+// also implements the precedence rule, which suppresses a *different* code (`ol-bad-token` beside an
+// unresolvable callee), so a code intersection cannot see it by construction. It cannot mask a
+// runtime guard, and the reason is structural rather than empirical: `applyOneFaultRules` is called
+// from exactly one place — `packages/parser/src/analyze.ts` — over the parse and semantic
+// diagnostics only, and `mergeRunDiagnostics` never re-applies it, so no runtime diagnostic is ever
+// in a set precedence examines.
+//
+// **What would falsify all of this** is the intersection frame itself: a masking route that is
+// neither same-code de-duplication nor precedence. If one exists, the class is larger than 15 and
+// this file is short by however many guards it hides.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -110,6 +146,46 @@ const HALTING_FAULTS = [
     source: "return 1",
     code: "ol-return-outside-proc",
     events: ["instruction", "return"],
+  },
+  // The six below close the gap the enumeration found — see the header note on how the class was
+  // derived. Each was measured to halt with the surviving diagnostic reading `stage: "semantic"`,
+  // i.e. the checker's copy, leaving the truncated event stream as the runtime guard's only
+  // observable contribution.
+  {
+    label: "a stop outside any procedure",
+    source: "stop",
+    code: "ol-stop-outside-proc",
+    events: ["instruction"],
+  },
+  {
+    label: "assigning to something that is not a place",
+    source: "first [1 2] = 3",
+    code: "ol-not-a-place",
+    events: ["instruction"],
+  },
+  {
+    label: "a comprehension body that reports no value",
+    source: ":out = map n in [1] [ print :n ]",
+    code: "ol-no-value",
+    events: ["instruction"],
+  },
+  {
+    label: "a return inside a comprehension body",
+    source: ":out = map n in [1] [ return :n ]",
+    code: "ol-return-in-comprehension",
+    events: ["instruction"],
+  },
+  {
+    label: "a comprehension binder declared twice",
+    source: ":total = reduce sum sum in [1 2 3] from 0 [ :sum ]",
+    code: "ol-duplicate-binder",
+    events: ["instruction"],
+  },
+  {
+    label: "reading a field a struct does not declare",
+    source: "struct point [ x y ]\nprint (point 0 0).z",
+    code: "ol-unknown-field",
+    events: ["instruction", "instruction"],
   },
 ];
 
@@ -288,4 +364,127 @@ test("a keyword is known under every profile set, so it never reads as a typo", 
     result.events.filter((event) => event.kind === "print").length,
     2,
   );
+});
+
+test("an unclaimed profile's reporter does not answer in ARGUMENT position either", () => {
+  // The expression-position counterpart, and the half that was wrong twice. The guard first sat
+  // with the terminal rule at the bottom of `evaluateCall`, which every name with an implemented
+  // branch reached past: measured then, `print xcor` under Core Language alone reported
+  // `ol-unknown-command` and still printed `0`. A statement-level guard alone cannot see this,
+  // because the statement here is `print`, which resolves perfectly well.
+  const result = execute(`print xcor\n${CORE_SENTINEL}\n`, doc, CORE_ONLY);
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+    "nothing may be printed: the reporter's profile is not claimed",
+  );
+
+  const claimed = execute("print xcor\n", doc, {
+    profiles: ["core-language", "turtle-rendering"],
+  });
+  assert.deepEqual(claimed.diagnostics, []);
+  assert.equal(
+    claimed.events.filter((event) => event.kind === "print").length,
+    1,
+  );
+});
+
+test("a PROFILE keyword is gated by its own profile, in both directions", () => {
+  // The counterpart, and the half that a bare `isKeyword(name)` got wrong twice over: `when` is a
+  // keyword only "while their profile is active" (`spec/tooling.md:30`). Measured before this was
+  // fixed, a run claiming Core Language alone registered the handler and ran its body.
+  const withoutProfile = execute('when "start" [ print 1 ]\n', doc, {
+    profiles: ["core-language"],
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    withoutProfile.events.map((event) => event.kind),
+    ["instruction"],
+  );
+
+  const withProfile = execute('when "start" [ print 1 ]\n', doc, {});
+  assert.deepEqual(withProfile.diagnostics, []);
+  assert.equal(
+    withProfile.events.filter((event) => event.kind === "print").length,
+    1,
+  );
+});
+
+test("a declaration of an inactive profile does not run its constructor", () => {
+  // `struct` is Data's. The constructor call cannot be caught by the callee guard — `point` is a
+  // user-declared name, not a built-in — so refusing the DECLARATION is what stops it.
+  const withoutData = execute(
+    "struct point [ x y ]\nprint (point 1 2).x\n",
+    doc,
+    { profiles: ["core-language"], runUnchecked: true },
+  );
+  assert.deepEqual(
+    withoutData.events.map((event) => event.kind),
+    ["instruction"],
+    "the constructor must not run under a profile set that has no struct",
+  );
+
+  const withData = execute("struct point [ x y ]\nprint (point 1 2).x\n", doc, {
+    profiles: ["core-language", "data"],
+  });
+  assert.deepEqual(withData.diagnostics, []);
+  assert.equal(
+    withData.events.filter((event) => event.kind === "print").length,
+    1,
+  );
+});
+
+test("the claimed profile set cannot be changed after the run has been checked", () => {
+  // `spec/execution-model.md:680` — "One value MUST govern both the check and the run" — is not
+  // satisfied if a caller can hand in an array and then mutate it. Measured before the array was
+  // copied: adding `turtle-rendering` from inside a synchronous host callback made the check report
+  // `forward` unknown and the run then move and draw it.
+  const profiles = ["core-language"];
+  const result = execute("forward 100\n", doc, {
+    profiles,
+    runUnchecked: true,
+  });
+  profiles.push("turtle-rendering");
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction"],
+    "mutating the caller's array must not retroactively widen the run",
+  );
+});
+
+test("precedence suppressing a parse error does not let a recovery AST run", () => {
+  // The interaction between this slice's two suppression mechanisms. The precedence rule removes
+  // the `ol-bad-token` beside an unresolvable callee (`spec/execution-model.md:768-777`), and that
+  // token was the program's only PARSE-stage error — so under `runUnchecked` the gate no longer
+  // sees an unreadable program and proceeds. What stops it is that the same condition which
+  // triggers the suppression (a callee nothing resolves) also guarantees the terminal rule halts
+  // at that callee, so the sentinel never runs. Bounded in both directions below.
+  const suppressed = execute(`fowad 100\n${SENTINEL}\n`, doc, {
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    suppressed.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+    "the ol-bad-token beside the unresolvable callee is suppressed",
+  );
+  assert.deepEqual(
+    suppressed.events.map((event) => event.kind),
+    ["instruction"],
+    "and the recovery AST must not run on past it",
+  );
+
+  // A resolvable callee keeps its bad token, so the parse error survives and the gate refuses the
+  // program outright — no events at all, not even a marker.
+  const kept = execute(`forward 100 200\n${SENTINEL}\n`, doc, {
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    kept.diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.stage]),
+    [["ol-bad-token", "parse"]],
+  );
+  assert.deepEqual(kept.events, []);
 });
