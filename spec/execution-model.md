@@ -398,17 +398,27 @@ throughout the scope regardless of where it is read or written. A binding a scop
 creates for itself is visible from the point the statement that creates it has
 run; a read before that point raises `ol-undefined-var`, or `ol-var-not-visible`
 when an enclosing scope binds the name and the procedure boundary is what hides
-it. A binding an enclosing **block or root** scope creates is visible to an
-inline block from that block's own position in the enclosing scope, and to a
-deferred handler block whenever the handler fires.
+it. A binding an enclosing **block or root** scope creates is visible to an inline
+block from that block's own position in the enclosing scope, and to a deferred
+handler block whenever the handler fires.
+
+The choice between the two codes is **lexical, not temporal**: if any scope
+enclosing the read binds the name anywhere in the declaring document, a
+boundary-hidden read is `ol-var-not-visible`, whether or not that binding has
+been created by the time the read executes; `ol-undefined-var` is for a name no
+enclosing scope binds at all. That is what keeps `ol-var-not-visible` decidable
+at the `semantic` stage. A name declared `global` is not boundary-hidden, so a
+read that runs before its declaration line is an ordinary `ol-undefined-var`.
 
 The evaluator resolves names as execution reaches them. The semantic checker MUST
 resolve them lexically and conservatively: it reports a name only when **no**
-execution order could make that name visible at the read. Within one scope's
-straight-line statement list the two therefore agree exactly, which is what makes
-a procedure reading a name its boundary hides a `check()`-stage diagnostic; across
-scope boundaries the checker never reports a name that a later declaration or a
-deferred handler could reach.
+execution order could make that name visible at the read, so within one scope's
+straight-line statement list the two agree exactly. A procedure reading a name
+its boundary hides is decidable for a different reason: the boundary is lexical
+and absolute, so no execution order can bring that binding inside, wherever in
+the body the read sits — including inside a `repeat` or `if` nested in the body.
+Across scope boundaries the checker never reports a name that a later declaration
+or a deferred handler could reach.
 
 The procedure boundary is deliberately stricter than the enclosing-scope access
 most languages permit. Everything a procedure touches is named at its boundary,
@@ -550,9 +560,10 @@ scope** — never inside a procedure body, a block, or any other scope — and
 raises `ol-global-outside-root` anywhere else.
 
 `global` is what carries shared state across the procedure boundary. Once
-declared, the name is visible to every procedure for reading and for writing,
-with no further ceremony at the point of assignment: the declaration is where the
-sharing is stated, so a procedure body says only `:count = :count + 1`.
+declared, the name is visible for reading and for writing to every procedure
+declared in the same document, with no further ceremony at the point of
+assignment: the declaration is where the sharing is stated, so a procedure body
+says only `:count = :count + 1`.
 
 A `global` declaration is an ordinary top-level instruction and takes effect when
 it runs. A read that happens before the declaration line has run — including a
@@ -603,16 +614,20 @@ update one binding.
 ### Frames, handlers, and lifetime
 
 Because each entry into a scope creates fresh bindings, a block that registers a
-handler captures **the bindings themselves**, not a snapshot of their values, and
-each turn of a loop captures its own:
+handler captures **the scope itself**, not a snapshot of the values in it, and
+each turn of a loop captures its own. A handler resolves the names it reads in
+that captured scope when it fires, so it also sees a binding the enclosing scope
+created after the registration ran:
 
 ```logo
 repeat 3 [ :n = repcount * 10   every 5 [ print :n ] ]
 wait 8
 ```
 
-Each registration captures its own `:n`, so the three handlers print `10`, `20`,
-and `30`.
+Each registration captures its own `:n`, so the three handlers MUST print `10`,
+`20`, and `30`. Per-turn capture in a loop is **not yet implemented** — the
+reader in this repository reuses one binding and prints `30` three times, which
+is issue #821's loop case, tracked by #824.
 
 A scope's bindings last as long as anything can still reach them. **A scope — a
 block scope as much as a procedure frame — therefore lives as long as any handler
@@ -659,12 +674,15 @@ does. The Sprites addressing model is deliberately different: `ask`, `tell`, and
 `each` carry dynamic *turtle state*, not a name binding, so they are unaffected
 by this rule.
 
-A **handler invocation is never on a turn of any `repeat`.** It is a separate,
-deferred instruction rather than part of the loop that registered it, so
-`repcount` inside a handler block raises `ol-repcount-outside-repeat` however the
-loop is placed and whether or not it has finished. Lexical enclosure is therefore
-necessary but not sufficient: it must be enclosure by a `repeat` whose body the
-code runs as part of.
+A **handler invocation is never on a turn of a `repeat` outside the handler
+block.** The invocation is a separate, deferred instruction rather than part of
+the loop that registered it, so a `repcount` whose nearest lexically enclosing
+`repeat` is outside the handler block raises `ol-repcount-outside-repeat`,
+however the loop is placed and whether or not it has finished. A `repeat` written
+**inside** the handler block is unaffected: it runs as part of the invocation, so
+`every 5 [ repeat 3 [ print repcount ] ]` prints `1`, `2`, `3` on each firing.
+Lexical enclosure is therefore necessary but not sufficient: it must be enclosure
+by a `repeat` whose body the code runs as part of.
 
 ### Procedures
 
@@ -686,13 +704,14 @@ extra arguments beyond the fixed default arity, use the parenthesized call form:
 `ol-not-enough-inputs` or `ol-too-many-inputs`.
 
 `return value` exits the current procedure and provides its value. `output` and
-`op` are heritage aliases. A control-form body does not interpose a procedure
-boundary: a `return` or `stop` inside an `if`, `while`, `repeat`, `for`, or
-`forever` body exits the procedure that body is written in, which is what lets a
-recursive procedure return from inside its base-case `if`. A comprehension body
-and a handler block are the two exceptions — the first raises
-`ol-return-in-comprehension`, and the second is a deferred invocation outside any
-procedure (see
+`op` are heritage aliases. A block **other than a comprehension body or a handler
+block** does not interpose a procedure boundary: a `return` or `stop` inside an
+`if`, `while`, `repeat`, `for`, or `forever` body — or inside a profile block
+such as `ask` or `each` — exits the procedure that body is written in, which is
+what lets a recursive procedure return from inside its base-case `if`. The two
+that do interpose one are a comprehension body, which raises
+`ol-return-in-comprehension`, and a handler block, whose invocation is deferred
+and therefore outside any procedure (see
 [Frames, handlers, and lifetime](#frames-handlers-and-lifetime)). A procedure
 that reaches `return` is usable as a reporter; a procedure that does not is a
 command. Using a command procedure

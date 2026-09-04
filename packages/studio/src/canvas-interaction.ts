@@ -10,7 +10,7 @@
  * hands them over. Same rule `web-bootstrap.ts` and `execution-worker-runner.ts` already follow.
  *
  * ## The two ways to activate the drawing surface
- * `spec/interaction-events.md:293-294` says `on_click` runs "when the drawing surface is clicked
+ * `spec/interaction-events.md:298-299` says `on_click` runs "when the drawing surface is clicked
  * **or activated by an equivalent accessible action**". Both are wired, and neither is a fallback
  * for the other:
  * - the canvas's own pointer `click`;
@@ -18,12 +18,12 @@
  *   with Enter and Space and which a screen reader announces as a button.
  *
  * A separate control rather than Enter/Space on the focused canvas, because the canvas is also the
- * keyboard surface: `"enter"` and `"space"` are two of the key words `:246-250` names, so a learner
+ * keyboard surface: `"enter"` and `"space"` are two of the key words `:251-255` names, so a learner
  * writing `on_key "space"` must receive a space press, not an activation. The two affordances stay
  * distinct so neither has to guess which the learner meant.
  *
  * Nothing about a click's *position* is carried, and that is not a shortcut: OpenLogo v0.1
- * "does not standardize click coordinate reporters" (`:268-270`), so a click has no payload for a
+ * "does not standardize click coordinate reporters" (`:273-275`), so a click has no payload for a
  * button to be unable to supply — which is precisely what makes a keyboard activation an *equal*
  * click rather than a degraded one.
  *

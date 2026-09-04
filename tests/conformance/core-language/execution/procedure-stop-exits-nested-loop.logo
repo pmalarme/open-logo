@@ -1,5 +1,5 @@
 # `stop` reached inside a `repeat` loop nested in a procedure body propagates all the way out of
-# the procedure, not just the loop (spec/execution-model.md:688-702). `print "after"` never runs.
+# the procedure, not just the loop (spec/execution-model.md:706-721). `print "after"` never runs.
 define run_until_two
   repeat 5 [
     print repcount

@@ -1,5 +1,5 @@
 {
-  "description": "`repeat -1 [ print 1 ]` — a whole-number count that is negative raises `ol-range` (`spec/execution-model.md:730-732`, `spec/error-model.md:101`): TYPE passes first (`-1` is a whole number), then the RANGE check fails; execution halts before any pass of the body runs.",
+  "description": "`repeat -1 [ print 1 ]` — a whole-number count that is negative raises `ol-range` (`spec/execution-model.md:749-751`, `spec/error-model.md:101`): TYPE passes first (`-1` is a whole number), then the RANGE check fails; execution halts before any pass of the body runs.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

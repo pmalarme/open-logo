@@ -11,7 +11,7 @@
 
 ## Context
 
-`spec/interaction-events.md:160-163` makes `input` the **only blocking read** in v0.1: no OpenLogo
+`spec/interaction-events.md:165-168` makes `input` the **only blocking read** in v0.1: no OpenLogo
 instruction and no event-handler block may run until a read finishes or the program is cancelled.
 `@openlogo/runtime` honours that by construction — `ExecuteOptions.hostInput.read` is
 **synchronous**, and `execute()` never yields.
@@ -84,7 +84,7 @@ array. The reader is called with the
 prompt and nothing else, so without it a Worker parked inside a read cannot tell the main thread what
 the program has drawn — and the learner is asked a question over a **blank canvas**, a straight
 regression against #769, which draws the square and *then* asks.
-`spec/interaction-events.md:160-162` explicitly permits the opposite ("the implementation **MAY**
+`spec/interaction-events.md:165-167` explicitly permits the opposite ("the implementation **MAY**
 continue rendering already-emitted trace events"), and this is the seam that makes that allowance
 reachable.
 

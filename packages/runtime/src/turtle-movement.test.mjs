@@ -1,5 +1,5 @@
 // Unit tests for `forward`/`back` (issue #200, spec/commands.md's Turtle movement table,
-// spec/execution-model.md:886-887's movement math, spec/rendering.md's "Line segments" section).
+// spec/execution-model.md:905-906's movement math, spec/rendering.md's "Line segments" section).
 // The turtle starts at `(0,0)`, heading `0`, pen down, color `"black"`, width `1`
 // (spec/rendering.md:78) — this slice implements no way to change heading/pen/color/width yet
 // (issues #201/#206/#208/#209), so every case here necessarily starts and stays at heading `0`.
@@ -150,7 +150,7 @@ test("execute raises ol-range for a forward distance that overflows to Infinity,
   // `power 10 1000` overflows IEEE 754 double precision to `Infinity` (a legitimately reachable
   // `number` OLValue elsewhere in this codebase — see `comparison-equality.test.mjs`), but
   // `moveTurtle`'s `d·sin h`/`d·cos h` turns `Infinity * sin(0)` (`0`) into `NaN` — a defect this
-  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md:858:
+  // guard prevents by halting instead of emitting a corrupted event (spec/execution-model.md:877:
   // "OpenLogo never exposes NaN or Infinity as learner-facing results").
   const result = execute("forward power 10 1000", "main.logo");
   assert.equal(result.events.length, 1);

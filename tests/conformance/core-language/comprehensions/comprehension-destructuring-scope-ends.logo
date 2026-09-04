@@ -1,7 +1,7 @@
 # A destructuring `map [:x :y] in <expr>` binder lives only within its own comprehension body:
 # reads of `:x`/`:y` inside the body (line 6) resolve cleanly, but a read of `:x` after the
 # comprehension closes (line 7) has no visible declaration in scope (spec/grammar.md:137-138;
-# spec/execution-model.md:798-800,1228-1229).
+# spec/execution-model.md:817-819,1247-1248).
 :pairs = [[1 2]]
 :doubled = map [:x :y] in :pairs [ :x + :y ]
 print :x

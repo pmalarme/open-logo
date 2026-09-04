@@ -9,7 +9,7 @@
  */
 
 /**
- * Normalize `degrees` to `[0,360)` (`spec/execution-model.md:879`). Guards against returning `-0`
+ * Normalize `degrees` to `[0,360)` (`spec/execution-model.md:898`). Guards against returning `-0`
  * (e.g. `normalizeHeading(-360)` would otherwise compute `-360 % 360 === -0`) so a heading of
  * exactly `0` always serializes/compares as plain `0`, not `-0`.
  */

@@ -165,7 +165,7 @@ test("a custom answer capacity sizes the shared buffer", () => {
 });
 
 test("a read report settles with the question and no diagnostics", () => {
-  // A suspended run has not failed: `spec/interaction-events.md:160-163` is waiting, not cancelling.
+  // A suspended run has not failed: `spec/interaction-events.md:165-168` is waiting, not cancelling.
   const { fake, host } = makeHost();
   const answers = [{ prompt: "earlier?", answer: "yes" }];
 
@@ -506,7 +506,7 @@ test("#976: an answer the shared region refuses is not retained — it never rea
 
 test("#976: a dismissed question is not retained either", () => {
   // The other non-delivered ending. A dismissal is the learner declining to answer
-  // (`spec/interaction-events.md:162-163`'s unanswered read), so there is no answer to keep.
+  // (`spec/interaction-events.md:167-168`'s unanswered read), so there is no answer to keep.
   let listener = null;
   const host = OL.createWorkerExecutionHost({
     allocateBuffer: (byteLength) => new ArrayBuffer(byteLength),

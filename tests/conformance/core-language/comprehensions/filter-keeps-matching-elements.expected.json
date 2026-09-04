@@ -1,5 +1,5 @@
 {
-  "description": "filter keeps only elements whose boolean body is true (spec/execution-model.md:760-762). Issue #105.",
+  "description": "filter keeps only elements whose boolean body is true (spec/execution-model.md:779-781). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

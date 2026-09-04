@@ -78,12 +78,15 @@ by the implementation. A handler block is a normal OpenLogo block: it is a list
 of instructions, it runs for effects, and any final value is discarded under the
 block-result rule. Each registration creates a distinct handler: implementations MUST NOT collapse, deduplicate, or replace registrations, so a block that registers the same handler twice registers two handlers. Each handler invocation is itself an instruction and counts against the same execution budget as any other instruction ([execution safety](execution-model.md#execution-safety)); a repeating handler whose block registers further repeating handlers therefore cannot grow without bound. While the program holds the run open — with `forever`, or a long enough `wait` — the accumulating invocations exhaust the budget and raise `ol-limit`, exactly as `forever` does; otherwise the run closes first, because a handler does not extend the run's lifetime (see `every` below).
 
-A handler block captures the **bindings** visible where it is written, by
-reference and not as a snapshot of their values, under the scoping rules of
-[execution-model.md](execution-model.md#variables-scoping-and-procedures). Two
+A handler block captures the **scope** it is written in, by reference and not as
+a snapshot, under the scoping rules of
+[execution-model.md](execution-model.md#variables-scoping-and-procedures). It
+resolves the names it reads in that captured scope **when the handler fires**,
+not when it is registered, so it sees the values those bindings hold at that
+moment and also any binding its enclosing scope has created since. Two
 consequences follow, and both are normative.
 
-**Each registration captures its own bindings.** Every entry into a scope creates
+**Each registration captures its own scope.** Every entry into a scope creates
 fresh bindings, so a loop that registers one handler per turn gives each handler
 the names born on its own turn:
 
@@ -92,7 +95,9 @@ repeat 3 [ :n = repcount * 10   every 5 [ print :n ] ]
 wait 8
 ```
 
-The three handlers print `10`, `20`, and `30` — not the same value three times.
+The three handlers MUST print `10`, `20`, and `30` — not the same value three
+times. Per-turn capture in a loop is **not yet implemented** — the reader in this
+repository reuses one binding and prints `30` three times, tracked by #824.
 
 **A scope lives as long as any handler registered inside it may still run** — a
 block scope as much as a procedure frame. A handler registered in a procedure
