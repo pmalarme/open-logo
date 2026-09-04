@@ -1702,3 +1702,63 @@ test("ol-style-ambiguous-continuation: `print [ 1\\n-5 ]` fires — negative lit
     reading: "new-statement",
   });
 });
+
+// --- Trailing-operator suppression of negative-literal sub-case ---
+
+test("ol-style-ambiguous-continuation: `print 10 mod\\n-5` — silent (mod locked continuation)", () => {
+  const diagnostics = checkStyle("print 10 mod\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `print 10 +\\n\\n-5` — silent (trailing + past blank line)", () => {
+  const diagnostics = checkStyle("print 10 +\n\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `print 10 + // comment\\n-5` — silent (trailing + behind comment)", () => {
+  const diagnostics = checkStyle("print 10 + // comment\n-5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+// --- Escaped triple-quote regression ---
+
+test("ol-style-ambiguous-continuation: escaped close inside triple-quoted string — silent", () => {
+  // `:p = """\n\\"""\n- 5\n"""` — the `\"""` is an escaped quote, not a close.
+  const src = ':p = """\n\\"""\n- 5\n"""';
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: string then comment on previous line — trailing op detection handles quotes", () => {
+  // Exercises `stripTrailingComment`'s string-tracking path.
+  const diagnostics = checkStyle('print [ "x" + // comment\n-5 ]').filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: escaped quote in string before comment — trailing op handles escapes", () => {
+  // `"x\\"y"` contains an escaped backslash; exercises the escape branch.
+  const diagnostics = checkStyle('print [ "x\\\\" + // comment\n-5 ]').filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: comment-only preceding lines — negative literal fires", () => {
+  // All lines between start and -5 are comments; exercises loop exhaustion.
+  const diagnostics = checkStyle("print [\n# comment\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+});

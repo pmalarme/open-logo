@@ -1522,6 +1522,10 @@ function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
     let j = 0;
     while (j < line.length) {
       if (inTripleQuote) {
+        if (line[j] === "\\") {
+          j += 2; // skip escaped character
+          continue;
+        }
         if (line[j] === '"' && line[j + 1] === '"' && line[j + 2] === '"') {
           inTripleQuote = false;
           j += 3;
@@ -1607,6 +1611,29 @@ function ambiguousContinuationDiagnostic(
     stage: "semantic",
     severity: "warning",
   };
+}
+
+/** Strip trailing line comments (`#`/`//`) and whitespace from a line. */
+function stripTrailingComment(line: string): string {
+  let inString = false;
+  for (let i = 0; i < line.length; i++) {
+    if (inString) {
+      if (line[i] === "\\") {
+        i++;
+        continue;
+      }
+      if (line[i] === '"') inString = false;
+      continue;
+    }
+    if (line[i] === '"') {
+      inString = true;
+      continue;
+    }
+    if (line[i] === "#") return line.slice(0, i).trimEnd();
+    if (line[i] === "/" && line[i + 1] === "/")
+      return line.slice(0, i).trimEnd();
+  }
+  return line.trimEnd();
 }
 
 /**
@@ -1699,16 +1726,21 @@ export function ambiguousContinuationRule(
           } else if (trimmed[0] === "-") {
             // Sub-case: negative literal inside a multi-line statement (e.g. in
             // a list literal). Adding a space would make it subtraction. Skip
-            // when the previous line ends with an infix operator, since that
-            // already locked continuation and the reading is unambiguous.
-            const prevLineText = lines[lineNum - 2]?.trimEnd();
-            const prevEndsWithOp =
-              prevLineText !== undefined &&
-              (prevLineText.endsWith("+") ||
-                prevLineText.endsWith("-") ||
-                prevLineText.endsWith("*") ||
-                prevLineText.endsWith("/"));
-            if (!prevEndsWithOp) {
+            // when a preceding line (scanning backwards past blanks/comments)
+            // ends with an infix operator, since that already locked continuation.
+            let trailingOp = false;
+            for (let prev = lineNum - 1; prev >= startLine; prev--) {
+              const stripped = stripTrailingComment(lines[prev - 1]!);
+              if (stripped.length === 0) continue; // blank or comment-only
+              trailingOp =
+                stripped.endsWith("+") ||
+                stripped.endsWith("-") ||
+                stripped.endsWith("*") ||
+                stripped.endsWith("/") ||
+                /\bmod$/i.test(stripped);
+              break;
+            }
+            if (!trailingOp) {
               const ch1 = trimmed[1];
               if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
                 const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
