@@ -1,0 +1,127 @@
+{
+  "description": "an on_click handler firing is itself one charged instruction, exactly as every other handler kind is: four clicks on an empty-bodied handler exhaust an instruction budget of 9 and raise ol-limit. The empty body makes the firing the only chargeable thing, so an implementation that charged bodies but not firings completes this program cleanly (registration + the wait statement + its four now-charged ticks = 6, well inside 9). The budget was 5 before issue #953 made each wait tick a charged instruction; it was re-derived to 9 so the run folds to the byte-identical event stream and refuses the same fourth firing, at the same source span",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "instructionBudget": 9,
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "click"
+        },
+        {
+          "tick": 2,
+          "kind": "click"
+        },
+        {
+          "tick": 3,
+          "kind": "click"
+        },
+        {
+          "tick": 4,
+          "kind": "click"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-limit",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-firing-counts-against-budget",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "params": {
+        "limit": "instruction-budget",
+        "value": 9
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

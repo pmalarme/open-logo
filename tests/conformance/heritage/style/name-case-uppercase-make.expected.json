@@ -1,0 +1,22 @@
+{
+  "description": "ol-style-name-case (issue #854): the Heritage assignment head `make` written non-lowercase. `make` lowers onto the same `Assign` node as Core's `set … to`, and the casing check used to be gated on a hand-written table of node KINDS that never listed `Assign` — so `MAKE` was unreachable by the lint entirely. The head is now read as the word the statement's own span begins with, which reaches every keyword-headed statement at once. `params.name` carries the literal source spelling.",
+  "profiles": ["core-language", "heritage"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "heritage/style/name-case-uppercase-make",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "params": {
+        "name": "MAKE"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

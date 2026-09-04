@@ -1,0 +1,103 @@
+# Issue #962, execution twin of `heritage/check/heritage-value-of-key-reader-across-a-newline`.
+#
+# The check twin proves the newline spellings are not DIAGNOSED. That is the weaker half. The dict
+# rows were diagnosed AND misread: the broken reading produced a dict holding a single entry keyed
+# `key` whose value was a call to a procedure `k`, with the entry `a` gone — and the `ol-bad-token`
+# it raised described an incomplete reader, never the wrong tree. A fix could therefore have removed
+# the diagnostics and kept the misreading, and the check twin would still have passed.
+#
+# So every pair below prints the newline spelling and then its one-line twin, and the two `print`
+# events of a pair must carry identical payloads. That identity is the runtime witness of "the
+# newline spelling means what its one-line spelling means"; the exact tree is asserted next door, in
+# `packages/parser/src/value-of-key-newline.test.mjs`.
+#
+# `execute()` runs `parse()` and never `check()`, so the runtime holds its own copy of these rules.
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+:d = { a: 7 b: "a" }
+:k = "a"
+
+# Bare.
+print value of :d
+for key :k
+print value of :d for key :k
+
+# Parenthesized — the spelling whose parentheses were reported unmatched.
+print (value of :d
+for key :k)
+print (value of :d for key :k)
+
+# In a list literal.
+print [value of :d
+for key :k]
+print [value of :d for key :k]
+
+# In a dict literal. Both members must print a dict keyed `a` holding 7 — under the defect the
+# first printed a dict keyed `key` instead, with no `a` in it at all.
+print { a: value of :d
+for key :k }
+print { a: value of :d for key :k }
+
+# Newline after `of`, at the top level and then inside a dict entry value.
+print value of
+:d for key :k
+print value of :d for key :k
+print { a: value of
+:d for key :k }
+print { a: value of :d for key :k }
+
+# Newline between `for` and `key`, at the top level and then inside a dict entry value.
+print value of :d for
+key :k
+print value of :d for key :k
+print { a: value of :d for
+key :k }
+print { a: value of :d for key :k }
+
+# Newline after `key`, at the top level and then inside a dict entry value.
+print value of :d for key
+:k
+print value of :d for key :k
+print { a: value of :d for key
+:k }
+print { a: value of :d for key :k }
+
+# A newline on BOTH sides of `for`, at the top level and then inside a dict entry value. The tail's
+# two words are looked up past newlines of their own, so this is still one expression.
+print value of :d
+for
+key :k
+print value of :d for key :k
+print { a: value of :d
+for
+key :k }
+print { a: value of :d for key :k }
+
+# Case is the third axis of the cross-product: keywords are case-insensitive
+# (`spec/grammar.md:13`), so an UPPERCASE tail must continue across a newline and mean exactly what
+# the lowercase one means. `style` is a check-only flag that `execute()` never reads, so it has no
+# bearing here either way; the tail words `of`/`for`/`key` are not linted at all in any case.
+print value of :d
+FOR KEY :k
+print value of :d for key :k
+print { a: value of :d
+FOR key :k }
+print { a: value of :d for key :k }
+
+# Blank lines and a comment line are whitespace inside the expression like any other — pinned here
+# in the execution direction, and inside a dict entry value, where the check twin covers only the
+# top level.
+print { a: value of :d
+
+# a comment between the operand and the tail
+
+for key :k }
+print { a: value of :d for key :k }
+
+# A nested reader whose inner reader is itself split across a newline.
+print value of (value of { inner: :d }
+for key "inner")
+for key "a"
+print value of (value of { inner: :d } for key "inner") for key "a"
+# Control: a newline still terminates a statement, so these stay TWO instructions and two prints.
+print 1
+print 2

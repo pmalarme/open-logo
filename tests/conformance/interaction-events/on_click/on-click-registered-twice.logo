@@ -1,0 +1,2 @@
+on_click [ print "a" ]
+on_click [ print "b" ]

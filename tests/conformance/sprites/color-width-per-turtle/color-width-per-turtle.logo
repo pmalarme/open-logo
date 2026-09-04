@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ set_color "red" set_width 3 ]
+tell [ :a :b ]
+forward 10

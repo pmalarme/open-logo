@@ -1,0 +1,2 @@
+:scores = [ 1 2 ]
+print value of :scores for key "tom"

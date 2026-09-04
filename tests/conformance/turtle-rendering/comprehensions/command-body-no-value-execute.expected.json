@@ -1,0 +1,30 @@
+{
+  "description": "issue #932, the EXECUTE half of the pair whose check half is `command-body-no-value-check` — the same source, so the two stages are pinned to the same answer for one program: the same `ol-no-value` code, the same `form` param, and the same line/column range, each fixture's span naming its own document. The runtime used to carry a verbatim copy of the checker's three-name command list, so BOTH stages were silent here: agreement on the wrong answer. The trace stops at the `instruction` event for the assignment: the body's final statement is a Command, so `runComprehensionBody` reports no-value for the first element before evaluating it, and no `move`/`draw-segment` event is ever emitted — the same order the `print` spelling follows.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "turtle-rendering/comprehensions/command-body-no-value-execute",
+        "start": [1, 1],
+        "end": [1, 41]
+      },
+      "payload": { "statement_kind": "Assign" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-no-value",
+      "source_span": {
+        "document": "turtle-rendering/comprehensions/command-body-no-value-execute",
+        "start": [1, 10],
+        "end": [1, 41]
+      },
+      "params": { "form": "map" },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

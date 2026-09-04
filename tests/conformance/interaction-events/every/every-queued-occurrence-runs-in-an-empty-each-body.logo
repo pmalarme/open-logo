@@ -1,0 +1,6 @@
+:t0 = new_turtle
+:t1 = new_turtle
+every 3 [ print "a" wait 4 ]
+wait 3
+tell turtles
+each [ ]

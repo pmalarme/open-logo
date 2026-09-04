@@ -1,0 +1,33 @@
+{
+  "description": "issue #691 (rubber-duck finding): validation is strictly left-to-right, so an earlier bad element wins over the trailing odd-length structural error. `[\"c4\" 0 \"e4\"]` is odd-length AND has a non-positive duration `0` in the first pair; the `0` duration `ol-range` is reported, not the odd-length one. Locks the earliest-error-wins decision as a fixture.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-odd-earlier-error-wins",
+        "start": [1, 1],
+        "end": [1, 19]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-range",
+      "source_span": {
+        "document": "sound/play-odd-earlier-error-wins",
+        "start": [1, 6],
+        "end": [1, 19]
+      },
+      "params": {
+        "operation": "play",
+        "value": "0"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

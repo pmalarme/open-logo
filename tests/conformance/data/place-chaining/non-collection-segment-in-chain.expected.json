@@ -42,7 +42,6 @@
         "value": 5,
         "operation": "field"
       },
-      "message": "field needs a dict, but got a number.",
       "stage": "runtime",
       "severity": "error"
     }

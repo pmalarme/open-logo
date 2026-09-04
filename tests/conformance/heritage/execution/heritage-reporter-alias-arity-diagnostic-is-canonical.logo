@@ -1,0 +1,8 @@
+# Issue #787: the reporter-position alias path when the call is over-applied. `define forward`
+# takes a built-in name, so phase-1 registration raises `ol-reserved-word` and the program halts
+# before the reporter is evaluated: the event stream is empty and no `ol-too-many-inputs` is
+# produced. Re-legalise `define forward` and this fixture reddens.
+define forward
+  return 55
+end
+print (fd 1 2)

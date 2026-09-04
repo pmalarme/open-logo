@@ -1,0 +1,23 @@
+{
+  "description": "Issue #839: the declaration-slot rule applies inside a DEFERRED handler body, not only inside bodies that run inline. `every 1 [ … ]` registers a handler whose block runs on a later tick, and a declaration inside it is still a declaration — phase-1 registration walks the whole program before any statement runs, so `define forward` there is `ol-reserved-word` and the handler is never registered at all. A `ProfileStatement` body is the enclosing kind an implementer is most likely to special-case, precisely because \"handlers run later\" invites deferring their registration. Paired with `core-language/procedures/nested-declaration-of-a-built-in-name`, which covers the inline-body half of the same axis.",
+  "compareMessages": true,
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "interaction-events/declare-built-in-inside-a-handler/declare-built-in-inside-a-handler",
+        "start": [1, 18],
+        "end": [1, 25]
+      },
+      "params": {
+        "name": "forward"
+      },
+      "message": "forward is already part of OpenLogo. choose another name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

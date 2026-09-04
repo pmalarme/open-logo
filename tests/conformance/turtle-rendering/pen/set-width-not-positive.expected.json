@@ -28,7 +28,6 @@
         "operation": "set_width",
         "value": "0"
       },
-      "message": "set_width needs a positive width, but got 0.",
       "stage": "runtime",
       "severity": "error"
     }

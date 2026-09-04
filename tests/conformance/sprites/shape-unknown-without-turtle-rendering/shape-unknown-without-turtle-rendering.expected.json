@@ -1,0 +1,21 @@
+{
+  "description": "issue #677 (SP5): the profile gate for `set_shape`. `set_shape` is a Turtle & Rendering primitive, so with only `core-language` active it is not a visible name and the checker rejects it `ol-unknown-command` (no did-you-mean — no near Core name). The clean counterpart, shape-checks-clean, shows the same command checking clean once `turtle-rendering` (and `sprites`) are active — proving the command is gated on its profile, not hardcoded.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sprites/shape-unknown-without-turtle-rendering/shape-unknown-without-turtle-rendering",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "set_shape"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

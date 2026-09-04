@@ -1,0 +1,104 @@
+# Issue #962. The Heritage `value of … for key …` reader (`spec/grammar.md:217`'s
+# `value-of-reader`) is ONE expression, so `spec/grammar.md:34` — "Within a single expression, list
+# literal, dict literal, or parenthesized group, newlines are insignificant" — governs the slots
+# inside it. Before the fix the reader stopped at a newline before its required `for key` tail, so
+# each spelling below raised `ol-bad-token`, and the parenthesized one additionally raised
+# `ol-unmatched-paren` TWICE on parentheses that are correctly matched.
+#
+# This fixture pins the CLEAN half. Its execution twin,
+# `heritage/execution/heritage-value-of-key-reader-across-a-newline`, pins that these spellings also
+# MEAN what their one-line spellings mean — which matters most for the dict rows, where the broken
+# reading additionally produced an entry keyed `key` in place of the entry that was written, a
+# misreading no diagnostic described.
+#
+# The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).
+:d = { a: 7 b: "a" }
+:k = "a"
+
+# The bare reader split before its tail.
+print value of :d
+for key :k
+
+# Wrapped in parentheses — the spelling that raised the phantom `ol-unmatched-paren` pair.
+print (value of :d
+for key :k)
+
+# Inside a list literal.
+print [value of :d
+for key :k]
+
+# Inside a dict literal, the entry VALUE.
+print { a: value of :d
+for key :k }
+
+# The reader's other internal slots take a newline too: after `of`, between `for` and `key`, and
+# after `key`.
+print value of
+:d for key :k
+print value of :d for
+key :k
+print value of :d for key
+:k
+
+# The same three slots INSIDE a dict entry value. This is a cross-product, not a repetition: a
+# dictionary is the one context where a newline separates entries, so a continuation guarded by the
+# dict-key test behaves differently here than it does at the top level.
+print { a: value of
+:d for key :k }
+print { a: value of :d for
+key :k }
+print { a: value of :d for key
+:k }
+
+# A newline on BOTH sides of `for`, at the top level and inside a dict entry value. The tail's two
+# words are looked up past newlines of their own, so this is still one expression.
+print value of :d
+for
+key :k
+print { a: value of :d
+for
+key :k }
+
+# Case is the third axis of the cross-product. Keywords are case-insensitive
+# (`spec/grammar.md:13`), so an UPPERCASE or mixed-case tail must continue across a newline exactly
+# as the lowercase one does — a continuation comparing surface text would break only these rows.
+#
+# No diagnostic appears, but NOT because this fixture leaves `style` off: measured, turning `style`
+# on changes nothing here. `ol-style-name-case` fires only on the reader's head `value`, which is
+# lowercase in every row; `of`/`for`/`key` have no span of their own and are not linted at all,
+# deferred to the #115 follow-up. `heritage/style/name-case-uppercase-value-of-key-reader` records
+# that, and is where the head's lint is pinned.
+print value of :d
+FOR KEY :k
+print value of :d
+For Key :k
+print { a: value of :d
+FOR key :k }
+
+# Blank lines and a comment line are whitespace inside the expression like any other.
+print value of :d
+
+# a comment between the operand and the tail
+for key :k
+
+# Controls — the one-line spellings, clean before the fix and still clean after it.
+print value of :d for key :k
+print (value of :d for key :k)
+print [value of :d for key :k]
+print { a: value of :d for key :k }
+
+# Control: arithmetic already continued across a newline inside a dict (issues #933/#956); this row
+# is what makes the failures above reader-specific rather than a general expression regression.
+print { a: 1
++ 2 }
+
+# Control: `for` and `key` are legal dictionary keys, and inside a dict a newline separates
+# ENTRIES — so the reader's continuation must not claim a following entry that merely begins with
+# one of its tail words.
+print { a: 1
+key: 2
+for: 3 }
+
+# Control: a newline still terminates a statement.
+print 1
+print 2

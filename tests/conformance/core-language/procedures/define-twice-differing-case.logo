@@ -1,0 +1,7 @@
+define tally
+  print 1
+end
+define TALLY
+  print 2
+end
+tally

@@ -59,8 +59,13 @@ diagnostics pane shows it as a single `line:column code (severity): message` lin
 ```
 1:11 ol-limit (error): this program ran 1000000 instructions without finishing, which is the
 configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or
-'while' whose condition never becomes false.
+'while' whose condition never becomes false, or a 'wait' for a very large number of ticks.
 ```
+
+An *instruction* here is any unit of progress the run makes: a statement, one pass of a loop, one
+firing of an event handler — and one tick of a `wait` pause. That last one is why the message also
+names `wait`: `wait 999999999` writes no loop at all, but it asks the runtime for a billion ticks of
+work, so the same ceiling catches it and reports the same diagnostic instead of freezing the tab.
 
 That budget, not **Stop**, is what actually rescues you from a runaway program like this one — and
 it lands you in the same **Stopped** status **Stop** does, ready for **Reset**.

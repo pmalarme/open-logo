@@ -1,0 +1,19 @@
+{
+  "description": "issue #844, the reported symptom itself, pinned (CHECK-mode path). `grid 10` was reported as evidence that the runtime cannot execute `grid`. It is not: `grid` is Kind C, arity 0, so the reader gathers zero arguments and `10` is left as a stray token on the same line — a PARSE-stage `ol-bad-token`, exactly as for any other arity-0 command (`home 10`, `pen_up 10`). Because parsing fails, check() never runs and the harness returns the parse diagnostics unchanged; this is therefore the check-mode ENTRY POINT's verdict, not a semantic-rule verdict. Its execute-mode twin geometry/overlays/bare-grid-extra-argument pins the same `code`, `params`, `stage` and line/column coordinates — everything but each fixture's own `source_span.document` id, which necessarily differs. Same verdict from both entry points, and `grid` itself (geometry/overlays/grid-basic) draws.",
+  "profiles": ["core-language", "geometry"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "geometry/check/bare-grid-extra-argument",
+        "start": [1, 6],
+        "end": [1, 8]
+      },
+      "params": { "text": "10" },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

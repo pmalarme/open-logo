@@ -1,0 +1,28 @@
+{
+  "description": "issue #689: `set_tempo 90` (Sound profile, arity 1) emits exactly one `sound` event with payload {command:\"set_tempo\", beats_per_minute:90}, AFTER the tempo state has been scheduled (spec/interaction-events.md#trace-stream-integration). `set_tempo` 'sets the tempo used by `note`, `play`, and `rest`' and 'Durations are measured in beats' (spec/interaction-events.md:294-295); durations are never wall-clock, and the stream is deterministic and headless.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/set-tempo-basic",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/set-tempo-basic",
+        "start": [1, 1],
+        "end": [1, 13]
+      },
+      "payload": { "command": "set_tempo", "beats_per_minute": 90 }
+    }
+  ],
+  "diagnostics": []
+}

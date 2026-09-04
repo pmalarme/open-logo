@@ -1,0 +1,4 @@
+:a = new_turtle
+tell [ :a ]
+forward 10
+clear_screen

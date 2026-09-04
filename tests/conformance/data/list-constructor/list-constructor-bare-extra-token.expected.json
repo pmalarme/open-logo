@@ -14,7 +14,6 @@
       "params": {
         "text": "5"
       },
-      "message": "each instruction needs a new line of its own. i didn't expect 5 to keep going on this line.",
       "stage": "parse",
       "severity": "error"
     }

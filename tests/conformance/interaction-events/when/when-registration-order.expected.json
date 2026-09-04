@@ -1,0 +1,136 @@
+{
+  "description": "issue #682 (slice I3): two `when \"start\"` handlers registered in sequence fire in REGISTRATION ORDER (spec/interaction-events.md's \"Time, ticks, and handlers\": pending `when` events fire in registration order). Because `\"start\"` is already being delivered in a batch run, each handler fires immediately on its own registration, so handler `a` (registered first) completes entirely before handler `b` is registered and fires: the sequence is register-a (seq 0-1) → fire-a (seq 2-4) → register-b (seq 5-6) → fire-b (seq 7-9). The single append-only registration list gives one total order across handlers, the stable order same-tick dispatch (#686/I7) builds on; this slice keeps that order observable without owning cross-handler same-tick timing.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [1, 1],
+        "end": [1, 5]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "when",
+          "event": "start"
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [1, 16],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [1, 16],
+        "end": [1, 25]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [2, 1],
+        "end": [2, 27]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [2, 1],
+        "end": [2, 27]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [2, 1],
+        "end": [2, 5]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "when",
+          "event": "start"
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [2, 16],
+        "end": [2, 25]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-registration-order",
+        "start": [2, 16],
+        "end": [2, 25]
+      },
+      "payload": {
+        "values": ["b"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

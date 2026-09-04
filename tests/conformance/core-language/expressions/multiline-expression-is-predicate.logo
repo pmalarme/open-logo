@@ -1,0 +1,20 @@
+# Every slot of an unfinished `is` predicate tolerates a newline, because the predicate is one
+# expression and `spec/grammar.md:34` makes newlines insignificant inside it (issue #933): after
+# `is`, around `member`/`of`, before the type word of `is a`, and around both bounds of
+# `is between … and …`.
+print [1 2]
+  is
+  empty
+print 2 is member
+  of
+  [1 2 3]
+print 5 is
+  a
+  "number"
+print 5 is between
+  1
+  and
+  9
+print 5 is strictly
+  between
+  1 and 9

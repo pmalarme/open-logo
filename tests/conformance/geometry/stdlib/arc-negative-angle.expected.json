@@ -112,7 +112,6 @@
       "params": {
         "message": "an arc needs an angle of 0 or more"
       },
-      "message": "an arc needs an angle of 0 or more",
       "stage": "runtime",
       "severity": "error"
     }

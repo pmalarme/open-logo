@@ -1,0 +1,160 @@
+{
+  "description": "issue #688 (terminal slice, review round 2): a word that PARSES as a number is accepted where `wait` expects a number, AND is used as that number. `spec/execution-model.md:33-34` makes this a normative CORE rule (`Words that parse as numbers are accepted where a number is expected`), and nothing in `spec/interaction-events.md`'s `### wait <n>` opts the profile out of it. The pause is measured with a bare-numeric `every 1` timer registered first: `wait \"2\"` must advance the tick clock by exactly 2, so the handler fires exactly TWICE (ticks 1 and 2) before the `wait` `primitive` event, then `print \"done\"` runs. Round 1 of this fixture asserted only that `wait \"2\"` was accepted and did not fault, which an implementation that accepted the word but paused for 0 or 1 ticks would have satisfied with a byte-identical stream (review round 2 finding); counting the timer's invocations is what turns acceptance into proof of the VALUE, matching how the `every` sibling proves its own coercion by firing on schedule. This is the POSITIVE complement of `wait-non-number-type-error`: without it the corpus recorded only that a word is rejected, so an implementation that rejected EVERY word -- violating the Core coercion rule -- would have passed the whole corpus while the negative looked like proof that words are simply illegal here. The two together draw the line where the spec draws it: parses-as-a-number is accepted and honored, does-not-parse is `ol-type`.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 25]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 11],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 11],
+        "end": [1, 23]
+      },
+      "payload": {
+        "values": ["tick"]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 1
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 11],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [1, 11],
+        "end": [1, 23]
+      },
+      "payload": {
+        "values": ["tick"]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/wait/wait-numeric-word-accepted",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": ["done"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

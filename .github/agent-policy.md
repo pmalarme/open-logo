@@ -38,14 +38,26 @@ the layers fit together: [`devops/agent-policy`](skills/devops/agent-policy/SKIL
 - → [`shared/review-gate`](skills/shared/review-gate/SKILL.md),
   [`orchestrator/integrate-and-merge`](skills/orchestrator/integrate-and-merge/SKILL.md)
 
-## Definition of Done — run all eight from a clean tree
+## Definition of Done — run all nine from a clean tree
 
 ```bash
 npm ci && npm run build && npm run typecheck && npm run lint && npm run format:check \
-  && npm run test && npm run coverage && npm run conformance && npm run examples
+  && npm run test && npm run coverage && npm run conformance && npm run examples \
+  && npm run built-in-names
 ```
 
 → [`shared/definition-of-done`](skills/shared/definition-of-done/SKILL.md)
+
+- **Adding or removing a primitive is a two-file change** — the registry **and**
+  `spec/built-in-names.json` — and `npm run built-in-names` is red until both land. A **keyword**
+  edits more: those two, plus `spec/grammar.md`'s normative block and `spec/tooling.md`'s C19 mirror
+  (which that gate compares), plus each name's `tokenClass` in `spec/built-in-names.json` (which
+  that gate re-paints through the shipped `highlight()` and compares; the reverse direction covers
+  the name sources it reads, not arbitrary output, issue
+  #959), plus
+  `keywords.profiles.test.mjs`'s `EXPECTED_CORE_KEYWORDS`, which `npm run test` asserts rather than
+  `npm run built-in-names`. `packages/parser/src/keywords.ts` carries the list and names the gate
+  covering each. See [ADR-0021](../docs/adr/0021-built-in-names-list-and-ci-gate.md).
 
 ## Known traps
 

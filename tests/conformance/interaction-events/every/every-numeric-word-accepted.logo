@@ -1,0 +1,2 @@
+every "2" [ print 1 ]
+wait 4

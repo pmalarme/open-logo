@@ -100,7 +100,6 @@
       "params": {
         "message": "a circle needs at least 3 segments"
       },
-      "message": "a circle needs at least 3 segments",
       "stage": "runtime",
       "severity": "error"
     }

@@ -15,9 +15,9 @@
  * `ol-type`/`ol-range` for `repeat`'s non-whole/negative count and `ol-repcount-outside-repeat`
  * for a `repcount` reporter used outside any enclosing `repeat`. Issue #103 adds `for`'s own
  * diagnostics: `ol-type` for a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only), `ol-range` for a
- * `for ... from ... to ... by 0` step (`spec/execution-model.md:374-375`), a destructuring
- * pattern/element length mismatch (`spec/execution-model.md:438-439`), and `ol-duplicate-binder`
+ * (`spec/execution-model.md:397-398` — Core `for ... in` is list-only), `ol-range` for a
+ * `for ... from ... to ... by 0` step (`spec/execution-model.md:396-397`), a destructuring
+ * pattern/element length mismatch (`spec/execution-model.md:460-461`), and `ol-duplicate-binder`
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
  * `stage: "runtime"` since `execute()` never runs `check()`.
@@ -29,7 +29,7 @@
  * the runtime's own copies of the checker's `ol-return-outside-proc`/`ol-stop-outside-proc`
  * (issue #114's `checker-control-flow.ts`) for the same reason as `ol-not-a-place` above; and
  * `ol-limit` for a procedure call nested past a configured recursion-depth threshold
- * (`spec/execution-model.md:551-557`), so unbounded recursion raises a friendly diagnostic instead
+ * (`spec/execution-model.md#execution-safety`), so unbounded recursion raises a friendly diagnostic instead
  * of a raw host stack overflow. Issue #105 adds comprehension diagnostics: `ol-type` for a
  * `map`/`filter`/`reduce` iterable that is not a list; `ol-no-value` for a comprehension body
  * whose last statement produces no value; `ol-return-in-comprehension` for a `return`/`stop`
@@ -70,7 +70,15 @@
  * lowercase learner prose derived from them — prose is presentation only.
  */
 
-import type { Diagnostic, OLValue, SourceSpan } from "@openlogo/core";
+import type {
+  Diagnostic,
+  OLTypeName,
+  OLValue,
+  SourceSpan,
+} from "@openlogo/core";
+import { builtInNameMessage } from "@openlogo/core";
+import type { ComprehensionNode, ReturnNode } from "@openlogo/parser";
+import { canonicalOfHeritageFormHead } from "@openlogo/parser";
 
 function runtimeError(
   code: Diagnostic["code"],
@@ -142,6 +150,22 @@ export interface ShapeTypeErrorParams {
   readonly operation: string;
 }
 
+/**
+ * Params for an `ol-type` raised by `tell` or `ask` (Sprites profile,
+ * `spec/turtles-and-sprites.md:176-177`) when its input is not a turtle, or is a list containing a
+ * non-turtle value. `expected` is fixed to `"turtle"` (the concept both forms address), `actual`
+ * names the offending value's type ({@link typeNameOf}), `value` snapshots it for the diagnostic,
+ * and `operation` is the head keyword (`"tell"` or `"ask"`) so the message names the form the
+ * learner wrote. Same `{expected, actual, value, operation}` shape every other `ol-type` builder
+ * uses.
+ */
+export interface TellNotATurtleParams {
+  readonly expected: "turtle";
+  readonly actual: string;
+  readonly value: OLValue;
+  readonly operation: "tell" | "ask";
+}
+
 /** Params for an `ol-range` raised by an out-of-bounds 1-based list index. */
 export interface IndexRangeParams {
   readonly index: OLValue;
@@ -189,7 +213,7 @@ export interface InsertPositionRangeParams {
 
 /**
  * Params for `ol-not-boolean`: a `not`/`and`/`or` operand (or any other boolean-only condition)
- * was not `true`/`false` (`spec/error-model.md:121`). There is no truthiness — a number, word, or
+ * was not `true`/`false` (`spec/error-model.md:123`). There is no truthiness — a number, word, or
  * list operand is never coerced, regardless of how "truthy" it might look.
  */
 export interface NotBooleanErrorParams {
@@ -198,8 +222,9 @@ export interface NotBooleanErrorParams {
 }
 
 /**
- * Params for an `ol-type` raised by `repeat`'s count when it is not a whole number
- * (`spec/execution-model.md:367-369` — TYPE is checked before RANGE).
+ * Params for an `ol-type` raised when a value that must be a whole number is not one
+ * (`spec/execution-model.md:389-391` fixes the TYPE-before-RANGE order for `repeat`, one of the
+ * callers). `operation` names the primitive that raised it.
  */
 export interface WholeNumberTypeErrorParams {
   readonly actual: string;
@@ -207,7 +232,7 @@ export interface WholeNumberTypeErrorParams {
   readonly operation: string;
 }
 
-/** Params for an `ol-range` raised by a negative `repeat` count. */
+/** Params for an `ol-range` raised by a negative count; `operation` names the primitive. */
 export interface NegativeCountParams {
   readonly operation: string;
   readonly value: number;
@@ -273,7 +298,7 @@ export interface NonFiniteCoordinateParams {
 
 /**
  * Params for an `ol-type` raised by a `for ... in` iterable that is not a list
- * (`spec/execution-model.md:375-376` — Core `for ... in` is list-only; dict iteration is a later
+ * (`spec/execution-model.md:397-398` — Core `for ... in` is list-only; dict iteration is a later
  * profile).
  */
 export interface ForInNotListParams {
@@ -283,7 +308,7 @@ export interface ForInNotListParams {
 
 /**
  * Params for an `ol-range` raised by a `for ... by 0` step
- * (`spec/execution-model.md:374-375` — a step of `0` never reaches `end`, so it is rejected
+ * (`spec/execution-model.md:396-397` — a step of `0` never reaches `end`, so it is rejected
  * rather than silently looping forever).
  */
 export interface ForStepZeroParams {
@@ -293,7 +318,7 @@ export interface ForStepZeroParams {
 
 /**
  * Params for an `ol-range` raised by a destructuring binder/element length mismatch
- * (`spec/execution-model.md:438-439` — "a short or long pattern mismatch raises `ol-range`"):
+ * (`spec/execution-model.md:460-461` — "a short or long pattern mismatch raises `ol-range`"):
  * `length` is the pattern's own arity, `value` the element's actual length (`0` for a non-list
  * element, which can never match a non-empty pattern).
  */
@@ -305,7 +330,7 @@ export interface PatternLengthMismatchParams {
 
 /**
  * Params for an `ol-type` raised by a comprehension (`map`/`filter`/`reduce`) iterable that is
- * not a list (`spec/execution-model.md:380-384` — every comprehension form ranges over a list).
+ * not a list (`spec/execution-model.md:418-422` — every comprehension form ranges over a list).
  * Same shape as {@link ForInNotListParams} plus the comprehension's own `form`, since `ol-type`'s
  * `operation` names the offending construct.
  */
@@ -316,25 +341,114 @@ export interface ComprehensionNotListParams {
 }
 
 /**
+ * The three comprehension forms — the `form` param value the comprehension-scoped codes carry.
+ * Read off {@link ComprehensionNode} rather than restated as a literal union, so the runtime's
+ * `form` param cannot drift from the AST the parser hands it (the parser's own
+ * `checker-control-flow.ts` derives its `ComprehensionForm` the same way).
+ */
+type ComprehensionForm = ComprehensionNode["form"];
+
+/**
+ * Every surface spelling a `return` can be written with — Core `return` plus the **Heritage**
+ * spellings `output`/`op`, which the reader lowers onto the same {@link ReturnNode}. Read off the
+ * AST node so it cannot drift from the grammar. Prose only: see {@link CanonicalEscapeKeyword}.
+ */
+type SurfaceReturnKeyword = ReturnNode["keyword"];
+
+/**
+ * Every surface spelling an escape can be written with — {@link SurfaceReturnKeyword} plus `stop`,
+ * which has no Heritage spelling. Prose only: see {@link CanonicalEscapeKeyword}.
+ */
+type SurfaceEscapeKeyword = SurfaceReturnKeyword | "stop";
+
+/**
+ * The **canonical Core** control word an escape's `params.keyword` is reported under. Deliberately
+ * narrower than {@link SurfaceEscapeKeyword}: the Heritage spellings are excluded *by type*, so a
+ * params object that declares this type cannot be handed a surface spelling — reintroducing
+ * `{ keyword: <the learner's word> }` stops compiling. That is the structural guard for these two
+ * rules (issue #741), and it deliberately mirrors the parser's `checker-control-flow.ts` type of
+ * the same name (issue #737), because the runtime keeps its own copies of both diagnostics.
+ *
+ * Its reach is exactly the params interfaces below, because `Diagnostic.params` is
+ * `Readonly<Record<string, unknown>>` and cannot be typed per code: a NEW diagnostic site that
+ * built its params inline would still compile. The complete guard for the class is therefore the
+ * registry-driven `heritage-canonical-diagnostic-params.test.mjs` in this package, which executes
+ * every Heritage spelling the parser knows and compares the emitted params against its Core twin's;
+ * this type is what stops the two known sites from silently regressing.
+ */
+type CanonicalEscapeKeyword = "return" | "stop";
+
+/**
+ * The canonical Core control word for a `return` escape, resolved through the parser's Heritage
+ * registry ({@link canonicalOfHeritageFormHead}) rather than a local literal: `output`/`op` resolve
+ * to `return`, and `return` is already canonical. Reported as the literal `"return"` — the only
+ * value this site can ever carry — so a params object that declares it cannot be handed anything
+ * else.
+ *
+ * Diagnostic identity is `code` plus structured `params`, and the same condition MUST keep the same
+ * params (`spec/error-model.md:254-259`). Heritage is "alternate spellings only, no new semantics"
+ * (`spec/conformance.md#heritage`), so an executed `output 5` and an executed `return 5` at top
+ * level are ONE condition and must carry one machine-readable identity — the surface spelling
+ * belongs in the prose, never in the params. Shares the parser's registry precisely so the two
+ * stages cannot answer "what Core spelling is this an alternate of" differently.
+ */
+function canonicalReturnKeyword(surface: SurfaceReturnKeyword): "return" {
+  return surface === "return" ? "return" : canonicalOfHeritageFormHead(surface);
+}
+
+/**
+ * The canonical Core control word for any escape — {@link canonicalReturnKeyword} widened to admit
+ * `stop`, which is already canonical and has no Heritage spelling. Only the comprehension-scoped
+ * code needs this: `stop` at the top level is the separate `ol-stop-outside-proc`
+ * (`spec/error-model.md:118`), which carries no `keyword` at all.
+ */
+function canonicalEscapeKeyword(
+  surface: SurfaceEscapeKeyword,
+): CanonicalEscapeKeyword {
+  return surface === "stop" ? "stop" : canonicalReturnKeyword(surface);
+}
+
+/**
  * Params for `ol-no-value`: a comprehension body's last statement does not produce a value
  * (`spec/execution-model.md:225` — the block-result rule). Same `{form}` shape as the parser's
  * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity.
  */
 export interface NoValueParams {
-  readonly form: "map" | "filter" | "reduce";
+  readonly form: ComprehensionForm;
+}
+
+/**
+ * Params for `ol-return-outside-proc`: a `return`/`output`/`op` reached the top level with no
+ * enclosing procedure to return from. Same `{keyword}` shape as the parser's
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — and, since
+ * issue #741, the same canonical *value* too: the surface spelling the learner wrote cannot reach
+ * `params`.
+ *
+ * `keyword` is typed as the literal `"return"` rather than {@link CanonicalEscapeKeyword}, because
+ * that is the only word this code can ever carry: a `stop` outside a procedure is the separate
+ * `ol-stop-outside-proc` (`spec/error-model.md:118`). The parser's counterpart states the same
+ * constraint in prose (`checker-control-flow.ts`: "here always `return`"); stating it in the type
+ * leaves the guard no slack.
+ */
+export interface ReturnOutsideProcParams {
+  readonly keyword: "return";
 }
 
 /**
  * Params for `ol-return-in-comprehension`: a `return`/`output`/`op`/`stop` reached inside a
  * comprehension body (`spec/execution-model.md:226-227`) — a comprehension reports its last
  * expression, never an explicit `return`/`stop`. Same `{keyword, form}` shape as the parser's
- * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity; `keyword`
- * is the literal string `"stop"` for a `Stop` node (which has no `keyword` field of its own),
- * matching the checker's own synthesis.
+ * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity, with the
+ * same canonical `keyword` rule as {@link ReturnOutsideProcParams} — widened to
+ * {@link CanonicalEscapeKeyword} because this is the one `keyword`-carrying code a `stop` can also
+ * raise. Declared independently rather than extending its sibling: the two are different codes that
+ * happen to share a field, not a specialization, so neither should silently inherit the other's
+ * future params. A `Stop` node has no `keyword` field of its own and reports the canonical
+ * `"stop"`, matching the checker's own synthesis.
  */
 export interface ReturnInComprehensionParams {
-  readonly keyword: "return" | "output" | "op" | "stop";
-  readonly form: "map" | "filter" | "reduce";
+  readonly keyword: CanonicalEscapeKeyword;
+  readonly form: ComprehensionForm;
 }
 
 /**
@@ -425,6 +539,53 @@ export interface NonPositiveWidthParams {
 }
 
 /**
+ * Params for an `ol-range` raised by `set_tempo` (issue #689) when its argument is a number but not
+ * positive and finite (`spec/interaction-events.md:289` — "one positive number"; the default tempo
+ * is `120`). Only reached once {@link requireNumber} has already confirmed the argument is a number
+ * at all (a non-number raises `ol-type` first, mirroring {@link NonPositiveWidthParams}'s
+ * `set_width` order). `value` is rendered as `String(value)` for the same JSON-safety reason as
+ * {@link NonFiniteDistanceParams} — folding `Infinity` into the same guard as `0`/negative so a
+ * learner never sees an infinite tempo.
+ */
+export interface NonPositiveTempoParams {
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-range` raised by `note`/`rest` (issue #690) when the duration argument is a
+ * number but not positive and finite (`spec/interaction-events.md`'s `note`/`rest` entries:
+ * "Duration MUST be positive and is interpreted in beats"). Only reached once
+ * {@link requireNumber} has already confirmed the value is a number. `operation` is the command
+ * name (`"note"` or `"rest"`), so the two share one `ol-range` builder while keeping distinct
+ * diagnostic identities (`error-model.md` treats `params` as part of a diagnostic's identity).
+ */
+export interface NonPositiveDurationParams {
+  readonly operation: "note" | "rest" | "play";
+  readonly value: string;
+}
+
+/**
+ * Params for an `ol-type` raised by `note` (issue #690) when the pitch argument is a word but not a
+ * well-formed scientific-pitch-notation pitch (`packages/runtime/src/pitch.ts`'s
+ * {@link import("./pitch.js").isValidPitch}). Mirrors {@link ShapeTypeErrorParams}: an unrecognized
+ * pitch word is `ol-type` with `expected: "pitch"`, a diagnostic identity distinct from a non-word
+ * argument's `expected: "word"`.
+ */
+export interface PitchTypeErrorParams {
+  readonly value: string;
+  readonly operation: string;
+}
+
+/**
+ * Params for an `ol-range` raised by `play` (issue #691) when the melody list has an odd number of
+ * elements. `play`'s list is pitch/duration pairs, so "The list length MUST be even"
+ * (`spec/interaction-events.md`'s `play` entry). `length` is the offending element count.
+ */
+export interface OddMelodyLengthParams {
+  readonly length: number;
+}
+
+/**
  * Params for an `ol-range` raised by `random n` (issue #287) when `n` is a whole number below the
  * minimum of `1` (`spec/commands.md`'s `random` entry: "`n` MUST be a whole number of at least
  * `1`"). Only reached once {@link requireWholeNumber} has already confirmed `n` is a whole number
@@ -454,6 +615,70 @@ export interface RandomRangeReversedParams {
  */
 export interface TanUndefinedParams {
   readonly value: number;
+}
+
+/**
+ * Params for an `ol-range` raised by `every`'s tick count (issue #683, slice I4) when it is a whole
+ * number but not positive — zero or negative (`spec/interaction-events.md`'s `### every <n> <block>`:
+ * "`n` MUST be a positive whole number: … a zero or negative count raises `ol-range`"). Only reached
+ * once {@link requireWholeNumber} has already confirmed the value is a whole number — type is checked
+ * before range, mirroring `random`/`repeat`. Carries the offending whole-number `value` for the
+ * message, like {@link RandomBelowMinimumParams}.
+ */
+export interface EveryNonPositiveParams {
+  readonly value: number;
+}
+
+/**
+ * Params for the `ol-type` raised by `when` when its event argument is not a word
+ * (`spec/interaction-events.md`'s `### when <event-word> <block>`: "Errors: `ol-type` if the event
+ * is not a word", issue #682). `actual` is the argument's runtime type name
+ * (`@openlogo/core`'s `typeNameOf`) so the diagnostic identity records what was supplied; `expected`
+ * is fixed at `"word"`. Mirrors the `{ operation, expected, actual }` shape of the other Core/Data
+ * `ol-type` param builders so every stage agrees on identity.
+ */
+export interface WhenEventNotWordParams {
+  readonly actual: OLTypeName;
+}
+
+/**
+ * Params for the `ol-type` raised by `on_key` when its key argument is not a word
+ * (`spec/interaction-events.md`'s `### on_key <key-word> <block>`: "Errors: `ol-type`", issue #684).
+ * `on_key` registers a block for a *named* key, so the name must be a word; a number, list, or
+ * boolean cannot name a key. `actual` is the argument's runtime type name (`@openlogo/core`'s
+ * `typeNameOf`) so the diagnostic identity records what was supplied; `expected` is the fixed
+ * `"word"`. Mirrors {@link WhenEventNotWordParams} — the two event-registration heads validate their
+ * word argument identically.
+ */
+export interface OnKeyKeyNotWordParams {
+  readonly actual: OLTypeName;
+}
+
+/**
+ * Params for the `ol-type` raised by `input` when its prompt is not a word
+ * (`spec/interaction-events.md`'s `### input <prompt>`: "**Args:** one prompt, which MUST be a
+ * `word`" and "**Errors:** `ol-type` if the prompt is not a `word`"). `actual` is the argument's
+ * runtime type name (`@openlogo/core`'s `typeNameOf`) so the diagnostic identity records what was
+ * supplied; `expected` is the fixed `"word"`. Mirrors {@link WhenEventNotWordParams} and
+ * {@link OnKeyKeyNotWordParams} — the profile's three word-typed arguments validate identically.
+ *
+ * **This narrowed under the maintainer's ruling on issue #768.** #681 shipped a wider,
+ * implementation-defined reading — the scalars `word`, `number`, and `boolean` — while the clause
+ * still read "`ol-type` if the prompt cannot be displayed as learner text", and recorded here that a
+ * *widening* ruling should relax it. The ruling went the other way: the prompt MUST be a `word`, so
+ * `number` and `boolean` are rejected too, and `expected` moved from the one-off `"text"` to
+ * `"word"`. The reason is that `word` — the reporter whose whole job is building text — already
+ * refuses non-words (`print word "Question" 3` raises `ol-type` with `expected: "word"`), so
+ * word-ness is the language's existing standard for "this argument must be text", and the
+ * scalar/compound split #681 invented appears nowhere else in OpenLogo.
+ *
+ * The spec now states the rule outright, so this is a transcription of a normative clause rather
+ * than a reading of one, and it **is** bound by conformance fixtures — see
+ * `tests/conformance/interaction-events/input/`, whose `input-prompt-*` fixtures pin both halves of
+ * the boundary (a numeric *word* prompt is still accepted; the number it prints as is not).
+ */
+export interface InputPromptNotWordParams {
+  readonly actual: OLTypeName;
 }
 
 /** Runtime-stage diagnostics, one builder per `ol-*` code the evaluator can raise. */
@@ -526,6 +751,23 @@ export const runtimeDiag = {
     );
   },
 
+  /**
+   * `ol-type` for `tell` given a non-turtle input, or a list containing a non-turtle
+   * (`spec/turtles-and-sprites.md:176-177`). Same `{expected, actual, value, operation}` shape and
+   * message voice as {@link typeMismatch}, but its own builder so `expected` stays `"turtle"`.
+   */
+  tellNotATurtle(
+    source_span: SourceSpan,
+    params: TellNotATurtleParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { ...params },
+      `${params.operation} needs a ${params.expected}, but got a ${params.actual}.`,
+    );
+  },
+
   orderingType(
     source_span: SourceSpan,
     params: OrderingTypeErrorParams,
@@ -543,13 +785,23 @@ export const runtimeDiag = {
    * frame. Distinct from the semantic-stage rule of the same code the checker will raise for
    * source it can prove unbound ahead of time (issue #113) — this is the runtime's own guard for
    * the same defect, since `execute()` never runs `check()`.
+   *
+   * Variable resolution is case-insensitive (`lookupVar` folds the name to lowercase before
+   * probing every frame), so `:SomeVar` and `:somevar` name the *same* absent binding — one
+   * condition. The diagnostic's identity must reflect that single condition: `spec/error-model.md`
+   * makes a diagnostic's identity its `code` **plus `params`**, and both the checker's
+   * `ol-undefined-var` (issue #113) and this runtime guard must agree on it whatever the source
+   * casing. The checker keys `params.name` on the *folded* name (the resolution identity); this
+   * folds identically so the two stages report one name for one condition (issue #1005). The
+   * learner message uses the same folded spelling so message and param never disagree.
    */
   undefinedVar(source_span: SourceSpan, name: string): Diagnostic {
+    const resolvedName = name.toLowerCase();
     return runtimeError(
       "ol-undefined-var",
       source_span,
-      { name },
-      `:${name} has no value yet — try assigning it with :${name} = ... first.`,
+      { name: resolvedName },
+      `:${resolvedName} has no value yet — try assigning it with :${resolvedName} = ... first.`,
     );
   },
 
@@ -592,21 +844,32 @@ export const runtimeDiag = {
    * runtime halves agree on identity; raised here at `stage: "runtime"` because `execute()` runs
    * `parse()` only, never `check()`, and because a variable's struct type is generally only known
    * dynamically (issue #329).
+   *
+   * Field names are identifiers, so field access folds case (`spec/grammar.md:13`,
+   * `values.ts`'s case-folded slot map): `.X`, `.x`, and `.x` all address one field, so a missing
+   * `.Missing` and `.MISSING` name the *same* absent field — one condition. As with
+   * `ol-undefined-var` (issue #1005), the diagnostic identity (`code` + `params`,
+   * `spec/error-model.md:254-259`) must reflect that single condition, so `field` is folded to its
+   * case-insensitive resolution identity here and in `resolveRecordField`, and the message uses the
+   * same folded spelling so message and param never disagree. `type` is not folded: a record's
+   * `type` is always the single declared struct-name spelling (`values.ts` stores the declared
+   * form, never the constructor call's casing), so it is already canonical.
    */
   unknownField(
     source_span: SourceSpan,
     params: { type: string; field: string; write?: boolean },
   ): Diagnostic {
+    const field = params.field.toLowerCase();
     const outParams: Record<string, unknown> = params.write
-      ? { type: params.type, field: params.field, write: true }
-      : { type: params.type, field: params.field };
+      ? { type: params.type, field, write: true }
+      : { type: params.type, field };
     return runtimeError(
       "ol-unknown-field",
       source_span,
       outParams,
       params.write
-        ? `${params.type} has no field ${params.field}, and records can't grow new fields.`
-        : `${params.type} has no field ${params.field}. check the spelling.`,
+        ? `${params.type} has no field ${field}, and records can't grow new fields.`
+        : `${params.type} has no field ${field}. check the spelling.`,
     );
   },
 
@@ -685,7 +948,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-not-boolean`: a `not`/`and`/`or` operand was not `true`/`false`. There is no truthiness
-   * (`spec/error-model.md:121`) — a number, word, or list operand never coerces.
+   * (`spec/error-model.md:123`) — a number, word, or list operand never coerces.
    */
   notBoolean(
     source_span: SourceSpan,
@@ -700,10 +963,11 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-type`: `repeat`'s count is not a whole number (`spec/execution-model.md:367-369`) — the
-   * TYPE half of count validation, checked before the RANGE half {@link negativeCount} raises.
-   * `expected` is fixed to `"whole number"` (rather than the generic `"number"`
-   * {@link typeMismatch} uses) so the message names the concept precisely.
+   * `ol-type`: a value that must be a whole number is not one. Raised only through
+   * {@link requireWholeNumber}, whose `operation` argument names the primitive, so this diagnostic
+   * is not scoped to any one caller — `spec/execution-model.md:389-391` fixes the TYPE-before-RANGE
+   * order for `repeat`, one of those callers. `expected` is fixed to `"whole number"` (rather than
+   * the generic `"number"` {@link typeMismatch} uses) so the message names the concept precisely.
    */
   notWholeNumber(
     source_span: SourceSpan,
@@ -718,10 +982,11 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-range`: `repeat`'s count is a whole number but negative
-   * (`spec/execution-model.md:367-369`, `spec/error-model.md:100` — "a negative whole-number
-   * `repeat` count"). Only reached once {@link notWholeNumber} has already confirmed the value is
-   * a whole number.
+   * `ol-range`: a count is a whole number but negative (`spec/execution-model.md:389-391` fixes the
+   * TYPE-before-RANGE order for `repeat`, one of the two callers; `spec/error-model.md:101` lists
+   * "a negative whole-number `repeat` count" as one instance of `ol-range`). `operation` names the
+   * primitive that raised it. Only reached once
+   * {@link requireWholeNumber} has already confirmed the value is a whole number.
    */
   negativeCount(
     source_span: SourceSpan,
@@ -827,7 +1092,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `for ... in` iterable is not a list — Core's `for ... in` only iterates lists
-   * (`spec/execution-model.md:375-376`); dict iteration is a later, profile-specific form.
+   * (`spec/execution-model.md:397-398`); dict iteration is a later, profile-specific form.
    */
   forInNotList(
     source_span: SourceSpan,
@@ -843,7 +1108,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-type`: a `map`/`filter`/`reduce` iterable is not a list
-   * (`spec/execution-model.md:380-384` — every comprehension form ranges over a list, same
+   * (`spec/execution-model.md:418-422` — every comprehension form ranges over a list, same
    * restriction as `ForIn`). `params.operation` names the specific comprehension form.
    */
   comprehensionNotList(
@@ -860,7 +1125,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: `for ... from ... to ... by 0` — a step of `0` never reaches `end`
-   * (`spec/execution-model.md:374-375`), unlike a step merely pointing away from `end` (which
+   * (`spec/execution-model.md:396-397`), unlike a step merely pointing away from `end` (which
    * simply runs the body zero times, no diagnostic).
    */
   forStepZero(source_span: SourceSpan): Diagnostic {
@@ -874,7 +1139,7 @@ export const runtimeDiag = {
 
   /**
    * `ol-range`: a destructuring binder's pattern and an iterated element disagree on length
-   * (`spec/execution-model.md:438-439`). `params.value` is the element's actual length (`0` for a
+   * (`spec/execution-model.md:460-461`). `params.value` is the element's actual length (`0` for a
    * non-list element).
    */
   patternLengthMismatch(
@@ -932,33 +1197,65 @@ export const runtimeDiag = {
   },
 
   /**
-   * `ol-reserved-word`: a top-level `struct` declaration's type name collides with a reserved
-   * word, a primitive, an existing procedure, or an earlier `struct` of the same name
-   * (`spec/data-structures.md:264`, `spec/error-model.md:123`). Same `{ name, namespace }` params
-   * shape as the parser's `checker-reserved-word.ts` semantic rule (issue #113) so both stages
-   * agree on identity — raised here at `stage: "runtime"` (the registry default is `semantic`)
-   * because `execute()` runs `parse()` only, never `check()`, so there is no double-report. This
-   * is the runtime's phase-1 registration guard (issue #329): a `struct` type name registers a
-   * constructor in the callable namespace, so a collision there is caught before any statement
-   * runs.
+   * `ol-reserved-word`: a declaration slot — `define`/`to` or `struct` — names something OpenLogo
+   * itself owns (`spec/error-model.md:125`). This is the runtime half of the phase-1 registration
+   * guard `spec/execution-model.md:82-89` requires, raised at `stage: "runtime"` (the registry
+   * default is `semantic`) because `execute()` runs `parse()` only, never `check()`, so there is
+   * no double-report.
+   *
+   * `params` is `{ name }` and nothing else, matching the parser's `checker-reserved-word.ts`
+   * exactly so both stages agree on identity (issue #839). The `namespace` param this constructor
+   * used to carry is **gone** (issue #833 rule 5): `"reserved"`/`"primitive"` collapsed into this
+   * one meaning — *OpenLogo owns this name* — while `"procedure"`/`"struct"` moved to
+   * {@link runtimeDiag.duplicateDefinition}. The message is the single learner-facing sentence
+   * `spec/error-model.md:125` prescribes, and the words *keyword*, *primitive* and *alias* MUST NOT
+   * appear in it.
+   *
+   * **The sentence is imported from `@openlogo/core`, not written here** (issue #1025). Identity
+   * agreement with the parser was already enforced by conformance; the *wording* agreement was
+   * enforced by nothing, and this constructor is the one that shipped it wrong twice — #751 and
+   * #871 both read `<name> is already a reserved primitive, so it can't be redefined here.`,
+   * leaking the word the spec forbids. See `diagnostic-messages.ts` for why the sentence is owned
+   * there.
    */
-  reservedWord(
-    source_span: SourceSpan,
-    name: string,
-    namespace: "reserved" | "primitive" | "procedure" | "struct",
-  ): Diagnostic {
+  reservedWord(source_span: SourceSpan, name: string): Diagnostic {
     return runtimeError(
       "ol-reserved-word",
       source_span,
-      { name, namespace },
-      `${name} is already a ${namespace}, so it can't be redefined here.`,
+      { name },
+      builtInNameMessage(name),
+    );
+  },
+
+  /**
+   * `ol-duplicate-definition`: a declaration slot names something an **earlier declaration in the
+   * same program** already registered — a procedure defined twice, a struct declared twice, or a
+   * procedure and a struct in either order (`spec/error-model.md:126`, `spec/execution-model.md:86-88`,
+   * which makes it an error that "MUST NOT be a silent override").
+   *
+   * `source_span` points at the later declaration and `params.original_span` at the earlier one:
+   * both spans are diagnostic *identity*, not message decoration, so `spec/error-model.md:143-146`
+   * requires supplying `original_span` rather than folding the earlier location into the prose.
+   * Same code, params and spans as the parser's `checker-reserved-word.ts` (issue #839) — only
+   * `stage` differs, `"runtime"` here for the same reason {@link runtimeDiag.reservedWord} gives.
+   */
+  duplicateDefinition(
+    source_span: SourceSpan,
+    name: string,
+    original_span: SourceSpan,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-duplicate-definition",
+      source_span,
+      { name, original_span },
+      `you already defined ${name} on line ${original_span.start[0]}.`,
     );
   },
 
   /**
    * `ol-no-output`: a procedure was called where a value is required, but the invocation reached
    * the end of its body (or `stop`) without ever executing `return`/`output`/`op`
-   * (`spec/execution-model.md:346-349`, `spec/error-model.md:112`). Raised at the CALL site, not
+   * (`spec/execution-model.md:368-374`, `spec/error-model.md:114`). Raised at the CALL site, not
    * inside the procedure's own body — the procedure itself ran to completion without error.
    */
   noOutput(source_span: SourceSpan, procedure: string): Diagnostic {
@@ -984,15 +1281,27 @@ export const runtimeDiag = {
    * procedure to return from. Same `{keyword}` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
    * copy exists because `execute()` runs `parse()` only, not `check()`.
+   *
+   * `keyword` is the spelling the learner wrote; `params.keyword` is the **canonical** Core word it
+   * is an alternate spelling of, resolved by {@link canonicalReturnKeyword} through the parser's own
+   * Heritage registry. That is what keeps "both stages agree on identity" true: the parser
+   * canonicalized this param in issue #737, so until issue #741 canonicalized this copy too the
+   * same `output 5` carried `keyword: "return"` when checked and `keyword: "output"` when executed —
+   * one condition with two machine-readable identities, which `spec/error-model.md:254-259`
+   * forbids. The prose message still echoes the learner's own word; that is the localization
+   * boundary and is permitted.
    */
   returnOutsideProc(
     source_span: SourceSpan,
-    keyword: "return" | "output" | "op",
+    keyword: SurfaceReturnKeyword,
   ): Diagnostic {
+    const params: ReturnOutsideProcParams = {
+      keyword: canonicalReturnKeyword(keyword),
+    };
     return runtimeError(
       "ol-return-outside-proc",
       source_span,
-      { keyword },
+      { ...params },
       `${keyword} only reports a value from inside a procedure. put it between 'define' and 'end'.`,
     );
   },
@@ -1014,28 +1323,35 @@ export const runtimeDiag = {
 
   /**
    * `ol-limit`: a configurable safety limit was reached — here, the procedure-call recursion
-   * depth (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised at the call site
-   * that would have pushed one frame past `limit`, instead of letting the host's own call stack
-   * overflow and expose a raw stack-trace crash. `params.limit` names which limit this is
-   * (`"recursion-depth"`, matching the spec's example) and `params.value` is the configured
-   * threshold, per `ol-limit`'s `{limit, optional value}` param shape.
+   * depth (`spec/execution-model.md#execution-safety`, `spec/error-model.md:119`). Raised either at the call
+   * site that would have pushed one frame past `limit`, or — issue #726 — when nesting deep enough
+   * to overflow the host's own call stack is caught at the `execute()` boundary (a smaller host
+   * stack, or expression/parse nesting the depth counter does not itself bound), instead of letting
+   * a raw stack-trace crash escape. `params.limit` names which limit this is (`"recursion-depth"`,
+   * matching the spec's example) and `params.value` is the enforced threshold, per `ol-limit`'s
+   * `{limit, optional value}` param shape. The message speaks of "nesting" rather than counting a
+   * precise number of procedure calls, so it reads correctly for the parse/expression-overflow case
+   * too, where no procedure frames were involved.
    */
   recursionLimit(source_span: SourceSpan, value: number): Diagnostic {
     return runtimeError(
       "ol-limit",
       source_span,
       { limit: "recursion-depth", value },
-      `this call is nested ${value} procedure calls deep, which is too deep — check for a recursive procedure that never stops calling itself.`,
+      `this is nested too deep (the procedure-recursion limit is ${value}) — check for a recursive procedure that never stops calling itself, or an expression nested far too deeply.`,
     );
   },
 
   /**
    * `ol-limit`: the other configurable safety limit besides recursion depth — the instruction
-   * execution budget (`spec/execution-model.md:551-557`, `spec/error-model.md:119`). Raised the
-   * moment the running count of executed statements/loop passes would exceed `value`, so a
+   * execution budget (`spec/execution-model.md#execution-safety`, `spec/error-model.md:119`). Raised the
+   * moment the running count of executed instructions would exceed `value`, so a
    * runaway `forever`/`while true [ ]` degrades to a friendly diagnostic instead of hanging the
    * host (issue #102: "`forever` is therefore safe only because it is cancellable and
-   * budgeted."). `params.limit` is `"instruction-budget"` and `params.value` is the configured
+   * budgeted."). An instruction is a statement, a loop pass, a handler firing (issue #828) or — since
+   * issue #953 — one tick of a `wait` pause, which is why the message names a long `wait` beside a
+   * runaway loop: both are unbounded by construction and both land here.
+   * `params.limit` is `"instruction-budget"` and `params.value` is the configured
    * threshold, matching `recursionLimit`'s `{limit, value}` shape above.
    */
   instructionLimit(source_span: SourceSpan, value: number): Diagnostic {
@@ -1043,13 +1359,14 @@ export const runtimeDiag = {
       "ol-limit",
       source_span,
       { limit: "instruction-budget", value },
-      `this program ran ${value} instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false.`,
+      `this program ran ${value} instructions without finishing, which is the configured safety limit — check for a loop that never ends, such as an unbounded 'forever' or 'while' whose condition never becomes false, or a 'wait' for a very large number of ticks.`,
     );
   },
 
   /**
-   * `ol-limit`: execution was cancelled from outside the program (`spec/execution-model.md:
-   * 551-557` — "implementations must support cancellation"), e.g. a learner pressing Stop while
+   * `ol-limit`: execution was cancelled from outside the program
+   * (`spec/execution-model.md#execution-safety` — "implementations must support cancellation"),
+   * e.g. a learner pressing Stop while
    * a program is still running. `params.limit` is `"cancelled"`; there is no numeric threshold,
    * so unlike `recursionLimit`/`instructionLimit` there is no `value` param.
    */
@@ -1069,14 +1386,12 @@ export const runtimeDiag = {
    * both stages agree on identity — this copy exists because `execute()` runs `parse()` only, not
    * `check()`.
    */
-  noValue(
-    source_span: SourceSpan,
-    form: "map" | "filter" | "reduce",
-  ): Diagnostic {
+  noValue(source_span: SourceSpan, form: ComprehensionForm): Diagnostic {
+    const params: NoValueParams = { form };
     return runtimeError(
       "ol-no-value",
       source_span,
-      { form },
+      { ...params },
       `${form} needs the last instruction in its block to make a value.`,
     );
   },
@@ -1089,16 +1404,24 @@ export const runtimeDiag = {
    * copy exists because `execute()` runs `parse()` only, not `check()`. Takes priority over
    * `ol-return-outside-proc`/`ol-stop-outside-proc` whenever the escape is lexically inside a
    * comprehension body, even when that comprehension is itself inside a procedure.
+   *
+   * `keyword` is the learner's own spelling and `params.keyword` its canonical Core word, on
+   * exactly the terms {@link runtimeDiag.returnOutsideProc} documents above (issue #741). A `stop`
+   * is already canonical and has no Heritage spelling, so it reports `"stop"`.
    */
   returnInComprehension(
     source_span: SourceSpan,
-    keyword: "return" | "output" | "op" | "stop",
-    form: "map" | "filter" | "reduce",
+    keyword: SurfaceEscapeKeyword,
+    form: ComprehensionForm,
   ): Diagnostic {
+    const params: ReturnInComprehensionParams = {
+      keyword: canonicalEscapeKeyword(keyword),
+      form,
+    };
     return runtimeError(
       "ol-return-in-comprehension",
       source_span,
-      { keyword, form },
+      { ...params },
       `${keyword} doesn't belong in a ${form} — a ${form} reports its last expression instead.`,
     );
   },
@@ -1216,6 +1539,90 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-range` (issue #689) — `set_tempo`'s argument is a number but not positive and finite
+   * (`spec/interaction-events.md:289`: "one positive number"). Only reached once
+   * {@link requireNumber} has already confirmed the value is a number. See
+   * {@link NonPositiveTempoParams}.
+   */
+  nonPositiveTempo(
+    source_span: SourceSpan,
+    params: NonPositiveTempoParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "set_tempo", ...params },
+      `set_tempo needs a positive tempo, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #690) — `note`/`rest`'s duration argument is a number but not positive and
+   * finite (`spec/interaction-events.md`'s `note`/`rest` entries: "Duration MUST be positive and is
+   * interpreted in beats"). Folds `Infinity` into the same guard as `0`/negative, exactly as
+   * {@link nonPositiveTempo} and {@link nonPositiveWidth} do. Only reached once
+   * {@link requireNumber} has already confirmed the value is a number. See
+   * {@link NonPositiveDurationParams}.
+   */
+  nonPositiveDuration(
+    source_span: SourceSpan,
+    params: NonPositiveDurationParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { ...params },
+      `${params.operation} needs a positive duration, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #690) — `note`'s pitch argument is a word, but not a well-formed
+   * scientific-pitch-notation pitch (`packages/runtime/src/pitch.ts`'s
+   * {@link import("./pitch.js").isValidPitch}). `spec/interaction-events.md`'s `note` entry lists
+   * `ol-type` for a bad pitch; like {@link unknownShape}, this stays `ol-type` with
+   * `expected: "pitch"`, a diagnostic identity distinct from a non-word argument's
+   * `expected: "word"`. See {@link PitchTypeErrorParams}.
+   */
+  invalidPitch(
+    source_span: SourceSpan,
+    params: PitchTypeErrorParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      {
+        expected: "pitch",
+        actual: "word",
+        value: params.value,
+        operation: params.operation,
+      },
+      `i don't understand the pitch "${params.value}". try scientific pitch notation like "c4", "fs4" (f sharp), or "bb3" (b flat).`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #691) — `play`'s melody list has an odd number of elements. The list is
+   * pitch/duration pairs, so "The list length MUST be even" (`spec/interaction-events.md`'s `play`
+   * entry lists `ol-range`). `spec/error-model.md:100` requires `operation` plus `index` **or**
+   * `value` for `ol-range` (`length` is only optional), so `value` carries the offending odd count
+   * and `length` repeats it for a descriptive name. Kept distinct from a non-list argument's
+   * `ol-type` (`expected: "list"`) and from a step's non-positive `duration`
+   * ({@link nonPositiveDuration}). See {@link OddMelodyLengthParams}.
+   */
+  oddMelodyLength(
+    source_span: SourceSpan,
+    params: OddMelodyLengthParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "play", value: params.length, length: params.length },
+      `play needs a melody of pitch/duration pairs, so the list length must be even, but got ${String(params.length)}.`,
+    );
+  },
+
+  /**
    * `ol-type` (issue #210) — `set_shape`'s argument is a word, but names no recognized shape
    * (`packages/runtime/src/shape.ts`'s `isRecognizedShape`). `spec/commands.md`'s `set_shape`
    * entry defines no dedicated code ("Possible errors: none specified in C3 beyond general type
@@ -1274,6 +1681,87 @@ export const runtimeDiag = {
       source_span,
       { operation: "random", ...params },
       `random needs its first number to be no greater than its second, but got random ${params.low} ${params.high}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #682) — `when`'s event argument is not a word
+   * (`spec/interaction-events.md`'s `### when <event-word> <block>`: "Errors: `ol-type` if the
+   * event is not a word", and the profile's error table). `when` registers a block for a *named*
+   * event, so the name must be a word; a number, list, or boolean cannot name an event. Carries the
+   * `{ operation: "when", expected: "word", actual }` identity shape shared by the other `ol-type`
+   * builders. See {@link WhenEventNotWordParams}.
+   */
+  whenEventNotWord(
+    source_span: SourceSpan,
+    params: WhenEventNotWordParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "when", expected: "word", actual: params.actual },
+      `when needs an event word, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #684, slice I5) — `on_key`'s key argument is not a word
+   * (`spec/interaction-events.md`'s `### on_key <key-word> <block>`: "Errors: `ol-type`", and the
+   * profile's error table). `on_key` registers a block for a *named* key (`"space"`, `"enter"`,
+   * `"a"`, …), so the name must be a word; a number, list, or boolean cannot name a key. Carries the
+   * `{ operation: "on_key", expected: "word", actual }` identity shape shared by the other `ol-type`
+   * builders (identical in shape to {@link whenEventNotWord}). See {@link OnKeyKeyNotWordParams}.
+   */
+  onKeyKeyNotWord(
+    source_span: SourceSpan,
+    params: OnKeyKeyNotWordParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "on_key", expected: "word", actual: params.actual },
+      `on_key needs a key word, but got a ${params.actual}.`,
+    );
+  },
+
+  /**
+   * `ol-range` (issue #683, slice I4) — `every`'s tick count is a whole number but not positive
+   * (`spec/interaction-events.md`'s `### every <n> <block>`: "`n` MUST be a positive whole number: …
+   * a zero or negative count raises `ol-range`", and the profile's error table). Only reached once
+   * {@link requireWholeNumber} has already confirmed the value is a whole number — TYPE is checked
+   * before RANGE, mirroring `random`/`repeat`. Carries the `{ operation: "every", value }` identity
+   * shape shared by the other `ol-range` count builders. See {@link EveryNonPositiveParams}.
+   */
+  everyNonPositive(
+    source_span: SourceSpan,
+    params: EveryNonPositiveParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-range",
+      source_span,
+      { operation: "every", ...params },
+      `every needs a positive whole number of ticks, but got ${params.value}.`,
+    );
+  },
+
+  /**
+   * `ol-type` (issue #681, slice I2; narrowed by the #768 ruling) — `input`'s prompt is not a word
+   * (`spec/interaction-events.md`'s `### input <prompt>`: "**Errors:** `ol-type` if the prompt is
+   * not a `word`", and the profile's error table). `input` displays the prompt for a person to read
+   * and answer, so the prompt is text, and OpenLogo already spells "must be text" as "must be a
+   * `word`" — this is the same `{ operation, expected: "word", actual }` identity the `word`
+   * reporter and the profile's own {@link whenEventNotWord}/{@link onKeyKeyNotWord} report. See
+   * {@link InputPromptNotWordParams} for why `number` and `boolean` are rejected too.
+   */
+  inputPromptNotWord(
+    source_span: SourceSpan,
+    params: InputPromptNotWordParams,
+  ): Diagnostic {
+    return runtimeError(
+      "ol-type",
+      source_span,
+      { operation: "input", expected: "word", actual: params.actual },
+      `input needs a prompt word, but got a ${params.actual}.`,
     );
   },
 } as const;

@@ -1,0 +1,19 @@
+{
+  "description": "issue #689: the parenthesized form `(set_tempo 1 2)` supplies two inputs to an arity-1 Sound primitive. With the `sound` profile active the Layer-2 checker (checker-arity.ts) flags `ol-too-many-inputs` at the callee span - the paren form is the reader's escape hatch, so its arity is a checker concern (spec/tooling.md:175-176), not a parse error.",
+  "profiles": ["core-language", "sound"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-too-many-inputs",
+      "source_span": {
+        "document": "sound/check/set-tempo-too-many-inputs",
+        "start": [1, 2],
+        "end": [1, 11]
+      },
+      "params": { "callable": "set_tempo", "expected": 1, "actual": 2 },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

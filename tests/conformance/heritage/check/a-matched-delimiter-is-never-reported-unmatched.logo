@@ -1,0 +1,36 @@
+# Issues #947, #879 and #980, the negative direction. `spec/error-model.md:165-169` is a
+# delimiter-agnostic MUST NOT: *"on any recovery path, for any malformed input, a parser MUST NOT
+# raise any unmatched-delimiter diagnostic — the class whose members in v0.1 are
+# `ol-unmatched-paren`, `ol-unmatched-brace`, and `ol-unmatched-bracket` — for a delimiter that is,
+# in fact, correctly matched in the source."*
+#
+# Every program below is malformed, and every delimiter in it is correctly matched. So none may
+# raise any member of that class; `ol-bad-token` names the real defect instead. Before the fix the
+# paren rows raised `ol-unmatched-paren` twice each on balanced parens (#879), and the bracket and
+# brace rows raised their own class members on balanced delimiters.
+#
+# This fixture is one half of a pair. Its partner,
+# `heritage/check/a-genuinely-unmatched-delimiter-is-still-reported`, pins that a delimiter which
+# really has no partner IS still reported — without which a parser could satisfy this file by
+# never emitting the class at all.
+#
+# A reserved word cannot be a `callable-name` (`spec/grammar.md:390`), which is what makes each
+# paren row malformed. The rows use Data and Heritage names, so both profiles are active.
+print ( set 1 )
+print ( if 1 )
+print ( import 1 )
+print ( in 1 )
+print ( struct 1 )
+print ( add 1 )
+print ( value )
+
+# A missing operand, in each of the three delimiters.
+print ( 1 + )
+print [ 1 + ]
+print { a: 1 + }
+
+# A selector with no key-term between brackets that are one character apart.
+print :nums[]
+
+# Nested: an inner bracket defect inside an outer group, both balanced.
+print ( [ 1 + ] )

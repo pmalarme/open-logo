@@ -1,0 +1,4 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+set_heading 180

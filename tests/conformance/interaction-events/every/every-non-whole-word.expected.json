@@ -1,0 +1,37 @@
+{
+  "description": "issue #775 (review gate, QA finding B1): `every \"2.5\"` -- a WORD that parses as a number but not a whole one. This is the third arm of `every`'s `ol-type` tick-count check, the twin of `wait/wait-non-whole-word`, sitting between `every-non-whole-type-error` (the number `2.5`) and `every-non-number-type-error` (the word `\"soon\"`, which does not parse as a number at all). It is the arm that pins WHICH value the diagnostic names: `spec/execution-model.md:33-34` makes \"words that parse as numbers are accepted where a number is expected\" a normative CORE rule, so the word is coerced far enough to be judged non-whole -- but the value the learner actually wrote is a word, so `params.actual` is `word` and `params.value` is the string `\"2.5\"`, NOT `number`/`2.5`. Without this fixture an implementation could pre-coerce the word before the wholeness check -- exactly the defect #775 removed from `wait` -- and still pass the whole corpus, because the other two arms never observe the difference (a number literal was never a word, and a non-numeric word never coerces at all). That gap was found by mutation: reintroducing the pre-coercion on `every` survived a fully green run. As with every other failed `every` validation the check fails BEFORE registration, so no `primitive` event is emitted and no handler is registered; only the registration `instruction` precedes the diagnostic, and the span covers just the count argument.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-non-whole-word",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/every/every-non-whole-word",
+        "start": [1, 7],
+        "end": [1, 12]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "word",
+        "value": "2.5",
+        "operation": "every"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

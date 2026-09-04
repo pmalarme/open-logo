@@ -1,6 +1,6 @@
 // Unit tests for the Core control-form SHORT (bracketed) body syntax —
 // `if <cond> [ … ]`, `while <cond> [ … ]`, `repeat <n> [ … ]`, `forever [ … ]` —
-// per spec/grammar.md:119-129,139 (`control-body ::= bracket-block | long-control-block`).
+// per spec/grammar.md:119-129,139,141 (`control-body ::= bracket-block | long-control-block`).
 // These validate the already-merged parser; they do not change it. The corresponding
 // LONG (`… end`) bodies are a separate slice (issue #58) and are out of scope here.
 //

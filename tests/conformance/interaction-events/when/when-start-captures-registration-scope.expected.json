@@ -1,0 +1,122 @@
+{
+  "description": "issue #682 (slice I3): a handler block is a normal OpenLogo block (spec/interaction-events.md, \"Time, ticks, and handlers\"), so it runs in its REGISTRATION-TIME lexical scope. A `when \"start\"` handler registered inside `define setup :x` sees the parameter `:x` when it runs: `setup 7` registers the handler while `:x` is bound to `7`, and because `\"start\"` is already being delivered the handler fires immediately inside that procedure frame, printing `7` (seq 7). The `WhenHandler` captures the environment at registration for exactly this reason; without it the body would resolve `:x` against the wrong frame. Note the handler-block-start `instruction` (seq 5) carries the `when` keyword's span, distinct from the registration statement's full span (seq 3-4).",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [4, 1],
+        "end": [4, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [4, 1],
+        "end": [4, 8]
+      },
+      "payload": {
+        "name": "setup",
+        "args": [7]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [2, 3],
+        "end": [2, 28]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [2, 3],
+        "end": [2, 28]
+      },
+      "payload": {
+        "name": "when"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [2, 3],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "when",
+          "event": "start"
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [2, 18],
+        "end": [2, 26]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [2, 18],
+        "end": [2, 26]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "interaction-events/when/when-start-captures-registration-scope",
+        "start": [4, 1],
+        "end": [4, 8]
+      },
+      "payload": {
+        "name": "setup",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

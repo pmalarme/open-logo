@@ -1,0 +1,177 @@
+{
+  "description": "Issue #742 (maintainer ruling #833): with `heritage` ACTIVE, redefining a Heritage short alias raises `ol-reserved-word` exactly as redefining its canonical Core spelling does. Heritage is \"alternate spellings only -- no new semantics\" (`spec/conformance.md:150`), so `define pr` MUST be exactly as (il)legal as `define print`. The checker resolves an alias through `canonicalOfHeritageAlias` and re-runs the canonical's own lookup rather than keeping a second table, so the two spellings agree by construction. `params.name` is the **surface** spelling the learner wrote, at that name's own span (`pr`, never `print`) -- the contract #737 recorded for this code. Paired with `heritage-alias-redefinition-rejected-in-core`, which checks this exact source under Core alone and reports the same diagnostics -- an alias is a built-in name whether or not `heritage` is claimed (`spec/grammar.md:408`). `message` is absent from the diagnostics below, as it is from its twin: this fixture does not set `compareMessages`, so the harness compares its diagnostics on identity alone (issue #1025) -- and supplying a `message` without that flag is now a fixture ERROR rather than silently-ignored data, so nothing can sit here asserting nothing; the learner-facing wording is pinned by unit tests instead (`packages/parser/src/checker-reserved-word.test.mjs:236`). `\"check\": true` (semantic-checker only, no execution) because this is a checker rule: the procedures are never called and no events are produced.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [1, 8],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "fd"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [3, 8],
+        "end": [3, 10]
+      },
+      "params": {
+        "name": "bk"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [5, 8],
+        "end": [5, 10]
+      },
+      "params": {
+        "name": "lt"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [7, 8],
+        "end": [7, 10]
+      },
+      "params": {
+        "name": "rt"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [9, 8],
+        "end": [9, 10]
+      },
+      "params": {
+        "name": "st"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [11, 8],
+        "end": [11, 10]
+      },
+      "params": {
+        "name": "ht"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [13, 8],
+        "end": [13, 10]
+      },
+      "params": {
+        "name": "pu"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [15, 8],
+        "end": [15, 10]
+      },
+      "params": {
+        "name": "pd"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [17, 8],
+        "end": [17, 10]
+      },
+      "params": {
+        "name": "cs"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [19, 8],
+        "end": [19, 10]
+      },
+      "params": {
+        "name": "pr"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [21, 8],
+        "end": [21, 10]
+      },
+      "params": {
+        "name": "bf"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [23, 8],
+        "end": [23, 10]
+      },
+      "params": {
+        "name": "bl"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "heritage/check/heritage-alias-redefinition-rejected-when-active",
+        "start": [25, 8],
+        "end": [25, 10]
+      },
+      "params": {
+        "name": "se"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+print value of :nope for key "tom"
+print :nope["tom"]

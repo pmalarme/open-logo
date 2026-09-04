@@ -1,0 +1,49 @@
+{
+  "description": "Heritage `value of … for key` on a NON-DICT container (here a NUMBER) raises the byte-identical Core `ol-type` the dotted `:n.tom` selector raises: the same `code`, `params` (`expected: \"dict\"`, `operation: \"field\"` — the Core selector's spelling, NOT a Heritage `\"value of\"`), `message`, `stage`, and `severity` (issue #670, slice H5; corrected twin per issue #784). The reader is DICT-ONLY — `spec/data-structures.md:268` types its operand `dictExpr` — so its Core twin is the dotted `.field` selector, not `:n[\"tom\"]`. This fixture previously asserted the `[key]` selector's `expected: \"list or dict\"`, which reads sensibly for a number but was self-contradictory for a list operand (\"index needs a list or dict, but got a list\"); the sibling `heritage-value-of-key-*-container-like-core` fixtures now enumerate the remaining non-record container types (word, boolean, list, turtle), and `heritage-value-of-key-record-container-rejected` covers `record` separately because it has no Core twin, so no single sampled type can hide that class again. Proves the reader shares the Core dict-read's type check rather than inventing its own (`spec/conformance.md:146`: alternate spellings only, no new semantics), with NO Heritage spelling in any payload. The span points at the reader's `:n` operand sub-expression, the analog of the selector's own span (localization-only difference — `spec/localization.md`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [2, 1],
+        "end": [2, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-non-dict-like-core",
+        "start": [2, 16],
+        "end": [2, 18]
+      },
+      "params": {
+        "expected": "dict",
+        "actual": "number",
+        "value": 5,
+        "operation": "field"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

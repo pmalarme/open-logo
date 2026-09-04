@@ -122,6 +122,7 @@ test("index.html's focusable elements appear in exactly REPL_FOCUS_ORDER's DOM o
     "speed-slider": "speed-slider",
     "run-log": "run-log",
     canvas: "turtle-canvas",
+    "canvas-activate": "canvas-activate-button",
     "turtle-state": "turtle-state",
     output: "output",
     "diagnostics-list": "diagnostics-list",
@@ -180,6 +181,48 @@ test("index.html gives the lesson pane, Canvas, run log, turtle state, output, a
     indexHtml,
     /id="diagnostics-list"[\s\S]*?tabindex="0"/,
     "the diagnostics list must be focusable to be a REPL_FOCUS_ORDER stop",
+  );
+});
+
+test("#952: index.html renders the canvas activation button, described help text, and the aria-describedby that links them — all from canvas-interaction.ts's constants", () => {
+  const normalize = (text) => text.replace(/\s+/g, " ").trim();
+  const buttonMatch = indexHtml.match(
+    /<button\s+id="canvas-activate-button"([\s\S]*?)>([\s\S]*?)<\/button>/,
+  );
+  assert.ok(
+    buttonMatch,
+    "on_click's 'equivalent accessible action' must be a real <button>",
+  );
+  assert.match(
+    buttonMatch[1],
+    new RegExp(`aria-label="${OL.CANVAS_ACTIVATION_LABEL}"`),
+    "the button's accessible name must come from CANVAS_ACTIVATION_LABEL",
+  );
+  assert.equal(
+    normalize(buttonMatch[2]),
+    OL.CANVAS_ACTIVATION_TEXT,
+    "the button's visible text must come from CANVAS_ACTIVATION_TEXT",
+  );
+  assert.match(
+    indexHtml,
+    /id="turtle-canvas"[\s\S]*?aria-describedby="canvas-interaction-help"/,
+    "the canvas must point at the description that explains it takes key presses",
+  );
+  assert.match(
+    buttonMatch[1],
+    /\bhidden\b/,
+    "#952 — it must start hidden, so a program with no on_click adds no tab stop " +
+      "(the same hidden-attribute mechanism a11y.ts documents for the lesson pane)",
+  );
+  const helpMatch = indexHtml.match(
+    /id="canvas-interaction-help"[^>]*>([\s\S]*?)<\/p>/,
+  );
+  assert.ok(helpMatch, "expected a #canvas-interaction-help paragraph");
+  assert.equal(
+    normalize(helpMatch[1]),
+    normalize(OL.CANVAS_INTERACTION_HELP_TEXT),
+    "the help paragraph's wording must match CANVAS_INTERACTION_HELP_TEXT exactly " +
+      "(whitespace differences from HTML line-wrapping aside)",
   );
 });
 
@@ -436,4 +479,192 @@ test("web/main.ts renders the toggle's icon/aria-label/label from the view model
 test("web/main.ts still calls runController.reset() directly from the Reset button (unchanged run-controller semantics, #316)", () => {
   assert.match(mainTs, /resetButton\.addEventListener\(\s*"click"/);
   assert.match(mainTs, /runController\.reset\(\)/);
+});
+
+test("#952: web/main.ts mounts the canvas interaction and makes no input decision of its own — web/** is neither type-checked nor linted, so all logic stays in src/canvas-interaction.ts", () => {
+  assert.match(mainTs, /mountCanvasInteraction\(/);
+  assert.match(mainTs, /canvas:\s*canvasElement/);
+  assert.match(mainTs, /activationControl:\s*canvasActivateButton/);
+  assert.match(
+    mainTs,
+    /document\.getElementById\("canvas-activate-button"\)/,
+    "the activation control must be looked up from the real DOM",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /normalizeKeyWord\(/,
+    "key-word normalization is src/key-words.ts's decision, never this file's",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /deliverKey\(|deliverClick\(/,
+    "the DOM event → delivery mapping lives in src/canvas-interaction.ts",
+  );
+  assert.doesNotMatch(
+    mainTs,
+    /document\.addEventListener\(\s*"keydown"|window\.addEventListener\(\s*"keydown"/,
+    "#952 — nothing captures keys globally; a learner typing in the editor must never be " +
+      "on the canvas listener's event path",
+  );
+});
+
+test("#769: index.html declares the `input` prompt as a native <dialog>, closed until a program asks something", () => {
+  const dialogTag = openingTags.find(
+    (tag) => tag.startsWith("<dialog") && tag.includes('id="input-prompt"'),
+  );
+  assert.ok(dialogTag, "expected a native <dialog> for the input prompt");
+  assert.match(dialogTag, /id="input-prompt"/);
+  assert.doesNotMatch(
+    dialogTag,
+    /\sopen[\s>=]/,
+    "the prompt must start closed — a closed <dialog> is absent from the layout, the tab " +
+      "order, and the accessibility tree, which is what leaves REPL_FOCUS_ORDER and the e2e " +
+      "layout baselines untouched",
+  );
+});
+
+test("#769: the prompt dialog's accessible name is the program's own question, not a generic title", () => {
+  const dialogTag = openingTags.find(
+    (tag) => tag.startsWith("<dialog") && tag.includes('id="input-prompt"'),
+  );
+  assert.match(dialogTag, /aria-labelledby="input-prompt-message"/);
+  assert.match(
+    indexHtml,
+    /id="input-prompt-message"/,
+    "the element named by aria-labelledby must exist",
+  );
+  assert.match(
+    mainTs,
+    /inputPromptMessageElement\.textContent\s*=\s*view\.prompt/,
+    "the question text must come from the tested InputPromptView, via textContent (never markup)",
+  );
+});
+
+test("#769: every prompt control declared in INPUT_PROMPT_FOCUS_ORDER exists in index.html, in that order", () => {
+  const positions = OL.INPUT_PROMPT_FOCUS_ORDER.map((stop) => {
+    const position = indexHtml.indexOf(`id="${stop.id}"`);
+    assert.ok(
+      position >= 0,
+      `expected index.html to contain an element with id="${stop.id}"`,
+    );
+    return position;
+  });
+  assert.deepEqual(
+    positions,
+    [...positions].sort((a, b) => a - b),
+    "the prompt's controls must appear in exactly INPUT_PROMPT_FOCUS_ORDER's order",
+  );
+});
+
+test("#769: the answer field is labeled and autofocused, so showModal() lands on it", () => {
+  const fieldTag = openingTags.find((tag) =>
+    tag.includes('id="input-prompt-field"'),
+  );
+  assert.ok(fieldTag, "expected the prompt's answer field");
+  assert.match(fieldTag, /autofocus/);
+  const labelTag = openingTags.find((tag) =>
+    tag.includes('id="input-prompt-field-label"'),
+  );
+  assert.ok(labelTag, "expected a label element for the answer field");
+  assert.match(labelTag, /for="input-prompt-field"/);
+});
+
+test("#769: web/main.ts renders every prompt label from the tested view model, deciding nothing itself", () => {
+  assert.match(
+    mainTs,
+    /inputPromptFieldLabelElement\.textContent\s*=\s*view\.fieldLabel/,
+  );
+  assert.match(
+    mainTs,
+    /inputPromptSubmitButton\.textContent\s*=\s*view\.submitLabel/,
+  );
+  assert.match(
+    mainTs,
+    /inputPromptCancelButton\.textContent\s*=\s*view\.cancelLabel/,
+  );
+  assert.doesNotMatch(
+    mainTs,
+    new RegExp(`"${OL.INPUT_PROMPT_SUBMIT_LABEL}"`),
+    "labels belong to src/input-prompt.ts, never hardcoded in the wiring layer",
+  );
+});
+
+test("#769: web/main.ts opens the prompt modally and routes Escape and Cancel to the same tested ending", () => {
+  assert.match(mainTs, /createInputPromptController\(\)/);
+  assert.match(
+    mainTs,
+    /inputPrompt:\s*inputPromptController/,
+    "the prompt host must reach the run controller, which is what installs hostInput.read",
+  );
+  assert.match(
+    mainTs,
+    /inputPromptDialog\.showModal\(\)/,
+    "showModal() is what gives the question a real focus scope and Escape handling",
+  );
+  assert.match(mainTs, /inputPromptDialog\.addEventListener\(\s*"cancel"/);
+  assert.match(mainTs, /inputPromptCancelButton\.addEventListener\(\s*"click"/);
+  assert.match(
+    mainTs,
+    /inputPromptController\.submit\(inputPromptFieldElement\.value\)/,
+  );
+});
+
+test("#769: the prompt dialog lives OUTSIDE <main>, so it is neither a grid item nor inside the e2e layout snapshot", () => {
+  // Round 1, @testing N6. `web/styles.css` lays `main` out as a grid, and `e2e/layout.spec.ts`
+  // snapshots `page.locator("main")` — so the dialog's position, not just its closed state, is
+  // what keeps it out of both. Documented in three places before this; asserted in none.
+  const mainEnd = indexHtml.indexOf("</main>");
+  const dialogStart = indexHtml.indexOf('<dialog id="input-prompt"');
+  assert.ok(mainEnd >= 0, "expected a <main> element");
+  assert.ok(dialogStart >= 0, "expected the input-prompt dialog");
+  assert.ok(
+    dialogStart > mainEnd,
+    "the prompt dialog must be declared after </main>, never inside it",
+  );
+});
+
+test("#769: web/main.ts sets the dialog's accessible name BEFORE opening it", () => {
+  // Round 1, @testing N9. showModal() computes the accessible name from aria-labelledby at open
+  // time — opening first would announce an empty dialog.
+  const messageAssignment = mainTs.indexOf(
+    "inputPromptMessageElement.textContent",
+  );
+  const showModalCall = mainTs.indexOf("inputPromptDialog.showModal()");
+  assert.ok(messageAssignment >= 0 && showModalCall >= 0);
+  assert.ok(
+    messageAssignment < showModalCall,
+    "the question must be written into #input-prompt-message before showModal() reads it as the " +
+      "dialog's accessible name",
+  );
+});
+
+test("#876: web/main.ts delegates the execution-host choice to the tested helper, never a ternary of its own", () => {
+  // `selectExecutionHost` takes a FACTORY, so a page without shared memory never constructs a
+  // Worker it could not use — and the branch stays in `src/web-bootstrap.ts`, inside the coverage
+  // gate, rather than in this untested wiring layer.
+  assert.match(mainTs, /selectExecutionHost\(/);
+  assert.match(
+    mainTs,
+    /crossOriginIsolated: globalThis\.crossOriginIsolated === true/,
+  );
+  assert.match(
+    mainTs,
+    /hasSharedArrayBuffer: typeof SharedArrayBuffer !== "undefined"/,
+  );
+  assert.match(mainTs, /createWorkerExecutionHost\(/);
+  assert.match(mainTs, /executionHost,/);
+});
+
+test("#876: the Worker entry supplies the real Atomics primitives and decides nothing itself", () => {
+  const workerTs = readFileSync(
+    path.join(packageDir, "web", "execution-worker.ts"),
+    "utf8",
+  );
+
+  assert.match(workerTs, /runExecutionWorkerCommand\(/);
+  assert.match(workerTs, /Atomics\.wait\(/);
+  // `Atomics.wait` is only legal off the main thread, which is exactly why the interpreter runs
+  // here — and why the main-thread half only ever notifies.
+  assert.doesNotMatch(mainTs, /Atomics\.wait\(/);
+  assert.match(mainTs, /Atomics\.notify\(/);
 });

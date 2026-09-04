@@ -16,3 +16,9 @@
 
 # Governance config itself (ownership + merge convention) stays maintainer-owned.
 /.github/CODEOWNERS                     @pmalarme
+
+# The protections' own definitions are maintainer-owned, or a ruleset applied from these files
+# could be weakened by an unowned edit — a fail-OPEN hole (vs. weakening a CI workflow, which is
+# fail-SAFE because a required check simply stops reporting and blocks the merge). See ADR-0031.
+/.github/rulesets/                       @pmalarme
+/.github/agent-policy.md                 @pmalarme

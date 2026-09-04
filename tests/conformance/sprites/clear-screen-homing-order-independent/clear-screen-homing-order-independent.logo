@@ -1,0 +1,18 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+forward 10
+right 45
+clear_screen
+each [
+  print pos
+  print heading
+]
+tell [ :b :a ]
+forward 10
+right 45
+clear_screen
+each [
+  print pos
+  print heading
+]

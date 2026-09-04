@@ -1,0 +1,8 @@
+{
+  "description": "the control case the #828 ruling protects, at check time: a key press is bounded by a person, so registering a repeating every inside an on_key block is a legitimate game pattern and MUST NOT be flagged. Only a handler that fires on a CLOCK accumulates registrations without bound. This fixture is the check-time twin of the runtime fixture on-key-registering-every-stays-clean, and it exists so a later tightening of the lint cannot quietly capture the pattern the issue was careful to keep legal",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": []
+}

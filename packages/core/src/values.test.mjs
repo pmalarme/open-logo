@@ -16,6 +16,28 @@ test("typeNameOf reports the Core concept name for each runtime value shape", ()
     OL.typeNameOf(new OL.OLRecord("point", ["x", "y"], [3, 4])),
     "record",
   );
+  assert.equal(OL.typeNameOf(new OL.OLTurtle(0)), "turtle");
+  assert.equal(OL.typeNameOf(new OL.OLTurtle(7)), "turtle");
+});
+
+test("OLTurtle exposes its stable id and is a plain identity value", () => {
+  const turtle = new OL.OLTurtle(3);
+  assert.equal(turtle.id, 3);
+  // A turtle is an opaque identity — it carries no drawing state in this Core value model.
+  assert.deepEqual(Object.keys(turtle), ["id"]);
+});
+
+test("OLTurtle identity: distinct turtles have distinct ids; a turtle is the same turtle iff same id", () => {
+  const a = new OL.OLTurtle(0);
+  const b = new OL.OLTurtle(1);
+  // Distinct turtles are distinct JS instances with distinct ids.
+  assert.notEqual(a, b);
+  assert.notEqual(a.id, b.id);
+  // A turtle's identity is its id, not the JS instance: two wrappers of the same turtle (same id,
+  // e.g. one freshly built by a later `turtles`/`who` route) denote the SAME turtle. `==` semantics
+  // (which key on id) live in the runtime; see `packages/runtime/src/turtle-value.test.mjs`.
+  const sameTurtle = new OL.OLTurtle(0);
+  assert.equal(sameTurtle.id, a.id);
 });
 
 test("OLRecord binds its declared fields in order and exposes them via has/get/fields", () => {

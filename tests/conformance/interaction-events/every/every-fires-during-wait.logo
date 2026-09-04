@@ -1,0 +1,2 @@
+every 3 [ right 15 forward 10 ]
+wait 10

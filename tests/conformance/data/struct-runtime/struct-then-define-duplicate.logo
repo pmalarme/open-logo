@@ -1,0 +1,4 @@
+struct tally [ x y ]
+define tally
+  return 1
+end

@@ -1,0 +1,23 @@
+{
+  "description": "A `struct` type name colliding with the keyword `mod` raises `ol-reserved-word` at phase-1 registration, `stage: \"runtime\"` -- `execute()` runs `parse()` only, never `check()`, so the runtime carries its own declaration-slot guard (`execute-internal.ts`'s `registerDeclarations`; `spec/data-structures.md:323` gives `struct` the `ol-reserved-word` and `ol-duplicate-definition` diagnostics and phase-1 registration, and `:304` states the split this fixture turns on: \"Field names are bindings, not declarations, so any name is legal there ... The type name is a declaration: it registers a constructor in the callable namespace, so a built-in name raises `ol-reserved-word`\"). `mod` collides here exactly as `struct and` does (`spec/grammar.md:373,378` -- `and`/`or`/`not`/`mod` are word-spelled operators of the expression grammar, not callable primitives). Note the field list `[ x y ]` is a binding position and stays unrestricted. The check-stage and binding/call axes are pinned by core-language/check/reserved-word-define-mod and keyword-mod-binds-and-calls-freely.",
+  "compareMessages": true,
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-reserved-word",
+      "source_span": {
+        "document": "data/struct-runtime/struct-reserved-word-mod",
+        "start": [1, 8],
+        "end": [1, 11]
+      },
+      "params": {
+        "name": "mod"
+      },
+      "message": "mod is already part of OpenLogo. choose another name.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

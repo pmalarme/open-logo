@@ -1,6 +1,6 @@
 /**
  * Deterministic PNG export: rasterizes the retained {@link TurtleScene} (`scene.ts`) plus the
- * turtle avatar from {@link TurtleState} (`state.ts`) into a PNG image, per `spec/rendering.md`'s
+ * turtle avatars from {@link TurtleState}/{@link TurtleWorldState} (`state.ts`/`world-state.ts`) into a PNG image, per `spec/rendering.md`'s
  * "Rendering targets" and "Export determinism" sections.
  *
  * Like `svg.ts` (#215), this module never re-derives the coordinate mapping or draw order: it
@@ -35,7 +35,7 @@
  */
 
 import type { Point } from "@openlogo/core";
-import type { RenderTarget, Viewport } from "./canvas.js";
+import type { PaintableTurtles, RenderTarget, Viewport } from "./canvas.js";
 import { paintScene, paintTurtle } from "./canvas.js";
 import { INITIAL_OVERLAY_STATE, type OverlayState } from "./overlay.js";
 import type { TurtleScene } from "./scene.js";
@@ -497,14 +497,16 @@ function encodePng(buffer: PixelBuffer): Uint8Array {
 }
 
 /**
- * Exports the retained scene (and, by default, the visible avatar) as a deterministic PNG image
+ * Exports the retained scene (and, by default, every visible avatar) as a deterministic PNG image
  * — rasterized through exactly the same `RenderTarget`-driven `paintTurtle`/`paintScene`
  * orchestration as `exportTurtleSvg` (`svg.ts`, #215) and `paintTurtle`/`paintScene` themselves
- * (`canvas.ts`, #214). Returns the raw PNG bytes.
+ * (`canvas.ts`, #214). `turtles` is either one turtle's {@link TurtleState} or a whole
+ * {@link TurtleWorldState}; with a world, every live turtle's avatar is rasterized with its own
+ * shape, heading, color, and visibility, in creation order. Returns the raw PNG bytes.
  */
 export function exportTurtlePng(
   scene: TurtleScene,
-  state: TurtleState,
+  turtles: PaintableTurtles,
   viewport: Viewport,
   options: PngExportOptions = {},
   overlay: OverlayState = INITIAL_OVERLAY_STATE,
@@ -514,7 +516,7 @@ export function exportTurtlePng(
   const paintedOverlay = includeOverlays ? overlay : undefined;
   const target = new RasterRenderTarget(viewport.width, viewport.height);
   if (includeAvatar) {
-    paintTurtle(target, scene, state, viewport, paintedOverlay);
+    paintTurtle(target, scene, turtles, viewport, paintedOverlay);
   } else {
     paintScene(target, scene, viewport, paintedOverlay);
   }

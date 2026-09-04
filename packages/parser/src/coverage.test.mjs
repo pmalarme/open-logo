@@ -319,16 +319,24 @@ test("reports comprehension syntax errors", () => {
   assert.deepEqual(codesOf("print map 5"), ["ol-bad-token"]); // binder not a name
   // A `{` binder is a different malformed shape than a number: it is itself a lexically valid,
   // balanced delimiter (unlike `5`), so it takes the `unexpected()` helper's dedicated `lbrace`
-  // branch rather than its generic `default` — `ol-unmatched-brace`, not `ol-bad-token`. This is
-  // an unrelated grammar production from the `dict-entry` malformed-key/separator fix (issues
+  // branch. Since `spec/error-model.md:165-169` made the delimiter class agnostic, that branch
+  // reports `ol-unmatched-brace` only when the `{` genuinely has no `}` — here it has one, so the
+  // brace is correctly matched and `ol-bad-token` is authoritative (issue #947). This is an
+  // unrelated grammar production from the `dict-entry` malformed-key/separator fix (issues
   // #520/#546, `unexpectedInDictEntry`/`skipMalformedDictKeyLiteral`): a comprehension binder
-  // position, not a dict-entry position, so it is out of scope for that fix and keeps its
-  // original `unexpected()` fallthrough behavior.
+  // position, not a dict-entry position.
   assert.deepEqual(codesOf("print map { a: 1 } in [1 2 3] [ :a ]"), [
-    "ol-unmatched-brace",
+    "ol-bad-token",
     "ol-bad-token",
     "ol-bad-token",
   ]);
+  // The same shape with the brace genuinely unclosed still reports it, so the line above is a
+  // narrowing of the diagnostic to matched braces, not a suppression of it.
+  assert.ok(
+    codesOf("print map { a: 1 in [1 2 3] [ :a ]").includes(
+      "ol-unmatched-brace",
+    ),
+  );
   assert.deepEqual(codesOf("print map x"), ["ol-bad-token"]); // missing `in`
   assert.deepEqual(codesOf("print map x in"), ["ol-bad-token"]); // iterable missing
   assert.deepEqual(codesOf("print reduce acc x in [1]"), ["ol-bad-token"]); // missing `from`
@@ -693,11 +701,13 @@ test("parses a destructuring `for [:x :y] in <expr>` binder", () => {
 });
 
 test("reports malformed destructuring for-in binders", () => {
-  // No names inside the brackets at all (empty pattern) — reported at the closing `]`.
-  assert.equal(codesOf("for [] in [1] [ print 1 ]")[0], "ol-unmatched-bracket");
+  // No names inside the brackets at all (empty pattern). The `[` and `]` are correctly matched, so
+  // the defect is the empty pattern between them and `ol-bad-token` is authoritative
+  // (`spec/error-model.md:165-169`, issue #947).
+  assert.equal(codesOf("for [] in [1] [ print 1 ]")[0], "ol-bad-token");
   // A bare (non-colon) name inside the brackets isn't a valid destructuring name.
   assert.equal(codesOf("for [x] in [1] [ print 1 ]")[0], "ol-bad-token");
-  // Unclosed pattern.
+  // Unclosed pattern — genuinely unmatched, so the delimiter diagnostic is correct and survives.
   assert.equal(
     codesOf("for [:x :y in [1] [ print 1 ]")[0],
     "ol-unmatched-bracket",
@@ -734,11 +744,11 @@ test("groups arguments by arity and treats unknown names as zero-arity", () => {
 
 // --- Public registries ------------------------------------------------------
 
-test("exposes the reserved-word registry", () => {
-  assert.ok(OL.isReservedWord("define"));
-  assert.ok(OL.isReservedWord("REPEAT"));
-  assert.equal(OL.isReservedWord("wibble"), false);
-  assert.ok(OL.OL_RESERVED_WORDS.includes("map"));
+test("exposes the keyword registry", () => {
+  assert.ok(OL.isKeyword("define"));
+  assert.ok(OL.isKeyword("REPEAT"));
+  assert.equal(OL.isKeyword("wibble"), false);
+  assert.ok(OL.OL_KEYWORDS.includes("map"));
 });
 
 test("exposes the core primitive arities", () => {
@@ -795,6 +805,7 @@ const MEGA = [
   "insert 3 in :x at 0",
   "clear :x",
   "struct point [ p q ]",
+  "ask :x [ print 1 ]",
 ].join("\n");
 
 test("walk visits every core node kind, pre-order", () => {
@@ -806,6 +817,64 @@ test("walk visits every core node kind, pre-order", () => {
   for (const kind of OL.OL_NODE_KINDS) {
     assert.ok(kinds.has(kind), `walk should visit ${kind}`);
   }
+});
+
+test("walk rejects an AST shape it has no case for instead of silently pruning it", () => {
+  // `childrenOf` dispatches four times — on node kind, `is`-test form, place-segment kind, and
+  // comprehension form — and each is exhaustive over its discriminant, so these clauses are
+  // unreachable from TypeScript. The `never` bindings in them are what make `tsc` reject a new
+  // discriminant value nobody gave a case (issue #925). They stay reachable from untyped
+  // JavaScript, and there the contract is to fail loudly: a silently childless node is still
+  // visited, but everything below it drops out of `walk`, and so out of the runtime's declaration
+  // registration and out of every checker.
+  const source_span = { document: doc, start: [1, 1], end: [1, 4] };
+  const operand = { kind: "NumberLit", value: 1, source_span };
+
+  assert.throws(
+    () => OL.walk({ kind: "NotANodeKind", source_span }, () => {}),
+    /no case for node kind "NotANodeKind"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "IsPredicate",
+          operand,
+          test: { form: "no-form" },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for "is" test form "no-form"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Place",
+          base: { name: "x", source_span },
+          segments: [{ kind: "no-segment", source_span }],
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for place segment kind "no-segment"/,
+  );
+  assert.throws(
+    () =>
+      OL.walk(
+        {
+          kind: "Comprehension",
+          form: "no-comprehension",
+          binder: { name: "n", source_span },
+          iterable: operand,
+          body: { kind: "Block", body: [], source_span },
+          source_span,
+        },
+        () => {},
+      ),
+    /no case for comprehension form "no-comprehension"/,
+  );
 });
 
 test("walk descends the optional-child branches when they are absent", () => {

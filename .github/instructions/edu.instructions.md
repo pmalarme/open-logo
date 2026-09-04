@@ -37,6 +37,8 @@ provider-neutral adapter.
 
 ## Conventions
 - Meta-commands are deterministic, offline, arity 0, template-based; `hint` is progressive.
-- Every lesson example + reference solution is validated against the runtime in CI.
+- Every lesson example + reference solution is validated against the runtime in CI, **and** statically
+  checked with `@openlogo/parser`'s `check()` plus audited against the built-in-name registries
+  (`src/lessons/built-in-names.test.mjs`) — see that package README's "Naming rules for lesson authors".
 - Follow the team agreement's clean-code naming rule (no abbreviations, self-explaining identifiers) — see
   [`openlogo-team.instructions.md` §10](openlogo-team.instructions.md#10-conventions).

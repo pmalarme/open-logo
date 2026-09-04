@@ -1,0 +1,456 @@
+{
+  "description": "Parenthesized grouping (issue #1021, closing #709's literal acceptance criterion): a group whose FIRST token is a zero-arity reporter is a `parenthesized-expression` (grammar.md:213), not a `parenthesized-call` (grammar.md:215). The reader used to commit to the call on the head token alone and then meet the operator in an argument slot, so `(pi == pi)` raised `ol-bad-token` while the identical unparenthesized `pi == pi` read clean. Every binary operator of grammar.md:181-190 is swept with `pi` as the head — `-` included — and executed, so the fixture proves each group MEANS what it says rather than merely parsing.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [12, 1],
+        "end": [14, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [15, 1],
+        "end": [15, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [15, 1],
+        "end": [15, 16]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [16, 1],
+        "end": [16, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [16, 1],
+        "end": [16, 16]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [17, 1],
+        "end": [17, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [17, 1],
+        "end": [17, 14]
+      },
+      "payload": {
+        "values": [3.141592653589793]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [18, 1],
+        "end": [18, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [18, 1],
+        "end": [18, 15]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [19, 1],
+        "end": [19, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [19, 1],
+        "end": [19, 14]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [20, 1],
+        "end": [20, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [20, 1],
+        "end": [20, 15]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [21, 1],
+        "end": [21, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [21, 1],
+        "end": [21, 14]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [22, 1],
+        "end": [22, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [22, 1],
+        "end": [22, 14]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [23, 1],
+        "end": [23, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [23, 1],
+        "end": [23, 15]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [24, 1],
+        "end": [24, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [24, 1],
+        "end": [24, 15]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [25, 1],
+        "end": [25, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [25, 1],
+        "end": [25, 17]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [26, 1],
+        "end": [26, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [26, 1],
+        "end": [26, 24]
+      },
+      "payload": {
+        "values": [true]
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [27, 1],
+        "end": [27, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [27, 8],
+        "end": [27, 11]
+      },
+      "payload": {
+        "name": "yes",
+        "args": []
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [13, 3],
+        "end": [13, 14]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [13, 3],
+        "end": [13, 14]
+      },
+      "payload": {
+        "value": true
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [27, 8],
+        "end": [27, 11]
+      },
+      "payload": {
+        "name": "yes",
+        "result": true
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [27, 1],
+        "end": [27, 21]
+      },
+      "payload": {
+        "values": [false]
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [28, 1],
+        "end": [28, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [28, 8],
+        "end": [28, 11]
+      },
+      "payload": {
+        "name": "yes",
+        "args": []
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [13, 3],
+        "end": [13, 14]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 34,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [13, 3],
+        "end": [13, 14]
+      },
+      "payload": {
+        "value": true
+      }
+    },
+    {
+      "seq": 35,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [28, 8],
+        "end": [28, 11]
+      },
+      "payload": {
+        "name": "yes",
+        "result": true
+      }
+    },
+    {
+      "seq": 36,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/calls/paren-group-headed-by-reporter",
+        "start": [28, 1],
+        "end": [28, 19]
+      },
+      "payload": {
+        "values": [true]
+      }
+    }
+  ],
+  "diagnostics": []
+}

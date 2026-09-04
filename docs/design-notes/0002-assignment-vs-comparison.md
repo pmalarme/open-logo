@@ -49,14 +49,11 @@ expression operators"* and `=` "never compares" (`spec/commands.md`'s notation s
 `make` is not Core: it is gated behind the Heritage profile alongside the other classic-Logo
 spellings (`fd`, `bk`, `to … end`, …), so a program written entirely in canonical OpenLogo never
 needs it, while a learner arriving from classic Logo can opt in without learning a new mental model
-for storage. **As of this writing, `@openlogo/parser` has implemented the colon-form `=` and worded
-`set … to` assignment forms but has not yet implemented the Heritage `make` spelling** (see
-`packages/parser/src/parser.ts`'s header comment: "the Heritage spellings (`make`/`to`/`output`/
-`op`/aliases) are handled by their own later slices; until then those spellings degrade to ordinary
-calls or a collected diagnostic"). The example below is therefore marked as *specified, not yet
-runnable* pending that Heritage slice.
+for storage. `@openlogo/parser` implements the colon-form `=` and worded `set … to` assignment
+forms, and the Heritage `make` spelling now runs too (its H2 slice, #667, landed the parse + execute
+path). The examples below therefore execute today.
 
-The two implemented forms and `==` execute today, verified against `@openlogo/runtime`'s `execute`
+The two canonical forms and `==` execute today, verified against `@openlogo/runtime`'s `execute`
 (each `# =>` comment is the actual `print` output produced when the snippet is run):
 
 ```logo
@@ -71,15 +68,15 @@ print :count
 # => 6
 ```
 
-The Heritage form, once implemented, is specified to behave like `set … to` for simple variable
+The Heritage form behaves like `set … to` for simple variable
 names only (its target is a quoted word, not a bare place, so it cannot spell a postfix selector
 such as `nums[1]`):
 
 ```logo
-# Heritage profile — specified in spec/commands.md; not yet runnable (see note above).
+# Heritage profile — specified in spec/commands.md; runs when the heritage profile is active.
 make "count" 7
 print :count
-# => 7 (once the Heritage `make` slice lands)
+# => 7
 ```
 
 ## Rationale

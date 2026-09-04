@@ -29,7 +29,6 @@
         "expected": 1,
         "actual": 0
       },
-      "message": "sin needs one input, but got 0.",
       "stage": "runtime",
       "severity": "error"
     }

@@ -1,0 +1,213 @@
+{
+  "description": "issue #766, abnormal exit 3 of 4 — `throw`. A `throw` halts the program (v0.1 has no try/catch, spec/commands.md) and surfaces `ol-user-error`; the `each` loop stops on turtle 1's iteration and the trailing `forward 30` never runs, but the restoration still publishes the addressed set that was active before the loop, so the last thing a consumer sees is the truth about the runtime's state at the moment it stopped.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 1],
+        "end": [4, 37]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 1],
+        "end": [4, 37]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "move",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 10,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 8],
+        "end": [4, 18]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      },
+      "turtle_id": 1
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 19],
+        "end": [4, 35]
+      },
+      "payload": {
+        "statement_kind": "Throw"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 1],
+        "end": [4, 37]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-user-error",
+      "source_span": {
+        "document": "sprites/addressing-restored-on-throw/addressing-restored-on-throw",
+        "start": [4, 19],
+        "end": [4, 35]
+      },
+      "params": {
+        "message": "stop now"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "description": "Issue #839 AC2, the cross-kind collision in the STRUCT-FIRST direction: `struct tally [ x y ]` then `define tally`. Its mirror (`define` then `struct`) is `struct-reserved-word-procedure`. Having both directions is what makes the pair meaningful: an implementation that only checked a `struct` name against already-declared procedures — but not a `define` name against already-declared structs — would report the mirror and be silent here, so this fixture is the one that fails for it. `spec/error-model.md:126` covers exactly this case: \"a procedure and a struct with the same name in either order\". Note what neither direction can show: whether the runtime keeps one first-declaration map or two with a cross-kind lookup — those are indistinguishable from source, so no description here claims it.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-duplicate-definition",
+      "source_span": {
+        "document": "data/struct-runtime/struct-then-define-duplicate",
+        "start": [2, 8],
+        "end": [2, 13]
+      },
+      "params": {
+        "name": "tally",
+        "original_span": {
+          "document": "data/struct-runtime/struct-then-define-duplicate",
+          "start": [1, 8],
+          "end": [1, 13]
+        }
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

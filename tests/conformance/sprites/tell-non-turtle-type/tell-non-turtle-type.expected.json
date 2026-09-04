@@ -1,0 +1,35 @@
+{
+  "description": "issue #674 (SP2): passing a non-turtle to `tell` raises `ol-type` at the argument span (spec/turtles-and-sprites.md's reserved/grammar section: `tell` expects a turtle or a list of turtles). `actual` is the offending value's type name (`number`), `value` snapshots it, `operation` is `tell`, `expected` is `turtle`.",
+  "profiles": ["sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/tell-non-turtle-type/tell-non-turtle-type",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": { "statement_kind": "ProfileStatement" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sprites/tell-non-turtle-type/tell-non-turtle-type",
+        "start": [1, 6],
+        "end": [1, 7]
+      },
+      "params": {
+        "expected": "turtle",
+        "actual": "number",
+        "value": 5,
+        "operation": "tell"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

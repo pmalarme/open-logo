@@ -1,0 +1,35 @@
+{
+  "description": "issue #691: `play`'s single argument MUST be a list (spec/interaction-events.md:320-334, `ol-type` in the `play` entry). A word argument (here \"c4\") raises `ol-type` with expected:\"list\" at runtime; no `sound` event is emitted. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-not-list-type-error",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sound/play-not-list-type-error",
+        "start": [1, 6],
+        "end": [1, 10]
+      },
+      "params": {
+        "expected": "list",
+        "actual": "word",
+        "value": "c4",
+        "operation": "play"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

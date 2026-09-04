@@ -1,0 +1,3 @@
+when "go" [ print 1 ]
+when "go" [ print 2 ]
+wait 1

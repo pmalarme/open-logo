@@ -10,4 +10,5 @@ and the Canvas / SVG / PNG targets with animation, deterministic export, and ren
 - **Spec:** [`rendering.md`](../../spec/rendering.md),
   [`turtles-and-sprites.md`](../../spec/turtles-and-sprites.md),
   [`execution-model.md`](../../spec/execution-model.md).
-- **Depends on:** `@openlogo/core`, `@openlogo/runtime` (consumes the trace/event stream).
+- **Depends on:** `@openlogo/core` only — it *consumes* the trace/event stream `@openlogo/runtime`
+  produces, and must never depend on the runtime itself.

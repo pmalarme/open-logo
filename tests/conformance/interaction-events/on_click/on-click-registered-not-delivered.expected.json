@@ -1,0 +1,56 @@
+{
+  "description": "issue #685 (slice I6): registration is not invocation, and a click is host input — a headless batch `execute()` run has no pointer device, so an `on_click [ ... ]` handler is registered (emitting the `instruction`+`primitive` pair, seq 0-1) but never fires. This mirrors I3's `when \"stop\"` and I5's `on_key` narrowing: the following `print \"mid\"` runs (seq 2-3) and that is the whole event stream — `\"moved\"` is never printed. This slice deliberately did NOT synthesize a synthetic click-injection API to make the handler fire. Description reconciled by #688 (terminal slice): that later host slice HAS since landed — #686/I7 added `ExecuteOptions.hostInput`, so a click scheduled at a tick DOES fire every registered handler (see the sibling `on-click-handlers-fire-in-registration-order`), the same reconciliation #686 already applied to `on-click-wait-does-not-fire`. What this fixture pins is therefore narrower and still exactly true: with NO host input supplied, the pending-click queue is empty, so registration alone never fires the body. Locking that narrowing here makes it falsifiable rather than silently omitted.",
+  "profiles": ["interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-not-delivered",
+        "start": [1, 1],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-registered-not-delivered",
+        "start": [2, 1],
+        "end": [2, 12]
+      },
+      "payload": {
+        "values": ["mid"]
+      }
+    }
+  ],
+  "diagnostics": []
+}

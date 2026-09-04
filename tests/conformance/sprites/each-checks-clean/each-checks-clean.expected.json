@@ -1,0 +1,7 @@
+{
+  "description": "issue #676 (SP4): with `sprites` active, `each`'s head name is a visible command, so a well-formed `each` block checks clean — the other half of the slice alongside its runtime semantics (the C2 unknown-command gate is live).",
+  "profiles": ["sprites", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

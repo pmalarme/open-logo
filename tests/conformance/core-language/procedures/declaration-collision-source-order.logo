@@ -1,0 +1,9 @@
+define tally
+  print 1
+end
+define tally
+  print 2
+end
+define forward
+  print 3
+end

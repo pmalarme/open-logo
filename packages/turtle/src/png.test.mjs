@@ -457,3 +457,81 @@ test("exportTurtlePng produces a valid zlib stream whose Adler-32 checksum match
   const actualAdler = ((b << 16) | a) >>> 0;
   assert.equal(actualAdler >>> 0, expectedAdler >>> 0);
 });
+
+// --- per-turtle avatars in export (#749) ------------------------------------------------------
+
+/** A `TurtleWorldState` over `states` (`[id, state]` pairs in creation order), with the last one
+ * last-acted — the shape a Sprites program's event stream folds to. */
+function turtleWorld(states) {
+  return {
+    turtles: new Map(states),
+    lastActedTurtleId: states[states.length - 1][0],
+  };
+}
+
+test("exportTurtlePng given a world holding only the main turtle produces byte-identical bytes to passing that state", () => {
+  const scene = {
+    background: "white",
+    items: [
+      {
+        kind: "segment",
+        segment: { from: [-2, 0], to: [2, 0], color: "red", width: 1 },
+      },
+    ],
+  };
+  const state = {
+    position: [0, 0],
+    heading: 0,
+    penDown: true,
+    color: "black",
+    width: 1,
+    shape: "triangle",
+    visible: true,
+  };
+  assert.deepEqual(
+    OL.exportTurtlePng(
+      scene,
+      turtleWorld([[OL.MAIN_TURTLE_ID, state]]),
+      VIEWPORT,
+    ),
+    OL.exportTurtlePng(scene, state, VIEWPORT),
+  );
+});
+
+test("exportTurtlePng rasterizes each visible turtle's own avatar and omits hidden ones (#749)", () => {
+  // Two turtles at different positions with divergent color and visibility. Merged into one state
+  // the raster showed a single avatar; per turtle it shows the green one at its own position, the
+  // blue one nowhere.
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, heading: 0, shape: "circle" };
+  const decoded = decodePng(
+    OL.exportTurtlePng(
+      scene,
+      turtleWorld([
+        [1, { ...base, position: [-3, 0], color: "green", visible: true }],
+        [2, { ...base, position: [3, 0], color: "blue", visible: false }],
+      ]),
+      VIEWPORT,
+    ),
+  );
+  // VIEWPORT is 10x8, so world (0,0) maps to pixel (5,4); (-3,0) -> (2,4), (3,0) -> (8,4).
+  assert.deepEqual(pixelAt(decoded, 2, 4), { r: 0, g: 128, b: 0, a: 255 });
+  assert.deepEqual(pixelAt(decoded, 8, 4), { r: 255, g: 255, b: 255, a: 255 });
+});
+
+test("exportTurtlePng rasterizes two visible turtles as two avatars in their own colors", () => {
+  const scene = { background: "white", items: [] };
+  const base = { penDown: true, width: 1, heading: 0, shape: "circle" };
+  const decoded = decodePng(
+    OL.exportTurtlePng(
+      scene,
+      turtleWorld([
+        [1, { ...base, position: [-3, 0], color: "green", visible: true }],
+        [2, { ...base, position: [3, 0], color: "blue", visible: true }],
+      ]),
+      VIEWPORT,
+    ),
+  );
+  assert.deepEqual(pixelAt(decoded, 2, 4), { r: 0, g: 128, b: 0, a: 255 });
+  assert.deepEqual(pixelAt(decoded, 8, 4), { r: 0, g: 0, b: 255, a: 255 });
+});

@@ -3,7 +3,7 @@
 Let's follow one line of your code on its whole adventure — from the letters you typed to a turtle
 moving on screen. Our example for this trip is the classic square:
 
-```
+```logo
 repeat 4 [ forward 100 right 90 ]
 ```
 

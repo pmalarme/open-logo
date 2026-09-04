@@ -1,0 +1,456 @@
+{
+  "description": "a repeating handler that registers another repeating handler keeps EVERY registration: each one is a distinct handler, never collapsed or deduplicated, so 12 ticks fire the body 6 times (3 + 2 + 1 + 0 growth) rather than the 4 of a single every 3 — the discriminating twin is every-single-registration-baseline. The bodies print a literal, so this pair observes collapse-freedom ONLY: it says nothing about capture, which is issue #821's separate ruling and is NOT repaired here (its E-A still prints 30 30 30)",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 34]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 34]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 32]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 11],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [1, 21],
+        "end": [1, 30]
+      },
+      "payload": {
+        "values": ["x"]
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-nested-registration-not-collapsed",
+        "start": [2, 1],
+        "end": [2, 8]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -717,6 +717,17 @@ test("why: `forward 80` then `why` still correctly describes the move (no regres
   assert.equal(payload.segments[1], "This happened because `forward` ran.");
 });
 
+test("why: `clear_screen` then `why` describes the clear, not the homing move it now also emits", () => {
+  // Issue #847 gave `clear_screen` three events (`move`, `turn`, `clear`) sharing one source span.
+  // `findRelevantEvent` scans backwards, so it still selects the `clear` - but the whole span now
+  // holds candidates it could pick instead, so this pins the outcome through the REAL runtime
+  // rather than a synthetic single-event stream (which cannot exercise event selection at all).
+  const payload = runWhy("forward 10\nright 45\nclear_screen\nwhy");
+  assert.match(payload.segments[0], /cleared \(clear_screen\)/);
+  assert.doesNotMatch(payload.segments[0], /turtle moved/);
+  assert.doesNotMatch(payload.segments[0], /turned/);
+});
+
 test("why: a lone `instruction`/`procedure-enter` start event (no earlier effect) yields the honest fallback, not a description of the start event itself", () => {
   const program = parse("forward 80");
   const instructionEvent = makeEvent(

@@ -1,0 +1,22 @@
+{
+  "description": "ol-style-name-case (issue #854): the Heritage worded reader `value of … for key` with its head written non-lowercase. Like `MAKE`, `ValueOfKey` was never in the node-kind table, so the reader was silent. Only the head `value` is reported: it is the sole literal of this production that `ast.ts` gives a span of its own, so `of`/`for`/`key` have nothing to slice the source against and stay deferred to the #115 follow-up.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "style": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "heritage/style/name-case-uppercase-value-of-key-reader",
+        "start": [2, 7],
+        "end": [2, 12]
+      },
+      "params": {
+        "name": "VALUE"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

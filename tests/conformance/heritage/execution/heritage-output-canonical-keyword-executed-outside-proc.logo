@@ -1,0 +1,4 @@
+# The Heritage spelling `output` (an alternate spelling of Core `return`) escaping at the top level,
+# EXECUTED — `execute()` runs `parse()` only, never `check()`, so this is the runtime stage's own
+# copy of the rule, and the copy that diverged in issue #741.
+output 5

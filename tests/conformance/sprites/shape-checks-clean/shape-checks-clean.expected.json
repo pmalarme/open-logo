@@ -1,0 +1,7 @@
+{
+  "description": "issue #677 (SP5): with `sprites` and `turtle-rendering` active, an `ask` block containing the per-turtle avatar commands `set_shape`/`hide_turtle`/`show_turtle`/`stamp` (plus `forward`) parses AND checks clean — `ask` is a visible Sprites statement form (SP3) and `set_shape`/`hide_turtle`/`show_turtle`/`stamp` are visible Turtle & Rendering primitives, so composing them raises no `ol-unknown-command`. This is the C2 checker gate for the slice: the per-turtle shape/visibility commands are recognized under the profile, not merely runnable. (`new_turtle` is deliberately absent: its reporter name-list is #678, so `:x = 1` provides the addressed value instead.) The Core-only counterpart, shape-unknown-without-turtle-rendering, proves the gate.",
+  "profiles": ["turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

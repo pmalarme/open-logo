@@ -1,0 +1,3 @@
+on_key "space"
+  print "x"
+end on_key

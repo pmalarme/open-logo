@@ -1,0 +1,6 @@
+repeat when [ ]
+repeat every [ ]
+repeat on_key [ ]
+repeat on_click [ ]
+print when
+:x = every

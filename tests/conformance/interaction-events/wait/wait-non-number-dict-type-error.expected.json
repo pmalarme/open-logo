@@ -1,0 +1,39 @@
+{
+  "description": "issue #775 (review gate): `wait { name: \"ada\" }` -- a tick count that is a DICT. Together with its `every` twin `every/every-non-number-record-type-error` (which covers `record`), and with `wait-non-number-list-type-error` / `every-non-number-boolean-type-error` / the turtle pair, this completes `params.actual` across every `OLTypeName` outside `number`/`word`. Before them the whole corpus (`wait`, `every`, `repeat`, `random`) pinned `actual` as only `number` or `word`, so an implementation could report anything at all for a dict and still pass -- confirmed by mutation. `spec/error-model.md` requires an `ol-type` to \"name the expected learner concept, such as number, word, list, dict, record, or boolean\", so calling a dict a word would violate a MUST. The dict's CONTENTS are genuinely compared: the harness unwraps an `OLDict` runtime value into a plain key->value object before deep-comparing (`tests/conformance/README.md`, \"Dict/record contents\"), so `params.value` is written here as `{ \"name\": \"ada\" }` and an implementation that reported an empty or different dict fails. Needs the Data profile only to CONSTRUCT the value; the check under test is the Interaction one. The `primitive` event is NOT emitted (the pause never runs), only the instruction event precedes the diagnostic, and the span covers just the argument.",
+  "profiles": ["core-language", "data", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-number-dict-type-error",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "interaction-events/wait/wait-non-number-dict-type-error",
+        "start": [1, 6],
+        "end": [1, 21]
+      },
+      "params": {
+        "expected": "whole number",
+        "actual": "dict",
+        "value": {
+          "name": "ada"
+        },
+        "operation": "wait"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,184 @@
+{
+  "description": "MAINTAINER RULING #984, the run-lifetime rule: `the run's lifetime is the main line's business -- an every handler does not extend it`. Once the main line has finished and any ALREADY-STARTED handler body has completed, the run closes and queued-but-unstarted occurrences are discarded. Here the handler's own body outruns its interval: registered at tick 0 with interval 3 and a body that takes 4 ticks, it starts at tick 3 and its next interval arrives at tick 6 while it is still running, so that occurrence is queued. The body completes at tick 7, the queued occurrence is drained immediately (second `print`), and THAT invocation's body in turn overruns and queues another. The run does not chase it: the main line's `wait 3` is spent, so the program terminates cleanly with exactly TWO prints and NO diagnostic. This is the fixture that separates `drain the queue` from `manufacture ticks the main line never asked for`: draining in a loop until the queues empty runs this program back to back until the instruction budget stops it, producing hundreds of thousands of prints and an `ol-limit`. A learner who wants the timer to keep firing says so explicitly -- see `every-overrunning-handler-runs-back-to-back-under-forever`, which is where back-to-back running IS the specified behaviour.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 1],
+        "end": [1, 29]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [1, 21],
+        "end": [1, 27]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-queued-occurrence-discarded-when-run-closes",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

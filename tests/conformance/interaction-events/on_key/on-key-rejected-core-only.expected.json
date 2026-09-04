@@ -1,0 +1,21 @@
+{
+  "description": "issue #684 (slice I5): on_key is not a Core command — without the interaction-events profile it is rejected as ol-unknown-command (spec/interaction-events.md §Profiles and reservation: the event block-heads belong to the profile, and a profile decides whether such a word *works*). Together with on-key-visible-under-profile this proves the form end to end: profile active → checks clean; Core-only → rejected. Note this is the AVAILABILITY axis, which is legitimately profile-conditional, not the naming axis: whether a program may *declare* the name is unconditional (spec/grammar.md:408).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/on_key/on-key-rejected-core-only",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "params": {
+        "name": "on_key"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

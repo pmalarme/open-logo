@@ -1,86 +1,199 @@
 /**
  * The checker's reusable visible-name model (issue #117 — the checker-rule LEAD deliverable
  * every sibling rule slice, #111/#112/#113/#115, plugs into for name/form visibility). It
- * assembles the candidate set of names a call site's callee may legitimately be: Core primitive
- * names, callable reserved words (a learner typo of a keyword such as `repeat` is still worth
- * suggesting), and every user-declared procedure name in the program — gated on the active
- * conformance profile set exactly as `spec/tooling.md:175-176` requires ("MUST use the active
- * conformance profile set when deciding which primitives and profile block-heads are
- * available"), never a hardcoded "every optional profile active".
+ * assembles the candidate set of names a call site's callee may legitimately be: the primitives and
+ * reserved statement heads of each **active** conformance profile, plus every name the program
+ * itself declares — gated on the active profile set exactly as `spec/tooling.md:175-176` requires
+ * ("MUST use the active conformance profile set when deciding which primitives and profile
+ * block-heads are available"), never a hardcoded "every optional profile active".
  *
- * Core Language, Turtle & Rendering, Educational, Geometry, and Data each contribute a name table
- * today (issue #136 added Turtle & Rendering, sourced from `signatures.ts`'s
- * `TURTLE_PRIMITIVE_ARITY`; issue #331 added Educational's `explain`/`why`/`hint`/`debug`
- * meta-commands the same way, sourced from `EDUCATIONAL_PRIMITIVE_ARITY`; issue #341 added
- * Geometry's `grid`/`axes`/`measure` overlay primitives, sourced from `GEOMETRY_PRIMITIVE_ARITY`;
- * issue #397 added Data's `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
- * primitives, sourced from `DATA_PRIMITIVE_ARITY` — each profile's single source-of-truth table, so
- * this module never keeps a second, duplicate name list); issue #405 adds every `struct` type's
- * constructor name, collected straight from the program's own `StructDef` declarations (mirroring
- * `@openlogo/runtime`'s phase-1 struct registration, `execute-internal.ts`'s `collectStructs`),
- * gated on the `data` profile being active, exactly like this module's other optional-profile
- * tables; this function is written to *gate* on `profiles` rather than to assume any profile is
- * always present — see the module's own unit test for the gating shape. A future profile slice
- * registers its own name table here, following the same `if (active.has(<profile>)) { … }` shape.
+ * **The name universes are derived, with two explicit exceptions.** Both exports below go through
+ * {@link profileContributedNames}, which sweeps the profile-keyed registries — `signatures.ts`'s
+ * `PROFILE_PRIMITIVES` and `keywords.ts`'s `OL_PROFILE_KEYWORDS` — so a profile that gains a table
+ * is covered the moment it lands, and **no profile and no name is enumerated by hand**. Exactly two
+ * things are named here rather than derived, and both are claims rather than omissions: Core's
+ * profile-independent {@link OL_KEYWORDS}, which by definition cannot come from a profile-keyed
+ * table, and the one-entry {@link NAMES_AWAITING_AN_EVALUATOR} withholding. Neither grows when a
+ * profile is added, which is the property a spread ladder cannot have.
+ *
+ * That is issue #966's subject: this module previously kept a
+ * spread ladder *and* a nine-branch profile chain, both hand-extended one slice at a time, and the
+ * ladder had already fallen behind the registry — it grew no Tutor arm when issue #838 registered
+ * `TUTOR_PRIMITIVE_ARITY`, so `challenge` was treated as a Core word by the tie-break below while
+ * `checker-style.ts`'s *derived* rule had absorbed it with no edit at all. Deriving is the fix for
+ * the next profile as well as this one.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
- * did-you-mean tie-break (`spec/error-model.md:145-146`: "prefer Core words over optional-profile
- * words" on a distance tie) — now that optional profiles (Turtle & Rendering, Educational,
- * Geometry, Data) contribute real candidates, a tie between a Core name and an optional-profile
- * name is reachable and MUST resolve in Core's favor, not by lexicographic order alone. Struct
- * constructor names are program-declared (like procedure names), not part of this frozen table —
- * the same reason procedure names are excluded.
+ * did-you-mean tie-break (`spec/error-model.md:210-211`: on a distance tie, "prefer Core words over
+ * optional-profile words, then full canonical names over short aliases, then lexicographic order")
+ * — a tie between a Core name and an optional-profile name is reachable and MUST resolve in Core's
+ * favor, not by lexicographic order alone. Program-declared names (procedures, struct constructors)
+ * are not part of it: they are the learner's own, and `checker-unknown-command.ts` exempts them
+ * from demotion for that reason.
  */
 
 import type { CheckProfile } from "./check.js";
 import type { ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
-import { OL_RESERVED_WORDS } from "./reserved.js";
+import { OL_KEYWORDS, profileKeywords } from "./keywords.js";
 import {
-  corePrimitiveNames,
-  dataPrimitiveNames,
-  educationalPrimitiveNames,
-  geometryPrimitiveNames,
-  turtlePrimitiveNames,
+  primitiveRegistryProfiles,
+  profileCallableNames,
 } from "./signatures.js";
 
 /**
- * Every canonical lowercase name contributed by an optional (non-Core) conformance profile's
- * primitive table — currently Turtle & Rendering's, Educational's, Geometry's, and Data's. Computed
- * once as a frozen union so {@link isOptionalProfileName} stays a pure, allocation-free lookup; a
- * future optional-profile table adds its `...someProfileNames()` spread here alongside these,
- * exactly mirroring how {@link collectVisibleNames} itself is extended one profile at a time.
+ * Every name conformance profile `profile` contributes to the checker's name model, from the
+ * profile-keyed registries themselves rather than from a per-profile branch here.
+ *
+ * Three registries answer, and two of them are keyed by profile, so a profile that gains a table
+ * reaches both consumers below with **no edit to this module**:
+ *
+ * - {@link profileCallableNames} — the profile's primitives out of `signatures.ts`'s
+ *   `PROFILE_PRIMITIVES` (a `Record<CheckProfile, …>`, exhaustive by construction), plus Heritage's
+ *   short aliases, which that registry deliberately holds as `null` because an alias carries no
+ *   arity of its own.
+ * - {@link profileKeywords} — the profile's reserved statement heads out of `keywords.ts`'s
+ *   `OL_PROFILE_KEYWORDS` (`ask`/`each`/`tell`, the four event heads).
+ * - {@link OL_KEYWORDS} for Core alone. This is the one arm that names a profile, and it is not a
+ *   ladder rung: Core's keyword list is *defined* as the profile-independent one
+ *   (`keywords.ts`, `spec/grammar.md:408`), so it cannot be reached through a profile-keyed table,
+ *   and a keyword added to it is still picked up here with no edit.
+ *
+ * **Why one function rather than two similar loops.** Before this, an `OPTIONAL_PROFILE_NAMES`
+ * spread ladder and a nine-branch `if (active.has(<profile>))` chain each enumerated the profiles by
+ * hand, and they had already drifted: the ladder never grew a Tutor arm when issue #838 registered
+ * `TUTOR_PRIMITIVE_ARITY`, so `isOptionalProfileName("challenge")` answered `false` and `challenge`
+ * was treated as a Core word in the did-you-mean tie-break (issue #966). Both consumers now call
+ * this, so they cannot disagree about what a profile owns — the same structural move `signatures.ts`
+ * made when it collapsed the reader's and the checker's arity lookups onto one registry (#874).
  */
-const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set([
-  ...turtlePrimitiveNames(),
-  ...educationalPrimitiveNames(),
-  ...geometryPrimitiveNames(),
-  ...dataPrimitiveNames(),
-]);
+function profileContributedNames(profile: CheckProfile): readonly string[] {
+  const names = [...profileCallableNames(profile), ...profileKeywords(profile)];
+  if (profile === "core-language") {
+    names.push(...OL_KEYWORDS);
+  }
+  return names;
+}
 
 /**
- * Whether `name` (already lowercased) belongs to an optional conformance profile's primitive
- * table rather than Core Language. Used only for the did-you-mean tie-break — it answers "is this
- * candidate an optional-profile word?" independent of which profiles are currently active, since
- * a name only reaches the did-you-mean candidate set at all when its owning profile is active
- * (see {@link collectVisibleNames}).
+ * Every name contributed by an optional (non-Core) conformance profile, as a frozen union computed
+ * once so {@link isOptionalProfileName} stays a pure, allocation-free lookup.
+ *
+ * Derived by sweeping every profile the registry is keyed by except Core and asking
+ * {@link profileContributedNames} — so this set answers for a profile registered later without
+ * being edited, which is the property the spread ladder it replaces could not have.
+ */
+const OPTIONAL_PROFILE_NAMES: ReadonlySet<string> = new Set(
+  primitiveRegistryProfiles()
+    .filter((profile) => profile !== "core-language")
+    .flatMap((profile) => profileContributedNames(profile)),
+);
+
+/**
+ * Whether `name` belongs to an optional (non-Core) conformance profile rather than to Core
+ * Language — its primitives, its reserved statement heads, or (for Heritage) its short aliases.
+ *
+ * Used for `ol-unknown-command`'s did-you-mean tie-break, which asks "is this candidate an
+ * optional-profile word?" independent of which profiles are currently active, since a name only
+ * reaches the candidate set at all when its owning profile is active (see
+ * {@link collectVisibleNames}). Matching is case-insensitive, like every other identifier lookup in
+ * this package — the internal caller passes an already-lowercased candidate, but this is a public
+ * export and a classification that silently answered `false` for `CHALLENGE` would be a trap.
  */
 export function isOptionalProfileName(name: string): boolean {
-  return OPTIONAL_PROFILE_NAMES.has(name);
+  return OPTIONAL_PROFILE_NAMES.has(name.toLowerCase());
+}
+
+/**
+ * Every name the program itself *declares* — user procedures (`ProcedureDef`) and, when Data is
+ * relevant, `struct` constructors (`StructDef`) — lowercased. These are program-declared, not
+ * profile-owned: they are visible regardless of the active profile set (mirroring
+ * {@link collectVisibleNames}'s unconditional procedure/struct walk). The did-you-mean tie-break
+ * uses this to tell a user's `define fd … end` apart from the Heritage alias `fd` that happens to
+ * share its spelling — a declared name must never be demoted as if it were the short alias
+ * (`spec/error-model.md:210-211` orders full canonical names over *Heritage aliases*, not over a
+ * learner's own procedures).
+ */
+export function collectDeclaredNames(
+  program: ProgramNode,
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  walk(program, (node) => {
+    if (node.kind === "ProcedureDef" || node.kind === "StructDef") {
+      names.add(node.name.name.toLowerCase());
+    }
+  });
+  return names;
+}
+
+/**
+ * Registered primitives a program may not yet **call**, because a profile registered the name
+ * before any evaluator could run it.
+ *
+ * `challenge` is the only one: issue #838 registered `TUTOR_PRIMITIVE_ARITY` so the name would stop
+ * being invisible to every parser component at once, but `@openlogo/runtime` has no evaluator for
+ * it. Making it visible here would let `challenge` check clean and then do nothing at run time,
+ * which is precisely the "silent no-op" this repository refuses: **both halves of a name's
+ * registration — checker visibility and a runtime that can run it — land in the same slice**, so a
+ * program that checks clean is a program the runtime can actually execute. Until that slice,
+ * `ol-unknown-command` is the honest answer.
+ *
+ * It is an **exception to a derivation, not a second list** — the shape issue #885 proved and epic
+ * #900 cites as its own precedent ("derived `NON_PRIMARY_NAMES` from the registry minus an explicit
+ * allowlist"). Names still come from the registries; only the deliberate withholding is written
+ * down, so shipping Tutor's evaluator is one line deleted here rather than an arm someone must
+ * remember to add. Note it deliberately does **not** narrow {@link isOptionalProfileName}: whether
+ * `challenge` is an optional-profile word is a question about the registry, not about what runs
+ * today, and answering it correctly now is what makes that slice a deletion.
+ *
+ * **What checks it, stated exactly.** This module cannot verify the claim itself — "an evaluator
+ * exists" is a fact about `@openlogo/runtime`, which the parser must not depend on — so the entry
+ * is a **manual cross-package exception**, and no test here can detect that an evaluator has since
+ * shipped. What {@link namesAwaitingAnEvaluator} makes checkable is the half that lives in this
+ * package: `checker-names-derivation.test.mjs` asserts every entry is a name some profile actually
+ * registers, so a typo or a name left behind after its table was removed fails rather than silently
+ * withholding nothing, and `profile-arity-derivation.test.mjs` pins that `challenge` is the only
+ * name withheld, so a second one cannot be added unremarked. Retiring the entry stays a human step,
+ * which is why it is one line with its reason beside it.
+ */
+const NAMES_AWAITING_AN_EVALUATOR: ReadonlySet<string> = new Set(["challenge"]);
+
+/**
+ * The registered primitives the checker deliberately withholds from
+ * {@link collectVisibleNames} because no evaluator can run them yet. See
+ * {@link NAMES_AWAITING_AN_EVALUATOR} for why the exception exists and what does — and does not —
+ * enforce it.
+ *
+ * Exported because it is a **claim**, and a claim nothing can call is a claim nothing can check.
+ * The `challenge` misclassification survived precisely because the set it belonged to was
+ * unreachable from outside the module, so no test could name it.
+ */
+export function namesAwaitingAnEvaluator(): readonly string[] {
+  return [...NAMES_AWAITING_AN_EVALUATOR].sort();
 }
 
 /**
  * Every name visible to a call site in `program` under the active `profiles`, lowercased to
- * OpenLogo's canonical spelling (identifiers are case-insensitive). Includes Core primitives and
- * reserved structural words only when `"core-language"` is active, Turtle & Rendering primitives
- * only when `"turtle-rendering"` is active, the `explain`/`why`/`hint`/`debug` meta-commands only
- * when `"educational"` is active, the `grid`/`axes`/`measure` overlay primitives only when
- * `"geometry"` is active, the `list`/`dict`/`reverse`/`pick`/`sort`/`keys`/`values`/`type_of`
- * primitives (plus every `struct` type's constructor name declared anywhere in `program`) only
- * when `"data"` is active, plus every procedure declared anywhere in `program` (declaration order
- * and position do not matter — OpenLogo procedures are available program-wide, not just after
- * their `define`, and the same is true of struct constructors, which register at phase-1 exactly
- * like procedures do — `@openlogo/runtime`'s `collectStructs`).
+ * OpenLogo's canonical spelling (identifiers are case-insensitive).
+ *
+ * Each active profile contributes exactly what {@link profileContributedNames} says it owns — its
+ * primitives, its reserved statement heads, and (for Core) the structural keywords — so a profile
+ * that is not in `profiles` contributes nothing and a profile registered later contributes without
+ * an edit here. That is `spec/tooling.md:175-176`'s requirement ("MUST use the active conformance
+ * profile set when deciding which primitives and profile block-heads are available") expressed as a
+ * sweep rather than as one hand-written `if (active.has(<profile>))` branch per profile — the shape
+ * that had already drifted from the registry it mirrored (issue #966).
+ *
+ * The sweep withholds {@link NAMES_AWAITING_AN_EVALUATOR}, which is the one thing visibility asks
+ * that the registry cannot answer. This is where this set and {@link isOptionalProfileName}'s
+ * legitimately differ: both read the same profile registries, and only *callability* is filtered.
+ *
+ * Two things a *program* declares are added on top, and they carry different gates. Every `define`d
+ * procedure is added **unconditionally** — procedures are not profile-owned, and declaration order
+ * and position do not matter, since OpenLogo procedures are available program-wide rather than only
+ * after their `define`. Every `struct` type's constructor name is added **only when `"data"` is
+ * active**, because `struct` is that profile's form; it mirrors `@openlogo/runtime`'s phase-1
+ * `collectStructs`, and it registers program-wide exactly as a procedure does.
  */
 export function collectVisibleNames(
   program: ProgramNode,
@@ -89,46 +202,21 @@ export function collectVisibleNames(
   const active = new Set(profiles);
   const names = new Set<string>();
 
-  if (active.has("core-language")) {
-    for (const name of corePrimitiveNames()) {
-      names.add(name);
-    }
-    for (const word of OL_RESERVED_WORDS) {
-      names.add(word);
-    }
-  }
-
-  if (active.has("turtle-rendering")) {
-    for (const name of turtlePrimitiveNames()) {
-      names.add(name);
-    }
-  }
-
-  if (active.has("educational")) {
-    for (const name of educationalPrimitiveNames()) {
-      names.add(name);
-    }
-  }
-
-  if (active.has("geometry")) {
-    for (const name of geometryPrimitiveNames()) {
-      names.add(name);
+  for (const profile of active) {
+    for (const name of profileContributedNames(profile)) {
+      if (!NAMES_AWAITING_AN_EVALUATOR.has(name)) {
+        names.add(name);
+      }
     }
   }
 
   if (active.has("data")) {
-    for (const name of dataPrimitiveNames()) {
-      names.add(name);
-    }
     walk(program, (node) => {
       if (node.kind === "StructDef") {
         names.add(node.name.name.toLowerCase());
       }
     });
   }
-
-  // Future optional-profile primitive/block-head tables register here, gated the same way, once
-  // their tables exist.
 
   walk(program, (node) => {
     if (node.kind === "ProcedureDef") {

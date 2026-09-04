@@ -1,5 +1,5 @@
 {
-  "description": "Contextual keywords are legal binder and local names: `for empty in ...`, `for member from ... to ...`, and `local of` all declare ordinary names (spec/grammar.md:365), and their reads resolve. No ol-reserved-word (contrast issue #113) and no undefined-variable diagnostic, so check() reports an empty stream.",
+  "description": "Contextual keywords are legal binder and `local` BINDING names: `for empty in ...`, `for member from ... to ...`, and `local of` all bind ordinary names. They are structural by POSITION only -- just after `is` for all four, and additionally in the Heritage `value of ... for key` reader for `of` (spec/grammar.md:380) -- and a binder or `local` name is neither of those. Their reads resolve. No ol-reserved-word: these four are not built-in names, and since maintainer ruling #833 (issue #837) no binding position raises it for any name, `local` included, because `local` is not one of the grammar's four declaration slots (spec/grammar.md:382,386). No undefined-variable diagnostic either, so check() reports an empty stream. The carve-out specific to these four is proven at the DECLARATION slot by contextual-keyword-as-procedure-name.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

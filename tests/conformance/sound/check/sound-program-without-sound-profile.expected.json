@@ -1,0 +1,63 @@
+{
+  "description": "issue #692 (S4 tooling): the Core-only negative of `sound-program-checks-clean`. The reader groups every Sound call's arguments by registered arity regardless of profile (`spec/tooling.md:175-176`), so this parses cleanly; but without the `sound` profile the Layer-2 checker does not know `set_tempo`/`note`/`rest`/`play`/`beep` as callees and flags each `ol-unknown-command` at its own span - even nested inside a `[ ... ]` block, inside `repeat`, and in a procedure body. The user procedure `melody` and its call stay known. `note`/`rest` also carry a did-you-mean to their nearest Core word.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/sound-program-without-sound-profile",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "params": { "name": "set_tempo" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/sound-program-without-sound-profile",
+        "start": [3, 14],
+        "end": [3, 18]
+      },
+      "params": { "name": "note", "suggestion": "not" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/sound-program-without-sound-profile",
+        "start": [3, 26],
+        "end": [3, 30]
+      },
+      "params": { "name": "rest", "suggestion": "last" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/sound-program-without-sound-profile",
+        "start": [4, 3],
+        "end": [4, 7]
+      },
+      "params": { "name": "play" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "sound/check/sound-program-without-sound-profile",
+        "start": [5, 3],
+        "end": [5, 7]
+      },
+      "params": { "name": "beep" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

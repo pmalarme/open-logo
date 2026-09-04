@@ -2,9 +2,10 @@
 name: definition-of-done
 description: >-
   The OpenLogo Definition of Done — the CI-enforced checklist and PR expectations every change must
-  meet before it can merge. Use to self-verify before opening or updating a pull request.
+  meet before it can merge, plus the ungated-prose rule (a derived count is an unenforced
+  assertion). Use to self-verify before opening or updating a pull request.
 created: 2025-06-01T00:00
-updated: 2026-08-02T00:00
+updated: 2026-08-25T00:00
 ---
 
 ## Purpose
@@ -25,10 +26,45 @@ A change is "done" only when it is proven, documented, and green. This skill is 
    CI then fails.
 5. **Conformance fixtures pass** and were extended for the new/changed behavior
    (`shared/conformance-fixture`).
-6. **Runnable examples still run** — `spec/examples/*.logo` and doc snippets parse and execute.
+6. **Runnable examples still run** — `npm run examples` covers both halves: `spec/examples/*.logo`
+   files **and** every ` ```logo ` block fenced in `spec/**.md` / `docs/**.md` (issue #850,
+   [ADR-0022](../../../../docs/adr/0022-documentation-example-gate.md)). Fence OpenLogo source in
+   prose as ` ```logo ` — a bare fence is never checked. A block either runs clean or is listed,
+   with a rationale, in `scripts/markdown-examples-expectations.json`, where its exact `ol-*` codes
+   are asserted; never add an entry to silence a real defect — record it as `known-broken` with its
+   tracking issue and route it to its owner. An example that registers a handler **needing host
+   delivery** (`on_key`, `on_click`, or a `when` for any event other than an exact-case `"start"`) **must** declare
+   a deterministic host-input schedule in
+   `scripts/examples-host-input.json` and produce the output it asserts (issue #955) — without one,
+   a program runs with an empty host, so those handlers are unreachable and the gate certifies that
+   it parses and executes while asserting nothing about its interaction. The requirement is derived
+   from the source, so a deleted entry fails rather than silently relaxing the gate. `every` and an
+   exact-case `when "start"` are excluded — both fire without host delivery. This gate drives the
+   **runtime**,
+   so it covers the language-level contract; the studio host seam is covered by `packages/studio`'s
+   own tests. The summary line reports how many examples ran with a schedule versus with an empty
+   host, so the blind fraction stays visible.
 7. **Accessibility/pedagogy checks pass** where applicable (reduced-motion, keyboard, non-visual
    descriptions; progressive hints / no-spoilers).
-8. **Docs & spec cross-links updated** in the same PR (no drift).
+8. **Docs & spec cross-links updated** in the same PR (no drift). Any **count or `file:line`
+   citation** the change writes or touches is re-derived against the current tree, or replaced by a
+   pointer at what produces it (see "Derived counts in prose" below). **A change to any built-in
+   name is machine-gated**: `npm run built-in-names` asserts `spec/built-in-names.json` — the
+   authoritative list of every keyword and primitive, aliases included
+   ([ADR-0021](../../../../docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against
+   `@openlogo/parser`'s registries in **both** directions, and reaches the three hand-maintained
+   prose lists that nothing used to check. Two of them are **compared**: `spec/grammar.md`'s
+   normative keyword block, against the list, and `spec/tooling.md`'s C19 mirror, against that
+   block. The third, `spec/tooling.md`'s `keyword` **token-class** enumeration (a different set from
+   the keyword list on purpose, `spec/grammar.md:378`), moved out of the row and into the list as a
+   per-name `tokenClass` (issue #959): the gate re-paints every name through the shipped
+   `highlight()` and compares, so a **declared** class that is wrong can no longer be green. The
+   reverse direction covers the name sources `highlight()` reads, not arbitrary output — ADR-0026
+   states the limits. Adding or
+   removing a **primitive**
+   is therefore a deliberate **two-file** change — the registry and the list — and CI is red until
+   both land; a **keyword** touches the prose lists too. The list is under `spec/`, so changing it
+   needs a maintainer review via `CODEOWNERS`.
 9. **Self-review passed before the PR** — the implementing agent ran
    [`shared/review-gate`](../review-gate/SKILL.md) in-session: at least two non-author sub-agents —
    the logic/spec reviewer (`rubber-duck`, or a named fallback) plus **every** domain-adaptive QA
@@ -56,6 +92,50 @@ write-set), iterates until all reviewers return `pass` on one final SHA with not
 `@orchestrator` (or a human) does the final verification and merge. Still open after round 10? Do not
 open the PR: escalate to `@orchestrator`/the maintainer with the outstanding findings and per-round
 SHAs.
+
+## Derived counts in prose are unenforced assertions
+
+A number written into prose — "14 fixtures", "three reviewers", "181 lines", "3599 tests passing" —
+is a claim **nothing recomputes**. It may be wrong the moment it is written (see the measurement
+traps below), and even when correct it can drift silently from then on, with nothing to announce
+that it has. `spec/` fenced ` ```logo ` blocks are gated (item 6 above); the numbers in the prose
+around them are not. Issue **#898** catalogues the measured instances from saga #572 — every one
+caught by a reviewer re-deriving, none by a gate.
+
+A number *looks* like evidence, which is what makes it dangerous, and a wrong one in a durable
+record **manufactures a future false alarm about the exact thing the record exists to reassure
+about**: record 289 as a file's length and the next person running `wc -l` sees a mismatch and
+believes something shifted. These counts are load-bearing — in that saga one sized a write-set and
+another fed an implementation plan.
+
+The rule, in priority order:
+
+1. **Prefer prose that derives or points** over prose that restates. Name the script, command, or
+   constant that produces the number (`npm run conformance`, `DEFAULT_INSTRUCTION_BUDGET`,
+   "the profiles listed in `spec/conformance.md`") instead of copying its current value. A pointer
+   stays true when the thing it points at changes.
+2. **When a literal number is genuinely clearer, re-derive it at the moment you write it** — not
+   from memory, not from an earlier PR body, not from another document — and again before the PR is
+   opened. Cite the command you ran.
+3. **Treat `docs/adr/` and `docs/design-notes/` as the highest-cost place for a number.** Those
+   records are **immutable once Accepted**, so a wrong count there can never be corrected in place,
+   only superseded by a new record. Prefer a pointer there, always.
+4. **`file:line` citations are the same defect wearing a different hat.** Verify every
+   `spec/*.md:<line>` against the *current* file; a renumbering elsewhere in the saga silently
+   invalidates citations nobody touched.
+
+Two measurement traps produce a *plausible wrong number* rather than an error, so re-derive with a
+command you have sanity-checked:
+
+- `Get-Content <file> | Measure-Object -Line` counts **non-blank** lines, not file length.
+- A de-duplicating script counts **unique citation strings**, not citation **sites**.
+
+Gating every number in prose is not tractable and is not attempted here; this is a stated,
+known-ungated surface. The reviewer-side counterpart is `shared/review-gate` item (f): re-derive,
+don't re-read. The measurement itself has the same problem one level down — a green run can enumerate
+something other than what you changed — and its rule lives there too, as
+[`shared/review-gate`](../review-gate/SKILL.md)'s *"The instrument may be measuring something other
+than what you think"*. That is a pointer, not an eleventh entry: like this section, it is discipline.
 
 ## Three-tier governance ladder (Issue → Epic → Saga)
 
@@ -109,7 +189,10 @@ Sagas replaced GitHub milestones, so these gates operate on
 - [ ] build + type-check   - [ ] lint (+ style)   - [ ] unit   - [ ] 100% coverage (line/branch/function)
 - [ ] conformance fixtures extended + green
 - [ ] examples run   - [ ] a11y/pedagogy (if applicable)
+- [ ] `npm run built-in-names` green (any keyword/primitive change is a two-file change: registry + `spec/built-in-names.json`)
+- [ ] `npm run adr-numbering` green (adding or renaming an ADR: number unique, `# N.` heading agrees, every reference resolves)
 - [ ] docs + spec cross-links updated
+- [ ] every count and `file:line` citation re-derived against the current tree (or replaced by a pointer)
 - [ ] self-review passed before PR (logic/spec reviewer + every domain QA, all ≠ author)
 - [ ] every finding resolved — blocking **and** non-blocking (fixed, or declined with rationale + follow-up issue); converged within 10 review rounds
 - [ ] one PR, write-set declared, shared files serialized

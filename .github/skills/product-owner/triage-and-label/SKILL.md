@@ -20,15 +20,26 @@ tracks can pull their own work.
   `turtle-engine`, `learner-experience`, `geometry-teacher`, `ai-tutor`, `curriculum`, `testing`,
   `documentation`, `devops`.
 - **`type:*`** — `feature-request`, `saga`, `epic`, `spec`, `slice`, `bug`, `conformance`,
-  `foundation`, `docs`, `chore`.
+  `foundation`, `docs`, `task`, `chore`.
 - **`profile:*`** — `core`, `turtle-rendering`, `data`, `geometry`, `heritage`, `sprites`,
   `interaction`, `sound`, `modules`, `localization`, `educational`, `tutor-ai`.
-- **`area:*`** — `grammar`, `highlighter`, `checker`, `core`, `runtime`, `rendering`, `studio`, `edu`,
-  `ci`, `docs` (the cross-cutting domain, orthogonal to the owning agent).
+- **`area:*`** — `parser`, `grammar`, `highlighter`, `checker`, `core`, `diagnostics`, `runtime`,
+  `rendering`, `studio`, `edu`, `ci`, `tooling`, `testing`, `docs` (the cross-cutting domain,
+  orthogonal to the owning agent). Prefer `grammar`/`highlighter`/`checker` over the `parser`
+  umbrella when the work sits in one of them.
 - **`level:*`** — `1`–`8` for curriculum items (progression, not a profile).
 
 ## Rules
 
+- **`area:*`/`profile:*` labels and commit scopes are one taxonomy.** `validate-commits.py`'s
+  `AREAS` mirrors the `area:*` labels (minus `core`, already a profile scope) and its `PROFILES`
+  mirrors the `profile:*` labels; `.github/scripts/validate-labels.py` re-derives **both** mirrors in
+  CI. **Adding an `area:*` or `profile:*` label is a two-file change** — the manifest and the
+  matching scope set — or every PR title scoped to it fails the blocking check.
+- **Never apply a label that is not in the manifest.** `label-drift.yml` fails on it (issue #972) —
+  including a namespaced label nobody uses, which must instead be declared in
+  `.github/labels-retired.yml` with a reason. The additive label sync cannot remove it for you, and
+  the drift shows up as somebody else's red pipeline. Add it to `.github/labels.yml` first.
 - **Exactly one `agent:*` and one `type:*`** per issue; add `profile:*`/`area:*`/`level:*` as they apply.
 - **Hierarchy ≠ label:** an issue's place in the DAG is its **native sub-issue parent** (epic → saga,
   work issue → epic), **not** a `profile:*` label (the label says which profile the work touches; the
@@ -120,10 +131,18 @@ apply this automatically; **non-template creation must add the prefix by hand**.
 | `type:feature-request` | `[request]:` | feature-request.yml |
 | `type:slice` | `[slice]:` | feature-slice.yml |
 | `type:foundation` | `[foundation]:` | foundation.yml |
+| `type:task` | `[task]:` | _(none — derived)_ |
 | `type:chore` | `[chore]:` | _(none — derived)_ |
 
 Note the two non-identity cases: **`type:feature-request` → `[request]:`** (not `[feature-request]:`)
 and the template-less **`type:chore` → `[chore]:`**.
+
+**`type:task` vs `type:chore`** — the boundary, because they are the only two kinds with no template
+and no obvious edge between them. A **task** is engineering work with a definition of done that
+changes behaviour, a gate, or a contract, but is not a learner-facing vertical slice (e.g. "make
+profile-statement dispatch compile-time exhaustive"). A **chore** is upkeep that changes nothing an
+agent or learner can observe: a rename, a dependency bump, a typo. If it needs review for
+correctness rather than tidiness, it is a task.
 
 ### 3. Audit periodically
 

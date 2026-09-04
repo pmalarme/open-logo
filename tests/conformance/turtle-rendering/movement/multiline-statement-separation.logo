@@ -1,0 +1,6 @@
+# Issue #933's guard, at the turtle: a newline between two complete commands still ends the first
+# statement (`spec/grammar.md:34`), so this stays two instructions — one move, one turn — and never
+# collapses into a single expression. `forward 100` then `right 90` is the shape every learner
+# writes, so a fix that made expressions span newlines unconditionally would break it silently.
+forward 100
+right 90

@@ -1,0 +1,32 @@
+{
+  "description": "every registration is headless: it emits an instruction then a primitive after the handler is registered, and the block does not run until the tick clock advances (no wait here)",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-registration-headless",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-registration-headless",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "name": "every"
+      }
+    }
+  ],
+  "diagnostics": []
+}

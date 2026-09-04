@@ -1,0 +1,7 @@
+{
+  "description": "issue #684 (slice I5): on_key is a visible command name under the interaction-events profile, so a well-formed keyboard handler checks clean (spec/interaction-events.md's `### on_key <key-word> <block>`). This locks the checker half of the two-halves requirement — on_key is registered in both PROFILE_STATEMENT_FORMS (so it parses) and collectVisibleNames (so the live unknownCommandRule gate does not reject it as ol-unknown-command).",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

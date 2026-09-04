@@ -1,0 +1,37 @@
+{
+  "description": "issue #691: `play` (Sound profile, arity 1) resolves an even-length melody list of pitch/duration pairs and emits EXACTLY ONE `sound` event carrying the ordered melody as {pitch, duration} steps. Pitches are `note` pitch words or the literal `\"rest\"`; durations are carried verbatim in beats, never converted at emit (spec/interaction-events.md:294-295,320-334). The runtime models sound headlessly (scheduling + event emission, never an audio device), so the event is emitted unconditionally even in a muted environment. The `sound` event follows the instruction event (\"Sound commands emit `sound` events after sound state has been scheduled\").",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/play-basic",
+        "start": [1, 1],
+        "end": [1, 44]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 1,
+      "kind": "sound",
+      "source_span": {
+        "document": "sound/play-basic",
+        "start": [1, 1],
+        "end": [1, 44]
+      },
+      "payload": {
+        "command": "play",
+        "melody": [
+          { "pitch": "c4", "duration": 1 },
+          { "pitch": "e4", "duration": 1 },
+          { "pitch": "g4", "duration": 2 },
+          { "pitch": "rest", "duration": 1 },
+          { "pitch": "g4", "duration": 1 }
+        ]
+      }
+    }
+  ],
+  "diagnostics": []
+}

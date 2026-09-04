@@ -1,5 +1,5 @@
 {
-  "description": "A comparison operator with no right-hand operand at end of file reports ol-bad-token.",
+  "description": "A comparison operator with no right-hand operand at end of file reports ol-bad-token. The finding is anchored on the end-of-file token, not on the line break after `<`: since issue #933 a newline sitting where an operand is still pending is insignificant (`spec/grammar.md:34`), so the reader looks past it — `print 1 <` / `2` is a valid two-line expression, and only the genuine absence of an operand at end of file is an error.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],
@@ -8,10 +8,10 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/expressions/comparison-missing-operand",
-        "start": [2, 10],
+        "start": [3, 1],
         "end": [3, 1]
       },
-      "params": { "text": "end of line" },
+      "params": { "text": "end of file" },
       "stage": "parse",
       "severity": "error"
     }

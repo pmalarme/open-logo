@@ -1,0 +1,35 @@
+{
+  "description": "issue #690: `note`'s pitch MUST be a well-formed scientific-pitch-notation word; a word that is not a valid pitch (here \"h9\" - `h` is not a note letter a-g) raises `ol-type` at runtime with expected:\"pitch\" (distinct from a non-word argument's expected:\"word\"), mirroring `set_shape`'s word-then-recognized two-stage check (spec/error-model.md). No `sound` event is emitted. The instruction event is still emitted for the statement before the diagnostic halts it.",
+  "profiles": ["sound"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sound/note-pitch-type-error",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": { "statement_kind": "Call" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "sound/note-pitch-type-error",
+        "start": [1, 6],
+        "end": [1, 10]
+      },
+      "params": {
+        "expected": "pitch",
+        "actual": "word",
+        "value": "h9",
+        "operation": "note"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+define tell
+  print 1
+end
+define ask
+  print 1
+end
+define each
+  print 1
+end

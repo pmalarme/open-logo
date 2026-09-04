@@ -4,7 +4,7 @@
 
 Back to the [specification index](README.md).
 
-This document is the normative grammar for **OpenLogo**. The short name is **OL**, and source files use the **`.logo`** extension. It specifies lexis, reader-visible syntax, expression precedence, bracket roles, assignable places, and reserved structural words. Evaluation details and the block-result rule are defined in [execution-model.md](execution-model.md); this grammar supplies the syntactic slots that invoke that rule.
+This document is the normative grammar for **OpenLogo**. The short name is **OL**, and source files use the **`.logo`** extension. It specifies lexis, reader-visible syntax, expression precedence, bracket roles, assignable places, keywords, and the built-in names a program may not declare. Evaluation details and the block-result rule are defined in [execution-model.md](execution-model.md); this grammar supplies the syntactic slots that invoke that rule.
 
 ## Lexical form and encoding
 
@@ -48,13 +48,15 @@ Horizontal whitespace and indentation are insignificant except as token separato
 
 The grammar below uses W3C/ISO-style EBNF. Literal terminals are quoted. `? name ?` denotes a lexical class or semantic predicate described in prose. `{ x }` means zero or more repetitions. `[ x ]` means an optional item. `(* x *)` is a comment. In the EBNF itself these meta-brackets are notation, not OpenLogo source brackets.
 
-```logo
+```ebnf
 name                ::= identifier
 identifier          ::= ascii-identifier | unicode-identifier
 ascii-identifier    ::= ( "a"..."z" | "_" ) { "a"..."z" | "0"..."9" | "_" } [ "?" | "!" ]
 unicode-identifier  ::= XID_Start { XID_Continue | "_" } [ "?" | "!" ]
 callable-name       ::= identifier
 type-name           ::= identifier
+declared-callable-name ::= identifier   (* a declaration slot: built-in names are rejected here *)
+declared-type-name  ::= identifier      (* a declaration slot: built-in names are rejected here *)
 number              ::= [ "-" ] digit { digit } [ "." digit { digit } ] [ exponent ]
 exponent            ::= ( "e" | "E" ) [ "+" | "-" ] digit { digit }
 digit               ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
@@ -142,8 +144,8 @@ expression-block    ::= "[" { terminator } { statement { terminator } } "]"
 long-control-block  ::= terminator { statement terminator } control-end-label
 control-end-label   ::= "end" [ "if" | "while" | "repeat" | "for" | "forever" ]
 
-define-statement    ::= "define" callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
-to-statement        ::= "to" callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
+define-statement    ::= "define" declared-callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
+to-statement        ::= "to" declared-callable-name { required-parameter } { optional-parameter } terminator { statement terminator } define-end
 define-end          ::= "end" [ "define" ]
 required-parameter  ::= ":" name
 optional-parameter  ::= "(" ":" name expression ")"
@@ -152,13 +154,15 @@ stop-statement      ::= "stop"
 throw-statement     ::= "throw" expression
 local-statement     ::= "local" name | "(" "local" name { name } ")"
 
-struct-declaration  ::= "struct" type-name field-list
+struct-declaration  ::= "struct" declared-type-name field-list
 field-list          ::= "[" identifier { identifier } "]"
 
-alias-statement     ::= "alias" identifier identifier
+alias-statement     ::= "alias" declared-callable-name identifier
 import-statement    ::= "import" word-literal
 export-statement    ::= "export" identifier
 ```
+
+`declared-callable-name` and `declared-type-name` are the grammar's **declaration slots**: the four positions where a program asks OpenLogo to register a new callable name — `define`, the heritage `to`, `struct`, and the first operand of `alias`. They exist so that the rule in [Keywords, primitives, and built-in names](#keywords-primitives-and-built-in-names) is readable straight off the grammar rather than kept as a separate list. Both expand to `identifier`, so **parsing is unchanged**: the distinction is which names are legal in the slot, not which tokens are read there. `callable-name` and `type-name` remain the **call** slots (`fixed-call`, `parenthesized-call`, `type-constructor-call`), where every built-in name is of course legal — that is how `forward 100` and `point 3 4` are written.
 
 ## Expressions and calls
 
@@ -172,7 +176,7 @@ forward random 100
 
 Expression grammar:
 
-```logo
+```ebnf
 expression          ::= or-expression
 or-expression       ::= and-expression { "or" and-expression }
 and-expression      ::= comparison { "and" comparison }
@@ -205,7 +209,7 @@ list-literal        ::= "[" [ expression { expression } ] "]"
 dict-literal        ::= "{" { dict-entry } "}"
 dict-entry          ::= dict-key ":" expression
 dict-key            ::= identifier | number
-(* dict entries are separated by whitespace or newlines, never by commas *)
+(* entries are separated by whitespace or newlines, never by commas; the entry-lookahead rule below decides where an entry ends, never a line break *)
 parenthesized-expression ::= "(" expression ")"
 fixed-call          ::= callable-name { ? the callable's default arity, each input a full expression ? }
 parenthesized-call  ::= "(" callable-name { expression } ")"
@@ -227,7 +231,7 @@ Binary operators are left-associative. `and` and `or` short-circuit. `not` is un
 
 Each input to a prefix call is a full expression, so infix operators bind inside the argument rather than around the call: `forward :size * 2` means `forward (:size * 2)`, and `power 2 3 * 4` means `power 2 (3 * 4)`. Reporters still nest by their known arity, so `forward random 100` means `forward (random 100)`.
 
-Comparisons may be **chained**: `1 < :x < 10` reads as `1 < :x and :x < 10`, evaluating each operand once with `and` short-circuit semantics. The worded predicates are written **operand-first**, matching the grammar production (the value precedes `is`): `<value> is empty`, `<value> is member of <collection>`, `<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and <high>`. They sit at the comparison level and produce booleans. Among the words involved, `is`, `strictly`, and `between` are globally reserved; only `empty`, `member`, `of`, and `a` are contextual keywords recognized just after `is`, so those four remain usable as ordinary names elsewhere. Operand types depend on the operator: ordering comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or words; `==` and `!=` compare any two values; `<value> is empty` accepts lists, dicts, and words; `<value> is member of` accepts lists and dicts; `<value> is a` accepts any value. An operand of the wrong type raises `ol-type`. The worded `is a` form takes a literal type word in the grammar (`"a" word-literal`), so a non-word there is a parse error, while a well-formed type word that names no built-in type or declared struct raises `ol-unknown-type`. The prefix `is_a? value type` instead evaluates its type argument: a non-word type raises `ol-type`, and an unknown type word raises `ol-unknown-type`.
+Comparisons may be **chained**: `1 < :x < 10` reads as `1 < :x and :x < 10`, evaluating each operand once with `and` short-circuit semantics. The worded predicates are written **operand-first**, matching the grammar production (the value precedes `is`): `<value> is empty`, `<value> is member of <collection>`, `<value> is a <type-word>`, and `<value> is [ strictly ] between <low> and <high>`. They sit at the comparison level and produce booleans. Among the words involved, `is`, `strictly`, and `between` are keywords everywhere; only `empty`, `member`, `of`, and `a` are contextual keywords, recognized just after `is` in the predicates above, so those four remain usable as ordinary names elsewhere. That scope is this section's, not the whole language's: `of` is also the preposition in the heritage `value of … for key` reader, and how a highlighter paints these four is settled by [tooling.md](tooling.md#normative-token-class-model), not here. Operand types depend on the operator: ordering comparisons (`<`, `>`, `<=`, `>=`) and `[ strictly ] between` require numbers or words; `==` and `!=` compare any two values; `<value> is empty` accepts lists, dicts, and words; `<value> is member of` accepts lists and dicts; `<value> is a` accepts any value. An operand of the wrong type raises `ol-type`. The worded `is a` form takes a literal type word in the grammar (`"a" word-literal`), so a non-word there is a parse error, while a well-formed type word that names no built-in type or declared struct raises `ol-unknown-type`. The prefix `is_a? value type` instead evaluates its type argument: a non-word type raises `ol-type`, and an unknown type word raises `ol-unknown-type`.
 
 ## Places, selectors, and keys
 
@@ -241,7 +245,7 @@ The set of assignable places is closed and recursive. Only these forms are place
 set people.tom.age to 9
 ```
 
-A colon place starts with `:` and a name. A bare place is the same syntax without `:` and appears only after `set` before `to`. Both may have any number of postfixes. A postfix is either `[ key-term ]` or `.identifier`.
+A colon place starts with `:` and a name. A bare place is the same syntax without `:` and appears only after `set` before `to`. Both may have any number of postfixes. A postfix is either `[ key-term ]` or `.identifier`. **Adjacency is whitespace-agnostic: any whitespace — space, tab, newline, or indentation — separates two tokens and therefore breaks adjacency. Only genuine zero-width adjacency binds a selector.** This does not contradict newlines being insignificant within an expression: a space is insignificant too, and it still separates. So `:nums[1]` is a selector, while `:nums [1]` and `:nums` followed by `[1]` on the next line are alike a place and a separate list literal — which is also what keeps a multi-line control or comprehension body a body rather than a selector on the header's last operand.
 
 Selector brackets contain exactly one key-term, not a general unparenthesized expression:
 
@@ -253,7 +257,7 @@ print :ages["tom"]
 print :nums[(:i + 1)]
 ```
 
-A bare identifier inside a selector is a literal word key. A `:name` term uses the variable value. Arithmetic or any other expression must be parenthesized. The `.identifier` form is always a literal field or key and is never evaluated. Reserved words are allowed as selector keys because they are data in this position.
+A bare identifier inside a selector is a literal word key. A `:name` term uses the variable value. Arithmetic or any other expression must be parenthesized. The `.identifier` form is always a literal field or key and is never evaluated. Built-in names are allowed as selector keys because they are data in this position.
 
 For assignment, all intermediate containers must already exist. Only the final selector may upsert a missing dictionary key. Missing intermediate dictionary keys raise `ol-unknown-key`; missing struct fields raise `ol-unknown-field`; out-of-range list indexes raise `ol-range`. Reporters such as `first`, `count`, and `keys` are not places and raise `ol-not-a-place` when used as assignment targets.
 
@@ -307,7 +311,7 @@ The result of a block is governed by the [block-result rule](execution-model.md)
 
 ## Collections, records, and comprehensions
 
-List literals contain whitespace-separated value expressions. Dictionary literals use bare keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden.
+List literals contain whitespace-separated value expressions. Dictionary literals use bare keys followed by `:` and a value expression. Entries are separated by whitespace or newlines; commas are forbidden. **Entry lookahead.** Once an entry's value is complete, whether the next `name` continues that value or opens the next entry is settled by the next token after it, ignoring any line breaks between the two — so a dictionary written on one line and the same dictionary written across several lines always read alike. Only a word that can do both jobs raises the question: one that both continues an expression and is a legal `dict-key`, which in v0.1 means `and`, `or`, `mod`, and `is`. For those, that following token decides. A `variable-read`, whose `:` is immediately followed by its name, keeps the word an operator, so `{ a: 1 mod :two }` is **one** entry whose value is `1 mod :two`. A `:` spelled any other way is the next entry's key separator, so `{ a: 1 mod: 2 }`, `{ a: 1 mod : 2 }`, and `{ a: 1 and: 2 }` are each **two** entries. The two readings can sit one space apart, and that space is what a reader must look for: `{ a: 1 mod:two }` is **one** entry, because `:two` is a variable-read, while `{ a: 1 mod: two }` is **two**, because that `:` is not. Anything else after the word — no `:` at all, as in `{ a: 1 mod 2 }` — leaves it an operator, since a `dict-entry` needs its `:`. Any other name cannot continue a complete value, so it opens the next entry however its separator is spelled, including the `:c` of `{ a: 1 b :c }`. Where the value is *not* yet complete — an operator or a call still owed an operand, say, or a `value of … for key` reader still owed its tail — the unfinished value's own grammar position wins and no entry opens, so `{ a: 1 + b: 2 }` is a malformed entry rather than two entries. Because none of this consults line breaks, newlines inside a dict literal are insignificant without exception.
 
 ```logo
 :nums = [1 2 3]
@@ -347,28 +351,67 @@ Core comprehension forms are special forms, not function-valued higher-order cal
 
 A comprehension is an expression: because it is recognized by its leading keyword, it may appear anywhere a value is expected — the right side of `=` or `set ... to`, a `return`, `output`, or `op` value, a call argument, or nested inside another comprehension. It may also stand alone as a statement. The `[ ... ]` that follows the collection is always the comprehension body, never a selector on that collection; to iterate over an indexed collection, parenthesize it, as in `map n in (:matrix[1]) [ :n * 2 ]`.
 
-## Reserved words and namespaces
+## Keywords, primitives, and built-in names
 
-The normative OpenLogo reserved-word list is:
+OpenLogo owns two kinds of name, and to a learner they are one idea.
 
-```logo
+- A **keyword** is a word the grammar itself gives meaning to rather than a name a program can introduce, such as `define`, `if`, `end`, `and`, or `mod`.
+- A **primitive** is a name the implementation itself provides — a command, reporter, or special form assigned by the [C3 primitive matrix](commands.md) or a profile document — together with every alias spelling of one, such as `fd` for `forward`, `pr` for `print`, and `setxy` for `set_xy`. A name that this specification defines as OpenLogo **source** is a library procedure rather than a primitive, even where the matrix lists its signature; the derived Geometry standard library is the case that matters and is covered below.
+
+Together, keywords and primitives are the **built-in names**. One rule governs them:
+
+**A program may not declare a built-in name. A program may bind a value to any name.**
+
+The normative OpenLogo keyword list is:
+
+```text
 define to end return output op stop throw
 set make local thing
 if else while repeat for forever in from at by
 key value add remove insert clear
 map filter reduce
-and or not true false
+and or not mod true false
 is between strictly
 struct alias import export
 ```
 
-`to` is one reserved word with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, `of`, and `a` are **not** reserved: they act as keywords only inside an `is`-predicate (`:x is empty`, `2 is member of :nums`, `:p is a "point"`) and stay ordinary names everywhere else. (`of` is also the contextual preposition in the heritage `value of … for key` reader.)
+`mod` is a keyword for the same reason `and`, `or`, and `not` are: all four are word-spelled operators of the expression grammar rather than callable primitives. Membership of this list answers one question — *may a program declare this name?* — and no other. It does not decide how a word is highlighted: `mod` and `and` are both classified `operator` by [tooling.md](tooling.md), which also uses `keyword` as the name of a **token class**. That token class and this list are different sets on purpose, and neither one determines the other. The two questions are independent, and a word may be structural in a given position without OpenLogo owning the name.
 
-Reserved words are structural tokens recognized by the reader. They may not be redefined as variables, procedures, primitives, or struct type constructors; such collisions raise `ol-reserved-word`. Reserved words may be aliased by `alias` or localized keyword packs because aliasing adds reader-recognized spellings rather than redefining the underlying word.
+`to` is one keyword with multiple contextual roles: heritage procedure opener, the preposition in `set ... to`, and the bound in `for ... from ... to`. By contrast, `empty`, `member`, `of`, and `a` are **not** keywords and **not** built-in names. They are structural by position only, acting as keywords inside an `is`-predicate (`:x is empty`, `2 is member of :nums`, `:p is a "point"`) and staying ordinary names everywhere else; `of` is additionally the contextual preposition in the heritage `value of … for key` reader. Because the positions that make them structural are positions no declaration can occupy, taking one of these names cannot make a definition unreachable: `define of` is legal, and `value of :d for key "a"` still reports the key's value afterwards. The contextual keywords are exactly these four; a word that looks structural is not a built-in name unless it appears in the keyword list above or the primitive matrix.
 
-Primitives, user procedures, and struct type constructors share one callable namespace. Record field names live in a per-type namespace reached only by `.field`, so they do not collide with globals or structural words. Dictionary keys and selector bare keys are data, not declarations, so reserved words are legal keys.
+**Declaring a name.** A declaration registers a new callable name. The grammar has exactly four declaration slots: `define`, the heritage `to`, `struct`, and the **first** operand of `alias`, written `declared-callable-name` and `declared-type-name` in the [EBNF](#ebnf-notation). A built-in name in any of those slots raises `ol-reserved-word`. **Nothing shadows.** `define count`, `define forward`, and `define fd` are equally errors, whether the name is a keyword, a Core primitive, a profile primitive, or an alias spelling of one. Allowing the declaration would give the learner a procedure that is live at some call sites and silently bypassed at others, decided by which spelling the call happens to use — a failure the learner cannot see, and one a rule with no exceptions removes by construction.
 
-Profile-specific reserved words are recognized only when their profile is active and are specified in their profile documents: the Sprites block heads `ask` and `each` and the Sprites command `tell` — a mode switch that takes no block — plus the Interaction block heads `when`, `every`, `on_key`, and `on_click`.
+`export` is **not** a declaration slot. `export <identifier>` names a procedure the program has already defined, so it is a reference: `export if` fails as an unknown name rather than as a built-in-name collision, because no procedure named `if` can exist. This section does not otherwise constrain `export` — the **Modules** profile owns its behavior (see [conformance.md](conformance.md#modules)).
+
+**Binding a name.** Binding attaches a value to a name and registers nothing. Every binding form MUST accept **any** name, including a keyword, a primitive, or an alias spelling of one: `<place> = <value>`, `set <place> to <value>`, `make "name" <value>`, `local <name>`, procedure parameters, `for` / `map` / `filter` binders and destructuring patterns, the `reduce` accumulator, struct field names, and dictionary keys. An implementation MUST NOT raise `ol-reserved-word` — or any other diagnostic — for the name alone in any of those positions, at any stage. `:end = 1` and `local count` are conforming programs.
+
+Enforcing the rule at the declaration slots rather than at the binding forms is what makes it complete. A restriction on a binding form is bypassable, because `local` is optional and the same name can be bound with `<place> = <value>` instead; the four declaration slots are the only way to register a callable, so there is nothing to bypass. Binding a built-in name was never the hazard: `:end = 1` shadows nothing, while a declaration OpenLogo accepts leaves the learner with a procedure that is unreachable, or with a primitive that silently stops working, or with both at once depending on the spelling at each call site.
+
+**Matching a keyword.** Freeing the binding forms does not turn a keyword into an ordinary word everywhere else. A word in the keyword list is matched as that keyword's terminal wherever the grammar names it at the current position, and is matched as `callable-name` only where the [C3 primitive matrix](commands.md) also gives that word a callable form — as it does for the `thing` reporter and for the variadic `( and … )` and `( or … )` forms. The positions that name data, or refer to a name rather than declaring one, admit keywords freely: a plain `name`, the `.identifier` of a `postfix` or `postfix-expression`, a `key-term`, a `dict-key`, a `field-list` field, the second operand of `alias`, and the name in `export`. That is what makes `:value = 1`, `{ value: 1 }`, `local end`, and `for end from 1 to 3` legal. The declaration slots admit them too — `define end` and `struct if` **parse**, and are then rejected by the rule above; that is precisely why `ol-reserved-word` is a semantic diagnostic and the four `declared-*` productions change no parsing. A keyword in a position none of these cover has no derivation at all and is a parse error, never a silently accepted name: `repeat key [ ]` does not read as a call to a procedure named `key`, and a bare `value` where an expression is expected is the head of the heritage `value of … for key …` reader where Heritage is present, and nothing at all where it is not.
+
+```logo
+:end = 1
+:if = 5
+local count
+make "repeat" 1
+:marks = { end: 1 }
+
+define forward :n     # error: forward is a built-in name
+  print :n
+end
+```
+
+A write **into** an existing value introduces no name and therefore never raises `ol-reserved-word`: `:people.repeat = 1` and `:nums[1] = 9` are unrestricted, because a postfix names a field or key, which is data.
+
+**Namespaces.** Primitives, user procedures, and struct type constructors share one callable namespace. Record field names live in a per-type namespace reached only by `.field`, so they do not collide with globals or structural words. Dictionary keys and selector bare keys are data, not declarations, so built-in names are legal keys.
+
+**Profile words are built-in names unconditionally.** A program cannot declare which profiles it requires — `import` loads modules, not profiles — so a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner. Every profile's keywords and primitives are therefore built-in names in **every** implementation, whether or not that profile is claimed: the Sprites block heads `ask` and `each` and the Sprites command `tell` — a mode switch that takes no block — the Interaction block heads `when`, `every`, `on_key`, and `on_click`, and the primitives of every optional profile. What a profile decides is whether a name *works*, never whether a program may declare it. The profile documents specify the behavior of these words; this section owns the naming rule.
+
+**Aliases.** Only the first operand of `alias` is a declaration. The second operand is the name being pointed at and is unrestricted, so `alias definir define` is legal — that is exactly how a localized keyword pack renames a keyword (see [localization.md](localization.md)). The first operand must be fresh: `alias repeat forward` raises `ol-reserved-word`. Aliasing adds a reader-recognized spelling; it never redefines the underlying word.
+
+**Redefining a name that is not built in.** A name that a program — or a library written in OpenLogo — has already declared is not a name OpenLogo owns, so taking it again is a duplicate definition rather than a collision with the language. Defining the same procedure twice, declaring the same struct twice, declaring a procedure and a struct with the same name in either order, and registering an `alias` spelling that a procedure or struct declaration already takes — in either order — all raise `ol-duplicate-definition`, which carries both source spans so the message can name the earlier declaration. It MUST be an error and MUST NOT be a silent override. The derived Geometry standard library is the case worth stating explicitly: `polygon`, `star`, `circle`, `arc`, `area`, and `perimeter` are written in OpenLogo source ([geometry-module.md](geometry-module.md)), so wherever that source is registered — declared by the program itself, or brought in by a module under the **Modules** profile — redefining one raises `ol-duplicate-definition`, and that earlier declaration is what supplies `original_span`. This specification defines **no automatic preload** of the Geometry library, so a program that neither declares nor imports it has nothing to duplicate, and its own `define polygon` is an ordinary definition. That is what keeps the teaching order in [educational-model.md](educational-model.md) true, because a learner may still build `polygon` from `repeat`. The `grid`, `axes`, and `measure` overlays are renderer-backed primitives, so they are built-in names and raise `ol-reserved-word` instead.
+
+**The built-in names of a version.** The built-in names are versioned with this specification. They are exactly the keywords listed above plus every primitive — in the sense defined above, which excludes the names this specification gives as OpenLogo source — and every alias spelling, assigned by the [C3 primitive matrix](commands.md) and the profile documents, so there is no second list to keep in step: adding or removing a built-in name is a specification change, never an implementation choice. An implementation claiming conformance to a version MUST reject a declaration of exactly that version's built-in names — no more and no fewer. See [conformance.md](conformance.md#versioning).
 
 ## Profile grammar extensions
 

@@ -1,0 +1,49 @@
+{
+  "description": "Heritage `value of … for key` on a WORD container raises the byte-identical Core `ol-type` the dotted `:w.tom` selector raises — `expected: \"dict\"`, `operation: \"field\"` (`spec/conformance.md:146`: alternate spellings only, no new semantics). One of the container-type fixtures issue #784 added so the corpus enumerates the non-dict types instead of sampling one: the defect it fixed was coherent for `word` and incoherent for `list`, so any corpus that tests some types and not others can hide the next one of its kind. NO Heritage spelling in any payload (`operation` is the Core `\"field\"`, never `\"value of\"` — issue #670). The span points at the reader's `:w` operand (localization-only difference — `spec/localization.md`). Heritage depends on Data (`spec/conformance.md:301`), so both `data` and `heritage` are active.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-word-container-like-core",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-word-container-like-core",
+        "start": [2, 1],
+        "end": [2, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-type",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-word-container-like-core",
+        "start": [2, 16],
+        "end": [2, 18]
+      },
+      "params": {
+        "expected": "dict",
+        "actual": "word",
+        "value": "hi",
+        "operation": "field"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

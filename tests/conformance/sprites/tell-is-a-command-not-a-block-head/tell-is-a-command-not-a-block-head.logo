@@ -1,0 +1,5 @@
+:t = new_turtle
+( tell :t )
+forward 10
+tell :t
+right 90

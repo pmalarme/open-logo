@@ -1,0 +1,78 @@
+{
+  "description": "The preserved half of issue #853: rejecting a bare `value`/`key` in expression position leaves their legal roles untouched. The Heritage `value of … for key …` reader (spec/grammar.md:213) still reads — matched before the reader's reserved-word guard because `of` directly follows — and reserved words remain legal data: a dict key `key`/`value`, a `.value` field read, and a BARE `[key]` selector, the `identifier` alternative of `key-term` (spec/grammar.md:111, :369). Executes, so this proves the forms still RUN, not merely parse.",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [8, 1],
+        "end": [11, 2]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [12, 1],
+        "end": [12, 39]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [12, 1],
+        "end": [12, 39]
+      },
+      "payload": { "values": ["alpha"] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [13, 1],
+        "end": [13, 22]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [13, 1],
+        "end": [13, 22]
+      },
+      "payload": { "values": [42] }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [14, 1],
+        "end": [14, 21]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/value-and-key-keep-their-legal-roles",
+        "start": [14, 1],
+        "end": [14, 21]
+      },
+      "payload": { "values": ["alpha"] }
+    }
+  ],
+  "diagnostics": []
+}

@@ -30,7 +30,10 @@ right is what makes OpenLogo readable to learners.
 - **Comments and strings are atomic** — never classify tokens inside `#`/`//`/`/* */` or closed
   `"..."`/`"""..."""` as keywords/vars/operators.
 - **Reserved words come from the generated C19 registry** in `tooling.md` — share the exact list with
-  the linter; do not hand-maintain a second copy.
+  the linter; do not hand-maintain a second copy. But **do not paint from it**: C19 membership answers
+  "may a program declare this name?", not "how is this token coloured". `and`, `or`, `not`, and `mod`
+  are C19 reserved words and are classified `operator` (`tooling.md`'s token-class table); the two
+  axes are independent (`grammar.md`'s *Keywords, primitives, and built-in names*).
 - **Two phases:** (1) lexical scan → preliminary classes; (2) after parse + symbol discovery → refine
   `procedure-name`, `type-name`, `field-name`, and delimiter **roles** (list/block/selector/pattern/
   field-list) as semantic-token modifiers. When semantic info is unavailable, emit grammar-safe
@@ -54,5 +57,6 @@ in the **same saga** — a grammar PR is not done until highlighting fixtures ar
 ## Checklist
 - [ ] All 15 classes produced; final class respects grammatical position.
 - [ ] Keywords case-insensitive; comments/strings atomic.
-- [ ] Reserved words sourced from the shared C19 registry.
+- [ ] Reserved words sourced from the shared C19 registry — and **not** used as the paint list
+      (`and`/`or`/`not`/`mod` are reserved yet `operator`).
 - [ ] Disambiguation fixtures pass; highlighter updated with the grammar in the same PR/saga.

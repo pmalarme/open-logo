@@ -76,7 +76,6 @@
       "params": {
         "message": "a polygon needs at least 3 sides"
       },
-      "message": "a polygon needs at least 3 sides",
       "stage": "runtime",
       "severity": "error"
     }

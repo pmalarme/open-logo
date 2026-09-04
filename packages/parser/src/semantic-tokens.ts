@@ -1,7 +1,7 @@
 /**
  * The LSP `textDocument/semanticTokens`-shaped contract (issue #121) layered over
  * {@link highlight}'s token-class + delimiter-role output — the "Informative LSP-style editor
- * integration" section of `spec/tooling.md:272-278`. It never re-lexes or re-classifies: every
+ * integration" section of `spec/tooling.md:274-280`. It never re-lexes or re-classifies: every
  * {@link SemanticToken} carries {@link highlight}'s own `class`/`text`/`source_span`/`role`
  * unchanged, plus a `modifiers` array populated from that section's exact modifier vocabulary —
  * `declaration`, `reference`, `readonly`, `defaultLibrary`, `listRole`, `blockRole`, and
@@ -31,10 +31,10 @@
  *    case, since a nested comprehension that re-shadows the name would itself just as validly
  *    mark those inner reads `readonly` again for its own binder.
  *  - `primitive` — every Core primitive/alias call is a call into the standard library, so it
- *    always gets `defaultLibrary` (`tooling.md:277`'s literal example).
+ *    always gets `defaultLibrary` (`tooling.md:279`'s literal example).
  *  - any class — a `[`/`]` carrying {@link Token.role} `"list"`, `"instruction-block"`, or
  *    `"selector"` gets `listRole`, `blockRole`, or `selectorRole` respectively; `"pattern"` and
- *    `"field-list"` have no named LSP modifier in `tooling.md:277` and so contribute none.
+ *    `"field-list"` have no named LSP modifier in `tooling.md:278-280` and so contribute none.
  *  - every other class (`keyword`, `number`, `word/string`, `comment`, `bracket`, `brace`,
  *    `paren`, `operator`, `index/dot`, `dict-key`) gets no declaration/reference/readonly
  *    modifier — there is no binding/use distinction for a literal, delimiter, or operator.
@@ -44,11 +44,16 @@ import type { Position } from "@openlogo/core";
 import type { AnyNode, Binder, ProgramNode } from "./ast.js";
 import { walk } from "./ast.js";
 import { parse } from "./parser.js";
-import type { BracketRole, Token, TokenClass } from "./highlight.js";
-import { highlight } from "./highlight.js";
+import type {
+  BracketRole,
+  HighlightOptions,
+  Token,
+  TokenClass,
+} from "./highlight.js";
+import { assertDocumentArgument, highlight } from "./highlight.js";
 
 /**
- * The LSP-style semantic-token modifiers from `spec/tooling.md:276-278`, in the document's own
+ * The LSP-style semantic-token modifiers from `spec/tooling.md:278-280`, in the document's own
  * order.
  */
 export const OL_TOKEN_MODIFIERS = [
@@ -93,12 +98,19 @@ function posKey(position: Position): string {
  * Classify `source` into a flat, source-ordered `SemanticToken[]` — {@link highlight}'s token
  * stream with LSP-style modifiers layered on top. Never throws on malformed input, matching
  * {@link highlight}'s own never-throw contract.
+ *
+ * `document` is **required** for the same reason it is on {@link highlight}: it keeps an options
+ * object out of that slot statically, and {@link assertDocumentArgument} rejects one at runtime.
+ * The guard is called here rather than left to the delegated {@link highlight} call so the
+ * `TypeError` names the function the caller actually invoked.
  */
 export function semanticTokens(
   source: string,
-  document = "<input>",
+  document: string,
+  options: HighlightOptions = {},
 ): SemanticToken[] {
-  const tokens = highlight(source, document);
+  assertDocumentArgument(document, "semanticTokens");
+  const tokens = highlight(source, document, options);
   const program = parse(source, document).ast;
   const readonlyReads = collectComprehensionBinderReads(program);
   return tokens.map((token) => ({
@@ -113,6 +125,12 @@ function modifiersFor(
 ): TokenModifier[] {
   const modifiers: TokenModifier[] = [];
   if (token.class === "primitive") {
+    // KNOWN DEVIATION (#831): `spec/tooling.md:31` makes `primitive` the grammar-safe **fallback**
+    // for any bare name no other row claims, and says that fallback "is not a claim of matrix
+    // membership, and tools MUST NOT infer one from it". This branch infers exactly that, so an
+    // unresolved name (`fowad`, `zzz`) or a contextual word outside its structural positions
+    // (`local empty`) is decorated `defaultLibrary` despite being in no C3 table. Narrowing this to
+    // confirmed built-ins is #831's; the fallback CLASS itself is now normative and correct.
     modifiers.push("defaultLibrary");
   }
   const roleModifier =

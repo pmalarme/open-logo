@@ -1,6 +1,6 @@
 /**
  * Deterministic SVG export: serializes the retained {@link TurtleScene} (`scene.ts`) plus the
- * turtle avatar from {@link TurtleState} (`state.ts`) as a vector SVG document
+ * turtle avatars from {@link TurtleState}/{@link TurtleWorldState} (`state.ts`/`world-state.ts`) as a vector SVG document
  * (`spec/rendering.md`'s "Rendering targets" and "Export determinism" sections).
  *
  * Rather than re-implementing the coordinate mapping, draw order, or shape geometry a second
@@ -38,7 +38,7 @@
  *   unchanged from Canvas); when `false`, the avatar is omitted regardless of visibility.
  */
 
-import type { RenderTarget, Viewport } from "./canvas.js";
+import type { PaintableTurtles, RenderTarget, Viewport } from "./canvas.js";
 import { paintScene, paintTurtle } from "./canvas.js";
 import { INITIAL_OVERLAY_STATE, type OverlayState } from "./overlay.js";
 import type { TurtleScene } from "./scene.js";
@@ -199,14 +199,16 @@ class SvgRenderTarget implements RenderTarget {
 }
 
 /**
- * Exports the retained scene (and, by default, the visible avatar) as a deterministic SVG
+ * Exports the retained scene (and, by default, every visible avatar) as a deterministic SVG
  * document string, using exactly the same coordinate mapping and draw order as
  * `paintTurtle`/`paintScene` (`canvas.ts`, #214) — see the module doc comment for the full
- * determinism rationale.
+ * determinism rationale. `turtles` is either one turtle's {@link TurtleState} or a whole
+ * {@link TurtleWorldState}; with a world, every live turtle's avatar is serialized with its own
+ * shape, heading, color, and visibility, in creation order.
  */
 export function exportTurtleSvg(
   scene: TurtleScene,
-  state: TurtleState,
+  turtles: PaintableTurtles,
   viewport: Viewport,
   options: SvgExportOptions = {},
   overlay: OverlayState = INITIAL_OVERLAY_STATE,
@@ -216,7 +218,7 @@ export function exportTurtleSvg(
   const paintedOverlay = includeOverlays ? overlay : undefined;
   const target = new SvgRenderTarget();
   if (includeAvatar) {
-    paintTurtle(target, scene, state, viewport, paintedOverlay);
+    paintTurtle(target, scene, turtles, viewport, paintedOverlay);
   } else {
     paintScene(target, scene, viewport, paintedOverlay);
   }

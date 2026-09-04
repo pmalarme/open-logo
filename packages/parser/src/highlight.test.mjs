@@ -7,7 +7,9 @@
 //   * every lexical class reachable without symbol discovery: keyword, primitive, number,
 //     word/string, :variable, comment, bracket, brace, paren, operator, index/dot, dict-key;
 //   * all 5 bracket delimiter roles: list, instruction-block, selector, pattern, field-list;
-//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-98);
+//   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-99); `of`'s
+//     second reader-recognized position, the Heritage `value of … for key` reader
+//     (spec/grammar.md:380), is proven in `heritage-tooling.test.mjs` (issue #785);
 //   * comment/string atomicity (spec/tooling.md:25-26);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
 //   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
@@ -16,10 +18,21 @@
 //
 // The dict-*literal* half of `dict-key` (`{ key: value }`) is covered alongside the selector
 // half (issue #149): both share the identical bare-identifier-vs-quoted-word disambiguation.
+//
+// The final section pins the `profiles` option's BLAST RADIUS (issues #832, #840): the per-profile
+// suites assert that the six profile block-heads plus the Sprites mode-switch command `tell`
+// (which takes no block — `spec/turtles-and-sprites.md` keeps that distinction, and
+// `spec/tooling.md:30` moves "a profile's block-heads and its mode-switch commands" alike) move,
+// while this file asserts that a representative corpus of non-profile sources does not.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
+// `ARM_FOR_KIND` is package-internal — not re-exported from `index.ts`, and the exports map blocks
+// a deep specifier import — so the sweep-completeness oracle reaches it through `../dist`, the
+// idiom this repo already uses for internals (`child-edges.test.mjs` → `../dist/ast.js`).
+import { ADVICE_BY_ARM, ARM_FOR_KIND } from "../dist/highlight.js";
 
 const doc = "highlight.logo";
 const span = (start, end) => ({ document: doc, start, end });
@@ -298,6 +311,42 @@ test("dict-key: a glued dict-entry value that is a word-spelled operator classif
   ]);
 });
 
+test("dict-key: a worded operator followed by a key separator classifies dict-key, not operator", () => {
+  // Issue #944's ruling, acceptance criterion 3, and the reason it was called out at length: the
+  // `dict-key` class is derived from the parsed AST, so the paint follows the parser
+  // **automatically** — and that automatic follow is exactly why it needs pinning, because nothing
+  // would fail if it stopped following. The lookahead decides this split; these two assertions are
+  // what make that decision visible to the token classes.
+  //
+  // The separator's LEXEME is the discriminator: a `colon` token opens the next entry, so `mod` is
+  // a key; a `variable` token is a variable-read, so `mod` stays an operator. Both spellings parse
+  // clean, which is why a swap between them would otherwise be silent.
+  assert.deepEqual(classes("print { a: 1 mod: 2 }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["dict-key", "mod", undefined],
+    ["operator", ":", undefined],
+    ["number", "2", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
+test("dict-key: a worded operator followed by a variable read stays operator, not dict-key", () => {
+  assert.deepEqual(classes("print { a: 1 mod :two }"), [
+    ["primitive", "print", undefined],
+    ["brace", "{", undefined],
+    ["dict-key", "a", undefined],
+    ["operator", ":", undefined],
+    ["number", "1", undefined],
+    ["operator", "mod", undefined],
+    [":variable", ":two", undefined],
+    ["brace", "}", undefined],
+  ]);
+});
+
 test("dict-key: multiple glued dict entries each split their own colon independently", () => {
   assert.deepEqual(classes("print { a:1 b:2 }"), [
     ["primitive", "print", undefined],
@@ -457,9 +506,9 @@ test("role field-list vs role list: `struct` is not special-cased when the brack
   );
 });
 
-// --- Contextual reserved words (spec/tooling.md:96-98) ------------------------------------
+// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:380) --------
 
-test("contextual: empty/member/of/a are keyword only immediately after is", () => {
+test("contextual: empty/member/a are keyword only immediately after is, and so is `of` there", () => {
   assert.equal(
     OL.highlight("print :x is empty", doc).find(
       (token) => token.text === "empty",
@@ -480,7 +529,156 @@ test("contextual: empty/member/of/a are keyword only immediately after is", () =
   );
 });
 
-test("contextual: empty/member/of/a are ordinary primitive names outside is-predicate position", () => {
+test("contextual: empty/member/of/a stay keyword when a newline separates them from `is` (issue #995)", () => {
+  // A newline is legal at more points in an `is` predicate than a reader expects, and exactly THREE
+  // of them can move a word this test checks: before `is` (`parseComparison` guards the operator
+  // with `continuesOnNextLineWith("is")` and skips before testing `isName("is")`), before the form
+  // word, and between `member` and `of` (`parseIsPredicate`'s `skipNewlinesBeforeOperand` calls,
+  // issue #933). The newline before `is` is the one a first pass at this fix missed. The remaining
+  // skips cannot shift an index used by `markIsPredicateKeywords`: those in `parseIsPredicate` sit
+  // after the last contextual word, and a between-predicate classifies nothing there at all --
+  // `between`, `strictly` and `and` are globally reserved and painted by the ordinary path.
+  //
+  // Cited by role rather than by line: nothing gates an intra-repo `file:line` citation — the
+  // spec-citations gate covers only `spec/*.md` — and an earlier revision of this comment carried
+  // six `parser.ts` line numbers that a sibling edit in the same commit had already shifted.
+  //
+  // Every spelling below parses with ZERO diagnostics, which is asserted rather than assumed: if
+  // one of them ever became a parse error, the classification assertion beside it would still pass
+  // and pin nothing.
+  //
+  // What the stale offset LANDED on varied by row -- for `is` ⏎ `member of`, the old `of` offset
+  // was `isIndex + 2`, which lands on `member`, not on the newline -- so the mechanism is
+  // deliberately not generalised here. The invariant is the outcome: at `0277d5ff` every split
+  // spelling below classified its word `primitive`, and the one-line spellings pinned in the test
+  // above were correct throughout, which is exactly why varying the container without varying the
+  // newline could not have found this.
+  //
+  // Like #785, these programs parse completely clean, so no diagnostic could ever surface the
+  // defect: a token-class assertion is the only instrument that can see it.
+  //
+  // The `rparen` axis is a separate, independent way for these offsets to miss, and is issue
+  // #959's; it is deliberately not pinned here. It is specifically a GROUPING paren, whose node
+  // span excludes the closer -- `print (:x) is empty` misses, while the parenthesized CALL
+  // `print (first :l) is empty` does not.
+  for (const [source, text] of [
+    // The newline before `is`.
+    ["print :x\nis empty", "empty"],
+    ["print :x\nis member of [1 2 3]", "member"],
+    ["print :x\nis member of [1 2 3]", "of"],
+    ['print :x\nis a "number"', "a"],
+    ["print :x\n\nis empty", "empty"],
+    // The newline after `is`.
+    ["print :x is\nempty", "empty"],
+    ["print :x is\n\nempty", "empty"],
+    ["print :x is\nmember of [1 2 3]", "member"],
+    ["print :x is\nmember of [1 2 3]", "of"],
+    ['print :x is\na "number"', "a"],
+    ['print :x is\n\na "number"', "a"],
+    // The newline between `member` and `of`: `of` is found from `member`'s own resolved index
+    // rather than `isIndex + 2`, so an arbitrary gap resolves rather than only a single break.
+    ["print :x is member\nof [1 2 3]", "of"],
+    ["print :x is member\n\nof [1 2 3]", "of"],
+    // Both at once.
+    ["print :x\nis\nempty", "empty"],
+    ["print :x\nis member\nof [1 2 3]", "of"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse clean, or the pin proves nothing`,
+    );
+    assert.equal(
+      OL.highlight(source, doc).find((token) => token.text === text).class,
+      "keyword",
+      JSON.stringify(source),
+    );
+  }
+});
+
+test("contextual: a PARENTHESISED or multiline operand still reaches the is-predicate's word", () => {
+  // Regression, issue #959 review rounds 4-5. `markIsPredicateKeywords` stepped a fixed one token
+  // past `node.operand.source_span.end` to find `is`, but the operand's span is the INNER
+  // expression's — a parenthesised operand leaves its `)` in between, and a multiline one leaves
+  // newlines too. The scan landed on whichever came first, marked nothing, and painted the
+  // predicate's own word `primitive` in a position `spec/tooling.md:30` gives `keyword`.
+  //
+  // Every is-predicate form is covered, in both the single-line and the multiline shape, because
+  // the defect was in the shared scan rather than in any one form.
+  const classOf = (source, word) =>
+    OL.highlight(source, doc, { profiles: ALL_PROFILES }).find(
+      (token) => token.text === word,
+    )?.class;
+
+  for (const [source, word] of [
+    ['(value of :d for key "x") is empty', "empty"],
+    ["((:x)) is empty", "empty"],
+    ["(2) is member of :nums", "member"],
+    ['(:p) is a "point"', "a"],
+    ['(\n  value of :d for key "x"\n) is empty', "empty"],
+    ["(:x\n) is empty", "empty"],
+    ["(2\n) is member of :nums", "member"],
+    ['(\n  :p\n) is a "point"', "a"],
+    ['  (\n    value of :d for key "x"\n  ) is empty', "empty"],
+    // Deep and INTERLEAVED closing tails. Every row above needs at most two skips, so a scan
+    // capped at three iterations passed the whole suite, conformance, examples and the gate while
+    // painting `(((:x)\n)\n) is empty` — a program that parses with zero diagnostics —
+    // `primitive` (issue #959, QA mutation M4). These tails are `))))` and `)\n)\n)`: parens and
+    // newlines alternating, four and five tokens deep, so any cap of four or below is now caught.
+    // A cap of five still survives this table; the generated tail below is what closes that.
+    ["((((:x)))) is empty", "empty"],
+    ["(((:x)\n)\n) is empty", "empty"],
+    ["((:x)\n) is member of :nums", "member"],
+    ['(\n(\n:p\n)\n) is a "point"', "a"],
+  ]) {
+    assert.equal(
+      OL.parse(source, doc).diagnostics.length,
+      0,
+      `${JSON.stringify(source)} must parse cleanly for this to be a highlighting claim`,
+    );
+    assert.equal(classOf(source, word), "keyword", JSON.stringify(source));
+  }
+  // `is member of` marks two words, and the second is found by offset from the first — so the
+  // parenthesised form has to be checked for both.
+  assert.equal(classOf("(2) is member of :nums", "of"), "keyword");
+  assert.equal(classOf("(2\n) is member of :nums", "of"), "keyword");
+  // `of` is located from `member`, so the deep tail has to be checked for it too.
+  assert.equal(classOf("(((:x)\n)\n) is member of :nums", "of"), "keyword");
+
+  // A GENERATED tail, because the rows above cannot do this job. They are a finite table, so they
+  // force only "depth >= the deepest row" — a cap of 5 passed all of them while painting
+  // `((((:x)\n)\n)\n) is empty`, a zero-diagnostic program, `primitive` (issue #959, QA). Adding one
+  // more hand-written row would move that boundary to 6 and no further, which is the mistake this
+  // slice made three times in its withdrawn corpus.
+  //
+  // What this DOES establish: no constant cap below 80 survives. What it does NOT establish:
+  // unboundedness. That is a structural property of the `while` — it has no counter — and no finite
+  // number of examples can prove it, so the claim is deliberately not made.
+  const nestedDepth = 40;
+  let nested = ":x";
+  for (let level = 0; level < nestedDepth; level += 1) {
+    nested = `(${nested}\n)`;
+  }
+  const generated = `${nested} is empty`;
+  assert.equal(
+    OL.parse(generated, doc).diagnostics.length,
+    0,
+    "the generated deep tail must parse cleanly for this to be a highlighting claim",
+  );
+  assert.equal(classOf(generated, "empty"), "keyword", `depth ${nestedDepth}`);
+  // And the scan must not run past a real `is` onto something else: an unparenthesised operand is
+  // unchanged, and a word outside any predicate is still an ordinary name.
+  assert.equal(classOf("print :x is empty", "empty"), "keyword");
+  assert.equal(classOf("local empty", "empty"), "primitive");
+});
+
+test("contextual: empty/member/of/a in a plain call position are ordinary names, not is-predicate keywords", () => {
+  // `of` has a SECOND reader-recognized position — the Heritage `value of … for key` reader, where
+  // it is `keyword` (issue #785, proven in `heritage-tooling.test.mjs`). These four bare calls are
+  // in no such position, so each falls through to the bare-name class. (`spec/tooling.md:31` makes
+  // that fall-through class `primitive` normatively; what remains of defect #831 is only that
+  // `semanticTokens` then adds `defaultLibrary`, which `:31` forbids inferring. This test pins the
+  // contextual-word behaviour either way.)
   assert.equal(OL.highlight("print empty", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print member", doc).at(-1).class, "primitive");
   assert.equal(OL.highlight("print of", doc).at(-1).class, "primitive");
@@ -506,7 +704,7 @@ test("contextual: `to` is a keyword everywhere it is used (heritage opener, set.
   // spec/tooling.md:96 documents `to` as playing two grammatical roles (the heritage procedure
   // opener and the `set .../for ...` slot word) but — unlike empty/member/of/a — never carves out
   // an "ordinary name elsewhere" exception for it; `to` stays in the Core reserved-word list
-  // (reserved.ts) in every position, so the highlighter classifies it as keyword uniformly.
+  // (keywords.ts) in every position, so the highlighter classifies it as keyword uniformly.
   assert.equal(
     OL.highlight("to square :n\n  output :n\nend", doc)[0].class,
     "keyword",
@@ -794,4 +992,640 @@ test("tokens are returned in source order and cover the whole meaningful input",
     tokens.map((token) => token.text),
     ["print", "1", "print", "2"],
   );
+});
+
+// --- The `profiles` option's blast radius (issues #832, #840) ---------------------------------
+
+// `spec/tooling.md:30` puts the profile block-heads — Sprites' `ask`/`each` plus its mode-switch
+// command `tell`, and Interaction's `when`/`every`/`on_key`/`on_click` — in the `keyword` class
+// "while their profile is active", and `:31` puts "a profile word whose profile is inactive" in
+// `primitive`. `highlight()` has honoured BOTH halves since issue #740 gave it an active-profile
+// set, and the per-profile suites (`sprites-tooling.test.mjs`, `interaction-tooling.test.mjs`)
+// already assert each of the seven names in both directions.
+//
+// What nothing pinned before this block is the rule's other side: which words the option must
+// leave ALONE. `spec/tooling.md:30` names `local end`, `for end from 1 to 3`, `export end`, and
+// `:p.end` as positions where `end` is `keyword` anyway, and `:31` names `empty` as `primitive` —
+// none of them a profile word, so no profile set may move any of them. That invariant lived only
+// in prose, and two slices turned on it. Issue #840 (closed `NOT_PLANNED`) proposed reclassifying
+// **any** built-in name in a binding position — its own table lists `local if`, `set count to 5`,
+// `for fd in [1 2]` — and, separately, classifying the profile heads *unconditionally*, dropping
+// the profile gate #740 added. Both halves would have moved something below: the first covers
+// `local end`/`local empty` directly, the second is what test 4 measures. Issue #832 then reported
+// the seven names as never `keyword`, which is not reproducible — that measurement passed its
+// options object in the `document` slot (`highlight(src, { profiles })`), so `options` defaulted
+// to `{}` and every column read the Core-only answer.
+//
+// The `keyword` row of `spec/tooling.md`'s token-class table no longer enumerates the class: since
+// issue #959 each name's class is declared as `tokenClass` in `spec/built-in-names.json` and
+// `npm run built-in-names` re-paints every name through the shipped `highlight()` to compare. That
+// sweep covers each name in isolation; the conformance harness still has no token-class channel. So
+// for the
+// half stated above — that a profile set moves no NON-profile word — these four tests are the only
+// thing holding it; the profile words' own two directions are held by the per-profile suites, and
+// test 4 here keeps this block honest about them. Listed in the order they appear below:
+//
+//   1. CORPUS — over a representative corpus, the widest profile set classifies identically to a
+//      keyword-free one (blast radius). The corpus carries the *contextual* cases a substituted
+//      name cannot show: `local end`, `:p.end`, a dict key, bracket roles, both comment markers;
+//   2. MANIFEST — no built-in name moves between the two sets, swept over every entry of
+//      `spec/built-in-names.json`, the authoritative manifest (ADR-0021), minus the registry's
+//      own words: 141 names through seven source templates. This is the breadth 1 cannot have;
+//   3. CONTROLS — the spec's own non-profile examples keep their class under both sets (the named
+//      controls, plus `if`/`repeat` as positive keyword controls); and
+//   4. REGISTRY — every profile keyword DOES move, in each direction asserted separately —
+//      without which the others would pass on a build that ignored `options.profiles` altogether.
+//
+// What the set proves, stated as narrowly as it was measured. 1 and 2 compare two endpoint profile
+// sets, so each proves "nothing I probe moves between these sets" — 1 over a finite corpus, 2 over
+// the full name manifest through seven templates each. Neither subsumes the other: a widening onto
+// `empty` dies at 1 and not 2, because `empty` is not a manifest entry, and one onto `fd` dies at 2
+// and not 1. Neither is a quantifier over arbitrary sources — a gated widening onto a name in a
+// context no template covers would still pass.
+//
+// One asymmetry worth naming rather than implying: 1 and 2 compare two endpoint profile sets that
+// differ only in `sprites` and `interaction-events` — the two profiles that contribute keywords.
+// So they catch a change gated on one of those. A change that reclassifies a word
+// **unconditionally**, or gates it on any of the other ten profiles, looks identical from both
+// endpoints and is invisible to them by construction — that is what 3, 4, and the rest of this
+// file are for.
+
+/** Every profile a program can claim — the widest active set (`check.ts`'s `OL_CHECK_PROFILES`). */
+const ALL_PROFILES = OL.OL_CHECK_PROFILES;
+
+/** The seven profile keywords, read off the registry so a new one joins these tests by itself. */
+const PROFILE_HEADS = Object.values(OL.OL_PROFILE_KEYWORDS).flat();
+
+/**
+ * The other endpoint: every profile that contributes no keyword, derived as the complement of
+ * `OL_PROFILE_KEYWORDS`'s own keys rather than hardcoded, so a profile that starts contributing
+ * one leaves this set by itself — the same idiom as {@link PROFILE_HEADS} two lines up.
+ */
+const NO_KEYWORD_PROFILES = ALL_PROFILES.filter(
+  (profile) => !(profile in OL.OL_PROFILE_KEYWORDS),
+);
+
+/**
+ * Project a whole run, so a count, role, or class change is all caught by one comparison rather
+ * than only the class the current defect happens to be about.
+ */
+function profileClasses(source, profiles) {
+  return OL.highlight(source, doc, { profiles }).map((token) => [
+    token.class,
+    token.text,
+    token.role,
+  ]);
+}
+
+/**
+ * Programs deliberately free of profile words, spanning the vocabulary a widened lookup would most
+ * plausibly catch: both spellings of the `end` label (bare and `end define`/`end if`), the
+ * `is`-predicate contextual keywords (`empty`, `a`, `member`, `of`), binding forms, a
+ * comprehension, a selector, and both line-comment markers.
+ *
+ * Every entry is asserted below to be free of profile words AND to parse without a diagnostic, so
+ * a claim of coverage here cannot quietly decay into error recovery — a corpus of malformed
+ * sources still compares equal to itself under two profile sets while exercising none of the
+ * grammar it names. `export end` is the single deliberate exception: it is one of
+ * `spec/tooling.md:30`'s own four normative examples, and the reader currently enters recovery on
+ * it, so its diagnostics are listed rather than hidden.
+ */
+const PROFILE_WORD_FREE_CORPUS = [
+  "define greet :name\n  print :name\nend",
+  "define greet :name\n  print :name\nend define",
+  "local end",
+  "for end from 1 to 3 [ forward 1 ]",
+  "export end",
+  "local p\nprint :p.end",
+  "local empty",
+  "local x\nif :x is empty [ print 1 ]",
+  'local x\nif :x is a "number" [ print 1 ]',
+  "if 1 is member of [ 1 2 ] [ print 1 ]",
+  "if true\n  print 1\nend if",
+  "repeat 3 [ forward 10 ]",
+  "local x\nwhile :x [ print :x ]",
+  "set x to 1",
+  'make "count" 0',
+  "struct point [ x y ]",
+  "print { a: 1 }",
+  "print not true and 3 mod 2",
+  "print map n in [ 1 2 3 ] [ :n * 2 ]",
+  "# a comment\nforward 10",
+  "// another comment\nforward 10",
+  "local d\nprint :d[key]",
+  "forever [ forward 1 ]",
+];
+
+/**
+ * Parse diagnostics each corpus entry and named control is expected to raise, keyed by source.
+ * Absent = must parse clean. Only `export end` appears, and only because `spec/tooling.md:30`
+ * requires the example and the reader currently enters recovery on it.
+ */
+const DECLARED_PARSE_DIAGNOSTICS = new Map([
+  ["export end", ["ol-bad-token", "ol-mismatched-end"]],
+]);
+
+test("profiles: a profile-word-free corpus classifies identically under both profile sets", () => {
+  const heads = new Set(PROFILE_HEADS);
+  for (const source of PROFILE_WORD_FREE_CORPUS) {
+    // Measured, not claimed: a corpus entry that quietly grew a profile word would turn the
+    // identity assertion below from an invariant into a coincidence.
+    assert.deepEqual(
+      OL.highlight(source, doc, { profiles: ALL_PROFILES })
+        .map((token) => token.text.toLowerCase())
+        .filter((text) => heads.has(text)),
+      [],
+      `${JSON.stringify(source)} must contain no profile word`,
+    );
+    // Likewise measured: the corpus must be real OpenLogo, not recovery soup that only looks like
+    // it covers the grammar it names.
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code),
+      DECLARED_PARSE_DIAGNOSTICS.get(source) ?? [],
+      `${JSON.stringify(source)} must parse as declared`,
+    );
+    const projected = profileClasses(source, ALL_PROFILES);
+    // Guards the identity assertion against the degenerate build where `highlight()` returns
+    // nothing at all: two empty projections compare equal and would prove nothing.
+    assert.ok(projected.length > 0, `${JSON.stringify(source)} must tokenize`);
+    assert.deepEqual(
+      projected,
+      profileClasses(source, NO_KEYWORD_PROFILES),
+      `${JSON.stringify(source)} must classify identically under both profile sets`,
+    );
+  }
+});
+
+/**
+ * Breadth where the corpus has depth: every entry of `spec/built-in-names.json` — the
+ * authoritative keyword+primitive manifest, aliases included, versioned with the spec
+ * (ADR-0021) — minus the profile registry's own words, must classify the same under both
+ * profile sets.
+ *
+ * Read from the normative manifest rather than from the parser's registries on purpose. A test
+ * that drew its subject list from the implementation could not notice a name the implementation
+ * forgot; `npm run built-in-names` is what ties the two together, and this rides on that. That
+ * gate is also what really holds the manifest's size — the floor asserted below is a smoke check
+ * against this sweep quietly becoming a no-op, not a census.
+ *
+ * It asserts a *relation* (the two profile sets agree), never an expected class, so it stays
+ * silent about what any individual name should paint — that is `spec/tooling.md`'s business and
+ * the rest of this file's. Being relational is also what makes the templates below safe: a name
+ * substituted into a template it does not fit still has to classify the same either way.
+ */
+const BUILT_IN_NAMES = JSON.parse(
+  readFileSync(
+    new URL("../../../spec/built-in-names.json", import.meta.url),
+    "utf8",
+  ),
+).names.map((entry) => entry.name);
+
+/**
+ * Each swept name is probed through several source templates, not just alone. A one-token program
+ * is the *only* thing a bare sweep sees, and a widening conditioned on position — `lower === "fd"
+ * && index > 0`, painting `repeat 3 [ fd 10 ]` but not a lone `fd` — slips past it untouched while
+ * passing every other test in this file.
+ *
+ * Position-dependence is this block's declared threat model, so the templates cover the contexts
+ * it names rather than only the convenient ones. #840's AC1 table is entirely **binding**
+ * positions, and its three forms — `local if`, `set count to 5`, `for fd in [1 2]` — are the last
+ * three templates, the `for` row in its `from` spelling, which is `spec/tooling.md:30`'s own
+ * example. Every one of the seven is load-bearing: removing any one lets a mutant through that the
+ * others miss, which is why none is dropped as redundant. The per-template evidence is recorded on
+ * #832 rather than restated here, since nothing in the tree recomputes it — and on the issue
+ * rather than in commit history, which a squash-merge collapses.
+ *
+ * Not exhaustive over contexts, and deliberately not chased further. Three known survivors, named
+ * rather than implied: a widening gated on nesting depth, one gated on letter case, and one that
+ * separates `for … in` from `for … from` by lookahead — both spellings share `for` as the
+ * preceding token, so anything keying on that predecessor is caught.
+ */
+const SWEEP_TEMPLATES = [
+  (name) => name,
+  (name) => `repeat 1 [ ${name} ]`,
+  (name) => `define holder\n  ${name}\nend`,
+  (name) => `print ${name}`,
+  (name) => `local ${name}`,
+  (name) => `set ${name} to 1`,
+  (name) => `for ${name} from 1 to 3 [ forward 1 ]`,
+];
+
+test("profiles: no built-in-names.json entry outside OL_PROFILE_KEYWORDS changes class between the two sets", () => {
+  const heads = new Set(PROFILE_HEADS);
+  const swept = BUILT_IN_NAMES.filter((name) => !heads.has(name));
+  // A manifest that stopped being read, lost its shape, or stopped containing the profile words
+  // would reduce this sweep to a silent no-op. Membership is checked by name rather than by
+  // count, so "six heads, one duplicated" cannot masquerade as "all seven present".
+  assert.deepEqual(
+    PROFILE_HEADS.filter((head) => !BUILT_IN_NAMES.includes(head)),
+    [],
+    "every profile keyword must appear in the manifest",
+  );
+  assert.equal(swept.length, BUILT_IN_NAMES.length - heads.size);
+  assert.ok(swept.length > 100, `expected a broad sweep, got ${swept.length}`);
+  for (const name of swept) {
+    for (const template of SWEEP_TEMPLATES) {
+      const source = template(name);
+      const projected = profileClasses(source, ALL_PROFILES);
+      // Subject-level, not merely run-level: a template that swallowed the name it substituted
+      // would still compare equal to itself and prove nothing about that name. Degenerate for the
+      // 11 probes whose scaffold word IS the subject (e.g. `set set to 1`, `local local`, `print
+      // print`; ten names in all), but no name is degenerate in more than two of the seven
+      // templates and the bare one can never swallow its subject, so every name keeps a real
+      // check.
+      assert.ok(
+        projected.some(([, text]) => text.toLowerCase() === name.toLowerCase()),
+        `${JSON.stringify(source)} must carry ${name} as a token`,
+      );
+      assert.deepEqual(
+        projected,
+        profileClasses(source, NO_KEYWORD_PROFILES),
+        `${JSON.stringify(source)} must classify identically under both profile sets`,
+      );
+    }
+  }
+});
+
+/**
+ * `spec/tooling.md:30`'s four ordinary-name positions for `end`, `:31`'s `empty`, and two Core
+ * block-heads as positive controls. The expected class is a one-element array, so a filter that
+ * silently matched nothing — or matched twice — fails rather than passing vacuously.
+ */
+const NON_PROFILE_CONTROLS = [
+  ["end", "local end", "keyword"],
+  ["end", "for end from 1 to 3 [ forward 1 ]", "keyword"],
+  ["end", "export end", "keyword"],
+  ["end", "local p\nprint :p.end", "keyword"],
+  ["empty", "local empty", "primitive"],
+  ["if", "if true [ print 1 ]", "keyword"],
+  ["repeat", "repeat 3 [ forward 10 ]", "keyword"],
+];
+
+test("profiles: the spec's own non-profile examples keep their class under both profile sets", () => {
+  for (const [word, source, expected] of NON_PROFILE_CONTROLS) {
+    // Held to the same standard the corpus is, for the same reason: round 1 of this change's
+    // review found a corpus whose sources did not parse, so a control that quietly stopped being
+    // valid OpenLogo would be the identical defect one test over.
+    assert.deepEqual(
+      OL.parse(source, doc).diagnostics.map((diagnostic) => diagnostic.code),
+      DECLARED_PARSE_DIAGNOSTICS.get(source) ?? [],
+      `${JSON.stringify(source)} must parse as declared`,
+    );
+    for (const profiles of [NO_KEYWORD_PROFILES, ALL_PROFILES]) {
+      assert.deepEqual(
+        OL.highlight(source, doc, { profiles })
+          .filter((token) => token.text === word)
+          .map((token) => token.class),
+        [expected],
+        `${word} in ${JSON.stringify(source)} with ${JSON.stringify(profiles)}`,
+      );
+    }
+  }
+});
+
+/** One call site per profile keyword, in the position that word actually heads. */
+const PROFILE_HEAD_SOURCES = {
+  ask: 'ask "bee" [ forward 1 ]',
+  each: "each [ forward 1 ]",
+  tell: 'tell "bee"',
+  when: "when :flag [ forward 1 ]",
+  every: "every 5 [ forward 1 ]",
+  on_key: 'on_key "a" [ forward 1 ]',
+  on_click: "on_click [ forward 1 ]",
+};
+
+test("profiles: every OL_PROFILE_KEYWORDS word moves in both directions", () => {
+  // Guards the two tests above against the one build that would satisfy them for the wrong
+  // reason — a classifier that ignores `options.profiles` entirely, which is precisely what the
+  // (mis-measured) report in issue #832 described. Covering the registry exactly also means a
+  // profile that starts contributing a keyword fails here until its call site is added.
+  assert.deepEqual(
+    [...PROFILE_HEADS].sort(),
+    Object.keys(PROFILE_HEAD_SOURCES).sort(),
+  );
+  for (const head of PROFILE_HEADS) {
+    const source = PROFILE_HEAD_SOURCES[head];
+    const classOf = (profiles) =>
+      OL.highlight(source, doc, { profiles })
+        .filter((token) => token.text === head)
+        .map((token) => token.class);
+    // Asserted as two separate one-element comparisons, never as one concatenation: `[...a, ...b]`
+    // deepEqual `["primitive", "keyword"]` constrains only the combined sequence, so an empty
+    // inactive result beside a two-element active one would satisfy it while proving neither
+    // direction.
+    assert.deepEqual(
+      classOf(NO_KEYWORD_PROFILES),
+      ["primitive"],
+      `${head} must be primitive while its profile is inactive`,
+    );
+    assert.deepEqual(
+      classOf(ALL_PROFILES),
+      ["keyword"],
+      `${head} must be keyword while its profile is active`,
+    );
+  }
+});
+
+// --- The `document` argument may not swallow the options object (issue #951) -------------------
+
+// `highlight(source, document, options)` used to spell `document` with a default, so
+// `highlight(src, { profiles })` bound the options object to `document`: `options` fell back to
+// `{}`, `activeProfiles` to `DEFAULT_CHECK_PROFILES`, and the object was written into every
+// token's `source_span.document` — a field typed `string`. Neither half raised anything.
+//
+// TypeScript rejected that call already (`{ profiles }` is not assignable to `string`), but every
+// test that calls these functions, and every script here, is `.mjs`, where no types run. The trap
+// has already cost the project twice: issues #832 and #840, plus a withdrawn Epic Gate PASS —
+// the ledger is `.github/skills/shared/review-gate/SKILL.md:175-178`. #832 reported the seven
+// profile names as never `keyword`, and the measurement that "showed" it passed its options object
+// in the `document` slot — see the block comment above `ALL_PROFILES`. The signature was left
+// as-is afterwards; #951 closed it by making `document` required (the shape `execute(source,
+// document, options)` already has) and rejecting a non-string at runtime.
+//
+// This section carries ONE shared control, run first, which every case below depends on. A
+// regression suite that only asserts "the bad call throws" passes against a build where
+// `options.profiles` is ignored outright, so the control proves the three-argument form
+// DISCRIMINATES between the requested profiles and the default — using a profile set that differs
+// from `DEFAULT_CHECK_PROFILES`, since a set that happens to equal the default returns the right
+// answer by coincidence.
+
+/**
+ * Interaction's `when` is `keyword` while its profile is active and `primitive` while it is not
+ * (`spec/tooling.md:30-31` — `:30` states the active half, `:31` the inactive one).
+ */
+const PROFILE_HEAD_SOURCE = 'when "start" [ print 1 ]\n';
+
+/** A profile set that DIFFERS from `DEFAULT_CHECK_PROFILES`, so it can discriminate. */
+const DISCRIMINATING_PROFILES = [
+  "core-language",
+  "turtle-rendering",
+  "interaction-events",
+];
+
+/** The class `highlight()` gives `when` in `PROFILE_HEAD_SOURCE` under `profiles`. */
+function whenClass(profiles) {
+  return OL.highlight(PROFILE_HEAD_SOURCE, doc, { profiles }).find(
+    (token) => token.text.toLowerCase() === "when",
+  )?.class;
+}
+
+/**
+ * The message of the `TypeError` `call` throws. Built on `assert.throws` — which fails the test
+ * itself when nothing is thrown — rather than a try/catch helper with a defensive `assert.fail`
+ * tail, because that tail is unreachable on a green run and Node 22 counts these files toward the
+ * 100% coverage gate.
+ */
+function typeErrorMessageFrom(call) {
+  let message;
+  assert.throws(call, (error) => {
+    message = error.message;
+    return error instanceof TypeError;
+  });
+  return message;
+}
+
+test("control: the requested profile set differs from the default AND changes a class", () => {
+  // Without this, every assertion below is vacuous. Two separate claims: the set is not the
+  // default (so it cannot be satisfied by coincidence), and the option is not inert.
+  assert.notDeepEqual(DISCRIMINATING_PROFILES, [...OL.DEFAULT_CHECK_PROFILES]);
+  assert.equal(whenClass(OL.DEFAULT_CHECK_PROFILES), "primitive");
+  assert.equal(whenClass(DISCRIMINATING_PROFILES), "keyword");
+});
+
+test("highlight: an options object in the document slot throws instead of being mis-bound", () => {
+  // The witness. Before #951 this returned tokens in which `when` was `primitive` — the DEFAULT
+  // answer, not the requested one — with no error at all.
+  assert.throws(
+    () =>
+      OL.highlight(PROFILE_HEAD_SOURCE, { profiles: DISCRIMINATING_PROFILES }),
+    (error) => {
+      assert.ok(error instanceof TypeError);
+      // The message must name the correct call shape and the type received: the whole difficulty
+      // of this defect was diagnosing it, and a bare "expected string" leaves that to the caller.
+      assert.match(error.message, /highlight\(source, document, options\)/);
+      assert.match(error.message, /received object/);
+      assert.match(error.message, /THIRD argument/);
+      return true;
+    },
+  );
+});
+
+/**
+ * The three `adviceFor` arms and the exact advice each produces for a given callee.
+ *
+ * Used to build the **entire** expected message and compare it with `assert.equal`, not to match
+ * fragments. Message-assertion gaps recurred across several review rounds, each one level further
+ * out than the last: a phrase, then an example, then a prefix, then a suffix — and each time a
+ * mutation lived in the part the assertion did not reach. A prefix match cannot see text appended
+ * after it; `endsWith` cannot see text *prepended* before it ("Call parse(source) instead. Pass a
+ * string naming the source…" shipped green); neither sees the preamble's "must be a **string**"
+ * clause. Whole-message equality is the only assertion with no residue, and it makes any change to
+ * caller-facing advice a deliberate, test-visible act — which this message has earned, having been
+ * wrong twice.
+ */
+const ADVICE_TAIL = {
+  required: (callee) =>
+    `\`document\` is required: name the source, e.g. ${callee}(source, "<input>").`,
+  object: (callee) =>
+    `An options object belongs in the THIRD argument — ${callee}(source, "<input>", { profiles }). ` +
+    "Passed second it would bind to `document`, which is why this is rejected rather than " +
+    "silently discarding your options.",
+  generic: (callee) =>
+    `Pass a string naming the source, e.g. ${callee}(source, "<input>").`,
+};
+
+/** The whole message `assertDocumentArgument` must produce, preamble included. */
+function expectedGuardMessage(callee, kind, arm) {
+  return (
+    `${callee}(source, document, options): \`document\` must be a string naming the source, ` +
+    `but received ${kind}. ${ADVICE_TAIL[arm](callee)}`
+  );
+}
+
+/**
+ * Every non-string `document` a caller can pass, with the kind `describeArgument` must name it and
+ * the `adviceFor` arm it must take. Every `ArgumentKind` except `"string"` appears — `"string"` is
+ * the one the guard returns on — and the object rows deliberately include non-plain objects,
+ * because the arm is `typeof`-broad (see `highlight.ts`) and a narrowing would move them.
+ */
+const GUARD_CASES = [
+  [undefined, "undefined", "required"],
+  [{ profiles: ["core-language", "interaction-events"] }, "object", "object"],
+  // The empty bag is the object row the `adviceFor` JSDoc names as the decisive cost of the
+  // deferred shape test, so its ADVICE — not just its kind — is swept, making that reasoning
+  // executable rather than prose.
+  [{}, "object", "object"],
+  [new Date(0), "object", "object"],
+  [new Map(), "object", "object"],
+  [/x/, "object", "object"],
+  [new String("x"), "object", "object"],
+  [
+    Object.assign(Object.create(null), { profiles: ["core-language"] }),
+    "object",
+    "object",
+  ],
+  [null, "null", "generic"],
+  [["core-language"], "array", "generic"],
+  [42, "number", "generic"],
+  [true, "boolean", "generic"],
+  // `Math.max`, not an inline arrow: a function this file never invokes fails the coverage gate.
+  [Math.max, "function", "generic"],
+  [Symbol("s"), "symbol", "generic"],
+  [1n, "bigint", "generic"],
+];
+
+/**
+ * The one kind with no message, guarded so widening it is deliberate.
+ *
+ * `assertDocumentArgument` returns on a string, so `"string"` can never reach `adviceFor`. That
+ * exception is the last hand-written link between the compiler-total `ARM_FOR_KIND` and the swept
+ * rows, and therefore the one place a kind can be hidden: widening it by one entry and deleting
+ * that kind's row passed the whole suite, with the test count unchanged because the sweep is one
+ * `test()` over rows. Pinning the exception itself makes that a visible edit.
+ */
+const KINDS_WITHOUT_ADVICE = ["string"];
+
+test("highlight: the advice addresses the mistake made, not a mistake the caller did not make", () => {
+  // Three cases with disjoint remedies — "put a string in that slot" vs. "move your object to
+  // third position" vs. "that is not a name at all" — so one message would leave the caller to
+  // work out which applies, the exact cost #951 was about.
+  //
+  // The whole message is compared, so this sweep also pins the kind naming, the callee (a
+  // hard-coded `semanticTokens` here shipped green in round 3), the corrected call, and the
+  // absence of any claim that the options were discarded. `adviceFor` is exhaustive over
+  // `ArgumentKind` by a `Record` in production, so a NEW kind is a compile error there — but
+  // nothing forces a row here, so the sweep below is checked against that type's own membership.
+  for (const [value, kind, arm] of GUARD_CASES) {
+    const label = `${kind} → ${arm} arm`;
+    assert.equal(
+      typeErrorMessageFrom(() => OL.highlight("print 1", value)),
+      expectedGuardMessage("highlight", kind, arm),
+      label,
+    );
+  }
+  // The true one-argument arity, not just an explicit `undefined`: identical in JS, but it is the
+  // call shape a reader of #951 looks for, and the one a newcomer to the API actually writes.
+  assert.equal(
+    typeErrorMessageFrom(() => OL.highlight("print 1")),
+    expectedGuardMessage("highlight", "undefined", "required"),
+  );
+});
+
+test("highlight: a fixed set of non-string documents is rejected — tripwire, not an oracle", () => {
+  // Deliberately hard-coded, deliberately redundant with `GUARD_CASES`, and deliberately reading
+  // NEITHER `ARM_FOR_KIND` nor `KINDS_WITHOUT_ADVICE` nor `GUARD_CASES`. That independence is the
+  // entire point and it is why this must not be deleted as a duplicate a second time.
+  //
+  // The list this replaces was removed as "dead in both of its stated purposes" — which was true.
+  // Its unstated third purpose was to be a TRIPWIRE: a probe that widens the exception in both
+  // test files AND changes production to accept booleans was caught while that list existed, and
+  // survived once it was gone. Dead as an oracle, alive as a tripwire; the deletion took both, and
+  // nobody noticed because an enumeration of STATED purposes cannot see an unstated one.
+  //
+  // Everything above derives its expectation from the shipped tables, so widening a table and
+  // co-editing the rows moves the whole apparatus together. These literals do not move with it.
+  for (const value of [
+    true,
+    42,
+    null,
+    ["core-language"],
+    {},
+    Symbol("s"),
+    1n,
+    Math.max,
+    undefined,
+  ]) {
+    assert.throws(
+      () => OL.highlight("print 1", value),
+      TypeError,
+      `document = ${Object.prototype.toString.call(value)}`,
+    );
+  }
+  assert.throws(() => OL.highlight("print 1"), TypeError);
+  // The one value that must NOT throw — the other half of the same tripwire. Without it, a guard
+  // that rejected everything would pass the loop above.
+  assert.doesNotThrow(() => OL.highlight("print 1", "doc.logo"));
+});
+
+test("highlight: the guard sweep covers every ArgumentKind the caller can reach", () => {
+  // Each claim below is a level the review gate found unpinned in a previous round. Deliberately
+  // not prefixed with a count: an earlier version said "Three" over four, this one said "Four"
+  // over five, and both times a claim was appended without re-deriving the header. A numeral here
+  // is a second copy of a fact the list already states, so it is simply not written.
+  //
+  // KIND MEMBERSHIP. The oracle is the SHIPPED `ARM_FOR_KIND`, whose keys are total over
+  //    `ArgumentKind` by its `Record` type, so it cannot drift and has no spelling dependence.
+  //    Two earlier oracles did: a list restated inside the test, then a regex over the union in
+  //    the source, which matched `[a-z]+` only and so was blind to `"NaN"` or `"plain-object"`.
+  //    `../dist` rather than the package entry because `ARM_FOR_KIND` is internal — not
+  //    re-exported from `index.ts`, and the exports map blocks a deep specifier import — and it
+  //    is the idiom this repo already uses for internals (`child-edges.test.mjs` → `../dist/ast.js`).
+  //    Oracle and subject come from the same build, so a stale `dist` cannot desynchronise them.
+  // THE EXCEPTION. Stated as a PARTITION — swept ∪ excepted must equal the whole key set — so
+  //    there is no filter predicate left to widen. A `filter(k => !EXCLUDED.includes(k))` form was
+  //    tried first and failed: pinning the constant left its *consumer* free text, and appending
+  //    `&& kind !== "symbol"` to the filter hid a kind with the constant's assertion still green.
+  // THE ROUTING ITSELF. The keys being total says nothing about the VALUES: changing a kind's
+  //    arm and co-editing its row ships wrong advice green. The assertions below state the
+  //    `adviceFor` doc's own claim — "only an object is plausibly a misplaced options bag" — in a
+  //    form that does not mention the rows, so a co-edit cannot satisfy it. `generic` needs no
+  //    assertion: with `required` and `object` pinned and claim 4 holding, it is the complement.
+  // ARM LIVENESS. `ADVICE_BY_ARM` being total makes every arm HANDLED; nothing made every arm
+  //    REACHED. An arm written but routed to no kind survived the whole suite — it is caught only
+  //    by the coverage gate, and there announced first as the known merge-artifact flake.
+  //
+  // The mirror of this test lives in `semantic-tokens.test.mjs` and reads the same oracles.
+  assert.deepEqual(
+    KINDS_WITHOUT_ADVICE,
+    ["string"],
+    "widening this exception hides a kind's advice",
+  );
+  const swept = [...new Set(GUARD_CASES.map(([, kind]) => kind))].sort();
+  assert.deepEqual(
+    [...swept, ...KINDS_WITHOUT_ADVICE].sort(),
+    Object.keys(ARM_FOR_KIND).sort(),
+    "every ArgumentKind is either swept by GUARD_CASES or explicitly excepted",
+  );
+
+  const kindsRoutedTo = (arm) =>
+    Object.keys(ARM_FOR_KIND)
+      .filter((kind) => ARM_FOR_KIND[kind] === arm)
+      .sort();
+  assert.deepEqual(kindsRoutedTo("required"), ["undefined"]);
+  assert.deepEqual(kindsRoutedTo("object"), ["object"]);
+
+  assert.deepEqual(
+    [...new Set(Object.values(ARM_FOR_KIND))].sort(),
+    Object.keys(ADVICE_BY_ARM).sort(),
+    "every advice arm must be reached by at least one kind, and vice versa",
+  );
+
+  // THE PUBLIC SURFACE. `ARM_FOR_KIND` and `ADVICE_BY_ARM` are exported from their module so
+  //    the oracles above can read them, and are deliberately absent from `index.ts`. Nothing held
+  //    them there: adding one ordinary re-export line to the barrel made two internals permanent
+  //    API, `.d.ts` and all, with no signal from any of the ten gates.
+  for (const internal of [
+    "ARM_FOR_KIND",
+    "ADVICE_BY_ARM",
+    "adviceFor",
+    "describeArgument",
+    "assertDocumentArgument",
+  ]) {
+    assert.equal(
+      internal in OL,
+      false,
+      `${internal} must stay package-internal`,
+    );
+  }
+});
+
+test("highlight: a string document still labels every token's span and never throws", () => {
+  // The guard is about the host's ARGUMENTS. The never-throw contract is about the SOURCE, and
+  // is unchanged: malformed input still yields a best-effort stream under a valid document.
+  const tokens = OL.highlight("define [ 3 +", doc);
+  assert.ok(tokens.length > 0);
+  for (const token of tokens) {
+    assert.equal(token.source_span.document, doc);
+    assert.equal(typeof token.source_span.document, "string");
+  }
 });

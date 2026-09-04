@@ -1,5 +1,5 @@
 {
-  "description": "An infix `and` with no right-hand operand at end of file reports ol-bad-token, matching the existing comparison-missing-operand fixture's failure shape.",
+  "description": "An infix `and` with no right-hand operand at end of file reports ol-bad-token, matching the existing comparison-missing-operand fixture's failure shape — including its anchor: since issue #933 the line break after `and` is insignificant while an operand is still pending (`spec/grammar.md:34`), so the finding lands on the end-of-file token rather than on that newline.",
   "profiles": ["core-language"],
   "expect": "match",
   "events": [],
@@ -8,10 +8,10 @@
       "code": "ol-bad-token",
       "source_span": {
         "document": "core-language/expressions/logical-and-missing-operand",
-        "start": [3, 13],
+        "start": [4, 1],
         "end": [4, 1]
       },
-      "params": { "text": "end of line" },
+      "params": { "text": "end of file" },
       "stage": "parse",
       "severity": "error"
     }

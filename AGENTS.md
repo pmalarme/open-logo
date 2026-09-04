@@ -40,9 +40,10 @@ docs/delivery.md       Release + saga strategy
 .github/instructions/  Team working agreement (always on) + per-package rules (applyTo packages/<name>/**)
 .github/ISSUE_TEMPLATE/  Issue forms — feature-request, epic, feature-slice (user story), conformance-task, foundation, bug, docs
 .github/labels.yml     Label taxonomy manifest (agent:*/type:*/profile:*/area:*/level:*)
+.github/labels-retired.yml  Namespaced labels kept on the repo but never applied again (reasoned)
 .github/labeler.yml    Path→label rules for PR auto-labeling
-.github/scripts/        Metadata + commit-convention validation, label sync (run by CI)
-.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync — owned by @devops
+.github/scripts/        Metadata + commit-convention + label-taxonomy validation, label sync (run by CI)
+.github/workflows/     CI (Definition of Done), commit convention, labeler, label sync, label drift — owned by @devops
 .github/aw/            gh-aw version pin + shared installer (see "gh-aw bootstrap" below)
 .github/mcp.json       MCP server registration for the agentic-workflows tooling
 .githooks/       Local commit-msg check (wired by the root `prepare` script) — guidance, not a gate
@@ -160,14 +161,118 @@ npm run format:check # Prettier
 npm run test         # node:test
 npm run coverage     # node:test 100% line/branch/function gate — verify on Node 22 (see .nvmrc)
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
-npm run examples     # parse + execute every spec/examples/*.logo whose required profiles are implemented; skip the rest with a visible notice
+npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
+npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
+npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
-These eight scripts are the CI-enforced Definition of Done; see
+The scripts listed above are the CI-enforced Definition of Done; see
 [`docs/adr/0005-toolchain.md`](docs/adr/0005-toolchain.md) for why each tool was chosen (npm
 workspaces, `tsc -b`, Prettier, Biome, `node:test`), why coverage is pinned to Node 22, and the
 `typescript-eslint`/Vitest traps it avoids. Work in small, reviewable PRs and keep this file and the
 ADRs in sync as the toolchain evolves.
+
+`npm run built-in-names` asserts [`spec/built-in-names.json`](spec/built-in-names.json) — the
+**authoritative** list of every keyword and every primitive, aliases included, versioned with the
+spec ([ADR-0021](docs/adr/0021-built-in-names-list-and-ci-gate.md)) — against `@openlogo/parser`'s
+registries **in both directions**, comparing structured entries rather than a flat name set. It also
+gates the three hand-maintained prose lists that used to have nothing checking them: the normative
+keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both compared
+**derivedly** — the expected words are computed from the manifest, and the mirror must carry the same
+words in the same order as the block (the extracted words, not the bytes) — plus `spec/tooling.md`'s
+`keyword` **token-class** declaration. That class is a different set from the keyword list on purpose
+(`spec/grammar.md:378`), and until issue #959 the row enumerated it in 2,055 characters of English
+that the gate could only **change-detect** — inverting the row's meaning and recomputing the digest
+passed every check. What issue #855 had refuted was *deriving* the class from the lists that already
+existed; *declaring* it was never tried. So each name now carries a `tokenClass` beside its
+`category` — two independent axes, "may a program declare this name?" and "how is this word
+painted?" — and the gate re-paints every name through the shipped `highlight()` in nine grammatical
+positions, including the profile gating of `spec/tooling.md:31`. The reverse direction compares the
+name **sources** `highlight()` classifies from, which is narrower than comparing against arbitrary
+highlighter output; ADR-0026 names each mechanism and what it does not reach.
+The four words that are keywords **by position only** (`empty`, `member`, `of`, `a`) cannot be table
+rows, so they are a declared exception set, pinned against their `excluded` carve-outs and against
+both prose statements of them.
+**Adding a primitive is deliberately a two-file change** (the registry and the
+list) and this is the half that fails until both land. The list is under `spec/`, so it is
+maintainer-owned via `CODEOWNERS` like the rest of the contract.
+
+`npm run examples` is **two** gates behind one script. `scripts/check-examples.mjs` (logic in
+`scripts/examples-gate.mjs`, with profile detection in `scripts/profile-detection.mjs`) parses and
+executes every `spec/examples/*.logo` file whose required profiles are implemented, skipping the
+rest with a visible notice. An example that registers a handler **needing host delivery** — `on_key`,
+`on_click`, or a `when` for any event other than an exact-case `"start"` — **must** carry a deterministic
+host-input schedule in `scripts/examples-host-input.json`, and must produce the output that entry
+asserts (issue #955):
+running every program with an *empty* host left the gate structurally blind to every host-dependent
+feature the language has, which is how `10-game.logo` was certified green while its stated contract —
+"each click prints the updated `:score`" — was unreachable. The requirement is read from the
+**source**, not from the manifest, so a deleted or misspelled entry fails the gate rather than
+quietly relaxing it. `every` and an exact-case `when "start"` are excluded, measured rather than
+assumed: under an empty host with `wait 100`, `every 10 [ print 1 ]` prints 10 and `when "start"`
+prints 1, while `on_click`, `when "stop"` and `when "START"` print 0. (The 10 belongs to the `wait`,
+not to `every`: the same program prints 2 under `wait 20` and 0 with no wait at all.) Note what this
+gate does
+and does not cover: it drives `@openlogo/runtime`'s `execute()`, so it asserts the **language-level**
+interaction contract; the **studio host seam** that #952 broke is a different surface, asserted by
+`packages/studio`'s own tests. `scripts/check-markdown-examples.mjs` (issue #850, logic in
+`scripts/markdown-examples-gate.mjs`) then does the same for every ` ```logo ` block fenced inside
+`spec/**.md` and `docs/**.md` — the "and doc examples" half of the Definition of Done, previously
+unenforced, which is how a `set_shape "bee"` example that raises `ol-type` shipped inside a 0.1.0
+conformance claim.
+
+**Write OpenLogo source in prose inside a ` ```logo ` fence.** The gate keys on that info string, so
+a program in a bare ` ``` ` fence is never checked and silently erodes the corpus. Use a different
+info string (` ```text `, ` ```ebnf `) for anything that is *not* OpenLogo source, such as sample
+output, diagnostics, or grammar productions.
+
+**The rule the gate enforces is uniform:** a block either runs completely clean, or it carries an
+entry in `scripts/markdown-examples-expectations.json` that declares — and therefore **asserts** —
+exactly what it produces. There is no automatic tolerance, so a misspelled command or variable in an
+excerpt fails like any other defect. Never add an entry to silence a real defect: record it as
+`known-broken` with its tracking issue and route it to the document's owner (`spec/` is
+maintainer-owned). One honest limit, which the gate reports as `PARTIAL` rather than hiding:
+execution stops at a block's first runtime error, so lines below it are parsed and statically
+checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
+
+`npm run spec-citations` (issue #934, logic in `scripts/spec-citations-gate.mjs`) checks the other
+ungated prose surface: the **2,400+ `spec/<file>.md:<line>` citations** hand-written into comments,
+tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
+nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
+merged green carrying ten that pointed at the wrong lines.
+
+**Read the coverage statement it prints, which names what it does *not* check.** A stale citation
+fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
+past EOF, inverted range, or a region holding no text — covered); it resolves but points at the
+**wrong passage while paraphrasing** (*not* covered, except where the site **quotes an EBNF
+production**, which must then be inside the range cited); the line is right and the **prose beside it
+misstates it** (*not* covered); or it is a **stale implementation-status claim** — "not yet
+implemented", "a later slice will…" — which is a claim about the repository, not the spec, and must
+name a tracking issue so something can re-check it (the sweep for the ones that predate the gate is
+#961). Do not read a green run as "every citation is right".
+Two rules matter when you touch it. **Enumeration is exhaustive, not separator-driven:** citations
+are joined by commas, by line wraps, by slashes, by a `,139` tail, and by whole clauses of prose, so
+every bare `:N` in a citing file is enumerated and accounted for — a separator regex is not a
+completeness argument, and three separately-written ones gave three different counts of this corpus.
+And **there is no automatic tolerance**: the gate never searches nearby lines and passes, because the
+wrong passage is usually *adjacent* to the right one. A citation it cannot resolve either fails or
+carries an entry in `scripts/spec-citations-exceptions.json` that declares the exact state it is in,
+keyed by a hash of the citing line, the citation, the entry's own `why`, **and the issue it is
+tracked by** — so a rationale cannot drift away from the text it describes, and an exception cannot
+be silently retargeted. Entries are **deleted** when fixed, never re-fingerprinted, and the live
+`UNRESOLVED` total prints every run; the corpus sweep that empties it is #948.
+
+`npm run adr-numbering` (issue #1042, logic in `scripts/adr-numbering-gate.mjs`) checks the surface
+that binds the decision *records* together: ADR numbers are unique, each filename agrees with its own
+`# N.` heading, every markdown link or written-out `docs/adr/NNNN-….md` path resolves **from where it
+is written** (so a wrong `../` depth fails), and a link labelled `ADR-NNNN` really resolves to that
+ADR. Nothing checked any of this, which is how two Accepted ADRs both came to carry `0025` (#1036).
+**Read the coverage statement it prints.** It scans tracked files *plus* untracked, non-ignored ones,
+so a file you have not `git add`ed yet is still checked — but it reads **one tree**, so two branches
+can each claim the same next-free number and only the second merge goes red; and it cannot judge a
+bare `ADR-NNNN` in prose, which names no path. Verify the next free number in-tree before writing an
+ADR, and again before you commit. See [ADR-0030](docs/adr/0030-adr-numbering-is-gated.md).
 
 `npm run coverage` runs through a thin deterministic wrapper (`scripts/coverage.mjs`, logic in
 `scripts/coverage-gate/classify.mjs`) rather than invoking `node --test` directly. Node's parallel

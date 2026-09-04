@@ -6,7 +6,7 @@
 // (a trailing dot with no following field name).
 //
 // This file targets the dotted `.identifier` postfix form (issue #49); the bracketed
-// `[ key-term ]` selector form (`spec/grammar.md:109-111`, `selector ::= "[" key-term "]"`) is
+// `[ key-term ]` selector form (`spec/grammar.md:112`, `selector ::= "[" key-term "]"`) is
 // implemented and covered separately in postfix-selectors.test.mjs (issue #79). The cases below
 // exercise the dotted-field postfix and its interaction with precedence and diagnostics.
 //

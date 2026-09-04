@@ -1,0 +1,1 @@
+every 3 [ on_key "x" [ every 10 [ print 1 ] ] ]

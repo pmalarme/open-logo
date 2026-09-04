@@ -1,0 +1,291 @@
+{
+  "description": "MAINTAINER RULING #984, Q3: the interval clock is FIXED RATE -- `each successive interval arrives n ticks after the previous interval, on that original schedule. The period is never re-measured from the moment an invocation happens to finish` (spec/interaction-events.md:183-187). A one-time block is what separates the two readings: a key press at tick 4 holds the thread for six ticks while the `every 4` handler is claimed, so the handler is delayed but its clock is not. Measured: intervals arrive at ticks 4, 8, 12 and 16 -- the original grid, which the `on_key` body's nested `wait 6` extends the run past by advancing the shared clock -- and the run prints FOUR times. Under the rejected fixed-DELAY reading the period restarts from each invocation's completion instead, so the grid slips off those boundaries and the same program prints THREE times. Fixed delay is also self-defeating: it disarms the handler for the duration of an invocation, so a new interval could never arrive while one was running, and the queueing sentence at :189-196 would be dead text -- which is the argument that settles the question. Dropping the missed occurrence also prints 3 here, so this fixture is not by itself a proof of fixed rate; it is the `every-*-queued-and-runs` pair that separates those two, and this one that separates fixed rate from fixed delay.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 4,
+          "kind": "key",
+          "key": "space"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 22]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [2, 1],
+        "end": [2, 26]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [2, 1],
+        "end": [2, 26]
+      },
+      "payload": {
+        "name": "on_key"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_key",
+          "key": "space"
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [2, 18],
+        "end": [2, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [2, 18],
+        "end": [2, 24]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [1, 11],
+        "end": [1, 20]
+      },
+      "payload": {
+        "values": ["a"]
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "primitive",
+      "source_span": {
+        "document": "interaction-events/every/every-fixed-rate-interval-not-re-measured",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

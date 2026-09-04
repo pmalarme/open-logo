@@ -1,0 +1,6 @@
+:a = new_turtle
+:b = new_turtle
+ask :a [ set_shape "arrow" ]
+ask :b [ set_shape "circle" ]
+tell [ :a :b ]
+stamp

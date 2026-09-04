@@ -1,0 +1,296 @@
+{
+  "description": "Issue #830, execution twin of `heritage/check/heritage-value-of-key-reader-in-parentheses`. `execute()` runs `parse()` and never `check()` (the harness `produce()` also returns under `check: true` before the `execute` branch), so the runtime holds its own copy of these rules and the parenthesized reader must be proven to RUN, not merely to parse clean. Every print pins a VALUE that exists only if the `(` path actually entered the `value-of-reader` (`spec/grammar.md:203`, defined :217) instead of taking `value` as a `parenthesized-call` callee (:215) — the defect #830 reported, fixed incidentally by #885 and pinned here. This twin executes the SAME shape set its check twin pins, so no shape is proven at parse-time only: the reader wholly parenthesized, as its own dictionary operand, as its own key operand (the inner reader reports the word \"a\", which the outer then uses as its key — a silent re-parse as a call could not yield 7), redundantly grouped, infix `+` on either side, `.field` and `[selector]` postfixes (proving it is a real `primary`, :192), and both readers parenthesized. The last two prints cross-check the Heritage reader against the Core `:d[\"a\"]`/`:nested.inner.x` twins it corresponds to, in the same run. Values are pinned rather than wording because the harness excludes `message` from comparison. The reader operates on a dict, so Heritage also needs Data (`spec/conformance.md:305`).",
+  "profiles": ["core-language", "data", "heritage"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [9, 1],
+        "end": [9, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [10, 1],
+        "end": [10, 30]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [13, 1],
+        "end": [13, 31]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [13, 1],
+        "end": [13, 31]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [16, 1],
+        "end": [16, 62]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [16, 1],
+        "end": [16, 62]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [20, 1],
+        "end": [20, 51]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [20, 1],
+        "end": [20, 51]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [23, 1],
+        "end": [23, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [23, 1],
+        "end": [23, 32]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [26, 1],
+        "end": [26, 36]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [26, 1],
+        "end": [26, 36]
+      },
+      "payload": {
+        "values": [8]
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [27, 1],
+        "end": [27, 35]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [27, 1],
+        "end": [27, 35]
+      },
+      "payload": {
+        "values": [8]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [30, 1],
+        "end": [30, 43]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [30, 1],
+        "end": [30, 43]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [31, 1],
+        "end": [31, 44]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [31, 1],
+        "end": [31, 44]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [34, 1],
+        "end": [34, 63]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [34, 1],
+        "end": [34, 63]
+      },
+      "payload": {
+        "values": [9]
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [37, 1],
+        "end": [37, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [37, 1],
+        "end": [37, 14]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [38, 1],
+        "end": [38, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "heritage/execution/heritage-value-of-key-reader-in-parentheses",
+        "start": [38, 1],
+        "end": [38, 22]
+      },
+      "payload": {
+        "values": [9]
+      }
+    }
+  ],
+  "diagnostics": []
+}

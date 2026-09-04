@@ -79,9 +79,10 @@ and the Copilot agent policy are guidance (see `devops/agent-policy`).
   is valid (CI emits a "consider adding a scope" notice, never a failure). When present, every scope
   must come from the allowlist: a **profile** (`core`, `turtle-rendering`, `data`, `geometry`,
   `heritage`, `sprites`, `interaction`, `sound`, `modules`, `localization`, `educational`,
-  `tutor-ai`) or an **area** mirroring the `area:*` labels (`grammar`, `highlighter`, `checker`,
-  `runtime`, `rendering`, `studio`, `edu`, `ci`, `docs` — `core` is covered by the profile scope
-  above); governance/infra scopes `spec` (the maintainer-owned `spec/` surface), `deps`, `release`,
+  `tutor-ai`) or an **area** mirroring the `area:*` labels (`parser`, `grammar`, `highlighter`,
+  `checker`, `diagnostics`, `runtime`, `rendering`, `studio`, `edu`, `ci`, `tooling`, `testing`,
+  `docs` — `core` is covered by the profile scope above); governance/infra scopes `spec` (the
+  maintainer-owned `spec/` surface), `deps`, `release`,
   `repo`, `meta` are also allowed.
 - **subject** — imperative, concise, no trailing period.
 
@@ -124,7 +125,10 @@ python .github/scripts/validate-commits.py "feat(geometry): add star polygons"
 ## Required branch protection
 
 CODEOWNERS only has teeth when the branch ruleset enforces it. The rulesets on **`main`** and
-**`saga/*`** must keep these on, or the "maintainer-only, non-delegable" rule is advisory only:
+**`saga/*`** are committed as reviewable JSON under
+[`.github/rulesets/`](../../../rulesets/README.md) (`main.json`, `saga.json`) and applied by the
+maintainer; [ADR-0031](../../../../docs/adr/0031-branch-protection-rulesets.md) records the choice.
+They must keep these on, or the "maintainer-only, non-delegable" rule is advisory only:
 
 - **Require a pull request before merging** + **Require review from Code Owners** — this is what makes
   a `spec/**` / `saga.yml` / `spec.yml` PR un-mergeable without @pmalarme's approval. CODEOWNERS names
@@ -133,10 +137,14 @@ CODEOWNERS only has teeth when the branch ruleset enforces it. The rulesets on *
   suite — so a red PR cannot merge.
 - **Block force-pushes and deletions** on `main` and `saga/*`.
 
-The **squash-merge repo settings** are what make the PR title authoritative — keep them as:
-**allow squash merging only**, with the default squash commit message set to
-**"Pull request title and description."** That guarantees the linted title is the subject that
-lands in history, which is why commit subjects can safely be advisory.
+The **merge-method settings** follow the two-path model (see
+[ADR-0031](../../../../docs/adr/0031-branch-protection-rulesets.md)): a **slice → `saga/*`** merge is a
+**squash** whose subject is the PR title, so the linted title is what lands and commit subjects can
+safely be advisory; a **`saga/* → main`** Release Candidate is a deliberate **merge commit** that
+preserves the saga's slice history rather than collapsing it. Repo settings therefore allow **squash
+and merge-commit** (rebase off), with the squash subject set to the PR title. Both `main` and `saga/*`
+allow both methods: `saga/*` needs merge-commit for the periodic `main → saga/*` pullback (step 3
+above), which must preserve ancestry.
 
 CODEOWNERS by itself does **not** restrict who clicks "Merge"; the ruleset does. If merge-actor
 restriction is needed beyond code-owner review, use repo permissions/automation, not CODEOWNERS.

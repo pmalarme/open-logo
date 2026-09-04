@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+hide_turtle
+show_turtle

@@ -1,0 +1,7 @@
+{
+  "description": "The other two axes of `mod` (issue #837, maintainer ruling #833), both unaffected by its joining the keyword list. BINDING is free: `:mod = 7` then `print :mod` checks clean, because binding a built-in name registers nothing -- spec/grammar.md:386 makes accepting any name in a binding position a normative MUST. CALLING is untouched: `print 7 mod 3` still reads the infix operator, because the rule is keyed to the grammar's declaration slots (`declared-callable-name`/`declared-type-name`, spec/grammar.md:58-59,165) and not to the call slots. reserved-word-define-mod pins the third axis, where `define mod` now raises. `\"check\": true` (semantic-checker only) -- nothing is executed and no events are produced.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
