@@ -74,6 +74,7 @@ import type {
 import {
   analyze,
   isBuiltInName,
+  isNameVisible,
   suggestionForUnknownName,
   isPrimitiveCommandName,
   walk,
@@ -107,7 +108,6 @@ import {
   type EvalResult,
   type Frame,
   type ProcedureRegistry,
-  knownUnderProfiles,
   type StructRegistry,
   type TurtleAddressing,
   type TurtleState,
@@ -4905,12 +4905,15 @@ function inactiveProfileCallee(
   environment: Environment,
 ): Diagnostic | undefined {
   // A profile FORM — `when`, `every`, `on_key`, `on_click`, `tell`, `ask`, `each` — is not a `Call`,
-  // so it needs its own arm rather than falling through this one. Its head word is a keyword only
-  // "while their profile is active" (`spec/tooling.md:30`), and measured before this arm, a run
-  // claiming Core Language alone registered a `when "start"` handler and ran its body.
+  // so it needs its own arm rather than falling through this one. What a profile decides is
+  // whether a name *works* (`spec/grammar.md:408`) — the same question the neighbouring `StructDef`
+  // arm asks — and measured before this arm, a run claiming Core Language alone registered a
+  // `when "start"` handler and ran its body. (`spec/tooling.md:30` puts these words in the
+  // `keyword` token class "while their profile is active", but that row is about how a highlighter
+  // PAINTS them, not about whether the form may act, so it is not the support for this arm.)
   if (rawStatement.kind === "ProfileStatement") {
     const head = rawStatement.keyword.name;
-    return knownUnderProfiles(head, environment.profiles)
+    return environment.isVisible(head)
       ? undefined
       : runtimeDiag.unknownCommand(
           rawStatement.keyword.source_span,
@@ -4923,7 +4926,7 @@ function inactiveProfileCallee(
   // constructor call cannot be caught by the arm below, because `point` is a user-declared name
   // rather than a built-in.
   //
-  // The Data profile is named directly rather than asked of `knownUnderProfiles`, because that
+  // The Data profile is named directly rather than asked of `environment.isVisible`, because that
   // function answers AVAILABILITY while `struct` is also a profile-independent RESERVED word: it is
   // a keyword everywhere so that `define struct` is illegal for the language *version* rather than
   // for a profile set (`spec/grammar.md:408`) — exactly the distinction `built-in-names.ts`
@@ -4938,13 +4941,10 @@ function inactiveProfileCallee(
     return undefined;
   }
   const spelled = rawStatement.callee.name;
-  if (environment.procedures.has(spelled.toLowerCase())) {
-    return undefined;
-  }
   if (!isBuiltInName(spelled)) {
     return undefined;
   }
-  if (knownUnderProfiles(spelled, environment.profiles)) {
+  if (environment.isVisible(spelled)) {
     return undefined;
   }
   return runtimeDiag.unknownCommand(
@@ -5721,6 +5721,7 @@ function createExecutionEnvironment(
     repeatTurns: [],
     profiles,
     suggestionFor: (name) => suggestionForUnknownName(name, program, profiles),
+    isVisible: (name) => isNameVisible(name, program, profiles),
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside

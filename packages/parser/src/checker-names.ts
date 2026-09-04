@@ -185,3 +185,28 @@ export function collectVisibleNames(
 
   return names;
 }
+
+/**
+ * Is `name` callable in `program` under `profiles` — the single question the semantic layer and the
+ * run must answer the same way?
+ *
+ * `spec/execution-model.md:680` says "One value MUST govern both the check and the run", and a
+ * *value* governing both is not enough if each side computes its own answer from it.
+ * `@openlogo/runtime` used to do exactly that: a second visibility predicate assembled from
+ * `isKeyword` plus the primitive registry plus Heritage-alias resolution. Measured over every name
+ * in `spec/built-in-names.json` against every profile closure — 1,776 pairs — the two agreed
+ * everywhere, so it was a duplication that had not yet drifted rather than a live defect. It is
+ * removed anyway: an agreement maintained by hand is a liability whether or not it has failed yet,
+ * and the same reasoning retired this slice's other two (a widened de-duplication identity, and a
+ * runtime `ol-unknown-command` that omitted the check's did-you-mean).
+ *
+ * Exported as a predicate rather than as {@link collectVisibleNames} itself so the set stays this
+ * module's own representation and a caller cannot hold or mutate it.
+ */
+export function isNameVisible(
+  name: string,
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): boolean {
+  return collectVisibleNames(program, profiles).has(name.toLowerCase());
+}

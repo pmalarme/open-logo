@@ -90,6 +90,12 @@ export { applyOneFaultRules } from "./one-fault.js";
 // (`spec/execution-model.md:741-748`).
 export { suggestionForUnknownName } from "./checker-unknown-command.js";
 
+// Name visibility, shared for the same reason one layer up: `spec/execution-model.md:680` requires
+// one value to govern both the check and the run, and two implementations of "is this name
+// callable here" are two answers waiting to diverge. `@openlogo/runtime` calls this rather than
+// assembling its own from the keyword table and the primitive registry.
+export { isNameVisible } from "./checker-names.js";
+
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";
 

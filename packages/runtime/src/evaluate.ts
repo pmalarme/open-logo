@@ -82,14 +82,16 @@ import type {
   WordLitNode,
 } from "@openlogo/parser";
 import { isBuiltInName, isPrimitiveCommandName } from "@openlogo/parser";
-import {
-  activeProfilePrimitiveArityRange,
-  canonicalOfHeritageAlias,
-  isActiveProfileCommandName,
-  isKeyword,
-} from "@openlogo/parser";
+import { isActiveProfileCommandName, isNameVisible } from "@openlogo/parser";
 import type { CheckProfile } from "@openlogo/parser";
 import { SUPPORTED_PROFILES } from "@openlogo/core";
+
+/** An empty program, for the visibility question a bare environment asks. */
+const EMPTY_PROGRAM: ProgramNode = {
+  kind: "Program",
+  body: [],
+  source_span: { document: "", start: [1, 1], end: [1, 1] },
+};
 import { runtimeDiag } from "./errors.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
@@ -282,6 +284,17 @@ export interface Environment {
    * expression evaluation and has no program whose vocabulary could be searched.
    */
   readonly suggestionFor: (name: string) => string | undefined;
+  /**
+   * Is `name` callable in this run — `@openlogo/parser`'s own visibility answer, bound to this
+   * run's program and claimed profile set.
+   *
+   * The runtime used to compute this itself, from the keyword table plus the primitive registry
+   * plus Heritage-alias resolution. That was a second producer of a judgement
+   * `spec/execution-model.md:680` requires one value to govern, and although the two agreed across
+   * every name × profile-closure pair measured, an agreement maintained by hand is a liability
+   * whether or not it has failed yet. One implementation, called from both sides.
+   */
+  readonly isVisible: (name: string) => boolean;
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
   readonly events: TraceEvent[];
@@ -644,6 +657,11 @@ export function createEnvironment(): Environment {
     // `execute()` overrides it with the run's claimed set (`spec/execution-model.md:673-680`).
     profiles: SUPPORTED_PROFILES,
     suggestionFor: () => undefined,
+    // A bare environment has no program whose vocabulary could be searched, so every built-in
+    // profile's primitives are visible, and no `define`d procedure or `struct` constructor is.
+    // Still `@openlogo/parser`'s own predicate rather than a second rule written here — a bare
+    // environment asks a narrower question, not a different one.
+    isVisible: (name) => isNameVisible(name, EMPTY_PROGRAM, SUPPORTED_PROFILES),
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
@@ -2008,67 +2026,6 @@ function withResolvedCallee(
   return { ...node, callee: { ...node.callee, name } };
 }
 
-/**
- * Does `name` resolve to a primitive under `profiles`?
- *
- * Two lookups, because a Heritage alias is not a registry entry of its own: the profile-keyed
- * primitive registry answers for a canonical name, and an alias resolves only when **Heritage
- * itself is active** and its canonical target is also active. `spec/conformance.md:150` makes
- * aliases "alternate spellings only — no new semantics", which is exactly why the spelling cannot
- * carry visibility its own profile does not grant: measured, `fd 10` under Core + Turtle &
- * Rendering without Heritage must not run, while the same program with Heritage active must.
- *
- * Always ask it the name **as written**. Canonicalising first — which several call paths do before
- * dispatch — would launder `fd` through `forward`'s Turtle & Rendering visibility and re-admit a
- * profile the run never claimed.
- */
-export function resolvesUnderProfiles(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  if (activeProfilePrimitiveArityRange(name, profiles) !== undefined) {
-    return true;
-  }
-  if (!profiles.includes("heritage")) {
-    return false;
-  }
-  const canonical = canonicalOfHeritageAlias(name.toLowerCase());
-  return (
-    canonical !== undefined &&
-    activeProfilePrimitiveArityRange(canonical, profiles) !== undefined
-  );
-}
-
-/**
- * Does OpenLogo know `name` **for this run** — the question `ol-not-implemented` and
- * `ol-unknown-command` divide between them?
- *
- * Two sources, and `isKeyword` is deliberately handed the active set rather than called bare.
- *
- * A **primitive** is known only when an active profile registers it: `spec/error-model.md:131` says
- * "a call under a profile the run does not claim is still `ol-unknown-command`, because there the
- * name does not resolve".
- *
- * A **keyword** splits in two, and conflating the halves was wrong in both directions (measured, and
- * both were live defects): a *profile-independent* keyword like `repeat` is known under every set,
- * while a *profile* keyword — `when`, `every`, `on_key`, `on_click`, `tell`, `ask`, `each` — is in
- * the keyword class only "while their profile is active" (`spec/tooling.md:30`). Calling
- * `isKeyword(name)` bare made `when` permanently unknown even under a run claiming Interaction &
- * Events, and made profile words that sit in the reserved set look available under Core alone.
- *
- * This answers AVAILABILITY, which is why the profile set belongs here at all. It is a different
- * question from whether a name may be DECLARED — that one is fixed by the language version and
- * never by the profile set (`spec/grammar.md:408`), and `built-in-names.ts` keeps the two apart
- * deliberately. `struct` is the case that shows the difference: reserved everywhere, available only
- * under Data.
- */
-export function knownUnderProfiles(
-  name: string,
-  profiles: readonly CheckProfile[],
-): boolean {
-  return isKeyword(name, profiles) || resolvesUnderProfiles(name, profiles);
-}
-
 function evaluateCall(
   node: ArithmeticCallNode,
   environment: Environment,
@@ -2082,10 +2039,17 @@ function evaluateCall(
   // chain; only the expression half was late, so the two halves disagreed about the same name
   // depending on where it appeared. `spec/execution-model.md:680` — "One value MUST govern both the
   // check and the run" — is not satisfied by a check that runs only where no evaluator exists.
+  // `isVisible` is `@openlogo/parser`'s own visibility answer, which already accounts for declared
+  // procedures and — when Data is active — `struct` constructor names, so no separate registry
+  // lookup is needed here. That also closes an asymmetry a reviewer flagged in the previous shape,
+  // which consulted `environment.procedures` but not `environment.structs`.
+  //
+  // `isBuiltInName` narrows this to names OpenLogo owns. A name that is neither a built-in nor
+  // visible is the learner's own — a typo or an undeclared procedure — and belongs to the terminal
+  // rule at the bottom of this function, which reports it with the same code.
   if (
-    !environment.procedures.has(node.callee.name.toLowerCase()) &&
     isBuiltInName(node.callee.name) &&
-    !knownUnderProfiles(node.callee.name, environment.profiles)
+    !environment.isVisible(node.callee.name)
   ) {
     return {
       ok: false,
@@ -2283,7 +2247,7 @@ function evaluateCall(
   }
   return {
     ok: false,
-    diagnostic: knownUnderProfiles(node.callee.name, environment.profiles)
+    diagnostic: environment.isVisible(node.callee.name)
       ? runtimeDiag.notImplemented(node.callee.source_span, name)
       : // Names what the learner WROTE. `name` has been through
         // `resolveHeritageAliasName`, so for an alias under a run that does not claim Heritage it

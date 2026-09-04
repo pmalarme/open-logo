@@ -457,6 +457,7 @@ search:
   draw-segment counts are asserted nowhere. `turtle-rendering/unresolvable-name/recursion-*` covers
   the same end-to-end shape with a small recursive tree written for the purpose, whose numbers were
   measured from it.
+
 ## Harness self-tests
 
 Fixtures under `_harness-selftest/` carry `"expect": "mismatch"` and assert output that execution can

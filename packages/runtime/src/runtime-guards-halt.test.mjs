@@ -7,7 +7,7 @@
 //
 // That is not a theory. Deleting `executeTurtleMoveCall`'s arity guard outright — replacing the
 // `halt(...)` with `return undefined` — leaves `npm run build`, `typecheck`, `lint`, `format:check`,
-// `test`, `coverage` (100%), `conformance` (1002/1002) and `examples` all green, and
+// `test`, `coverage` (100%), `conformance` and `examples` all green, and
 // `execute("forward", …, { runUnchecked: true })` returns a byte-identical result. A whole family of
 // tests that read as runtime-behaviour assertions had quietly become checker-echo assertions.
 //

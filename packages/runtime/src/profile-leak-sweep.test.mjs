@@ -15,9 +15,10 @@
 //
 // A sweep answering "nothing leaked" is worthless if nothing *could* have leaked. The first version
 // of this swept bare calls and returned a clean `0 of 76` that meant almost nothing, because most
-// names hit an arity fault before they could act. So the **acting set** is asserted too: names are
-// called with registry-derived arity, and the sweep fails if the set of names demonstrably able to
-// act collapses. Both directions must hold, or the file is not measuring anything.
+// names hit an arity fault before they could act. So the **acting set** is asserted too: each name
+// is called through the shapes `candidateCalls` brute-forces — see its own note for why registry
+// arity was tried and abandoned — and the sweep fails if the set of names demonstrably able to act
+// collapses. Both directions must hold, or the file is not measuring anything.
 //
 // ## What it does not reach, stated plainly
 //
@@ -36,10 +37,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import {
-  activeProfilePrimitiveArityRange,
-  OL_CHECK_PROFILES,
-} from "@openlogo/parser";
+import { OL_CHECK_PROFILES } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 const REPO_ROOT = join(

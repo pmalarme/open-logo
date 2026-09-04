@@ -194,11 +194,6 @@ function messageFor(name: string, suggestion: string | undefined): string {
 }
 
 /**
- * The `ol-unknown-command` rule: every call site whose callee is not visible (and is not a
- * grammar operator) raises one diagnostic, with a suggestion when a visible candidate is within
- * edit distance 2.
- */
-/**
  * The did-you-mean suggestion this specification requires for an unresolvable callable, computed
  * over the **visible** vocabulary of `program` under `profiles`.
  *
@@ -223,6 +218,11 @@ export function suggestionForUnknownName(
   );
 }
 
+/**
+ * The `ol-unknown-command` rule: every call site whose callee is not visible (and is not a
+ * grammar operator) raises one diagnostic, with a suggestion when a visible candidate is within
+ * edit distance 2.
+ */
 export function unknownCommandRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
