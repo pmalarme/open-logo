@@ -37,11 +37,15 @@ test('`make "name" value` assigns identically to `set name to value`', () => {
 });
 
 test("`make` mutates a nearest existing binding, exactly as `set`/`=` do (spec/execution-model.md)", () => {
+  // The shared name is declared `global`, because that is what carries state across the sealed
+  // procedure boundary (`spec/execution-model.md:545-583`) — without it neither spelling could reach
+  // a top-level name from inside `bump`, and the test would be measuring the boundary instead of the
+  // alias equivalence it exists to prove.
   const heritage = printsOf(
-    'set size to 1\ndefine bump\n  make "size" 2\nend\nbump\nprint :size\n',
+    'global size = 1\ndefine bump\n  make "size" 2\nend\nbump\nprint :size\n',
   );
   const core = printsOf(
-    "set size to 1\ndefine bump\n  set size to 2\nend\nbump\nprint :size\n",
+    "global size = 1\ndefine bump\n  set size to 2\nend\nbump\nprint :size\n",
   );
   assert.deepEqual(heritage, [2]);
   assert.deepEqual(heritage, core);
@@ -80,10 +84,10 @@ test("`op value` returns identically to `return value`", () => {
 
 test("all three Heritage forms compose in one program with identical semantics to their Core twin", () => {
   const heritage = printsOf(
-    'to grow :by\n  make "size" :size + :by\n  op :size\nend\nset size to 10\nprint grow 5\n',
+    'to grow :by\n  make "size" :size + :by\n  op :size\nend\nglobal size = 10\nprint grow 5\n',
   );
   const core = printsOf(
-    "define grow :by\n  set size to :size + :by\n  return :size\nend\nset size to 10\nprint grow 5\n",
+    "define grow :by\n  set size to :size + :by\n  return :size\nend\nglobal size = 10\nprint grow 5\n",
   );
   assert.deepEqual(heritage, [15]);
   assert.deepEqual(heritage, core);

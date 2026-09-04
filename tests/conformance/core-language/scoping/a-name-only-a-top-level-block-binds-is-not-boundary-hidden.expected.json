@@ -1,0 +1,97 @@
+{
+  "description": "The lexical set the boundary code is decided from is the ROOT scope's own names, not every name written at the top of the file. `:b` is born inside a `repeat` body — a block scope — and a block encloses no procedure body, because a `define` is a phase-1 declaration rather than something nested in the scope it appears in (spec/execution-model.md:651-655). So the boundary is not what hid `:b` from `peek`, and the read is an ordinary `ol-undefined-var` (spec/error-model.md:102), not `ol-var-not-visible`. Added at @testing's request during the review gate, which measured that widening the scan to collect block-bound names too passed all 984 fixtures — the exact design decision under review had no stack-neutral test. This fixture is also what keeps issue #825's checker from diverging from the runtime on the same program.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "compareMessages": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [4, 1],
+        "end": [4, 20]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [4, 12],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "name": "peek",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden",
+        "start": [2, 9],
+        "end": [2, 11]
+      },
+      "params": {
+        "name": "b"
+      },
+      "message": ":b has no value yet — try assigning it with :b = ... first.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

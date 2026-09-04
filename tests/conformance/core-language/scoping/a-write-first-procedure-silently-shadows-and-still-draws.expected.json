@@ -1,0 +1,147 @@
+{
+  "description": "The one shape the ruling changes with NO signal to the learner, pinned deliberately. `ol-var-not-visible` fires on a READ; a procedure whose only touch of an invisible name is a WRITE creates its own binding instead, silently and correctly (spec/execution-model.md:443-446 rules it undiagnosable — \"that is a genuinely different variable\"). So `setup` writes 100 into its own `:steps`, the top level still holds 10, and the turtle DRAWS 10 rather than 100 with zero diagnostics. Raised by @turtle-engine in the review gate: the core-language half was covered, but nothing pinned the turtle-VISIBLE half, and a changed picture with no diagnostic is exactly what a rendering fixture is for. The fix a learner needs is one word — `global steps = 10` — which the sibling fixtures cover.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [3, 3],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "result": null
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-write-first-procedure-silently-shadows-and-still-draws",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "values": [10]
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,278 @@
+{
+  "description": "A procedure frame is created by each CALL (spec/execution-model.md:365-366) and its bindings are fresh, so each level of the recursion has its own `:tmp` and the unwinding prints `0 1 2`. Before the sealed boundary every frame's `:tmp = :n` reached one shared top-level binding and the same program printed `0 0 0` — the deepest call's value, three times.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [1, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [6, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [6, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "f",
+        "args": [2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 3],
+        "end": [4, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "name": "f",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 3],
+        "end": [4, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "name": "f",
+        "args": [0]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [2, 3],
+        "end": [2, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 3],
+        "end": [4, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [3, 15],
+        "end": [3, 23]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [4, 3],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursion-binds-once-per-frame",
+        "start": [6, 1],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,5 @@
+define peek
+  print :b
+end
+repeat 1 [ :b = 1 ]
+peek

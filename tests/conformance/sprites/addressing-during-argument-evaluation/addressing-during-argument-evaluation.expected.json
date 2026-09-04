@@ -1,5 +1,5 @@
 {
-  "description": "issue #766, review-gate regression: an addressing form reached from a per-turtle command's ARGUMENT. `forward nudge` runs once per addressed turtle (spec/turtles-and-sprites.md:113) and evaluates `nudge` inside each run, so the `ask :a [ … ]` in `nudge`'s body emits its entry/restore addressing events while the runtime is mid-way through the per-turtle loop. Two invariants are pinned here that top-level `tell`/`ask`/`each` fixtures cannot reach. (1) No addressing event carries an envelope `turtle_id`: the runtime stamps the acting turtle's id onto the turtle-specific events a per-turtle command run produces, and argument evaluation happens inside that window — but an addressing event describes a SET, so it is not turtle-specific (spec/execution-model.md:1005) and a stamp could name a turtle its own addressed set does not contain. (2) `current_turtle_id` is always the addressed set's first member, never the per-turtle loop's transient current-turtle pointer: during turtle 2's iteration that pointer is 2, yet the `ask`'s restore correctly reports `{ addressed_turtle_ids: [1, 2], current_turtle_id: 1 }`. The `right 1` turns carry turtle 1's id both times because `ask :a` addressed turtle 1, while `forward`'s own `move`/`draw-segment` pairs carry 1 then 2; the surrounding `instruction`/`procedure-enter`/`return`/`procedure-exit` events carry none, being program events rather than turtle events (issue #764).",
+  "description": "issue #766, review-gate regression: an addressing form reached from a per-turtle command's ARGUMENT. `forward nudge` runs once per addressed turtle (spec/turtles-and-sprites.md:113) and evaluates `nudge` inside each run, so the `ask :t [ … ]` in `nudge`'s body (`:t` bound to `:a` at the call site) emits its entry/restore addressing events while the runtime is mid-way through the per-turtle loop. Two invariants are pinned here that top-level `tell`/`ask`/`each` fixtures cannot reach. (1) No addressing event carries an envelope `turtle_id`: the runtime stamps the acting turtle's id onto the turtle-specific events a per-turtle command run produces, and argument evaluation happens inside that window — but an addressing event describes a SET, so it is not turtle-specific (spec/execution-model.md:1005) and a stamp could name a turtle its own addressed set does not contain. (2) `current_turtle_id` is always the addressed set's first member, never the per-turtle loop's transient current-turtle pointer: during turtle 2's iteration that pointer is 2, yet the `ask`'s restore correctly reports `{ addressed_turtle_ids: [1, 2], current_turtle_id: 1 }`. The `right 1` turns carry turtle 1's id both times because `ask :a` addressed turtle 1, while `forward`'s own `move`/`draw-segment` pairs carry 1 then 2; the surrounding `instruction`/`procedure-enter`/`return`/`procedure-exit` events carry none, being program events rather than turtle events (issue #764). Issue #1099/#824: the turtle handle reaches the procedure as a PARAMETER rather than as a top-level name its body reads, because the sealed procedure boundary (spec/execution-model.md:389-394) makes that read `ol-var-not-visible`. This is an ADDRESSING fixture, not a scoping one, and the migration was measured field-by-field against the pre-migration stream to keep it so: the event count, the kind sequence, and every payload are unchanged EXCEPT `procedure-enter`'s `args`, which now carries the handle — no addressing, movement, print, or restore payload differs at all. Some `source_span` end columns did move, because the argument text lengthened the call line; spans are the only other difference.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -113,7 +113,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 1],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "statement_kind": "Call"
@@ -125,11 +125,15 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 9],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "name": "nudge",
-        "args": []
+        "args": [
+          {
+            "id": 1
+          }
+        ]
       }
     },
     {
@@ -232,7 +236,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 9],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "name": "nudge",
@@ -245,7 +249,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 1],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "from": [0, 0],
@@ -260,7 +264,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 1],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "from": [0, 0],
@@ -276,11 +280,15 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 9],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "name": "nudge",
-        "args": []
+        "args": [
+          {
+            "id": 1
+          }
+        ]
       }
     },
     {
@@ -383,7 +391,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 9],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "name": "nudge",
@@ -396,7 +404,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 1],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "from": [0, 0],
@@ -411,7 +419,7 @@
       "source_span": {
         "document": "sprites/addressing-during-argument-evaluation/addressing-during-argument-evaluation",
         "start": [8, 1],
-        "end": [8, 14]
+        "end": [8, 17]
       },
       "payload": {
         "from": [0, 0],

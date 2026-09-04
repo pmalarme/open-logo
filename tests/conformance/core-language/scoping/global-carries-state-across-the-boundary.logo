@@ -1,0 +1,7 @@
+global count = 0
+define bump
+  :count = :count + 1
+end
+bump
+bump
+print :count

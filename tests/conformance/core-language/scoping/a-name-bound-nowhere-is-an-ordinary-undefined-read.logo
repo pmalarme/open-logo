@@ -1,0 +1,4 @@
+define peek
+  print :nowhere
+end
+peek

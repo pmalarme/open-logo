@@ -1,0 +1,212 @@
+{
+  "description": "Each entry into a scope creates FRESH bindings (spec/execution-model.md:377-379), so `:x` — born inside the block — is a new binding on every turn: the loop prints `1 1 1 1`, not `1 2 3 4`. Contrast `a-block-updates-what-it-can-see`, whose `:total` is born outside; the two fixtures together are the whole contrast spec/execution-model.md:607-615 draws in two lines.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 1],
+        "end": [1, 45]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 21],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 21],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 21],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 21],
+        "end": [1, 32]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-fresh-binding-on-every-loop-turn",
+        "start": [1, 35],
+        "end": [1, 43]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}

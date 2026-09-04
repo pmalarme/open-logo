@@ -1,0 +1,68 @@
+{
+  "description": "Declaring a name `global` NAMES the root scope's binding of that name, whether or not one already exists (spec/execution-model.md:576-583): `:count = 5` then `global count = 0` leaves one binding, now shared and holding `0`, and a second `global count = 2` assigns again rather than creating a second binding or raising `ol-duplicate-definition`. A `global` declaration registers no callable, so it is not a declaration in the sense spec/grammar.md gives that word.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-redeclaration-assigns-the-same-binding",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-redeclaration-assigns-the-same-binding",
+        "start": [2, 1],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-redeclaration-assigns-the-same-binding",
+        "start": [3, 1],
+        "end": [3, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-redeclaration-assigns-the-same-binding",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-global-redeclaration-assigns-the-same-binding",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}
