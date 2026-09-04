@@ -106,6 +106,9 @@ end
 (print :x mutateAndTag)
 ```
 
+(As in the first example, `x` is declared `global` because the sealed procedure boundary is what
+lets `mutateAndTag` name it at all; the shared mutable list, and the timing question, are unchanged.)
+
 Here, by contrast, the mutation happens *as part of the same instruction's* argument evaluation —
 `(print :x mutateAndTag)` is one instruction whose two arguments are both evaluated, left to right,
 before that instruction's snapshot is taken. Because `mutateAndTag`'s mutation of `:x` runs during

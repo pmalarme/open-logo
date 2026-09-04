@@ -57,13 +57,10 @@ import type {
   BlockNode,
   CallNode,
   ExpressionNode,
-  GlobalNode,
-  LocalNode,
   ParenCallNode,
   ProcedureDefNode,
   ProfileStatementNode,
   ProgramNode,
-  SpannedName,
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
@@ -82,7 +79,9 @@ import {
   executeAdd,
   executeAssign,
   executeClear,
+  executeGlobal,
   executeInsert,
+  executeLocal,
   executeRemove,
   executeRemoveKey,
   findDuplicateBinderName,
@@ -101,10 +100,7 @@ import {
   type TurtleState,
 } from "./evaluate.js";
 import {
-  declareGlobal,
-  declareLocalNames,
-  declareLocalWithValue,
-  isRootScope,
+  collectRootScopeNames,
   pushBlockScope,
   pushLoopFrame,
   type Frame,
@@ -3841,87 +3837,6 @@ function dispatchTurtleCommandOnce(
 }
 
 /**
- * `local name` / `local name = value` / `(local a b …)` — declare names in the **current scope**
- * (`spec/commands.md:103-122`, `spec/execution-model.md:501-543`).
- *
- * The whole subtlety is the order of the two steps for the initializer form: **evaluate first, bind
- * second.** The initializer is evaluated with exactly the visibility the `local` statement itself
- * has — the current scope *minus* the binding it is about to create — which is what lets
- * `local count = :count + 1` read the `count` the statement could already see (a parameter, an
- * earlier binding of the same scope, an enclosing block's binding, or a `global`) rather than
- * raising `ol-undefined-var` on the binding being declared. Snapshotting a shared value into a
- * same-named local is the reason that rule exists, and doing the two steps the other way round
- * would break exactly it.
- *
- * The initializer belongs to the single-name form only (`spec/execution-model.md:517-518`), so the
- * grammar guarantees `names` holds exactly one name whenever `value` is present; the parenthesized
- * multi-name form never carries one.
- */
-function executeLocal(
-  statement: LocalNode,
-  environment: Environment,
-): AssignResult {
-  if (statement.value === undefined) {
-    declareLocalNames(
-      environment,
-      statement.names.map((name) => name.name),
-    );
-    return { ok: true };
-  }
-  if (!isSupportedArgument(statement.value, environment)) {
-    return { ok: true };
-  }
-  const result = evaluate(statement.value, environment);
-  if (!result.ok) {
-    return { ok: false, diagnostic: result.diagnostic };
-  }
-  declareLocalWithValue(
-    environment,
-    (statement.names[0] as SpannedName).name,
-    result.value,
-  );
-  return { ok: true };
-}
-
-/**
- * `global name = value` — mark the root scope's binding of `name` shared and assign the initializer
- * (`spec/commands.md:123-143`, `spec/execution-model.md:545-583`).
- *
- * The declaration is **legal only at the root scope** and raises `ol-global-outside-root` anywhere
- * else — inside a procedure body, a control-form body, a handler block, or a comprehension body.
- * {@link isRootScope} is that whole test: the root scope is the one place where the frame chain is
- * the root frame alone and no procedure body is running, so every nested position fails it without
- * a per-form list to keep in sync. The placement is checked **before** the initializer runs, so a
- * misplaced declaration has no effect at all.
- *
- * `global` "takes effect when it runs" like any other top-level instruction, so a read that happens
- * before the declaration line — including an early-firing handler — finds no binding and raises
- * `ol-undefined-var`, which needs no code here: nothing is bound until this runs.
- */
-function executeGlobal(
-  statement: GlobalNode,
-  environment: Environment,
-): AssignResult {
-  if (!isRootScope(environment)) {
-    return {
-      ok: false,
-      diagnostic: runtimeDiag.globalOutsideRoot(statement.name.source_span, {
-        name: statement.name.name,
-      }),
-    };
-  }
-  if (!isSupportedArgument(statement.value, environment)) {
-    return { ok: true };
-  }
-  const result = evaluate(statement.value, environment);
-  if (!result.ok) {
-    return { ok: false, diagnostic: result.diagnostic };
-  }
-  declareGlobal(environment, statement.name.name, result.value);
-  return { ok: true };
-}
-
-/**
  * Dispatch the statements that bind a name or write into a value — `Assign`
  * (`set … to` / `<place> = …`), the two binding declarations `Local`/`Global`
  * (`spec/execution-model.md:501-583`), plus the five Data-profile mutators `add`/`remove`/`insert`/
@@ -5795,6 +5710,8 @@ function createExecutionEnvironment(
     // run, so a declaration observed anywhere is observed everywhere.
     procedure: undefined,
     globals: new Set(),
+    // Lexical, so computed once from the parsed document rather than re-derived per read.
+    rootScopeNames: collectRootScopeNames(program),
     repeatTurns: [],
     procedures,
     structs,

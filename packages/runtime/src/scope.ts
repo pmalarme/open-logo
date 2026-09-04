@@ -53,6 +53,7 @@
  */
 
 import type { OLValue } from "@openlogo/core";
+import type { ProgramNode } from "@openlogo/parser";
 import type { Environment } from "./evaluate.js";
 
 /**
@@ -117,20 +118,28 @@ function findVisibleFrame(
 
 /**
  * The procedure whose sealed boundary is the reason a read failed, or `undefined` when the boundary
- * is not the reason. Called only once a read has already missed, so it decides nothing but the
- * diagnostic's code (`spec/error-model.md:102,132`).
+ * is not the reason. Called only once a read has already missed, so it decides nothing but which of
+ * the two codes `spec/error-model.md:102,132` distinguishes the failure gets.
  *
- * Two of the boundary rule's three conditions are all this has to test. The read being inside a
- * procedure body is `procedure !== undefined`, and the root scope binding the name is
- * `root.has(key)`. The third — that the name is not `global` — is already decided: a `global` the
- * root binds is *visible* from a procedure body, so {@link findVisibleFrame} would have returned
- * the root frame and this function would never have been called. Re-testing it here would be a
- * branch no execution can take.
+ * **The test is lexical, not temporal** (`spec/execution-model.md:405-414`,
+ * `spec/error-model.md:132`): a name an enclosing scope binds *anywhere in the declaring document*
+ * takes `ol-var-not-visible` "whether or not that binding has been created by the time the read
+ * executes", which is what keeps the code decidable at the `semantic` stage. So this consults
+ * {@link Environment.rootScopeNames} — the names the root scope binds anywhere in the document,
+ * computed once before the run — and never `root.has(key)`, which would answer the different,
+ * temporal question "has that binding been created yet?" and would report `ol-undefined-var` for a
+ * read that merely runs before the top-level assignment line.
  *
- * The test is temporal here, where the checker's is lexical: the evaluator "resolves names as
- * execution reaches them" (`spec/execution-model.md:416`), so a top-level binding whose creating
- * statement has not run yet is not bound anywhere, and the boundary is not what hid it — which is
- * `ol-undefined-var` by that code's own definition.
+ * A procedure body's only lexically enclosing scope is the **root scope**: procedures are
+ * declarations registered in phase 1 (`spec/execution-model.md:651-655`), never nested inside the
+ * scope they are written in, so there is no other enclosing scope to consult. A name a top-level
+ * *block* binds is therefore not in this set — that block encloses no procedure body — and a read
+ * of it is the ordinary `ol-undefined-var`.
+ *
+ * A name declared `global` is not boundary-hidden at all (`spec/execution-model.md:412-414`), so
+ * {@link rootScopeNames} excludes every name any `global` declaration in the document names: a read
+ * that runs before such a declaration line "finds no binding and raises `ol-undefined-var`, like any
+ * other name".
  */
 function boundaryHiding(
   environment: Environment,
@@ -140,8 +149,7 @@ function boundaryHiding(
   if (procedure === undefined) {
     return undefined;
   }
-  const root = environment.frames[environment.frames.length - 1] as Frame;
-  return root.has(key) ? procedure : undefined;
+  return environment.rootScopeNames.has(key) ? procedure : undefined;
 }
 
 /**
@@ -191,6 +199,53 @@ export function assignVariable(
 }
 
 /**
+ * The names the **root scope** binds anywhere in `program` — the lexical set
+ * {@link boundaryHiding} decides `ol-var-not-visible` from, computed once before the run because it
+ * is a property of the document, not of how far execution has got
+ * (`spec/execution-model.md:405-414`).
+ *
+ * Only the program's **own top-level statements** are scanned, never their bodies. A name bound
+ * inside a top-level `repeat`/`if`/handler block belongs to that *block* scope, and a block encloses
+ * no procedure body, so it is not something the boundary hides — reading it from a procedure is the
+ * ordinary `ol-undefined-var`. What binds a name in the root scope is a bare assignment
+ * (`:name = …` / `set name to …` / heritage `make`, all `Assign` nodes with a segment-less place)
+ * or a root-level `local`.
+ *
+ * Every name any `global` declaration in the document names is then **removed**, because a `global`
+ * is not boundary-hidden (`spec/execution-model.md:412-414`) — a procedure can see it, and a read
+ * that runs before its declaration line is an ordinary `ol-undefined-var` "like any other name".
+ * Only root-level `global` declarations count, because only those declare anything: one written
+ * anywhere else raises `ol-global-outside-root` when it runs and shares no name at all.
+ */
+export function collectRootScopeNames(program: ProgramNode): Set<string> {
+  const names = new Set<string>();
+  const declaredGlobal = new Set<string>();
+  for (const statement of program.body) {
+    if (
+      statement.kind === "Assign" &&
+      statement.place.kind === "Place" &&
+      statement.place.segments.length === 0
+    ) {
+      names.add(statement.place.base.name.toLowerCase());
+      continue;
+    }
+    if (statement.kind === "Local") {
+      for (const name of statement.names) {
+        names.add(name.name.toLowerCase());
+      }
+      continue;
+    }
+    if (statement.kind === "Global") {
+      declaredGlobal.add(statement.name.name.toLowerCase());
+    }
+  }
+  for (const name of declaredGlobal) {
+    names.delete(name);
+  }
+  return names;
+}
+
+/**
  * Push `frame` onto `environment` as the new current scope, nearest-first. Returns a **new**
  * {@link Environment}; `environment` itself is never mutated, so the scope ends simply by the
  * caller ceasing to use the returned value — there is no pop and no unwind path to get wrong.
@@ -219,7 +274,7 @@ export function pushBlockScope(environment: Environment): Environment {
 
 /**
  * Enter a block scope that starts out holding `bindings` — a `for … in`/`for … from … to` loop
- * variable or a comprehension binder (`spec/execution-model.md:778-808`). Identical to
+ * variable or a comprehension binder (`spec/execution-model.md:769-808`). Identical to
  * {@link pushBlockScope} in every other respect: the binder's names are simply born already bound,
  * fresh on each pass, and go out of scope with the rest of the block's own names.
  */

@@ -1,0 +1,266 @@
+{
+  "description": "Why the block-lifetime rule is a fix rather than only a restriction. A name born inside a control-form body belongs to THAT ENTRY of the block (spec/execution-model.md:371-379,603-605), so a deeper recursive call cannot clobber the value a shallower one is still holding: each level of `shrink` keeps its own `:next`, and the unwinding prints 0, then 3, then 6 — three distinct values from three distinct bindings of one name. A runtime that let `:next` leak to the root scope would give every level one shared binding, and the shallower level would print whatever the deeper one last wrote. Added at @testing's request during the review gate, which measured that `spec/examples/12-fractal.logo` renders a DIFFERENT picture under this slice with zero diagnostics on either side — 125 differing event payloads — for exactly this reason. The examples gate asserts only that an example runs clean, so it is structurally blind to that change; this fixture is what pins the corrected behaviour so a regression cannot pass unnoticed.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [1, 1],
+        "end": [7, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [8, 1],
+        "end": [8, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [8, 1],
+        "end": [8, 9]
+      },
+      "payload": {
+        "name": "shrink",
+        "args": [2]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [2, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "shrink",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [2, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [3, 5],
+        "end": [3, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "shrink",
+        "args": [0]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [2, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [2, 15],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [2, 15],
+        "end": [2, 22]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "shrink",
+        "result": null
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [5, 5],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [5, 5],
+        "end": [5, 16]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [4, 5],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "shrink",
+        "result": null
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [5, 5],
+        "end": [5, 16]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [5, 5],
+        "end": [5, 16]
+      },
+      "payload": {
+        "values": [6]
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-in-an-else-body-does-not-leak-across-recursion",
+        "start": [8, 1],
+        "end": [8, 9]
+      },
+      "payload": {
+        "name": "shrink",
+        "result": null
+      }
+    }
+  ],
+  "diagnostics": []
+}

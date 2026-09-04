@@ -1,0 +1,5 @@
+define peek
+  print :later
+end
+peek
+:later = 1

@@ -1,0 +1,74 @@
+{
+  "description": "Which of the two codes a boundary-hidden read gets is decided LEXICALLY, not temporally (spec/execution-model.md:405-414, spec/error-model.md:132): \"a name an enclosing scope binds anywhere in the declaring document takes this code whether or not that binding has been created by the time the read executes\". Here `peek` runs BEFORE `:later = 1` has executed, so no binding of `later` exists anywhere at that instant — yet the code is still `ol-var-not-visible`, naming the boundary, because the root scope binds the name somewhere in the document. That is what keeps the code decidable at the `semantic` stage and what lets issue #825's checker report the same identity the runtime does instead of contradicting it on execution order. A runtime that asked the temporal question (\"is it bound yet?\") would report `ol-undefined-var` here and disagree with its own checker.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "compareMessages": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/the-boundary-code-is-lexical-not-temporal",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/the-boundary-code-is-lexical-not-temporal",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/the-boundary-code-is-lexical-not-temporal",
+        "start": [4, 1],
+        "end": [4, 5]
+      },
+      "payload": {
+        "name": "peek",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/the-boundary-code-is-lexical-not-temporal",
+        "start": [2, 3],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/scoping/the-boundary-code-is-lexical-not-temporal",
+        "start": [2, 9],
+        "end": [2, 15]
+      },
+      "params": {
+        "name": "later",
+        "procedure": "peek"
+      },
+      "message": ":later is not defined inside peek — a procedure only sees its own inputs and names declared global, so declare it at the top level with global later = ... to share it.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

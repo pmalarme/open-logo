@@ -65,8 +65,10 @@ import type {
   ComprehensionNode,
   DictLitNode,
   ExpressionNode,
+  GlobalNode,
   InsertNode,
   IsPredicateNode,
+  LocalNode,
   ParenCallNode,
   PlaceNode,
   PlaceSegment,
@@ -84,7 +86,15 @@ import type {
 import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 import type { Frame } from "./scope.js";
-import { assignVariable, pushLoopFrame, readVariable } from "./scope.js";
+import {
+  assignVariable,
+  declareGlobal,
+  declareLocalNames,
+  declareLocalWithValue,
+  isRootScope,
+  pushLoopFrame,
+  readVariable,
+} from "./scope.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
@@ -266,6 +276,19 @@ export interface Environment {
    * declaration line ran.
    */
   readonly globals: Set<string>;
+  /**
+   * The names the **root scope** binds anywhere in the document, computed once before the run by
+   * `scope.ts`'s `collectRootScopeNames` — the **lexical** set that decides `ol-var-not-visible`
+   * versus `ol-undefined-var` for a read a procedure boundary hid.
+   *
+   * A plain readonly field rather than a mutable box, because it is a property of the parsed
+   * document and cannot change while that document runs. It is what keeps the code choice lexical
+   * rather than temporal (`spec/execution-model.md:405-414`, `spec/error-model.md:132`): a read that
+   * merely runs before its top-level assignment line is still boundary-hidden, which is what makes
+   * this code decidable at the `semantic` stage and lets issue #825's checker agree with the runtime
+   * instead of contradicting it.
+   */
+  readonly rootScopeNames: ReadonlySet<string>;
   readonly repeatTurns: number[];
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
@@ -625,6 +648,10 @@ export function createEnvironment(): Environment {
     frames: [new Map()],
     procedure: undefined,
     globals: new Set(),
+    // No real parsed program backs this bare environment (see `program` below), so no top-level
+    // statement binds anything and nothing can be boundary-hidden. `execute-internal.ts`'s
+    // `createExecutionEnvironment` is the only place a real document's set is computed.
+    rootScopeNames: new Set(),
     repeatTurns: [],
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
@@ -806,7 +833,7 @@ function failedRead(
     : runtimeDiag.varNotVisible(source_span, { name, procedure: hiddenBy });
 }
 
-// --- Loop/comprehension binder helpers (spec/execution-model.md:778-808) --------------------
+// --- Loop/comprehension binder helpers (spec/execution-model.md:769-808) --------------------
 //
 // Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
 // comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
@@ -1832,6 +1859,92 @@ export function executeAssign(
     return { ok: true };
   }
   return writeIndexedPlace(place, valueResult.value, environment);
+}
+
+/**
+ * `local name` / `local name = value` / `(local a b …)` — declare names in the **current scope**
+ * (`spec/commands.md:103-122`, `spec/execution-model.md:501-543`).
+ *
+ * The whole subtlety is the order of the two steps for the initializer form: **evaluate first, bind
+ * second.** The initializer is evaluated with exactly the visibility the `local` statement itself
+ * has — the current scope *minus* the binding it is about to create — which is what lets
+ * `local count = :count + 1` read the `count` the statement could already see (a parameter, an
+ * earlier binding of the same scope, an enclosing block's binding, or a `global`) rather than
+ * raising `ol-undefined-var` on the binding being declared. Snapshotting a shared value into a
+ * same-named local is the reason that rule exists, and doing the two steps the other way round
+ * would break exactly it.
+ *
+ * The initializer belongs to the single-name form only (`spec/execution-model.md:517-518`), so the
+ * grammar guarantees `names` holds exactly one name whenever `value` is present; the parenthesized
+ * multi-name form never carries one.
+ *
+ * Lives here beside {@link executeAssign} rather than in `execute-internal.ts` because a
+ * comprehension body is a scope like any other and may declare a `local`
+ * (`spec/execution-model.md:367-369`): `runComprehensionBody` is in this module, and
+ * `execute-internal.ts` already imports it, so this is the one placement both callers can reach.
+ */
+export function executeLocal(
+  statement: LocalNode,
+  environment: Environment,
+): AssignResult {
+  if (statement.value === undefined) {
+    declareLocalNames(
+      environment,
+      statement.names.map((name) => name.name),
+    );
+    return { ok: true };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareLocalWithValue(
+    environment,
+    (statement.names[0] as SpannedName).name,
+    result.value,
+  );
+  return { ok: true };
+}
+
+/**
+ * `global name = value` — mark the root scope's binding of `name` shared and assign the initializer
+ * (`spec/commands.md:123-143`, `spec/execution-model.md:545-583`).
+ *
+ * The declaration is **legal only at the root scope** and raises `ol-global-outside-root` anywhere
+ * else — inside a procedure body, a control-form body, a handler block, or a comprehension body.
+ * {@link isRootScope} is that whole test: the root scope is the one place where the frame chain is
+ * the root frame alone, so every nested position fails it without a per-form list to keep in sync.
+ * The placement is checked **before** the initializer runs, so a misplaced declaration has no effect
+ * at all.
+ *
+ * `global` "takes effect when it runs" like any other top-level instruction, so a read that happens
+ * before the declaration line — including an early-firing handler — finds no binding and raises
+ * `ol-undefined-var`, which needs no code here: nothing is bound until this runs.
+ */
+export function executeGlobal(
+  statement: GlobalNode,
+  environment: Environment,
+): AssignResult {
+  if (!isRootScope(environment)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.globalOutsideRoot(statement.name.source_span, {
+        name: statement.name.name,
+      }),
+    };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareGlobal(environment, statement.name.name, result.value);
+  return { ok: true };
 }
 
 /**
@@ -5018,9 +5131,14 @@ function isValueProducingStatement(statement: StatementNode): boolean {
  * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
  * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
  * supported (an unsupported assignment target/value is itself silently a no-op, per
- * {@link executeAssign}'s own convention); any expression-shaped statement is
- * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
- * `For`/`Forever`/`ProcedureDef`) is not.
+ * {@link executeAssign}'s own convention), and so are the two binding declarations `Local`/`Global`
+ * for the same reason — a comprehension body is a **block scope**
+ * (`spec/execution-model.md:367-369`), so `local` declares in it like anywhere else and a `global`
+ * written in one raises `ol-global-outside-root`. Omitting them here would not merely skip the
+ * declaration: an unsupported leading statement makes the whole comprehension a silent no-op, which
+ * is a wrong answer with no diagnostic at all. Any expression-shaped statement is supported when
+ * {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/`For`/`Forever`/
+ * `ProcedureDef`) is not.
  */
 function isSupportedLeadingBodyStatement(
   statement: StatementNode,
@@ -5030,7 +5148,9 @@ function isSupportedLeadingBodyStatement(
   if (
     statement.kind === "Return" ||
     statement.kind === "Stop" ||
-    statement.kind === "Assign"
+    statement.kind === "Assign" ||
+    statement.kind === "Local" ||
+    statement.kind === "Global"
   ) {
     return true;
   }
@@ -5172,6 +5292,19 @@ function runComprehensionBody(
     }
     if (statement.kind === "Assign") {
       const result = executeAssign(statement, environment);
+      if (!result.ok) {
+        return { kind: "halt", diagnostic: result.diagnostic };
+      }
+      continue;
+    }
+    // A comprehension body is a block scope like any other, so it may declare a `local` — and a
+    // `global` written in one is off the root scope and raises `ol-global-outside-root`
+    // (`spec/execution-model.md:367-369,561-563`). Both share `Assign`'s outcome shape.
+    if (statement.kind === "Local" || statement.kind === "Global") {
+      const result =
+        statement.kind === "Local"
+          ? executeLocal(statement, environment)
+          : executeGlobal(statement, environment);
       if (!result.ok) {
         return { kind: "halt", diagnostic: result.diagnostic };
       }
