@@ -1,8 +1,8 @@
 # Issue #787: the reporter-position alias path over a user procedure that never reaches `return`.
-# `define forward` takes a built-in name, so phase-1 registration raises `ol-reserved-word` and
-# the program halts before the reporter is evaluated: the event stream is empty and no
-# `ol-no-output` is produced. Re-legalise `define forward` and this fixture reddens, leading the
-# next reader to #787.
+# `define forward` takes a built-in name, so `ol-reserved-word` is reported and the program never
+# runs: the event stream is empty. Since issue #815 the check sees the whole program, so the
+# `print fd` on the last line is judged too and reports its own faults beside the declaration's.
+# Re-legalise `define forward` and this fixture reddens, leading the next reader to #787.
 define forward
   print 1
 end

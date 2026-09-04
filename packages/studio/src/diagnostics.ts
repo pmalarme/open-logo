@@ -23,10 +23,12 @@
  * ## Semantic checking (`check()`) is opt-in, not default
  * `@openlogo/parser`'s `check()` (epic #108) is the Layer-2/3 entry point this controller is
  * wired to accept — interface-level readiness for #125's AC — but it is **not** run by default
- * yet: its `ol-unknown-command` rule does not yet recognize runtime-registered primitives outside
- * Core Language (`checker-names.ts`'s `collectVisibleNames` TODO), so turning it on unconditionally
- * would falsely flag an ordinary turtle program like `forward 100` as unknown-command. Pass
- * `semanticCheck: true` (once epic #108 closes that gap) to layer semantic/style diagnostics into
+ * yet: `check()` was being called here with Core Language alone, under which an ordinary turtle
+ * program like `forward 100` is falsely flagged `ol-unknown-command`. Issue #815 settled that — a
+ * run checks itself under the profile set it CLAIMS (`spec/execution-model.md:673-680`), and
+ * `execute()` now does so before Phase 2, which means the Run path already surfaces these findings
+ * and turning this on would DUPLICATE them rather than add them. Pass
+ * `semanticCheck: true` (see epic #813) to layer semantic/style diagnostics into
  * the exact same unified `diagnostics` field — no rendering-side change needed when that flag
  * flips, because {@link toDiagnosticsView} already renders every stage identically.
  *

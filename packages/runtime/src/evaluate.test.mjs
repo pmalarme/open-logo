@@ -1,6 +1,6 @@
 // Unit tests for the expression evaluator — Core literals and arithmetic (`+ - * / mod` plus
 // `abs sqrt int round power`) per spec/execution-model.md and spec/commands.md (issue #93).
-// `isSupportedExpression`'s gate is extended for `:name` reads and index-only places by issue
+// The since-deleted `isSupportedExpression` gate was extended for `:name` reads and index-only places by issue
 // #94; see variables-places.test.mjs for the dedicated variable/place/assignment test suite.
 // Most cases parse real source through @openlogo/parser and evaluate the resulting AST node,
 // exercising evaluate() exactly as @openlogo/runtime's execute() does. A handful of cases hand-
@@ -194,7 +194,7 @@ test("raises ol-type when power's base or exponent is not a number", () => {
 // `sin`/`cos`/`tan`/`pi` (issue #323, `spec/commands.md`'s "Math" section): the Core Math
 // reporters this issue adds. Before this issue, `sin`/`cos`/`tan`/`pi` were already registered in
 // the parser's fixed-arity table and so parsed with zero diagnostics, but reached no evaluator
-// branch and no `isSupportedExpression` entry, so `print sin 90` silently emitted no `print`
+// branch and no entry in the since-deleted `isSupportedExpression` gate, so `print sin 90` silently emitted no `print`
 // event and no diagnostic at all — an uncontrolled silent failure this issue fixes.
 
 test("sin/cos report the sine/cosine of an angle in degrees", () => {
@@ -321,14 +321,16 @@ test("an unresolvable callee raises ol-unknown-command at every depth it can nes
   }
 });
 
-test("a registered primitive with no evaluation raises ol-not-implemented, never ol-unknown-command", () => {
-  // The other half of the same rule (`spec/error-model.md:131`): the name IS known, so blaming the
-  // learner for a typo would misattribute this implementation's own gap. `forward` is a statement
-  // command with no expression-position evaluation, which is exactly that shape.
+test("a registered Command asked for a value reports ol-no-output, never ol-not-implemented", () => {
+  // The runtime twin of `checker-command-in-value-position.ts`'s rule (`spec/tooling.md:193`).
+  // `forward` is a statement command with no expression-position evaluation, and the tempting
+  // answer — `ol-not-implemented` — would be a lie in the learner's favour: `forward` IS
+  // implemented, it simply reports no value. The code that says so is `ol-no-output`, and it is
+  // reached only when the check has been bypassed, since a checked run refuses the program first.
   const result = evaluate(parseExpr("(forward 100)"));
   assert.equal(result.ok, false);
-  assert.equal(result.diagnostic.code, "ol-not-implemented");
-  assert.deepEqual(result.diagnostic.params, { name: "forward" });
+  assert.equal(result.diagnostic.code, "ol-no-output");
+  assert.deepEqual(result.diagnostic.params, { procedure: "forward" });
   assert.equal(result.diagnostic.stage, "runtime");
 });
 

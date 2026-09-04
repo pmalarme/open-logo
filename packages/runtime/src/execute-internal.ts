@@ -71,7 +71,12 @@ import type {
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
-import { analyze, isBuiltInName, walk } from "@openlogo/parser";
+import {
+  analyze,
+  isBuiltInName,
+  isPrimitiveCommandName,
+  walk,
+} from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import { isValidPitch } from "./pitch.js";
@@ -157,7 +162,7 @@ import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
  * `Call` form (`print 1`) and the explicit-parentheses `ParenCall` form (`(print 1 2)`) — both
  * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`). Matches
  * regardless of argument count: a zero-argument `print`/`(print)` is handled separately in
- * {@link executeStatements}, since `execute()` runs `parse()` only (not the semantic checker), so
+ * {@link executeStatements}, since a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so
  * the checker's static `ol-not-enough-inputs` rule never sees it here.
  *
  * Returns a plain `boolean`, not a `statement is CallNode | ParenCallNode` predicate, and the
@@ -4695,11 +4700,11 @@ function callProcedureAsValue(
  *
  * A `print` statement (`print value` or the parenthesized variadic `(print a b …)`) additionally
  * evaluates every operand, left to right, and — once all of them evaluate cleanly — emits a
- * `print` event carrying every value, but only when {@link isSupportedExpression} says this
+ * `print` event carrying every value. Until issue #815 this ran only when a since-deleted gate said this
  * issue's evaluator gives *each* operand a value; otherwise the whole statement is left
  * un-evaluated for a future slice (e.g. `print :ages.tom` — dotted-field reads land with the
  * Data profile). A zero-argument `print`/`(print)` raises `ol-not-enough-inputs` (issue #98):
- * `execute()` runs `parse()` only, so the semantic checker's static arity rule — which cannot
+ * A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so the semantic checker's static arity rule — which cannot
  * itself catch an open-variadic parenthesized under-supply, `packages/parser/src/checker-arity.ts`
  * — never runs here, and this is the only guard against silently treating a callee-only `print`
  * as a no-op. If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`,
@@ -4717,7 +4722,7 @@ function callProcedureAsValue(
  *
  * A `Return`/`Stop`/`Throw` statement (issue #97) always returns its own {@link ExecSignal}
  * unconditionally, regardless of whether a procedure is actually running: `Return`'s value is
- * evaluated first — gated by {@link isSupportedExpression}, same "defer if unsupported"
+ * evaluated first. Until issue #815 a since-deleted gate applied the same "defer if unsupported"
  * convention as `print` — and pushes a `return` event before returning `{kind:"return", …}`;
  * `Stop` returns `{kind:"stop", …}` with no event of its own (the enclosing `procedure-exit`'s
  * `result:null` already conveys it); `Throw`'s value is likewise evaluated first (a word is used
@@ -4808,12 +4813,12 @@ function callProcedureAsValue(
  * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
  * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
  * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
- * size fixed — inlining an `isSupportedExpression` gate directly there pushed the deep-recursion
+ * size fixed — inlining the since-deleted `isSupportedExpression` gate directly there pushed the deep-recursion
  * budget test of the day over the native call-stack limit (see {@link executeTurtleMoveCall}'s
  * canonical frame-width note).
  *
  * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
- * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
+ * after `evaluate.ts`'s own since-deleted gate had already checked every argument, a
  * statement-position call is dispatched straight from `executeStatements` — so this is the one
  * call site that must gate its own arguments. An argument this issue's evaluator cannot yet give
  * meaning to (e.g. a dict literal, `star { a: 1 }`) leaves the whole call un-evaluated, same as
@@ -5379,18 +5384,28 @@ function executeStatements(
 
     // The terminal rule at **statement** position (`spec/execution-model.md:717-720`, issue #815),
     // the twin of `evaluate.ts`'s in `evaluateCall`. Every dispatch above declined this statement,
-    // so if it is a call there is no *executor* for its callee — but that is not the same as there
-    // being no evaluation: a bare expression statement such as `1 + 1` is a `Call` the block-result
-    // rule says to run for effect and discard (`spec/execution-model.md:214-227`). So the ending is
-    // decided by actually evaluating it, which is the one thing that cannot be wrong: a reporter
-    // reports and its value is discarded, and a callee with no evaluation at all reaches
-    // `evaluateCall`'s terminal and raises there, naming the right code for the right reason.
+    // so if it is a call there is no *executor* for its callee — and the right ending depends on
+    // what kind of callable it is:
     //
-    // Before this, such a statement emitted its `instruction` event and then did nothing at all:
-    // measured, `challenge` parsed clean, checked clean under Tutor, ran, produced nothing, and
-    // reported nothing. Every other statement kind still falling through is genuinely nothing to
-    // run — `ProcedureDef` and `StructDef` are declarations Phase 1 already registered.
+    // - a registered **Command** with no executor is this implementation's gap, and says so:
+    //   `ol-not-implemented`. It must NOT go through `evaluate()`, which would judge it in VALUE
+    //   position and answer `ol-no-output` — true of `print forward 5`, and nonsense about a
+    //   command standing alone as its own statement. Measured: `challenge` is exactly this case.
+    // - anything else is an expression statement, which the block-result rule says to run for
+    //   effect and discard (`spec/execution-model.md:214-227`) — `1 + 1`, or a reporter such as
+    //   `new_turtle` whose report is thrown away but whose effect is not. Evaluating it is the one
+    //   ending that cannot be wrong: it reports, or it raises where the fault actually is.
+    //
+    // Before this, such a statement emitted its `instruction` event and then did nothing at all.
+    // Every other statement kind still falling through is genuinely nothing to run — `ProcedureDef`
+    // and `StructDef` are declarations Phase 1 already registered.
     if (statement.kind === "Call" || statement.kind === "ParenCall") {
+      const callee = statement.callee.name.toLowerCase();
+      if (isPrimitiveCommandName(callee)) {
+        return halt(
+          runtimeDiag.notImplemented(statement.callee.source_span, callee),
+        );
+      }
       const outcome = evaluate(statement as ExpressionNode, environment);
       if (!outcome.ok) {
         return halt(outcome.diagnostic);
@@ -5852,11 +5867,13 @@ function executeMainLine(
  * statement, and a runtime `ol-unknown-command` carries no `suggestion` because the did-you-mean is
  * computed over the visible vocabulary, which is a Layer-2 concept.
  *
- * So the rule stated here is the one that covers both, and it is deliberately one rule rather than
- * a list of codes: a run-time finding is the second report of a static one when they share a `code`
- * and their spans **overlap**. A span that contains another is the same construct read at a coarser
- * grain, so two findings of one code over one construct are one fault — and the check's copy, which
- * is the earlier and (for did-you-mean) the more helpful of the two, is the one kept.
+ * So the rule stated here extends fault identity along exactly those two axes and no further. A
+ * run-time finding is the second report of a static one when all three hold: the same `code`,
+ * **overlapping** spans (one construct read at a coarser grain), and `params` where one side's
+ * entries are a **subset** of the other's (the same fault described with more or less detail). Two
+ * genuinely different faults that happen to share a code inside one construct — the case a bare
+ * overlap test would swallow — differ in their params and are both still delivered. The check's
+ * copy is the one kept: it is the earlier report and, for did-you-mean, the more helpful one.
  */
 function mergeRunDiagnostics(
   checked: readonly Diagnostic[],
@@ -5868,11 +5885,31 @@ function mergeRunDiagnostics(
   const alreadyReported = checked.some(
     (diagnostic) =>
       diagnostic.code === raised.code &&
-      spansOverlap(diagnostic.source_span, raised.source_span),
+      spansOverlap(diagnostic.source_span, raised.source_span) &&
+      paramsAgree(diagnostic.params, raised.params),
   );
   return [
     ...dedupeDiagnostics(alreadyReported ? checked : [...checked, raised]),
   ];
+}
+
+/**
+ * Do two `params` objects describe the same fault at different levels of detail — that is, is one
+ * side's set of entries a subset of the other's, agreeing on every key they share? `{ name }` and
+ * `{ name, suggestion }` agree; `{ name: "a" }` and `{ name: "b" }` do not.
+ */
+function paramsAgree(
+  left: Readonly<Record<string, unknown>>,
+  right: Readonly<Record<string, unknown>>,
+): boolean {
+  const [narrow, wide] =
+    Object.keys(left).length <= Object.keys(right).length
+      ? [left, right]
+      : [right, left];
+  return Object.keys(narrow).every(
+    (key) =>
+      key in wide && JSON.stringify(narrow[key]) === JSON.stringify(wide[key]),
+  );
 }
 
 /**

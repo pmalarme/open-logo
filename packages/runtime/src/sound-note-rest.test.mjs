@@ -155,7 +155,7 @@ test("note reports a command used as its duration, never a silent no-op", () => 
   });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
+    ["ol-not-enough-inputs", "ol-no-output"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
@@ -169,7 +169,7 @@ test("note reports a command used as its pitch, never a silent no-op", () => {
   });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
+    ["ol-not-enough-inputs", "ol-no-output"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
@@ -269,7 +269,7 @@ test("rest reports a command used as its duration, never a silent no-op", () => 
   });
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs", "ol-no-output", "ol-not-implemented"],
+    ["ol-not-enough-inputs", "ol-no-output"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });

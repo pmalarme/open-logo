@@ -194,7 +194,7 @@ test("execute raises ol-range for a back distance that overflows to -Infinity", 
 
 test("execute reports the unresolvable unsupported forward argument instead of skipping the call", () => {
   // Mirrors `print`'s equivalent test in `index.test.mjs`: a call to an unregistered procedure
-  // is left un-evaluated so `isSupportedExpression` reports this operand unsupported and the
+  // has an unresolvable callee, which since issue #815 the run reports rather than skipping, and the
   // statement is left un-evaluated (still no diagnostic).
   const result = execute("forward (nonexistent_builtin 1)", "main.logo", {
     runUnchecked: true,

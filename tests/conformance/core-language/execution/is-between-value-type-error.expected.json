@@ -1,5 +1,5 @@
 {
-  "description": "`between` requires numbers together or words together; a boolean value raises `ol-type` naming the concept \"number or word\" (spec/execution-model.md:146-166, error-model.md `ol-type`) — the `operation` param reads \"between\" (not an ordering-operator symbol) so the diagnostic names the form the learner actually wrote. Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`between` requires numbers together or words together; a boolean value raises `ol-type` naming the concept \"number or word\" (spec/execution-model.md:146-166, error-model.md `ol-type`) — the `operation` param reads \"between\" (not an ordering-operator symbol) so the diagnostic names the form the learner actually wrote. The program does not run, so no event is emitted at all; under the `runUnchecked` opt-out execution halts at the failing statement and only its `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 31]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [

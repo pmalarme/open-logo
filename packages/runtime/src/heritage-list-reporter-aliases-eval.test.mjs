@@ -8,7 +8,7 @@
 // assignment RHS, composed with one another) — a different runtime path from H3's command aliases,
 // which the runtime canonicalizes at the *statement* chokepoint. A reporter alias is normalized at
 // the single EXPRESSION-position chokepoint (`resolveHeritageAliasName`, top of `evaluateCall` and
-// the `Call`/`ParenCall` arm of `isSupportedExpression`) before any `name === …` predicate runs, so
+// the `Call`/`ParenCall` arm of the since-deleted `isSupportedExpression`) before any `name === …` predicate runs, so
 // every downstream evaluator and every emitted event payload sees only the Core name.
 //
 // The centrepiece proof is `byte-identical event stream`: an all-three-reporter-aliases program and

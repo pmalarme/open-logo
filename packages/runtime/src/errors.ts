@@ -7,7 +7,7 @@
  * (issue #98): a parenthesized open-variadic primitive call supplied zero arguments. Issue #94
  * adds `ol-undefined-var` (an unbound `:name`/`thing` read), `ol-not-a-place` (a reporter/command
  * call used as an assignment target — the runtime's own copy of the semantic checker's rule of
- * the same name from issue #113, at `stage: "runtime"` since `execute()` never runs `check()`),
+ * the same name from issue #113, at `stage: "runtime"`, kept for a caller driving `evaluate()`/`createEnvironment()` directly, with no checker in front of it),
  * `ol-range` (a list index outside `1..length`), and a reuse of `ol-type` for a non-list base or
  * non-number key on a postfix index selector (`spec/error-model.md:99` calls out "list indexing
  * with a non-number key" as `ol-type`, not `ol-range`). Issue #95 adds `ol-not-boolean` for a
@@ -20,7 +20,7 @@
  * pattern/element length mismatch (`spec/execution-model.md:460-461`), and `ol-duplicate-binder`
  * for a repeated name in a `for [:x :x] in ...` pattern — the runtime's own copy of the
  * semantic checker's rule of the same name (issue #114's `checker-control-flow.ts`), at
- * `stage: "runtime"` since `execute()` never runs `check()`.
+ * `stage: "runtime"`, kept for a caller driving `evaluate()`/`createEnvironment()` directly.
  * Issue #97 adds procedure-call diagnostics: `ol-too-many-inputs` (a fixed-arity call —
  * including the parenthesized form of a user procedure — supplied too many inputs), reusing
  * `ol-not-enough-inputs`'s `{callable, expected, actual}` param shape so both share it with the
@@ -36,7 +36,7 @@
  * reached inside a comprehension body; and widens `duplicateBinder` to also cover a `reduce`
  * accumulator/item-binder name collision — the runtime's own copies of the semantic checker's
  * rules of the same names (issue #114's `checker-control-flow.ts`), at `stage: "runtime"` since
- * `execute()` never runs `check()`. Issue #99 adds the worded `is`-predicate/prefix `?`-predicate
+ * `execute()` since issue #815 runs `check()` first, so a checked run reaches these copies only under the `runUnchecked` opt-out; a caller driving `evaluate()` directly always does. Issue #99 adds the worded `is`-predicate/prefix `?`-predicate
  * diagnostics: `ol-type` for a wrong-typed `is empty`/`empty?`, `is member of`/`member?`, or
  * `is_a?` type-argument operand; and `ol-unknown-type` for an unrecognized type word in `is a
  * <type-word>`/`is_a?` — the runtime's own copy of the checker's `unknownTypeRule` (issue #112's
@@ -689,7 +689,7 @@ export const runtimeDiag = {
    * or a parenthesized `and`/`or` (`(and)`, `(and :a)`) supplied fewer than its required minimum
    * (`checker-arity.ts` never arity-checks a grammar operator callee, since bare `and`/`or` can
    * only ever have exactly two operands from the grammar itself — only the parenthesized form
-   * can under-supply). `execute()` runs `parse()` only, not the semantic checker, so this is also
+   * can under-supply). a caller driving `evaluate()` directly runs no semantic checker, so this is also
    * the sole guard against a too-few call reaching evaluation at all.
    */
   notEnoughInputs(
@@ -784,7 +784,7 @@ export const runtimeDiag = {
    * `ol-undefined-var`: reading `:name` (or `thing "name"`) found no binding in any visible
    * frame. Distinct from the semantic-stage rule of the same code the checker will raise for
    * source it can prove unbound ahead of time (issue #113) — this is the runtime's own guard for
-   * the same defect, since `execute()` never runs `check()`.
+   * the same defect; since issue #815 `execute()` reaches this copy only under the `runUnchecked` opt-out, but a caller driving `evaluate()` directly always does.
    *
    * Variable resolution is case-insensitive (`lookupVar` folds the name to lowercase before
    * probing every frame), so `:SomeVar` and `:somevar` name the *same* absent binding — one
@@ -809,7 +809,7 @@ export const runtimeDiag = {
    * `ol-not-a-place`: the target of `=` or `set … to` is a reporter/command call (`first :x = 5`)
    * rather than an assignable place. Same `{ text }` params shape as the parser's
    * `checker-not-a-place.ts` semantic rule (issue #79/#113) so both stages agree on identity —
-   * this copy exists because `execute()` runs `parse()` only, not `check()`.
+   * this copy exists for a caller driving `evaluate()`/`createEnvironment()` directly, with no checker in front of it (issue #815 put one in front of `execute()`).
    */
   notAPlace(source_span: SourceSpan, text: string): Diagnostic {
     return runtimeError(
@@ -1160,7 +1160,7 @@ export const runtimeDiag = {
    * or whose destructuring item binder repeats a name (`form: "destructuring"`, the default, kept
    * for `ForIn`'s pre-#105 2-arg call sites). Same `{ name, form }` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
-   * copy exists because `execute()` runs `parse()` only, not `check()`.
+   * copy exists for a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`).
    */
   duplicateBinder(
     source_span: SourceSpan,
@@ -1200,7 +1200,7 @@ export const runtimeDiag = {
    * `ol-reserved-word`: a declaration slot — `define`/`to` or `struct` — names something OpenLogo
    * itself owns (`spec/error-model.md:125`). This is the runtime half of the phase-1 registration
    * guard `spec/execution-model.md:82-89` requires, raised at `stage: "runtime"` (the registry
-   * default is `semantic`) because `execute()` runs `parse()` only, never `check()`, so there is
+   * default is `semantic`) because a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so there is
    * no double-report.
    *
    * `params` is `{ name }` and nothing else, matching the parser's `checker-reserved-word.ts`
@@ -1295,6 +1295,26 @@ export const runtimeDiag = {
   },
 
   /**
+   * `ol-no-output` for a **built-in Command** asked for a value — the runtime twin of
+   * `@openlogo/parser`'s `checker-command-in-value-position.ts` rule
+   * (`spec/tooling.md:193`, `spec/error-model.md:114`). Same `procedure` param, so the two stages
+   * carry one identity for one fault.
+   *
+   * Separate from {@link runtimeDiag.noOutput} because the sentence is different, and the
+   * difference is the whole point: a *procedure* reached the end without `return`, which is about
+   * the path taken through its body; a *command* reports nothing by definition, and telling a
+   * learner it "never reaches return" would describe a body it does not have.
+   */
+  noOutputFromCommand(source_span: SourceSpan, procedure: string): Diagnostic {
+    return runtimeError(
+      "ol-no-output",
+      source_span,
+      { procedure },
+      `${procedure} does something, it doesn't make a value. i need a value here.`,
+    );
+  },
+
+  /**
    * `ol-user-error`: `throw <value>` halted execution with a learner-facing message
    * (`spec/error-model.md:120`). `message` is the thrown word itself, or — when the thrown value
    * is not a word — its canonical printed form, exactly as `print` would show it.
@@ -1307,7 +1327,7 @@ export const runtimeDiag = {
    * `ol-return-outside-proc`: `return`/`output`/`op` reached the top level with no enclosing
    * procedure to return from. Same `{keyword}` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
-   * copy exists because `execute()` runs `parse()` only, not `check()`.
+   * copy exists for a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`).
    *
    * `keyword` is the spelling the learner wrote; `params.keyword` is the **canonical** Core word it
    * is an alternate spelling of, resolved by {@link canonicalReturnKeyword} through the parser's own
@@ -1410,8 +1430,8 @@ export const runtimeDiag = {
    * `ol-no-value`: a `map`/`filter`/`reduce` body's last statement does not produce a value
    * (`spec/execution-model.md:225`, worked example `map num in :nums [ print :num ]`). Same
    * `{form}` params shape as the parser's `checker-control-flow.ts` semantic rule (issue #114) so
-   * both stages agree on identity — this copy exists because `execute()` runs `parse()` only, not
-   * `check()`.
+   * both stages agree on identity — this copy exists for a caller driving `evaluate()` directly, with no checker
+   * in front of it.
    */
   noValue(source_span: SourceSpan, form: ComprehensionForm): Diagnostic {
     const params: NoValueParams = { form };
@@ -1428,7 +1448,7 @@ export const runtimeDiag = {
    * body (`spec/execution-model.md:226-227`) — a comprehension reports its last expression, never
    * an explicit `return`/`stop`. Same `{keyword, form}` params shape as the parser's
    * `checker-control-flow.ts` semantic rule (issue #114) so both stages agree on identity — this
-   * copy exists because `execute()` runs `parse()` only, not `check()`. Takes priority over
+   * copy exists for a caller driving `evaluate()` directly, with no checker in front of it. Takes priority over
    * `ol-return-outside-proc`/`ol-stop-outside-proc` whenever the escape is lexically inside a
    * comprehension body, even when that comprehension is itself inside a procedure.
    *
@@ -1478,7 +1498,7 @@ export const runtimeDiag = {
    * Same `{name}` params shape as the checker's rule so both stages agree on identity. The
    * registry's default stage for `ol-unknown-type` is `semantic`; raised here at
    * `stage: "runtime"` for the same reason as `ol-not-a-place`/`ol-return-outside-proc` above —
-   * `execute()` runs `parse()` only, never `check()`, so there is no double-report.
+   * a caller driving `evaluate()` directly runs no checker; a checked `execute()` reports the checker's copy and de-duplicates this one (issue #815), so there is no double-report.
    */
   unknownType(source_span: SourceSpan, name: string): Diagnostic {
     return runtimeError(

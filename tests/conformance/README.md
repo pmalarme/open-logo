@@ -354,9 +354,11 @@ already standing when the fix arrives. (It is not the only way: a correct expect
 alongside the fix and mutation-tested by reverting it is also a real wall. Characterization simply
 does not have to wait for a ruling.)
 
-The current set belongs to saga #811 (a statement containing an unresolvable name is silently
-discarded). Two slices authored it — issue #816 for the first two fault shapes, issue #1087 for the
-third:
+**There are none in the corpus today, and that is the healthy state.** A characterization fixture is
+a debt with a named creditor: it must say which ruling will retire it, and it must be retired the
+moment that ruling ships. The set that existed belonged to saga #811 (a statement containing an
+unresolvable name is silently discarded), authored by two slices — issue #816 for the first two
+fault shapes and issue #1087 for the third — across these directories:
 
 ```text
 core-language/unresolvable-name/            interaction-events/unresolvable-name/
@@ -364,44 +366,47 @@ turtle-rendering/unresolvable-name/         interaction-events/command-in-value-
 turtle-rendering/command-in-value-position/ tutor-ai/registered-but-unevaluable/
 ```
 
-Those directories are not uniformly characterization — read each `description`'s opening word.
-`turtle-rendering/unresolvable-name/` also holds `recursion-baseline-unaffected`, a `BASELINE`
-fixture asserting correct behaviour, and every shape-A `-check` fixture opens
-`STAGE-CONSISTENCY BASELINE` because the diagnostic it asserts is already the right one.
-
-`tutor-ai/registered-but-unevaluable/` is the **third** fault class and has its own
+`tutor-ai/registered-but-unevaluable/` was the **third** fault class and has its own
 [README](tutor-ai/registered-but-unevaluable/README.md): a name that *is* registered but has no
-evaluator (`challenge`), which today is classified exactly like a name that does not exist. It is
-the only one of the three whose directory also carries a `node:test`, because the fact worth
-preserving there is a **relation between two programs** and a fixture pairs one source with one
-expected stream.
+evaluator (`challenge`), which was classified exactly like a name that does not exist. It is the
+only one of the three whose directory also carries a `node:test`, because the fact worth preserving
+there is a **relation between two programs** and a fixture pairs one source with one expected stream.
 
-Three rules keep the characterization fixtures from becoming a trap:
+**Issue #815 retired every one of them** once the #814 `[spec]` ruling merged: 24 gained the
+diagnostic they were waiting for and now read `REGRESSION WALL`, while 16 were correct all along and
+were left byte-for-byte untouched.
 
-- **Each one names the ruling that will retire it, and promises only what it can.** An `execute()`
-  characterization fixture states that it locks today's defective behaviour and must be **flipped**
-  now that the blocking `[spec]` ruling has merged (#814) and the runtime slice implements it
-  (#815). A `check()` fixture makes a *different* promise, because the two shapes reach the checker
-  differently: a shape-A one is already correct and expected to survive unchanged, while a shape-B
-  one records that `check()` is silent today and must **gain** an `ol-no-output` — `spec/tooling.md:193`
-  makes a built-in Command in value position statically decidable and MUST-reportable at the
-  checker, naming `wait forward 5`, `repeat forward 5 [ … ]` and `right forward 5` explicitly, and
-  `spec/error-model.md:114` puts that code at stage `semantic` for a built-in. Before the ruling
-  landed that outcome was genuinely open, and these fixtures said so; it is now decided. A future
-  reader must never mistake any of them for a statement about the contract.
-- **Their neighbours are the opposite.** `arity-still-diagnosed/` and `profile-argument/` assert
-  **correct** behaviour that must survive the fix unchanged, and all four say so.
-  `recursion-collapses-silently-execute` is paired with `recursion-baseline-unaffected` for the same
-  reason: the fix has to change one column and leave the other alone.
-- **They were proven to bite**, because an assertion whose content is "nothing happened" is the
-  easiest kind to write vacuously. Every `.expected.json` **either slice** added was perturbed — a
-  fixture expecting no diagnostic was given one, a fixture expecting one had it removed — the
-  mutation was confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was
-  confirmed to report `FAIL` for that fixture before the file was restored. That set is not a frozen
-  list — it is whatever
+**How to flip one, and the mistake to avoid.** Flip by the **first word of each fixture's
+`description`**, never by directory. A characterization fixture and a baseline fixture are
+structurally identical — same keys, same shapes — and they sit side by side in the same directory:
+`turtle-rendering/unresolvable-name/` held `recursion-collapses-silently-execute` (flipped) directly
+beside `recursion-baseline-unaffected` (must not flip, and did not). A directory-wide flip would have
+inverted those invariants while every test still passed. The label vocabulary in use is
+`CHARACTERIZATION FIXTURE` (locks a defect, must be flipped), `REGRESSION WALL` (a flipped one, now
+locking the fix), and `BASELINE`/`STAGE-CONSISTENCY BASELINE`/`NO-REGRESSION`/`PROFILE-ARGUMENT`
+(asserted correct all along).
+
+**And re-derive each replacement expectation from the spec, not from the sentence that prompted the
+flip.** A flipped fixture is a *new* assertion and inherits none of the original's evidence. Two
+traps, both live in this set: `ol-not-implemented`'s stage is a **`MAY`** at `semantic` and a
+**`MUST`** at `runtime` (`spec/error-model.md:131`), so a fixture pinning `semantic` would judge a
+conformant implementation a regression; and a flipped fixture must be **re-perturbed**, because
+"flipped but no longer biting" is indistinguishable from a healthy pass.
+
+Three rules keep a characterization fixture from becoming a trap while it exists:
+
+- **Each one names the ruling that will retire it, and promises only what it can.** A future reader
+  must never mistake it for a statement about the contract.
+- **Its neighbours are the opposite.** Pair a broken column with a correct twin — the fix has to
+  change one and leave the other alone, and the pair states that as a diff.
+- **It must be proven to bite**, because an assertion whose content is "nothing happened" is the
+  easiest kind to write vacuously. Perturb every `.expected.json` added — give a fixture expecting
+  no diagnostic one, remove the one a fixture expects — confirm the mutation applied with
+  `git diff --numstat`, and confirm `node scripts/conformance.mjs` reports `FAIL` for that fixture
+  before restoring the file. That set is not a frozen list — it is whatever
   `git diff --name-only --diff-filter=A <base> -- 'tests/conformance/**/*.expected.json'` enumerates
-  for the slice in question — so the procedure is reproducible, and widens by itself when a fixture
-  is added, rather than resting on a count that drifts.
+  for the slice in question — so the procedure is reproducible and widens by itself when a fixture
+  is added.
 
 Three related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless
 search:
@@ -411,14 +416,13 @@ search:
   `scripts/examples-semantic-sweep.test.mjs` and runs under `npm run test`.
 - The **third class's identity with shape A** (#1087) is a relation between *two* sources, which a
   fixture also cannot express, so it lives in
-  `tutor-ai/registered-but-unevaluable/indistinguishable-from-unknown.test.mjs`. When the fix lands
-  it must be **inverted, not deleted**: the equality becoming a disequality is how the fix proves it
-  worked.
+  `tutor-ai/registered-but-unevaluable/indistinguishable-from-unknown.test.mjs`. Issue #815
+  **inverted it rather than deleting it**: the equality becoming a disequality is how the fix proves
+  it worked.
 - The `PLANT` fractal that #816 item 3 names is **not in this repository**, so its inherited
   draw-segment counts are asserted nowhere. `turtle-rendering/unresolvable-name/recursion-*` covers
   the same end-to-end shape with a small recursive tree written for the purpose, whose numbers were
   measured from it.
-
 ## Harness self-tests
 
 Fixtures under `_harness-selftest/` carry `"expect": "mismatch"` and assert output that execution can

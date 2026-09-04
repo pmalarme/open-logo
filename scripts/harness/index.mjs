@@ -656,10 +656,12 @@ export function validateExecuteOptions(executeOptions) {
  *
  * A fixture's `profiles` array used to *select* the fixture — {@link runHarness} intersects it with
  * the `--profile` closure to decide whether to run it — without ever *gating* it. For an
- * `"execute": true` fixture the array never reached `execute()` at all (`@openlogo/runtime` is
- * profile-blind by design, `spec/tooling.md:175-177` puts profile visibility in the Layer-2
- * checker), so a fixture whose source used Sprites forms passed with `"sprites"` deleted from its
- * array. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
+ * `"execute": true` fixture the array never reached `execute()` at all, so a fixture whose source
+ * used Sprites forms passed with `"sprites"` deleted from its array. It still does not: issue #815
+ * gave a RUN a profile set of its own (`ExecuteOptions.profiles`, defaulting to the profiles this
+ * implementation claims), and a fixture names that one through `executeOptions.profiles` — a
+ * different field from this one, because this one selects which DAG subsets the fixture RUNS IN
+ * rather than which profiles the run claims. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
  * "this program requires exactly these profiles" a normative, independently-claimable property.
  *
  * This closes that hole statically, with `scripts/profile-detection.mjs`'s `detectUsedProfiles` —

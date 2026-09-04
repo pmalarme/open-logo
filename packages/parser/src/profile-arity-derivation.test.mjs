@@ -61,10 +61,10 @@ test("every registered primitive of every profile is arity-checked when its prof
   // withheld from the visible-name set because nothing could run it, so it reported
   // `ol-unknown-command` alone and was never arity-checked; `spec/error-model.md:131` now forbids
   // withholding a registered name that way, so it inherits the arity check like every other
-  // primitive whose profile is active. `notYetVisible` is kept — as an expected-EMPTY set rather
-  // than a one-name allowlist — because the bucket it names is exactly what a future regression in
-  // `collectVisibleNames` would refill, and an empty expectation says so by name.
-  const notYetVisible = [];
+  // primitive whose profile is active. The bucket that collected the exception is GONE rather than
+  // kept as an expected-empty set: nothing can push to it, so comparing it to `[]` would assert
+  // `[] === []`. A regression in `collectVisibleNames` is caught by the assertion below instead,
+  // which fails by name on the first primitive that reports `ol-unknown-command`.
   const openVariadics = [];
   let registered = 0;
   let checked = 0;
@@ -126,7 +126,6 @@ test("every registered primitive of every profile is arity-checked when its prof
     }
   }
 
-  assert.deepEqual([...new Set(notYetVisible)].sort(), []);
   // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
   // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
   // reading this because it failed, the question to answer is "was a primitive meant to disappear?"
@@ -135,14 +134,11 @@ test("every registered primitive of every profile is arity-checked when its prof
     registered >= 85,
     `the DAG registers exactly 85 primitives today; this sweep saw only ${registered}, so a registry entry was emptied or dropped`,
   );
-  // Every registered name was accounted for by exactly one of the three buckets. This is a loop
+  // Every registered name was accounted for by exactly one of the two buckets. This is a loop
   // invariant, not a property of the checker — as the loop is written today it cannot fail — and is
-  // kept only so a future edit that adds a fourth path through the body has to say which bucket it
+  // kept only so a future edit that adds a third path through the body has to say which bucket it
   // belongs to. The assertions above and below are what actually carry this test.
-  assert.equal(
-    checked + openVariadics.length + notYetVisible.length,
-    registered,
-  );
+  assert.equal(checked + openVariadics.length, registered);
   // The ceiling half, as a tripwire rather than a tautology: exactly these four names are open
   // variadics across the whole DAG. A `maxArity` table wired to the wrong profile shows up here
   // immediately — give `data` Core's ceiling table and `list` drops out of this set; give Core

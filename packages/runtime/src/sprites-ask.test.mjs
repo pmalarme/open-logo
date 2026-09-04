@@ -275,7 +275,7 @@ test("an ask argument that references an undefined variable surfaces that diagno
 });
 
 test("an ask argument that is not yet evaluable (a call to an unregistered name) is left un-evaluated, changing nothing", () => {
-  // Mirrors `tell`'s deferral test: an argument `isSupportedArgument` reports unsupported (a call to
+  // Mirrors `tell`'s test: an unresolvable argument callee (a call to
   // an unregistered builtin) defers the whole `ask` — no addressing change, no block run, no
   // diagnostic — exactly like every other command. The block never runs, so no move is emitted, and
   // the following `forward 50` runs on the still-default (unstamped) main turtle.

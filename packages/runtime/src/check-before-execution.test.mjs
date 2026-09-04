@@ -15,6 +15,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { makeSpan } from "@openlogo/core";
 import { OL_CHECK_PROFILES, parse } from "@openlogo/parser";
 import { createEnvironment, evaluate, execute } from "@openlogo/runtime";
 
@@ -215,6 +216,25 @@ test("without source text the unrunnable form is named by its node kind, never l
   assert.deepEqual(result.diagnostic.params, { name: "If" });
 });
 
+test("the terminal rule reads the same in both call forms, bare and parenthesized", () => {
+  // `Call` and `ParenCall` are two surface spellings of one thing, so neither terminal may answer
+  // differently for them — the asymmetry a per-kind branch invites.
+  const bareBody = only(":out = map n in [1] [ print :n\n  :n ]");
+  const parenBody = only(":out = map n in [1] [ (print :n)\n  :n ]");
+  for (const finding of [bareBody, parenBody]) {
+    assert.equal(finding.code, "ol-not-implemented");
+    assert.deepEqual(finding.params, { name: "print" });
+  }
+  const bareStatement = only("challenge", { profiles: [...OL_CHECK_PROFILES] });
+  const parenStatement = only("(challenge)", {
+    profiles: [...OL_CHECK_PROFILES],
+  });
+  for (const finding of [bareStatement, parenStatement]) {
+    assert.equal(finding.code, "ol-not-implemented");
+    assert.deepEqual(finding.params, { name: "challenge" });
+  }
+});
+
 test("a bare expression statement is evaluated for effect, not skipped", () => {
   // `spec/execution-model.md:214-227`'s block-result rule. No statement executor claims a reporter
   // call, so `new_turtle` used to fall off the end of the dispatcher and spawn nothing at all.
@@ -226,6 +246,37 @@ test("a bare expression statement is evaluated for effect, not skipped", () => {
   );
   // And an arithmetic statement still just discards its value, with no diagnostic.
   assert.deepEqual(codes("1 + 1"), []);
+});
+
+test("a built-in that is neither a Command nor evaluable reports ol-not-implemented", () => {
+  // The third arm of `evaluateCall`'s terminal, and the one no source program can reach: OpenLogo
+  // has no registered *reporter* without an evaluation today, which is the healthy state
+  // (`spec/error-model.md:131` makes such a gap a conformance failure of the profile that claims
+  // it). The arm still has to be right for the day one appears, so it is exercised the way this
+  // file's neighbours exercise other evaluator-internal invariants the grammar makes unreachable:
+  // by handing `evaluate()` a node the parser would never build. `if` is a built-in word that is
+  // not a Command, so it takes exactly that path.
+  const span = makeSpan(doc, [1, 1], [1, 3]);
+  const call = {
+    kind: "Call",
+    source_span: span,
+    callee: { name: "if", source_span: span },
+    args: [],
+  };
+  const result = evaluate(call, createEnvironment());
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-not-implemented");
+  assert.deepEqual(result.diagnostic.params, { name: "if" });
+});
+
+test("the opt-out's suppression folds a coarser report into a more detailed one, either way round", () => {
+  // The check's `ol-unknown-command` carries a `suggestion`; the runtime's cannot, because the
+  // did-you-mean is computed over the visible vocabulary, which is a Layer-2 concept. So the two
+  // sides of the params comparison are of different sizes, and the fold has to work whichever side
+  // is larger. One report survives, and it is the one that can help.
+  const finding = only("print (fowad 5)", { runUnchecked: true });
+  assert.equal(finding.code, "ol-unknown-command");
+  assert.deepEqual(finding.params, { name: "fowad", suggestion: "forward" });
 });
 
 // --- One fault, one diagnostic ------------------------------------------------------------------

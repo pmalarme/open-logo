@@ -7,7 +7,7 @@
  * `sin`/`cos`/`tan` (one number, in degrees) and the 0-arg constant reporter `pi` — they were
  * already registered in the parser's fixed-arity table (`packages/parser/src/signatures.ts`) and
  * so parsed as ordinary `Call`s with zero diagnostics, but had no evaluator branch and no
- * `isSupportedExpression` entry, so `evaluate()` silently never ran them (no trace event, no
+ * entry in the since-deleted `isSupportedExpression` gate, so `evaluate()` silently never ran them (no trace event, no
  * diagnostic — an uncontrolled silent failure, not a controlled one). `sin`/`cos` follow
  * {@link evaluateUnaryMath}'s exact template; `tan` additionally guards the poles where cosine is
  * `0` (`90` degrees plus any multiple of `180`) and raises the dedicated `ol-tan-undefined`
@@ -1529,7 +1529,7 @@ function evaluateThing(
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
  * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
- * `execute()` never runs `check()` (same convention as `ol-not-a-place`/`ol-undefined-var`).
+ * a caller driving `evaluate()` directly runs no checker (same convention as `ol-not-a-place`/`ol-undefined-var`).
  */
 function evaluateRepcount(
   node: ArithmeticCallNode,
@@ -1556,7 +1556,7 @@ export type AssignResult =
 /**
  * Execute one `Assign` statement (`:place = value`, `set place to value`): the runtime's own
  * `ol-not-a-place` guard for a reporter/command call used as a target (issue #113's checker
- * catches this too, at `stage: "semantic"`, but `execute()` never runs `check()`), then either
+ * catches this too, at `stage: "semantic"`, and since issue #815 a checked `execute()` reports THAT copy), then either
  * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`,
  * `:d.key = v`) one. An unsupported value expression, e.g. `:x = :ages.tom` where the read side
  * is not yet evaluable, is silently left un-executed: neither the place nor the value is
@@ -1896,7 +1896,7 @@ export function executeRemoveKey(
  * suite and Core behaviour is bit-for-bit unchanged.
  *
  * Because the resolved name is what every downstream `name === …` predicate sees — both
- * {@link evaluateCall}'s dispatch and {@link isSupportedExpression}'s known-callee guard — `bf
+ * {@link evaluateCall}'s dispatch — `bf
  * [1 2 3]` dispatches through the exact same `evaluateButfirst` path as `butfirst [1 2 3]` and is
  * recognised as a supported argument, so no alias spelling can ever reach a diagnostic or an event
  * payload.
@@ -2108,19 +2108,36 @@ function evaluateCall(
   // and for any callable." This is the one place a callee can reach no evaluation, so it is where
   // that rule is enforced.
   //
-  // It used to `throw` a host `Error`, on the reasoning that the `isSupportedExpression` gates
+  // It used to `throw` a host `Error`, on the reasoning that the (now deleted) `isSupportedExpression` gates
   // upstream made it unreachable. That reasoning is what the gates cost: every one of them turned
   // an unevaluable construct into silence rather than a diagnostic, so the throw was unreachable
   // precisely because the defect this slice fixes stood in front of it. The gates are gone, and
   // this answers instead.
   //
-  // The **code** turns on whether OpenLogo knows the name, and the distinction is the whole reason
-  // the two exist (`spec/error-model.md:131`): `ol-not-implemented` says *the name is known and
-  // this implementation cannot run it yet* — our gap — while an unregistered name is the learner's
-  // typo and stays `ol-unknown-command`. A checked run never reaches the second branch, because the
-  // gate refuses the program first; {@link ExecuteOptions.runUnchecked} is what makes it reachable,
-  // and there the gate has already reported the same fault, so `runProgram` suppresses this second
-  // copy (`spec/execution-model.md:746-748`).
+  // The **code** turns on what OpenLogo knows about the name, and the three answers are genuinely
+  // different facts about three different faults (`spec/error-model.md:97,114,131`):
+  //
+  // - a registered **Command** reports no value, so asking one for a value is `ol-no-output` — the
+  //   runtime twin of `checker-command-in-value-position.ts`'s rule. Calling this
+  //   `ol-not-implemented` would be a lie in the learner's favour: `forward` IS implemented, it
+  //   simply has nothing to report.
+  // - a registered **reporter** with no evaluation behind it is `ol-not-implemented` — *the name is
+  //   known and this implementation cannot run it yet*, our gap and not the learner's.
+  // - anything else is the learner's typo, and stays `ol-unknown-command`.
+  //
+  // A checked run reaches none of these: the gate refuses the program first.
+  // {@link ExecuteOptions.runUnchecked} is what makes them reachable, and there the check has
+  // already reported the same fault, so `runProgram` suppresses the second copy
+  // (`spec/execution-model.md:746-748`).
+  if (isPrimitiveCommandName(name)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.noOutputFromCommand(
+        node.callee.source_span,
+        name,
+      ),
+    };
+  }
   return {
     ok: false,
     diagnostic: isBuiltInName(name)
@@ -2371,7 +2388,7 @@ function evaluateNot(
  * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
  * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
  * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
- * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
+ * checking a single operand's type; a caller driving `evaluate()` directly runs no checker, so this is the sole guard there.
  */
 function evaluateLogical(
   node: ArithmeticCallNode,
@@ -3549,7 +3566,7 @@ function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
  * primitive's under-supply (`max === min`); for these reporters the parenthesized form's true
  * ceiling is looser than the bare-call default arity (`sentence`) or the checker simply defers the
  * lower bound to the runtime, per its own documented convention ("the lower bound is left to the
- * runtime arity check (#97)"). Since `execute()` runs `parse()` only — never `check()` — the
+ * runtime arity check (#97)"). For a caller driving `evaluate()` directly, with no checker in front of it, the
  * runtime is the sole enforcement point for every one of these, not just the open-variadic ones.
  */
 function requireMinArgs(
@@ -3633,7 +3650,7 @@ function evaluateCaseTransform(
   environment: Environment,
   which: "uppercase" | "lowercase",
 ): EvalResult {
-  const arityDiagnostic = requireMinArgs(node, which, 1);
+  const arityDiagnostic = requireExactArgs(node, which, 1);
   if (arityDiagnostic) {
     return fail(arityDiagnostic);
   }
@@ -4628,7 +4645,7 @@ function readInputAnswer(
  * arguments, reporting `[a, b]` inclusive) — so neither {@link requireMinArgs} alone (no upper
  * bound) nor {@link requireExactArgs} alone (only one valid count) fits; both bounds are guarded
  * directly here, the same way `checker-arity.ts`'s static arity rule cannot itself catch every gap
- * for a primitive with more than one valid arity (`execute()` never runs `check()`, so the runtime
+ * for a primitive with more than one valid arity (a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so the runtime
  * is the sole enforcement point regardless). Every bound is checked for whole-number TYPE before
  * either RANGE check, exactly matching the entry's documented order: "Inputs are checked in
  * order: a non-whole bound raises `ol-type`; then `n` below `1`, or `a` greater than `b`, raises
@@ -4792,7 +4809,7 @@ function statementHeadWord(
  * `ParenCall` produces a value unless its callee is a primitive the registry declares a **Command**
  * ({@link isPrimitiveCommandName} — `@openlogo/parser`'s profile-blind lookup over the
  * profile-keyed registry, issue #932); every other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind
- * always does. `execute()` never runs `check()`, so this is what classifies a comprehension body's
+ * always does. A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so this is what classifies a comprehension body's
  * final statement at runtime — reading the one registry both stages share rather than a second
  * copy of its names.
  */
@@ -4887,6 +4904,25 @@ function runComprehensionBody(
         diagnostic: runtimeDiag.notImplemented(
           statement.source_span,
           statementHeadWord(statement, environment.source),
+        ),
+      };
+    }
+    if (
+      (expression.kind === "Call" || expression.kind === "ParenCall") &&
+      isPrimitiveCommandName(expression.callee.name)
+    ) {
+      // A LEADING body statement legitimately runs for effect — the block-result rule discards its
+      // value (`spec/execution-model.md:214-227`) — so a command is correct OpenLogo here, and
+      // `ol-no-output` (what evaluating it in value position would say) would blame the program for
+      // a limitation of this evaluator. This body runner is deliberately narrower than
+      // `executeStatements` and has no branch that can perform an effect, so the honest ending is
+      // `ol-not-implemented`: the name is known, and it is this implementation that cannot run it
+      // *here* yet.
+      return {
+        kind: "halt",
+        diagnostic: runtimeDiag.notImplemented(
+          expression.callee.source_span,
+          expression.callee.name.toLowerCase(),
         ),
       };
     }

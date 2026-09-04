@@ -295,7 +295,7 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
   // `show`'s bare form always groups exactly one argument (its fixed arity), so the only way to
   // reach the runtime with more than one is the parenthesized form — which `parse()` accepts
   // structurally as-is, deferring arity enforcement to `check()` (semantic stage) or, since a bare
-  // `execute()` call never runs `check()`, to this very guard in `executeShowCall`.
+  // caller driving `evaluate()` directly runs no checker, to this very guard in `executeShowCall`.
   const result = execute('(show "a" "b")', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");

@@ -18,7 +18,7 @@
 // runtime would invert the package dependency direction (`ts7-package`). This file is that missing
 // third stage, and it is the guard's counterpart in the package that owns the code it audits.
 //
-// The stage matters, and #741 is the proof. `execute()` runs `parse()` only, never `check()`, so
+// The stage matters, and #741 is the proof. A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so
 // `@openlogo/runtime` keeps its OWN copies of the checker's control-flow rules. #737 canonicalized
 // `params.keyword` in the checker; the runtime copies still emitted the surface spelling, so the
 // same `output 5` reported `keyword: "return"` when checked and `keyword: "output"` when executed.

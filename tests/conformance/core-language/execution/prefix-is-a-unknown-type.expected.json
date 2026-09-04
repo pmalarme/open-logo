@@ -1,5 +1,5 @@
 {
-  "description": "`is_a?`'s type argument evaluates to a word that is not a recognized Core type, raising `ol-unknown-type` naming the word — the same code+params as the worded form's rule, at stage=runtime since `execute()` never runs `check()` (issues #94/#104/#114 convention) (spec/commands.md:691-705, error-model.md `ol-unknown-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`is_a?`'s type argument evaluates to a word that is not a recognized Core type, raising `ol-unknown-type` naming the word — the same code+params as the worded form's rule, at stage=runtime since `execute()` never runs `check()` (issues #94/#104/#114 convention) (spec/commands.md:691-705, error-model.md `ol-unknown-type`). The program does not run, so no event is emitted at all; under the `runUnchecked` opt-out execution halts at the failing statement and only its `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 23]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [
@@ -22,7 +24,9 @@
         "start": [1, 15],
         "end": [1, 23]
       },
-      "params": { "name": "banana" },
+      "params": {
+        "name": "banana"
+      },
       "stage": "runtime",
       "severity": "error"
     }

@@ -212,7 +212,7 @@ test("setbg raises ol-too-many-inputs with two arguments", () => {
 
 test("set_color reports the unresolvable unsupported argument expression instead of skipping the call", () => {
   // Mirrors turtle-movement.test.mjs's equivalent test: a call to an unregistered procedure is
-  // reported unsupported by `isSupportedExpression` and the statement is left un-evaluated
+  // an unresolvable callee, which since issue #815 the run reports rather than skipping
   // (still no diagnostic, no event).
   const result = execute("set_color (nonexistent_builtin 1)", "main.logo", {
     runUnchecked: true,

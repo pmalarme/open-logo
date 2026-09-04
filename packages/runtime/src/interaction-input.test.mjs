@@ -408,7 +408,7 @@ test("a word prompt is accepted whatever text it holds, including a numeral", ()
 // --- Arity, guarded at runtime because execute() never runs the static checker -------------------
 
 test("input given no input raises ol-not-enough-inputs at runtime", () => {
-  // `execute()` runs `parse()` only, never `check()`, so the reporter guards its own arity exactly
+  // A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so the reporter guards its own arity exactly
   // as every other reporter does. `(input)` is the parenthesized form a learner can under-supply.
   const result = runWithAnswers("print (input)", ["tom"]);
   assert.equal(result.diagnostics.length, 1);

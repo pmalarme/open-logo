@@ -377,12 +377,11 @@ test("an unsupported count argument leaves the statement un-evaluated (no crash,
   // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
   // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
   // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
-  // `runUnchecked` opt-out the program runs anyway, and the evaluator — which has no
-  // expression-position branch for a command — adds `ol-not-implemented`: two true statements
-  // about one call, one from each side of the seam this slice closes.
+  // `runUnchecked` opt-out the program runs anyway and the evaluator reaches the same call, which
+  // it judges in VALUE position and reports identically — so the two collapse to one.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-no-output", "ol-not-implemented"],
+    ["ol-no-output"],
   );
   assert.deepEqual(effectEvents(result), []);
 });

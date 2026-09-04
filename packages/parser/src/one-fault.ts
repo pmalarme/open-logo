@@ -72,16 +72,31 @@ function unresolvableCalleeStarts(
   return starts;
 }
 
-/** Whether `statement` is a call whose callee nothing in the program resolves. */
-function isUnresolvableCall(
+/** Whether `statement` ENDS in a call whose callee nothing in the program resolves. */
+function endsInUnresolvableCall(
   statement: StatementNode,
   unresolvable: ReadonlySet<string>,
 ): boolean {
-  if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
-    return false;
-  }
-  const [line, column] = statement.source_span.start;
-  return unresolvable.has(`${line}:${column}`);
+  // The reader gives an orphan token no home because the call it follows has unknown arity — and
+  // that call is the LAST thing in the preceding statement, not necessarily the whole of it.
+  // `fowad 100` makes the unresolvable call the entire statement, but `:x = fowad 100`,
+  // `print fowad 100` and `p fowad 100` each bury it one level down, and the orphaned `100` is
+  // exactly as blameless there. So the test is on the statement's trailing sub-expression: any
+  // unresolvable call that finishes where the statement finishes.
+  let found = false;
+  walk(statement, (node) => {
+    if (found || (node.kind !== "Call" && node.kind !== "ParenCall")) {
+      return;
+    }
+    const [line, column] = node.source_span.start;
+    if (!unresolvable.has(`${line}:${column}`)) {
+      return;
+    }
+    found =
+      node.source_span.end[0] === statement.source_span.end[0] &&
+      node.source_span.end[1] === statement.source_span.end[1];
+  });
+  return found;
 }
 
 /**
@@ -100,7 +115,7 @@ function orphanStarts(
     for (const statement of body) {
       const orphaned: boolean =
         previous !== undefined &&
-        (previousWasOrphan || isUnresolvableCall(previous, unresolvable)) &&
+        (previousWasOrphan || endsInUnresolvableCall(previous, unresolvable)) &&
         statement.source_span.start[0] === previous.source_span.end[0];
       if (orphaned) {
         const [line, column] = statement.source_span.start;

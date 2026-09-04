@@ -1,68 +1,21 @@
 {
-  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour at the `execute()` stage, not the correct behaviour, and must be FLIPPED to the correct expectation now that the #814 `[spec]` ruling has merged and #815 implements it. The wall was built before the ruling because this defect emits neither a diagnostic nor a crash, so a fixture that merely runs the program passes against the broken build. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. The clearest single statement of the defect in this corpus: the run produces `print` events for 1 and 3 and none for the middle statement, while reporting zero diagnostics — the program silently does two thirds of what it says. The middle statement still emits its `instruction` marker, so the discard happens after the statement is entered, not before.",
+  "description": "REGRESSION WALL for saga #811, flipped by issue #815 from the characterization issue #816 built against the broken build. It asserts the CORRECT behaviour now: the check before execution runs Layer 1 and Layer 2 over the whole program and, on an `error`-severity finding, **Phase 2 never begins** — \"no instruction executes, no trace event is emitted\" (`spec/execution-model.md:659-664`). So the `events` array is EMPTY, and that emptiness is the assertion: before the fix this program ran, produced events, and reported nothing, which is the silent wrong answer the saga is named for. Reverting the gate turns this red. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` always computed the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97); what #815 changed is that `execute()` now consults it, so the fault reaches the learner instead of the statement being discarded whole. The clearest single statement of the fix in this corpus. Before it, the run produced `print` events for 1 and 3 and none for the middle statement while reporting zero diagnostics — the program silently did two thirds of what it said. Now nothing runs at all and the learner is told which name OpenLogo does not know. Refusing the WHOLE program rather than the one bad statement is the deliberate choice: a partial drawing is a wrong answer presented as a right one.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
+  "events": [],
+  "diagnostics": [
     {
-      "seq": 0,
-      "kind": "instruction",
+      "code": "ol-unknown-command",
       "source_span": {
         "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
-        "start": [1, 1],
-        "end": [1, 8]
+        "start": [2, 8],
+        "end": [2, 14]
       },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 1,
-      "kind": "print",
-      "source_span": {
-        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
-        "start": [1, 1],
-        "end": [1, 8]
+      "params": {
+        "name": "wibble"
       },
-      "payload": {
-        "values": [1]
-      }
-    },
-    {
-      "seq": 2,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
-        "start": [2, 1],
-        "end": [2, 17]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 3,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
-        "start": [3, 1],
-        "end": [3, 8]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    },
-    {
-      "seq": 4,
-      "kind": "print",
-      "source_span": {
-        "document": "core-language/unresolvable-name/middle-statement-vanishes-execute",
-        "start": [3, 1],
-        "end": [3, 8]
-      },
-      "payload": {
-        "values": [3]
-      }
+      "stage": "semantic",
+      "severity": "error"
     }
-  ],
-  "diagnostics": []
+  ]
 }

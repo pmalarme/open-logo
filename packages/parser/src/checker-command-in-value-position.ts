@@ -97,6 +97,14 @@ export function commandInValuePositionRule(
         });
       }
     }
+    if (node.kind === "Assign") {
+      // An assignment TARGET is not a value position — nothing reads a value out of it — so a
+      // command there is `ol-not-a-place` (`checker-not-a-place.ts`), not `ol-no-output`. Reporting
+      // both for `forward 5 = 1` would be two findings for one fault, and the wrong one first.
+      scan(node.place, false);
+      scan(node.value, true);
+      return;
+    }
     const childInValuePosition =
       node.kind !== "Program" && node.kind !== "Block";
     for (const child of childrenOf(node)) {

@@ -42,7 +42,7 @@
 //
 // "Both stages" here means both stages THIS package can reach: parse and semantic. Diagnostics have
 // a third stage, `runtime`, and `@openlogo/runtime` keeps its own copies of the checker's
-// control-flow rules because `execute()` runs `parse()` only, never `check()` — copies that still
+// control-flow rules, kept for a caller driving `evaluate()` directly with no checker in front of it — copies that still
 // emitted the surface spelling after this file landed (issue #741), so the same `output 5` reported
 // one identity when checked and another when executed. That stage is guarded by the counterpart
 // file `packages/runtime/src/heritage-canonical-diagnostic-params.test.mjs`, which drives the same
