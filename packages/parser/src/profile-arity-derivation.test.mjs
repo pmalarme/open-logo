@@ -57,17 +57,13 @@ function parenCall(name, count) {
 // These name no command. Their subject is "every primitive of every profile in the DAG".
 
 test("every registered primitive of every profile is arity-checked when its profile is active", () => {
-  // Tutor's `challenge` is the one registered primitive with no checker visibility yet: it has no
-  // runtime, and `checker-names.ts` deliberately withholds visibility from a name nothing can run,
-  // so it is reported `ol-unknown-command` — alone, never alongside an arity finding. Asserting the
-  // exception as an exact set rather than a skip is what keeps a SECOND withheld name from being
-  // added unremarked. Since issue #966 `collectVisibleNames` is derived from the same profile-keyed
-  // registry, so a profile registered in `PROFILE_PRIMITIVES` — which TypeScript forces — is made
-  // visible with no edit there; what stays hand-written is the withholding itself
-  // (`namesAwaitingAnEvaluator()`), and this is the assertion that prices it. Note what neither
-  // this test nor any other in this package can detect: that Tutor's evaluator has SHIPPED and the
-  // entry is now stale. That is a fact about `@openlogo/runtime`, which the parser must not depend
-  // on, so retiring the entry is a human step.
+  // Issue #815 removed the one exception this sweep used to carry. Tutor's `challenge` was
+  // withheld from the visible-name set because nothing could run it, so it reported
+  // `ol-unknown-command` alone and was never arity-checked; `spec/error-model.md:131` now forbids
+  // withholding a registered name that way, so it inherits the arity check like every other
+  // primitive whose profile is active. `notYetVisible` is kept — as an expected-EMPTY set rather
+  // than a one-name allowlist — because the bucket it names is exactly what a future regression in
+  // `collectVisibleNames` would refill, and an empty expectation says so by name.
   const notYetVisible = [];
   const openVariadics = [];
   let registered = 0;
@@ -130,7 +126,7 @@ test("every registered primitive of every profile is arity-checked when its prof
     }
   }
 
-  assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
+  assert.deepEqual([...new Set(notYetVisible)].sort(), []);
   // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
   // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
   // reading this because it failed, the question to answer is "was a primitive meant to disappear?"

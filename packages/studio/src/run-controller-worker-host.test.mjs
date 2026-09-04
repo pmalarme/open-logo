@@ -256,7 +256,7 @@ test("a new Run clears every field the previous run owned, so an early Stop leav
   // already nulls `currentInstructionSourceSpan` — which would hide whether the chain-start clear
   // does. Measured consequence of leaving it: the editor keeps highlighting a line as "currently
   // executing" for a run that never executed it, permanently, because a cancelled run never settles.
-  const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint :nope";
+  const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint 1 / 0";
   const settled = settlementFor(source);
   assert.equal(
     settled.diagnostics.length > 0,
@@ -700,7 +700,7 @@ test("a program with no question runs to completion through the blocking host un
 });
 
 test("a runtime diagnostic still reaches the diagnostics pane through the host", () => {
-  const store = OL.createStudioState({ source: "forward 100\nprint :nope" });
+  const store = OL.createStudioState({ source: "forward 100\nprint 1 / 0" });
   const { host } = createBlockingHost();
   const controller = OL.createRunController(store, { executionHost: host });
 
@@ -708,7 +708,7 @@ test("a runtime diagnostic still reaches the diagnostics pane through the host",
 
   assert.deepEqual(
     store.getState().diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-undefined-var"],
+    ["ol-div-zero"],
   );
   assert.equal(store.getState().runStatus, "done");
   assert.equal(store.getState().turtleScene.items.length, 1);

@@ -119,10 +119,11 @@ function checkCodes(source, profiles) {
 
 test("every registered primitive of an active profile is callable without ol-unknown-command", () => {
   // The visibility half of the same derivation: `collectVisibleNames` sweeps the same registries,
-  // so a profile registered later is visible with no edit. `challenge` is the one deliberate
-  // withholding — `@openlogo/runtime` has no evaluator for it, and a name that checks clean and
-  // then does nothing is the silent no-op this repository refuses — so it is asserted as an exact
-  // exception rather than skipped. A second name joining it fails here, naming itself.
+  // so a profile registered later is visible with no edit — and since issue #815 it withholds
+  // NOTHING. `spec/error-model.md:131` forbids withholding a registered name so that its call
+  // reads as unknown: the name is known, and a call to one this implementation cannot evaluate is
+  // `ol-not-implemented` at the layer that knows, never `ol-unknown-command` here. So the exact
+  // expectation is now the empty set, and any name that stops being visible fails naming itself.
   const notVisible = [];
   for (const profile of OL.OL_CHECK_PROFILES) {
     const profiles = ["core-language", profile];
@@ -132,47 +133,7 @@ test("every registered primitive of an active profile is callable without ol-unk
       }
     }
   }
-  assert.deepEqual([...new Set(notVisible)].sort(), ["challenge"]);
-});
-
-test("every withheld name is one a profile actually registers", () => {
-  // The half of the evaluator exception that IS checkable inside this package. It cannot detect
-  // that an evaluator has since shipped — that is a fact about `@openlogo/runtime`, which the
-  // parser must not depend on, so retiring an entry stays a human step. What it does catch is a
-  // typo, or a name left behind after its profile table was removed: either would withhold
-  // nothing while reading like a deliberate exception.
-  const withheld = OL.namesAwaitingAnEvaluator();
-  assert.ok(
-    withheld.length > 0,
-    "the exception set is empty; delete it instead",
-  );
-  const registered = new Set(
-    OL.OL_CHECK_PROFILES.flatMap((profile) =>
-      OL.profilePrimitiveNames(profile),
-    ),
-  );
-  const unregistered = withheld.filter((name) => !registered.has(name));
-  assert.deepEqual(
-    unregistered,
-    [],
-    "withheld names that no profile registers — each withholds nothing and hides a typo",
-  );
-  // And the exception must actually bite: a withheld name is the one thing a profile registers
-  // that stays unknown while its profile is active.
-  for (const name of withheld) {
-    assert.equal(
-      OL.isOptionalProfileName(name),
-      true,
-      `${name} is registered, so it must still classify as an optional-profile word`,
-    );
-    assert.equal(
-      checkCodes(name, [...OL.OL_CHECK_PROFILES]).includes(
-        "ol-unknown-command",
-      ),
-      true,
-      `${name} is withheld, so calling it must still be ol-unknown-command`,
-    );
-  }
+  assert.deepEqual([...new Set(notVisible)].sort(), []);
 });
 
 test("a profile's callable names are invisible while the profile is inactive", () => {

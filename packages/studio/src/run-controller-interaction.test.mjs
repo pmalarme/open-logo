@@ -1294,7 +1294,7 @@ test("#952 (review finding 2): a handler that RAISES still counts as this press 
   const store = OL.createStudioState({
     source: [
       'on_key "up" [',
-      "  forward :never_set",
+      "  forward 1 / 0",
       "]",
       "wait 3",
       'print "one"',
@@ -1316,7 +1316,7 @@ test("#952 (review finding 2): a handler that RAISES still counts as this press 
   assert.ok(
     store
       .getState()
-      .diagnostics.some((diagnostic) => diagnostic.code === "ol-undefined-var"),
+      .diagnostics.some((diagnostic) => diagnostic.code === "ol-div-zero"),
     "the handler's own failure is surfaced",
   );
   assert.ok(
@@ -1575,7 +1575,7 @@ test("#952 (review round 6): the invocation count survives every aliasing case",
   // 3. A handler that raises on its FIRST instruction. The load-bearing assumption is that the
   //    block-head marker is emitted before the handler can fail — measured, not reasoned.
   const raising = OL.createStudioState({
-    source: ['on_key "up" [', "  forward :never_set", "]", "wait 3"].join("\n"),
+    source: ['on_key "up" [', "  forward 1 / 0", "]", "wait 3"].join("\n"),
   });
   const raisingController = OL.createRunController(raising, seed);
   raisingController.run();
@@ -1585,7 +1585,7 @@ test("#952 (review round 6): the invocation count survives every aliasing case",
     "the handler ran; that it raised must not read as 'nothing responded'",
   );
   assert.ok(
-    raising.getState().diagnostics.some((d) => d.code === "ol-undefined-var"),
+    raising.getState().diagnostics.some((d) => d.code === "ol-div-zero"),
   );
 
   // 4. Invoked twice before the query — it is a count, read as a strict increase, never as a
@@ -2027,7 +2027,7 @@ test("#985: a handler that raises still reports true — the block-head marker p
   // stream, so a length proxy reports "nothing responded" for a handler that ran. Counting the
   // block-head marker `spec/interaction-events.md:102-103` mandates is monotonic on the error path.
   const store = OL.createStudioState({
-    source: ["on_click [", "  print :nope", "]", "wait 5"].join("\n"),
+    source: ["on_click [", "  print 1 / 0", "]", "wait 5"].join("\n"),
   });
   const controller = OL.createRunController(store, {
     randomSeedSource: pinnedSeed(7),
@@ -2042,7 +2042,7 @@ test("#985: a handler that raises still reports true — the block-head marker p
   assert.deepEqual(store.getState().output, [], "so it printed nothing");
   assert.deepEqual(
     store.getState().diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-undefined-var"],
+    ["ol-div-zero"],
     "and the failure it raised is what the learner sees",
   );
 });
