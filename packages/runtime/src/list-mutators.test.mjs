@@ -94,7 +94,10 @@ test("`add` with an unsupported value expression reports the unresolvable callee
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\nadd (nonexistent_builtin 1) to :l\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\nadd (nonexistent_builtin 1) to :l\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -106,7 +109,10 @@ test("`add` with an unsupported target expression reports the unresolvable calle
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\nadd 5 to (nonexistent_builtin 1)\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\nadd 5 to (nonexistent_builtin 1)\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -165,7 +171,10 @@ test("`remove` with an unsupported operand reports the unresolvable callee, neve
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1 2]\nremove (nonexistent_builtin 1) from :l\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1 2]\nremove (nonexistent_builtin 1) from :l\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -282,7 +291,10 @@ test("`insert` with an unsupported value operand reports the unresolvable callee
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\ninsert (nonexistent_builtin 1) in :l at 1\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\ninsert (nonexistent_builtin 1) in :l at 1\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -294,7 +306,10 @@ test("`insert` with an unsupported target operand reports the unresolvable calle
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\ninsert 5 in (nonexistent_builtin 1) at 1\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\ninsert 5 in (nonexistent_builtin 1) at 1\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -306,7 +321,10 @@ test("`insert` with an unsupported position operand reports the unresolvable cal
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\ninsert 5 in :l at (nonexistent_builtin 1)\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\ninsert 5 in :l at (nonexistent_builtin 1)\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],
@@ -345,7 +363,10 @@ test("`clear` with an unsupported target expression reports the unresolvable cal
   // Issue #815: this used to run, mutate nothing, and report nothing. The check before
   // execution now refuses the program, so the list is unchanged for a reason the learner is
   // told (`spec/execution-model.md:659-664`).
-  const { events, diagnostics } = execute(":l = [1]\nclear (nonexistent_builtin 1)\nprint :l", doc);
+  const { events, diagnostics } = execute(
+    ":l = [1]\nclear (nonexistent_builtin 1)\nprint :l",
+    doc,
+  );
   assert.deepEqual(
     diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-unknown-command"],

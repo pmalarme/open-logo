@@ -608,7 +608,7 @@
       "kind": "stale-citation",
       "issue": "#948",
       "why": "Lands on blank space in execution-model.md: the nearest text above is line 141 (\"| 7 | `or` | Left-associative, short-circuit. |\") and below is line 143 (\"Thus `:count > 0 and :count < 10` means\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "983fc0cfb8615106"
+      "fingerprint": "ce7ea98fdeb198b4"
     }
   ],
   "tests/conformance/core-language/execution/repcount-outside-repeat.expected.json": [

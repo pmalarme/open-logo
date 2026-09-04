@@ -272,7 +272,8 @@ test("every literal, arithmetic, and place-read shape this evaluator implements 
   const env = createEnvironment();
   env.frames[0].set("x", 3);
   env.frames[0].set("nums", [10, 20]);
-  env.frames[0].set("i", 1);  for (const source of [
+  env.frames[0].set("i", 1);
+  for (const source of [
     "42",
     '"red"',
     "true",

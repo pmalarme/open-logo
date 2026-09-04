@@ -371,7 +371,9 @@ test("execute raises ol-too-many-inputs for a parenthesized two-argument set_hea
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute("(set_heading 1 2)", "main.logo", { runUnchecked: true });
+  const result = execute("(set_heading 1 2)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");

@@ -45,12 +45,7 @@
  */
 
 import type { Diagnostic } from "@openlogo/core";
-import type {
-  AnyNode,
-  CallNode,
-  ParenCallNode,
-  ProgramNode,
-} from "./ast.js";
+import type { AnyNode, CallNode, ParenCallNode, ProgramNode } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { isActiveProfileCommandName } from "./signatures.js";
@@ -104,7 +99,8 @@ export function commandInValuePositionRule(
       }
     }
     const listed = inList || node.kind === "ListLit";
-    const childInValuePosition = node.kind !== "Program" && node.kind !== "Block";
+    const childInValuePosition =
+      node.kind !== "Program" && node.kind !== "Block";
     for (const child of childrenOf(node)) {
       scan(child, childInValuePosition, listed);
     }

@@ -1043,7 +1043,6 @@ function isLogicalOperator(name: string): name is LogicalOperator {
   return (LOGICAL_OPERATORS as readonly string[]).includes(name);
 }
 
-
 /** Evaluate one Core expression node to a runtime {@link OLValue}. */
 export function evaluate(
   node: ExpressionNode,
@@ -4802,7 +4801,6 @@ function isValueProducingStatement(statement: StatementNode): boolean {
   }
   return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
 }
-
 
 /**
  * The outcome of running a comprehension body: a value (its last statement was value-producing),

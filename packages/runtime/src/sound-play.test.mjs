@@ -253,7 +253,9 @@ test("parenthesized play with two arguments raises ol-too-many-inputs", () => {
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute('(play ["c4" 1] ["e4" 1])', "main.logo", { runUnchecked: true });
+  const result = execute('(play ["c4" 1] ["e4" 1])', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -277,8 +279,7 @@ test("play leaves an unsupported argument expression un-evaluated (no event, no 
   // per-form special case — which is precisely the inconsistency #716 recorded.
   assert.deepEqual(
     result.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-not-enough-inputs",
-    "ol-no-output"],
+    ["ol-not-enough-inputs", "ol-no-output"],
   );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });

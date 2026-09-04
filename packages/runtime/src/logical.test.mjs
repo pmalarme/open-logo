@@ -9,9 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as Parser from "@openlogo/parser";
-import {
-  createEnvironment,
-  evaluate,} from "@openlogo/runtime";
+import { createEnvironment, evaluate } from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
 

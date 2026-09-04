@@ -745,7 +745,7 @@ export function validateDiagnostics(diagnostics) {
  * @param {string[]} profiles - The fixture's active profile set, passed to check() (default []).
  * @param {boolean} shouldStyle - Whether this fixture opted into style lints too (default false).
  * @param {object} [executeOptions] - Opt-in `ExecuteOptions` (issue #195) forwarded verbatim to
-  *   @openlogo/runtime's `execute()` third argument when `shouldExecute` is true, letting a
+ *   @openlogo/runtime's `execute()` third argument when `shouldExecute` is true, letting a
  *   fixture deterministically trigger `ol-limit` with a small instructionBudget/
  *   recursionDepthLimit/pre-aborted signal instead of the large production defaults. Ignored when
  *   `shouldExecute` is false.

@@ -14,7 +14,7 @@ import { execute } from "@openlogo/runtime";
 const doc = "acceptance.logo";
 
 test("for ... in binds the bare-name binder body-local: it does not leak past the loop", () => {
-    // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
+  // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
   // so a checked run is refused before the loop ever runs. `runUnchecked` is the spec's opt-out
   // (`spec/execution-model.md:687-694`), and keeps this the RUNTIME scoping test it was written to
   // be: the loop runs, and the binder is gone once it ends.
@@ -31,7 +31,7 @@ test("for ... in binds the bare-name binder body-local: it does not leak past th
 });
 
 test("for ... from ... to binds the range variable body-local: it does not leak past the loop", () => {
-    // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
+  // Issue #815: `print :n` after the loop is an unbound read the check now decides statically,
   // so a checked run is refused before the loop ever runs. `runUnchecked` is the spec's opt-out
   // (`spec/execution-model.md:687-694`), and keeps this the RUNTIME scoping test it was written to
   // be: the loop runs, and the binder is gone once it ends.

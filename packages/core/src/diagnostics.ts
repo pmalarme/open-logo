@@ -180,4 +180,3 @@ export function dedupeDiagnostics(
   }
   return result;
 }
-

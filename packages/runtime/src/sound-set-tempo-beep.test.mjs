@@ -133,7 +133,9 @@ test("parenthesized set_tempo with two arguments raises ol-too-many-inputs", () 
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute("(set_tempo 90 100)", "main.logo", { runUnchecked: true });
+  const result = execute("(set_tempo 90 100)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

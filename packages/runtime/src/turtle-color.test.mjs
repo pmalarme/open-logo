@@ -129,7 +129,9 @@ test("setcolor raises ol-too-many-inputs with two arguments", () => {
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute('(setcolor "blue" "red")', "main.logo", { runUnchecked: true });
+  const result = execute('(setcolor "blue" "red")', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -177,7 +179,9 @@ test("set_background raises ol-not-enough-inputs with zero arguments", () => {
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute("(set_background)", "main.logo", { runUnchecked: true });
+  const result = execute("(set_background)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -194,7 +198,9 @@ test("setbg raises ol-too-many-inputs with two arguments", () => {
   // (`spec/execution-model.md:687-694`), and is what keeps the runtime guard exercised: it runs,
   // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
   // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
-  const result = execute('(setbg "green" "blue")', "main.logo", { runUnchecked: true });
+  const result = execute('(setbg "green" "blue")', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

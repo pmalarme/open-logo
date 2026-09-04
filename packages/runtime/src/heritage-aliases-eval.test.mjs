@@ -226,10 +226,7 @@ test("#787: the reporter-position crash repro is now rejected at registration", 
   assert.deepEqual(
     result.diagnostics.map((d) => [d.code, d.params]),
     [
-      [
-        "ol-not-enough-inputs",
-        { callable: "forward", expected: 1, actual: 0 },
-      ],
+      ["ol-not-enough-inputs", { callable: "forward", expected: 1, actual: 0 }],
       ["ol-no-output", { procedure: "forward" }],
       ["ol-reserved-word", { name: "forward" }],
     ],
