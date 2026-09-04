@@ -43,6 +43,7 @@ import type {
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { DEFAULT_CHECK_PROFILES } from "./check.js";
+import { resolveVariableOccurrences } from "./global-variable-resolution.js";
 import { parse } from "./parser.js";
 import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
@@ -105,6 +106,31 @@ export interface Token {
    * from `spec/tooling.md:282`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
+  /**
+   * Present on every token that **names a variable**: `true` when this occurrence resolves to a
+   * binding the program declared `global`, `false` when it resolves to anything else — a parameter,
+   * a `local` that shadows a same-named global, a binder, or an ordinary top-level name.
+   *
+   * `spec/grammar.md:106-111` gives assignment three spellings and a read two, so four token shapes
+   * can name a variable and all four carry this: a `:variable` token (`:count = 1`, and every read),
+   * a `set` target's bare place head (`set count to 1`, classed `primitive`), and a `make` target or
+   * `thing` argument's word literal (`make "count" 1`, classed `word/string`). It is deliberately
+   * **not** tied to one class — a modifier decorates whatever class the token already has, so
+   * marking a `primitive` or a `word/string` invents no class and, for the word literal, classifies
+   * nothing *inside* the string (`spec/tooling.md:25-26`'s MUST NOT is about classification).
+   *
+   * On a `:variable` token the field is **total** — always `true` or `false`, so a consumer can tell
+   * a non-global variable from a token that is not a variable. On the other two shapes it is present
+   * only where the resolver identified a variable occurrence, which is the same distinction stated
+   * for a class that has other uses.
+   *
+   * **It follows resolution, not spelling** (issue #826): see `global-variable-resolution.ts` for
+   * the scope model, the spec clauses behind it, and the one case it knowingly cannot decide (a
+   * deferred handler body). `semantic-tokens.ts` surfaces it as the `global` semantic-token
+   * modifier, which is the channel an editor should consume; the token **class** is untouched, on
+   * the one-class-plus-modifier precedent `spec/tooling.md:83-84` sets for the bracket roles.
+   */
+  readonly global?: boolean;
 }
 
 /**
@@ -433,6 +459,34 @@ export function highlight(
   // (see `ast.ts`'s `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they
   // never reach this `:variable`-classed set at all — only a real `variable`-kind token can.
   const paramDeclIndexes = new Set<number>();
+  // Which `:variable` tokens resolve to a `global` binding (issue #826). Computed from the AST by
+  // its own module rather than inline here, because the answer needs an ordered, scope-aware walk
+  // (a `local` shadows from its own statement onward) that the `visit()` pass below — a generic,
+  // order-free `walk` — cannot express. Positions are mapped back to raw token indexes through the
+  // same `byStart` lookup every other marker uses.
+  // Which tokens name a variable, and which of those resolve to a `global` binding (issue #826).
+  // Computed from the AST by its own module rather than inline here, because the answer needs an
+  // ordered, scope-aware walk (a `local` shadows from its own statement onward) that the `visit()`
+  // pass below — a generic, order-free `walk` — cannot express. Positions are mapped back to raw
+  // token indexes through the same `byStart` lookup every other marker uses.
+  //
+  // Three lexer kinds can name a variable, because `spec/grammar.md:106-111` gives assignment three
+  // spellings: `variable` for a colon place (`:count = 1`, and every read), `name` for a `set`
+  // target's bare place head (`set count to 1`), and `word` for a `make` target or a `thing` read
+  // (`make "count" 1`). The kind check is therefore a real filter over what the resolver reports,
+  // not a formality — it is what stops a future AST or lexer change from marking a token the walk
+  // never meant, at a span it does not own.
+  const variableGlobalByIndex = new Map<number, boolean>();
+  for (const occurrence of resolveVariableOccurrences(program)) {
+    const index = byStart.get(posKey(occurrence.position));
+    const kind = index === undefined ? undefined : lex[index]?.kind;
+    if (
+      index !== undefined &&
+      (kind === "variable" || kind === "name" || kind === "word")
+    ) {
+      variableGlobalByIndex.set(index, occurrence.global);
+    }
+  }
 
   /**
    * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
@@ -1027,6 +1081,18 @@ export function highlight(
     return role === undefined ? base : { ...base, role };
   }
 
+  /**
+   * Attach `global` to a `name`/`word` token that the resolver identified as naming a variable —
+   * a `set` target's bare place head, or a `make`/`thing` word literal (issue #826, round-2 review).
+   * A token the resolver did not identify keeps no field at all, which is what distinguishes
+   * "names a variable, and it is not global" from "names no variable". `:variable` tokens are
+   * handled directly below instead, because the field is total there.
+   */
+  function withGlobalFlag(base: Token, index: number): Token {
+    const resolved = variableGlobalByIndex.get(index);
+    return resolved === undefined ? base : { ...base, global: resolved };
+  }
+
   function classifyToken(index: number, token: ContentToken): Token {
     if (negativeMergeStarts.has(index)) {
       const numberToken = lex[index + 1] as LexToken;
@@ -1048,17 +1114,21 @@ export function highlight(
           source_span: token.source_span,
         };
       case "word":
-        return {
-          class: "word/string",
-          text: token.text,
-          source_span: token.source_span,
-        };
+        return withGlobalFlag(
+          {
+            class: "word/string",
+            text: token.text,
+            source_span: token.source_span,
+          },
+          index,
+        );
       case "variable":
         return {
           class: ":variable",
           text: token.text,
           source_span: token.source_span,
           declaration: paramDeclIndexes.has(index),
+          global: variableGlobalByIndex.get(index) ?? false,
         };
       case "lbrace":
       case "rbrace":
@@ -1110,7 +1180,7 @@ export function highlight(
         return withRole(base, role);
       }
       case "name":
-        return classifyName(index, token);
+        return withGlobalFlag(classifyName(index, token), index);
     }
   }
 
