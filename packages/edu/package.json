@@ -1,6 +1,6 @@
 {
   "name": "@openlogo/edu",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "OpenLogo education: learner levels, explain/why/hint/debug, geometry stdlib, and curriculum.",
   "license": "MIT",
@@ -22,8 +22,8 @@
     "clean": "tsc -b --clean"
   },
   "dependencies": {
-    "@openlogo/core": "0.2.0",
-    "@openlogo/parser": "0.2.0",
-    "@openlogo/runtime": "0.2.0"
+    "@openlogo/core": "0.3.0",
+    "@openlogo/parser": "0.3.0",
+    "@openlogo/runtime": "0.3.0"
   }
 }
