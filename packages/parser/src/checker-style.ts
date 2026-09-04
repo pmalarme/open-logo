@@ -1498,22 +1498,90 @@ const NEGATIVE_LITERAL_RE = /^(-(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)/;
  * Compute the parenthesis/brace grouping depth at the **start** of each 1-based
  * source line. `result[0]` is the depth at the start of line 1. Lines inside an
  * unclosed `(` or `{` have `depth > 0`; those lines are explicitly grouped and
- * their leading operator is not ambiguous.
+ * their leading operator is not ambiguous. Lines inside a multi-line token
+ * (triple-quoted string or block comment) use a sentinel depth of `Infinity`.
  *
  * `[`/`]` are deliberately excluded because they are ambiguous between blocks and
- * list literals. Delimiters inside strings or comments produce a (rare) false
+ * list literals. Delimiters inside single-line strings or comments produce a (rare) false
  * negative — acceptable for an opt-in style lint.
  */
 function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
   const depths: number[] = [0];
   let depth = 0;
-  for (const line of lines) {
-    for (const ch of line) {
+  let inTripleQuote = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+
+    // Lines whose content is inside a multi-line token are data/commentary.
+    if (inTripleQuote || inBlockComment) {
+      depths[i] = Infinity;
+    }
+
+    let j = 0;
+    while (j < line.length) {
+      if (inTripleQuote) {
+        if (line[j] === '"' && line[j + 1] === '"' && line[j + 2] === '"') {
+          inTripleQuote = false;
+          j += 3;
+        } else {
+          j++;
+        }
+        continue;
+      }
+
+      if (inBlockComment) {
+        const star = line[j] === "*";
+        const slash = line[j + 1] === "/";
+        if (star && slash) {
+          inBlockComment = false;
+          j += 2;
+        } else {
+          j++;
+        }
+        continue;
+      }
+
+      const ch = line[j]!;
+
+      if (ch === '"' && line[j + 1] === '"' && line[j + 2] === '"') {
+        inTripleQuote = true;
+        j += 3;
+        continue;
+      }
+
+      // Single-line string: skip to closing quote
+      if (ch === '"') {
+        j++;
+        while (j < line.length && line[j] !== '"') {
+          if (line[j] === "\\") j++;
+          j++;
+        }
+        j++;
+        continue;
+      }
+
+      if (ch === "/" && line[j + 1] === "*") {
+        inBlockComment = true;
+        j += 2;
+        continue;
+      }
+
+      // Line comment: rest of line is commentary
+      if (ch === "#" || (ch === "/" && line[j + 1] === "/")) {
+        break;
+      }
+
       if (ch === "(" || ch === "{") depth++;
       else if (ch === ")" || ch === "}") depth = Math.max(0, depth - 1);
+
+      j++;
     }
+
     depths.push(depth);
   }
+
   return depths;
 }
 
@@ -1601,34 +1669,72 @@ export function ambiguousContinuationRule(
           lineNum <= lastLineToCheck;
           lineNum++
         ) {
-          if (depths[lineNum - 1]! > 0) continue; // inside explicit grouping
+          if (depths[lineNum - 1]! > 0) continue; // inside grouping or multi-line token
           if (flaggedLines.has(lineNum)) continue; // already reported
           const lineText = lines[lineNum - 1]!;
           const trimmed = lineText.trimStart();
           const operator = leadingInfixOperator(trimmed);
-          if (operator === undefined) continue;
+          if (operator !== undefined) {
+            const indent = lineText.length - trimmed.length;
+            const col = indent + 1;
+            const name = INFIX_OPERATOR_NAMES.get(operator)!;
 
-          const indent = lineText.length - trimmed.length;
-          const col = indent + 1;
-          const name = INFIX_OPERATOR_NAMES.get(operator)!;
+            const message =
+              operator === "-"
+                ? `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`
+                : `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
 
-          const message =
-            operator === "-"
-              ? `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`
-              : `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
-
-          diagnostics.push(
-            ambiguousContinuationDiagnostic(
-              document,
-              lineNum,
-              col,
-              operator.length,
-              operator,
-              "continuation",
-              message,
-            ),
-          );
-          flaggedLines.add(lineNum);
+            diagnostics.push(
+              ambiguousContinuationDiagnostic(
+                document,
+                lineNum,
+                col,
+                operator.length,
+                operator,
+                "continuation",
+                message,
+              ),
+            );
+            flaggedLines.add(lineNum);
+          } else if (trimmed[0] === "-") {
+            // Sub-case: negative literal inside a multi-line statement (e.g. in
+            // a list literal). Adding a space would make it subtraction. Skip
+            // when the previous line ends with an infix operator, since that
+            // already locked continuation and the reading is unambiguous.
+            const prevLineText = lines[lineNum - 2]?.trimEnd();
+            const prevEndsWithOp =
+              prevLineText !== undefined &&
+              (prevLineText.endsWith("+") ||
+                prevLineText.endsWith("-") ||
+                prevLineText.endsWith("*") ||
+                prevLineText.endsWith("/"));
+            if (!prevEndsWithOp) {
+              const ch1 = trimmed[1];
+              if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
+                const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
+                if (literal !== undefined) {
+                  const indent = lineText.length - trimmed.length;
+                  const col = indent + 1;
+                  const message =
+                    "This line starts with `" +
+                    literal +
+                    "` (a negative number). Adding a space after `-` would make it subtraction, continuing the previous line.";
+                  diagnostics.push(
+                    ambiguousContinuationDiagnostic(
+                      document,
+                      lineNum,
+                      col,
+                      literal.length,
+                      literal,
+                      "new-statement",
+                      message,
+                    ),
+                  );
+                  flaggedLines.add(lineNum);
+                }
+              }
+            }
+          }
         }
       }
 
@@ -1641,7 +1747,11 @@ export function ambiguousContinuationRule(
           (prev.kind === "ProfileStatement" &&
             "body" in prev &&
             prev.body !== undefined);
-        if (!prevNonCont && prev.source_span.end[0] < startLine) {
+        if (
+          !prevNonCont &&
+          prev.source_span.end[0] < startLine &&
+          depths[startLine - 1]! <= 0
+        ) {
           const lineText = lines[startLine - 1]!;
           const trimmed = lineText.trimStart();
           // A new statement starting with `-<digit>` is a negative

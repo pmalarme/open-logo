@@ -1654,3 +1654,51 @@ test("ol-style-ambiguous-continuation: astral XID identifier `mod\uD801\uDC00` i
   );
   assert.deepEqual(diagnostics, []);
 });
+
+// --- Multi-line token suppression (regression: #1074 orchestrator review) ---
+
+test("ol-style-ambiguous-continuation: triple-quoted string bullet list — silent", () => {
+  // A shopping list inside `"""` must not fire; the content is data, not code.
+  const src =
+    ':shopping = """\n- milk\n- 5 eggs\n- bread\n"""\nprint :shopping';
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: narrow triple-quoted `- 5` — silent", () => {
+  const src = ':p = """\n- 5\n"""';
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: multi-line block comment `/* - 5 */` — silent", () => {
+  const src = ":x = 10\n/*\n- 5\n*/\nprint :x";
+  const diagnostics = checkStyle(src).filter(isAmbiguousContinuation);
+  assert.deepEqual(diagnostics, []);
+});
+
+// --- List-literal ambiguity (correct by construction → assertion) ---
+
+test("ol-style-ambiguous-continuation: `print [ 1\\n- 5 ]` fires — ambiguity is real inside list", () => {
+  // `[ 1\n- 5 ]` → [-4] (one element); `[ 1\n-5 ]` → [1, -5] (two elements).
+  const diagnostics = checkStyle("print [ 1\n- 5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-",
+    reading: "continuation",
+  });
+});
+
+test("ol-style-ambiguous-continuation: `print [ 1\\n-5 ]` fires — negative literal in list", () => {
+  // `[ 1\n-5 ]` → [1, -5]; `[ 1\n- 5 ]` → [-4]. Same ambiguity, other reading.
+  const diagnostics = checkStyle("print [ 1\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+});
