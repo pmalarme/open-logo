@@ -74,7 +74,6 @@ import type {
 import {
   analyze,
   isBuiltInName,
-  activeProfilePrimitiveArityRange,
   isPrimitiveCommandName,
   walk,
 } from "@openlogo/parser";

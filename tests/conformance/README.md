@@ -372,26 +372,35 @@ evaluator (`challenge`), which was classified exactly like a name that does not 
 only one of the three whose directory also carries a `node:test`, because the fact worth preserving
 there is a **relation between two programs** and a fixture pairs one source with one expected stream.
 
-**Issue #815 retired every one of them** once the #814 `[spec]` ruling merged. **23 former
-characterization fixtures** now read `REGRESSION WALL`: 22 of those gained the diagnostic they had
-been waiting for, and `challenge-check` went the other way — it *lost* the `ol-unknown-command` it
-used to assert and now expects an **empty** diagnostics list, because `spec/tooling.md:194` lets a
-checker report `ol-not-implemented` only when it knows before running that no evaluation exists, and
-this one does not. A 24th, `challenge-with-argument`, was already correct and keeps its
-`NO-REGRESSION` label and its `events`/`diagnostics` byte-for-byte; it changed only to name the
-profile set the run claims. The remaining **16** were correct all along and were left byte-for-byte
-untouched.
+**Issue #815 retired every one of them** once the #814 `[spec]` ruling merged. Every fixture whose
+description began `CHARACTERIZATION FIXTURE` now reads `REGRESSION WALL`. Almost all of them gained
+the diagnostic they had been waiting for; `challenge-check` went the other way — it *lost* the
+`ol-unknown-command` it used to assert and now expects an **empty** diagnostics list, because
+`spec/tooling.md:194` lets a checker report `ol-not-implemented` only when it knows before running
+that no evaluation exists, and this one does not.
 
-**Do not re-derive that 23 by counting the label**, which is the trap the first correction of this
-paragraph fell into. `REGRESSION WALL` is the label for *any* fixture that locks a fixed defect, so
-issue #815's own new fixtures carry it too: counting descriptions that begin with it currently
-yields **25**, not 23. The 23 is a historical quantity — fixtures whose description began
-`CHARACTERIZATION FIXTURE` at `38b9a497` — and the only honest way to recount it is against that
-commit:
+**This paragraph deliberately states no counts, and that is the third correction talking.** It has
+carried a wrong number three times — once by counting the label, once by counting fixtures that had
+"changed" when the intended quantity was fixtures that had *flipped*, and once by reporting a count
+of labels as a count of untouched files. Every one of those numbers was derivable and none of them
+was gated, which is exactly the failure mode
+[`shared/definition-of-done`](../../.github/skills/shared/definition-of-done/SKILL.md) warns about
+under "Derived counts in prose". Three quantities are easy to conflate here and only the first is
+historical:
 
 ```bash
+# 1. fixtures that FLIPPED — the historical quantity, only recoverable against the base commit
 git diff --name-only --diff-filter=AM 38b9a497 -- 'tests/conformance/**/*.expected.json'
-# then, per file, compare the first word of the base description with the head one
+#    then, per file, compare the FIRST WORD of the base description with the head one
+
+# 2. fixtures currently LABELLED `REGRESSION WALL` — larger, because #815's own new fixtures
+#    carry the label too; it is the label for any fixture locking a fixed defect
+git grep -l '"description": "REGRESSION WALL' -- 'tests/conformance/**/*.expected.json'
+
+# 3. fixtures in the six directories left byte-for-byte UNTOUCHED — smaller than the count of
+#    baseline LABELS, because a labelled-baseline fixture may still have changed for an unrelated
+#    reason (`challenge-with-argument` gained a claimed profile set; its data did not move)
+git diff --name-only 38b9a497 HEAD -- 'tests/conformance/**/*.expected.json'
 ```
 
 **How to flip one, and the mistake to avoid.** Flip by the **first word of each fixture's

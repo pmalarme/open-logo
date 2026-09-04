@@ -40,19 +40,34 @@
 // The at-risk class is defined by the mechanism, not by inspection: a runtime guard is masked
 // exactly when **the checker can emit the same code for the same program**, because de-duplication
 // (`spec/execution-model.md:746-748`) then keeps the checker's copy and the runtime's contribution
-// disappears from `diagnostics`. That is enumerable. Intersecting the codes built in
+// disappears from `diagnostics`. That filter is enumerable. Intersecting the codes built in
 // `packages/runtime/src/errors.ts` with those pushed by `packages/parser/src/checker-*.ts` gives
 // **27 runtime codes, 15 of them maskable**. The other 12 (`ol-div-zero`, `ol-type`, `ol-range`,
 // `ol-limit`, `ol-not-boolean`, `ol-user-error`, …) have no checker twin, so they survive as
 // `stage: "runtime"` and the ordinary tests already assert them.
 //
-// Of those 15: **11 are covered here**, and **4 have no halt to assert**, each for its own measured
-// reason rather than one convenient story —
-//   - `ol-too-many-inputs` — refused at parse as `ol-bad-token`; unreachable through `execute()`.
-//   - `ol-duplicate-definition`, `ol-reserved-word` — registration-phase: the whole program is
-//     refused before any statement runs, so there is no partial run to truncate (`events` is `[]`).
-//   - `ol-unknown-type` — measured NOT masked despite the code overlap; it surfaces as
-//     `ol-unknown-type/runtime`, so it is already assertable.
+// **The unit is a raise SITE, not a code, and this file learned that the expensive way.** Those 15
+// codes are raised from **83 distinct sites** across `execute-internal.ts` and `evaluate.ts`, and
+// sites under one code do not behave alike. `ol-unknown-type` has two: the prefix `is_a?` reports at
+// `stage: "runtime"` and is protected by conformance fixtures, while the worded `5 is a "banana"`
+// reports at `semantic` and was completely unprotected — its guard could be deleted with the halt
+// suite, conformance and all 5030 tests green. An earlier version of this note excused the whole
+// code on the strength of the protected sibling. That was prose justifying an absence, and the
+// absence was real.
+//
+// So the honest statement, at site granularity:
+//
+//   - **12 sites are covered here**, one per code for twelve of the fifteen codes.
+//   - **3 codes have no halt to assert at any site**, each for its own measured reason —
+//     `ol-too-many-inputs` (refused at parse as `ol-bad-token`; unreachable through `execute()`),
+//     and `ol-duplicate-definition` / `ol-reserved-word` (registration-phase: the whole program is
+//     refused before any statement runs, so there is no partial run to truncate — `events` is `[]`).
+//   - **The remaining sites are NOT enumerated**, and no completeness is claimed for them. Where a
+//     code has one site, covering it covers the code; where it has several — `ol-too-many-inputs`
+//     29, `ol-not-enough-inputs` 21, `ol-return-outside-proc` 5, `ol-stop-outside-proc` 5,
+//     `ol-unknown-command` 5, `ol-duplicate-binder` 4, `ol-undefined-var` 4, `ol-no-output` 2,
+//     `ol-unknown-type` 2 — one covered site says nothing about its siblings, as `ol-unknown-type`
+//     demonstrates.
 //
 // **The second suppression mechanism was checked too, and does not extend the class.** This slice
 // also implements the precedence rule, which suppresses a *different* code (`ol-bad-token` beside an
@@ -62,9 +77,10 @@
 // diagnostics only, and `mergeRunDiagnostics` never re-applies it, so no runtime diagnostic is ever
 // in a set precedence examines.
 //
-// **What would falsify all of this** is the intersection frame itself: a masking route that is
-// neither same-code de-duplication nor precedence. If one exists, the class is larger than 15 and
-// this file is short by however many guards it hides.
+// **What would falsify this** is either the frame or the granularity: a masking route that is
+// neither same-code de-duplication nor precedence, or — far likelier — one of the 71 maskable raise
+// sites this file does not cover turning out to be masked and unprotected, exactly as the worded
+// `is a` was.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -186,6 +202,18 @@ const HALTING_FAULTS = [
     source: "struct point [ x y ]\nprint (point 0 0).z",
     code: "ol-unknown-field",
     events: ["instruction", "instruction"],
+  },
+  {
+    // The WORDED form specifically. Its sibling raise site — the prefix `is_a?` at
+    // `evaluate.ts`'s `evaluatePrefixIsA` — reports at `stage: "runtime"` and is protected by two
+    // conformance fixtures, and this file previously cited that sibling as grounds for excluding
+    // the whole code. Measured, the two sites differ: `print (5 is a "banana")` surfaces
+    // `ol-unknown-type` at `stage: "semantic"`, the checker's copy, so this site IS masked, and
+    // deleting its guard left the halt suite, conformance and all 5030 tests green.
+    label: "the worded `is a` given a type word that does not exist",
+    source: 'print (5 is a "banana")',
+    code: "ol-unknown-type",
+    events: ["instruction"],
   },
 ];
 

@@ -119,6 +119,39 @@ test("params agreement is subset-shaped, not equality-shaped", () => {
   assert.equal(mergeRunDiagnostics(checked, raised).length, 1);
 });
 
+test("the code discriminates: a different code at the same span is NOT a duplicate", () => {
+  // The third conjunct, and the one every other test here holds constant. Dropping
+  // `diagnostic.code === raised.code` passes this file's other cases, conformance, and all 5030
+  // tests — no source program reaches it today — so it is pinned directly rather than left as an
+  // assurance in a comment.
+  //
+  // It matters more than its reachability suggests: the whole masking analysis in
+  // `runtime-guards-halt.test.mjs` rests on de-duplication being **same-code**, which is what keeps
+  // the precedence rule (which suppresses across *different* codes) a separate mechanism that
+  // cannot reach a runtime diagnostic. If this conjunct went, that argument would go with it.
+  const checked = [
+    diagnostic(
+      "ol-no-output",
+      { procedure: "forward" },
+      [1, 1],
+      [1, 8],
+      "semantic",
+    ),
+  ];
+  const raised = diagnostic(
+    "ol-not-implemented",
+    { procedure: "forward" },
+    [1, 1],
+    [1, 8],
+    "runtime",
+  );
+  assert.deepEqual(
+    mergeRunDiagnostics(checked, raised).map((entry) => entry.code),
+    ["ol-no-output", "ol-not-implemented"],
+    "two different codes about one span are two findings, not one",
+  );
+});
+
 test("disjoint spans keep both, even for the same code and params", () => {
   const checked = [
     diagnostic("ol-unknown-command", { name: "a" }, [1, 1], [1, 2], "semantic"),

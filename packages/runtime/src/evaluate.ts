@@ -2028,12 +2028,24 @@ export function resolvesUnderProfiles(
  * Does OpenLogo know `name` **for this run** — the question `ol-not-implemented` and
  * `ol-unknown-command` divide between them?
  *
- * Two sources, because the profile set gates one of them and not the other. A **primitive** is
- * known only when an active profile registers it: `spec/error-model.md:131` says "a call under a
- * profile the run does not claim is still `ol-unknown-command`, because there the name does not
- * resolve". A **keyword** is known unconditionally — `spec/grammar.md:408` keeps the reserved-word
- * set a property of the language version rather than of the profile set a run happens to claim, so
- * gating one here would make the same word known or unknown depending on the caller.
+ * Two sources, and `isKeyword` is deliberately handed the active set rather than called bare.
+ *
+ * A **primitive** is known only when an active profile registers it: `spec/error-model.md:131` says
+ * "a call under a profile the run does not claim is still `ol-unknown-command`, because there the
+ * name does not resolve".
+ *
+ * A **keyword** splits in two, and conflating the halves was wrong in both directions (measured, and
+ * both were live defects): a *profile-independent* keyword like `repeat` is known under every set,
+ * while a *profile* keyword — `when`, `every`, `on_key`, `on_click`, `tell`, `ask`, `each` — is in
+ * the keyword class only "while their profile is active" (`spec/tooling.md:30`). Calling
+ * `isKeyword(name)` bare made `when` permanently unknown even under a run claiming Interaction &
+ * Events, and made profile words that sit in the reserved set look available under Core alone.
+ *
+ * This answers AVAILABILITY, which is why the profile set belongs here at all. It is a different
+ * question from whether a name may be DECLARED — that one is fixed by the language version and
+ * never by the profile set (`spec/grammar.md:408`), and `built-in-names.ts` keeps the two apart
+ * deliberately. `struct` is the case that shows the difference: reserved everywhere, available only
+ * under Data.
  */
 export function knownUnderProfiles(
   name: string,
