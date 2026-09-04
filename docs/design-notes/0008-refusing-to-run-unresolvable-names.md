@@ -89,14 +89,14 @@ stray-token path could not separate them either, though for a narrower reason th
 `challenge` is registered with arity 0 (`packages/parser/src/signatures.ts`'s `TUTOR_PRIMITIVES`),
 which is also what the parser assumes for a name it cannot resolve — so `challenge "x"` and
 `wibble "x"` both report `ol-bad-token` on the argument and `ol-unknown-command` on the callee. Had
-`challenge` taken an argument, parse would have told them apart; the withholding itself never reached
-the arity source, which is confined to the checker's visible-name sweep. What could still tell them
-apart was the parser's own registry introspection — `namesAwaitingAnEvaluator()` names the withheld
-set outright, and `isActiveProfileCommandName` answers `true` for `challenge` and `false` for
-`wibble` — an API surface whose very existence is an admission of the problem, and which no learner
-and no conformance fixture consults. That indistinguishability is the sharpest argument for a
-separate code, and it is the argument no code can preserve, because the fix destroys the evidence for
-it (issue #1087 captures the behaviour before it goes).
+`challenge` taken an argument, parse would have told them apart; the withholding itself — confined to
+the checker's visible-name sweep — never reached the arity source. What could still tell them apart
+was the parser's own registry introspection: `isActiveProfileCommandName` answers `true` for
+`challenge` and `false` for `wibble`, and `namesAwaitingAnEvaluator()` names the withheld set
+outright — the latter a dedicated export whose very existence is an admission of the workaround, and
+neither consulted by a learner or by any conformance fixture. That indistinguishability is the
+sharpest argument for a separate code, and it is the argument no code can preserve, because the fix
+destroys the evidence for it (issue #1087 captures the behaviour before it goes).
 
 A learner cannot tell these three apart from the outside, because from the outside all three look
 identical: the turtle did not move and the language said nothing. The question this record answers
