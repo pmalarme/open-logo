@@ -1,33 +1,8 @@
 {
-  "description": "A parenthesized call site with too few arguments for a user procedure raises ol-not-enough-inputs at the callee span, checked at runtime call time (execute() never runs check()); shares the callable/expected/actual param shape with #111's static rule (spec/error-model.md). Issue #97.",
+  "description": "A parenthesized call site with too few arguments for a user procedure raises ol-not-enough-inputs at the callee span, checked at runtime call time (execute() runs check() before Phase 2); shares the callable/expected/actual param shape with #111's static rule (spec/error-model.md). Issue #97. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/procedure-arity-not-enough-inputs",
-        "start": [3, 1],
-        "end": [5, 4]
-      },
-      "payload": {
-        "statement_kind": "ProcedureDef"
-      }
-    },
-    {
-      "seq": 1,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/procedure-arity-not-enough-inputs",
-        "start": [6, 1],
-        "end": [6, 17]
-      },
-      "payload": {
-        "statement_kind": "Call"
-      }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-not-enough-inputs",
@@ -41,7 +16,7 @@
         "expected": 2,
         "actual": 1
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

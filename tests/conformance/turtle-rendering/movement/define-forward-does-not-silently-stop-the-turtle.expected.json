@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839 AC4, the Turtle & Rendering half of \"nothing shadows\": `define forward :n … print 999 … end` then `forward 10`. Phase-1 registration raises `ol-reserved-word` (`spec/error-model.md:125`), matching what `check()` reports. The empty event stream is the assertion that matters: a `print` payload of `999` would mean the shadow is back, and a `move` payload would mean the primitive silently won instead.",
+  "description": "Issue #839 AC4, the Turtle & Rendering half of \"nothing shadows\": `define forward :n … print 999 … end` then `forward 10`. Phase-1 registration raises `ol-reserved-word` (`spec/error-model.md:125`), matching what `check()` reports. The empty event stream is the assertion that matters: a `print` payload of `999` would mean the shadow is back, and a `move` payload would mean the primitive silently won instead. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "turtle-rendering"],
   "execute": true,
@@ -16,7 +16,7 @@
         "name": "forward"
       },
       "message": "forward is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

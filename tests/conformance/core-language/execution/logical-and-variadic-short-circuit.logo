@@ -1,1 +1,1 @@
-print (and true false :missing)
+print (and true false (1 / 0))

@@ -1,45 +1,20 @@
 {
-  "description": "The short Heritage escape spelling `op`, EXECUTED at the top level, carries the same CANONICAL `params.keyword` `\"return\"` as `output` and as Core `return` (issue #741) — `code`, `params`, `stage` and `severity` byte-identical to the Core twin `tests/conformance/core-language/execution/procedure-return-outside-proc`, and to the sibling `heritage/execution/heritage-output-canonical-keyword-executed-outside-proc`. Both Heritage spellings are fixtured because a param that varies with the spelling varies per spelling: `op` is a separate surface word reaching the same `params`, and asserting only `output` would leave the value `op` produces unpinned. `source_span` covers the whole `op 5` statement (4 columns against the 8 of `output 5`), so a shorter spelling still spans what the learner wrote — canonicalizing the param did not canonicalize the span. The prose still says `op`, which the localization boundary `spec/error-model.md:255-260` permits.",
+  "description": "The short Heritage escape spelling `op`, EXECUTED at the top level, carries the same CANONICAL `params.keyword` `\"return\"` as `output` and as Core `return` (issue #741) — `code`, `params`, `stage` and `severity` byte-identical to the Core twin `tests/conformance/core-language/execution/procedure-return-outside-proc`, and to the sibling `heritage/execution/heritage-output-canonical-keyword-executed-outside-proc`. Both Heritage spellings are fixtured because a param that varies with the spelling varies per spelling: `op` is a separate surface word reaching the same `params`, and asserting only `output` would leave the value `op` produces unpinned. `source_span` covers the whole `op 5` statement (4 columns against the 8 of `output 5`), so a shorter spelling still spans what the learner wrote — canonicalizing the param did not canonicalize the span. The prose still says `op`, which the localization boundary `spec/error-model.md:255-260` permits. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language", "data", "heritage"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "heritage/execution/heritage-op-canonical-keyword-executed-outside-proc",
-        "start": [4, 1],
-        "end": [4, 5]
-      },
-      "payload": {
-        "statement_kind": "Return"
-      }
-    },
-    {
-      "seq": 1,
-      "kind": "return",
-      "source_span": {
-        "document": "heritage/execution/heritage-op-canonical-keyword-executed-outside-proc",
-        "start": [4, 1],
-        "end": [4, 5]
-      },
-      "payload": {
-        "value": 5
-      }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-return-outside-proc",
       "source_span": {
         "document": "heritage/execution/heritage-op-canonical-keyword-executed-outside-proc",
         "start": [4, 1],
-        "end": [4, 5]
+        "end": [4, 3]
       },
       "params": {
         "keyword": "return"
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839 AC4 in the HERITAGE `to` spelling: `to forward :n … end` is `ol-reserved-word` exactly as `define forward` is, and the turtle command that follows never runs. Heritage is \"alternate spellings only\" (`spec/conformance.md:150`), so the declaration slot cannot be more permissive in one spelling than the other — otherwise a learner writing Heritage could shadow `forward` while a learner writing Core could not, which is the profile-dependent unpredictability `spec/grammar.md` rules out. Paired with `to-twice-is-not-a-silent-override`, which covers the duplicate half of the same slot. The span starts at column 4, not 8, because `to` is three characters — the property that made a hard-coded column in the unit suite fail, and the reason a `define`-only corpus could not have caught a keyword-sensitive guard.",
+  "description": "Issue #839 AC4 in the HERITAGE `to` spelling: `to forward :n … end` is `ol-reserved-word` exactly as `define forward` is, and the turtle command that follows never runs. Heritage is \"alternate spellings only\" (`spec/conformance.md:150`), so the declaration slot cannot be more permissive in one spelling than the other — otherwise a learner writing Heritage could shadow `forward` while a learner writing Core could not, which is the profile-dependent unpredictability `spec/grammar.md` rules out. Paired with `to-twice-is-not-a-silent-override`, which covers the duplicate half of the same slot. The span starts at column 4, not 8, because `to` is three characters — the property that made a hard-coded column in the unit suite fail, and the reason a `define`-only corpus could not have caught a keyword-sensitive guard. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "data", "turtle-rendering", "heritage"],
   "execute": true,
@@ -16,7 +16,7 @@
         "name": "forward"
       },
       "message": "forward is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

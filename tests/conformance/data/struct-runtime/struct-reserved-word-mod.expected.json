@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with the keyword `mod` raises `ol-reserved-word` at phase-1 registration, `stage: \"runtime\"` -- `execute()` runs `parse()` only, never `check()`, so the runtime carries its own declaration-slot guard (`execute-internal.ts`'s `registerDeclarations`; `spec/data-structures.md:323` gives `struct` the `ol-reserved-word` and `ol-duplicate-definition` diagnostics and phase-1 registration, and `:304` states the split this fixture turns on: \"Field names are bindings, not declarations, so any name is legal there ... The type name is a declaration: it registers a constructor in the callable namespace, so a built-in name raises `ol-reserved-word`\"). `mod` collides here exactly as `struct and` does (`spec/grammar.md:373,378` -- `and`/`or`/`not`/`mod` are word-spelled operators of the expression grammar, not callable primitives). Note the field list `[ x y ]` is a binding position and stays unrestricted. The check-stage and binding/call axes are pinned by core-language/check/reserved-word-define-mod and keyword-mod-binds-and-calls-freely.",
+  "description": "A `struct` type name colliding with the keyword `mod` raises `ol-reserved-word` at phase-1 registration, `stage: \"semantic\"` -- `execute()` runs `check()` before Phase 2 (issue #815), so the runtime carries its own declaration-slot guard (`execute-internal.ts`'s `registerDeclarations`; `spec/data-structures.md:323` gives `struct` the `ol-reserved-word` and `ol-duplicate-definition` diagnostics and phase-1 registration, and `:304` states the split this fixture turns on: \"Field names are bindings, not declarations, so any name is legal there ... The type name is a declaration: it registers a constructor in the callable namespace, so a built-in name raises `ol-reserved-word`\"). `mod` collides here exactly as `struct and` does (`spec/grammar.md:373,378` -- `and`/`or`/`not`/`mod` are word-spelled operators of the expression grammar, not callable primitives). Note the field list `[ x y ]` is a binding position and stays unrestricted. The check-stage and binding/call axes are pinned by core-language/check/reserved-word-define-mod and keyword-mod-binds-and-calls-freely. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "data"],
   "execute": true,
@@ -16,7 +16,7 @@
         "name": "mod"
       },
       "message": "mod is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

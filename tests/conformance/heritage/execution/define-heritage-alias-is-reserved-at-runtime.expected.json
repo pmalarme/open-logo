@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839: a Heritage short alias is a built-in name at run time, exactly as illegal to declare as the canonical it spells. The runtime resolves the alias to its canonical and re-runs the same lookup rather than consulting a table of its own (`spec/conformance.md:150`, Heritage is \"alternate spellings only\"), so `define fd` is `ol-reserved-word` because `define forward` is. The empty event stream is what makes this discriminating: `999` would mean the learner's procedure ran, and a `move` event would mean the turtle did.",
+  "description": "Issue #839: a Heritage short alias is a built-in name at run time, exactly as illegal to declare as the canonical it spells. The runtime resolves the alias to its canonical and re-runs the same lookup rather than consulting a table of its own (`spec/conformance.md:150`, Heritage is \"alternate spellings only\"), so `define fd` is `ol-reserved-word` because `define forward` is. The empty event stream is what makes this discriminating: `999` would mean the learner's procedure ran, and a `move` event would mean the turtle did. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "turtle-rendering", "data", "heritage"],
   "execute": true,
@@ -16,7 +16,7 @@
         "name": "fd"
       },
       "message": "fd is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

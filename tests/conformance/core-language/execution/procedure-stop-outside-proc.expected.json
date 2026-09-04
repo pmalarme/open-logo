@@ -1,21 +1,8 @@
 {
-  "description": "stop outside any procedure raises ol-stop-outside-proc at the runtime stage, mirroring #114's semantic-stage rule per the same #94/#104 convention. Issue #97.",
+  "description": "stop outside any procedure raises ol-stop-outside-proc at the semantic stage, mirroring #114's semantic-stage rule per the same #94/#104 convention. Issue #97. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/procedure-stop-outside-proc",
-        "start": [3, 1],
-        "end": [3, 5]
-      },
-      "payload": {
-        "statement_kind": "Stop"
-      }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-stop-outside-proc",
@@ -25,7 +12,7 @@
         "end": [3, 5]
       },
       "params": {},
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

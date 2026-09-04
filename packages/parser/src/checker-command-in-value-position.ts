@@ -19,17 +19,25 @@
  * is covered with no edit here.
  *
  * **How "value position" is decided.** A statement list — `Program.body` and every `Block.body` —
- * is the *only* place a bare command call is legitimate. Everything else `childrenOf` reaches is a
- * value slot by construction, so the rule collects the statements once and reports any command call
- * that is not one of them. That is what makes it uniform: it enumerates the two statement
- * containers rather than the many expression slots, and the expression slots are what keep growing.
+ * is the *only* place a bare command call is legitimate, and a **list literal** is data rather than
+ * any kind of position at all. Everything else `childrenOf` reaches is a value slot by construction,
+ * so the rule walks the tree carrying those two facts and reports any command call that is in
+ * neither. That is what makes it uniform: it enumerates the two statement containers rather than
+ * the many expression slots, and the expression slots are what keep growing.
  *
- * **The one exclusion, and it is not an exception.** A comprehension body's final statement *is* a
- * statement, so it is never reported here — and `spec/tooling.md:189` requires exactly that: a
+ * The list-literal exclusion is load-bearing rather than defensive. `[ … ]` spells both a block and
+ * a list, so the reader can and does build a `Call` node inside a `ListLit` — measured, the recovery
+ * AST for `on_click "extra" [ print "x" ]` holds exactly that — and a command name inside a list is
+ * a **word**, not a call site that owes anyone a value. Reporting there would manufacture a finding
+ * about text that is not itself wrong, which is the discipline `spec/execution-model.md:779-781`
+ * asks of every recovery path.
+ *
+ * **The one exclusion that is not written down here.** A comprehension body's final statement *is* a
+ * statement, so it is never reported — and `spec/tooling.md:189` requires exactly that: a
  * `map`/`filter`/`reduce` body whose final expression calls a built-in command "has no
  * value-producing final expression, so it belongs" to `ol-no-value`, which
- * `checker-control-flow.ts` already reports. The exclusion therefore falls out of the statement/
- * value split rather than being written down as a special case.
+ * `checker-control-flow.ts` already reports. That falls out of the statement/value split rather
+ * than being a special case.
  *
  * **Profiles gate it.** {@link isActiveProfileCommandName} consults only the active set
  * (`spec/tooling.md:174-177`), so a primitive whose owning profile is inactive is not classified
@@ -42,9 +50,8 @@ import type {
   CallNode,
   ParenCallNode,
   ProgramNode,
-  StatementNode,
 } from "./ast.js";
-import { walk } from "./ast.js";
+import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { isActiveProfileCommandName } from "./signatures.js";
 
@@ -65,24 +72,8 @@ function canonicalCalleeName(call: CallNode | ParenCallNode): string {
 }
 
 /**
- * Every node that occupies a **statement** slot: the members of `Program.body` and of every
- * `Block.body`. These are the two — and only two — statement containers the grammar has
- * (`spec/grammar.md`'s `program` and `block`), which is why collecting them is a complete
- * complement of "value position" rather than a sample of it.
+ * The learner-facing message for a command asked for a value it does not report.
  */
-function collectStatements(program: ProgramNode): ReadonlySet<StatementNode> {
-  const statements = new Set<StatementNode>();
-  walk(program, (node) => {
-    if (node.kind === "Program" || node.kind === "Block") {
-      for (const statement of node.body) {
-        statements.add(statement);
-      }
-    }
-  });
-  return statements;
-}
-
-/** The learner-facing message for a command asked for a value it does not report. */
 function messageFor(name: string): string {
   return `${name} does something, it doesn't make a value. i need a value here.`;
 }
@@ -96,26 +87,29 @@ export function commandInValuePositionRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const statements = collectStatements(program);
   const diagnostics: Diagnostic[] = [];
 
-  walk(program, (node) => {
-    if (!isCall(node) || statements.has(node)) {
-      return;
+  const scan = (node: AnyNode, inValuePosition: boolean, inList: boolean) => {
+    if (inValuePosition && !inList && isCall(node)) {
+      const name = canonicalCalleeName(node);
+      if (isActiveProfileCommandName(name, profiles)) {
+        diagnostics.push({
+          code: "ol-no-output",
+          source_span: node.source_span,
+          params: { procedure: name },
+          message: messageFor(name),
+          stage: "semantic",
+          severity: "error",
+        });
+      }
     }
-    const name = canonicalCalleeName(node);
-    if (!isActiveProfileCommandName(name, profiles)) {
-      return;
+    const listed = inList || node.kind === "ListLit";
+    const childInValuePosition = node.kind !== "Program" && node.kind !== "Block";
+    for (const child of childrenOf(node)) {
+      scan(child, childInValuePosition, listed);
     }
-    diagnostics.push({
-      code: "ol-no-output",
-      source_span: node.source_span,
-      params: { procedure: name },
-      message: messageFor(name),
-      stage: "semantic",
-      severity: "error",
-    });
-  });
+  };
 
+  scan(program, false, false);
   return diagnostics;
 }

@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with a user procedure raises `ol-duplicate-definition` at phase-1 registration: `foo` is already declared on line 1, so `struct foo` cannot also register a constructor of that name. Ruling #833 rule 6 gives a name the LEARNER already declared its own code, distinct from `ol-reserved-word`'s \"OpenLogo owns this name\". What this fixture pins is the observable behaviour: the two declarations differ in KIND (`define` then `struct`), which is the cross-kind half of `spec/error-model.md:126` (\"a procedure and a struct with the same name in either order\"), and `params.original_span` points at the `define`. It does NOT prove the runtime keeps a single first-declaration map internally — two maps with an explicit cross-kind lookup would produce the identical diagnostic, and no source-level fixture can tell them apart. `struct-then-define-duplicate` pins the opposite order, and `data/check/duplicate-definition-across-declaration-slots` pins the same program at check stage.",
+  "description": "A `struct` type name colliding with a user procedure raises `ol-duplicate-definition` at phase-1 registration: `foo` is already declared on line 1, so `struct foo` cannot also register a constructor of that name. Ruling #833 rule 6 gives a name the LEARNER already declared its own code, distinct from `ol-reserved-word`'s \"OpenLogo owns this name\". What this fixture pins is the observable behaviour: the two declarations differ in KIND (`define` then `struct`), which is the cross-kind half of `spec/error-model.md:126` (\"a procedure and a struct with the same name in either order\"), and `params.original_span` points at the `define`. It does NOT prove the runtime keeps a single first-declaration map internally — two maps with an explicit cross-kind lookup would produce the identical diagnostic, and no source-level fixture can tell them apart. `struct-then-define-duplicate` pins the opposite order, and `data/check/duplicate-definition-across-declaration-slots` pins the same program at check stage. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [],
@@ -19,7 +19,7 @@
           "end": [1, 11]
         }
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

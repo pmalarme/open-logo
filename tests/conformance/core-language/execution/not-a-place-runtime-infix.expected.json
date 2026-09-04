@@ -1,21 +1,8 @@
 {
-  "description": "ol-not-a-place (issue #156): the runtime's own guard for an infix-operator assignment target (`1 + 2 = 3` parses as a `Call` with callee `\"+\"`, prefix-shaped in the AST but written infix in source) reconciled to the FULL target surface text (`1 + 2`), matching the semantic checker's `not-a-place-nested-and-infix` fixture's `1 + 2` case and the same source-slicing rule (`not-a-place-text.ts`).",
+  "description": "ol-not-a-place (issue #156): the runtime's own guard for an infix-operator assignment target (`1 + 2 = 3` parses as a `Call` with callee `\"+\"`, prefix-shaped in the AST but written infix in source) reconciled to the FULL target surface text (`1 + 2`), matching the semantic checker's `not-a-place-nested-and-infix` fixture's `1 + 2` case and the same source-slicing rule (`not-a-place-text.ts`). Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/not-a-place-runtime-infix",
-        "start": [1, 1],
-        "end": [1, 10]
-      },
-      "payload": {
-        "statement_kind": "Assign"
-      }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-not-a-place",
@@ -27,7 +14,7 @@
       "params": {
         "text": "1 + 2"
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

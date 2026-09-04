@@ -1,5 +1,5 @@
 {
-  "description": "`(and true false :missing)` — the parenthesized variadic form — left-associates and short-circuits exactly like the infix form: it stops at the second (`false`) operand, so `:missing` is never evaluated and no `ol-undefined-var` fires. Issue #95.",
+  "description": "`(and true false (1 / 0))` — the parenthesized variadic form — left-associates and short-circuits exactly like the infix form: it stops at the second (`false`) operand, so `1 / 0` is never evaluated and no `ol-div-zero` fires. Issue #95. Issue #815: the operand was `:missing` until the check before execution landed, at which point an unbound read became a *statically* decided fault and this correct program stopped running at all. `1 / 0` keeps the subject and strengthens it — the skipped operand is one that would genuinely raise (`ol-div-zero`) if it were evaluated, and its absence from the diagnostics is the proof.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -9,9 +9,11 @@
       "source_span": {
         "document": "core-language/execution/logical-and-variadic-short-circuit",
         "start": [1, 1],
-        "end": [1, 32]
+        "end": [1, 31]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     },
     {
       "seq": 1,
@@ -19,9 +21,11 @@
       "source_span": {
         "document": "core-language/execution/logical-and-variadic-short-circuit",
         "start": [1, 1],
-        "end": [1, 32]
+        "end": [1, 31]
       },
-      "payload": { "values": [false] }
+      "payload": {
+        "values": [false]
+      }
     }
   ],
   "diagnostics": []

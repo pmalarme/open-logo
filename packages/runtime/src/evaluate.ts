@@ -2024,6 +2024,9 @@ function evaluateCall(
   if (name === "word") {
     return evaluateWord(node, environment);
   }
+  if (name === "uppercase" || name === "lowercase") {
+    return evaluateCaseTransform(node, environment, name);
+  }
   if (name === "count") {
     return evaluateCount(node, environment);
   }
@@ -3606,6 +3609,56 @@ function evaluateFirstOrLast(
   }
   const index = which === "first" ? 0 : value.length - 1;
   return ok(value[index] as OLValue);
+}
+
+/**
+ * `uppercase`/`lowercase` — a word with its letters case-mapped (`spec/commands.md:1156-1183`;
+ * "Unicode-aware casing", which is what JavaScript's own `toLocaleUpperCase`/`toLocaleLowerCase`
+ * perform). Both are Reporters taking exactly one **word**; anything else raises `ol-type`.
+ *
+ * Issue #815 is why these exist here rather than in a later slice: both were registered in the
+ * parser's Core arity table and reached no evaluator branch, so `print uppercase "logo"` — an
+ * example shipped in `spec/commands.md` itself — parsed clean, checked clean, ran, and printed
+ * nothing at all. The terminal rule turned that silence into `ol-not-implemented`, and
+ * `spec/error-model.md:131` is explicit about what that then means: "Emitting it for a primitive
+ * of a profile the implementation **claims** is a conformance failure of that profile", and Core
+ * Language is claimed. So the honest repair is the evaluation, not an expectation entry.
+ *
+ * The locale-aware variants are deliberate. `spec/commands.md` says "Unicode-aware", and the
+ * plain `toUpperCase`/`toLowerCase` are the ASCII-biased pair by reputation only — both are in
+ * fact fully Unicode — but the locale-aware ones additionally honour the host's locale for the
+ * handful of languages where the mapping differs (Turkish dotless ı being the standard example).
+ */
+function evaluateCaseTransform(
+  node: ArithmeticCallNode,
+  environment: Environment,
+  which: "uppercase" | "lowercase",
+): EvalResult {
+  const arityDiagnostic = requireMinArgs(node, which, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, environment);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (typeof value !== "string") {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word",
+        actual: typeNameOf(value),
+        value,
+        operation: which,
+      }),
+    );
+  }
+  return ok(
+    which === "uppercase"
+      ? value.toLocaleUpperCase()
+      : value.toLocaleLowerCase(),
+  );
 }
 
 function evaluateFirst(

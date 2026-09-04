@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839: a duplicate spanning two nesting depths. `dup` is declared at the top level on line 1 and again inside `define outer` on line 5, and `params.original_span` points at the top-level one — so the first-declaration map is shared across depths, not per-scope. That is the correct reading of phase-1 registration: `spec/execution-model.md:82-89` registers every `define`/`to` procedure into one callable table, and a nested `define` is registered and callable from anywhere (`define outer` / `define helper` / `helper` runs), so a second declaration of the same name genuinely collides no matter which body it sits in. The two bodies print different values, so a last-wins override would print `2` here. Companion to `nested-declaration-of-a-built-in-name`, which covers the `ol-reserved-word` half of the same depth axis.",
+  "description": "Issue #839: a duplicate spanning two nesting depths. `dup` is declared at the top level on line 1 and again inside `define outer` on line 5, and `params.original_span` points at the top-level one — so the first-declaration map is shared across depths, not per-scope. That is the correct reading of phase-1 registration: `spec/execution-model.md:82-89` registers every `define`/`to` procedure into one callable table, and a nested `define` is registered and callable from anywhere (`define outer` / `define helper` / `helper` runs), so a second declaration of the same name genuinely collides no matter which body it sits in. The two bodies print different values, so a last-wins override would print `2` here. Companion to `nested-declaration-of-a-built-in-name`, which covers the `ol-reserved-word` half of the same depth axis. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [],
@@ -19,7 +19,7 @@
           "end": [1, 11]
         }
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

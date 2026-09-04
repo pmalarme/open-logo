@@ -1,5 +1,5 @@
 {
-  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:304,323`): `forward` is a Turtle & Rendering primitive, so `struct forward` cannot register a constructor of that name. Note the profile set here is Core + Data only: the rule is unconditional (`spec/grammar.md`'s declaration-slot rule, ruling #833 rule 4), so a Turtle name is a built-in name whether or not Turtle & Rendering is claimed.",
+  "description": "A `struct` type name colliding with a built-in primitive raises `ol-reserved-word` at phase-1 registration (issue #329, `spec/data-structures.md:304,323`): `forward` is a Turtle & Rendering primitive, so `struct forward` cannot register a constructor of that name. Note the profile set here is Core + Data only: the rule is unconditional (`spec/grammar.md`'s declaration-slot rule, ruling #833 rule 4), so a Turtle name is a built-in name whether or not Turtle & Rendering is claimed. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "data"],
   "execute": true,
@@ -16,7 +16,7 @@
         "name": "forward"
       },
       "message": "forward is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

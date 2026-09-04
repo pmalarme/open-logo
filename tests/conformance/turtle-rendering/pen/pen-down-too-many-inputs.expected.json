@@ -1,19 +1,8 @@
 {
-  "description": "issue #206: `pen_up`/`pen_down` take no arguments; the parenthesized form `(pen_down 1 2)` supplies two, raising `ol-too-many-inputs` at runtime (the bare form's extra tokens would instead fail at parse time as a stray-token diagnostic, since pen_up/pen_down's registered arity is 0 - see packages/parser/src/signatures.ts).",
+  "description": "issue #206: `pen_up`/`pen_down` take no arguments; the parenthesized form `(pen_down 1 2)` supplies two, raising `ol-too-many-inputs` at runtime (the bare form's extra tokens would instead fail at parse time as a stray-token diagnostic, since pen_up/pen_down's registered arity is 0 - see packages/parser/src/signatures.ts). Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["turtle-rendering"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "turtle-rendering/pen/pen-down-too-many-inputs",
-        "start": [1, 1],
-        "end": [1, 15]
-      },
-      "payload": { "statement_kind": "ParenCall" }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-too-many-inputs",
@@ -22,8 +11,12 @@
         "start": [1, 2],
         "end": [1, 10]
       },
-      "params": { "callable": "pen_down", "expected": 0, "actual": 2 },
-      "stage": "runtime",
+      "params": {
+        "callable": "pen_down",
+        "expected": 0,
+        "actual": 2
+      },
+      "stage": "semantic",
       "severity": "error"
     }
   ]

@@ -1,10 +1,24 @@
 {
-  "description": "Issue #839: at RUN TIME a profile keyword is a built-in name unconditionally. `execute()` has no active profile set — it runs every profile's primitives and the reader recognises all six block heads regardless of profile — so the declaration-slot guard cannot be gated on one, and `spec/grammar.md:408` says it must not be: \"a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\". So `define ask` halts at phase-1 registration with `ol-reserved-word` and the `ask` call on line 4 never runs. A corpus that checks a rule at one stage does not cover it at the other — keep an executing case for any rule both stages implement. `check()` and `execute()` reach that answer through one predicate, `@openlogo/parser`'s `isBuiltInName`, rather than composing it each; `packages/parser/src/built-in-names.test.mjs` and the Core-only fixture `core-language/check/reserved-word-profile-names-under-core-alone` pin the two sides against it.",
+  "description": "Issue #839: at RUN TIME a profile keyword is a built-in name unconditionally. `execute()` has no active profile set — it runs every profile's primitives and the reader recognises all six block heads regardless of profile — so the declaration-slot guard cannot be gated on one, and `spec/grammar.md:408` says it must not be: \"a name that could be declared in one implementation but not in another would be invisible and unpredictable to a learner\". So `define ask` halts at phase-1 registration with `ol-reserved-word` and the `ask` call on line 4 never runs. A corpus that checks a rule at one stage does not cover it at the other — keep an executing case for any rule both stages implement. `check()` and `execute()` reach that answer through one predicate, `@openlogo/parser`'s `isBuiltInName`, rather than composing it each; `packages/parser/src/built-in-names.test.mjs` and the Core-only fixture `core-language/check/reserved-word-profile-names-under-core-alone` pin the two sides against it. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "compareMessages": true,
   "profiles": ["core-language", "turtle-rendering", "sprites"],
   "execute": true,
   "events": [],
   "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "sprites/define-profile-keyword-reserved-at-runtime/define-profile-keyword-reserved-at-runtime",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "params": {
+        "text": "ask"
+      },
+      "stage": "semantic",
+      "severity": "error",
+      "message": "i don't know how to read ask here. ask starts its own instruction, so it cannot make a value."
+    },
     {
       "code": "ol-reserved-word",
       "source_span": {
@@ -15,9 +29,9 @@
       "params": {
         "name": "ask"
       },
-      "message": "ask is already part of OpenLogo. choose another name.",
-      "stage": "runtime",
-      "severity": "error"
+      "stage": "semantic",
+      "severity": "error",
+      "message": "ask is already part of OpenLogo. choose another name."
     }
   ]
 }

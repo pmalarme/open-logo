@@ -1,19 +1,8 @@
 {
-  "description": "issue #202: a bare zero-argument `set_heading` raises `ol-not-enough-inputs` — mirrors the runtime arity guard on every other turtle command.",
+  "description": "issue #202: a bare zero-argument `set_heading` raises `ol-not-enough-inputs` — mirrors the runtime arity guard on every other turtle command. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["turtle-rendering"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "turtle-rendering/movement/set-heading-not-enough-inputs",
-        "start": [1, 1],
-        "end": [1, 12]
-      },
-      "payload": { "statement_kind": "Call" }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-not-enough-inputs",
@@ -22,8 +11,12 @@
         "start": [1, 1],
         "end": [1, 12]
       },
-      "params": { "callable": "set_heading", "expected": 1, "actual": 0 },
-      "stage": "runtime",
+      "params": {
+        "callable": "set_heading",
+        "expected": 1,
+        "actual": 0
+      },
+      "stage": "semantic",
       "severity": "error"
     }
   ]

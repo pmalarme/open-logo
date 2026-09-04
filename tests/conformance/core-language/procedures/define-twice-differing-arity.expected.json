@@ -1,5 +1,5 @@
 {
-  "description": "Issue #839 AC1, with ARITY as the discriminating variable: the two declarations of `scale` take one and two parameters, and the call `scale 1 2` matches only the LATER one. A last-wins override would run and print `2`; a first-wins rule would reach `ol-too-many-inputs`; the ruling's rule reports `ol-duplicate-definition` at the second declaration and runs nothing. A fixture whose two definitions were identical would pass under all three, which is why this one varies what the rule turns on.",
+  "description": "Issue #839 AC1, with ARITY as the discriminating variable: the two declarations of `scale` take one and two parameters, and the call `scale 1 2` matches only the LATER one. A last-wins override would run and print `2`; a first-wins rule would reach `ol-too-many-inputs`; the ruling's rule reports `ol-duplicate-definition` at the second declaration and runs nothing. A fixture whose two definitions were identical would pass under all three, which is why this one varies what the rule turns on. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists and still runs — under the `runUnchecked` opt-out — and is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why only one report survives and it reads `stage: \"semantic\"`.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [],
@@ -19,7 +19,7 @@
           "end": [1, 13]
         }
       },
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]
