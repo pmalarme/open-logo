@@ -11,13 +11,14 @@
 // The consequence, measured below, is that a learner who types `challenge` is told the same thing as
 // a learner who types a word that does not exist in any profile.
 //
-// **This is what the fix destroys, and therefore what has to be recorded now.** Once #814 rules and
-// #815 lands, `challenge` stops reporting `ol-unknown-command` while `wibble` keeps it, and nothing
-// in the tree would otherwise record that the two were ever indistinguishable. That identity is the
-// strongest available argument for the `ol-not-implemented` code existing at all: it is justified
-// precisely because, without it, the implementation reports the learner's typo for its own omission.
-// A fixture written after the fix could only assert the fix; it could prove nothing about what was
-// wrong.
+// **This is what the fix destroys, and therefore what has to be recorded now.** The #814 contract
+// has merged and #815 will implement it, after which `challenge` stops reporting
+// `ol-unknown-command` while `wibble` keeps it, and nothing in the tree would otherwise record that
+// the two were ever indistinguishable. That identity is the strongest available argument for the
+// `ol-not-implemented` code existing at all: it is justified precisely because, without it, the
+// implementation reports the learner's typo for its own omission — which `spec/tooling.md:194` now
+// makes an explicit MUST NOT, naming the withholding mechanism this file measures. A fixture
+// written after the fix could only assert the fix; it could prove nothing about what was wrong.
 //
 // It lives in `node:test` rather than in an `.expected.json` because a conformance fixture pairs ONE
 // source with ONE expected stream, and this is a **relation between two sources** — the same reason

@@ -41,10 +41,14 @@ already correct, so checking it changes nothing, and the other option is forbidd
 suggestions, one useless and one prohibited, for a fault that is not theirs.
 
 That identity is the strongest available argument for the `ol-not-implemented` code the #814 ruling
-introduces, and **the fix destroys it**: once #815 lands, `challenge` stops reporting
-`ol-unknown-command` while `wibble` keeps it, and nothing would otherwise record that they were ever
-the same. A fixture written after the fix can only assert the fix; it proves nothing about what was
-wrong. That is the ordering issue #816 exists to enforce, applied one class further out.
+introduces — and the ruling has since **merged**, making today's behaviour an explicit violation
+rather than merely an unfortunate one: `spec/tooling.md:194` says an implementation "MUST NOT reach
+for `ol-unknown-command` instead — including by withholding the name from the visible vocabulary so
+the call reads as unknown". That is the exact mechanism these fixtures capture. **The fix destroys
+the evidence**: once #815 lands, `challenge` stops reporting `ol-unknown-command` while `wibble`
+keeps it, and nothing would otherwise record that they were ever the same. A fixture written after
+the fix can only assert the fix; it proves nothing about what was wrong. That is the ordering issue
+#816 exists to enforce, applied one class further out.
 
 The equality itself lives in `indistinguishable-from-unknown.test.mjs` rather than in an
 `.expected.json`, because a conformance fixture pairs **one** source with **one** expected stream and
@@ -57,7 +61,7 @@ Read each file's opening line; the directory is not uniform.
 
 | file | kind | after the fix |
 | --- | --- | --- |
-| `challenge-check` | `CHARACTERIZATION FIXTURE` | **flips** — the `ol-unknown-command` must disappear. What replaces it is **not** settled here: depending on how #815 routes the fix, `check()` may report `ol-not-implemented` at `semantic`, or may simply go **clean** with the diagnostic raised at run time instead. Measured: removing the withholding makes `check()` clean, not `ol-not-implemented`. |
+| `challenge-check` | `CHARACTERIZATION FIXTURE` | **flips** — and the merged #814 contract decides how. `spec/tooling.md:194` requires the checker to report `ol-not-implemented` when it "knows before running that no evaluation exists", which is exactly what `NAMES_AWAITING_AN_EVALUATOR` records, and `spec/error-model.md:131` gives that code stage `semantic or runtime`. The same row makes today's behaviour an explicit violation: an implementation "MUST NOT reach for `ol-unknown-command` instead — **including by withholding the name from the visible vocabulary so the call reads as unknown**", which is precisely the mechanism this fixture captures. |
 | `challenge-execute` | `CHARACTERIZATION FIXTURE` | **flips** — running it must stop being silent |
 | `challenge-with-argument` | `NO-REGRESSION` | **unchanged** |
 | `indistinguishable-from-unknown.test.mjs` | identity assertion | **inverted, not deleted** — the equality becomes a disequality, which is how the fix proves it worked |
