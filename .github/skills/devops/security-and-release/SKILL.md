@@ -60,13 +60,19 @@ by several rows. Anchoring on the tag silently under-numbers the release. Worked
 commit `2a1888c1` (2026-09-03) and kept here as a **dated illustration**, not a live fact: `v0.2.0`
 was the highest tag while `origin/main` already declared the full M5 profile set, so "latest tag plus
 one row" — reading `v0.2.0` as a version string rather than placing it by its tagged tree — yielded
-`0.3.0` for a tuple the ladder numbers `0.4.0`. Re-derive from the repo; never reuse this number.
+`0.3.0` for a tuple the ladder then numbered `0.4.0`. Re-derive from the repo; never reuse this
+number. **This exact gap was resolved on 2026-09-04**: `v0.2.0`'s tree already declared M4's full
+profile set (M3 + M4 shipped together under one tag), so the maintainer chose to renumber the ladder
+from M5 onward rather than leave a permanent `0.3.0` gap — see the current mapping in step 2 below and
+[`docs/delivery.md`](../../../../docs/delivery.md) §3, which is now the **sole** authoritative source;
+do not recompute a ladder version from this paragraph's numbers.
 
 **Read every input from `origin/main`, after fetching.** A worktree's local `main` is routinely stale
-— when this procedure was written it sat 3 commits behind, declaring 5 profiles instead of 9, which
-maps cleanly onto M4 and would hand the reader `0.3.0` while every other cross-check below still
-passed. That is why step 1 reads `origin/main` directly and step 3 carries an explicit staleness
-check: a stale ref is a failure mode that otherwise produces a confident wrong number in silence.
+— when this procedure was written it sat 3 commits behind, declaring 5 profiles instead of 9, which at
+the time mapped onto M4 and would have handed the reader a stale version while every other cross-check
+below still passed. That is why step 1 reads `origin/main` directly and step 3 carries an explicit
+staleness check: a stale ref is a failure mode that otherwise produces a confident wrong number in
+silence.
 
 1. Read the **delivered profile set** from `origin/main`: `git fetch origin`, then
    `git show origin/main:packages/core/src/host-metadata.ts` and take `SUPPORTED_PROFILES` — the
@@ -76,10 +82,14 @@ check: a stale ref is a failure mode that otherwise produces a confident wrong n
    convention, not a gate (no check derives required fixture coverage from this list), so treat it as
    the repository's *declared* shipped set and verify the claim independently in step 4.
 2. Map it onto the saga ladder in [`docs/delivery.md`](../../../../docs/delivery.md) §3 ("The saga
-   ladder"): take the **highest saga whose profiles are all present**, and its row gives the version
-   (M1 `0.1.0-core` pre-release → M2 `0.1.0` → M3 `0.2.0` → M4 `0.3.0` → M5 `0.4.0` → M6 `0.5.0`).
-   The number is driven by the **saga's profile set**, not by Conventional Commit types — a `feat:`
-   inside an already-released saga does not move it.
+   ladder"): take the **highest saga whose profiles are all present**, and its row gives the version.
+   **Always read the version off that table directly** — do not memoize the mapping here, because the
+   maintainer renumbers rows when an earlier release compressed two rows into one tag (see the M4
+   footnote in that table, resolved 2026-09-04: M3 + M4 shipped together under `v0.2.0`, so M5 onward
+   were renumbered down by one — `0.1.0-core` → `0.1.0` → `0.2.0` → `0.2.0` → `0.3.0` → `0.4.0` is the
+   mapping as of that renumbering, but the table is the source of truth, not this sentence). The
+   number is driven by the **saga's profile set**, not by Conventional Commit types — a `feat:` inside
+   an already-released saga does not move it.
 3. Cross-check the **released baseline**: the highest tag reachable from `origin/main`
    (`git tag --list --merged origin/main --sort=-version:refname` — version-sorted, since the
    default order is lexical) plus the root and per-package `package.json` versions, which must
@@ -95,11 +105,14 @@ check: a stale ref is a failure mode that otherwise produces a confident wrong n
    beyond it, four cases need special handling, and each **reports before it stops**:
    - **Number settled, sequencing unsettled** — the tag lags the ladder by more than one row. Place
      the tag on the ladder by reading `SUPPORTED_PROFILES` from the **tagged tree**, not from its
-     version string; the two have already diverged, since `v0.2.0` declares M4's profile set although
-     the ladder numbers M4 `0.3.0`. Report the mapped row's version, then ask how to number the gap —
-     but do **not** offer to backfill a version whose profiles already shipped under an earlier tag:
-     that tag would contain nothing new and would contradict its own manifests. The normative sources
-     do not settle the sequencing, so it is a maintainer call.
+     version string; the two can diverge, as they did when `v0.2.0` was found to declare M4's profile
+     set although the ladder of the day numbered M4 `0.3.0` (resolved 2026-09-04 by renumbering the
+     ladder — see the M4 footnote in `docs/delivery.md` §3). Report the mapped row's version, then ask
+     how to number the gap — but do **not** offer to backfill a version whose profiles already shipped
+     under an earlier tag: that tag would contain nothing new and would contradict its own manifests.
+     The normative sources do not settle the sequencing, so it is a maintainer call — renumbering the
+     ladder going forward (as happened 2026-09-04) is one valid resolution; leaving a documented,
+     permanent gap is another.
    - **No new ladder version** — the derived version does not exceed the tag floor, **or** the tagged
      tree already declares the same ladder row as `origin/main`, so no new ladder row has shipped even
      though the ladder numbers that row above the tag's version string. In **that** case — same row,
@@ -207,10 +220,11 @@ First release only:  https://github.com/pmalarme/open-logo/commits/v<X.Y.Z>
 Both endpoints must be **pushed tags** before the URL resolves: a compare against a tag that exists
 only locally returns 404, and `commits/<missing tag>` is worse — it renders a plausible-looking but
 empty history rather than an error. So build the URL after pushing the tag and **open it** to confirm
-it shows the expected range. If the version skips a ladder row (`v0.2.0...v0.4.0`), explain the skip
-in the notes — but do **not** infer from the numbering what the diff contains. Ladder rows and
-shipped tags are not one-to-one: `v0.2.0` shipped M3 *and* M4 together, so a skipped `0.3.0` does not
-put M4 inside that range. Determine what the range actually spans by inspecting the two tagged trees.
+it shows the expected range. Ladder rows and shipped tags are not necessarily one-to-one — `v0.2.0`
+shipped M3 *and* M4 together (which is why the ladder was renumbered 2026-09-04, see the M4 footnote
+in `docs/delivery.md` §3) — so never infer from the version numbers alone what a diff contains, and if
+a future renumbering ever leaves a real gap between two tags, explain it in the notes. Determine what
+a range actually spans by inspecting the two tagged trees, not by reading their version strings.
 
 **Never publish to npmjs.** Every `@openlogo/*` package is `"private": true` and stays off the
 public registry — a release is a git tag plus GitHub release artifacts (see

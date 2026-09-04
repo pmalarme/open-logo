@@ -80,9 +80,16 @@ issue whose child epics and work issues are linked as native sub-issues.
 | **M1 Core Language** | Core Language | Engine parses + evaluates Core; highlighter classifies Core tokens; studio REPL runs non-graphical Core; `conformance(core)` green | `0.1.0-core` (pre-release) |
 | **M2 Turtle & Rendering** | + Turtle & Rendering = **minimal conformance** | Turtle state + events, Canvas render + SVG/PNG export, studio Run/Stop/Reset + turtle view + a11y | **`0.1.0` — first conformant release** |
 | **M3 Educational baseline** | + Educational | `explain`/`why`/`hint`/`debug` deterministic; curriculum L1–L5; studio lesson pane | `0.2.0` |
-| **M4 Data & Geometry** | + Data, + Geometry | dicts/records/mutation; geometry stdlib (`.logo`) + geometry-teacher reasoning; highlighter dict/struct/field classes | `0.3.0` |
-| **M5 Heritage · Sprites · Interaction & Events · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | `0.4.0` |
-| **M6 Modules · Localization · Tutor (AI)** | + Modules → Localization, + Tutor (AI) | `import`/`export`; localized keyword packs; AI tutor (Socratic, offline-degrading) behind the provider-neutral adapter | `0.5.0` |
+| **M4 Data & Geometry** | + Data, + Geometry | dicts/records/mutation; geometry stdlib (`.logo`) + geometry-teacher reasoning; highlighter dict/struct/field classes | `0.2.0`¹ |
+| **M5 Heritage · Sprites · Interaction & Events · Sound** | + those four (independent) | alternate spellings; multiple turtles; input/events/timers; sound — parallelizable | `0.3.0` |
+| **M6 Modules · Localization · Tutor (AI)** | + Modules → Localization, + Tutor (AI) | `import`/`export`; localized keyword packs; AI tutor (Socratic, offline-degrading) behind the provider-neutral adapter | `0.4.0` |
+
+¹ M3 and M4 shipped **together** in the `v0.2.0` tag (2026-07-25): `v0.2.0`'s tree already declared
+M4's full profile set (Data + Geometry, on top of M3's Educational), so the two rows share one
+release rather than each getting its own tag. The ladder is renumbered from M5 onward to keep
+releases sequential (no `0.3.0` gap for a row whose profiles already shipped under `0.2.0`) —
+`0.3.0`/`0.4.0` above are the current, authoritative mapping; do not re-derive `0.4.0`/`0.5.0` from
+an older copy of this table.
 
 M2 is the flagship: the smallest thing that is a real, conformant OpenLogo. Everything after M2 is
 additive optional profiles, each releasable on its own once its conformance is green.
