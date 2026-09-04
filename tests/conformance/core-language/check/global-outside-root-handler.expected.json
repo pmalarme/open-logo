@@ -1,5 +1,5 @@
 {
-  "description": "ol-global-outside-root inside a HANDLER BLOCK — the fourth of the four places spec/error-model.md:131 enumerates, and the one spec/interaction-events.md:137 restates for this profile. A handler block is a block scope like any other, so the declaration is rejected there even though the handler itself is written at the top level.",
+  "description": "ol-global-outside-root inside a HANDLER BLOCK — the fourth of the four places spec/error-model.md:131 enumerates, and the one spec/interaction-events.md:136-138 restates for this profile. A handler block is a block scope like any other, so the declaration is rejected there even though the handler itself is written at the top level.",
   "profiles": ["core-language", "interaction-events"],
   "check": true,
   "events": [],

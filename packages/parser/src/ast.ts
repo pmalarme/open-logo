@@ -296,13 +296,14 @@ export interface AssignNode extends NodeBase {
  *
  * **Until issue #824 the initializer is parsed and checked but never evaluated**, because
  * `@openlogo/runtime` gives a `Local` no effect at all — as it already gave a bare `local count`
- * none. For most programs that degrades loudly (`ol-undefined-var` on the first read), but where
- * the declaration **shadows** a binding that already exists, the read finds the outer one and the
- * program runs to completion with the wrong value and no diagnostic: `:count = 0` / `local count =
- * 5` / `print :count` prints `0`. That is measured, not predicted, and it is a *regression in kind*
- * — before this slice the same program was a parse error. It is recorded here rather than guarded,
- * because the fix is the scoping runtime #824 owns and a guard would be a second, wrong model of
- * it.
+ * none. Where nothing of that name is bound yet the failure is loud (`ol-undefined-var` on the
+ * first read), but where the declaration **shadows** a binding that already exists, the read finds
+ * the outer one and the program runs to completion with the wrong value and no diagnostic:
+ * `:count = 0` / `local count = 5` / `print :count` prints `0`. That is measured, not predicted,
+ * and it is a *regression in kind* — before this slice the same program was a parse error. It is
+ * recorded here rather than guarded, because the fix is the scoping runtime #824 owns and a guard
+ * would be a second, wrong model of it. {@link GlobalNode} carries the same hole for the same
+ * reason; see its own note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
@@ -325,6 +326,15 @@ export interface LocalNode extends NodeBase {
  * The name is a {@link SpannedName} rather than a {@link PlaceNode}: it is a binding, so the
  * checker never raises `ol-reserved-word` for it (`spec/grammar.md:390`), and its own span is what
  * `ol-global-outside-root`'s `name` param and diagnostics point at.
+ *
+ * **Until issue #824 this declaration has no runtime effect either**, exactly as {@link LocalNode}'s
+ * initializer has none, and the consequence is the same rather than milder. `spec/execution-model.md:576-580`
+ * lets a root binding of the name already exist — "`:count = 5` followed by `global count = 0`
+ * leaves one binding, now shared and holding `0`" — and in that case the dropped initializer is
+ * silent: `:count = 5` / `global count = 0` / `print :count` prints `5`, with no diagnostic. With no
+ * prior binding it fails loudly (`ol-undefined-var`) instead. The rule across both node kinds is one
+ * rule: a dropped initializer degrades silently wherever the name is already bound, and loudly
+ * wherever it is not.
  */
 export interface GlobalNode extends NodeBase {
   readonly kind: "Global";
