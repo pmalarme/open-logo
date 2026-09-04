@@ -272,7 +272,7 @@
       "fingerprint": "e754c1c1e49655ee",
       "excerpt": "on_key \"left\" [ left :turn_size ]",
       "kind": "prose-fragment",
-      "why": "Excerpt, not a whole program: `:turn_size` is never assigned anywhere in this document — the entry illustrates a form, not a runnable program.",
+      "why": "Excerpt, not a whole program: neither `:turn_size` nor `:score` is assigned anywhere in this document — the entry illustrates a form, not a runnable program. (`10-game.logo` itself assigns both; this pair of lines is lifted out of it.)",
       "codes": ["ol-undefined-var"]
     },
     {
@@ -322,6 +322,13 @@
       "why": "Excerpt, not a whole program: `point` is named by the prose but defined nowhere in this document. Its `setup` preamble supplies the rest of that context, so the block runs to completion.",
       "codes": [],
       "setup": "struct point [ x y ]"
+    },
+    {
+      "fingerprint": "a22fb14d246e681c",
+      "excerpt": ":count = 0",
+      "kind": "deliberate-error",
+      "why": "The section's own worked example of a program the sealed procedure boundary breaks, and the prose immediately below it (spec/execution-model.md:441-447) says so: `draw_steps` cannot see the top-level `:count`, so the read raises `ol-var-not-visible`. Both reads of `:count` in the body are reported — `forward :count * 10` and the `:count + 1` inside the write — because the write creates a binding in the `repeat` body only once it has run, and neither read has reached it. The fix the prose names, `global count = 0`, would make the block clean; keeping it broken is the point.",
+      "codes": ["ol-var-not-visible"]
     }
   ],
   "spec/geometry-module.md": [

@@ -547,9 +547,41 @@ test("assigning an undeclared name always declares it — a later read is never 
   );
 });
 
-test("reading a global BEFORE its (later, textual) assignment is accepted — this rule does not simulate control-flow order (see the module doc comment's deliberate scope boundary)", () => {
+// Issue #825 retires a deviation this rule declared about itself. Until the scoping ruling
+// (`spec/execution-model.md`'s § *Variables, scoping, and procedures*) landed, this module resolved
+// a root-frame binding as visible throughout the program regardless of textual order, and its own
+// doc comment said so in as many words: *"Treating that root-frame binding as visible throughout the
+// program regardless of textual order is **this checker's own resolution model, not a spec rule**:
+// the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
+// **never to variables**."* The test that used to sit here pinned that self-declared deviation, not
+// a spec guarantee. `spec/execution-model.md:416-419` now requires the opposite — the checker
+// "MUST resolve them lexically and conservatively", and "within one scope's straight-line statement
+// list the two agree exactly" — so a read the evaluator would fail on is reported.
+test("a read before the statement that binds the name in the SAME scope is reported (spec/execution-model.md:398-399,416-419)", () => {
+  const findings = checkSource("print :later\n:later = 1\n").filter(
+    isUndefinedVar,
+  );
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "later" });
+  assert.deepEqual(findings[0].source_span.start, [1, 7]);
+});
+
+test("the paired positive control: the same two statements in the other order stay clean", () => {
   assert.deepEqual(
-    checkSource("print :later\n:later = 1\n").filter(isUndefinedVar),
+    checkSource(":later = 1\nprint :later\n").filter(isUndefinedVar),
+    [],
+  );
+});
+
+// The conservative half of the same rule. `spec/execution-model.md:423-424` — "Across scope
+// boundaries the checker never reports a name that a later declaration or a deferred handler could
+// reach" — so an ENCLOSING scope contributes every name it binds anywhere, position-blind. Nesting
+// a read one scope deeper can only make this rule quieter, never louder.
+test("a read inside a block of a name the ENCLOSING scope binds later is NOT reported (spec/execution-model.md:401-403,423-424)", () => {
+  assert.deepEqual(
+    checkSource("repeat 1 [ print :later ]\n:later = 1\n").filter(
+      isUndefinedVar,
+    ),
     [],
   );
 });

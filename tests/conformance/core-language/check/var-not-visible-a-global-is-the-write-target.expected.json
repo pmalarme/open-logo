@@ -1,0 +1,7 @@
+{
+  "description": "NEGATIVE (issue #825): **visibility decides which binding an assignment reaches, never statement order** (spec/execution-model.md:483-490). `count` is declared `global`, so `reset`'s `:count = 0` updates that shared binding rather than creating a procedure-local one, and nothing is reported although the write is the procedure's first touch of the name. This is the necessary companion to var-not-visible-write-first-is-silent: an unqualified \"write-first creates a local\" reading would satisfy that fixture and break this one, making `global` readable but not writable — the opposite of what the declaration is for. The matching runtime case is tests/conformance/core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

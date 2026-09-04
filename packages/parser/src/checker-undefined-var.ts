@@ -1,58 +1,95 @@
 /**
- * The `ol-undefined-var` semantic rule (issue #113): a static read of an unbound `:name` — a
- * bare {@link VarRefNode}, a `thing "name"` call whose literal argument names a variable, or the
- * base of a postfixed {@link PlaceNode} (`:people.tom.age`, `:nums[1]`) — with no visible
- * declaration in the program's static scope chain (`spec/tooling.md:183-184`).
+ * The two **name-resolution** diagnostics of Layer 2 (`spec/tooling.md:184-185`): `ol-undefined-var`
+ * for a read that resolves against nothing, and `ol-var-not-visible` (issue #825) for a read the
+ * **sealed procedure boundary** is the reason for.
  *
- * Scope model: OpenLogo uses genuine lexical frame scoping, not a flat whole-program namespace
- * (`spec/execution-model.md:340-342`). A procedure's parameters and `local` names live only in
- * that procedure's own frame, invisible to its callers and to every other procedure; a `for`/
- * comprehension binder lives only within its own loop/comprehension body, shadowing an outer
- * binding of the same name and never leaking past the end of that body; the top-level program
- * runs in a root frame, and an assignment or a top-level `local` that has no other visible
- * binding creates or updates a *global* — a binding in that root frame
- * (`spec/execution-model.md:344-348`). Treating that root-frame binding as visible throughout the
- * program regardless of textual order is this checker's own resolution model, not a spec rule:
- * the spec grants forward references only to `define`/`struct` (`spec/execution-model.md:83`),
- * never to variables. This rule resolves
- * every read against that chain: innermost binder scope → the enclosing procedure's own frame
- * (if any) → the global/root frame.
+ * A read is a bare `VarRef` (`:name`), a `thing "name"` call whose literal argument names a
+ * variable, or the base of a postfixed `Place` (`:people.tom.age`, `:nums[1]`).
  *
- * Two passes over the program:
+ * ### This module is the static shadow of `@openlogo/runtime`'s `scope.ts`
  *
- * 1. {@link collectGlobalNames} finds every name that becomes a *global* binding: every
- *    top-level `local` (one not nested inside any `define`, regardless of surrounding control
- *    flow), plus every zero-segment assignment target (`:name = value`) whose name is not already
- *    visible via an enclosing procedure frame or binder scope at that point — an assignment to an
- *    *already-visible* name is just an update, not a new global
- *    (`spec/execution-model.md:344-348`). This pass must run to completion before pass 2, since a
- *    read may forward-reference a global declared later in the file — globals, unlike procedure
- *    frames and binder scopes, are order-insensitive.
- * 2. {@link checkReads} walks the whole program again, this time emitting `ol-undefined-var` for
- *    every read (bare `:name`, `thing "name"`, or a `Place` base) that resolves against no scope
- *    in the chain above.
+ * `spec/execution-model.md`'s § *Variables, scoping, and procedures* states the whole ruling in one
+ * sentence — **"A name is born where it is first assigned, lives until that scope ends, and a
+ * procedure's edge is sealed."** (`spec/execution-model.md:351-352`) — and `@openlogo/runtime`'s
+ * `scope.ts` is that sentence executable. This module is the same four bullet points of
+ * `spec/execution-model.md:381-403` restated **lexically**, because `@openlogo/parser` cannot depend
+ * on `@openlogo/runtime` (the dependency runs the other way, and that module's own doc comment rules
+ * on exactly this). The correspondence is deliberate and meant to be checked, not merely intended:
  *
- * Deliberately out of scope: this rule does **not** simulate control-flow execution order for
- * *global* reads (e.g. `print :x` textually before `:x = 1` at the top level is not flagged).
- * Doing so would require reasoning about whether an intervening branch/loop/procedure call
- * actually runs before the read — exactly the "speculate on dynamic values" this issue's own
- * scope explicitly rules out — and would risk false positives on ordinary top-to-bottom code
- * (e.g. a global set inside one `if` branch and read after the `if` closes). Procedure frames and
- * binder scopes, by contrast, are checked for *lexical membership*, not order, which is what
- * `spec/execution-model.md`'s frame model actually specifies.
+ * | here | `@openlogo/runtime`'s `scope.ts` |
+ * |---|---|
+ * | {@link visibleInChain} | `findVisibleFrame` |
+ * | {@link boundaryHiding} | `boundaryHiding` |
+ * | {@link collectBindingsIn}'s `Assign` case | `assignVariable` |
+ * | {@link DocumentFacts.rootBindings} | `collectRootScopeNames` |
  *
- * That same order-free frame set is why a `local`'s own initializer is checked against a scope
- * that already contains the binding the declaration creates, so `local x = :x` does not report
- * although `spec/execution-model.md:508-515` evaluates the initializer *before* the binding exists.
- * Fixing it needs a per-statement scope rather than a per-frame set — the same model
- * `ol-var-not-visible` has to build — and a partial fix would reject the conforming
- * `local x = 1` / `local x = :x` snapshot idiom `:511-515` exists to allow. Tracked as issue #1102,
- * scheduled with #825.
+ * That last row is the one place the two sets are **not** literally equal, and the difference is
+ * measured rather than assumed. `collectRootScopeNames` subtracts every name a root-level `global`
+ * declares, because the runtime can reach `boundaryHiding` for such a name — a read that runs
+ * *before* the declaration line finds no binding — and `spec/execution-model.md:412-414` says that
+ * read is an ordinary `ol-undefined-var`. Here the same subtraction is **unobservable**: the check
+ * is lexical, so a root-level `global` is already visible through the seal at every read in the
+ * document ({@link visibleInChain}), and {@link boundaryHiding} is only ever consulted after a read
+ * has already failed. Subtracting a set that can never be consulted would be code no test could
+ * fail, which is worse than an honest asymmetry — so it is stated here instead of written.
+ *
+ * `packages/runtime/src/checker-runtime-agreement.test.mjs` is the guard: it runs `check()` and
+ * `execute()` over one corpus and asserts they report the same code and params wherever the spec
+ * says they must agree. Moving `collectRootScopeNames` down into this package so there is literally
+ * one implementation is a pure refactor, deliberately not done in this slice (issue #1116).
+ *
+ * ### The one asymmetry, and why it is not a bug
+ *
+ * `spec/execution-model.md:416-424` is explicit that the two stages resolve differently on purpose:
+ * the evaluator resolves a name **as execution reaches it**, while the checker "MUST resolve them
+ * lexically and conservatively: it reports a name only when **no** execution order could make that
+ * name visible at the read". That splits cleanly in two, and the split is this module's whole
+ * design:
+ *
+ * - **Within one scope's own straight-line statement list the two agree exactly**, so a read is
+ *   resolved against the bindings that scope has made *so far* ({@link Scope.boundSoFar}). This is
+ *   what makes the headline diagnostic fire on the **read**: in
+ *   `repeat 4 [ forward :count * 10   :count = :count + 1 ]` the write creates a binding in the
+ *   `repeat` body — born fresh on every turn, a genuinely different variable — and the read comes
+ *   first (`spec/execution-model.md:441-447`).
+ * - **Across a scope boundary the checker never reports a name that a later declaration or a
+ *   deferred handler could reach** (`spec/execution-model.md:423-424`), so an *enclosing* scope
+ *   contributes every name it binds **anywhere** ({@link Scope.own}), regardless of position. A
+ *   handler block registered before the top-level statement that binds the name it reads still sees
+ *   that binding when it fires (`spec/execution-model.md:401-403`), and nothing here reports it.
+ *
+ * The consequence is that nesting a read one scope deeper can only ever make this module quieter,
+ * never louder — which is the direction a conservative checker must err in.
+ *
+ * A procedure body reading a name its boundary hides is decidable for a different reason, and that
+ * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
+ * so no execution order can bring that binding inside, wherever in the body the read sits —
+ * including inside a `repeat` or `if` nested in the body. The choice between the two codes is
+ * therefore lexical, not temporal (`spec/execution-model.md:405-414`):
+ * {@link DocumentFacts.rootBindings} is consulted, never "has the top-level line run yet".
+ *
+ * ### What binds a name where
+ *
+ * A scope's own names are its seeds — a procedure's parameters, a `for`/comprehension binder — plus
+ * every binding site among its **own** statements, stopping at each nested scope
+ * ({@link collectBindingsIn}). A binding site is a `local` declaration, a root-level `global`
+ * declaration, or a bare zero-segment assignment (`:name = …` / `set name to …` / heritage `make`)
+ * whose name **no enclosing scope makes visible** — because an assignment to a visible name updates
+ * that binding instead of creating one (`spec/execution-model.md:476-490`, `assignVariable`).
+ * Visibility decides that, never statement order, which is why `global count = 5` followed by a
+ * procedure body's `:count = 0` writes the global and is clean.
  *
  * A segmented place's base (`:people` in `:people.tom = 1`) is always checked as a **read**, never
- * treated as a declaration — `spec/execution-model.md:251-291` is explicit that there is no
- * intermediate auto-vivification; only a bare, zero-segment `:name = value` can create a new
- * binding.
+ * treated as a declaration — `spec/execution-model.md:492-499` is explicit that there is no
+ * intermediate auto-vivification, and that inside a procedure that cannot see `people` the postfix
+ * form raises `ol-var-not-visible` on the base while the bare form silently creates a local.
+ *
+ * ### Deliberately out of scope
+ *
+ * A `define` is registered in phase 1 and never captures the scope it is written in
+ * (`spec/execution-model.md:651-655`), so a procedure frame's enclosing chain is always
+ * `[frame, root]` — never the lexical parents. A handler block, written in the same place, *does*
+ * capture; that is the conservative "enclosing scopes contribute everything" rule above.
  */
 
 import type { Diagnostic } from "@openlogo/core";
@@ -65,10 +102,14 @@ import type {
   PlaceNode,
   ProcedureDefNode,
   ProgramNode,
+  StatementNode,
   WordLitNode,
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+
+/** A set of case-folded names. Identifiers are case-insensitive (`spec/grammar.md:13`). */
+type NameSet = ReadonlySet<string>;
 
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
@@ -84,199 +125,242 @@ function binderNames(binder: Binder): string[] {
 }
 
 /**
- * The scope chain in effect at a point in the program: the enclosing procedure's own frame (its
- * parameters plus every `local` reachable from its body, or `undefined` at the top level), and a
- * stack of active binder scopes (innermost last) from enclosing `for`/comprehension bodies.
+ * The document-wide facts every scope consults — all computed once, before any read is resolved,
+ * because each is a property of the whole document rather than of how far a walk has got.
  */
-interface ScopeContext {
-  readonly procedureFrame: ReadonlySet<string> | undefined;
-  readonly binderStack: readonly ReadonlySet<string>[];
+interface DocumentFacts {
+  /**
+   * Names a **root-level** `global` declaration names. These are the only root bindings a procedure
+   * body can see (`spec/execution-model.md:389-394`), and they are what {@link visibleInChain} lets
+   * through the seal.
+   */
+  readonly globals: NameSet;
+  /**
+   * Names a `global` declaration written **anywhere but** the root scope names. Such a declaration
+   * declares nothing — it raises `ol-global-outside-root` when it runs
+   * (`spec/execution-model.md:561-563`) — but answering that one mistake with a second
+   * `ol-undefined-var` on every read of the name would be two diagnostics for one defect, so those
+   * reads are suppressed. **The suppression stops there and MUST NOT reach `ol-var-not-visible`:** a
+   * learner who put `global` in the wrong place still needs the diagnostic that names the fix when a
+   * procedure body reads a name the root scope really does bind.
+   */
+  readonly misplacedGlobals: NameSet;
+  /**
+   * Every name the root scope binds anywhere. It is both the enclosing chain of every procedure
+   * frame and the set that decides `ol-var-not-visible` (`spec/error-model.md:132`) — the names the
+   * sealed boundary hides. See the module doc comment's table for why no `global` subtraction is
+   * needed here although `collectRootScopeNames` needs one.
+   */
+  readonly rootBindings: NameSet;
 }
 
-const ROOT_CONTEXT: ScopeContext = {
-  procedureFrame: undefined,
-  binderStack: [],
-};
-
-function pushBinder(
-  scopeContext: ScopeContext,
-  binder: ReadonlySet<string>,
-): ScopeContext {
-  return {
-    procedureFrame: scopeContext.procedureFrame,
-    binderStack: [...scopeContext.binderStack, binder],
-  };
+/**
+ * One scope being walked, mirroring a `@openlogo/runtime` `Environment` at the point the walk has
+ * reached: {@link boundSoFar} is this scope's own frame as far as execution has got, and
+ * {@link enclosing} is the rest of the chain, **nearest first, root last** — empty only at the root
+ * scope itself.
+ */
+interface Scope {
+  /** The full name sets of the enclosing scopes, nearest first, root last. */
+  readonly enclosing: readonly NameSet[];
+  /** Every name this scope binds anywhere — what it contributes to a *nested* scope's chain. */
+  readonly own: NameSet;
+  /** The names bound by this scope's statements walked so far, seeded with its binders. */
+  readonly boundSoFar: Set<string>;
+  /** The declared name of the procedure whose body this is, or `undefined` outside every body. */
+  readonly procedure: string | undefined;
 }
 
-/** Is `name` visible via `scopeContext`'s binder stack or enclosing procedure frame (not the globals)? */
-function visibleInLocalScope(
-  name: string,
-  scopeContext: ScopeContext,
+/**
+ * Whether `chain` has a scope that binds `key` **and that the code being checked can see** —
+ * `findVisibleFrame` restated (`spec/execution-model.md:381-394`).
+ *
+ * The loop stops one short of the root and the root is judged separately, because the root is the
+ * only scope the procedure boundary gates: every earlier link is one the code is written inside,
+ * while the root's plain names are exactly what a procedure body must not see. An **empty** chain
+ * means the root scope is asking what encloses *it*, and nothing does.
+ */
+function visibleInChain(
+  chain: readonly NameSet[],
+  key: string,
+  procedure: string | undefined,
+  globals: NameSet,
 ): boolean {
-  for (let i = scopeContext.binderStack.length - 1; i >= 0; i -= 1) {
-    // `binderStack[i]` is always populated within `[0, length)` — `noUncheckedIndexedAccess`
-    // cannot correlate that with a bounded `for` loop, so this documents the invariant.
-    const binder = scopeContext.binderStack[i] as ReadonlySet<string>;
-    if (binder.has(name)) {
+  if (chain.length === 0) {
+    return false;
+  }
+  const rootIndex = chain.length - 1;
+  for (let index = 0; index < rootIndex; index += 1) {
+    // Populated within `[0, length)`; `noUncheckedIndexedAccess` cannot correlate that with a
+    // bounded `for` loop, so this documents the invariant rather than adding an unreachable branch.
+    if ((chain[index] as NameSet).has(key)) {
       return true;
     }
   }
-  return scopeContext.procedureFrame?.has(name) ?? false;
+  const root = chain[rootIndex] as NameSet;
+  if (!root.has(key)) {
+    return false;
+  }
+  return procedure === undefined || globals.has(key);
 }
 
-/** Is `name` visible anywhere in the full scope chain: binder stack, procedure frame, or global? */
-function isVisible(
-  name: string,
-  scopeContext: ScopeContext,
-  globals: ReadonlySet<string>,
-): boolean {
-  return visibleInLocalScope(name, scopeContext) || globals.has(name);
+/** Is `key` visible at the point `scope`'s walk has reached? See the module doc comment's split. */
+function isVisible(scope: Scope, key: string, facts: DocumentFacts): boolean {
+  return visibleInChain(
+    [scope.boundSoFar, ...scope.enclosing],
+    key,
+    scope.procedure,
+    facts.globals,
+  );
 }
 
 /**
- * Collects `procDef`'s own frame: its parameters plus every `local` name reachable from its
- * body — stopping at a nested `define` (procedures don't share frames with one another) so a
- * deeper procedure's own locals never leak into this one.
+ * The procedure whose sealed boundary is the reason a read failed, or `undefined` when the boundary
+ * is not the reason. Called only once a read has already missed, so it decides nothing but which of
+ * the two codes `spec/error-model.md:102,132` distinguishes the failure gets — `boundaryHiding`
+ * restated.
+ *
+ * A procedure body's only lexically enclosing scope is the **root scope**: procedures are
+ * declarations registered in phase 1 (`spec/execution-model.md:651-655`), never nested inside the
+ * scope they are written in, so there is no other enclosing scope to consult. A name a top-level
+ * *block* binds is therefore not in this set — that block encloses no procedure body — and a read of
+ * it from a procedure is the ordinary `ol-undefined-var`.
  */
-function collectProcedureFrame(procDef: ProcedureDefNode): ReadonlySet<string> {
-  const names = new Set<string>();
-  for (const param of procDef.params) {
-    names.add(param.name.name.toLowerCase());
+function boundaryHiding(
+  scope: Scope,
+  key: string,
+  facts: DocumentFacts,
+): string | undefined {
+  const procedure = scope.procedure;
+  if (procedure === undefined) {
+    return undefined;
   }
-  collectLocalsWithoutCrossingProcedures(procDef.body, names);
-  return names;
+  return facts.rootBindings.has(key) ? procedure : undefined;
 }
 
-function collectLocalsWithoutCrossingProcedures(
+/**
+ * Adds to `into` every name the subtree at `node` binds **in the scope that owns it**, stopping at
+ * each nested scope: a `Block` (a control-form body, a handler block, a comprehension body, in
+ * either the `[ … ]` or the long `… end` spelling — `spec/execution-model.md:367-369`) and a
+ * `ProcedureDef` both own their own names.
+ *
+ * `enclosing`/`procedure`/`globals` describe the chain **outside** the owning scope, which is what
+ * decides whether a bare assignment creates a binding here or updates a visible one
+ * (`spec/execution-model.md:476-490`). An empty `enclosing` therefore means the root scope, which is
+ * also the only place a `global` declaration declares anything.
+ */
+function collectBindingsIn(
   node: AnyNode,
   into: Set<string>,
-): void {
-  if (node.kind === "ProcedureDef") {
-    return;
-  }
-  if (node.kind === "Local") {
-    for (const name of node.names) {
-      into.add(name.name.toLowerCase());
-    }
-    // Fall through to the generic descent rather than returning: since #823 a `Local` can carry an
-    // initializer, and a comprehension body inside it holds statements — so a `local` nested there
-    // is reachable exactly the way one nested in a control body already was.
-  }
-  for (const child of childrenOf(node)) {
-    collectLocalsWithoutCrossingProcedures(child, into);
-  }
-}
-
-/**
- * Pass 1: every name that becomes a global binding anywhere in the program — see the module doc
- * comment. Must run to completion before {@link checkReads}, since a read may forward-reference a
- * global declared later in the file.
- */
-function collectGlobalNames(program: ProgramNode): ReadonlySet<string> {
-  const globals = new Set<string>();
-  collectGlobalsIn(program, ROOT_CONTEXT, globals);
-  return globals;
-}
-
-function collectGlobalsIn(
-  node: AnyNode,
-  scopeContext: ScopeContext,
-  globals: Set<string>,
+  enclosing: readonly NameSet[],
+  procedure: string | undefined,
+  globals: NameSet,
 ): void {
   switch (node.kind) {
+    case "Block":
+    case "ProcedureDef":
+      return;
     case "Local":
-      // A `local` is always a declaration into the *current* frame — the enclosing procedure's
-      // own frame (already collected by collectProcedureFrame, so ignored here) or, at the top
-      // level, the root/global frame, regardless of surrounding control-flow nesting.
-      if (scopeContext.procedureFrame === undefined) {
-        for (const name of node.names) {
-          globals.add(name.name.toLowerCase());
-        }
+      for (const name of node.names) {
+        into.add(name.name.toLowerCase());
       }
-      // The single-name form's initializer is an ordinary expression and may itself assign
-      // (`local total = :n + 1`), so it is descended into whatever the frame.
-      if (node.value !== undefined) {
-        collectGlobalsIn(node.value, scopeContext, globals);
-      }
-      return;
+      break;
     case "Global":
-      // `global name = value` names the ROOT scope's binding whatever scope it is written in
-      // (`spec/execution-model.md:576-583`), so it contributes a global unconditionally — the
-      // `procedureFrame` gate `Local` needs does not apply. A misplaced one is
-      // `ol-global-outside-root`'s subject (`checker-global-placement.ts`), not this rule's:
-      // reporting the name as undefined *as well* would answer one mistake with two diagnostics.
-      //
-      // **That suppression is this rule's alone and must not carry over to `ol-var-not-visible`
-      // (#825).** A learner who wrote `global` in the wrong place still needs the diagnostic whose
-      // message names the fix when a procedure body reads the name. Note too that `globals` below
-      // flattens three different origins — a top-level `local`, a root-level bare assignment, and a
-      // `Global` declaration — which is all `ol-undefined-var` needs and is *not* enough for #825,
-      // whose whole question is whether a root-bound name is `global` or merely top-level. The
-      // `Global` node kind is the discriminator; the flat set is not a settled contract.
-      globals.add(node.name.name.toLowerCase());
-      collectGlobalsIn(node.value, scopeContext, globals);
-      return;
+      if (enclosing.length === 0) {
+        into.add(node.name.name.toLowerCase());
+      }
+      break;
     case "Assign": {
       const target = node.place;
       if (target.kind === "Place" && target.segments.length === 0) {
-        const name = target.base.name.toLowerCase();
-        if (!visibleInLocalScope(name, scopeContext)) {
-          globals.add(name);
-        }
-      } else if (target.kind !== "Place") {
-        collectGlobalsIn(target, scopeContext, globals);
-      }
-      collectGlobalsIn(node.value, scopeContext, globals);
-      return;
-    }
-    case "ProcedureDef": {
-      const inner: ScopeContext = {
-        procedureFrame: collectProcedureFrame(node),
-        binderStack: [],
-      };
-      for (const param of node.params) {
-        if (param.defaultValue !== undefined) {
-          collectGlobalsIn(param.defaultValue, inner, globals);
+        const key = target.base.name.toLowerCase();
+        if (!visibleInChain(enclosing, key, procedure, globals)) {
+          into.add(key);
         }
       }
-      collectGlobalsIn(node.body, inner, globals);
-      return;
-    }
-    case "ForIn": {
-      collectGlobalsIn(node.iterable, scopeContext, globals);
-      const binder = new Set(binderNames(node.binder));
-      collectGlobalsIn(node.body, pushBinder(scopeContext, binder), globals);
-      return;
-    }
-    case "ForRange": {
-      collectGlobalsIn(node.from, scopeContext, globals);
-      collectGlobalsIn(node.to, scopeContext, globals);
-      if (node.by !== undefined) {
-        collectGlobalsIn(node.by, scopeContext, globals);
-      }
-      const binder = new Set([node.variable.name.toLowerCase()]);
-      collectGlobalsIn(node.body, pushBinder(scopeContext, binder), globals);
-      return;
-    }
-    case "Comprehension": {
-      collectGlobalsIn(node.iterable, scopeContext, globals);
-      const names = binderNames(node.binder);
-      if (node.form === "reduce") {
-        collectGlobalsIn(node.initial, scopeContext, globals);
-        names.push(node.accumulator.name.toLowerCase());
-      }
-      collectGlobalsIn(
-        node.body,
-        pushBinder(scopeContext, new Set(names)),
-        globals,
-      );
-      return;
+      break;
     }
     default:
-      for (const child of childrenOf(node)) {
-        collectGlobalsIn(child, scopeContext, globals);
-      }
+      break;
   }
+  for (const child of childrenOf(node)) {
+    collectBindingsIn(child, into, enclosing, procedure, globals);
+  }
+}
+
+/** Every name `statements` bind in the scope that owns them, seeded with that scope's binders. */
+function collectScopeBindings(
+  statements: readonly StatementNode[],
+  seeds: readonly string[],
+  enclosing: readonly NameSet[],
+  procedure: string | undefined,
+  globals: NameSet,
+): Set<string> {
+  const names = new Set<string>(seeds);
+  for (const statement of statements) {
+    collectBindingsIn(statement, names, enclosing, procedure, globals);
+  }
+  return names;
+}
+
+/**
+ * The names any **root-level** `global` declaration names. Only those declare anything: one written
+ * anywhere else raises `ol-global-outside-root` when it runs and shares no name at all
+ * (`spec/execution-model.md:561-563`).
+ */
+function rootGlobalsOf(program: ProgramNode): Set<string> {
+  const names = new Set<string>();
+  for (const statement of program.body) {
+    if (statement.kind === "Global") {
+      names.add(statement.name.name.toLowerCase());
+    }
+  }
+  return names;
+}
+
+/** The names every `global` written **off** the root scope names — see {@link DocumentFacts}. */
+function misplacedGlobalsOf(program: ProgramNode): Set<string> {
+  const names = new Set<string>();
+  const collect = (node: AnyNode): void => {
+    if (node.kind === "Global") {
+      names.add(node.name.name.toLowerCase());
+    }
+    for (const child of childrenOf(node)) {
+      collect(child);
+    }
+  };
+  for (const statement of program.body) {
+    if (statement.kind === "Global") {
+      // Legal *here* — but only this declaration is at the root. Its initializer can still open a
+      // block scope (a comprehension body holds statements, `spec/grammar.md:144`), so the subtree
+      // below it is walked like any other. Same shape as `checker-global-placement.ts`.
+      for (const child of childrenOf(statement)) {
+        collect(child);
+      }
+      continue;
+    }
+    collect(statement);
+  }
+  return names;
+}
+
+/** {@link DocumentFacts}, computed in the one order their dependencies allow. */
+function documentFactsOf(program: ProgramNode): DocumentFacts {
+  const globals = rootGlobalsOf(program);
+  // The root scope has no enclosing chain, so `globals` is never consulted while deriving its own
+  // bindings — which is what keeps this ordering non-circular.
+  const rootBindings = collectScopeBindings(
+    program.body,
+    [],
+    [],
+    undefined,
+    globals,
+  );
+  return {
+    globals,
+    misplacedGlobals: misplacedGlobalsOf(program),
+    rootBindings,
+  };
 }
 
 /** Is `node` a `thing "name"` call — the one form whose literal argument statically names a variable? */
@@ -293,161 +377,280 @@ function thingCallArg(node: CallNode | ParenCallNode): WordLitNode | undefined {
   return arg.kind === "WordLit" ? arg : undefined;
 }
 
-/** The learner-facing message template for a read of an unbound variable name. */
-function messageFor(name: string): string {
+/** The learner-facing message for a read of a name nothing bound. */
+function undefinedVarMessage(name: string): string {
   return `:${name} is not defined yet. declare it with a parameter, 'local', or an assignment first.`;
 }
 
-function undefinedVarDiagnostic(
+/**
+ * The learner-facing message for a read the sealed boundary hid. `spec/error-model.md:132` makes two
+ * requirements a generic "undefined variable" message would not meet, and both are load-bearing for
+ * a learner who can see the name right there at the top level: the message MUST **name the
+ * boundary** — `:{name} is not defined inside {procedure}` — and the suggestion MUST **name the
+ * fix**, `global {name} = …`.
+ *
+ * Byte-identical to `@openlogo/runtime`'s `varNotVisible` prose, because `execute()` never runs
+ * `check()` and the two stages must report **one identity for one defect** — the same rule
+ * `ol-global-outside-root` already follows across `checker-global-placement.ts` and `errors.ts`.
+ */
+function varNotVisibleMessage(name: string, procedure: string): string {
+  return `:${name} is not defined inside ${procedure} — a procedure only sees its own inputs and names declared global, so declare it at the top level with global ${name} = ... to share it.`;
+}
+
+/**
+ * The one diagnostic a failed read raises, or `undefined` when it raises none.
+ *
+ * The order of the three tests is the rule, not an implementation detail. The boundary is asked
+ * **first**, so a misplaced `global` suppresses only the generic code and never the one whose whole
+ * job is to name the fix (see {@link DocumentFacts.misplacedGlobals}).
+ */
+function failedReadDiagnostic(
   name: string,
   span: Diagnostic["source_span"],
-): Diagnostic {
+  scope: Scope,
+  facts: DocumentFacts,
+): Diagnostic | undefined {
+  const procedure = boundaryHiding(scope, name, facts);
+  if (procedure !== undefined) {
+    return {
+      code: "ol-var-not-visible",
+      source_span: span,
+      params: { name, procedure },
+      message: varNotVisibleMessage(name, procedure),
+      stage: "semantic",
+      severity: "error",
+    };
+  }
+  if (facts.misplacedGlobals.has(name)) {
+    return undefined;
+  }
   return {
     code: "ol-undefined-var",
     source_span: span,
     params: { name },
-    message: messageFor(name),
+    message: undefinedVarMessage(name),
     stage: "semantic",
     severity: "error",
   };
 }
 
-/** Checks a `Place`'s base as a read (postfixed reads and segmented assignment-target bases). */
-function checkBaseRead(
-  place: PlaceNode,
-  scopeContext: ScopeContext,
-  globals: ReadonlySet<string>,
+/** Resolves one read, pushing its diagnostic when it fails. */
+function checkRead(
+  name: string,
+  span: Diagnostic["source_span"],
+  scope: Scope,
+  facts: DocumentFacts,
   diagnostics: Diagnostic[],
 ): void {
-  const name = place.base.name.toLowerCase();
-  if (!isVisible(name, scopeContext, globals)) {
-    diagnostics.push(undefinedVarDiagnostic(name, place.base.source_span));
+  const key = name.toLowerCase();
+  if (isVisible(scope, key, facts)) {
+    return;
+  }
+  const diagnostic = failedReadDiagnostic(key, span, scope, facts);
+  if (diagnostic !== undefined) {
+    diagnostics.push(diagnostic);
   }
 }
 
-/**
- * Pass 2: every read (bare `:name`, `thing "name"`, or a `Place` base) that resolves against no
- * scope in the chain raises one `ol-undefined-var` diagnostic. See the module doc comment for the
- * scope model and its deliberate boundary (no control-flow-order analysis for globals).
- */
-function checkReads(
-  program: ProgramNode,
-  globals: ReadonlySet<string>,
-): readonly Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  checkReadsIn(program, ROOT_CONTEXT, globals, diagnostics);
-  return diagnostics;
+/** Checks a `Place`'s base as a read (postfixed reads and segmented assignment-target bases). */
+function checkBaseRead(
+  place: PlaceNode,
+  scope: Scope,
+  facts: DocumentFacts,
+  diagnostics: Diagnostic[],
+): void {
+  checkRead(place.base.name, place.base.source_span, scope, facts, diagnostics);
 }
 
-function checkReadsIn(
+/** Enters a nested **block** scope: a control body, handler block, or comprehension/loop body. */
+function enterBlockScope(
+  parent: Scope,
+  statements: readonly StatementNode[],
+  seeds: readonly string[],
+  facts: DocumentFacts,
+): Scope {
+  const enclosing = [parent.own, ...parent.enclosing];
+  return {
+    enclosing,
+    own: collectScopeBindings(
+      statements,
+      seeds,
+      enclosing,
+      parent.procedure,
+      facts.globals,
+    ),
+    boundSoFar: new Set(seeds),
+    procedure: parent.procedure,
+  };
+}
+
+/**
+ * Enters a **procedure frame**. Its chain is `[frame, root]` whatever the definition is written
+ * inside, because a `define` is registered in phase 1 and never captures the scope it appears in
+ * (`spec/execution-model.md:651-655`).
+ */
+function enterProcedureFrame(
+  node: ProcedureDefNode,
+  facts: DocumentFacts,
+): Scope {
+  const enclosing = [facts.rootBindings];
+  const procedure = node.name.name;
+  const seeds = node.params.map((param) => param.name.name.toLowerCase());
+  return {
+    enclosing,
+    own: collectScopeBindings(
+      node.body.body,
+      seeds,
+      enclosing,
+      procedure,
+      facts.globals,
+    ),
+    boundSoFar: new Set(seeds),
+    procedure,
+  };
+}
+
+/**
+ * Walks one scope's statements **in order**, resolving each statement's reads against the bindings
+ * made so far and only then adding the ones that statement itself creates. That order is the whole
+ * point: it is why `local x = :x` reads the *enclosing* `x` rather than the binding it is about to
+ * create (`spec/execution-model.md:508-515`, issue #1102), and why the headline diagnostic lands on
+ * the read rather than staying silent because a later write in the same block binds the name.
+ */
+function checkScope(
+  statements: readonly StatementNode[],
+  scope: Scope,
+  facts: DocumentFacts,
+  diagnostics: Diagnostic[],
+): void {
+  for (const statement of statements) {
+    checkNode(statement, scope, facts, diagnostics);
+    collectBindingsIn(
+      statement,
+      scope.boundSoFar,
+      scope.enclosing,
+      scope.procedure,
+      facts.globals,
+    );
+  }
+}
+
+function checkNode(
   node: AnyNode,
-  scopeContext: ScopeContext,
-  globals: ReadonlySet<string>,
+  scope: Scope,
+  facts: DocumentFacts,
   diagnostics: Diagnostic[],
 ): void {
   switch (node.kind) {
-    case "VarRef": {
-      const name = node.name.toLowerCase();
-      if (!isVisible(name, scopeContext, globals)) {
-        diagnostics.push(undefinedVarDiagnostic(name, node.source_span));
-      }
+    case "VarRef":
+      checkRead(node.name, node.source_span, scope, facts, diagnostics);
       return;
-    }
     case "Place":
       // Reached here (not via the Assign case below, which handles a Place assignment target
       // directly and never recurses generically into it), this Place is always a read of its
       // base — e.g. `print :missing.field` or `:nums[1]` used as a value.
-      checkBaseRead(node, scopeContext, globals, diagnostics);
+      checkBaseRead(node, scope, facts, diagnostics);
       for (const segment of node.segments) {
         if (segment.kind === "index") {
-          checkReadsIn(segment.key, scopeContext, globals, diagnostics);
+          checkNode(segment.key, scope, facts, diagnostics);
         }
       }
       return;
     case "Local":
-      // A declaration, never a read; its names are collected by collectGlobalNames /
-      // collectProcedureFrame, not here. Its optional initializer IS a read position, so it is
-      // checked (`local total = :n + 1`).
+      // A declaration, never a read; its names join `boundSoFar` only once the whole statement has
+      // been checked. Its optional initializer IS a read position, and is checked with exactly the
+      // visibility the `local` statement itself has (`spec/execution-model.md:508-515`).
       if (node.value !== undefined) {
-        checkReadsIn(node.value, scopeContext, globals, diagnostics);
+        checkNode(node.value, scope, facts, diagnostics);
       }
       return;
     case "Global":
-      // Same split as `Local`: the declared name is a binding collected by collectGlobalNames,
-      // and the required initializer is a read position.
-      checkReadsIn(node.value, scopeContext, globals, diagnostics);
+      // Same split as `Local`: the declared name is a binding, and the required initializer is a
+      // read position that runs before the declaration takes effect
+      // (`spec/execution-model.md:571-574`).
+      checkNode(node.value, scope, facts, diagnostics);
       return;
     case "Assign": {
       const target = node.place;
       if (target.kind === "Place") {
         if (target.segments.length > 0) {
           // Segmented target: the base must already be a bound variable — no intermediate
-          // auto-vivification (spec/execution-model.md:251-291) — so it is checked as a read.
-          checkBaseRead(target, scopeContext, globals, diagnostics);
+          // auto-vivification (`spec/execution-model.md:492-499`) — so it is checked as a read.
+          checkBaseRead(target, scope, facts, diagnostics);
           for (const segment of target.segments) {
             if (segment.kind === "index") {
-              checkReadsIn(segment.key, scopeContext, globals, diagnostics);
+              checkNode(segment.key, scope, facts, diagnostics);
             }
           }
         }
-        // A zero-segment target (`:name = value`) is never itself a read — see the module doc
-        // comment and collectGlobalNames.
+        // A zero-segment target (`:name = value`) is never itself a read: a write-first touch of a
+        // name the scope cannot see creates a binding here, silently and correctly, because it is a
+        // genuinely different variable (`spec/execution-model.md:443-446`).
       } else {
-        checkReadsIn(target, scopeContext, globals, diagnostics);
+        checkNode(target, scope, facts, diagnostics);
       }
-      checkReadsIn(node.value, scopeContext, globals, diagnostics);
+      checkNode(node.value, scope, facts, diagnostics);
       return;
     }
+    case "Block":
+      checkScope(
+        node.body,
+        enterBlockScope(scope, node.body, [], facts),
+        facts,
+        diagnostics,
+      );
+      return;
     case "ProcedureDef": {
-      const inner: ScopeContext = {
-        procedureFrame: collectProcedureFrame(node),
-        binderStack: [],
-      };
+      const frame = enterProcedureFrame(node, facts);
       for (const param of node.params) {
         if (param.defaultValue !== undefined) {
-          checkReadsIn(param.defaultValue, inner, globals, diagnostics);
+          checkNode(param.defaultValue, frame, facts, diagnostics);
         }
       }
-      checkReadsIn(node.body, inner, globals, diagnostics);
+      checkScope(node.body.body, frame, facts, diagnostics);
       return;
     }
     case "ForIn": {
-      checkReadsIn(node.iterable, scopeContext, globals, diagnostics);
-      const binder = new Set(binderNames(node.binder));
-      checkReadsIn(
-        node.body,
-        pushBinder(scopeContext, binder),
-        globals,
+      checkNode(node.iterable, scope, facts, diagnostics);
+      const body = node.body.body;
+      checkScope(
+        body,
+        enterBlockScope(scope, body, binderNames(node.binder), facts),
+        facts,
         diagnostics,
       );
       return;
     }
     case "ForRange": {
-      checkReadsIn(node.from, scopeContext, globals, diagnostics);
-      checkReadsIn(node.to, scopeContext, globals, diagnostics);
+      checkNode(node.from, scope, facts, diagnostics);
+      checkNode(node.to, scope, facts, diagnostics);
       if (node.by !== undefined) {
-        checkReadsIn(node.by, scopeContext, globals, diagnostics);
+        checkNode(node.by, scope, facts, diagnostics);
       }
-      const binder = new Set([node.variable.name.toLowerCase()]);
-      checkReadsIn(
-        node.body,
-        pushBinder(scopeContext, binder),
-        globals,
+      const body = node.body.body;
+      checkScope(
+        body,
+        enterBlockScope(scope, body, [node.variable.name.toLowerCase()], facts),
+        facts,
         diagnostics,
       );
       return;
     }
     case "Comprehension": {
-      checkReadsIn(node.iterable, scopeContext, globals, diagnostics);
-      const names = binderNames(node.binder);
+      checkNode(node.iterable, scope, facts, diagnostics);
+      const seeds = binderNames(node.binder);
       if (node.form === "reduce") {
-        checkReadsIn(node.initial, scopeContext, globals, diagnostics);
-        names.push(node.accumulator.name.toLowerCase());
+        checkNode(node.initial, scope, facts, diagnostics);
+        // `reduce` has TWO binders: the element binder and the accumulator
+        // (`spec/execution-model.md:769-776`). Modelling only the element wrongly flags the
+        // accumulator as an outer read and breaks `spec/examples/12-fractal.logo`.
+        seeds.push(node.accumulator.name.toLowerCase());
       }
-      checkReadsIn(
-        node.body,
-        pushBinder(scopeContext, new Set(names)),
-        globals,
+      const body = node.body.body;
+      checkScope(
+        body,
+        enterBlockScope(scope, body, seeds, facts),
+        facts,
         diagnostics,
       );
       return;
@@ -456,31 +659,51 @@ function checkReadsIn(
     case "ParenCall": {
       const wordArg = thingCallArg(node);
       if (wordArg !== undefined) {
-        const name = wordArg.value.toLowerCase();
-        if (!isVisible(name, scopeContext, globals)) {
-          diagnostics.push(undefinedVarDiagnostic(name, wordArg.source_span));
-        }
+        checkRead(
+          wordArg.value,
+          wordArg.source_span,
+          scope,
+          facts,
+          diagnostics,
+        );
       }
       for (const child of childrenOf(node)) {
-        checkReadsIn(child, scopeContext, globals, diagnostics);
+        checkNode(child, scope, facts, diagnostics);
       }
       return;
     }
     default:
       for (const child of childrenOf(node)) {
-        checkReadsIn(child, scopeContext, globals, diagnostics);
+        checkNode(child, scope, facts, diagnostics);
       }
   }
 }
 
 /**
- * The `ol-undefined-var` rule: every read whose name resolves against no scope in the program's
- * lexical chain raises one diagnostic at that read's own span. See the module doc comment.
+ * The name-resolution rule: every read whose name resolves against no visible scope raises one
+ * diagnostic at that read's own span — `ol-var-not-visible` when the sealed procedure boundary is
+ * the reason, `ol-undefined-var` otherwise. See the module doc comment.
+ *
+ * It takes no profile set. Which names a scope binds is a property of the grammar and the scoping
+ * ruling, not of the profiles a run claims, so the findings are identical along the whole profile
+ * DAG — the trap documented in issue #814.
  */
 export function undefinedVarRule(
   program: ProgramNode,
   _profiles?: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const globals = collectGlobalNames(program);
-  return checkReads(program, globals);
+  const facts = documentFactsOf(program);
+  const diagnostics: Diagnostic[] = [];
+  checkScope(
+    program.body,
+    {
+      enclosing: [],
+      own: facts.rootBindings,
+      boundSoFar: new Set<string>(),
+      procedure: undefined,
+    },
+    facts,
+    diagnostics,
+  );
+  return diagnostics;
 }
