@@ -1,0 +1,21 @@
+{
+  "description": "PROFILE-ARGUMENT fixture for saga #811 (issue #816 item 6), half 1 of 2. This asserts CORRECT behaviour and must survive the fix UNCHANGED: `forward` genuinely is unavailable under `core-language` alone, so `ol-unknown-command` is the right answer to the question asked. What goes wrong in the field is the QUESTION, not the answer — asking it with a profile set that does not match the learner's environment is what makes an ordinary turtle program light up red, and that false positive is the documented reason `packages/studio/src/diagnostics.ts` still defaults `semanticCheck` to `false`, which is why checker output never reaches a learner who presses Run. Its sibling `forward-clean-with-turtle-profile` runs the SAME source with `turtle-rendering` added and asserts a clean result, so the pair proves the false positive is a profile-argument mistake rather than a checker gap — and stops it being re-introduced when #817 flips that default.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/profile-argument/forward-unknown-without-turtle-profile",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "params": {
+        "name": "forward"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

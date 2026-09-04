@@ -1,0 +1,20 @@
+{
+  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour at the `execute()` stage, not the correct behaviour, and must be FLIPPED to the correct expectation now that the #814 `[spec]` ruling has merged and #815 implements it. The wall was built before the ruling because this defect emits neither a diagnostic nor a crash, so a fixture that merely runs the program passes against the broken build. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. Form under test: `when <unresolvable> [ … ]` — the handler is never registered. The statement's `instruction` marker is emitted and then nothing else. Its shape-B twin under `command-in-value-position/` produces the SAME silent stream from a DIFFERENT fault, which is why the two directories exist.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "interaction-events/unresolvable-name/when-event-execute",
+        "start": [1, 1],
+        "end": [1, 24]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    }
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,21 @@
+{
+  "description": "STAGE-CONSISTENCY BASELINE for saga #811 (issue #816 item 5): the `check()` half of a pair whose `-execute` sibling is a CHARACTERIZATION fixture. This half is ALREADY CORRECT today and is expected to survive the fix UNCHANGED — it is precisely the answer the run path never consults, which is the whole of saga #811's shape-A mechanism. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. One diagnostic, on the recursive call's argument. NOTE on provenance: this is NOT the maintainer's `PLANT` fractal that issue #816 item 3 names — that source is not in this repository, so its inherited 5-vs-6,253 draw-segment numbers are asserted nowhere in this slice and item 3 stays open. This is a minimal recursive tree written for this fixture, and every number its `-execute` sibling asserts was measured from it.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/unresolvable-name/recursion-collapses-silently-check",
+        "start": [6, 9],
+        "end": [6, 15]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

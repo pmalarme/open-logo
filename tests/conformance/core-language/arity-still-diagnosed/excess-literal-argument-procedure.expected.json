@@ -1,0 +1,21 @@
+{
+  "description": "NO-REGRESSION fixture for saga #811 (issue #816 item 4), the user-procedure twin of `turtle-rendering/arity-still-diagnosed/excess-literal-argument-primitive`. Asserts CORRECT behaviour that must survive the fix unchanged: `f` is declared arity-1 and called with two literals, and the excess token is rejected at PARSE as `ol-bad-token`, so nothing executes and `events` is empty. Compare `core-language/unresolvable-name/procedure-call-argument-execute`, where the same shape of call with an unresolvable NAME instead of an excess literal is discarded in silence.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "core-language/arity-still-diagnosed/excess-literal-argument-procedure",
+        "start": [4, 5],
+        "end": [4, 6]
+      },
+      "params": {
+        "text": "2"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

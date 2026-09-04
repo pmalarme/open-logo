@@ -1,0 +1,21 @@
+{
+  "description": "STAGE-CONSISTENCY BASELINE for saga #811 (issue #816 item 5): the `check()` half of a pair whose `-execute` sibling is a CHARACTERIZATION fixture. This half is ALREADY CORRECT today and is expected to survive the fix UNCHANGED — it is precisely the answer the run path never consults, which is the whole of saga #811's shape-A mechanism. Fault shape A — an UNRESOLVABLE NAME in argument position. `check()` computes the right answer (`ol-unknown-command`, whose usual stage is `semantic` per spec/error-model.md:97) and `execute()` never consults it, so the statement is discarded whole with no diagnostic and no effect. The `wait` form, with `interaction-events` active so `wait` itself resolves and only the genuine fault on `wibble` is reported. `turtle-rendering` is deliberately absent from the declared set: this source contains no turtle word, and a `check` fixture's `profiles` array is what is actually handed to `check()`, so it states the minimum the assertion needs.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "interaction-events/unresolvable-name/wait-argument-check",
+        "start": [1, 6],
+        "end": [1, 12]
+      },
+      "params": {
+        "name": "wibble"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

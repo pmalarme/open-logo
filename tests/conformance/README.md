@@ -315,6 +315,68 @@ The runner is headless, exits non-zero on any mismatch, and reports the offendin
 readable diff. `npm run conformance` builds `@openlogo/core` first (`preconformance`), so it is
 self-contained on a fresh checkout.
 
+## Characterization fixtures: locking behaviour that is *wrong*
+
+Almost every fixture here asserts what the spec says must happen. A handful assert what the
+implementation **currently does while it is known to be wrong**, and they are labelled
+`CHARACTERIZATION FIXTURE` in the first words of their `description`. They exist for one class of
+defect: one where the program produces **no diagnostic and no crash**. A fixture that merely runs
+such a program passes against the broken build, so the correct expectation cannot be written until
+the fix exists — which makes capturing the wrong one *first* the cheapest way to get a wall that is
+already standing when the fix arrives. (It is not the only way: a correct expectation added
+alongside the fix and mutation-tested by reverting it is also a real wall. Characterization simply
+does not have to wait for a ruling.)
+
+The current set belongs to saga #811 (a statement containing an unresolvable name is silently
+discarded) and was authored under issue #816:
+
+```text
+core-language/unresolvable-name/            interaction-events/unresolvable-name/
+turtle-rendering/unresolvable-name/         interaction-events/command-in-value-position/
+turtle-rendering/command-in-value-position/
+```
+
+Those directories are not uniformly characterization — read each `description`'s opening word.
+`turtle-rendering/unresolvable-name/` also holds `recursion-baseline-unaffected`, a `BASELINE`
+fixture asserting correct behaviour, and every shape-A `-check` fixture opens
+`STAGE-CONSISTENCY BASELINE` because the diagnostic it asserts is already the right one.
+
+Three rules keep the characterization fixtures from becoming a trap:
+
+- **Each one names the ruling that will retire it, and promises only what it can.** An `execute()`
+  characterization fixture states that it locks today's defective behaviour and must be **flipped**
+  now that the blocking `[spec]` ruling has merged (#814) and the runtime slice implements it
+  (#815). A `check()` fixture makes a *different* promise, because the two shapes reach the checker
+  differently: a shape-A one is already correct and expected to survive unchanged, while a shape-B
+  one records that `check()` is silent today and must **gain** an `ol-no-output` — `spec/tooling.md:193`
+  makes a built-in Command in value position statically decidable and MUST-reportable at the
+  checker, naming `wait forward 5`, `repeat forward 5 [ … ]` and `right forward 5` explicitly, and
+  `spec/error-model.md:114` puts that code at stage `semantic` for a built-in. Before the ruling
+  landed that outcome was genuinely open, and these fixtures said so; it is now decided. A future
+  reader must never mistake any of them for a statement about the contract.
+- **Their neighbours are the opposite.** `arity-still-diagnosed/` and `profile-argument/` assert
+  **correct** behaviour that must survive the fix unchanged, and all four say so.
+  `recursion-collapses-silently-execute` is paired with `recursion-baseline-unaffected` for the same
+  reason: the fix has to change one column and leave the other alone.
+- **They were proven to bite**, because an assertion whose content is "nothing happened" is the
+  easiest kind to write vacuously. Every `.expected.json` this slice added was perturbed — a fixture
+  expecting no diagnostic was given one, a fixture expecting one had it removed — the mutation was
+  confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was confirmed to
+  report `FAIL` for that fixture before the file was restored. That set is not a frozen list — it is
+  whatever `git diff --name-only --diff-filter=A <base> -- 'tests/conformance/**/*.expected.json'`
+  enumerates — so the procedure is reproducible, and widens by itself when a fixture is added,
+  rather than resting on a count that drifts.
+
+Two related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless search:
+
+- The **no-false-positive sweep** over `spec/examples/*.logo` (#816 item 7) is a property over a
+  whole corpus rather than one source paired with one expected stream, so it lives in
+  `scripts/examples-semantic-sweep.test.mjs` and runs under `npm run test`.
+- The `PLANT` fractal that #816 item 3 names is **not in this repository**, so its inherited
+  draw-segment counts are asserted nowhere. `turtle-rendering/unresolvable-name/recursion-*` covers
+  the same end-to-end shape with a small recursive tree written for the purpose, whose numbers were
+  measured from it.
+
 ## Harness self-tests
 
 Fixtures under `_harness-selftest/` carry `"expect": "mismatch"` and assert output that execution can

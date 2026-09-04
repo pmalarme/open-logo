@@ -1,0 +1,21 @@
+{
+  "description": "NO-REGRESSION fixture for saga #811 (issue #816 item 4). Unlike the characterization fixtures in this slice, this one asserts CORRECT behaviour that must survive the fix unchanged. It is the control that keeps the record honest: the maintainer's original report blamed excess arguments, and saga #811 corrected that — arity IS diagnosed. An excess literal argument to a primitive is rejected at PARSE (`ol-bad-token`, whose stage is `parse` per spec/error-model.md:110), which `execute()` returns without evaluating anything, so `events` is empty. The gap saga #811 is about is name resolution, not arity.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "turtle-rendering/arity-still-diagnosed/excess-literal-argument-primitive",
+        "start": [1, 13],
+        "end": [1, 16]
+      },
+      "params": {
+        "text": "200"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

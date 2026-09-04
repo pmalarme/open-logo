@@ -1,0 +1,3 @@
+print 1
+print (wibble 2)
+print 3
