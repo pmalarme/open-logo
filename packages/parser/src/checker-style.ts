@@ -14,13 +14,15 @@
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
  *   `for … from … to`) whose body's final statement statically produces a value that the block
- *   discards (`spec/style-guide.md` "Useless values in effect blocks"). This is the
- *   control-body, warning-severity analog of `checker-control-flow.ts`'s `ol-no-value`
+ *   discards, **or** a top-level / procedure-body statement that is a value-producing expression
+ *   whose result no surrounding form uses (issue #1073 — the "orphan value statement" gap).
+ *   This is the control-body, warning-severity analog of `checker-control-flow.ts`'s `ol-no-value`
  *   (comprehension-body, error-severity) — both reuse the exact same
  *   {@link producesValue}/command-vs-reporter classification from that module so the two never
  *   drift apart. Reproduces the spec's own worked example — the `… end repeat` block form at
  *   `spec/tooling.md:255-264`, written here in its equivalent bracket form:
  *   `repeat 4 [ :side * 2 ]` → `ol-style-useless-value { form: "repeat" }`.
+ *   Top-level orphans report `{ form: "statement" }`.
  * - `ol-style-equality-confusion` — a standalone top-level comparison statement (a
  *   `ComparisonChain` containing at least one `==`/`!=`, or a `Call`/`ParenCall` whose callee is
  *   `==`/`!=`) whose boolean result is discarded — usually a slip where the learner meant to
@@ -145,6 +147,11 @@ import { childrenOf, walk } from "./ast.js";
 import type { CheckProfile, CheckRule } from "./check.js";
 import { isBuiltInName } from "./built-in-names.js";
 import { producesValue } from "./checker-control-flow.js";
+import {
+  activeProfilePrimitiveArityRange,
+  canonicalOfHeritageAlias,
+  isActiveProfileCommandName,
+} from "./signatures.js";
 
 /** The `form` param {@link uselessValueRule} reports for each control-block kind it judges. */
 const CONTROL_FORM: Readonly<
@@ -170,6 +177,21 @@ function uselessValueDiagnostic(node: AnyNode, form: string): Diagnostic {
   };
 }
 
+/**
+ * Build an `ol-style-useless-value` for a top-level orphan statement whose value is discarded.
+ * The span points at the orphan itself (not a surrounding control node).
+ */
+function orphanStatementDiagnostic(node: AnyNode): Diagnostic {
+  return {
+    code: "ol-style-useless-value",
+    source_span: node.source_span,
+    params: { form: "statement" },
+    message: "this expression produces a value that is not used.",
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
 /** Does `body`'s final statement statically produce a value that a control block would discard? */
 function endsInDiscardedValue(
   body: readonly StatementNode[],
@@ -180,10 +202,110 @@ function endsInDiscardedValue(
 }
 
 /**
- * `ol-style-useless-value` (issue #115): every `if`/`while`/`repeat`/`forever`/`for … in`/
- * `for … from … to` control body whose final statement statically produces a discarded value.
+ * Callee names that are **operators** lowered to `Call`/`ParenCall` by the parser — infix
+ * (`+`, `-`, `*`, `/`, `mod`, `and`, `or`, comparison) and prefix (`not`, unary `-`/`+`).
+ * These are always value-producing regardless of the primitive registry: they are grammar
+ * productions, not registered primitives, so `activeProfilePrimitiveArityRange` never finds them.
+ *
+ * `==` and `!=` are deliberately **excluded**: a standalone equality comparison at statement level
+ * is already diagnosed as `ol-style-equality-confusion`, which gives a more specific message
+ * ("did you mean `=`?"). Including them here would double-report the same statement.
+ */
+const OPERATOR_CALLEE_NAMES: ReadonlySet<string> = new Set([
+  "+",
+  "-",
+  "*",
+  "/",
+  "mod",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "and",
+  "or",
+  "not",
+]);
+
+/**
+ * Like {@link producesValue}, but **conservative** for `Call`/`ParenCall`: returns `true` only
+ * when the callee is a **known reporter** under the active profiles (registered as a non-command
+ * primitive), or an **operator** (grammar-level, always value-producing). Unknown callees — user
+ * procedures, misspellings, inactive-profile primitives — return `false`, avoiding false
+ * positives where `ol-unknown-command` already diagnoses the call or where a user procedure's
+ * kind is statically unknown (`spec/tooling.md:196-197`).
+ *
+ * Also adds `DictLit` and `ValueOfKey` to the always-value-producing set (missed by the shared
+ * {@link producesValue} because dict literals are a Data-profile construct and the shared
+ * classification was written for the Core/control-body case).
+ *
+ * Used by the top-level orphan-statement check (issue #1073); the control-block check keeps the
+ * original speculative-default {@link producesValue} because a control body discards the value
+ * either way.
+ */
+function confidentlyProducesValue(
+  node: StatementNode,
+  profiles: readonly CheckProfile[],
+  structNames: ReadonlySet<string>,
+): boolean {
+  if (node.kind === "DictLit" || node.kind === "ValueOfKey") {
+    return true;
+  }
+  // ComparisonChain with any `==`/`!=` operator is already caught by
+  // `ol-style-equality-confusion` — skip to avoid double-reporting.
+  if (
+    node.kind === "ComparisonChain" &&
+    node.operators.some((op) => op.name === "==" || op.name === "!=")
+  ) {
+    return false;
+  }
+  if (node.kind === "Call" || node.kind === "ParenCall") {
+    const name = node.callee.name;
+    const lower = name.toLowerCase();
+    // Operators (grammar-level, always value-producing).
+    if (OPERATOR_CALLEE_NAMES.has(lower)) {
+      return true;
+    }
+    // Struct constructors are guaranteed reporters (Data profile).
+    if (structNames.has(lower)) {
+      return true;
+    }
+    // Skip if it's a known command (has effects, not a useless value).
+    if (isActiveProfileCommandName(name, profiles)) {
+      return false;
+    }
+    // Only fire if the callee IS a known primitive (so it's a known reporter).
+    // Unknown callees (user procs, misspellings, inactive-profile names) are skipped.
+    // Resolve Heritage aliases the same way isActiveProfileCommandName does.
+    if (activeProfilePrimitiveArityRange(lower, profiles) !== undefined) {
+      return true;
+    }
+    if (profiles.includes("heritage")) {
+      const canonical = canonicalOfHeritageAlias(lower);
+      if (
+        canonical !== undefined &&
+        activeProfilePrimitiveArityRange(canonical, profiles) !== undefined
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return producesValue(node, profiles);
+}
+
+/**
+ * `ol-style-useless-value` (issues #115, #1073): every control body whose final statement
+ * statically produces a discarded value, **plus** every top-level or procedure-body statement
+ * that statically produces a value no surrounding form uses (issue #1073 — the "orphan value
+ * statement" gap the arity net does not catch).
+ *
  * An `if` with an `else` is judged on each branch independently. Comprehension bodies are out of
  * scope here — they are the (required, not discarded) `ol-no-value` error instead.
+ *
+ * The top-level / procedure-body scan walks `Program.body` and `Define.body.body` — every
+ * statement position where a value-producing expression has no consumer. Control-block bodies are
+ * **not** rescanned at statement level because the control-node-level check above already covers
+ * them (at the last-statement granularity the spec row describes).
  */
 export function uselessValueRule(
   program: ProgramNode,
@@ -191,8 +313,19 @@ export function uselessValueRule(
 ): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
+  // Collect struct constructor names (Data profile) — guaranteed reporters.
+  const structNames = new Set<string>();
+  if (profiles.includes("data")) {
+    walk(program, (node) => {
+      if (node.kind === "StructDef") {
+        structNames.add(node.name.name.toLowerCase());
+      }
+    });
+  }
+
   walk(program, (node) => {
     switch (node.kind) {
+      // --- Control-block bodies: last statement produces a discarded value ---
       case "If": {
         if (endsInDiscardedValue(node.thenBody.body, profiles)) {
           diagnostics.push(uselessValueDiagnostic(node, CONTROL_FORM.If));
@@ -235,6 +368,25 @@ export function uselessValueRule(
         }
         return;
       }
+
+      // --- Top-level / procedure-body orphan value statements (issue #1073) ---
+      case "Program": {
+        for (const statement of node.body) {
+          if (confidentlyProducesValue(statement, profiles, structNames)) {
+            diagnostics.push(orphanStatementDiagnostic(statement));
+          }
+        }
+        return;
+      }
+      case "ProcedureDef": {
+        for (const statement of node.body.body) {
+          if (confidentlyProducesValue(statement, profiles, structNames)) {
+            diagnostics.push(orphanStatementDiagnostic(statement));
+          }
+        }
+        return;
+      }
+
       default:
         return;
     }
