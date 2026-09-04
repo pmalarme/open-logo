@@ -1,5 +1,5 @@
 {
-  "description": "reduce over an empty list returns `from` unchanged, without invoking the body (spec/execution-model.md:767). Issue #105.",
+  "description": "reduce over an empty list returns `from` unchanged, without invoking the body (spec/execution-model.md:768). Issue #105.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

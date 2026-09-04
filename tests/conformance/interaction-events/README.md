@@ -18,7 +18,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
 - **`wait/`** — the `wait <n>` tick-clock primitive (issue #680, slice I1).
 - **`input/`** — the blocking `input <prompt>` reporter (issue #681, slice I2), the profile's other
   ordinary call and "the only blocking read in OpenLogo v0.1"
-  (`spec/interaction-events.md:186-197`). Per the maintainer's ruling on #657, `input` is tested by
+  (`spec/interaction-events.md:187-198`). Per the maintainer's ruling on #657, `input` is tested by
   **mocking the answer** — scripted answers ride the existing `executeOptions.hostInput` seam as
   `responses`, a FIFO consumed in order by each `input` call — and the read adds **no new event
   kind**: it emits the ordinary catch-all `primitive` named `input` after the read finishes, so
@@ -37,7 +37,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   gated on the profile, as `spec/conformance.md:171-173` and `spec/interaction-events.md:11`
   require.
 
-  **The prompt's `ol-type` (`:191`) is now fixtured — the #768 ruling settled it.** #681 withheld
+  **The prompt's `ol-type` (`:192`) is now fixtured — the #768 ruling settled it.** #681 withheld
   a fixture because "the prompt cannot be displayed as learner text" had two defensible readings and
   a fixture is normative for every implementation ("Any conforming implementation should pass them",
   `.github/skills/shared/conformance-fixture/SKILL.md:13-15`), so shipping one would have settled a
@@ -45,7 +45,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   reading on the table**: the prompt MUST be a `word`, so `number` and `boolean` are rejected
   alongside `list`/`dict`/`record`/`turtle`, and the diagnostic carries `expected: "word"` — the
   identity the `word` reporter itself reports (`word "Question" 3`) and the one `when`/`on_key` use —
-  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md:189`/`:191` now state
+  rather than #681's one-off `expected: "text"`. `spec/interaction-events.md:190`/`:192` now state
   the rule outright ("**Args:** one prompt, which MUST be a `word`" / "**Errors:** `ol-type` if the
   prompt is not a `word`"), so the fixtures transcribe a normative clause instead of binding a
   reading. Four land: `input-prompt-number-rejected` and `input-prompt-boolean-rejected` (the two
@@ -61,7 +61,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   decision goes against (accepting numerals fails the number negative, rejecting them fails the
   positive) — and reject-everything fails the positive. Neither member alone catches both.
 
-  The **blocking** property (`:168-171`) is observable here only as the *pair*
+  The **blocking** property (`:169-172`) is observable here only as the *pair*
   `input-does-not-deliver-handlers` + `input-blocking-control-wait-delivers`: the same program and
   the same tick-0 pending key, with a read in one and `wait 0` in the other, so the control proves
   the key was genuinely deliverable and only the read declined to deliver it. A fixture cannot
@@ -86,7 +86,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   `ProfileStatement` `instruction` event — is what a source→events fold observes, and dropping the
   body-gate arm adds exactly that orphan block-head.
   Maintainer ruling **#984** adds the three fixtures that pin `when`'s **persistence**
-  (`spec/interaction-events.md:218-223` — a handler runs each time its event occurs, once per
+  (`spec/interaction-events.md:219-224` — a handler runs each time its event occurs, once per
   occurrence, and is never retired). `when-persistent-vendor-event-fires-each-occurrence` delivers
   `"acme.shake"` on two different ticks and `when-persistent-same-tick-occurrences-each-fire`
   delivers it twice on one tick; both fire the handler twice, and they are separate fixtures because
@@ -141,7 +141,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   so with a short outer `wait` the run closes before an uncapped queue can show itself, a capped and
   an uncapped queue are measurably identical, and the fixture pins nothing.
   `every-fixed-rate-interval-not-re-measured`
-  pins the third rule (`spec/interaction-events.md:243-247`) — a handler delayed by a one-time block
+  pins the third rule (`spec/interaction-events.md:244-248`) — a handler delayed by a one-time block
   still finds its intervals on the original grid (ticks 4, 8, 12, 16), where a fixed-**delay** clock
   that disarms the handler while an invocation runs slips off those boundaries and fires one time
   fewer. That fixture delays the handler with a FOREIGN `on_key` body, so it cannot separate fixed rate from a scheduler that merely re-measures the period from each completion -- its `every` body is instantaneous, so completion and start share a tick. `every-fixed-rate-survives-a-slow-body` closes that gap with a body that itself takes two ticks: nine firings under fixed rate against five under a completion-re-measured clock. Both are needed; neither catches the mutation the other does.
@@ -212,7 +212,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
 - **`dispatch/`** — the deterministic same-tick dispatch order + cancellation (issue #686, slice I7):
   the slice that proves the four handler forms COMPOSE. When several handlers of different kinds
   become due on one tick they fire in the normative order `when` → `on_key` → `on_click` → due `every`,
-  each in registration order (`spec/interaction-events.md:144-149`) — `cross-kind-order-during-wait`
+  each in registration order (`spec/interaction-events.md:145-150`) — `cross-kind-order-during-wait`
   delivers a named event, a key, a click, and an `every` all at tick 1 via `executeOptions.hostInput`
   (see below) and asserts they print 1, 2, 3, 4; `every-multi-same-tick-deterministic` proves multiple
   handlers of one kind order by registration, reproducibly. Cancellation
@@ -225,7 +225,7 @@ With it, saga #572's four M5 profiles are all claimed and no example in the corp
   which reaches input through the public `execute()` (no test-only export). **`ExecuteOptions.hostInput`**
   (`packages/runtime/src/index.ts`) is the tick-scheduled key/click/named-event input a host would
   deliver, so a headless fixture can prove handlers fire and fire in order
-  (`spec/interaction-events.md:151-153` requires preserving pending key/click state). Like the harness's
+  (`spec/interaction-events.md:152-154` requires preserving pending key/click state). Like the harness's
   `signal`, JSON can express only a STATIC tick→deliveries schedule fixed before the run; input that
   reacts to program state stays a unit-test concern. It is host execution context, never observable in
   any event payload; it is NOT a device/TTY, defines no coalescing policy, and is NOT the blocking
@@ -292,7 +292,7 @@ Fixture shape and conventions: see [`../README.md`](../README.md).
 The claim slice audited the corpus against `spec/interaction-events.md` before claiming, and closed
 the gaps it found rather than rubber-stamping them:
 
-- **Intra-kind same-tick delivery order.** `spec/interaction-events.md:144-149` is a four-item MUST —
+- **Intra-kind same-tick delivery order.** `spec/interaction-events.md:145-150` is a four-item MUST —
   pending `when`, then `on_key`, then `on_click`, then due `every`, **each in registration order**.
   The corpus proved the *cross-kind* order (`dispatch/cross-kind-order-during-wait`, one handler per
   kind) and item 4's intra-kind order (`dispatch/every-multi-same-tick-deterministic`), but items
@@ -389,9 +389,9 @@ the gaps it found rather than rubber-stamping them:
 
 **Landed after the audit: the `input-prompt-*` fixtures.** #681 shipped 751 fixtures rather than 752
 by withdrawing `input-prompt-not-text`, because **#768** recorded both readings of "the prompt cannot
-be displayed as learner text" (`spec/interaction-events.md:191`) as defensible, and a fixture is
+be displayed as learner text" (`spec/interaction-events.md:192`) as defensible, and a fixture is
 normative for every implementation. #768 has since been ruled — the prompt MUST be a `word` — and the
-spec states that outright at `:189`/`:191`, so the four `input-prompt-*` fixtures described under
+spec states that outright at `:190`/`:192`, so the four `input-prompt-*` fixtures described under
 `input/` above now transcribe a normative clause rather than settling a contested one. The runtime
 unit tests in `packages/runtime/src/interaction-input.test.mjs` remain, covering the three rejected
 kinds a fixture would have to import another profile to reach (`dict`, `record`, `turtle`).
@@ -411,13 +411,13 @@ existed, and the #661 Epic Gate found it by searching. That is the same defect c
 to close, sitting inside the conformance corpus itself. Issue **#984** was then filed, and ruled:
 
 1. **`when` is persistent** — its block runs each time its event occurs, once per occurrence
-   (`spec/interaction-events.md:218-223`).
-2. **Coalescing one missed `every` occurrence is required**, not permitted (`:249-256`). The runtime's
+   (`spec/interaction-events.md:219-224`).
+2. **Coalescing one missed `every` occurrence is required**, not permitted (`:250-257`). The runtime's
    contrary reading — that zero overlapping invocations satisfies an "at most one" *upper bound* —
    was rejected.
-3. **`every n` is fixed rate** (`:243-247`), a third rule the audit had not surfaced: the interval
+3. **`every n` is fixed rate** (`:244-248`), a third rule the audit had not surfaced: the interval
    clock keeps its own schedule and a late invocation does not re-measure the period.
-4. **A handler does not extend the run's lifetime** (`:258-264`), a fourth the ruling added while
+4. **A handler does not extend the run's lifetime** (`:259-265`), a fourth the ruling added while
    settling the third: once the main line has finished and any already-started handler body has
    completed, the run closes and a queued-but-unstarted occurrence is discarded.
 
@@ -428,7 +428,7 @@ see**: 910 fixtures passed before that runtime change and 910 passed after, so n
 discriminated any of the three. The fixtures listed above were added precisely to close
 that gap, and each is mutation-verified against the readings the rulings reject. A dimension nothing varies is a dimension nothing can observe.
 Second, the two `when` fixtures that pin persistence **must** use a vendor-prefixed event word
-(`spec/interaction-events.md:215-216`): both standard v0.1 words are inherently once-per-run, so with
+(`spec/interaction-events.md:216-217`): both standard v0.1 words are inherently once-per-run, so with
 `"start"` or `"stop"` a one-shot and a persistent implementation emit byte-identical streams.
 
 One coverage note, recorded because it is easy to misread the list above as complete: the rule that a handler body does NOT open a main-line boundary -- so a drained occurrence cannot re-enter its own handler -- is pinned by none of the fixtures listed above. It is caught by the pre-existing `every-sibling-not-reordered-by-nested-wait`, plus a stack-specific unit test. That is not a hole, but the guarantee lives outside the group that was added for it.

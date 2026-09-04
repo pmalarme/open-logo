@@ -405,12 +405,13 @@ handler block whenever the handler fires.
 The choice between the two codes is **lexical, not temporal**: if any scope
 enclosing the read binds the name anywhere in the declaring document, a
 boundary-hidden read is `ol-var-not-visible`, whether or not that binding has
-been created by the time the read executes; `ol-undefined-var` is every other
-failed read — a name no scope binds at all, and a block's read of an enclosing
-binding created later in the enclosing scope. That is what keeps
-`ol-var-not-visible` decidable at the `semantic` stage. A name declared `global`
-is not boundary-hidden, so a read that runs before its declaration line is an
-ordinary `ol-undefined-var`.
+been created by the time the read executes. `ol-undefined-var` is every failed
+read the boundary is not the cause of — among others, a name no scope binds at
+all, a read before the statement that creates the binding in the same scope, and
+a block's read of an enclosing binding created later in the enclosing scope. That
+is what keeps `ol-var-not-visible` decidable at the `semantic` stage. A name
+declared `global` is not boundary-hidden, so a read that runs before its
+declaration line is an ordinary `ol-undefined-var`.
 
 The evaluator resolves names as execution reaches them. The semantic checker MUST
 resolve them lexically and conservatively: it reports a name only when **no**
@@ -660,11 +661,11 @@ when the handler was registered inside a `define`. Capturing the registering
 frame's bindings does not put the handler into that procedure's control flow:
 without this rule a `return` in a handler firing while the registering call was
 still on the stack would be consumed as that call's own result, and one firing
-after it returned would have no procedure to leave. Every other block — an `if`,
+after it returned would have no procedure to leave. Every block except a comprehension body — an `if`,
 `while`, `repeat`, `for`, or `forever` body, or a profile block such as `ask` or
 `each` — runs as part of the statement that contains it, so a `return` inside one
-still reaches the procedure that body is written in (see
-[Procedures](#procedures)).
+still reaches the procedure that body is written in; a comprehension body raises
+`ol-return-in-comprehension` instead (see [Procedures](#procedures)).
 
 ### `repcount` is lexical
 

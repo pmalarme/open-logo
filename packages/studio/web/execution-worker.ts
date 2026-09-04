@@ -7,7 +7,7 @@
  * `src/web-bootstrap.ts`.
  *
  * `Atomics.wait` is what makes the `input` read a genuine suspension rather than a reconciliation:
- * `spec/interaction-events.md:168-171` requires that no OpenLogo instruction and no handler block
+ * `spec/interaction-events.md:169-172` requires that no OpenLogo instruction and no handler block
  * runs until a read finishes, and parking this thread is that guarantee by construction. It is only
  * legal off the main thread, which is exactly why the interpreter runs here.
  *

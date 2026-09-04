@@ -1215,12 +1215,12 @@ export function preferBlockRule(
  * `REPEATING_HANDLER_HEADS` is the **outer** set: handlers that fire again and again **on the tick
  * clock**, so a registration inside one runs once per firing with nothing but elapsed time driving
  * it. Only `every` qualifies. The other three all repeat — `when` is persistent since maintainer
- * ruling #984 (`spec/interaction-events.md:218-223`), exactly as `on_key` and `on_click` always
+ * ruling #984 (`spec/interaction-events.md:219-224`), exactly as `on_key` and `on_click` always
  * were — but each of them repeats only as often as something **outside the program** makes it
  * repeat: a key press, a click, or a host delivering a named event. That is the ruling's control
  * case, and it is why the outer set is keyed on the tick clock rather than on repetition alone.
  * Treating `when` as an outer would flag `when "start" [ every 10 [ shoot ] ]`, which registers
- * exactly one handler — `"start"` occurs once per run (`spec/interaction-events.md:212-216`) — and
+ * exactly one handler — `"start"` occurs once per run (`spec/interaction-events.md:213-217`) — and
  * is the ordinary way a learner opens a game.
  *
  * `HANDLER_HEADS` is the **inner** set: every registration form, not merely the repeating ones,

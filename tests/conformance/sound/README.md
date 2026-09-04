@@ -18,7 +18,7 @@ The suite covers all five Sound commands (`set_tempo`, `note`, `play`, `beep`, `
 event-stream fixtures, negative `ol-type`/`ol-range` fixtures, and `check/` recognition fixtures
 (the profile-active clean program plus the Core-only rejection where each command is an
 `ol-unknown-command`). Every `sound` event is emitted unconditionally — modeling the muted-environment
-guarantee (`spec/interaction-events.md:337-340`) that implementations which cannot play audio still
+guarantee (`spec/interaction-events.md:338-341`) that implementations which cannot play audio still
 emit `sound` trace events for deterministic replay.
 
 Fixture shape and conventions: see [`../README.md`](../README.md).

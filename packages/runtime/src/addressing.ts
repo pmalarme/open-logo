@@ -15,14 +15,14 @@
  * real state and what a consumer believes.
  *
  * **Why `primitive` and not a new event kind.** The registry's `kind` values are normative and
- * closed (`spec/execution-model.md:1054-1059`: `kind` is "One registered event kind"), the spec is
+ * closed (`spec/execution-model.md:1055-1060`: `kind` is "One registered event kind"), the spec is
  * maintainer-owned, and the only sanctioned unregistered kinds are vendor-namespaced extensions
  * (`vendor_name.event_name`, `spec/conformance.md:311-322`) — which, being vendor-specific, must not
  * be recorded as portable behavior in a stack-neutral conformance fixture. `tell`, `ask`, and `each`
  * are C3 Sprites primitives (`spec/turtles-and-sprites.md:17`) with no more specific event kind,
  * which is exactly what `primitive`, "the generic catch-all for a primitive without a more specific
- * event" (`spec/execution-model.md:1068`), exists for — the same reading under which the Interaction
- * registration *forms* emit `primitive` (`spec/interaction-events.md:165-166,180-182`). So the
+ * event" (`spec/execution-model.md:1069`), exists for — the same reading under which the Interaction
+ * registration *forms* emit `primitive` (`spec/interaction-events.md:166-167,181-183`). So the
  * addressed set becomes observable with **no** new kind, no spec change, and no consumer change: an
  * addressing-unaware renderer just sees one more inert `primitive` event.
  */
@@ -69,12 +69,12 @@ export function snapshotAddressing(
 /**
  * Emit the `primitive` event that makes the addressed turtle set observable, immediately **after**
  * `addressing` has been changed to the set the event reports (the effect-event timing rule of
- * `spec/execution-model.md:1010-1011`). `name` is the addressing primitive whose effect this is; the
+ * `spec/execution-model.md:1011-1012`). `name` is the addressing primitive whose effect this is; the
  * payload snapshot is absolute, so a consumer folds it by assignment and never has to infer whether
  * the transition was an entry, a per-iteration narrowing, or a restore.
  *
  * The addressed ids are **copied** into the payload, per the effect-event snapshot rule
- * (`spec/execution-model.md:1017-1026`): a later change of the addressed set must not retroactively
+ * (`spec/execution-model.md:1018-1027`): a later change of the addressed set must not retroactively
  * rewrite an event already emitted.
  *
  * `current_turtle_id` is derived from the **set itself** — its first member, or `null` when the set
@@ -90,7 +90,7 @@ export function snapshotAddressing(
  * `AddressingSnapshot`).
  *
  * The envelope carries **no** `turtle_id`: it is "present only when the event is turtle-specific"
- * (`spec/execution-model.md:1003`), and an addressing event describes a *set*, not one turtle — the
+ * (`spec/execution-model.md:1004`), and an addressing event describes a *set*, not one turtle — the
  * current turtle travels in the payload instead. `execute-internal.ts`'s per-turtle stamper keeps it
  * that way: it synthesizes the acting turtle's id only for the kinds that are safe to attribute that
  * way (`ACTING_TURTLE_STAMPABLE_KINDS`), which `primitive` is not.

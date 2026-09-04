@@ -3,7 +3,7 @@
  * program run (`spec/turtles-and-sprites.md`'s "Turtle creation" and "Addressing model" sections).
  *
  * A turtle value compares by its stable `id` (`@openlogo/core`'s `OLTurtle`,
- * `spec/execution-model.md:905`: two turtle values are the same turtle exactly when their ids are
+ * `spec/execution-model.md:906`: two turtle values are the same turtle exactly when their ids are
  * equal), so **id allocation *is* turtle identity**. That makes this module correctness-critical,
  * not bookkeeping: a duplicate id silently merges two distinct turtles into one under `==`, and an
  * unstable id silently splits one turtle into two. The world therefore guarantees ids are

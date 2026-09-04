@@ -1,5 +1,5 @@
 {
-  "description": "issue #691: `\"rest\"` is a legal pitch WITHIN a melody (spec/interaction-events.md:388-390: \"Each pitch is a word accepted by `note` or the word `\"rest\"`\"), so `play` schedules a rest step inline in the single `sound` event's melody rather than emitting a separate `rest` event. The whole melody stays in one payload, in order.",
+  "description": "issue #691: `\"rest\"` is a legal pitch WITHIN a melody (spec/interaction-events.md:389-391: \"Each pitch is a word accepted by `note` or the word `\"rest\"`\"), so `play` schedules a rest step inline in the single `sound` event's melody rather than emitting a separate `rest` event. The whole melody stays in one payload, in order.",
   "profiles": ["sound"],
   "execute": true,
   "events": [

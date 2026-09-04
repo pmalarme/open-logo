@@ -251,7 +251,7 @@
  *   {@link InputPromptView} a renderer paints and the {@link INPUT_PROMPT_FOCUS_ORDER} focus scope
  *   that keeps it keyboard-operable. `submit()`/`cancel()` are the learner's two endings, and
  *   `cancel()` maps onto the runtime reader's own `undefined` — the read ends unanswered, which
- *   cancels the run (`spec/interaction-events.md:170-171`).
+ *   cancels the run (`spec/interaction-events.md:171-172`).
  * - {@link RunControllerOptions.inputPrompt} is how that host reaches the run controller. Supplying
  *   it installs `ExecuteOptions.hostInput.read`; omitting it changes nothing at all. The runtime's
  *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two

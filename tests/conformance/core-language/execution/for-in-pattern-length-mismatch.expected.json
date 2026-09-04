@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring pattern whose arity does not match an element list length (short or long) raises ol-range (spec/execution-model.md:825-826). Issue #103.",
+  "description": "A destructuring pattern whose arity does not match an element list length (short or long) raises ol-range (spec/execution-model.md:826-827). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

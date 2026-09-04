@@ -1,5 +1,5 @@
 {
-  "description": "issue #681 (slice I2): scripted answers are a FIFO queue consumed IN ORDER, one per `input` call, and each is classified independently by the number-vs-word rule (`spec/interaction-events.md:196-197`). Three reads take `1`, `two`, `3` in that order and print the number 1, the word `two`, and the number 3 — so a run that reused one answer, consumed them in reverse, or classified the whole queue by its first entry fails. Each read emits its own `primitive` event named `input` after it completes, interleaved with the surrounding `instruction`/`print` events in program order: reads do not batch.",
+  "description": "issue #681 (slice I2): scripted answers are a FIFO queue consumed IN ORDER, one per `input` call, and each is classified independently by the number-vs-word rule (`spec/interaction-events.md:197-198`). Three reads take `1`, `two`, `3` in that order and print the number 1, the word `two`, and the number 3 — so a run that reused one answer, consumed them in reverse, or classified the whole queue by its first entry fails. Each read emits its own `primitive` event named `input` after it completes, interleaved with the surrounding `instruction`/`print` events in program order: reads do not batch.",
   "profiles": ["core-language", "turtle-rendering", "interaction-events"],
   "execute": true,
   "executeOptions": {

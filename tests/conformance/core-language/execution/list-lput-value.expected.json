@@ -1,5 +1,5 @@
 {
-  "description": "`lput` appends a value to a fresh list, never mutating the argument list (spec/commands.md \"lput\"; spec/execution-model.md:812-847). Issue #101.",
+  "description": "`lput` appends a value to a fresh list, never mutating the argument list (spec/commands.md \"lput\"; spec/execution-model.md:813-848). Issue #101.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

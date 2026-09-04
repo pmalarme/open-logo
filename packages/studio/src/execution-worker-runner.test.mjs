@@ -75,7 +75,7 @@ test("a read is reported with everything already drawn — never over a blank ca
   // exists for. The reader is called with the prompt and NOTHING else, so without that seam a
   // parked Worker could not tell the main thread what the program had drawn, and the question would
   // appear over an empty canvas — a straight regression against #769, which draws the square and
-  // *then* asks. `spec/interaction-events.md:168-170` explicitly permits continuing to render
+  // *then* asks. `spec/interaction-events.md:169-171` explicitly permits continuing to render
   // already-emitted trace events while `input` waits.
   const { command, channel } = makeCommand(
     'forward 100\nprint "before"\n:distance = input "how far?"\nforward :distance',
@@ -185,7 +185,7 @@ test("a read that is answered before the interpreter looks never parks at all", 
 });
 
 test("a dismissed question ends the read unanswered, cancelling the run", () => {
-  // `spec/interaction-events.md:170-171`'s only other ending for a read.
+  // `spec/interaction-events.md:171-172`'s only other ending for a read.
   const { command, channel } = makeCommand(
     'print "before"\n:a = input "?"\nprint "after"',
   );
@@ -313,7 +313,7 @@ test("#976: a question the chain has already answered is consumed, not re-asked"
   // The defect #976 AC3 names. This runner ALWAYS parked, whatever the request carried, because
   // until #976 a chain that had asked a question refused host input for the rest of its life — so a
   // Worker chain never re-ran past a read and there was nothing to consume. #976 deletes that
-  // refusal (`spec/interaction-events.md:168-171` blocks handlers only "until the read finishes"),
+  // refusal (`spec/interaction-events.md:169-172` blocks handlers only "until the read finishes"),
   // so a key press replays the chain, and a reader that always parked would put every answered
   // question back on the learner's screen, one modal per press.
   //
