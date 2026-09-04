@@ -367,13 +367,14 @@ Three rules keep the characterization fixtures from becoming a trap:
   `recursion-collapses-silently-execute` is paired with `recursion-baseline-unaffected` for the same
   reason: the fix has to change one column and leave the other alone.
 - **They were proven to bite**, because an assertion whose content is "nothing happened" is the
-  easiest kind to write vacuously. Every `.expected.json` this slice added was perturbed — a fixture
-  expecting no diagnostic was given one, a fixture expecting one had it removed — the mutation was
-  confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was confirmed to
-  report `FAIL` for that fixture before the file was restored. That set is not a frozen list — it is
-  whatever `git diff --name-only --diff-filter=A <base> -- 'tests/conformance/**/*.expected.json'`
-  enumerates — so the procedure is reproducible, and widens by itself when a fixture is added,
-  rather than resting on a count that drifts.
+  easiest kind to write vacuously. Every `.expected.json` **either slice** added was perturbed — a
+  fixture expecting no diagnostic was given one, a fixture expecting one had it removed — the
+  mutation was confirmed applied with `git diff --numstat`, and `node scripts/conformance.mjs` was
+  confirmed to report `FAIL` for that fixture before the file was restored. That set is not a frozen
+  list — it is whatever
+  `git diff --name-only --diff-filter=A <base> -- 'tests/conformance/**/*.expected.json'` enumerates
+  for the slice in question — so the procedure is reproducible, and widens by itself when a fixture
+  is added, rather than resting on a count that drifts.
 
 Three related assertions are deliberately **not** fixtures, and knowing why avoids a fruitless
 search:
