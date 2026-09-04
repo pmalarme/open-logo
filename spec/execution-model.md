@@ -696,12 +696,12 @@ or without it.
 ### Evaluation terminates in a value, an effect, or a diagnostic
 
 The check above is the primary mechanism and deliberately not the only one,
-because one class of fault it cannot decide by construction: a program that is
-entirely valid — every name known, every Kind and arity correct — calling a
-primitive the implementation registered but cannot evaluate. Whether an
-evaluation exists is a fact about the evaluator, not about the program's text,
-so Layer 2 has no way to **derive** it. The program really is correct; the gap
-is in the implementation.
+because there is one class of fault it cannot decide by construction: a program
+that is entirely valid — every name known, every Kind and arity correct —
+calling a primitive the implementation registered but cannot evaluate. Whether
+an evaluation exists is a fact about the evaluator, not about the program's
+text, so Layer 2 has no way to **derive** it. The program really is correct; the
+gap is in the implementation.
 
 An implementation can force a diagnostic there anyway, by hand-withholding such
 a name from the visible vocabulary so that the call reads as unknown. That is
