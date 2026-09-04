@@ -1,6 +1,6 @@
 /**
- * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 13-code `ol-style-*`
- * family `spec/tooling.md:238-252` registers, sourced from `spec/style-guide.md`). Every finding
+ * The Layer-3 style-lint rules (issue #115, slices 1, 2a, and 2b of the 15-code `ol-style-*`
+ * family `spec/tooling.md:238-254` registers, sourced from `spec/style-guide.md`). Every finding
  * here reuses the C10 diagnostic shape with `severity: "warning"` and `stage: "semantic"` — a
  * style lint never changes program meaning, unlike a Layer-2 `ol-*` error.
  *
@@ -8,7 +8,7 @@
  * `{ style: true }`, so every existing Layer-2-only caller and conformance fixture is unaffected
  * (`check.ts`'s module doc explains why unconditional style-checking is unsafe).
  *
- * These three slices implement nine of the thirteen registered codes; the rest are tracked in
+ * These three slices implement nine of the fifteen registered codes; the rest are tracked in
  * the #169 follow-up issue:
  *
  * - `ol-style-useless-value` — a control block (`if`/`while`/`repeat`/`forever`/`for … in`/
@@ -127,7 +127,7 @@
  *   Left to the #169 follow-up pending that clarification.
  */
 
-import type { Diagnostic, Position } from "@openlogo/core";
+import type { Diagnostic, Position, SourceSpan } from "@openlogo/core";
 import { makeSpan } from "@openlogo/core";
 import type {
   AnyNode,
@@ -1366,6 +1366,325 @@ export function nestedHandlerRule(
   return diagnostics;
 }
 
+// ---------------------------------------------------------------------------
+// ol-style-ambiguous-continuation (issue #1074)
+// ---------------------------------------------------------------------------
+
+/**
+ * Operator-name map for the infix operators that can appear at the start of a
+ * continuation line (`spec/grammar.md:34`, items 2–3).
+ */
+const INFIX_OPERATOR_NAMES: ReadonlyMap<string, string> = new Map([
+  ["-", "subtraction"],
+  ["+", "addition"],
+  ["*", "multiplication"],
+  ["/", "division"],
+  ["mod", "remainder"],
+]);
+
+/**
+ * Statement kinds whose tail is a body or keyword, not an expression — so a
+ * following `-<digit>` literal cannot be reinterpreted as `- <digit>` continuation.
+ * Used by {@link ambiguousContinuationRule} (Case B) to suppress false positives.
+ *
+ * Data commands (`Add`, `Remove`, etc.) and `ProfileStatement` are deliberately
+ * excluded: they accept infix continuation on the next line.
+ */
+const NON_CONTINUING_KINDS: ReadonlySet<NodeKind> = new Set([
+  "If",
+  "While",
+  "Repeat",
+  "Forever",
+  "ForIn",
+  "ForRange",
+  "ProcedureDef",
+  "Block",
+  "StructDef",
+  "Stop",
+  "Local",
+]);
+
+/**
+ * Statement kinds that contain a block body. Their continuation lines
+ * are split into header lines (before the first block body) and body lines
+ * (inside the block). Only header lines are checked in Case A — the block's
+ * own body is walked separately by the main `walk()` visitor.
+ */
+const BODY_CONTAINING_KINDS: ReadonlySet<NodeKind> = new Set([
+  "If",
+  "While",
+  "Repeat",
+  "Forever",
+  "ForIn",
+  "ForRange",
+  "ProcedureDef",
+  "Block",
+  "StructDef",
+  "ProfileStatement",
+]);
+
+/**
+ * Return the start line of the earliest `Block` child in a statement node,
+ * or `undefined` when none is found. Used by Case A to separate header
+ * continuation lines (which need checking) from body lines (checked by `walk`).
+ */
+function firstBlockChildLine(node: StatementNode): number | undefined {
+  let earliest: number | undefined;
+  // Iterate own enumerable properties looking for Block children.
+  for (const value of Object.values(node)) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "kind" in value &&
+      (value as { kind: string }).kind === "Block"
+    ) {
+      const line = (value as { source_span: SourceSpan }).source_span.start[0];
+      if (earliest === undefined || line < earliest) earliest = line;
+    }
+  }
+  return earliest;
+}
+
+/**
+ * Detect a leading infix operator at the start of `trimmedLine` (leading whitespace
+ * already stripped). Returns the operator string if found, `undefined` otherwise.
+ *
+ * For `-`, only matches when followed by a space or tab (or end-of-line) — a `-`
+ * immediately before a digit is a negative literal (Case B), not an infix operator.
+ * For `/`, rejects `//` and `/*` (comment starts).
+ * For `mod`, requires a word boundary (space or tab) so that `modify` is not matched.
+ */
+function leadingInfixOperator(trimmedLine: string): string | undefined {
+  const ch = trimmedLine[0];
+  if (ch === undefined) return undefined;
+
+  if (ch === "+" || ch === "*") return ch;
+  if (ch === "-") {
+    const next = trimmedLine[1];
+    // `-5` is a negative numeric literal (Case B), not infix minus.
+    // `-.5` is invalid in OpenLogo (no leading-dot literals), so only
+    // digits distinguish the literal case.
+    if (next !== undefined && next >= "0" && next <= "9") {
+      return undefined;
+    }
+    return "-";
+  }
+  if (ch === "/") {
+    const next = trimmedLine[1];
+    if (next !== "/" && next !== "*") return "/";
+    return undefined;
+  }
+  if (
+    trimmedLine.length >= 3 &&
+    trimmedLine.slice(0, 3).toLowerCase() === "mod" &&
+    (trimmedLine.length === 3 || !/[a-zA-Z0-9_]/.test(trimmedLine[3]!))
+  ) {
+    return "mod";
+  }
+
+  return undefined;
+}
+
+/**
+ * Regex to extract a negative numeric literal at the very start of a string
+ * (e.g. `"-5"`, `"-3.14"`). Callers first verify the line starts with
+ * `-<digit>`, so the regex always matches when invoked.
+ */
+const NEGATIVE_LITERAL_RE =
+  /^(-(?:\d[\d_]*(?:\.\d[\d_]*)?|\.\d[\d_]*)(?:[eE][+-]?\d[\d_]*)?)/;
+
+/**
+ * Compute the parenthesis/brace grouping depth at the **start** of each 1-based
+ * source line. `result[0]` is the depth at the start of line 1. Lines inside an
+ * unclosed `(` or `{` have `depth > 0`; those lines are explicitly grouped and
+ * their leading operator is not ambiguous.
+ *
+ * `[`/`]` are deliberately excluded because they are ambiguous between blocks and
+ * list literals. Delimiters inside strings or comments produce a (rare) false
+ * negative — acceptable for an opt-in style lint.
+ */
+function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
+  const depths: number[] = [0];
+  let depth = 0;
+  for (const line of lines) {
+    for (const ch of line) {
+      if (ch === "(" || ch === "{") depth++;
+      else if (ch === ")" || ch === "}") depth = Math.max(0, depth - 1);
+    }
+    depths.push(depth);
+  }
+  return depths;
+}
+
+/** Build an `ol-style-ambiguous-continuation` diagnostic. */
+function ambiguousContinuationDiagnostic(
+  document: string,
+  lineNum: number,
+  col: number,
+  tokenLength: number,
+  token: string,
+  reading: "continuation" | "new-statement",
+  message: string,
+): Diagnostic {
+  return {
+    code: "ol-style-ambiguous-continuation",
+    source_span: makeSpan(
+      document,
+      [lineNum, col],
+      [lineNum, col + tokenLength],
+    ),
+    params: { token, reading },
+    message,
+    stage: "semantic",
+    severity: "warning",
+  };
+}
+
+/**
+ * `ol-style-ambiguous-continuation` (issue #1074): flags lines whose reading
+ * depends on whitespace under the continuation rules (`spec/grammar.md:34`).
+ *
+ * **Case A — infix operator on a continuation line.** A statement spans multiple
+ * physical lines, and a non-first line begins (after optional indentation) with an
+ * infix operator token (`+`, `-`, `*`, `/`, `mod`). The parser read it as
+ * continuation; the learner may have expected a new statement. Lines inside an
+ * explicit grouping (`(…)` or `{…}`) are skipped, since the delimiters already
+ * disambiguate.
+ *
+ * **Case B — negative literal starting a new statement.** A statement begins with
+ * a negative numeric literal (e.g. `-5`), and the previous statement in the same
+ * body ends on an earlier line **and** could syntactically have accepted `- 5` as
+ * an infix continuation. The parser read it as a new statement; the learner may
+ * have meant subtraction.
+ *
+ * The message names both readings and states which one was chosen, as required by
+ * issue #1074.
+ */
+export function ambiguousContinuationRule(
+  program: ProgramNode,
+  _profiles: readonly CheckProfile[],
+  source?: string,
+): readonly Diagnostic[] {
+  if (source === undefined) return [];
+  const lines = source.split("\n");
+  const depths = groupingDepthPerLine(lines);
+  const diagnostics: Diagnostic[] = [];
+  const document = program.source_span.document;
+  /** Lines already flagged — prevents duplicates when an outer statement and
+   *  an inner Block both span the same continuation line. */
+  const flaggedLines = new Set<number>();
+
+  function checkBody(body: readonly StatementNode[]): void {
+    let prev: StatementNode | undefined;
+    for (const statement of body) {
+      const startLine = statement.source_span.start[0];
+      const endLine = statement.source_span.end[0];
+
+      // Case A: multi-line statement — check each continuation line.
+      // For body-containing statements, only check the header lines (before
+      // the first Block child) to avoid double-counting with the Block's own
+      // body, which is walked separately.
+      if (startLine < endLine) {
+        let lastLineToCheck = endLine;
+        if (BODY_CONTAINING_KINDS.has(statement.kind)) {
+          const blockLine = firstBlockChildLine(statement);
+          if (blockLine !== undefined) {
+            // Check lines up to and including the block's start line —
+            // the leading-token check inspects only the start of the line,
+            // which is the header expression, not the block body.
+            lastLineToCheck = blockLine;
+          }
+        }
+        for (
+          let lineNum = startLine + 1;
+          lineNum <= lastLineToCheck;
+          lineNum++
+        ) {
+          if (depths[lineNum - 1]! > 0) continue; // inside explicit grouping
+          if (flaggedLines.has(lineNum)) continue; // already reported
+          const lineText = lines[lineNum - 1]!;
+          const trimmed = lineText.trimStart();
+          const operator = leadingInfixOperator(trimmed);
+          if (operator === undefined) continue;
+
+          const indent = lineText.length - trimmed.length;
+          const col = indent + 1;
+          const name = INFIX_OPERATOR_NAMES.get(operator)!;
+
+          const message =
+            operator === "-"
+              ? `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`
+              : `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
+
+          diagnostics.push(
+            ambiguousContinuationDiagnostic(
+              document,
+              lineNum,
+              col,
+              operator.length,
+              operator,
+              "continuation",
+              message,
+            ),
+          );
+          flaggedLines.add(lineNum);
+        }
+      }
+
+      // Case B: negative literal at start of new statement.
+      if (prev !== undefined) {
+        const prevNonCont =
+          NON_CONTINUING_KINDS.has(prev.kind) ||
+          // ProfileStatements with a body (`ask`, `listen`) are block-bearing
+          // and do not accept continuation, but bodyless ones (`tell`) do.
+          (prev.kind === "ProfileStatement" &&
+            "body" in prev &&
+            prev.body !== undefined);
+        if (!prevNonCont && prev.source_span.end[0] < startLine) {
+          const lineText = lines[startLine - 1]!;
+          const trimmed = lineText.trimStart();
+          // A new statement starting with `-<digit>` is a negative
+          // literal; `-<letter>` is structurally impossible here (the parser treats
+          // it as infix continuation, never a separate statement), and `-.5` is
+          // invalid in OpenLogo (no leading-dot literals).
+          if (trimmed[0] === "-") {
+            const ch1 = trimmed[1];
+            if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
+              const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
+              if (literal !== undefined) {
+                const indent = lineText.length - trimmed.length;
+                const col = indent + 1;
+                const digitPart = literal.slice(1);
+
+                diagnostics.push(
+                  ambiguousContinuationDiagnostic(
+                    document,
+                    startLine,
+                    col,
+                    literal.length,
+                    literal,
+                    "new-statement",
+                    `This line starts with \`${literal}\`, a negative number starting a new statement. With a space, \`- ${digitPart}\` would be subtraction continuing the previous line.`,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      }
+      prev = statement;
+    }
+  }
+
+  walk(program, (node) => {
+    if (node.kind === "Program" || node.kind === "Block") {
+      checkBody(node.body);
+    }
+  });
+
+  return diagnostics;
+}
+
 /**
  * The opt-in Layer-3 style-rule registry (issue #115), run by `check()` only when
  * `options.style === true`. Order is the order findings are reported in; a later #169 slice
@@ -1382,4 +1701,5 @@ export const STYLE_RULES: readonly CheckRule[] = [
   blockIndentationRule,
   preferBlockRule,
   nestedHandlerRule,
+  ambiguousContinuationRule,
 ];
