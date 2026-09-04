@@ -22,11 +22,22 @@ visible would let `challenge` check clean and then silently do nothing, which is
 **The third class is classified identically to shape A**, and that is the fact worth preserving:
 `challenge` and `print (wibble 2)` produce the same diagnostic **code**, at the same **stage**, with
 the same **severity**, and both then execute silently emitting only their statement marker. They are
-not identical in every byte — the `params`, message and source spans necessarily differ, because the
-two programs name different words at different offsets — but every axis by which a learner would tell
-the two apart is the same. So the corpus cannot currently distinguish *"this name does not exist"*
-from *"this name exists and we withheld it"*: the implementation reports the learner's typo for its
-own omission.
+not identical in every byte — the `params`, the message and the source spans all differ, because the
+two programs name different words at different offsets, and a learner can of course see that one
+message says `challenge` and the other says `wibble`. What a learner cannot tell apart is the two
+**fault classes**: nothing distinguishes *"this name does not exist"* from *"this name exists and we
+withheld it"*. The implementation reports the learner's typo for its own omission.
+
+Measured, the harm is sharper than "indistinguishable". Both diagnostics carry the same advice —
+
+```text
+i don't know how to challenge. check the spelling, or define it with 'define'.
+i don't know how to wibble. check the spelling, or define it with 'define'.
+```
+
+— and for `challenge` that advice is **impossible to follow**: `define challenge` reports
+`ol-reserved-word`, at check and at run time. The learner is told to do the one thing they are
+structurally forbidden from doing.
 
 That identity is the strongest available argument for the `ol-not-implemented` code the #814 ruling
 introduces, and **the fix destroys it**: once #815 lands, `challenge` stops reporting

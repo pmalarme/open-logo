@@ -35,7 +35,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { SUPPORTED_PROFILES } from "@openlogo/core";
-import { check, namesAwaitingAnEvaluator, parse } from "@openlogo/parser";
+import { check, namesAwaitingAnEvaluator, parse, walk } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 
 /** Registered, correctly kinded, and unevaluable — the third fault class. */
@@ -113,6 +113,28 @@ function observeExecute(source) {
   };
 }
 
+/**
+ * The callee names a program actually calls, read from the parsed AST rather than from the source
+ * text.
+ *
+ * Substring matching is not good enough here, and that is not hypothetical: a reviewer changed the
+ * third-class operand to `challenge2` — a genuinely unknown name that *contains* `challenge` — and
+ * a `source.includes(callee)` guard accepted it, leaving the whole file green while the operand it
+ * was guarding had silently become an ordinary shape-A program. `node.callee.name` is the same
+ * field `checker-unknown-command.ts` keys its own rule on, so the guard now binds to the thing the
+ * checker actually judged.
+ */
+function calleesOf(source) {
+  const { ast } = parse(source, "taxonomy-probe");
+  const callees = [];
+  walk(ast, (node) => {
+    if (node.kind === "Call" || node.kind === "ParenCall") {
+      callees.push(node.callee.name.toLowerCase());
+    }
+  });
+  return callees;
+}
+
 test("the two operands really are the two different fault classes", () => {
   // Without this, the whole file is vacuous: if both constants named the SAME program, every
   // equality below would hold trivially and every other test here would still pass. That is not
@@ -121,8 +143,8 @@ test("the two operands really are the two different fault classes", () => {
   // exported by `@openlogo/parser` precisely because "a claim nothing can call is a claim nothing
   // can check".
   assert.notEqual(REGISTERED_BUT_UNEVALUABLE, GENUINELY_UNKNOWN);
-  assert.ok(REGISTERED_BUT_UNEVALUABLE.includes(REGISTERED_CALLEE));
-  assert.ok(GENUINELY_UNKNOWN.includes(UNKNOWN_CALLEE));
+  assert.deepEqual(calleesOf(REGISTERED_BUT_UNEVALUABLE), [REGISTERED_CALLEE]);
+  assert.deepEqual(calleesOf(GENUINELY_UNKNOWN), ["print", UNKNOWN_CALLEE]);
 
   // `challenge` is REGISTERED (the specification defines it) and WITHHELD (nothing can run it).
   assert.ok(
@@ -151,6 +173,15 @@ test("the comparison bites: two differently-classified programs are not equal", 
   assert.notDeepEqual(challenge, different);
   assert.deepEqual(challenge.check, ["ol-unknown-command/semantic/error"]);
   assert.deepEqual(different.parse, ["ol-bad-token/parse/error"]);
+
+  // The same sanity assertion for the OTHER instrument. `observeExecute` needs its own, because a
+  // helper that ignored its argument would satisfy the run-time equality below while never
+  // measuring the `wibble` side at all — structurally the same vacuity the taxonomy guard above
+  // closes for `observeCheck`, and found by a reviewer in exactly that way.
+  assert.notDeepEqual(
+    observeExecute(DIFFERENTLY_CLASSIFIED),
+    observeExecute(REGISTERED_BUT_UNEVALUABLE),
+  );
 });
 
 test("a registered-but-unevaluable name is classified exactly like an unknown one", () => {
