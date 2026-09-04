@@ -74,8 +74,7 @@ import type {
 import {
   analyze,
   isBuiltInName,
-  isNameVisible,
-  suggestionForUnknownName,
+  createNameResolver,
   isPrimitiveCommandName,
   walk,
 } from "@openlogo/parser";
@@ -4913,12 +4912,12 @@ function inactiveProfileCallee(
   // PAINTS them, not about whether the form may act, so it is not the support for this arm.)
   if (rawStatement.kind === "ProfileStatement") {
     const head = rawStatement.keyword.name;
-    return environment.isVisible(head)
+    return environment.names.isVisible(head)
       ? undefined
       : runtimeDiag.unknownCommand(
           rawStatement.keyword.source_span,
           head,
-          environment.suggestionFor(head),
+          environment.names.suggestionFor(head),
         );
   }
   // A DECLARATION whose profile is inactive is refused for the same reason: without this, a run
@@ -4944,13 +4943,13 @@ function inactiveProfileCallee(
   if (!isBuiltInName(spelled)) {
     return undefined;
   }
-  if (environment.isVisible(spelled)) {
+  if (environment.names.isVisible(spelled)) {
     return undefined;
   }
   return runtimeDiag.unknownCommand(
     rawStatement.callee.source_span,
     spelled,
-    environment.suggestionFor(spelled),
+    environment.names.suggestionFor(spelled),
   );
 }
 
@@ -5720,8 +5719,7 @@ function createExecutionEnvironment(
     frames: [new Map()],
     repeatTurns: [],
     profiles,
-    suggestionFor: (name) => suggestionForUnknownName(name, program, profiles),
-    isVisible: (name) => isNameVisible(name, program, profiles),
+    names: createNameResolver(program, profiles),
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside

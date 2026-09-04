@@ -84,17 +84,14 @@ export { analyze } from "./analyze.js";
 export type { AnalyzeOptions, AnalyzeResult } from "./analyze.js";
 export { applyOneFaultRules } from "./one-fault.js";
 
-// The did-you-mean computation, shared with `@openlogo/runtime` so that a runtime
-// `ol-unknown-command` reached under the unchecked-run opt-out is byte-identical to the check's and
-// collapses under the normative de-duplication rule instead of arriving beside it
-// (`spec/execution-model.md:741-748`).
-export { suggestionForUnknownName } from "./checker-unknown-command.js";
-
-// Name visibility, shared for the same reason one layer up: `spec/execution-model.md:680` requires
-// one value to govern both the check and the run, and two implementations of "is this name
-// callable here" are two answers waiting to diverge. `@openlogo/runtime` calls this rather than
-// assembling its own from the keyword table and the primitive registry.
-export { isNameVisible } from "./checker-names.js";
+// The checker's name judgements, shared with `@openlogo/runtime` as a resolver bound to one program
+// and one profile set. Two producers of "is this name callable here" is two answers waiting to
+// diverge (`spec/tooling.md:174-177` assigns the judgement to the semantic layer), and a runtime
+// `ol-unknown-command` computed without the check's did-you-mean is a *different* fault under
+// `spec/execution-model.md:741-748`'s identity, so the learner reads one fault twice. Bound rather
+// than free so the visible set is built once per run and stays this package's own representation.
+export { createNameResolver } from "./checker-unknown-command.js";
+export type { NameResolver } from "./checker-unknown-command.js";
 
 export { resolveRecordField } from "./checker-type-field.js";
 export type { RecordFieldAccess } from "./checker-type-field.js";

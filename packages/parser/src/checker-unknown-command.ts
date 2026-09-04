@@ -194,28 +194,53 @@ function messageFor(name: string, suggestion: string | undefined): string {
 }
 
 /**
- * The did-you-mean suggestion this specification requires for an unresolvable callable, computed
- * over the **visible** vocabulary of `program` under `profiles`.
+ * A **name resolver** bound to one program and one claimed profile set: the checker's answers to
+ * "is this name callable here" and "what did you mean", built once and reused.
  *
- * Exported so `@openlogo/runtime` can produce a byte-identical `ol-unknown-command` when it reaches
- * the same fault under the unchecked-run opt-out. That matters normatively rather than
- * cosmetically: `spec/execution-model.md:741-748` defines two findings as the same fault only when
- * `code`, `params` and `source_span` all match, and requires the second report to be "suppressed
- * rather than delivered". A runtime copy missing the `suggestion` the check computed is, by that
- * definition, a *different* finding — so it would be delivered beside the first, and the learner
- * would read one fault twice. One implementation of the rule, used by both stages, is what makes
- * the two reports identical instead of merely similar.
+ * ## Why `@openlogo/runtime` uses this instead of its own
+ *
+ * The runtime used to compute both itself — visibility from `isKeyword` plus the primitive registry
+ * plus Heritage-alias resolution, and did-you-mean not at all. Two producers of a judgement this
+ * package owns; `spec/tooling.md:174-177` assigns visibility to the semantic layer. Measured over
+ * every name in `spec/built-in-names.json` against every profile closure — 1,776 pairs — the two
+ * visibility answers agreed everywhere, so it was a duplication that had not yet drifted rather
+ * than a live defect. It is consolidated anyway, because an agreement maintained by hand is a
+ * liability whether or not it has failed yet.
+ *
+ * The did-you-mean copy *had* already drifted, to the degenerate case of no suggestion at all,
+ * which made a runtime `ol-unknown-command` a different fault from the check's under
+ * `spec/execution-model.md:741-748`'s identity — so one fault was delivered to the learner twice.
+ *
+ * ## Why a bound resolver, and not a predicate or the raw set
+ *
+ * The visible set stays this module's representation: a caller cannot hold it, mutate it, or ask
+ * it about a program other than the one it was built from. But it must be built **once per run**,
+ * not once per call. The runtime asks `isVisible` on the SUCCESS path of every executing statement,
+ * so a per-call rebuild — two `walk()` passes over the whole AST each time — made execution
+ * O(statements × program size). Measured on a `repeat 20000` loop: 122ms with no procedure
+ * declarations, 365ms with eighty unused ones, i.e. a learner's drawing getting slower with every
+ * `define` they add to the worksheet. Binding once recovered it (658ms → 143ms on a 20-procedure
+ * program) and stopped it scaling with declaration count at all.
  */
-export function suggestionForUnknownName(
-  name: string,
+export interface NameResolver {
+  /** Is `name` callable in the bound program under the bound profile set? */
+  isVisible(name: string): boolean;
+  /** The did-you-mean suggestion for an unresolvable `name`, or `undefined` when none is close. */
+  suggestionFor(name: string): string | undefined;
+}
+
+/** Build a {@link NameResolver}. The visible and declared sets are computed once, here. */
+export function createNameResolver(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
-): string | undefined {
-  return bestSuggestion(
-    name.toLowerCase(),
-    collectVisibleNames(program, profiles),
-    collectDeclaredNames(program),
-  );
+): NameResolver {
+  const visible = collectVisibleNames(program, profiles);
+  const declared = collectDeclaredNames(program);
+  return {
+    isVisible: (name) => visible.has(name.toLowerCase()),
+    suggestionFor: (name) =>
+      bestSuggestion(name.toLowerCase(), visible, declared),
+  };
 }
 
 /**

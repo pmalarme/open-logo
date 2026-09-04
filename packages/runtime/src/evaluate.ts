@@ -82,16 +82,23 @@ import type {
   WordLitNode,
 } from "@openlogo/parser";
 import { isBuiltInName, isPrimitiveCommandName } from "@openlogo/parser";
-import { isActiveProfileCommandName, isNameVisible } from "@openlogo/parser";
-import type { CheckProfile } from "@openlogo/parser";
+import { isActiveProfileCommandName } from "@openlogo/parser";
+import type { CheckProfile, NameResolver } from "@openlogo/parser";
+import { createNameResolver } from "@openlogo/parser";
 import { SUPPORTED_PROFILES } from "@openlogo/core";
 
-/** An empty program, for the visibility question a bare environment asks. */
+/**
+ * The one empty program a bare {@link createEnvironment} uses — assigned to `program` AND used to
+ * build its {@link NameResolver}, so the resolver can never answer about a different program than
+ * the environment holds. There were briefly two of these, agreeing only because both were empty,
+ * which is the hand-maintained agreement this slice spent itself removing.
+ */
 const EMPTY_PROGRAM: ProgramNode = {
   kind: "Program",
   body: [],
-  source_span: { document: "", start: [1, 1], end: [1, 1] },
+  source_span: makeSpan("", [1, 1], [1, 1]),
 };
+
 import { runtimeDiag } from "./errors.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
@@ -271,30 +278,20 @@ export interface Environment {
    */
   readonly profiles: readonly CheckProfile[];
   /**
-   * The did-you-mean suggestion for an unresolvable callable, bound to this run's program and
-   * claimed profile set.
+   * The checker's name judgements for this run — `isVisible` and `suggestionFor` — bound to this
+   * run's program and claimed profile set, and built once (see {@link NameResolver}).
    *
-   * It exists so the runtime's `ol-unknown-command` is **identical** to the check's, rather than a
-   * coarser copy of it. `spec/execution-model.md:741-748` makes two findings the same fault only
-   * when `code`, `params` and `source_span` all match, so a runtime report missing the
-   * `suggestion` the check computed is a *different* finding and would be delivered beside it. The
-   * function is `@openlogo/parser`'s own, not a second implementation — a second one would drift.
-   *
-   * `createEnvironment()` binds a function returning `undefined`: that bare environment models one
-   * expression evaluation and has no program whose vocabulary could be searched.
+   * The runtime used to compute both itself. `spec/tooling.md:174-177` assigns visibility to the
+   * semantic layer, so the second copy was this package answering a question it does not own; that
+   * is the engineering argument, and it is worth separating from the normative one.
+   * `spec/execution-model.md:680` requires the *profile set* to be one value governing both the
+   * check and the run, which `profiles` above already satisfies — it does not by itself require a
+   * shared implementation. Consolidating is good practice rather than an entailment, and the
+   * measured case for it is concrete: the did-you-mean copy had already drifted to no suggestion at
+   * all, which made a runtime `ol-unknown-command` a *different* fault under
+   * `spec/execution-model.md:741-748`'s identity and delivered one fault to the learner twice.
    */
-  readonly suggestionFor: (name: string) => string | undefined;
-  /**
-   * Is `name` callable in this run — `@openlogo/parser`'s own visibility answer, bound to this
-   * run's program and claimed profile set.
-   *
-   * The runtime used to compute this itself, from the keyword table plus the primitive registry
-   * plus Heritage-alias resolution. That was a second producer of a judgement
-   * `spec/execution-model.md:680` requires one value to govern, and although the two agreed across
-   * every name × profile-closure pair measured, an agreement maintained by hand is a liability
-   * whether or not it has failed yet. One implementation, called from both sides.
-   */
-  readonly isVisible: (name: string) => boolean;
+  readonly names: NameResolver;
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
   readonly events: TraceEvent[];
@@ -656,12 +653,12 @@ export function createEnvironment(): Environment {
     // evaluation rather than a run someone started, so there is nobody to name a narrower set;
     // `execute()` overrides it with the run's claimed set (`spec/execution-model.md:673-680`).
     profiles: SUPPORTED_PROFILES,
-    suggestionFor: () => undefined,
-    // A bare environment has no program whose vocabulary could be searched, so every built-in
-    // profile's primitives are visible, and no `define`d procedure or `struct` constructor is.
-    // Still `@openlogo/parser`'s own predicate rather than a second rule written here — a bare
-    // environment asks a narrower question, not a different one.
-    isVisible: (name) => isNameVisible(name, EMPTY_PROGRAM, SUPPORTED_PROFILES),
+    // A bare environment has no program of its own, so the resolver is built over an EMPTY one:
+    // every profile's primitives are visible, and no `define`d procedure or `struct` constructor
+    // is. Still `@openlogo/parser`'s own resolver rather than a second rule written here — a bare
+    // environment asks a narrower question, not a different one. It is built from the SAME node
+    // assigned to `program` below, so the two cannot answer about different programs.
+    names: createNameResolver(EMPTY_PROGRAM, SUPPORTED_PROFILES),
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
@@ -689,11 +686,7 @@ export function createEnvironment(): Environment {
     // exercise the Educational meta-commands (`execute-internal.ts`'s
     // `createExecutionEnvironment` is the only place a real parsed program is threaded through,
     // per issue #332).
-    program: {
-      kind: "Program",
-      source_span: makeSpan("", [1, 1], [1, 1]),
-      body: [],
-    },
+    program: EMPTY_PROGRAM,
     hintProgress: new Map(),
     tutorTemplate: defaultTutorTemplate,
     learnerLevel: "1",
@@ -2049,14 +2042,14 @@ function evaluateCall(
   // rule at the bottom of this function, which reports it with the same code.
   if (
     isBuiltInName(node.callee.name) &&
-    !environment.isVisible(node.callee.name)
+    !environment.names.isVisible(node.callee.name)
   ) {
     return {
       ok: false,
       diagnostic: runtimeDiag.unknownCommand(
         node.callee.source_span,
         node.callee.name,
-        environment.suggestionFor(node.callee.name),
+        environment.names.suggestionFor(node.callee.name),
       ),
     };
   }
@@ -2247,7 +2240,7 @@ function evaluateCall(
   }
   return {
     ok: false,
-    diagnostic: environment.isVisible(node.callee.name)
+    diagnostic: environment.names.isVisible(node.callee.name)
       ? runtimeDiag.notImplemented(node.callee.source_span, name)
       : // Names what the learner WROTE. `name` has been through
         // `resolveHeritageAliasName`, so for an alias under a run that does not claim Heritage it
@@ -2258,7 +2251,7 @@ function evaluateCall(
         runtimeDiag.unknownCommand(
           node.callee.source_span,
           node.callee.name,
-          environment.suggestionFor(node.callee.name),
+          environment.names.suggestionFor(node.callee.name),
         ),
   };
 }

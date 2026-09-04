@@ -48,7 +48,7 @@
  * an orphan starts is that orphan's own diagnostic, and nothing else is touched.
  */
 
-import type { Diagnostic } from "@openlogo/core";
+import type { Diagnostic, SourceSpan } from "@openlogo/core";
 import { dedupeDiagnostics } from "@openlogo/core";
 import type { AnyNode, ProgramNode, StatementNode } from "./ast.js";
 import { walk } from "./ast.js";
@@ -59,14 +59,30 @@ import { walk } from "./ast.js";
  * starts at its callee, so a call node is unresolvable exactly when its span **start** is in this
  * set.
  */
+/**
+ * A position key that includes the **document**.
+ *
+ * Dropping it silently suppressed a valid `ol-bad-token` from one source because a *different*
+ * source happened to carry an orphan at the same line and column — demonstrated, not inferred, and
+ * a supported input shape rather than a hypothetical: `applyOneFaultRules` is exported precisely so
+ * a caller assembling findings across documents can apply it (`index.ts`), and
+ * `spec/error-model.md:144-147` makes a span naming another document "an ordinary case".
+ *
+ * `@openlogo/core`'s `faultIdentity` already keys de-duplication on the document; this is the
+ * precedence half of *one fault, one diagnostic* agreeing with it.
+ */
+function positionKey(span: SourceSpan): string {
+  const [line, column] = span.start;
+  return `${span.document}\u0000${line}:${column}`;
+}
+
 function unresolvableCalleeStarts(
   diagnostics: readonly Diagnostic[],
 ): ReadonlySet<string> {
   const starts = new Set<string>();
   for (const diagnostic of diagnostics) {
     if (diagnostic.code === "ol-unknown-command") {
-      const [line, column] = diagnostic.source_span.start;
-      starts.add(`${line}:${column}`);
+      starts.add(positionKey(diagnostic.source_span));
     }
   }
   return starts;
@@ -88,8 +104,7 @@ function endsInUnresolvableCall(
     if (found || (node.kind !== "Call" && node.kind !== "ParenCall")) {
       return;
     }
-    const [line, column] = node.source_span.start;
-    if (!unresolvable.has(`${line}:${column}`)) {
+    if (!unresolvable.has(positionKey(node.source_span))) {
       return;
     }
     found =
@@ -118,8 +133,7 @@ function orphanStarts(
         (previousWasOrphan || endsInUnresolvableCall(previous, unresolvable)) &&
         statement.source_span.start[0] === previous.source_span.end[0];
       if (orphaned) {
-        const [line, column] = statement.source_span.start;
-        starts.add(`${line}:${column}`);
+        starts.add(positionKey(statement.source_span));
       }
       previousWasOrphan = orphaned;
       previous = statement;
@@ -157,7 +171,6 @@ export function applyOneFaultRules(
     if (diagnostic.code !== "ol-bad-token") {
       return true;
     }
-    const [line, column] = diagnostic.source_span.start;
-    return !orphans.has(`${line}:${column}`);
+    return !orphans.has(positionKey(diagnostic.source_span));
   });
 }
