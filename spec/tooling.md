@@ -237,7 +237,7 @@ it MUST keep the code identity stable when the rule is enabled.
 
 | Code | Rule |
 |---|---|
-| `ol-style-useless-value` | A control block has a final value-producing expression whose value is discarded. |
+| `ol-style-useless-value` | An expression statement whose value is discarded: either the final expression of a control block body, or a top-level/procedure-body statement that is a value-producing expression with no consumer. |
 | `ol-style-name-case` | User identifiers should be lowercase snake_case with optional `?` or `!`; built-ins should be shown lowercase. |
 | `ol-style-full-name` | Prefer primary full underscored primitive names over short aliases in teaching material, such as `pen_down` over `pd`. |
 | `ol-style-one-command-per-line` | Prefer one command or special form per line outside compact one-line examples. |

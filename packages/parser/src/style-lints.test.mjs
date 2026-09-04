@@ -81,6 +81,186 @@ test("ol-style-useless-value: a comprehension body is out of scope for this code
   assert.deepEqual(diagnostics, []);
 });
 
+// --- ol-style-useless-value: top-level / procedure-body orphan statements (issue #1073) ------
+
+test("ol-style-useless-value: a bare number at top level fires with form 'statement'", () => {
+  const diagnostics = checkStyle("print 10\n2").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+  assert.equal(diagnostics[0].severity, "warning");
+  assert.equal(diagnostics[0].stage, "semantic");
+  assert.equal(
+    diagnostics[0].message,
+    "this expression produces a value that is not used.",
+  );
+});
+
+test("ol-style-useless-value: a bare word literal at top level fires", () => {
+  const diagnostics = checkStyle('print 10\n"word"').filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: an orphan reporter call at top level fires", () => {
+  const diagnostics = checkStyle("print 10\nabs 3").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: an effectful command at top level does NOT fire", () => {
+  const diagnostics = checkStyle("print 10");
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-useless-value: forward (with turtle profile) does NOT fire", () => {
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    "forward 100",
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language", "turtle-rendering"],
+    style: true,
+  }).diagnostics;
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-useless-value: a VarRef at top level fires", () => {
+  const diagnostics = checkStyle(":x = 5\n:x").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: an undefined VarRef does NOT double-report with ol-undefined-var", () => {
+  const diagnostics = checkStyle("print 10\n:x");
+  const useless = diagnostics.filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  const undef = diagnostics.filter((d) => d.code === "ol-undefined-var");
+  assert.equal(undef.length, 1, "ol-undefined-var should fire");
+  assert.equal(useless.length, 0, "useless-value should be suppressed");
+});
+
+test("ol-style-useless-value: an orphan value inside a define body fires", () => {
+  const diagnostics = checkStyle("define foo\n  42\nend").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a define body with only commands does NOT fire", () => {
+  const diagnostics = checkStyle("define foo\n  print 1\nend");
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-useless-value: the existing control-block rule still fires exactly once for repeat", () => {
+  const diagnostics = checkStyle("repeat 3 [ 1 + 1 ]").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "repeat" });
+});
+
+test("ol-style-useless-value: an operator expression at top level fires (1 + 1)", () => {
+  const diagnostics = checkStyle("1 + 1").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a single relational comparison at top level fires (1 < 2)", () => {
+  const diagnostics = checkStyle("1 < 2").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: 'not true' at top level fires", () => {
+  const diagnostics = checkStyle("not true").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a DictLit at top level fires", () => {
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    "{ a: 1 }",
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language", "data"],
+    style: true,
+  }).diagnostics.filter((d) => d.code === "ol-style-useless-value");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a Heritage ValueOfKey at top level fires", () => {
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    'value of { a: 1 } for key "a"',
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language", "data", "heritage"],
+    style: true,
+  }).diagnostics.filter((d) => d.code === "ol-style-useless-value");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: unknown callee at top level does NOT fire (user procedure)", () => {
+  const diagnostics = checkStyle("define foo\n  print 1\nend\nfoo");
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-useless-value: a struct constructor call at top level fires (Data profile)", () => {
+  const { ast: program, diagnostics: parseDiagnostics } = OL.parse(
+    "struct point [ x y ]\n(point 1 2)",
+    doc,
+  );
+  assert.deepEqual(parseDiagnostics, []);
+  const diagnostics = OL.check(program, {
+    profiles: ["core-language", "data"],
+    style: true,
+  }).diagnostics.filter((d) => d.code === "ol-style-useless-value");
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a pure relational chain at top level fires", () => {
+  const diagnostics = checkStyle("1 < 2 < 3").filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, { form: "statement" });
+});
+
+test("ol-style-useless-value: a ComparisonChain containing == defers to equality-confusion (no double-report)", () => {
+  const diagnostics = checkStyle(":x = 5\n1 < :x == 10");
+  const useless = diagnostics.filter(
+    (d) => d.code === "ol-style-useless-value",
+  );
+  const eqConf = diagnostics.filter(
+    (d) => d.code === "ol-style-equality-confusion",
+  );
+  assert.equal(useless.length, 0, "useless-value should not fire");
+  assert.equal(eqConf.length, 1, "equality-confusion should fire");
+});
+
 // --- ol-style-equality-confusion --------------------------------------------------------------
 
 test("ol-style-equality-confusion: a standalone == statement is flagged", () => {
@@ -112,7 +292,11 @@ test("ol-style-equality-confusion: a ComparisonChain mixing relational and == is
 test("ol-style-equality-confusion: a standalone purely-relational ComparisonChain (no ==/!=) is not flagged", () => {
   // `1 < 2 < 3` cannot plausibly be an `=` assignment typo -- there is no equality operator
   // to have been mistyped, so this must not suggest "did you mean to assign with =?".
-  const diagnostics = checkStyle("1 < 2 < 3");
+  // (It does fire `ol-style-useless-value` since the result is discarded, but that is a
+  // different code with a different message — issue #1073.)
+  const diagnostics = checkStyle("1 < 2 < 3").filter(
+    (d) => d.code === "ol-style-equality-confusion",
+  );
   assert.deepEqual(diagnostics, []);
 });
 
@@ -127,7 +311,11 @@ test("ol-style-equality-confusion: == used as a call argument (not statement pos
 });
 
 test("ol-style-equality-confusion: a single non-equality comparison (<, >, <=, >=) is not flagged", () => {
-  const diagnostics = checkStyle("1 < 2");
+  // A lone relational comparison at statement level fires `ol-style-useless-value` (the value
+  // is discarded, issue #1073) but must NOT fire `ol-style-equality-confusion`.
+  const diagnostics = checkStyle("1 < 2").filter(
+    (d) => d.code === "ol-style-equality-confusion",
+  );
   assert.deepEqual(diagnostics, []);
 });
 
