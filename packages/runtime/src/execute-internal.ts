@@ -3885,7 +3885,7 @@ function executeLocal(
 
 /**
  * `global name = value` — mark the root scope's binding of `name` shared and assign the initializer
- * (`spec/commands.md:123-140`, `spec/execution-model.md:545-583`).
+ * (`spec/commands.md:123-143`, `spec/execution-model.md:545-583`).
  *
  * The declaration is **legal only at the root scope** and raises `ol-global-outside-root` anywhere
  * else — inside a procedure body, a control-form body, a handler block, or a comprehension body.

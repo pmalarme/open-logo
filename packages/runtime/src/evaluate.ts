@@ -84,11 +84,7 @@ import type {
 import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
 import type { Frame } from "./scope.js";
-import {
-  assignVariable,
-  pushLoopFrame,
-  readVariable,
-} from "./scope.js";
+import { assignVariable, pushLoopFrame, readVariable } from "./scope.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";

@@ -233,7 +233,7 @@ export function pushLoopFrame(
 /**
  * Is `environment` the **root scope** — the top-level program, outside every procedure frame and
  * every block? That is the placement `global` requires (`spec/execution-model.md:561-563`,
- * `spec/commands.md:140`) and the case `local` treats specially (it names the root scope's own
+ * `spec/commands.md:143`) and the case `local` treats specially (it names the root scope's own
  * binding rather than shadowing into a new one).
  *
  * The frame chain alone decides it. The root frame is always last, a block entry always pushes one

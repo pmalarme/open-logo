@@ -864,7 +864,7 @@ export const runtimeDiag = {
   /**
    * `ol-global-outside-root`: a `global name = value` declaration ran somewhere other than the root
    * scope — inside a procedure body, a control-form body, a handler block, or a comprehension body
-   * (`spec/execution-model.md:561-563`, `spec/commands.md:140`). Registry stage is `semantic` and
+   * (`spec/execution-model.md:561-563`, `spec/commands.md:143`). Registry stage is `semantic` and
    * `checker-global-placement.ts` decides it lexically; this is the runtime's own guard for the same
    * defect, at `stage: "runtime"` since `execute()` never runs `check()`, carrying the same `name`
    * param and the same prose so the two stages report one identity.

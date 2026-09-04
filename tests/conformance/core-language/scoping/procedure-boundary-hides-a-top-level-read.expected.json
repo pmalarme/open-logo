@@ -1,0 +1,98 @@
+{
+  "description": "A procedure body sees ONLY its parameters, the bindings its body has already made, and names declared `global` (spec/execution-model.md:389-394) — every other variable of every enclosing scope is invisible, not merely unwritable. This is that section's own worked example, verbatim: `draw_steps` cannot see the top-level `:count`, so `forward :count * 10` raises `ol-var-not-visible`. The diagnostic fires on the READ because the read comes first (:443-446); had the write come first it would have created a binding in the scope the write appears in, which is a genuinely different variable and correct. Registry stage is `semantic` (the checker decides it lexically, issue #825); the runtime raises it at `stage: \"runtime\"` because `execute()` never runs `check()`, under the same code and `params` so the two stages report one identity. `params.procedure` is what makes the message name the boundary, which `spec/error-model.md:132` requires of this code specifically.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "compareMessages": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [2, 1],
+        "end": [7, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "name": "draw_steps",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/scoping/procedure-boundary-hides-a-top-level-read",
+        "start": [4, 13],
+        "end": [4, 19]
+      },
+      "params": {
+        "name": "count",
+        "procedure": "draw_steps"
+      },
+      "message": ":count is not defined inside draw_steps — a procedure only sees its own inputs and names declared global, so declare it at the top level with global count = ... to share it.",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

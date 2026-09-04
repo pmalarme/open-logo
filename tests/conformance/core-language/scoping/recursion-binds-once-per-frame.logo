@@ -1,0 +1,6 @@
+define f :n
+  :tmp = :n
+  if :n > 0 [ f :n - 1 ]
+  print :tmp
+end
+f 2

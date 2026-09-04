@@ -1,0 +1,130 @@
+{
+  "description": "`local name = value` evaluates its initializer BEFORE the new binding is created, with exactly the visibility the `local` statement itself has (spec/execution-model.md:508-515). `local count = :count + 1` therefore reads the `global` the statement could already see and reports `5`, rather than raising `ol-undefined-var` on the binding it is about to create — which is what makes snapshotting a shared value into a same-named local possible at all. The global itself is untouched, so the top level still prints `4`. Reversing the two steps is the whole defect this pins: it turns the read into an ordinary failed read of a declared-but-unbound name.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [2, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [6, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [6, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "name": "f",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [3, 3],
+        "end": [3, 27]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "values": [5]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [6, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-local-initializer-reads-the-binding-it-shadows",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}
