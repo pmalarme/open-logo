@@ -305,19 +305,76 @@ test("a deep or cyclic value terminates instead of throwing", () => {
   assert.equal(dedupeDiagnostics([carrying(deep)]).length, 1);
 });
 
-test("a large collection is canonicalized once, not once per entry", () => {
-  // Asking `values()` per key rebuilt the whole collection per entry: quadratic, ~280 ms at 8,000
-  // entries. This is a generous ceiling — it is guarding the complexity class, not a millisecond
-  // budget, so it will not flake on a slow machine while still failing loudly if the quadratic
-  // shape returns.
-  const big = new OLDict();
-  for (let index = 0; index < 8_000; index++) {
-    big.set(`k${index}`, index);
+test("a large collection is snapshotted once, not once per entry", () => {
+  // A TIMING ceiling does not guard this. The previous version allowed 2 s, and a review measured
+  // the restored quadratic shape at 396 ms for 8,000 entries — the test would have passed with the
+  // defect back in place. So the assertion counts the calls instead: whatever the machine, reading
+  // a collection once per entry is a different number from reading it once.
+  class CountingDict extends OLDict {
+    keysReads = 0;
+    valuesReads = 0;
+    keys() {
+      this.keysReads += 1;
+      return super.keys();
+    }
+    values() {
+      this.valuesReads += 1;
+      return super.values();
+    }
   }
-  const started = Date.now();
-  dedupeDiagnostics([carrying(big)]);
-  assert.ok(
-    Date.now() - started < 2_000,
-    "de-duplicating one 8,000-entry dict must not be quadratic in its size",
+  const counted = new CountingDict();
+  for (let index = 0; index < 200; index++) {
+    counted.set(`k${index}`, index);
+  }
+  dedupeDiagnostics([carrying(counted)]);
+  assert.equal(counted.keysReads, 1, "keys() must be snapshotted once");
+  assert.equal(counted.valuesReads, 1, "values() must be snapshotted once");
+});
+
+test("a wide value does not overflow the host stack", () => {
+  // The deep-nesting defect through a different door: `push(...children)` passes every element as
+  // an argument, which threw `RangeError` at ~150,000. Children are pushed one at a time.
+  assert.equal(
+    dedupeDiagnostics([carrying(new Array(300_000).fill(1))]).length,
+    1,
   );
+});
+
+test("a value this encoder cannot describe gets per-instance identity, never a collision", () => {
+  // `String()` renders two `Symbol("x")` identically and `Object.keys()` flattens a Date, a Map, a
+  // Set and a RegExp all to an empty object — so encoding them by printed form collided them.
+  // None is an `OLValue`; the conservative answer is an opaque serial, which may FALSE SPLIT two
+  // equal exotic values. That direction is visible; a collision is not.
+  const oneWay = () => 1;
+  const theOtherWay = () => 1;
+  assert.equal(
+    oneWay(),
+    theOtherWay(),
+    "the two closures are behaviourally identical — that is the point of the case below",
+  );
+
+  for (const [left, right, why] of [
+    [Symbol("x"), Symbol("x"), "two symbols with the same description"],
+    [oneWay, theOtherWay, "two closures with identical source and behaviour"],
+    [new Date(0), new Date(1), "two dates"],
+    [new Map([["a", 1]]), new Map([["a", 2]]), "two maps"],
+    [new Set([1]), new Set([2]), "two sets"],
+    [/a/, /b/, "two regular expressions"],
+  ]) {
+    assert.equal(survivors(left, right), 2, why);
+  }
+
+  const symbol = Symbol("stable");
+  assert.equal(
+    survivors(symbol, symbol),
+    1,
+    "the SAME instance must keep one identity, or nothing would ever de-duplicate",
+  );
+});
+
+test("an array hole is not a stored undefined", () => {
+  // Same length, same element reads, different values. Encoded alike they collided.
+  // biome-ignore lint/suspicious/noSparseArray: the hole is the subject of this assertion.
+  const sparse = [,];
+  assert.equal(survivors(sparse, [undefined]), 2);
 });

@@ -183,10 +183,58 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * reasoned from the wrong type, and the reachable consequence was a throw inside the component
  * whose job is deciding which diagnostics survive.
  */
+/** A string rendered so it cannot be confused with anything around it. */
+function tagged(tag: string, text: string): string {
+  return `${tag}${text.length}:${text}`;
+}
+
+/**
+ * Per-instance identity for a value this encoder cannot describe structurally.
+ *
+ * A `Symbol`, a function, a `Date`, a `Map`, a `Set`, a `RegExp` — none is an `OLValue`, and
+ * `String()` cannot tell two of them apart (`Symbol("x")` and a second `Symbol("x")` print the
+ * same) while `Object.keys()` flattens them all to an empty object. Encoding them by their printed
+ * form therefore *collided* them, which is the silent direction.
+ *
+ * They get an opaque serial number instead. That is deliberately **conservative**: two structurally
+ * equal exotic values — two `Date(0)`s, say — become two findings rather than one. A false split is
+ * visible and a collision is not, and no diagnostic this implementation raises carries such a
+ * value, so the split costs nothing real. The alternative, describing every host type structurally,
+ * is unbounded work for a domain with no members.
+ */
+const opaqueIdentities = new WeakMap<WeakKey, number>();
+let nextOpaqueIdentity = 0;
+
+function opaqueIdentity(value: WeakKey): string {
+  const existing = opaqueIdentities.get(value);
+  if (existing !== undefined) {
+    return `opq${existing};`;
+  }
+  nextOpaqueIdentity += 1;
+  opaqueIdentities.set(value, nextOpaqueIdentity);
+  return `opq${nextOpaqueIdentity};`;
+}
+
+/** Is `value` a plain `{ … }` object, whose own keys describe it completely? */
+function isPlainObject(value: object): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/** Marks an array hole, so `[, ]` and `[undefined]` do not encode alike. */
+const ARRAY_HOLE = Symbol("array-hole");
+
+/** The containers currently open on the walk, for cycle detection. */
+interface OpenContainers {
+  /** Depth of each open container, so a revisit is O(1) rather than a scan of the whole path. */
+  readonly depthOf: Map<unknown, number>;
+  /** The same containers in order, so closing one knows which to forget. */
+  readonly stack: unknown[];
+}
+
 function canonicalize(value: unknown): string {
   const out: string[] = [];
-  /** The chain of containers currently open, for cycle detection by depth. */
-  const path: unknown[] = [];
+  const open: OpenContainers = { depthOf: new Map(), stack: [] };
   /**
    * Explicit work stack. Each entry is either a one-element array holding the value to encode, or
    * `null` marking "the container opened here is finished". The wrapper array matters: a value to
@@ -197,32 +245,34 @@ function canonicalize(value: unknown): string {
   while (work.length > 0) {
     const item = work.pop();
     if (item === undefined || item === null) {
-      path.pop();
+      open.depthOf.delete(open.stack.pop());
       out.push(")");
       continue;
     }
-    out.push(encodeAtomOrOpen(item[0], path, work));
+    out.push(encodeAtomOrOpen(item[0], open, work));
   }
   return out.join("");
 }
 
-/** A string rendered so it cannot be confused with anything around it. */
-function tagged(tag: string, text: string): string {
-  return `${tag}${text.length}:${text}`;
-}
-
 /**
- * Emit `value`'s encoding, pushing its children onto `work` when it is a container. Returns the
- * text to append; container children are pushed in reverse so they are visited in order, with a
- * `null` sentinel beneath them to close the group and pop the cycle path.
+ * Emit `value`'s encoding, pushing its children onto `work` when it is a container. Container
+ * children are pushed in reverse so they are visited in order, with a `null` sentinel beneath them
+ * to close the group and forget the container.
+ *
+ * Children are pushed one at a time. `push(...children)` passes every element as an argument and so
+ * overflows the host stack on a *wide* value — measured at ~150,000 elements — which would be the
+ * deep-nesting defect again through a different door.
  */
 function encodeAtomOrOpen(
   value: unknown,
-  path: unknown[],
+  open: OpenContainers,
   work: (readonly [unknown] | null)[],
 ): string {
-  const seenAt = path.indexOf(value);
-  if (seenAt !== -1) {
+  if (value === ARRAY_HOLE) {
+    return "hole;";
+  }
+  const seenAt = open.depthOf.get(value);
+  if (seenAt !== undefined) {
     return `cyc${seenAt};`;
   }
   switch (typeof value) {
@@ -235,24 +285,40 @@ function encodeAtomOrOpen(
       return tagged("num", Object.is(value, -0) ? "-0" : `${value}`);
     case "string":
       return tagged("str", value);
+    case "bigint":
+      return tagged("big", `${value}`);
     case "object":
       break;
     default:
-      // bigint, symbol, function — not `OLValue`s, but `params` is `Record<string, unknown>`.
-      return tagged(typeof value, String(value));
+      // symbol, function — printed forms collide, so identity is per-instance.
+      return opaqueIdentity(value as WeakKey);
   }
   if (value === null) {
     return "nul;";
   }
+  if (value instanceof OLTurtle) {
+    return `turtle${value.id};`;
+  }
+  const structural =
+    Array.isArray(value) ||
+    value instanceof OLDict ||
+    value instanceof OLRecord ||
+    isPlainObject(value);
+  if (!structural) {
+    return opaqueIdentity(value);
+  }
 
-  path.push(value);
-  work.push(null);
   const children: unknown[] = [];
   let head: string;
   if (Array.isArray(value)) {
     head = `arr${value.length}(`;
-    children.push(...value);
+    for (let index = 0; index < value.length; index++) {
+      // `index in value` distinguishes a hole from a stored `undefined`: `[, ]` and `[undefined]`
+      // have the same length and the same element reads, and encoded alike they collided.
+      children.push(index in value ? value[index] : ARRAY_HOLE);
+    }
   } else if (value instanceof OLDict) {
+    // Snapshotted ONCE. Asking `values()` per key rebuilt the whole collection per entry.
     const keys = value.keys();
     const values = value.values();
     head = `dict${keys.length}(`;
@@ -265,8 +331,6 @@ function encodeAtomOrOpen(
     for (const field of fields) {
       children.push(field, value.get(field));
     }
-  } else if (value instanceof OLTurtle) {
-    head = `turtle${value.id}(`;
   } else {
     const keys = Object.keys(value as Record<string, unknown>).sort();
     head = `obj${keys.length}(`;
@@ -274,6 +338,10 @@ function encodeAtomOrOpen(
       children.push(key, (value as Record<string, unknown>)[key]);
     }
   }
+
+  open.depthOf.set(value, open.stack.length);
+  open.stack.push(value);
+  work.push(null);
   for (let index = children.length - 1; index >= 0; index--) {
     work.push([children[index]]);
   }
