@@ -4,14 +4,16 @@
 // following a callee nothing resolves. Every word of that is a bound, and each is a separate
 // mechanism that can be wrong on its own:
 //
-//   1. POSITION — which spans count as orphaned by the unresolvable call.
+//   1. POSITION — a token that could never have been an argument keeps its own diagnostic.
 //   2. TRAILING — the call must finish where the STATEMENT finishes, not merely somewhere.
-//   3. CHAINING — one orphan's tokens do not make the next statement's tokens orphans.
+//   3. SAME LINE — orphanhood propagates along a line and stops at the line boundary.
 //   4. CODE     — only `ol-bad-token` may be suppressed at an orphan position.
 //
 // They are collected here because a reader auditing the precedence rule should find all four in
-// one place. Two of them previously lived in `expression-kinds-derived.test.mjs`, a file named for
-// a different mechanism entirely, and the fourth lived nowhere at all.
+// one place, and **each label is red for its own mechanism** — a review measured an earlier draft
+// where `BOUND 3` failed for the same-line check rather than the propagation it named, and
+// `BOUND 1` only when suppression was disabled wholesale. A label that is red for a neighbouring
+// mechanism is the table-row problem again: it reports a pass about something it did not test.
 //
 // **The fourth is the one worth reading about.** `one-fault.ts` argues at length that a *missing*
 // entry in `couldBeAnArgument` only over-reports while a *wrong* entry suppresses a real diagnostic
@@ -82,18 +84,29 @@ test("BOUND 2 (trailing): the call must finish where the STATEMENT finishes", ()
   ]);
 });
 
-test("BOUND 1 (position): a bracket that closes nothing is never an argument", () => {
-  // `spec/execution-model.md:771-773`. The `]` follows the unresolvable callee but could not have
-  // been an argument whatever the callee turned out to be, so it keeps its own diagnostic.
+test("BOUND 1 (position): a token that could never be an argument keeps its diagnostic", () => {
+  // `spec/execution-model.md:771-773`. A bracket that closes nothing follows the unresolvable
+  // callee but could not have been an argument whatever the callee turned out to be.
   assert.deepEqual(findings("fowad 100 ]"), [
     "ol-unmatched-bracket@1:11",
     "ol-unknown-command@1:1",
   ]);
+  // And a statement-only FORM likewise — this is the row that exercises `couldBeAnArgument`, the
+  // predicate this bound is actually about. Without it the label was red only when suppression was
+  // disabled wholesale, which is a different mechanism.
+  assert.deepEqual(findings("fowad if 1 [ ]"), [
+    "ol-bad-token@1:7",
+    "ol-unknown-command@1:1",
+  ]);
 });
 
-test("BOUND 3 (chaining): one orphan does not orphan the next statement", () => {
-  // Each statement is judged on its own callee. The second `fowad`'s token is suppressed because
-  // the second callee is unresolvable, not because the first one was.
+test("BOUND 3 (same line): orphanhood propagates along a line and stops at its end", () => {
+  // The propagation is real and load-bearing: in `fowad 100 200` the `200` is suppressed ONLY
+  // because the `100` before it was orphaned, so `previousWasOrphan` carries it along. An earlier
+  // draft of this file described the mechanism backwards — as one orphan NOT reaching the next
+  // token — and asserted the line boundary while calling it chaining.
+  assert.deepEqual(findings("fowad 100 200"), ["ol-unknown-command@1:1"]);
+  // Where it stops: each statement is judged on its own callee.
   assert.deepEqual(findings("fowad 1\nfowad 2"), [
     "ol-unknown-command@1:1",
     "ol-unknown-command@2:1",

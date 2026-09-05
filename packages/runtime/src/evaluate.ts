@@ -4891,6 +4891,14 @@ function asExpressionStatement(
  * `Environment.source` is optional, because `createEnvironment()` is public API and a host can
  * evaluate an AST it never had source text for. Without it the node kind is the only name left, so
  * that is the fallback: a worse word, never a missing diagnostic.
+ *
+ * The result is **case-folded**, and that is a separate decision from reading it out of the source.
+ * OpenLogo names are case-insensitive — `FORWARD 100` is a clean program — so `IF` and `if` are one
+ * word, while `faultIdentity` keys on `params` and would make them two faults at one span. The
+ * sibling branch that reports a *command* has always folded; this one did not, so the two halves of
+ * one rule disagreed about the same question, and neither spelling was asserted. `spec/error-model.
+ * md:131` prescribes the message "i know the word {name}, but i can't run it yet" verbatim, and it
+ * should not shout the word back in whatever case the learner happened to use.
  */
 export function statementHeadWord(
   statement: StatementNode,
@@ -4902,7 +4910,7 @@ export function statementHeadWord(
     .slice(statement.source_span.start[1] - 1)
     .trimStart()
     .split(/\s/)[0];
-  return head === "" ? statement.kind : (head as string);
+  return (head === "" ? statement.kind : (head as string)).toLowerCase();
 }
 
 /**

@@ -267,6 +267,11 @@ test("without source text the unrunnable form is named by its node kind, never l
   // for. The head word is read out of the source precisely so it prints what the learner wrote, and
   // when there is no source the node kind is the only name left — a worse word, never a missing
   // diagnostic, which is what the terminal rule actually requires.
+  //
+  // The kind is case-folded like every other spelling of this param, so the fallback reads `if`
+  // rather than `If`. That is the same rule the source-derived branch follows: `params` decide
+  // fault identity, and `IF`/`if` must not be two faults at one span. It happens to make the
+  // fallback read like the keyword for the control forms whose kind matches it.
   const { ast } = parse(
     ":out = map n in [1] [\n  if true [ print 1 ]\n  :n\n]",
     doc,
@@ -275,7 +280,7 @@ test("without source text the unrunnable form is named by its node kind, never l
   const result = evaluate(comprehension, createEnvironment());
   assert.equal(result.ok, false);
   assert.equal(result.diagnostic.code, "ol-not-implemented");
-  assert.deepEqual(result.diagnostic.params, { name: "If" });
+  assert.deepEqual(result.diagnostic.params, { name: "if" });
 });
 
 test("the terminal rule reads the same in both call forms, bare and parenthesized", () => {
@@ -690,4 +695,43 @@ test("a cyclic list nested inside another value is also safe", () => {
     result.diagnostics.map((diagnostic) => diagnostic.code),
     ["ol-type"],
   );
+});
+
+test("ol-not-implemented names one word, in one spelling, from both branches", () => {
+  // Two branches twelve lines apart in `runComprehensionBody` build this diagnostic: one for a
+  // statement form the evaluator has no arm for (`statementHeadWord`, read out of the source), one
+  // for a built-in command it cannot perform here (the callee name). The second always folded case;
+  // the first did not, and NEITHER spelling was asserted.
+  //
+  // OpenLogo names are case-insensitive, so `IF` and `if` are one word — but `faultIdentity` keys
+  // on `params`, so the unfolded branch made them TWO faults at one span, defeating mechanism 4
+  // with a param this slice itself writes. And `spec/error-model.md:131` prescribes the message
+  // "i know the word {name}, but i can't run it yet" verbatim; it should not shout the word back.
+  const nameFor = (source) => {
+    const findings = execute(source, doc, {
+      profiles: ["core-language", "turtle-rendering", "data"],
+      runUnchecked: true,
+    }).diagnostics;
+    assert.deepEqual(
+      findings.map((finding) => finding.code),
+      ["ol-not-implemented"],
+      source,
+    );
+    return findings[0]?.params;
+  };
+
+  // The command branch, upper- and lower-cased.
+  assert.deepEqual(nameFor("print map n in [1 2] [ FORWARD 1 :n ]"), {
+    name: "forward",
+  });
+  assert.deepEqual(nameFor("print map n in [1 2] [ forward 1 :n ]"), {
+    name: "forward",
+  });
+  // The statement-form branch, upper- and lower-cased. `IF` was `{name:"IF"}` before this.
+  assert.deepEqual(nameFor("print map n in [1 2] [ IF true [ print 1 ] :n ]"), {
+    name: "if",
+  });
+  assert.deepEqual(nameFor("print map n in [1 2] [ if true [ print 1 ] :n ]"), {
+    name: "if",
+  });
 });

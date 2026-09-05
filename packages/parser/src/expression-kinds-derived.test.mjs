@@ -130,19 +130,18 @@ test("precedence suppresses every argument-shaped token, not a remembered subset
 });
 
 test("the suppression stays bounded in both directions", () => {
-  // A statement-only form could never have been an argument whatever the callee turned out to be,
-  // so its token is an independent fault — as is a bracket that closes nothing, and an extra
-  // argument to a callee that DOES resolve.
+  // This file's concern is the DERIVED expression classification, so what it asserts here is that
+  // `couldBeAnArgument` reads that derivation: a statement-only form could never have been an
+  // argument whatever the callee turned out to be, so its token is an independent fault.
+  //
+  // The four bounds on the suppression itself — position, trailing, same-line, code — live in
+  // `one-fault-suppression-bounds.test.mjs`, named for the rule rather than for this mechanism.
   assert.deepEqual(codesFor("fowad if 1 [ ]"), [
     "ol-bad-token",
     "ol-unknown-command",
   ]);
   assert.deepEqual(codesFor("fowad :x = 1"), [
     "ol-bad-token",
-    "ol-unknown-command",
-  ]);
-  assert.deepEqual(codesFor("fowad 100 ]"), [
-    "ol-unmatched-bracket",
     "ol-unknown-command",
   ]);
   assert.deepEqual(codesFor("forward 100 200"), ["ol-bad-token"]);
