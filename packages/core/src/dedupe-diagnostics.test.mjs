@@ -657,22 +657,27 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   //     nothing at all. Two of those three were measured exploitable: a lying `Set` subclass made
   //     `dedupeDiagnostics` DISCARD a distinct fault, and redefining `Map[Symbol.hasInstance]`
   //     reinstated the screen-reader regression the `Map` arm exists to fix.
-  //   SUBJECT — the EMITTED `dist/diagnostics.js`, not the source. That is what makes a bare-name
-  //     match sound: the compiler erases type positions, so `Map<unknown, number>` in an
-  //     annotation is simply gone, and "the name appears" really does mean "the global is read".
-  //     Scanning the source instead would need a hand-written carve-out for type positions —
-  //     the same defect one more time.
+  //   SUBJECT — the SOURCE. An earlier version scanned the emitted `dist/diagnostics.js`, because
+  //     the compiler erases type positions and "the name appears" then means "the global is read".
+  //     That is sound against erasure and UNSOUND against staleness, measured both ways: the live
+  //     `new Set<string>()` exploit sat in the source with `npm run build` exiting 0 and the gate
+  //     green (`tsc -b` is timestamp-driven, so a mtime-preserving restore makes it a no-op), and
+  //     the same guard fired "stale" on a freshly built tree. mtime is not a remedy — it was
+  //     measured pointing the wrong way in exactly that case. Scanning the source removes the
+  //     question rather than guarding it: there is no second artifact to disagree with.
+  //     The cost is that TYPE POSITIONS are now visible, and they are pinned below by name AND
+  //     line, so a real read that happens to share a name with one still fails.
   //
   // WHAT THIS STILL DOES NOT COVER, in the name and here: an INSTANCE-METHOD read such as
-  // `out.join("")`, `open.depthOf.get(…)` or `seen.has(…)`. Those resolve through a receiver, not
-  // a global name, so no text scan can attribute them — three reviewers measured three colliding.
-  // Tracked by #1131 with the sound instrument; note that issue's stated remedy needs revising,
-  // because TypeScript 7 ships no compiler API (`import * as ts` exposes `version` and nothing
-  // else), so an AST-based scan is not available in this toolchain today.
-  const emitted = readFileSync(
-    new URL("../dist/diagnostics.js", import.meta.url),
-    "utf8",
-  );
+  // `out.join("")`, `open.depthOf.get(…)` or `seen.has(…)`, which resolves through a receiver
+  // rather than a global name; and an arm entered through a trappable `instanceof` (`OLTurtle`
+  // is the last one). Three reviewers measured three of the first kind colliding. Both are
+  // tracked by #1131 and #1129. TypeScript's own parser IS available for the sound instrument —
+  // not from the root import, which exposes only `version`, but from the `unstable/*` subpaths
+  // this package publishes (`typescript/unstable/ast`, `.../ast/scanner`, `typescript/unstable/sync`
+  // with `Program`/`Checker`/`Symbol`). It is not turnkey: `SyntaxKind.EndOfFileToken` is renamed
+  // `EndOfFile`, so a loop written against the old name never terminates, and template and regex
+  // tokens need the parser's re-scan discipline. It needs a spike, not a rewrite of the plan.
   const source = readFileSync(
     new URL("./diagnostics.ts", import.meta.url),
     "utf8",
@@ -687,14 +692,11 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   // region and are dense with the very names being looked for, so they fire. The region can only
   // over-extend across lines matching the capture grammar, which are captures by definition. Do
   // not "fix" the floor and mistake it for the guard.
-  const lines = emitted.split(/\r?\n/);
+  const lines = source.split(/\r?\n/);
   const first = lines.findIndex((line) =>
     line.startsWith("const dictIsGenuine ="),
   );
-  assert.ok(
-    first > 0,
-    "the capture block must be findable in the emitted file",
-  );
+  assert.ok(first > 0, "the capture block must be findable");
   let last = first;
   while (/^const \w+ = [\w.]+;$/.test(lines[last + 1])) {
     last += 1;
@@ -703,23 +705,10 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
     last - first >= 10,
     `the capture block must still be a run of captures; found ${last - first + 1}`,
   );
-  // Staleness guard: a scan of `dist` proves nothing if `dist` predates the source. Every capture
-  // name in the source must appear in the emitted block, and the counts must agree.
-  const sourceCaptures = source
-    .split(/\r?\n/)
-    .filter((line) => /^const \w+ = [\w.]+;$/.test(line))
-    .map((line) => line.split(" ")[1]);
-  const emittedCaptures = lines
-    .slice(first, last + 1)
-    .map((line) => line.split(" ")[1]);
-  assert.deepEqual(
-    emittedCaptures,
-    sourceCaptures,
-    "dist/diagnostics.js is stale — rebuild before trusting this scan",
-  );
-  const outside = [...lines.slice(0, first), ...lines.slice(last + 1)].join(
-    "\n",
-  );
+  // Blank the block in place rather than splicing it out, so a finding's index is still its line.
+  const outside = lines
+    .map((line, index) => (index >= first && index <= last ? "" : line))
+    .join("\n");
   // The ALPHABET, derived from the realm. No `^[A-Z]` filter: that silently dropped `parseInt`,
   // `structuredClone` and every other lowercase global intrinsic. No callables-only filter either:
   // that silently dropped `Reflect`, which is a namespace object.
@@ -760,43 +749,108 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   const stripLiterals = (text) => {
     let out = "";
     let index = 0;
+    // A MODE STACK, not a brace counter. Tracking `${…}` by depth alone let a `}` inside a string
+    // end the substitution early: a reviewer measured `` `x ${"}" + String(k)} y` `` swallowing a
+    // live read. Inside a substitution the scanner must be in full code mode — strings, comments
+    // and further templates all nest — so "current construct" is a stack, and that is what makes
+    // the single-pass claim true rather than nearly true.
+    const stack = [];
+    const inside = () =>
+      stack.length > 0 ? stack[stack.length - 1] : undefined;
     while (index < text.length) {
       const here = text[index];
       const next = text[index + 1];
+      if (inside()?.kind === "template") {
+        if (here === "\\") {
+          out += "  ";
+          index += 2;
+          continue;
+        }
+        if (here === "$" && next === "{") {
+          out += "  ";
+          stack.push({ kind: "code", depth: 0 });
+          index += 2;
+          continue;
+        }
+        if (here === "`") {
+          out += " ";
+          stack.pop();
+          index += 1;
+          continue;
+        }
+        out += here === "\n" ? "\n" : " ";
+        index += 1;
+        continue;
+      }
       if (here === "/" && next === "/") {
-        while (index < text.length && text[index] !== "\n") index += 1;
+        while (index < text.length && text[index] !== "\n") {
+          out += " ";
+          index += 1;
+        }
         continue;
       }
       if (here === "/" && next === "*") {
+        out += "  ";
         index += 2;
         while (
           index < text.length &&
           !(text[index] === "*" && text[index + 1] === "/")
-        )
+        ) {
+          // Every consumed character becomes a space (newlines kept), so the stripped text has the
+          // SAME LENGTH as the original and a match offset maps back to its exact line. That
+          // invariant is asserted below, because two accounting slips shifted it silently.
+          out += text[index] === "\n" ? "\n" : " ";
           index += 1;
+        }
+        out += "  ";
         index += 2;
         continue;
       }
-      if (here === '"' || here === "'" || here === "`") {
+      // A REGEX LITERAL is the one construct this pass does not model, and a quote inside one would
+      // open a phantom string that swallows the rest of the file — a reviewer measured four variants
+      // hiding a live `String(1)` that way. Rather than grow the lexer, REFUSE: a `/` that is not a
+      // comment and not a division operator fails the test instead of scanning something it cannot
+      // read, turning a silent false negative into a loud one. Division is distinguished by the
+      // preceding token: after a value-ish character `/` divides, otherwise it opens a regex.
+      if (here === "/") {
+        assert.ok(
+          /[\w$)\]]/.test(out.trimEnd().slice(-1)),
+          `this scanner does not model regex literals; found one near "${text.slice(Math.max(0, index - 40), index + 20)}"`,
+        );
+      }
+      if (here === '"' || here === "'") {
+        out += " ";
         index += 1;
         while (index < text.length && text[index] !== here) {
-          // A template's `${…}` holds real code, so it is emitted rather than swallowed.
-          if (here === "`" && text[index] === "$" && text[index + 1] === "{") {
-            index += 2;
-            let depth = 1;
-            while (index < text.length && depth > 0) {
-              if (text[index] === "{") depth += 1;
-              else if (text[index] === "}") depth -= 1;
-              if (depth > 0) out += text[index];
-              index += 1;
-            }
-            continue;
+          if (text[index] === "\\") {
+            out += " ";
+            index += 1;
           }
-          if (text[index] === "\\") index += 1;
+          // Always a space, never a newline: a raw line break inside a `'`/`"` string is a syntax
+          // error, so that arm could not be reached by valid input and would be dead code.
+          out += " ";
           index += 1;
         }
+        out += " ";
         index += 1;
         continue;
+      }
+      if (here === "`") {
+        out += " ";
+        stack.push({ kind: "template" });
+        index += 1;
+        continue;
+      }
+      if (here === "{" && inside()?.kind === "code") {
+        inside().depth += 1;
+      } else if (here === "}" && inside()?.kind === "code") {
+        if (inside().depth === 0) {
+          out += " ";
+          stack.pop();
+          index += 1;
+          continue;
+        }
+        inside().depth -= 1;
       }
       out += here;
       index += 1;
@@ -805,9 +859,35 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   };
   const intrinsicReads = (text) =>
     [...stripLiterals(text).matchAll(pattern)].map((match) => match[0]);
+  // The offset→line mapping only works if the strip is LENGTH-PRESERVING, so that is asserted
+  // rather than assumed: two accounting slips (a missing `/*`, a collapsing comment) each shifted
+  // the reported lines silently, and the pinned list below would have absorbed the shift.
+  assert.equal(
+    stripLiterals(outside).length,
+    outside.length,
+    "the strip must preserve length, or a finding's offset no longer names its line",
+  );
+  // TYPE POSITIONS are the price of scanning the source instead of the emitted artifact, and they
+  // are paid visibly: each is pinned by NAME AND LINE, so a real read that happens to share a name
+  // with one of them still fails. Two today. If this list needs an entry you did not add
+  // deliberately, that is a finding, not a formality.
+  //
+  // A false positive here is LOUD — the test names the identifier — and the repair is to rename
+  // the local or pin the annotation, NOT to re-add a filter to the alphabet. The alphabet derives
+  // from the running realm and includes Node's builtin-module names (`path`, `events`, `buffer`),
+  // so a local called `events` in this file would fire. That is the safe direction and the whole
+  // point; six review rounds went into deleting the hand-written filters that hid real reads.
+  const typePositions = [
+    [279, "Map"], // `map as Map<unknown, unknown>`
+    [437, "Map"], // `readonly depthOf: Map<unknown, number>`
+  ];
+  const found = [...stripLiterals(outside).matchAll(pattern)].map((match) => [
+    outside.slice(0, match.index).split("\n").length,
+    match[0],
+  ]);
   assert.deepEqual(
-    intrinsicReads(outside),
-    [],
+    found,
+    typePositions,
     "every global intrinsic on the identity path must be read from the module-load capture block",
   );
   // Instrument control: the scan must be able to see a bare name at all, or an empty result above
@@ -827,10 +907,35 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
         'const v = "a\\" String"; Date;\r\n' +
         "const w = `p " +
         "${" +
-        " {q: Proxy} } r`;",
+        " {q: Proxy} } r`;\r\n" +
+        "const y = `esc \\` still template " +
+        "${" +
+        "Reflect} end`;\r\n" +
+        "const multi = `line one\r\nline two " +
+        "${" +
+        "Number} end`;\r\n" +
+        "const d = total / count; JSON;",
     ),
-    ["String", "Map", "WeakMap", "Boolean", "Date", "Proxy"],
+    [
+      "String",
+      "Map",
+      "WeakMap",
+      "Boolean",
+      "Date",
+      "Proxy",
+      "Reflect",
+      "Number",
+      "JSON",
+    ],
     "a bare name is seen wherever it really is code, and never inside a comment or a literal",
+  );
+  // The regex refusal is LOUD, and that is asserted rather than described. Without it a quote
+  // inside a regex opens a phantom string that swallows the rest of the file — a reviewer measured
+  // four variants hiding a live `String(1)` exactly that way.
+  assert.throws(
+    () => intrinsicReads("const r = /[\"']/; String(1);"),
+    /does not model regex literals/,
+    "a regex literal must fail the scan, not be mis-lexed into silence",
   );
 });
 

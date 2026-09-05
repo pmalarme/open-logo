@@ -588,7 +588,7 @@ function describe(value: object): Described | undefined {
     }
     return { kind: "container", head: `arr${value.length}(`, children };
   }
-  if (value instanceof OLDict) {
+  if (dictIsGenuine(value)) {
     // Read the OWN DATA PROPERTY, not a method and not a trapped read, and read the collection it
     // holds through a CAPTURED INTRINSIC rather than through dispatch. Three mutable slots sit on
     // this path and each was measured producing a collision: the instance's own `keys()`, the
@@ -602,9 +602,13 @@ function describe(value: object): Described | undefined {
     // identity, one silently discarded, in the accessibility path. Measured: with the data private,
     // two records differing only in their declared fields both cloned to `{"type":"p"}` and the
     // screen-reader announcer stopped reporting the change.
-    if (!dictIsGenuine(value)) {
-      return undefined;
-    }
+    //
+    // The arm is ENTERED on the brand, not on `instanceof`. `instanceof` consults
+    // `OLDict[Symbol.hasInstance]`, which is writable: trapping it to `() => false` made two
+    // IDENTICAL dicts split, because the value skipped this arm and took a per-reference opaque
+    // serial from the plain-object arm — the same screen-reader regression the `Map` arm's own
+    // entry test was changed to avoid, one binding over. The brand is unforgeable and total, so it
+    // is both the entry test and the guard.
     const snapshot = mapEntrySnapshot(dataProperty(value, "entries"));
     for (const [canonicalKey, entry] of snapshot) {
       if (typeof entry !== "object" || entry === null) {
@@ -622,10 +626,8 @@ function describe(value: object): Described | undefined {
     }
     return { kind: "container", head: `dict${snapshot.length}(`, children };
   }
-  if (value instanceof OLRecord) {
-    if (!recordIsGenuine(value)) {
-      return undefined;
-    }
+  if (recordIsGenuine(value)) {
+    // Entered on the brand rather than `instanceof`, for the reason given in the dict arm above.
     const type = dataProperty(value, "type");
     if (typeof type !== "string") {
       // Record type `1` and record type `"1"` are different types; `String()` made them one.
