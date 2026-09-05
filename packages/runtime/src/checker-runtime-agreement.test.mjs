@@ -18,10 +18,16 @@
 // message IS asserted byte-for-byte, because `spec/error-model.md:132` makes naming the boundary
 // and naming the fix normative and one wording is what the learner must get from either stage.
 //
-// **The sanctioned divergences get their own test at the bottom** rather than being quietly omitted.
+// **The sanctioned divergence gets its own test at the bottom** rather than being quietly omitted.
 // `spec/execution-model.md:416-424` requires the checker to be *conservative*: it reports a name
-// only when no execution order could make it visible, so it is silent in cases the evaluator still
-// fails on. Pinning those keeps the asymmetry deliberate instead of accidental.
+// only when no execution order could make it visible, so it is silent in a case the evaluator still
+// fails on — a read before a LATER `global` declaration, where `execute()` genuinely raises
+// `ol-undefined-var` (measured). Pinning it keeps the asymmetry deliberate instead of accidental.
+//
+// A deferred handler reading a name bound later LOOKS like a second divergence and is not: both
+// stages are clean. Its test says so, and says why a clean run there proves nothing — the handler
+// never fires under an empty host. Every run-stage claim in this file was audited for whether the
+// code it cites actually ran; "`execute()` is clean" is only evidence when something executed.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -285,20 +291,26 @@ test("an EAGER block's read of a name its enclosing scope binds later: both stag
   );
 });
 
-test("SANCTIONED DIVERGENCE: a DEFERRED handler's read of a name bound later — the checker is silent, the runtime raises", () => {
-  // The divergence that survives, and the one the spec actually requires. A handler fires after the
-  // top-level statement that binds the name (`spec/execution-model.md:401-403`), so the checker MUST
-  // NOT report it (`:423-424`). `execute()` still raises here only because this program's handler
-  // never gets to fire late enough under an empty host — the *language* rule is that a handler sees
-  // the binding whenever it fires, which is exactly why a static reporter cannot claim otherwise.
+test("a DEFERRED handler's read of a name bound later: the checker is silent, and so is the runtime", () => {
+  // This sits beside the divergence above because it is the case people expect to be one, and is
+  // not. The checker MUST NOT report it (`spec/execution-model.md:401-403,423-424`: a handler sees
+  // the binding whenever it fires), and `execute()` does not report it either — but for a reason
+  // that proves nothing: an `on_click` handler needs host input, so under an empty host it never
+  // fires at all. **Zero print events, measured.** A clean run here is vacuous, so this test asserts
+  // only the check stage and says so, rather than citing runtime agreement it has not earned.
+  //
+  // Round 1 shipped this as a "SANCTIONED DIVERGENCE ... the runtime raises", which was simply
+  // false. `rubber-duck` caught the same shape in two fixture descriptions; auditing every
+  // run-stage claim in this slice for whether the cited code actually ran is what turned it up here.
   const source = "on_click [ print :later ]\n:later = 1\n";
 
   assert.deepEqual(checkFindings(source), []);
+  assert.deepEqual(runFindings(source), []);
 });
 
 test("NON-DIVERGENCE control: within ONE scope's straight-line list the two agree exactly", () => {
-  // The paired positive control for the two divergences above. Move the same read into the root
-  // scope's own statement list and the checker reports it, because no execution order could make it
+  // The paired positive control for the divergence above. Move the same read into the root scope's
+  // own statement list and the checker reports it, because no execution order could make it
   // visible there (`spec/execution-model.md:416-419`).
   assertAgree("straight-line root read", "print :later\n:later = 1\n", {
     code: "ol-undefined-var",

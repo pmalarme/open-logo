@@ -564,7 +564,7 @@ test("a ROOT-level `global` is a legal declaration, and a read above it is still
 // Raised as a blocking finding by the `rubber-duck` reviewer in #825's review gate and **taken**:
 // an earlier revision treated every enclosing scope as position-blind, which silently missed the
 // eager case `spec/tooling.md:184` names at Layer 2. A second round corrected the classification
-// itself — `ask`/`each`/`tell` bodies run where they are written and are **eager**; only the
+// itself — `ask`/`each` bodies run where they are written and are **eager**; only the
 // Interaction & Events handler heads defer, and the checker reads them from `signatures.ts`'s
 // registry rather than keeping a second list.
 //
@@ -591,8 +591,13 @@ test("an EAGER control body reads its enclosing scope only as far as that scope 
 
 test("a DEFERRED handler block sees its enclosing scope in full, whenever it fires", () => {
   // `spec/execution-model.md:401-403`. Reporting these would be a false positive on conforming
-  // programs — the handler runs after the declaration line, not before it. Measured: `execute()` is
-  // clean on all three.
+  // programs: the handler COULD fire after the declaration line, and `:423-424` forbids reporting a
+  // name a deferred handler could reach — "could", not "does", is the operative word.
+  //
+  // Do NOT reach for `execute()` as corroboration here. None of these three handlers fires under an
+  // empty host: `on_click` and `on_key` need host input, and `every` needs a `wait` to have any
+  // elapsed time to fire in. A clean run is vacuous, and citing it would be evidence-shaped noise.
+  // The claim is a check-stage one and is asserted as such.
   for (const source of [
     "on_click [ print :later ]\n:later = 1\n",
     "every 5 [ print :later ]\n:later = 1\n",
