@@ -1,0 +1,166 @@
+{
+  "description": "The two rules meeting: `local` shadows the `global` for the rest of the block (spec/execution-model.md:503-506), but a procedure body sees only its parameters, its own bindings, and names declared `global` (spec/execution-model.md:389-394) — and what `global count` names is the root binding (spec/execution-model.md:576-583), never the block's shadow. So the block prints `42`, `peek` called from inside that same live block prints `1`, and the root binding is still `1` afterwards. A dynamic-scoping intuition predicts `42` for the middle line, which is exactly the reading this fixture exists to refute.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [5, 1],
+        "end": [9, 2]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [6, 3],
+        "end": [6, 19]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [7, 3],
+        "end": [7, 15]
+      },
+      "payload": {
+        "values": [42]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [8, 3],
+        "end": [8, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [8, 3],
+        "end": [8, 7]
+      },
+      "payload": {
+        "name": "peek",
+        "args": []
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [3, 3],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [3, 3],
+        "end": [3, 15]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [8, 3],
+        "end": [8, 7]
+      },
+      "payload": {
+        "name": "peek",
+        "result": null
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [10, 1],
+        "end": [10, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-shadow-is-invisible-to-a-procedure-it-calls",
+        "start": [10, 1],
+        "end": [10, 13]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}

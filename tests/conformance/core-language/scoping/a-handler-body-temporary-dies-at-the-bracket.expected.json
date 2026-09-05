@@ -1,0 +1,110 @@
+{
+  "description": "A handler block is a block scope like any other (spec/execution-model.md:367-369), so a name born inside one goes out of scope at the `]` and no code outside can name that binding (spec/execution-model.md:603-605) — `print :tmp` after the firing raises `ol-undefined-var` (spec/error-model.md:102). A handler INVOCATION is a separate, deferred instruction (spec/execution-model.md:657-660), so the scope it runs in is entered per firing, not shared with the scope that registered it. Added because mutation testing measured that making a handler invocation reuse its captured scope instead of entering a fresh one left the whole conformance corpus green: registration-time capture was pinned in several fixtures, invocation-time scoping in none.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [1, 11],
+        "end": [1, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [2, 1],
+        "end": [2, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-body-temporary-dies-at-the-bracket",
+        "start": [3, 7],
+        "end": [3, 11]
+      },
+      "params": {
+        "name": "tmp"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

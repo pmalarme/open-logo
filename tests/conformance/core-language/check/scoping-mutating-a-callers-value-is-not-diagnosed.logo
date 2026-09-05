@@ -1,0 +1,13 @@
+define push_last :items
+  add 99 to :items
+end
+struct point [ x y ]
+define move_x :p
+  :p.x = 99
+end
+:numbers = [ 1 2 ]
+push_last :numbers
+:q = point 1 2
+move_x :q
+print :numbers
+print :q.x

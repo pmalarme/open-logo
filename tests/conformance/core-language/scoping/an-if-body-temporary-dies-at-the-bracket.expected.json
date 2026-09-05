@@ -1,0 +1,82 @@
+{
+  "description": "Block lifetime is a property of EVERY block, not of `repeat` alone: spec/execution-model.md:367-369 makes a block scope out of each entry into \"a control-form body, a handler block, or a comprehension body\". The `if` body binds and reads `:inside` happily — the first `print` reports `1`, which is what proves the body ran and the binding existed — and the read after the `]` finds nothing, `ol-undefined-var` (spec/error-model.md:102). Without the inner `print` a fixture like this would also pass if the body had never executed at all.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [2, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [1, 12],
+        "end": [1, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [1, 26],
+        "end": [1, 39]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [1, 26],
+        "end": [1, 39]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [2, 1],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/an-if-body-temporary-dies-at-the-bracket",
+        "start": [2, 7],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "inside"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

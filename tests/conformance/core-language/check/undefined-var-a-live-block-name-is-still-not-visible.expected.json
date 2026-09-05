@@ -1,0 +1,21 @@
+{
+  "description": "The semantic-stage half of `core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it`. The checker resolves names lexically (spec/execution-model.md:416-424), so the fact that the `repeat` body is still running when it calls `helper` is not a fact it has or needs: `:temp` is bound only by a block scope, which encloses no procedure body, so the read is `ol-undefined-var` and not `ol-var-not-visible` (spec/error-model.md:102,132). The two fixtures together are what keeps issue #825's checker from disagreeing with the runtime about which code this program gets.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-a-live-block-name-is-still-not-visible",
+        "start": [2, 9],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "temp"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

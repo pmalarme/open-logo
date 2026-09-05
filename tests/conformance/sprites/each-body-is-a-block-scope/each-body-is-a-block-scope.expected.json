@@ -1,0 +1,210 @@
+{
+  "description": "The `each` half of the same rule (spec/execution-model.md:664-666,603-605): the body runs once per addressed turtle, and the name it binds belongs to that body's own scope, so the read after the `]` raises `ol-undefined-var` (spec/error-model.md:102). Written as a separate fixture from its `ask` sibling because execution stops at the first error, so one program cannot assert both. `sprites/addressing-each-narrows-and-restores` pins how `each` narrows the ADDRESSED SET; nothing pinned what it does to names.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 8],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 8],
+        "end": [4, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [4, 1],
+        "end": [4, 18]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [5, 1],
+        "end": [5, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/each-body-is-a-block-scope/each-body-is-a-block-scope",
+        "start": [5, 7],
+        "end": [5, 11]
+      },
+      "params": {
+        "name": "tmp"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

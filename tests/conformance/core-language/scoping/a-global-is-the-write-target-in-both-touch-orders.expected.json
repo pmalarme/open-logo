@@ -1,0 +1,316 @@
+{
+  "description": "\"Visibility decides which binding an assignment reaches, never statement order\" (spec/execution-model.md:483-490), pinned with both touch orders against ONE global and interleaved: `bump` reads before it writes, `reset` only ever writes, and the program prints `2`, `0`, `1`. Each of the three reads a different way the write could go wrong — `2` that `bump`'s read-first writes accumulate across calls, `0` that `reset`'s write-only touch reached the same binding rather than a discarded procedure-local, and `1` that the global is still shared and writable AFTER a write-only procedure has touched it. Measured: under an unqualified \"an assignment inside a procedure creates a local\" rule the program prints `0`, `0`, `0` — every one of the three collapses at once, which is why the three values are asserted rather than the final one.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [5, 1],
+        "end": [7, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [8, 1],
+        "end": [8, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [8, 1],
+        "end": [8, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [8, 1],
+        "end": [8, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [9, 1],
+        "end": [9, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [9, 1],
+        "end": [9, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "args": []
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [9, 1],
+        "end": [9, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [10, 1],
+        "end": [10, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [10, 1],
+        "end": [10, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [11, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [11, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "name": "reset",
+        "args": []
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [6, 3],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [11, 1],
+        "end": [11, 6]
+      },
+      "payload": {
+        "name": "reset",
+        "result": null
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [12, 1],
+        "end": [12, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [12, 1],
+        "end": [12, 13]
+      },
+      "payload": {
+        "values": [0]
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [13, 1],
+        "end": [13, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [13, 1],
+        "end": [13, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "args": []
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [13, 1],
+        "end": [13, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [14, 1],
+        "end": [14, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-global-is-the-write-target-in-both-touch-orders",
+        "start": [14, 1],
+        "end": [14, 13]
+      },
+      "payload": {
+        "values": [1]
+      }
+    }
+  ],
+  "diagnostics": []
+}
