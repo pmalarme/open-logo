@@ -66,7 +66,7 @@ import { walk } from "./ast.js";
  * source happened to carry an orphan at the same line and column — demonstrated, not inferred, and
  * a supported input shape rather than a hypothetical: `applyOneFaultRules` is exported precisely so
  * a caller assembling findings across documents can apply it (`index.ts`), and
- * `spec/error-model.md:144-147` makes a span naming another document "an ordinary case".
+ * `spec/error-model.md:126` says either span "MAY name a different source document, so an imported module's declaration is an ordinary case".
  *
  * `@openlogo/core`'s `faultIdentity` already keys de-duplication on the document; this is the
  * precedence half of *one fault, one diagnostic* agreeing with it.

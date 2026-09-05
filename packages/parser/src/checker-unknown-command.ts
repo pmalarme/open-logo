@@ -213,20 +213,42 @@ function messageFor(name: string, suggestion: string | undefined): string {
  *
  * ## Why a bound resolver, and not a predicate or the raw set
  *
- * The visible set stays this module's representation: a caller cannot hold it, mutate it, or ask
- * it about a program other than the one it was built from. But it must be built **once per run**,
- * not once per call. The runtime asks `isVisible` on the SUCCESS path of every executing statement,
- * so a per-call rebuild — two `walk()` passes over the whole AST each time — made execution
- * O(statements × program size). Measured on a `repeat 20000` loop: 122ms with no procedure
- * declarations, 365ms with eighty unused ones, i.e. a learner's drawing getting slower with every
- * `define` they add to the worksheet. Binding once recovered it (658ms → 143ms on a 20-procedure
- * program) and stopped it scaling with declaration count at all.
+ * The visible set stays this module's representation — a caller receives answers, never the set —
+ * and the resolver is bound to one program, so it cannot be asked about a different one. But it
+ * must be built **once per run**, not once per call. The runtime asks `isVisible` on the SUCCESS
+ * path of every executing statement, so a per-call rebuild — two `walk()` passes over the whole AST
+ * each time — made execution **O(statements × program size)**: a learner's drawing getting slower
+ * with every `define` they add to the worksheet.
+ *
+ * The shape is stated rather than the milliseconds, which are hardware-dependent, unreproducible
+ * and ungated (two reviewers' absolute figures for the same benchmark differed by 13×). Binding
+ * once makes cost **flat in declaration count**; a simulated per-call rebuild is roughly 24× slower
+ * at eighty declarations than at none, and that ratio is what reproduces.
+ *
+ * ## The snapshot cannot go stale, and that is structural rather than lucky
+ *
+ * A bound resolver is a cache, so the question is what invalidates it. Nothing can: the callable
+ * name space is **closed by Phase 1**. `@openlogo/runtime`'s `registerDeclarations` holds the only
+ * two writes to the procedure and struct registries in that package, and it runs to completion
+ * before the environment — and therefore this resolver — is built. A failed registration returns
+ * before the environment exists at all, so a partially-registered program never reaches one.
+ *
+ * Nesting and source order cannot separate the two either, because `registerDeclarations` and
+ * {@link collectVisibleNames} both `walk()` the **whole** program: measured, a `define` inside a
+ * `when` handler, a `define` inside another procedure, a `struct` inside a handler, and a call
+ * written before its own `define` all resolve. Agreement by construction, not by coincidence.
+ *
+ * **The falsifier, with a tripwire.** A future Modules `import` would be the first thing able to
+ * introduce a callable after Phase 1, and would need this snapshot revisited. Today `import`,
+ * `alias` and `export` are reserved words with no grammar form (`spec/built-in-names.json` gives
+ * them `registries: ["reserved"]`), and Modules and Localization contribute zero names — so such a
+ * feature must add a grammar form first, which is a change that lands in front of this comment.
  */
 export interface NameResolver {
   /** Is `name` callable in the bound program under the bound profile set? */
-  isVisible(name: string): boolean;
+  readonly isVisible: (name: string) => boolean;
   /** The did-you-mean suggestion for an unresolvable `name`, or `undefined` when none is close. */
-  suggestionFor(name: string): string | undefined;
+  readonly suggestionFor: (name: string) => string | undefined;
 }
 
 /** Build a {@link NameResolver}. The visible and declared sets are computed once, here. */
@@ -252,8 +274,10 @@ export function unknownCommandRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const visible = collectVisibleNames(program, profiles);
-  const declared = collectDeclaredNames(program);
+  // Through the same resolver `@openlogo/runtime` uses. The rule that establishes "one producer"
+  // should be the first thing consuming it — hand-composing the same three helpers here cannot
+  // drift today, but it is a second assembly of the judgement this file exists to centralise.
+  const names = createNameResolver(program, profiles);
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -269,11 +293,11 @@ export function unknownCommandRule(
       return;
     }
     const lower = raw.toLowerCase();
-    if (OPERATOR_CALLEES.has(lower) || visible.has(lower)) {
+    if (OPERATOR_CALLEES.has(lower) || names.isVisible(lower)) {
       return;
     }
 
-    const suggestion = bestSuggestion(lower, visible, declared);
+    const suggestion = names.suggestionFor(lower);
     // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be the
     // diagnostic's identity (`spec/error-model.md:255-260`): `Mystery`, `MYSTERY`, and `mystery`
     // are one absent callable and must report one `params.name`. Emit the case-folded resolution
