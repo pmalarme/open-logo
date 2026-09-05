@@ -49,7 +49,10 @@
  * visible, where this module answers "what is visible *now*". The two therefore agree exactly within
  * one scope's straight-line statement list and diverge only where the spec says they may
  * (`spec/execution-model.md:416-424`). Keep them in step: this module's `findVisibleFrame` and the
- * checker's scope walk are two encodings of the same four bullet points above.
+ * checker's scope walk are two encodings of the same four bullet points above, and
+ * `checker-runtime-agreement.test.mjs` in this package is what holds them there — it runs `check()`
+ * and `execute()` over one corpus and asserts they report the same code and params wherever the spec
+ * says they must agree, plus pins the divergences it says they may have.
  */
 
 import type { OLValue } from "@openlogo/core";

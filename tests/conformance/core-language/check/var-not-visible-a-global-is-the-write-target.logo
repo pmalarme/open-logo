@@ -1,0 +1,4 @@
+global count = 5
+define reset
+  :count = 0
+end

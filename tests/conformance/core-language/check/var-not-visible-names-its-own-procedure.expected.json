@@ -1,0 +1,30 @@
+{
+  "description": "ol-var-not-visible (issue #825): the same fault in two differently-named procedures produces two diagnostics, each naming ITS OWN procedure. The boundary is the point of the message (spec/error-model.md:132 — the message MUST name it, and a generic \"undefined variable\" is not sufficient for this code), so a shared `procedure` param, or none, would leave both learners reading the same unhelpful sentence about a variable they can see two lines above.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-names-its-own-procedure",
+        "start": [3, 9],
+        "end": [3, 15]
+      },
+      "params": { "name": "count", "procedure": "alpha" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-names-its-own-procedure",
+        "start": [6, 9],
+        "end": [6, 15]
+      },
+      "params": { "name": "count", "procedure": "beta" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

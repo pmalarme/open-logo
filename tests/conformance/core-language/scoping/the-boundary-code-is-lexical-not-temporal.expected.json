@@ -66,7 +66,7 @@
         "name": "later",
         "procedure": "peek"
       },
-      "message": ":later is not defined inside peek — a procedure only sees its own inputs and names declared global, so declare it at the top level with global later = ... to share it.",
+      "message": ":later is not defined inside peek. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global later = (its starting value).",
       "stage": "runtime",
       "severity": "error"
     }

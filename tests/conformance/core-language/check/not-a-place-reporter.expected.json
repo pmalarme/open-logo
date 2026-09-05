@@ -1,5 +1,5 @@
 {
-  "description": "ol-not-a-place (issues #79/#113): the reporter `first` used as an assignment target (`first :x = 5`) is not an assignable place. The parser recognizes the assignment structurally so the semantic checker can flag the non-place target at stage=semantic, with the FULL target surface text — sliced verbatim from the source span, falling back to AST reconstruction only when no source text is supplied — carried as the `text` param, the exact shape spec/tooling.md:216-222's worked example mandates (spec/error-model.md, spec/grammar.md:260). The second line assigns `:x` so this fixture stays focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the same `:x` read.",
+  "description": "ol-not-a-place (issues #79/#113): the reporter `first` used as an assignment target (`first :x = 5`) is not an assignable place. The parser recognizes the assignment structurally so the semantic checker can flag the non-place target at stage=semantic, with the FULL target surface text — sliced verbatim from the source span, falling back to AST reconstruction only when no source text is supplied — carried as the `text` param, the exact shape spec/tooling.md:216-222's worked example mandates (spec/error-model.md, spec/grammar.md:260). The FIRST line assigns `:x` so this fixture stays focused on `ol-not-a-place` alone, without also tripping `ol-undefined-var` on the same `:x` read. It has to come first, and that ordering is the fixture's only tie to issue #825: since the checker resolves a scope's own straight-line statements in order (spec/execution-model.md:416-419), the binding must already have been made where the read is, exactly as it must at run time.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -8,8 +8,8 @@
       "code": "ol-not-a-place",
       "source_span": {
         "document": "core-language/check/not-a-place-reporter",
-        "start": [1, 1],
-        "end": [1, 9]
+        "start": [2, 1],
+        "end": [2, 9]
       },
       "params": { "text": "first :x" },
       "stage": "semantic",

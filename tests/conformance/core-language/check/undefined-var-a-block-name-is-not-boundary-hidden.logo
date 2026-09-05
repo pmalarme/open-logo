@@ -1,0 +1,4 @@
+repeat 1 [ :temp = 5 ]
+define helper
+  print :temp
+end

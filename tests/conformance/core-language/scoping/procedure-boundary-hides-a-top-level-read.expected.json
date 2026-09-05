@@ -90,7 +90,7 @@
         "name": "count",
         "procedure": "draw_steps"
       },
-      "message": ":count is not defined inside draw_steps — a procedure only sees its own inputs and names declared global, so declare it at the top level with global count = ... to share it.",
+      "message": ":count is not defined inside draw_steps. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global count = (its starting value).",
       "stage": "runtime",
       "severity": "error"
     }

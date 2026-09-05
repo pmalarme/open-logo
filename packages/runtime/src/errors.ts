@@ -847,6 +847,12 @@ export const runtimeDiag = {
    * `stage: "runtime"` for the same reason as `ol-not-a-place`/`ol-repcount-outside-repeat`:
    * `execute()` never runs `check()`, so the runtime needs its own guard for the same defect and
    * must report it under the same code and params.
+   *
+   * The prose is **byte-identical** to the checker's `varNotVisibleMessage`
+   * (`packages/parser/src/checker-undefined-var.ts`), which is where the reasoning behind each of
+   * its three sentences is recorded, and which
+   * `packages/runtime/src/checker-runtime-agreement.test.mjs` asserts. Change one and you must
+   * change the other; the agreement test is what stops them drifting.
    */
   varNotVisible(
     source_span: SourceSpan,
@@ -857,7 +863,7 @@ export const runtimeDiag = {
       "ol-var-not-visible",
       source_span,
       { name: resolvedName, procedure: params.procedure },
-      `:${resolvedName} is not defined inside ${params.procedure} — a procedure only sees its own inputs and names declared global, so declare it at the top level with global ${resolvedName} = ... to share it.`,
+      `:${resolvedName} is not defined inside ${params.procedure}. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global ${resolvedName} = (its starting value).`,
     );
   },
 
