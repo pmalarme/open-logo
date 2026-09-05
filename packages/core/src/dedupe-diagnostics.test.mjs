@@ -378,3 +378,122 @@ test("an array hole is not a stored undefined", () => {
   const sparse = [,];
   assert.equal(survivors(sparse, [undefined]), 2);
 });
+
+test("a registered symbol is identified by its key, not by a weak-map slot", () => {
+  // `Symbol.for("x")` cannot be a `WeakMap` key — it throws `TypeError: Invalid value used as weak
+  // map key` — and it is globally identified by its key anyway, so two of them ARE one symbol.
+  assert.equal(
+    survivors(Symbol.for("ol-test-x"), Symbol.for("ol-test-x")),
+    1,
+    "two Symbol.for with the same key are the same symbol",
+  );
+  assert.equal(survivors(Symbol.for("ol-test-x"), Symbol.for("ol-test-y")), 2);
+  assert.equal(
+    survivors(Symbol.for("ol-test-x"), Symbol("ol-test-x")),
+    2,
+    "a registered symbol is not the unregistered one that prints alike",
+  );
+});
+
+test("an object is structural only when its own properties describe it safely", () => {
+  // Prototype alone was not enough, and all three of these were measured: symbol-keyed and
+  // non-enumerable properties are invisible to `Object.keys`, so objects differing only in one
+  // COLLIDED; and an enumerable getter that raises made de-duplication itself THROW.
+  const withSymbolKey = (marker) => {
+    const object = { a: 1 };
+    object[Symbol("s")] = marker;
+    return object;
+  };
+  assert.equal(
+    survivors(withSymbolKey(1), withSymbolKey(2)),
+    2,
+    "a symbol-keyed property is part of the value",
+  );
+
+  const withHidden = (marker) => {
+    const object = { a: 1 };
+    Object.defineProperty(object, "hidden", {
+      value: marker,
+      enumerable: false,
+    });
+    return object;
+  };
+  assert.equal(
+    survivors(withHidden(1), withHidden(2)),
+    2,
+    "a non-enumerable property is part of the value",
+  );
+
+  const throwingGetter = {
+    get boom() {
+      throw new Error("this getter must never be called");
+    },
+  };
+  assert.throws(
+    () => throwingGetter.boom,
+    /must never be called/,
+    "the hazard is real: reading this property raises",
+  );
+  assert.equal(
+    survivors(throwingGetter, { a: 1 }),
+    2,
+    "an accessor is never invoked, so de-duplication cannot be made to throw",
+  );
+
+  const throwingElement = [];
+  Object.defineProperty(throwingElement, 0, {
+    get() {
+      throw new Error("this element getter must never be called");
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  assert.throws(
+    () => throwingElement[0],
+    /must never be called/,
+    "the same hazard, in an array slot",
+  );
+  assert.equal(
+    survivors(throwingElement, [1]),
+    2,
+    "an array of accessors is opaque too — the risk is identical",
+  );
+
+  // An array can also carry properties beside its indices, and they are as invisible to a
+  // length-and-index walk as a symbol key is to `Object.keys`.
+  const arrayWithSymbolKey = (marker) => {
+    const array = [1];
+    array[Symbol("s")] = marker;
+    return array;
+  };
+  assert.equal(
+    survivors(arrayWithSymbolKey(1), arrayWithSymbolKey(2)),
+    2,
+    "a symbol-keyed property on an array is part of the value",
+  );
+
+  const arrayWithNamedProperty = (marker) => {
+    const array = [1];
+    array.label = marker;
+    return array;
+  };
+  assert.equal(
+    survivors(arrayWithNamedProperty("a"), arrayWithNamedProperty("b")),
+    2,
+    "a named own property on an array is part of the value",
+  );
+});
+
+test("the ordinary shapes diagnostics really carry are still structural", () => {
+  // The domain restriction must not push a normal `params` value onto the opaque path, where two
+  // separately-built but equal spans would false-split into two findings.
+  assert.equal(
+    survivors(
+      { document: "d.logo", start: [1, 1], end: [1, 2] },
+      { end: [1, 2], start: [1, 1], document: "d.logo" },
+    ),
+    1,
+    "an `original_span` built in a different key order is one fault",
+  );
+  assert.equal(survivors({ a: 1 }, { a: 2 }), 2);
+});

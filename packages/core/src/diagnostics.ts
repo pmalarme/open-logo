@@ -169,19 +169,21 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  *   spec's. (An earlier draft of this comment cited the spec for the second claim as well. It
  *   resolved and did not support it, which is the failure mode `npm run spec-citations` prints that
  *   it cannot see.)
- * - **Total, including deep and cyclic values.** The traversal is **iterative over an explicit
- *   stack**, so it does not consume the host call stack. Recursion failed twice here: on
- *   `:x = []  add :x to :x  forward :x`, whose cycle looped forever, and then on a merely *deep*
- *   value — ~1,500 nested lists, which a program can build — where the `RangeError` surfaced as
- *   `ol-limit` in place of the `ol-type` the program was owed. A cycle is emitted as a
- *   back-reference to the depth of the value it revisits.
+ * - **Total, including deep, wide and cyclic values.** The traversal is **iterative over an explicit
+ *   stack**, so it does not consume the host call stack — neither by depth (~1,500 nested lists once
+ *   raised `RangeError`, surfacing as `ol-limit` in place of the `ol-type` the program was owed) nor
+ *   by width (`push(...children)` passes every element as an argument and threw at ~150,000). A
+ *   cycle is emitted as a back-reference to the depth of the value it revisits.
  *
- * `params` is `Record<string, unknown>`, not `OLValue`, so this is deliberately **total over
- * anything a host can put there** — including a `bigint`, which `JSON.stringify` throws on. An
- * exotic value gets its type tag and its `String()` form rather than an exception. An earlier draft
- * argued the opposite, that a `bigint` arm would be unreachable because `OLValue` has none; that
- * reasoned from the wrong type, and the reachable consequence was a throw inside the component
- * whose job is deciding which diagnostics survive.
+ * The value **domain is bounded**, not universal. `params` is typed `Record<string, unknown>`, but
+ * the values diagnostics actually carry are `OLValue`s, spans, words and numbers, and only those are
+ * described structurally. Everything else — a `Symbol`, a function, a `Date`, a `Map`, an object with
+ * a symbol key, a non-enumerable slot or an accessor — takes an **opaque per-instance identity**.
+ * That is conservative in the safe direction: two *equal* exotic values false-split into two
+ * findings, which a reader can see, rather than colliding, which nobody can. Describing every host
+ * type structurally would be unbounded work for a domain with no members, and reading unknown
+ * objects through `Object.keys` was measured both colliding (symbol-keyed and non-enumerable
+ * properties are invisible to it) and *throwing* (an enumerable getter that raises).
  */
 /** A string rendered so it cannot be confused with anything around it. */
 function tagged(tag: string, text: string): string {
@@ -205,7 +207,17 @@ function tagged(tag: string, text: string): string {
 const opaqueIdentities = new WeakMap<WeakKey, number>();
 let nextOpaqueIdentity = 0;
 
-function opaqueIdentity(value: WeakKey): string {
+function opaqueIdentity(value: symbol | object): string {
+  // A REGISTERED symbol cannot be a `WeakMap` key — `Symbol.for("x")` throws `TypeError: Invalid
+  // value used as weak map key`. It is also globally identified by its key, so it needs no serial:
+  // two `Symbol.for("x")` are the same symbol, and encoding them alike is correct rather than a
+  // collision.
+  if (typeof value === "symbol") {
+    const registeredKey = Symbol.keyFor(value);
+    if (registeredKey !== undefined) {
+      return tagged("regsym", registeredKey);
+    }
+  }
   const existing = opaqueIdentities.get(value);
   if (existing !== undefined) {
     return `opq${existing};`;
@@ -215,10 +227,62 @@ function opaqueIdentity(value: WeakKey): string {
   return `opq${nextOpaqueIdentity};`;
 }
 
-/** Is `value` a plain `{ … }` object, whose own keys describe it completely? */
-function isPlainObject(value: object): boolean {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+/**
+ * The own entries of `value` when they describe it **completely and safely**, or `undefined` when
+ * it must be treated as opaque.
+ *
+ * Prototype alone is not enough, which three measurements showed: two objects differing only in a
+ * **symbol-keyed** property collided, two differing only in a **non-enumerable** property collided,
+ * and an object with a **throwing getter** made de-duplication itself throw. So a value is
+ * structural only when every own property is an enumerable, string-keyed **data** property. Anything
+ * else — an accessor, a symbol key, a non-enumerable slot — falls to opaque identity, which may
+ * false-split but cannot collide or throw.
+ */
+function structuralEntries(value: object): [string, unknown][] | undefined {
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return undefined;
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const entries: [string, unknown][] = [];
+  for (const key of Object.keys(descriptors).sort()) {
+    const descriptor = descriptors[key] as PropertyDescriptor;
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      return undefined;
+    }
+    entries.push([key, descriptor.value]);
+  }
+  return entries;
+}
+
+/**
+ * The elements of `value` when its indices are plain data properties, or `undefined` when it
+ * carries accessors or extra own properties and must be treated as opaque. Holes are reported as
+ * {@link ARRAY_HOLE}.
+ */
+function arrayElements(value: readonly unknown[]): unknown[] | undefined {
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return undefined;
+  }
+  for (const name of Object.getOwnPropertyNames(value)) {
+    if (name !== "length" && !/^\d+$/.test(name)) {
+      return undefined;
+    }
+  }
+  const elements: unknown[] = [];
+  for (let index = 0; index < value.length; index++) {
+    // `index in value` distinguishes a hole from a stored `undefined`: `[, ]` and `[undefined]`
+    // have the same length and the same element reads, and encoded alike they collided.
+    if (!(index in value)) {
+      elements.push(ARRAY_HOLE);
+      continue;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (descriptor === undefined || !("value" in descriptor)) {
+      return undefined;
+    }
+    elements.push(descriptor.value);
+  }
+  return elements;
 }
 
 /** Marks an array hole, so `[, ]` and `[undefined]` do not encode alike. */
@@ -299,23 +363,17 @@ function encodeAtomOrOpen(
   if (value instanceof OLTurtle) {
     return `turtle${value.id};`;
   }
-  const structural =
-    Array.isArray(value) ||
-    value instanceof OLDict ||
-    value instanceof OLRecord ||
-    isPlainObject(value);
-  if (!structural) {
-    return opaqueIdentity(value);
-  }
 
   const children: unknown[] = [];
   let head: string;
   if (Array.isArray(value)) {
+    const elements = arrayElements(value);
+    if (elements === undefined) {
+      return opaqueIdentity(value);
+    }
     head = `arr${value.length}(`;
-    for (let index = 0; index < value.length; index++) {
-      // `index in value` distinguishes a hole from a stored `undefined`: `[, ]` and `[undefined]`
-      // have the same length and the same element reads, and encoded alike they collided.
-      children.push(index in value ? value[index] : ARRAY_HOLE);
+    for (const element of elements) {
+      children.push(element);
     }
   } else if (value instanceof OLDict) {
     // Snapshotted ONCE. Asking `values()` per key rebuilt the whole collection per entry.
@@ -332,10 +390,17 @@ function encodeAtomOrOpen(
       children.push(field, value.get(field));
     }
   } else {
-    const keys = Object.keys(value as Record<string, unknown>).sort();
-    head = `obj${keys.length}(`;
-    for (const key of keys) {
-      children.push(key, (value as Record<string, unknown>)[key]);
+    const prototype = Object.getPrototypeOf(value);
+    const entries =
+      prototype === Object.prototype || prototype === null
+        ? structuralEntries(value)
+        : undefined;
+    if (entries === undefined) {
+      return opaqueIdentity(value);
+    }
+    head = `obj${entries.length}(`;
+    for (const [key, entry] of entries) {
+      children.push(key, entry);
     }
   }
 
