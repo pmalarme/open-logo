@@ -53,7 +53,7 @@ function nearestEnclosingKind(source, callee) {
     [],
     `${source}: must parse cleanly, or the case measures error recovery`,
   );
-  let enclosing;
+  const enclosing = [];
   const visit = (node, parent) => {
     if (node === null || typeof node !== "object") {
       return;
@@ -64,7 +64,7 @@ function nearestEnclosingKind(source, callee) {
     ) {
       // Every row nests the call, so a missing parent is a broken row rather than a top-level
       // case: it fails the comparison below with "undefined" instead of being papered over.
-      enclosing = parent?.kind;
+      enclosing.push(parent?.kind);
     }
     const nextParent = node.kind === undefined ? parent : node;
     for (const value of Object.values(node)) {
@@ -78,7 +78,16 @@ function nearestEnclosingKind(source, callee) {
     }
   };
   visit(ast, null);
-  return enclosing;
+  // Exactly ONE call, so a row naming a kind cannot be answered by a different call to the same
+  // name. Taking the last match would fail *safe* — a second call is necessarily in statement
+  // position, a kind no row claims — but it would fail saying "Program !== IsPredicate" rather
+  // than saying what is actually wrong.
+  assert.equal(
+    enclosing.length,
+    1,
+    `${source}: expected exactly one call to ${callee}, found ${enclosing.length}`,
+  );
+  return enclosing[0];
 }
 
 /** The single diagnostic `source` reports, asserting there is exactly one. */
@@ -471,16 +480,16 @@ test("value position propagates into EVERY nesting form, statically", () => {
       `${source}: this row claims to nest the command in ${form}`,
     );
     const findings = diagnostics(source);
-    const noOutput = findings.filter(
-      (finding) => finding.code === "ol-no-output",
+    // Pinned, not filtered: filtering for `ol-no-output` tolerates extra semantic diagnostics, and
+    // a case reporting only through parse recovery would pass. Measured, every row here produces
+    // exactly this one finding, so pinning the whole list costs nothing and closes the gap.
+    assert.deepEqual(
+      findings.map((finding) => finding.code),
+      ["ol-no-output"],
+      `${form}: exactly one finding, and nothing else`,
     );
     assert.equal(
-      noOutput.length,
-      1,
-      `${form}: expected one ol-no-output, got ${JSON.stringify(findings.map((f) => f.code))}`,
-    );
-    assert.equal(
-      noOutput[0]?.stage,
+      findings[0]?.stage,
       "semantic",
       `${form}: reported at runtime means the program RAN — the gate did not stop it`,
     );

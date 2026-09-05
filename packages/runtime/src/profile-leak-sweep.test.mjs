@@ -356,15 +356,21 @@ function preambleUsesProfileUnderTest({ preamble, profile }) {
   if (preamble === "") {
     return false;
   }
-  // Tokenised, not matched by regex. Escaping the name is not enough: three manifest names end in
-  // `?` (`empty?`, `is_a?`, `member?`), and a trailing `\b` after `?` never matches, because `?`
-  // and the following space are both non-word characters. So the escaped form answered `false` for
-  // exactly the names the escaping was added for — a guard failing silently in the direction it
-  // exists to prevent. Comparing whole tokens has no such edge.
+  // Tokenised and CASE-FOLDED, not matched by regex. Two ways this guard failed silently in the
+  // direction it exists to prevent: escaping is not enough, because three manifest names end in `?`
+  // (`empty?`, `is_a?`, `member?`) and a trailing `\b` can never match after one; and OpenLogo
+  // names are case-insensitive (`FORWARD 100` is a clean program), so a preamble spelling
+  // `NEW_TURTLE` tokenised to something the lowercase manifest never matched — it would have waved
+  // through the exact preamble this guard was built to catch.
   const tokens = new Set(
-    preamble.split(/[^\w?]+/u).filter((word) => word !== ""),
+    preamble
+      .toLowerCase()
+      .split(/[^\w?]+/u)
+      .filter((word) => word !== ""),
   );
-  return profilePrimitiveNames(profile).some((name) => tokens.has(name));
+  return profilePrimitiveNames(profile).some((name) =>
+    tokens.has(name.toLowerCase()),
+  );
 }
 
 /** Effects the form adds beyond its preamble, under `profiles`. */
@@ -437,5 +443,15 @@ test("the preamble guard itself bites", () => {
     }),
     false,
     "`empty?` must not match the shorter word `empt`",
+  );
+  // OpenLogo names are case-insensitive, so an upper-cased preamble is the same program. The
+  // guard was case-blind and would have waved through exactly what it exists to catch.
+  assert.equal(
+    preambleUsesProfileUnderTest({
+      preamble: ":a = NEW_TURTLE\n",
+      profile: "sprites",
+    }),
+    true,
+    "`NEW_TURTLE` is `new_turtle` — `FORWARD 100` is a clean program",
   );
 });

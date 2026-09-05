@@ -40,7 +40,7 @@ function nearestEnclosingKind(source, callee) {
     [],
     `${source}: must parse cleanly, or the case measures error recovery`,
   );
-  let enclosing;
+  const enclosing = [];
   const visit = (node, parent) => {
     if (node === null || typeof node !== "object") {
       return;
@@ -51,7 +51,7 @@ function nearestEnclosingKind(source, callee) {
     ) {
       // Every row nests the call, so a missing parent is a broken row rather than a top-level
       // case: it fails the comparison below with "undefined" instead of being papered over.
-      enclosing = parent?.kind;
+      enclosing.push(parent?.kind);
     }
     const nextParent = node.kind === undefined ? parent : node;
     for (const value of Object.values(node)) {
@@ -65,7 +65,16 @@ function nearestEnclosingKind(source, callee) {
     }
   };
   visit(ast, null);
-  return enclosing;
+  // Exactly ONE call, so a row naming a kind cannot be answered by a different call to the same
+  // name. Taking the last match would fail *safe* — a second call is necessarily in statement
+  // position, a kind no row claims — but it would fail saying "Program !== IsPredicate" rather
+  // than saying what is actually wrong.
+  assert.equal(
+    enclosing.length,
+    1,
+    `${source}: expected exactly one call to ${callee}, found ${enclosing.length}`,
+  );
+  return enclosing[0];
 }
 
 /** The codes `analyze` reports for `source`, in order. */
@@ -136,27 +145,55 @@ test("a command is reported in every nesting the grammar admits as a value posit
   }
 });
 
-test("a Program and a Block are NOT value positions", () => {
-  // The two exclusions the rule is written around. A command standing alone as a statement, or as a
-  // statement of a control body, is correct OpenLogo and must be silent — if these reported, the
+test("a Program, a Block, and an assignment TARGET are not value positions", () => {
+  // The THREE exclusions the rule is written around. A command standing alone as a statement, or as
+  // a statement of a control body, is correct OpenLogo and must be silent — if these reported, the
   // rule would fire on every program ever written.
   assert.deepEqual(codes("forward 1"), []);
   assert.deepEqual(codes("repeat 3 [ forward 1 ]"), []);
   assert.deepEqual(codes("if true [ forward 1 ]"), []);
   assert.deepEqual(codes("define f\n  forward 1\nend\nf"), []);
 
-  // The instrument control: `codes` must be able to return a non-empty list, or the four
-  // assertions above are satisfied by a helper that reports nothing whatever it is given.
+  // The third exclusion, and the only one nothing observed until a QA review measured it. An
+  // assignment TARGET is not a value position — nothing reads a value out of it — so a command
+  // there is `ol-not-a-place`, not `ol-no-output`. Flipping that one token to `true` produced two
+  // findings for one fault, with the wrong one first, while 5,105 tests and 1,004 fixtures stayed
+  // green. It is mechanism 4's promise ("one fault, one diagnostic, the right one first")
+  // implemented inside mechanism 2's checker, and it was the only one of the four with no
+  // assertion at all.
+  //
+  // The comment this test replaces said "the two exclusions". A derived count, wrong, omitting the
+  // non-obvious member — the ungated-prose failure this slice spent itself removing from fixture
+  // descriptions, reproduced in the test written to name the rule.
+  assert.deepEqual(codes("forward 5 = 1"), ["ol-not-a-place"]);
+  assert.deepEqual(codes("(forward 5) = 1"), ["ol-not-a-place"]);
+
+  // The instrument control: `codes` must be able to return a non-empty list, or the assertions
+  // above are satisfied by a helper that reports nothing whatever it is given.
   assert.deepEqual(codes("print forward 1"), ["ol-no-output"]);
 });
 
 test("a reporter in the same positions is silent", () => {
   // The control that makes the cases above mean something: the rule must key on the callee being a
-  // Command, not on the position being nested.
-  assert.deepEqual(codes("print count [1 2]"), []);
-  assert.deepEqual(codes(":x = [ 1 count [1 2] ]"), []);
-  assert.deepEqual(codes("throw count [1 2]"), []);
-  assert.deepEqual(codes("if count [1 2] == 3 [ print 1 ]"), []);
+  // Command, not on the position being nested. Shape-asserted like the positive table, because a
+  // review measured that `if count [1 2] == 3 [ … ]` nests the call in `If`, not `ComparisonChain`
+  // — the same greedy argument binding that made two positive rows measure the wrong thing. An
+  // unlabelled table cannot state a falsehood, but it can quietly cover less than it appears to.
+  for (const [enclosing, source] of [
+    ["Call", "print count [1 2]"],
+    ["ListLit", ":x = [ 1 count [1 2] ]"],
+    ["Throw", "throw count [1 2]"],
+    ["ComparisonChain", ":x = 1 < (count [1 2]) < 3"],
+    ["IsPredicate", ":x = (count [1 2]) is empty"],
+    ["DictLit", ":x = {a: count [1 2]}"],
+  ]) {
+    assert.equal(
+      nearestEnclosingKind(source, "count"),
+      enclosing,
+      `${source}: this row claims to nest the reporter in ${enclosing}`,
+    );
+    assert.deepEqual(codes(source), [], `${enclosing}: a reporter is silent`);
+  }
 });
 
 test("a user procedure with no return is reported at RUNTIME, and that is correct", () => {
