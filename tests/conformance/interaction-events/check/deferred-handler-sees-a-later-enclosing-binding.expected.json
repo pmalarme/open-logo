@@ -1,0 +1,7 @@
+{
+  "description": "NEGATIVE (issue #825): a DEFERRED handler block sees its enclosing scope in FULL, so a read of a name the root scope binds later is not reported. `spec/execution-model.md:401-403` — a binding an enclosing scope creates is visible \"to a deferred handler block whenever the handler fires\" — and `:423-424` forbids the checker reporting across a scope boundary a name a deferred handler could reach. Measured: `execute()` is clean on this program. The contrasting eager case is tests/conformance/core-language/check/undefined-var-eager-block-reads-a-later-enclosing-binding, which is byte-similar and MUST report; a checker that treated both alike satisfies one fixture and breaks the other, which is the point of shipping them as a pair.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

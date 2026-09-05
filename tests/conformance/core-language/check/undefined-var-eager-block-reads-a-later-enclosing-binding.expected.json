@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #825): an EAGER block — a control form's own body, which runs where it is written — sees its enclosing scope only as far as that scope has got. spec/tooling.md:184 names this exact case in the Layer 2 semantic-checking table: \"a block's read of an enclosing binding created later\" is `ol-undefined-var`. No execution order rescues it, because the `repeat` body runs before line 2. Measured: `execute()` raises the same code on this program, so the two stages agree. The contrasting deferred case is tests/conformance/interaction-events/check/deferred-handler-sees-a-later-enclosing-binding, which is byte-similar and must stay CLEAN — the pair is the whole eager/deferred distinction, and it lives in fixtures rather than only in TypeScript so a second implementation inherits it.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-eager-block-reads-a-later-enclosing-binding",
+        "start": [1, 18],
+        "end": [1, 24]
+      },
+      "params": { "name": "later" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

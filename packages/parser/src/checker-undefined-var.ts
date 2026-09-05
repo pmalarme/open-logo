@@ -63,15 +63,18 @@
  *
  * {@link Scope} carries both chains for that reason, and deferredness is handed down the **whole**
  * chain rather than one level, because a handler registered inside a loop body captures that turn's
- * scope (`spec/execution-model.md:617-637`). Which blocks are deferred is derived from the grammar,
- * not from a list of handler names — see {@link enterBlockScope}.
+ * scope (`spec/execution-model.md:617-637`). Which heads defer their body is read from
+ * {@link DEFERRED_BLOCK_HEADS} — `signatures.ts`'s Interaction & Events registry, the one
+ * `checker-control-flow.ts` already consumes — and everything else that carries a body is eager.
  *
- * The consequence is that a *deferred* read can only ever be quieter than an eager one, never
- * louder — which is the direction a conservative checker must err in. The one place that costs a
- * diagnostic is an argument block the grammar cannot tell apart from a handler, such as an
- * `ask`/`each` body: it is treated as deferred and so stays silent where an eager reading would
- * report. That is a missed diagnostic rather than a false positive on a conforming program, which
- * is the right way round.
+ * **The default is the reporting direction, so a new deferred head must be registered.** That is the
+ * opposite of the usual "unknown thing gets the safe answer" and is stated here because it is easy
+ * to assume otherwise: a handler form a later profile adds, and does not put in that registry, would
+ * be treated as eager and could report a **false positive** on a conforming program. It is safe
+ * today only because the registry is complete — `OL_PROFILE_KEYWORDS` carries exactly the Sprites
+ * and Interaction & Events block-heads, and the Sprites ones (`ask`, `each`, `tell`) really do run
+ * their bodies where they are written, which is measured rather than assumed:
+ * `ask :t [ print :later ]` before `:later = 1` raises `ol-undefined-var` under `execute()`.
  *
  * A procedure body reading a name its boundary hides is decidable for a different reason, and that
  * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
@@ -145,7 +148,6 @@ type NameSet = ReadonlySet<string>;
 const DEFERRED_BLOCK_HEADS: ReadonlySet<string> = new Set(
   interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
 );
-
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
  * `name`, or one per `:name` in a destructuring `[ :x :y ]` pattern (`spec/grammar.md:137-138`).
@@ -181,14 +183,16 @@ interface DocumentFacts {
    *
    * **The suppression follows the same order/lexical split as everything else here, and it has to.**
    * It means "assume the reported mistake is repaired", so it is sound only where relocating the
-   * declaration to the root really would make the read resolve. In any **nested** scope it would: a
-   * root-level `global` is visible to every procedure body and every block, position-blind. In the
-   * **root scope's own statement list** it would not — `print :x` written *above* the repaired
-   * declaration still fails (`spec/execution-model.md:571-574`) — so there the excuse is positional,
-   * and a root read before the first misplaced declaration is reported. An earlier revision applied
-   * it document-wide and the `rubber-duck` reviewer produced exactly that counter-example.
-   * {@link Scope.suppressed} carries the per-scope form; `variable-visibility.test.mjs` pins all
-   * four cases.
+   * declaration to the root really would make the read resolve. The precise rule is **positional iff
+   * the nearest non-eager ancestor is the root**: a procedure frame and a deferred handler re-base to
+   * the whole document's set, because a root-level `global` is visible to them wherever either sits;
+   * an **eager** block inherits its parent's set as of its own position, and the root's own statement
+   * list grows one as the walk passes each misplaced declaration. So `print :x` written *above* the
+   * repaired declaration is still reported (`spec/execution-model.md:571-574`), and so is
+   * `repeat 1 [ print :x ]` in the same position — while `on_click [ print :x ]` there is not. An
+   * earlier revision applied the excuse document-wide and the `rubber-duck` reviewer produced exactly
+   * that counter-example. {@link Scope.suppressed} carries the per-scope form;
+   * `variable-visibility.test.mjs` pins every case, including the eager/deferred pair.
    *
    * One honest limit on the "assume it is repaired" reading, found by `@testing`: the repair is not
    * always *performable*. `define bad :n / global x = :n / end / print :x` suppresses the read of
@@ -246,11 +250,18 @@ interface Scope {
    *
    * It follows the same order/lexical split as everything else here, and it has to. The excuse means
    * "assume the reported mistake is repaired", so it is only sound where relocating the declaration
-   * to the root really would make the read resolve. For a read in any **nested** scope it would:
-   * a root-level `global` is visible to every procedure body and to every block, position-blind. In
-   * the **root scope's own statement list** it would not — `print :x` written *above* the repaired
-   * declaration still fails (`spec/execution-model.md:571-574`) — so there the set grows as the walk
-   * passes each misplaced declaration, and a read before the first one is reported.
+   * to the root really would make the read resolve. The rule is **positional iff the nearest
+   * non-eager ancestor is the root**:
+   *
+   * - a **procedure frame** and a **deferred handler** re-base to the whole document's set, because
+   *   a root-level `global` is visible to them wherever in the document either one sits;
+   * - an **eager** block inherits its parent's set as of its own position, and the **root scope's own
+   *   statement list** grows one as the walk passes each misplaced declaration.
+   *
+   * So `print :x` and `repeat 1 [ print :x ]` written *above* the repaired declaration are both still
+   * reported (`spec/execution-model.md:571-574`), while `on_click [ print :x ]` in the same position
+   * is not. The eager/deferred pair is pinned in `variable-visibility.test.mjs` precisely because the
+   * two look identical in the source.
    */
   readonly suppressed: Set<string>;
 }
@@ -596,15 +607,11 @@ function checkBaseRead(
  * Enters a nested **block** scope: a control-form body, a comprehension/loop body, or a handler
  * block. `deferred` picks which of the two chains the new scope reads through — see {@link Scope}.
  *
- * What counts as deferred is decided **structurally**, not from a list of handler names: a block
- * that is the `body` field of a control form (`If`, `While`, `Repeat`, `Forever`, `ForIn`,
- * `ForRange`, `Comprehension`) runs where it is written, and every *other* `Block` in the tree is
- * one passed as an argument — `on_click [ … ]`, `when "start" [ … ]`, `every 5 [ … ]`, `ask`/`each`
- * — which is treated as deferred. Deriving it from the grammar rather than from a name list means a
- * handler form added by a later profile inherits the safe answer instead of needing an entry here,
- * and the one direction the derivation can be wrong in — treating an eagerly-run argument block such
- * as `ask` as deferred — costs a missed diagnostic rather than a false positive on a conforming
- * program.
+ * Callers decide `deferred` from {@link DEFERRED_BLOCK_HEADS}: only the Interaction & Events handler
+ * heads defer their body. Every control form's own body and every Sprites body (`ask`, `each`,
+ * `tell`) runs where it is written and is entered eagerly. **The default is eager**, which is the
+ * *reporting* direction — see the module doc comment for why that makes registering a new deferred
+ * head mandatory rather than optional.
  */
 function enterBlockScope(
   parent: Scope,
@@ -622,12 +629,13 @@ function enterBlockScope(
   return {
     enclosing,
     eventual,
-    // Which names this scope BINDS must be decided against the SAME chain a read here resolves
-    // through, or the two disagree and manufacture a false positive: judging the binding against
-    // `eventual` while resolving reads against `enclosing` makes `repeat 4 [ :x = 0  print :x ]`
-    // followed by a later top-level `:x = 0` conclude that the block's assignment updates the outer
-    // binding (position-blind) while its read cannot see that binding yet (positional), so a
-    // perfectly good program reports. `spec/execution-model.md:607-615` is exactly that program.
+    // `own` is what this scope contributes to a NESTED scope's `eventual` chain, and nothing else
+    // reads it — reads in this scope resolve through `boundSoFar`, which `checkScope` builds. So the
+    // chain used here is not observable: `eventual` is pointwise a superset of `enclosing`, and any
+    // name it would remove from `own` is already present in the ancestor set a deferred child reads
+    // through. `@testing`'s sweep proved that by surviving. Stated so nobody reads a green suite as
+    // evidence, and matched to `checkScope`'s chain on purpose — the load-bearing version of this
+    // rule is documented there.
     own: collectScopeBindings(
       statements,
       seeds,
@@ -693,6 +701,15 @@ function checkScope(
   const isRootScope = scope.eventual.length === 0;
   for (const statement of statements) {
     checkNode(statement, scope, facts, diagnostics);
+    // **This is the load-bearing chain choice in the module.** A scope's bindings must be collected
+    // against the SAME chain its reads resolve through, or the two disagree and manufacture a false
+    // positive: collecting against `eventual` while reading through `enclosing` makes
+    // `repeat 4 [ :x = 0  :x = :x + 1  print :x ]` followed by a later top-level `:x = 0` conclude
+    // that the block's assignment updates the outer binding (position-blind) while its reads cannot
+    // see that binding yet (positional). `spec/execution-model.md:607-615` — the contrast example
+    // that must print `1 1 1 1` then `1 2 3 4` — is exactly that program, and it reported twice
+    // under an earlier revision. Pinned by "NON-REGRESSION: the spec's own block-lifetime contrast
+    // example stays clean" and by `npm run examples`.
     collectBindingsIn(
       statement,
       scope.boundSoFar,
@@ -878,6 +895,10 @@ function checkNode(
       }
       if (node.body !== undefined) {
         if (DEFERRED_BLOCK_HEADS.has(node.keyword.name.toLowerCase())) {
+          // The fold is redundant — the reader already normalises a block-head keyword to lowercase,
+          // so removing it survives every test — and is kept only because `checker-control-flow.ts`
+          // folds the same lookup the same way. One of the two silently not folding would be a
+          // false positive waiting to happen; both folding redundantly costs nothing.
           // Route through the `Block` case rather than repeating it, so there is one place a
           // deferred block scope is entered.
           checkNode(node.body, scope, facts, diagnostics);

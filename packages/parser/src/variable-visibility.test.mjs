@@ -563,10 +563,15 @@ test("a ROOT-level `global` is a legal declaration, and a read above it is still
 //
 // Raised as a blocking finding by the `rubber-duck` reviewer in #825's review gate and **taken**:
 // an earlier revision treated every enclosing scope as position-blind, which silently missed the
-// eager case `spec/tooling.md:184` names at Layer 2. The distinction is derived **structurally** —
-// a block that is a control form's own `body` runs where it is written; every other `Block` is one
-// passed as an argument, so it is a handler (or an `ask`/`each` body) and is treated as deferred.
-// No list of handler names, so a form a later profile adds inherits the safe answer.
+// eager case `spec/tooling.md:184` names at Layer 2. A second round corrected the classification
+// itself — `ask`/`each`/`tell` bodies run where they are written and are **eager**; only the
+// Interaction & Events handler heads defer, and the checker reads them from `signatures.ts`'s
+// registry rather than keeping a second list.
+//
+// **Note which way the default points:** anything not in that registry is treated as EAGER, which is
+// the *reporting* direction. A deferred handler head a later profile adds and does not register
+// would produce a false positive on a conforming program, so registering it is mandatory, not
+// optional. It is safe today only because the registry is complete.
 
 test("an EAGER control body reads its enclosing scope only as far as that scope has got", () => {
   for (const source of [
@@ -601,38 +606,90 @@ test("a DEFERRED handler block sees its enclosing scope in full, whenever it fir
   }
 });
 
-test("`ask` and `tell` bodies are EAGER, not deferred — they run where they are written", () => {
-  // Measured, not assumed: `execute()` raises `ol-undefined-var` on the `ask` program below, so a
+test("`ask`, `each` and `tell` bodies are EAGER, not deferred — they run where they are written", () => {
+  // Measured, not assumed: `execute()` raises `ol-undefined-var` on all three programs below, so a
   // checker that treated every profile block-head as deferred would miss a diagnostic the runtime
-  // raises. The split comes from `signatures.ts`'s Interaction & Events registry, so `ask`/`each`/
-  // `tell` — which are not in it — land on the eager side without a second list to maintain.
+  // raises. The split comes from `signatures.ts`'s Interaction & Events registry, so the Sprites
+  // heads — which are not in it — land on the eager side without a second list to maintain.
+  //
+  // `each` is asserted in its own right rather than assumed to follow `ask`: nothing else in this
+  // file fails if `each` alone becomes deferred, which is what `@testing` caught.
   const profiles = ["core-language", "turtle-rendering", "sprites"];
-  assert.deepEqual(
-    codesOf(
-      checkSource(
-        ":t = new_turtle\nask :t [ print :later ]\n:later = 1\n",
-        profiles,
-      ),
-    ),
-    ["ol-undefined-var"],
-  );
-  assert.deepEqual(
-    codesOf(
-      checkSource(
-        ":t = new_turtle\ntell :t\nprint :later\n:later = 1\n",
-        profiles,
-      ),
-    ),
-    ["ol-undefined-var"],
-  );
-  // The paired positive control: bind it first and both are clean.
-  assert.deepEqual(
-    checkSource(
-      ":later = 1\n:t = new_turtle\nask :t [ print :later ]\n",
-      profiles,
-    ),
-    [],
-  );
+  for (const source of [
+    ":t = new_turtle\nask :t [ print :later ]\n:later = 1\n",
+    "each [ print :later ]\n:later = 1\n",
+    ":t = new_turtle\ntell :t\nprint :later\n:later = 1\n",
+  ]) {
+    assert.deepEqual(
+      codesOf(checkSource(source, profiles)),
+      ["ol-undefined-var"],
+      source,
+    );
+  }
+  // The paired positive controls: bind it first and all three are clean.
+  for (const source of [
+    ":later = 1\n:t = new_turtle\nask :t [ print :later ]\n",
+    ":later = 1\neach [ print :later ]\n",
+    ":later = 1\n:t = new_turtle\ntell :t\nprint :later\n",
+  ]) {
+    assert.deepEqual(checkSource(source, profiles), [], source);
+  }
+});
+
+test("the deferred/eager split is case-insensitive end to end, like every other identifier", () => {
+  // `spec/grammar.md:13`. Asserted at the level a learner experiences it — `ON_CLICK` must behave
+  // exactly like `on_click`, or a conforming program earns a FALSE POSITIVE.
+  //
+  // What this does NOT prove is that the `toLowerCase()` on the lookup is load-bearing: the reader
+  // already normalises `ProfileStatement.keyword.name` to lowercase, so removing the fold survives
+  // every test — measured, and stated here so nobody reads this test as evidence for that call. It
+  // is kept because `checker-control-flow.ts` folds the same lookup the same way, and one of the two
+  // silently not folding would be worse than both folding redundantly.
+  for (const head of ["on_click", "ON_CLICK", "On_Click"]) {
+    assert.deepEqual(
+      checkSource(`${head} [ print :later ]\n:later = 1\n`, [
+        "core-language",
+        "interaction-events",
+      ]),
+      [],
+      head,
+    );
+  }
+});
+
+test("every expression a CONTROL form or profile head evaluates in the enclosing scope is a read", () => {
+  // `@testing` found this class a third time: round 4's own new `case` arms reintroduced it, with
+  // `If`'s condition, `While`'s condition, `Repeat`'s count and `ProfileStatement`'s arguments all
+  // covered and none depended on. Fixing instances rather than the class is what let it recur, so
+  // this asserts the heads as a group alongside the binder-form group above.
+  for (const [source, name, profiles] of [
+    ["if :missing_cond [ print 1 ]\n", "missing_cond", undefined],
+    ["while :missing_cond [ print 1 ]\n", "missing_cond", undefined],
+    ["repeat :missing_count [ print 1 ]\n", "missing_count", undefined],
+    [
+      "on_key :missing_key [ print 1 ]\n",
+      "missing_key",
+      ["core-language", "interaction-events"],
+    ],
+    [
+      "every :missing_ms [ print 1 ]\n",
+      "missing_ms",
+      ["core-language", "interaction-events"],
+    ],
+    [
+      "ask :missing_turtle [ print 1 ]\n",
+      "missing_turtle",
+      ["core-language", "turtle-rendering", "sprites"],
+    ],
+  ]) {
+    const findings = (
+      profiles === undefined
+        ? checkSource(source)
+        : checkSource(source, profiles)
+    ).filter(isUndefinedVar);
+    assert.equal(findings.length, 1, source);
+    assert.deepEqual(findings[0].params, { name }, source);
+  }
 });
 
 test('MEASURED UNDER-REPORT: `when "start"` is treated as deferred although this runtime fires it at registration (#1119)', () => {

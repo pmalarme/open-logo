@@ -1,0 +1,7 @@
+{
+  "description": "NEGATIVE (issue #825): deferredness reaches the WHOLE enclosing chain, not one level. The `every` handler is registered inside a `repeat` body — an eager scope — so a checker that only re-based its immediate parent would still resolve the root through the eager, position-limited view and report `:label` as undefined. It must not: `spec/execution-model.md:617-637` makes a handler capture the scope it was registered in, and that scope outlives the loop turn, so the handler can and does run after line 2. Measured: `execute()` is clean. This is the case that rules out the one-level version of the eager/deferred split, and it was named as a trap during #825's review gate before the two-chain model existed.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
