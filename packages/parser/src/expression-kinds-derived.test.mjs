@@ -1,8 +1,8 @@
 // The `ExpressionNode` classification is DERIVED, not enumerated — and every consumer reads the
 // same derivation.
 //
-// Issue #815's round-11 review found six hand-written copies of "which node kinds are expressions",
-// written at four different times, and no two of them agreed:
+// Issue #815's round-11 review found hand-written copies of "which node kinds are expressions"
+// scattered across the tree, written at four different times, and no two of them agreed:
 //
 //   * `one-fault.ts`'s precedence rule named five kinds this AST has never had (`Arithmetic`,
 //     `Comparison`, `Logical`, `Not`, `Negate`) and omitted three it does, so `fowad [1][1]`,
@@ -24,6 +24,8 @@
 // actually builds, and that each consumer really reads it.
 
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -173,4 +175,79 @@ test("the exported kind list is frozen, so it cannot drift from the predicate", 
     EXPRESSION_NODE_KINDS.push("NotAKind");
   });
   assert.equal(isExpressionKind("NotAKind"), false);
+});
+
+/**
+ * Every `new Set([...])` in `text` that enumerates five or more expression kinds — a hand-written
+ * copy of the classification `isExpressionKind` exists to be the only source of.
+ *
+ * Five is the threshold that separates a re-enumeration from an unrelated small set; `ast.ts`'s own
+ * list is excluded by its caller, because that one IS the derivation.
+ */
+function handWrittenKindSets(text, path) {
+  const found = [];
+  for (const literal of text.match(/new Set\(\[[^\]]*\]\)/gs) ?? []) {
+    const named = EXPRESSION_NODE_KINDS.filter((kind) =>
+      literal.includes(`"${kind}"`),
+    );
+    if (named.length >= 5) {
+      found.push(`${path} (names ${named.length} expression kinds)`);
+    }
+  }
+  return found;
+}
+
+test("every consumer reads the one derivation, with no hand-written survivors", () => {
+  // The count of "how many copies were replaced" was itself a derived claim, and a review measured
+  // it wrong: two survived, in `checker-not-a-place.ts` and `not-a-place-text.ts`, each with its own
+  // 14-kind set that nothing observed — corrupting an entry in either left the whole Definition of
+  // Done green. So this asserts the property instead of counting the fixes: no `.ts` source under
+  // `packages/` builds its own set of expression kinds.
+  //
+  // It re-measures on every run, which a number in prose cannot.
+  const offenders = [];
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules" && entry.name !== "dist") {
+          walk(full);
+        }
+        continue;
+      }
+      // `ast.ts` IS the derivation, so its own list is the one legitimate enumeration.
+      if (
+        !entry.name.endsWith(".ts") ||
+        full.replace(/\\/g, "/").endsWith("parser/src/ast.ts")
+      ) {
+        continue;
+      }
+      offenders.push(...handWrittenKindSets(readFileSync(full, "utf8"), full));
+    }
+  };
+  walk("packages");
+  assert.deepEqual(
+    offenders,
+    [],
+    "these re-enumerate the expression kinds instead of calling isExpressionKind",
+  );
+});
+
+test("the survivor detector can actually see one", () => {
+  // The instrument control, and it is not optional here: with the tree clean the detector's only
+  // reportable branch never runs, so the test above would pass identically if it could see nothing
+  // at all. That is the failure mode this slice has now met eight times.
+  assert.deepEqual(
+    handWrittenKindSets(
+      'const KINDS = new Set(["NumberLit", "WordLit", "BooleanLit", "ListLit", "VarRef"]);',
+      "synthetic.ts",
+    ),
+    ["synthetic.ts (names 5 expression kinds)"],
+  );
+  // And it must not fire on a small, unrelated set — the threshold is what keeps it from flagging
+  // every `new Set` in the tree.
+  assert.deepEqual(
+    handWrittenKindSets('new Set(["NumberLit", "WordLit"]);', "small.ts"),
+    [],
+  );
 });

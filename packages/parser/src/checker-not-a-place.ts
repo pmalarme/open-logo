@@ -56,7 +56,7 @@ import type {
   StatementNode,
   ValueOfKeyNode,
 } from "./ast.js";
-import { walk } from "./ast.js";
+import { isExpressionKind, walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 
 function isAssign(node: AnyNode): node is AssignNode {
@@ -169,33 +169,20 @@ function renderBinder(binder: Binder): string {
 }
 
 /**
- * The set of `StatementNode` kinds that are also {@link ExpressionNode} kinds — i.e. a bare
- * expression used as a statement (`ast.ts`'s `StatementNode` doc comment: "a bare expression is a
- * valid statement"). Used to recognize a comprehension body's common, spec-conventional shape:
- * a single bracketed expression, no lambda.
+/**
+ * Whether a statement is a bare expression — `ast.ts`'s `StatementNode` doc: "a bare expression is
+ * a valid statement". Used to recognize a comprehension body's common, spec-conventional shape: a
+ * single bracketed expression, no lambda.
+ *
+ * Derived from the `ExpressionNode` union via {@link isExpressionKind}, not enumerated. This was a
+ * hand-written 14-kind set — one of the copies `isExpressionKind` was exported to eliminate, and a
+ * review measured that corrupting an entry in it left 5,115 tests and 1,004 fixtures green, so its
+ * contents were observed by nothing.
  */
-const EXPRESSION_STATEMENT_KINDS: ReadonlySet<string> = new Set([
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "DictLit",
-  "ValueOfKey",
-  "VarRef",
-  "Place",
-  "PostfixExpression",
-  "Call",
-  "ParenCall",
-  "ComparisonChain",
-  "IsPredicate",
-  "Comprehension",
-]);
-
-/** Whether a statement is a bare expression (see {@link EXPRESSION_STATEMENT_KINDS}). */
 function isExpressionStatement(
   statement: StatementNode,
 ): statement is ExpressionNode {
-  return EXPRESSION_STATEMENT_KINDS.has(statement.kind);
+  return isExpressionKind(statement.kind);
 }
 
 /**

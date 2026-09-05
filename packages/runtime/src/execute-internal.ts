@@ -5942,6 +5942,33 @@ function recoverFromNativeStackOverflow(
 }
 
 /**
+ * **Test-only.** Direct handle on `executeStatements` so the terminal rule's SAFETY NET —
+ * `evaluate()` answering `undefined` for a statement kind that reached the runner undispatched —
+ * can be exercised deterministically.
+ *
+ * A QA review measured that the net has **never executed**: zero hits across 5,115 tests, 1,004
+ * conformance fixtures, 13 examples and 312 markdown blocks, because every kind the AST currently
+ * has is either dispatched above it or is a real expression. Replacing its body with `continue` —
+ * the silent skip mechanism 3 exists to abolish — left the whole Definition of Done green, and the
+ * coverage gate reported the line covered either way.
+ *
+ * The net is kept rather than deleted, because unlike the unreachable `?? "Program"` fallback this
+ * slice removed, it guards a case that *becomes* reachable the moment someone adds a statement kind
+ * — precisely the defect #815 closes. What was missing was any way to reach it on purpose. Driving
+ * the runner with a synthetic node of an unknown kind is that way: it is exactly the shape a future
+ * statement form has before its dispatch arm is written.
+ *
+ * Never re-exported by `index.ts`; reachable only by this package's own tests importing this module
+ * by relative path (see {@link recoverFromNativeStackOverflowForTests}).
+ */
+export function executeStatementsForTests(
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  return executeStatements(statements, environment);
+}
+
+/**
  * **Test-only.** Direct handle on {@link recoverFromNativeStackOverflow} so both of its arms — the
  * `RangeError` → `ol-limit` rewrite and the rethrow of any other error — are covered
  * deterministically, without having to provoke a real, host-dependent native stack overflow inside

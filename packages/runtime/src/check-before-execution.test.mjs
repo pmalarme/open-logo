@@ -18,6 +18,7 @@ import test from "node:test";
 import { makeSpan } from "@openlogo/core";
 import { OL_CHECK_PROFILES, parse } from "@openlogo/parser";
 import { createEnvironment, evaluate, execute } from "@openlogo/runtime";
+import { executeStatementsForTests } from "../dist/execute-internal.js";
 
 const doc = "check-before-execution.logo";
 
@@ -734,4 +735,49 @@ test("ol-not-implemented names one word, in one spelling, from both branches", (
   assert.deepEqual(nameFor("print map n in [1 2] [ if true [ print 1 ] :n ]"), {
     name: "if",
   });
+});
+
+// --- The terminal rule's SAFETY NET, which had never executed ------------------------------------
+//
+// `executeStatements` ends an undispatched statement in `ol-not-implemented` rather than skipping
+// it. A QA review measured that this branch has **never run**: zero hits across the entire corpus —
+// 5,115 tests, 1,004 conformance fixtures, 13 examples, 312 markdown blocks — because every kind
+// the AST currently has is either dispatched above it or is a genuine expression. Replacing its
+// body with `continue`, the silent skip mechanism 3 exists to abolish, left the whole Definition of
+// Done green. The coverage gate reported the line covered either way, which is a defect in the gate
+// rather than in this rule.
+//
+// The net is KEPT rather than deleted — unlike the `?? "Program"` fallback this slice removed,
+// which nothing could ever reach. This one becomes reachable the moment someone adds a statement
+// kind, which is exactly the defect #815 closes. What was missing was a way to reach it on purpose.
+//
+// A synthetic node of an unknown kind is that way, and it is not a contrivance: it is precisely the
+// shape a future statement form has in the window between the parser building it and someone
+// writing its dispatch arm. If that window ever opens for real, this rule is what stands in it.
+
+test("an undispatched statement kind ends in a diagnostic, never a skip", () => {
+  const span = { document: doc, start: [1, 1], end: [1, 4] };
+  const signal = executeStatementsForTests(
+    [{ kind: "SomeFutureStatement", source_span: span }],
+    createEnvironment(),
+  );
+  assert.equal(
+    signal.kind,
+    "halt",
+    "a skip here is the defect this slice closes",
+  );
+  assert.equal(signal.diagnostic.code, "ol-not-implemented");
+  assert.deepEqual(signal.diagnostic.source_span, span);
+  // Case-folded like every other spelling of this param, and named from the node kind because a
+  // synthetic node has no source text behind its span.
+  assert.deepEqual(signal.diagnostic.params, { name: "somefuturestatement" });
+});
+
+test("a dispatched statement kind does NOT reach the net", () => {
+  // The control: without it the assertion above would hold for a runner that halted on everything.
+  const signal = executeStatementsForTests(
+    parse("forward 1", doc).ast.body,
+    createEnvironment(),
+  );
+  assert.notEqual(signal.kind, "halt");
 });
