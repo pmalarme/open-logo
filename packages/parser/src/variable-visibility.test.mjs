@@ -518,6 +518,47 @@ test("a SEGMENTED assignment target binds nothing — its base stays a read, bef
   );
 });
 
+// `@testing`'s round-2 sweep found the same class again, three of them on the lines immediately
+// above the ones round 2 had just pinned: a test for `for … by` left `from` and `to` inert, and a
+// test for `reduce`'s `from` seed left the iterable inert. Every expression a binder form evaluates
+// in the ENCLOSING scope is a read position, so each gets its own case rather than another partial
+// sweep.
+
+test("every expression a binder form evaluates in the ENCLOSING scope is a read", () => {
+  for (const [source, name] of [
+    ["for x in :missing_iter\n  print :x\nend\n", "missing_iter"],
+    ["for i from :missing_from to 3\n  print :i\nend\n", "missing_from"],
+    ["for i from 1 to :missing_to\n  print :i\nend\n", "missing_to"],
+    [":t = map n in :missing_src [ :n ]\n", "missing_src"],
+    [":t = filter n in :missing_src [ true ]\n", "missing_src"],
+    [":t = reduce s n in :missing_src from 0 [ :s ]\n", "missing_src"],
+  ]) {
+    const findings = checkSource(source).filter(isUndefinedVar);
+    assert.equal(findings.length, 1, source);
+    assert.deepEqual(findings[0].params, { name }, source);
+  }
+});
+
+test("a ROOT-level `global` is a legal declaration, and a read above it is still reported", () => {
+  // The root's excuse is positional, so a read written above any declaration is reported whatever
+  // that declaration's legality (`spec/execution-model.md:571-574`).
+  //
+  // NOTE what this does NOT pin, because a green suite must not be mistaken for evidence:
+  // `collectMisplacedGlobals`'s exemption of the root declaration is **unobservable**, and
+  // `@testing`'s mutation sweep proved it by surviving. A name a root-level `global` declares can
+  // never reach the excuse at all — the proof is in that function's doc comment — so no test can
+  // distinguish the exemption. It is kept because a set named "misplaced" that held legal
+  // declarations would be a lying identifier, not because it changes an answer.
+  const findings = checkSource("print :g\nglobal g = 1\n").filter(
+    isUndefinedVar,
+  );
+
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].source_span.start, [1, 7]);
+  // ...and the paired control: after the declaration, the same read is clean.
+  assert.deepEqual(checkSource("global g = 1\nprint :g\n"), []);
+});
+
 // ── Eager bodies vs deferred handlers: the two chains ────────────────────────────────────────
 //
 // Raised as a blocking finding by the `rubber-duck` reviewer in #825's review gate and **taken**:
@@ -545,11 +586,12 @@ test("an EAGER control body reads its enclosing scope only as far as that scope 
 
 test("a DEFERRED handler block sees its enclosing scope in full, whenever it fires", () => {
   // `spec/execution-model.md:401-403`. Reporting these would be a false positive on conforming
-  // programs — the handler runs after the declaration line, not before it.
+  // programs — the handler runs after the declaration line, not before it. Measured: `execute()` is
+  // clean on all three.
   for (const source of [
     "on_click [ print :later ]\n:later = 1\n",
-    'when "start" [ print :later ]\n:later = 1\n',
     "every 5 [ print :later ]\n:later = 1\n",
+    'on_key "a" [ print :later ]\n:later = 1\n',
   ]) {
     assert.deepEqual(
       checkSource(source, ["core-language", "interaction-events"]),
@@ -557,6 +599,55 @@ test("a DEFERRED handler block sees its enclosing scope in full, whenever it fir
       source,
     );
   }
+});
+
+test("`ask` and `tell` bodies are EAGER, not deferred — they run where they are written", () => {
+  // Measured, not assumed: `execute()` raises `ol-undefined-var` on the `ask` program below, so a
+  // checker that treated every profile block-head as deferred would miss a diagnostic the runtime
+  // raises. The split comes from `signatures.ts`'s Interaction & Events registry, so `ask`/`each`/
+  // `tell` — which are not in it — land on the eager side without a second list to maintain.
+  const profiles = ["core-language", "turtle-rendering", "sprites"];
+  assert.deepEqual(
+    codesOf(
+      checkSource(
+        ":t = new_turtle\nask :t [ print :later ]\n:later = 1\n",
+        profiles,
+      ),
+    ),
+    ["ol-undefined-var"],
+  );
+  assert.deepEqual(
+    codesOf(
+      checkSource(
+        ":t = new_turtle\ntell :t\nprint :later\n:later = 1\n",
+        profiles,
+      ),
+    ),
+    ["ol-undefined-var"],
+  );
+  // The paired positive control: bind it first and both are clean.
+  assert.deepEqual(
+    checkSource(
+      ":later = 1\n:t = new_turtle\nask :t [ print :later ]\n",
+      profiles,
+    ),
+    [],
+  );
+});
+
+test('MEASURED UNDER-REPORT: `when "start"` is treated as deferred although this runtime fires it at registration (#1119)', () => {
+  // `execute()` raises `ol-undefined-var` here; `check()` does not. The gap is deliberate:
+  // `spec/interaction-events.md:212-224` never says when `"start"` occurs relative to the
+  // registering statement, so treating it as eager would encode this runtime's choice as the
+  // contract and would become a FALSE POSITIVE if the event ever fires after the top-level program.
+  // Silence is the safe direction on an open question. Asserted so the gap stays deliberate.
+  assert.deepEqual(
+    checkSource('when "start" [ print :later ]\n:later = 1\n', [
+      "core-language",
+      "interaction-events",
+    ]),
+    [],
+  );
 });
 
 test("deferredness propagates through the WHOLE chain, not one level (a handler registered inside a loop)", () => {
@@ -623,6 +714,24 @@ test("a misplaced `global` suppresses reads of its name, and the suppression fol
     ["ol-global-outside-root"],
   );
   assert.deepEqual(checkSource("global a = 1\nprint :a\n"), []);
+
+  // A DEFERRED handler is excused whatever the declaration's position, because it may fire after
+  // the relocated declaration; an EAGER block in the same position is not:
+  assert.deepEqual(
+    codesOf(
+      checkSource("on_click [ print :x ]\ndefine bad\n  global x = 0\nend\n", [
+        "core-language",
+        "interaction-events",
+      ]),
+    ),
+    ["ol-global-outside-root"],
+  );
+  assert.deepEqual(
+    codesOf(
+      checkSource("repeat 1 [ print :x ]\ndefine bad\n  global x = 0\nend\n"),
+    ),
+    ["ol-undefined-var", "ol-global-outside-root"],
+  );
 });
 
 // ── Profile sensitivity: the rule reads no profile set (the #814 trap) ───────────────────────

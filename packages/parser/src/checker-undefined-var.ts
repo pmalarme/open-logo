@@ -119,9 +119,32 @@ import type {
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+import { interactionEventsBlockHeadNames } from "./signatures.js";
 
 /** A set of case-folded names. Identifiers are case-insensitive (`spec/grammar.md:13`). */
 type NameSet = ReadonlySet<string>;
+
+/**
+ * The block-heads whose body is **deferred** — registered now, run whenever its event occurs. Taken
+ * from `signatures.ts`'s single source of truth so a head a later Interaction & Events slice adds is
+ * classified without a second copy here, exactly as `checker-control-flow.ts` consumes it.
+ *
+ * Everything else that carries a `Block` is **eager**. That split is measured, not assumed: under
+ * `execute()`, `ask :t [ print :later ]` before `:later = 1` raises `ol-undefined-var` (the body runs
+ * where it is written — `spec/turtles-and-sprites.md`), while `on_click`, `on_key` and `every` all
+ * run clean because their bodies run after the top-level statement.
+ *
+ * **One measured under-report lives here.** This runtime fires `when "start"` during registration,
+ * so `when "start" [ print :later ]` before `:later = 1` raises `ol-undefined-var` at run time while
+ * this rule stays silent. `spec/interaction-events.md:212-224` says only that `"start"` names "the
+ * start of the interactive run" and never says when that is relative to the registering statement,
+ * so treating it as eager would encode this implementation rather than the contract — and would
+ * produce a **false positive** if the event later fires after the top-level program. Silence is the
+ * direction a conservative checker must err in on a genuinely open question; issue #1119 records it.
+ */
+const DEFERRED_BLOCK_HEADS: ReadonlySet<string> = new Set(
+  interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
+);
 
 /**
  * The lowercase name(s) a `for … in` / `map`/`filter`/`reduce` binder introduces: one for a bare
@@ -166,6 +189,13 @@ interface DocumentFacts {
    * it document-wide and the `rubber-duck` reviewer produced exactly that counter-example.
    * {@link Scope.suppressed} carries the per-scope form; `variable-visibility.test.mjs` pins all
    * four cases.
+   *
+   * One honest limit on the "assume it is repaired" reading, found by `@testing`: the repair is not
+   * always *performable*. `define bad :n / global x = :n / end / print :x` suppresses the read of
+   * `:x`, but moving that declaration to the root leaves `:n` — a parameter — unbound there. The
+   * suppressed read does resolve, so the suppression stays sound in the direction that matters; what
+   * the learner is left with is a second diagnostic on the relocated line, not a silent wrong
+   * answer.
    */
   readonly misplacedGlobals: NameSet;
   /**
@@ -382,6 +412,16 @@ function rootGlobalsOf(program: ProgramNode): Set<string> {
  * (`spec/grammar.md:144`), so the subtree below it is walked like any other. Same shape as
  * `checker-global-placement.ts`, and shared by {@link misplacedGlobalsOf} and {@link checkScope} so
  * the document-wide set and the root's running one can never disagree.
+ *
+ * **The root exemption is unobservable through this module's own decision path**, and that is stated
+ * rather than left for a reader to mistake a green suite for evidence — `@testing`'s mutation sweep
+ * found it survives. The proof: {@link Scope.suppressed} is consulted only after a read has already
+ * failed, and a name a *root-level* `global` declares can never fail. In a nested scope the chain
+ * ends at `rootBindings`, which holds it, and {@link DocumentFacts.globals} lets it through the seal;
+ * at the root, a read after the declaration finds it in `boundSoFar`, and a read before it is not
+ * excused either way because the root's excuse is positional. The exemption is kept because it is
+ * **definitional** — a set named "misplaced" that contained legal declarations would be a lying
+ * identifier — not because it changes an answer.
  */
 function collectMisplacedGlobals(
   statement: StatementNode,
@@ -597,7 +637,10 @@ function enterBlockScope(
     ),
     boundSoFar: new Set(seeds),
     procedure: parent.procedure,
-    suppressed: parent.suppressed,
+    // The excuse follows the same split as visibility, and for the same reason: a deferred block may
+    // fire after the relocated declaration, so relocation really would repair its read, while an
+    // eager one is stuck with whatever the enclosing scope had excused by its own position.
+    suppressed: deferred ? new Set(facts.misplacedGlobals) : parent.suppressed,
   };
 }
 
@@ -737,9 +780,10 @@ function checkNode(
       return;
     }
     case "Block":
-      // Reached only as a call/`ProfileStatement` ARGUMENT — every control form's own body is
-      // handled by its own case below — so this is a handler block or an `ask`/`each` body, and it
-      // is entered deferred. See {@link enterBlockScope} for why that is derived structurally.
+      // Reached from the `ProfileStatement` case for a deferred handler head, and from nowhere
+      // else: every control form's own body has its own case below, and a `Block` appears in this
+      // AST only as some node's declared body. See {@link enterBlockScope} for why deferredness is
+      // derived structurally rather than from a list of handler names.
       checkScope(
         node.body,
         enterBlockScope(scope, node.body, [], facts, true),
@@ -824,6 +868,23 @@ function checkNode(
         facts,
         diagnostics,
       );
+      return;
+    }
+    case "ProfileStatement": {
+      // A profile block-head. Only the Interaction & Events handlers defer their body; `ask`, `each`
+      // and `tell` run theirs where it is written — see {@link DEFERRED_BLOCK_HEADS}.
+      for (const argument of node.args) {
+        checkNode(argument, scope, facts, diagnostics);
+      }
+      if (node.body !== undefined) {
+        if (DEFERRED_BLOCK_HEADS.has(node.keyword.name.toLowerCase())) {
+          // Route through the `Block` case rather than repeating it, so there is one place a
+          // deferred block scope is entered.
+          checkNode(node.body, scope, facts, diagnostics);
+        } else {
+          checkEagerBody(node.body.body, scope, facts, diagnostics);
+        }
+      }
       return;
     }
     case "Call":
