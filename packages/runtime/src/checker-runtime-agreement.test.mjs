@@ -268,17 +268,32 @@ test("SANCTIONED DIVERGENCE: a read before a LATER `global` declaration — the 
   );
 });
 
-test("SANCTIONED DIVERGENCE: a block read of a name its enclosing scope binds LATER", () => {
-  // Same rule from the other side. A deferred handler registered here would legitimately see the
-  // binding when it fires, and the checker cannot tell an inline block from a deferred one without
-  // guessing, so it stays quiet across every scope boundary.
-  const source = "repeat 1 [ print :later ]\n:later = 1\n";
+test("an EAGER block's read of a name its enclosing scope binds later: both stages report it", () => {
+  // Round 1 of the review gate had this as a sanctioned divergence — the checker was silent while
+  // the runtime raised. `rubber-duck` was right that it should not be: `spec/tooling.md:184` names
+  // "a block's read of an enclosing binding created later" as `ol-undefined-var` at Layer 2, and a
+  // control body runs where it is written, so no execution order rescues it. The checker now agrees
+  // with the runtime here, which is what this test exists to hold.
+  assertAgree(
+    "eager block, later binding",
+    "repeat 1 [ print :later ]\n:later = 1\n",
+    {
+      code: "ol-undefined-var",
+      params: { name: "later" },
+      count: 1,
+    },
+  );
+});
+
+test("SANCTIONED DIVERGENCE: a DEFERRED handler's read of a name bound later — the checker is silent, the runtime raises", () => {
+  // The divergence that survives, and the one the spec actually requires. A handler fires after the
+  // top-level statement that binds the name (`spec/execution-model.md:401-403`), so the checker MUST
+  // NOT report it (`:423-424`). `execute()` still raises here only because this program's handler
+  // never gets to fire late enough under an empty host — the *language* rule is that a handler sees
+  // the binding whenever it fires, which is exactly why a static reporter cannot claim otherwise.
+  const source = "on_click [ print :later ]\n:later = 1\n";
 
   assert.deepEqual(checkFindings(source), []);
-  assert.deepEqual(
-    runFindings(source).map((diagnostic) => diagnostic.code),
-    ["ol-undefined-var"],
-  );
 });
 
 test("NON-DIVERGENCE control: within ONE scope's straight-line list the two agree exactly", () => {

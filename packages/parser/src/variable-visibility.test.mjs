@@ -518,75 +518,111 @@ test("a SEGMENTED assignment target binds nothing — its base stays a read, bef
   );
 });
 
-// ── The two boundaries this rule DECLINES to cross, pinned so they stay deliberate ───────────
+// ── Eager bodies vs deferred handlers: the two chains ────────────────────────────────────────
 //
-// Both were raised as blocking findings by the `rubber-duck` reviewer in #825's review gate, and
-// both are declined **with the measurement that justifies it**. Pinning them here is the point: a
-// declined finding that is not asserted is indistinguishable from one that was forgotten.
+// Raised as a blocking finding by the `rubber-duck` reviewer in #825's review gate and **taken**:
+// an earlier revision treated every enclosing scope as position-blind, which silently missed the
+// eager case `spec/tooling.md:184` names at Layer 2. The distinction is derived **structurally** —
+// a block that is a control form's own `body` runs where it is written; every other `Block` is one
+// passed as an argument, so it is a handler (or an `ask`/`each` body) and is treated as deferred.
+// No list of handler names, so a form a later profile adds inherits the safe answer.
 
-test("PERMITTED FALSE NEGATIVE: a block's read of an enclosing binding created later is NOT reported", () => {
-  // `spec/execution-model.md:409-411` classifies this failed read as `ol-undefined-var` — that is
-  // about which CODE it gets when it fails, at whichever stage. The checker's own obligation is
-  // narrower: `:416-419` requires agreement with the evaluator only "within one scope's
-  // straight-line statement list", and this read is in a NESTED scope; `:423-424` then forbids
-  // reporting across a scope boundary "a name that a later declaration or a deferred handler could
-  // reach".
-  //
-  // The three programs below are why the line is drawn at the boundary rather than at inlineness.
-  // They differ only in which block form is used, and the checker cannot separate them without
-  // modelling deferredness through a whole nested chain — the handler in the third is registered
-  // inside a loop body, so what it captures is that turn's scope, not the root's. Getting that
-  // wrong produces a FALSE POSITIVE on a conforming program, which is strictly worse than the
-  // silence below. Tracked as issue #1118 if a later slice wants the sharper analysis.
+test("an EAGER control body reads its enclosing scope only as far as that scope has got", () => {
   for (const source of [
     "repeat 1 [ print :later ]\n:later = 1\n",
-    "on_click [ print :later ]\n:later = 1\n",
-    'repeat 3 [ every 5 [ print :label ] ]\n:label = "hi"\n',
+    "if true [ print :later ]\n:later = 1\n",
+    "while false [ print :later ]\n:later = 1\n",
+    "for i in [ 1 ]\n  print :later\nend\n:later = 1\n",
+    "print map n in [ 1 ] [ :later ]\n:later = 1\n",
   ]) {
     assert.deepEqual(
-      checkSource(source, [
-        "core-language",
-        "turtle-rendering",
-        "interaction-events",
-      ]),
+      codesOf(checkSource(source)),
+      ["ol-undefined-var"],
+      source,
+    );
+  }
+});
+
+test("a DEFERRED handler block sees its enclosing scope in full, whenever it fires", () => {
+  // `spec/execution-model.md:401-403`. Reporting these would be a false positive on conforming
+  // programs — the handler runs after the declaration line, not before it.
+  for (const source of [
+    "on_click [ print :later ]\n:later = 1\n",
+    'when "start" [ print :later ]\n:later = 1\n',
+    "every 5 [ print :later ]\n:later = 1\n",
+  ]) {
+    assert.deepEqual(
+      checkSource(source, ["core-language", "interaction-events"]),
       [],
       source,
     );
   }
 });
 
-test("the paired positive control: move the same read into the enclosing scope's own list and it IS reported", () => {
-  // What keeps the silence above from being a hole rather than a boundary: the rule is not "reads
-  // of later bindings are never reported", it is "not ACROSS a scope boundary".
-  assert.deepEqual(codesOf(checkSource("print :later\n:later = 1\n")), [
-    "ol-undefined-var",
-  ]);
-});
-
-test("a misplaced `global` suppresses reads of its name, and that is sound: repairing it makes them resolve", () => {
-  // The second declined finding. The suppression is document-wide and name-keyed, which looks
-  // over-broad — a `global` misplaced in one procedure silences a read in another. It is sound, and
-  // this test is the argument: the suppression means exactly "assume the reported mistake is
-  // repaired", and a root-level `global` is visible to every procedure in the document, so the
-  // suppressed read really does resolve once the learner does the one thing they were told to do.
-  // Answering one mistake with two diagnostics — the second of which disappears when the first is
-  // fixed — is what issue #823 established this suppression to avoid.
-  const reported =
-    "define bad\n  global x = 0\nend\ndefine f\n  print :x\n  local x = 1\nend\nf\n";
-  assert.deepEqual(codesOf(checkSource(reported)), ["ol-global-outside-root"]);
-
-  // Repair 1 — move it to the root, which is what `ol-global-outside-root` tells them to do:
+test("deferredness propagates through the WHOLE chain, not one level (a handler registered inside a loop)", () => {
+  // The case that rules out the one-level version of this fix. `spec/execution-model.md:617-637`
+  // makes a handler capture the scope it was registered in — here, that turn of the `repeat` — so
+  // its view of the root must be the eventual one even though its immediate parent is eager.
   assert.deepEqual(
-    checkSource("global x = 0\ndefine f\n  print :x\n  local x = 1\nend\nf\n"),
+    checkSource('repeat 3 [ every 5 [ print :label ] ]\n:label = "hi"\n', [
+      "core-language",
+      "interaction-events",
+    ]),
     [],
   );
+});
 
-  // Repair 2 — delete it instead. Then the read has nothing behind it and IS reported, so the
-  // suppression is genuinely tied to the misplaced declaration rather than swallowing the name.
+test("NON-REGRESSION: the spec's own block-lifetime contrast example stays clean (spec/execution-model.md:607-615)", () => {
+  // This program is why a scope's BINDINGS must be judged against the same chain its reads resolve
+  // through. An earlier revision of the two-chain model judged the binding position-blind and the
+  // read positionally: the block's `:x = 0` looked like an update of the *later* top-level `:x`, so
+  // it created no block binding, and the very next read could not see one either. The spec's own
+  // worked example reported twice. Both loops must be clean; the first prints 1 1 1 1 and the
+  // second 1 2 3 4.
   assert.deepEqual(
-    codesOf(checkSource("define f\n  print :x\n  local x = 1\nend\nf\n")),
+    checkSource(
+      "repeat 4 [ :x = 0   :x = :x + 1   print :x ]\n:x = 0\nrepeat 4 [ :x = :x + 1   print :x ]\n",
+    ),
+    [],
+  );
+});
+
+// ── The one boundary this rule still DECLINES to cross ───────────────────────────────────────
+
+test("a misplaced `global` suppresses reads of its name, and the suppression follows the same order/lexical split", () => {
+  // Raised by `rubber-duck` as a blocking finding, and its second counter-example was right: the
+  // suppression means "assume the reported mistake is repaired", so it is only sound where
+  // relocating the declaration to the root really would make the read resolve.
+  //
+  // In a NESTED scope it always would — a root `global` is visible to every procedure body and
+  // every block, position-blind:
+  assert.deepEqual(
+    codesOf(
+      checkSource("define f\n  global count = 0\n  print :count\nend\nf\n"),
+    ),
+    ["ol-global-outside-root"],
+  );
+
+  // In the ROOT scope's own statement list it would not, when the read comes first. `print :x`
+  // above the repaired declaration still fails (`spec/execution-model.md:571-574`), so suppressing
+  // it would hide a diagnostic the repair does not remove:
+  assert.deepEqual(
+    codesOf(checkSource("print :x\ndefine bad\n  global x = 0\nend\n")),
+    ["ol-undefined-var", "ol-global-outside-root"],
+  );
+  // ...and the repaired program, order preserved, reports exactly the same read:
+  assert.deepEqual(
+    codesOf(checkSource("print :x\nglobal x = 0\ndefine bad\nend\n")),
     ["ol-undefined-var"],
   );
+
+  // A root read AFTER the misplaced declaration is suppressed, because there the repair does clear
+  // it — one mistake, one diagnostic (issue #823):
+  assert.deepEqual(
+    codesOf(checkSource("repeat 1 [ global a = 1 ]\nprint :a\n")),
+    ["ol-global-outside-root"],
+  );
+  assert.deepEqual(checkSource("global a = 1\nprint :a\n"), []);
 });
 
 // ── Profile sensitivity: the rule reads no profile set (the #814 trap) ───────────────────────

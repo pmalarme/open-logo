@@ -573,17 +573,28 @@ test("the paired positive control: the same two statements in the other order st
   );
 });
 
-// The conservative half of the same rule. `spec/execution-model.md:423-424` — "Across scope
-// boundaries the checker never reports a name that a later declaration or a deferred handler could
-// reach" — so an ENCLOSING scope contributes every name it binds anywhere, position-blind. Nesting
-// a read one scope deeper can only make this rule quieter, never louder.
-test("a read inside a block of a name the ENCLOSING scope binds later is NOT reported (spec/execution-model.md:401-403,423-424)", () => {
+// The conservative half of the same rule, and where it stops. `spec/execution-model.md:423-424` —
+// "Across scope boundaries the checker never reports a name that a later declaration or a deferred
+// handler could reach" — turns on whether the read can actually be reached later. A *deferred*
+// handler block can be; an *eager* control body, which runs where it is written, cannot, and
+// `spec/tooling.md:184` names that eager case as `ol-undefined-var` at Layer 2.
+test("a read inside a DEFERRED handler of a name the enclosing scope binds later is NOT reported", () => {
   assert.deepEqual(
-    checkSource("repeat 1 [ print :later ]\n:later = 1\n").filter(
-      isUndefinedVar,
-    ),
+    checkSource("on_click [ print :later ]\n:later = 1\n", [
+      "core-language",
+      "interaction-events",
+    ]).filter(isUndefinedVar),
     [],
   );
+});
+
+test("but the same read inside an EAGER control body IS reported (spec/tooling.md:184)", () => {
+  const findings = checkSource(
+    "repeat 1 [ print :later ]\n:later = 1\n",
+  ).filter(isUndefinedVar);
+
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "later" });
 });
 
 test("a malformed (non-place) assignment target declares nothing; a nested undeclared read is still flagged", () => {

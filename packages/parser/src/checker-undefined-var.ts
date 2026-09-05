@@ -52,24 +52,26 @@
  *   `repeat 4 [ forward :count * 10   :count = :count + 1 ]` the write creates a binding in the
  *   `repeat` body — born fresh on every turn, a genuinely different variable — and the read comes
  *   first (`spec/execution-model.md:441-447`).
- * - **Across a scope boundary the checker never reports a name that a later declaration or a
- *   deferred handler could reach** (`spec/execution-model.md:423-424`), so an *enclosing* scope
- *   contributes every name it binds **anywhere** ({@link Scope.own}), regardless of position. A
- *   handler block registered before the top-level statement that binds the name it reads still sees
- *   that binding when it fires (`spec/execution-model.md:401-403`), and nothing here reports it.
+ * - **An eager enclosing scope contributes only what it had bound by the position the nested scope
+ *   appears at.** A control-form body runs where it is written, so no execution order rescues its
+ *   read of a binding the enclosing scope makes later — and `spec/tooling.md:184` names exactly that
+ *   case, "a block's read of an enclosing binding created later", as `ol-undefined-var` at Layer 2.
+ * - **A deferred handler block sees every enclosing scope in full.** It fires whenever its event
+ *   does, including after the top-level statement that binds the name it reads
+ *   (`spec/execution-model.md:401-403`), so reporting it would be a false positive on a conforming
+ *   program — which `spec/execution-model.md:423-424` forbids in as many words.
  *
- * The consequence is that nesting a read one scope deeper can only ever make this module quieter,
- * never louder — which is the direction a conservative checker must err in. The price is one
- * **permitted false negative**: `repeat 1 [ print :later ]` followed by `:later = 1` is silent,
- * although no execution order makes that read resolve. `spec/execution-model.md:409-411` names that
- * shape as `ol-undefined-var`, but it is classifying *which code a failed read gets*, at whichever
- * stage; the checker's own obligation to agree with the evaluator is scoped by `:416-419` to "one
- * scope's straight-line statement list", which a nested read is not in. Separating it from the
- * *deferred* case — `on_click [ print :later ]`, which `:401-403` says legitimately sees the later
- * binding — needs deferredness modelled through a whole nested chain (a handler registered inside a
- * loop body captures that turn's scope, not the root's), and getting that wrong is a false positive
- * on a conforming program. Issue #1118 holds the sharper analysis; `variable-visibility.test.mjs`
- * pins both the silence and its paired positive control so the boundary stays deliberate.
+ * {@link Scope} carries both chains for that reason, and deferredness is handed down the **whole**
+ * chain rather than one level, because a handler registered inside a loop body captures that turn's
+ * scope (`spec/execution-model.md:617-637`). Which blocks are deferred is derived from the grammar,
+ * not from a list of handler names — see {@link enterBlockScope}.
+ *
+ * The consequence is that a *deferred* read can only ever be quieter than an eager one, never
+ * louder — which is the direction a conservative checker must err in. The one place that costs a
+ * diagnostic is an argument block the grammar cannot tell apart from a handler, such as an
+ * `ask`/`each` body: it is treated as deferred and so stays silent where an eager reading would
+ * report. That is a missed diagnostic rather than a false positive on a conforming program, which
+ * is the right way round.
  *
  * A procedure body reading a name its boundary hides is decidable for a different reason, and that
  * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
@@ -154,14 +156,16 @@ interface DocumentFacts {
    * learner who put `global` in the wrong place still needs the diagnostic that names the fix when a
    * procedure body reads a name the root scope really does bind.
    *
-   * **The suppression is document-wide and name-keyed, and that is sound rather than lazy.** It
-   * means exactly "assume the reported mistake is repaired": a root-level `global` is visible to
-   * every procedure in the document, so every read this silences really does resolve once the
-   * learner does the one thing `ol-global-outside-root` told them to do. Reporting it as well would
-   * answer one mistake with a second diagnostic that vanishes when the first is fixed — the thing
-   * issue #823 introduced this suppression to avoid. Delete the misplaced declaration instead of
-   * moving it and the read is reported again, so the silence is tied to the declaration rather than
-   * swallowing the name; `variable-visibility.test.mjs` pins both repairs.
+   * **The suppression follows the same order/lexical split as everything else here, and it has to.**
+   * It means "assume the reported mistake is repaired", so it is sound only where relocating the
+   * declaration to the root really would make the read resolve. In any **nested** scope it would: a
+   * root-level `global` is visible to every procedure body and every block, position-blind. In the
+   * **root scope's own statement list** it would not — `print :x` written *above* the repaired
+   * declaration still fails (`spec/execution-model.md:571-574`) — so there the excuse is positional,
+   * and a root read before the first misplaced declaration is reported. An earlier revision applied
+   * it document-wide and the `rubber-duck` reviewer produced exactly that counter-example.
+   * {@link Scope.suppressed} carries the per-scope form; `variable-visibility.test.mjs` pins all
+   * four cases.
    */
   readonly misplacedGlobals: NameSet;
   /**
@@ -175,19 +179,50 @@ interface DocumentFacts {
 
 /**
  * One scope being walked, mirroring a `@openlogo/runtime` `Environment` at the point the walk has
- * reached: {@link boundSoFar} is this scope's own frame as far as execution has got, and
- * {@link enclosing} is the rest of the chain, **nearest first, root last** — empty only at the root
- * scope itself.
+ * reached. It carries **two** chains of enclosing scopes, both nearest first and root last, and the
+ * difference between them is the whole eager/deferred distinction of
+ * `spec/execution-model.md:401-403`:
+ *
+ * - {@link enclosing} is what a read here can see **now**. For an *eager* scope — a control-form
+ *   body, which runs where it is written — each ancestor contributes only the bindings it had made
+ *   by the position this scope appears at, so `repeat 1 [ print :later ]` followed by `:later = 1`
+ *   reports, exactly as `spec/tooling.md:184` requires.
+ * - {@link eventual} is what a read here could see **at any time**: every ancestor's full set. A
+ *   *deferred* scope — a handler block, which fires whenever its event does — takes this as its
+ *   {@link enclosing} too, so `on_click [ print :score ]` written before `:score = 0` stays silent
+ *   (`spec/execution-model.md:423-424`).
+ *
+ * Deferredness has to propagate through the **whole** chain rather than one level, because a handler
+ * registered inside a loop body captures that turn's scope (`spec/execution-model.md:617-637`) — so
+ * `repeat 3 [ every 5 [ print :label ] ]` before `:label = "hi"` must stay silent even though its
+ * immediate parent is eager. Handing a deferred scope `[parent.own, ...parent.eventual]` is what
+ * makes that fall out rather than needing a special case.
  */
 interface Scope {
-  /** The full name sets of the enclosing scopes, nearest first, root last. */
+  /** What a read here can see now — see the two-chain note above. */
   readonly enclosing: readonly NameSet[];
+  /** What a read here could see at any time: every enclosing scope's full set. */
+  readonly eventual: readonly NameSet[];
   /** Every name this scope binds anywhere — what it contributes to a *nested* scope's chain. */
   readonly own: NameSet;
   /** The names bound by this scope's statements walked so far, seeded with its binders. */
   readonly boundSoFar: Set<string>;
   /** The declared name of the procedure whose body this is, or `undefined` outside every body. */
   readonly procedure: string | undefined;
+  /**
+   * Names a misplaced `global` excuses from `ol-undefined-var` at this point — see
+   * {@link DocumentFacts.misplacedGlobals} for why the excuse exists and
+   * {@link failedReadDiagnostic} for why it never reaches `ol-var-not-visible`.
+   *
+   * It follows the same order/lexical split as everything else here, and it has to. The excuse means
+   * "assume the reported mistake is repaired", so it is only sound where relocating the declaration
+   * to the root really would make the read resolve. For a read in any **nested** scope it would:
+   * a root-level `global` is visible to every procedure body and to every block, position-blind. In
+   * the **root scope's own statement list** it would not — `print :x` written *above* the repaired
+   * declaration still fails (`spec/execution-model.md:571-574`) — so there the set grows as the walk
+   * passes each misplaced declaration, and a read before the first one is reported.
+   */
+  readonly suppressed: Set<string>;
 }
 
 /**
@@ -337,28 +372,43 @@ function rootGlobalsOf(program: ProgramNode): Set<string> {
   return names;
 }
 
-/** The names every `global` written **off** the root scope names — see {@link DocumentFacts}. */
-function misplacedGlobalsOf(program: ProgramNode): Set<string> {
-  const names = new Set<string>();
+/**
+ * Adds to `into` every name a **misplaced** `global` inside the root statement `statement` declares —
+ * one written anywhere but the root scope itself, which therefore declares nothing and raises
+ * `ol-global-outside-root` when it runs (`spec/execution-model.md:561-563`).
+ *
+ * A root-level `Global` is legal *itself*, but only that declaration is at the root: its initializer
+ * can still open a block scope, because a comprehension body holds statements
+ * (`spec/grammar.md:144`), so the subtree below it is walked like any other. Same shape as
+ * `checker-global-placement.ts`, and shared by {@link misplacedGlobalsOf} and {@link checkScope} so
+ * the document-wide set and the root's running one can never disagree.
+ */
+function collectMisplacedGlobals(
+  statement: StatementNode,
+  into: Set<string>,
+): void {
   const collect = (node: AnyNode): void => {
     if (node.kind === "Global") {
-      names.add(node.name.name.toLowerCase());
+      into.add(node.name.name.toLowerCase());
     }
     for (const child of childrenOf(node)) {
       collect(child);
     }
   };
-  for (const statement of program.body) {
-    if (statement.kind === "Global") {
-      // Legal *here* — but only this declaration is at the root. Its initializer can still open a
-      // block scope (a comprehension body holds statements, `spec/grammar.md:144`), so the subtree
-      // below it is walked like any other. Same shape as `checker-global-placement.ts`.
-      for (const child of childrenOf(statement)) {
-        collect(child);
-      }
-      continue;
+  if (statement.kind === "Global") {
+    for (const child of childrenOf(statement)) {
+      collect(child);
     }
-    collect(statement);
+    return;
+  }
+  collect(statement);
+}
+
+/** The names every `global` written **off** the root scope names — see {@link DocumentFacts}. */
+function misplacedGlobalsOf(program: ProgramNode): Set<string> {
+  const names = new Set<string>();
+  for (const statement of program.body) {
+    collectMisplacedGlobals(statement, names);
   }
   return names;
 }
@@ -461,7 +511,7 @@ function failedReadDiagnostic(
       severity: "error",
     };
   }
-  if (facts.misplacedGlobals.has(name)) {
+  if (scope.suppressed.has(name)) {
     return undefined;
   }
   return {
@@ -502,16 +552,42 @@ function checkBaseRead(
   checkRead(place.base.name, place.base.source_span, scope, facts, diagnostics);
 }
 
-/** Enters a nested **block** scope: a control body, handler block, or comprehension/loop body. */
+/**
+ * Enters a nested **block** scope: a control-form body, a comprehension/loop body, or a handler
+ * block. `deferred` picks which of the two chains the new scope reads through — see {@link Scope}.
+ *
+ * What counts as deferred is decided **structurally**, not from a list of handler names: a block
+ * that is the `body` field of a control form (`If`, `While`, `Repeat`, `Forever`, `ForIn`,
+ * `ForRange`, `Comprehension`) runs where it is written, and every *other* `Block` in the tree is
+ * one passed as an argument — `on_click [ … ]`, `when "start" [ … ]`, `every 5 [ … ]`, `ask`/`each`
+ * — which is treated as deferred. Deriving it from the grammar rather than from a name list means a
+ * handler form added by a later profile inherits the safe answer instead of needing an entry here,
+ * and the one direction the derivation can be wrong in — treating an eagerly-run argument block such
+ * as `ask` as deferred — costs a missed diagnostic rather than a false positive on a conforming
+ * program.
+ */
 function enterBlockScope(
   parent: Scope,
   statements: readonly StatementNode[],
   seeds: readonly string[],
   facts: DocumentFacts,
+  deferred: boolean,
 ): Scope {
-  const enclosing = [parent.own, ...parent.enclosing];
+  const eventual = [parent.own, ...parent.eventual];
+  // An eager child sees each ancestor as far as that ancestor's own walk has got; a deferred one
+  // sees every ancestor in full, because it may fire at any time after registration.
+  const enclosing = deferred
+    ? eventual
+    : [new Set(parent.boundSoFar), ...parent.enclosing];
   return {
     enclosing,
+    eventual,
+    // Which names this scope BINDS must be decided against the SAME chain a read here resolves
+    // through, or the two disagree and manufacture a false positive: judging the binding against
+    // `eventual` while resolving reads against `enclosing` makes `repeat 4 [ :x = 0  print :x ]`
+    // followed by a later top-level `:x = 0` conclude that the block's assignment updates the outer
+    // binding (position-blind) while its read cannot see that binding yet (positional), so a
+    // perfectly good program reports. `spec/execution-model.md:607-615` is exactly that program.
     own: collectScopeBindings(
       statements,
       seeds,
@@ -521,6 +597,7 @@ function enterBlockScope(
     ),
     boundSoFar: new Set(seeds),
     procedure: parent.procedure,
+    suppressed: parent.suppressed,
   };
 }
 
@@ -528,6 +605,9 @@ function enterBlockScope(
  * Enters a **procedure frame**. Its chain is `[frame, root]` whatever the definition is written
  * inside, because a `define` is registered in phase 1 and never captures the scope it appears in
  * (`spec/execution-model.md:651-655`).
+ *
+ * Both chains are the same and both are position-blind: a procedure may be called from anywhere, so
+ * there is no "the position this scope appears at" to limit the root's contribution to.
  */
 function enterProcedureFrame(
   node: ProcedureDefNode,
@@ -538,6 +618,7 @@ function enterProcedureFrame(
   const seeds = node.params.map((param) => param.name.name.toLowerCase());
   return {
     enclosing,
+    eventual: enclosing,
     own: collectScopeBindings(
       node.body.body,
       seeds,
@@ -547,6 +628,9 @@ function enterProcedureFrame(
     ),
     boundSoFar: new Set(seeds),
     procedure,
+    // Position-blind, for the same reason: relocating a misplaced `global` to the root makes it
+    // visible to every procedure body regardless of where in the document either one sits.
+    suppressed: new Set(facts.misplacedGlobals),
   };
 }
 
@@ -563,6 +647,7 @@ function checkScope(
   facts: DocumentFacts,
   diagnostics: Diagnostic[],
 ): void {
+  const isRootScope = scope.eventual.length === 0;
   for (const statement of statements) {
     checkNode(statement, scope, facts, diagnostics);
     collectBindingsIn(
@@ -572,7 +657,26 @@ function checkScope(
       scope.procedure,
       facts.globals,
     );
+    if (isRootScope) {
+      // Only here does the misplaced-`global` excuse depend on position — see {@link Scope.suppressed}.
+      collectMisplacedGlobals(statement, scope.suppressed);
+    }
   }
+}
+
+/** Walks a control form's own body — a scope entered **eagerly**, where it is written. */
+function checkEagerBody(
+  statements: readonly StatementNode[],
+  scope: Scope,
+  facts: DocumentFacts,
+  diagnostics: Diagnostic[],
+): void {
+  checkScope(
+    statements,
+    enterBlockScope(scope, statements, [], facts, false),
+    facts,
+    diagnostics,
+  );
 }
 
 function checkNode(
@@ -633,12 +737,33 @@ function checkNode(
       return;
     }
     case "Block":
+      // Reached only as a call/`ProfileStatement` ARGUMENT — every control form's own body is
+      // handled by its own case below — so this is a handler block or an `ask`/`each` body, and it
+      // is entered deferred. See {@link enterBlockScope} for why that is derived structurally.
       checkScope(
         node.body,
-        enterBlockScope(scope, node.body, [], facts),
+        enterBlockScope(scope, node.body, [], facts, true),
         facts,
         diagnostics,
       );
+      return;
+    case "If":
+      checkNode(node.condition, scope, facts, diagnostics);
+      checkEagerBody(node.thenBody.body, scope, facts, diagnostics);
+      if (node.elseBody !== undefined) {
+        checkEagerBody(node.elseBody.body, scope, facts, diagnostics);
+      }
+      return;
+    case "While":
+      checkNode(node.condition, scope, facts, diagnostics);
+      checkEagerBody(node.body.body, scope, facts, diagnostics);
+      return;
+    case "Repeat":
+      checkNode(node.count, scope, facts, diagnostics);
+      checkEagerBody(node.body.body, scope, facts, diagnostics);
+      return;
+    case "Forever":
+      checkEagerBody(node.body.body, scope, facts, diagnostics);
       return;
     case "ProcedureDef": {
       const frame = enterProcedureFrame(node, facts);
@@ -655,7 +780,7 @@ function checkNode(
       const body = node.body.body;
       checkScope(
         body,
-        enterBlockScope(scope, body, binderNames(node.binder), facts),
+        enterBlockScope(scope, body, binderNames(node.binder), facts, false),
         facts,
         diagnostics,
       );
@@ -670,7 +795,13 @@ function checkNode(
       const body = node.body.body;
       checkScope(
         body,
-        enterBlockScope(scope, body, [node.variable.name.toLowerCase()], facts),
+        enterBlockScope(
+          scope,
+          body,
+          [node.variable.name.toLowerCase()],
+          facts,
+          false,
+        ),
         facts,
         diagnostics,
       );
@@ -689,7 +820,7 @@ function checkNode(
       const body = node.body.body;
       checkScope(
         body,
-        enterBlockScope(scope, body, seeds, facts),
+        enterBlockScope(scope, body, seeds, facts, false),
         facts,
         diagnostics,
       );
@@ -738,9 +869,11 @@ export function undefinedVarRule(
     program.body,
     {
       enclosing: [],
+      eventual: [],
       own: facts.rootBindings,
       boundSoFar: new Set<string>(),
       procedure: undefined,
+      suppressed: new Set<string>(),
     },
     facts,
     diagnostics,
