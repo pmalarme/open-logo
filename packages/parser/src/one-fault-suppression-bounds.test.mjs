@@ -260,11 +260,16 @@ test("no code the two scans can see is emitted at both severities, which is what
     const source = readFileSync(path, "utf8");
     const start = source.indexOf(`function ${factory}(`);
     assert.notEqual(start, -1, `${factory} must exist in ${path}`);
-    // Bound the slice to the factory's OWN body. Slicing to end-of-file made the assertion
-    // satisfiable by any later occurrence in the file — a review measured `parseError` unpinned
-    // plus one comment mentioning `severity: "error"` three hundred lines below passing the whole
-    // suite. A premise pin that a decoy can satisfy is the shape this test exists to reject.
-    const body = source.slice(start, source.indexOf("\n}", start) + 2);
+    // Bound the slice to the factory's OWN body, then strip comments from it. Slicing to
+    // end-of-file made the assertion satisfiable by any later occurrence — a review measured
+    // `parseError` unpinned plus one comment eleven thousand characters below passing the whole
+    // suite. Bounding alone was not enough: a comment INSIDE the body satisfied it too. A premise
+    // pin a decoy can satisfy is the shape this test exists to reject, so it is checked twice, and
+    // the second check is behavioural rather than textual.
+    const body = source
+      .slice(start, source.indexOf("\n}", start) + 2)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
     const signature = body.slice(0, body.indexOf("): Diagnostic"));
     assert.ok(
       body.includes('severity: "error"'),
@@ -273,6 +278,21 @@ test("no code the two scans can see is emitted at both severities, which is what
     assert.ok(
       !/severity/.test(signature),
       `${factory} must not take a severity parameter, or its call sites could vary it`,
+    );
+  }
+  // And the behavioural half, which no comment can fake: a diagnostic each factory really produced
+  // must actually carry `severity: "error"`. `[` is a parse fault, `forward p 1` a runtime one.
+  const produced = [
+    parse("[", "one-fault.logo").diagnostics[0],
+    analyze("fowad 100", "one-fault.logo", { profiles: PROFILES })
+      .diagnostics[0],
+  ];
+  for (const diagnostic of produced) {
+    assert.ok(diagnostic, "each probe must actually produce a diagnostic");
+    assert.equal(
+      diagnostic.severity,
+      "error",
+      `${diagnostic.code} is attributed "error" by the factory scan and must really be one`,
     );
   }
 });

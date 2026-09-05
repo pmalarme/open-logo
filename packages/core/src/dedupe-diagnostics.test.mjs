@@ -7,6 +7,7 @@
 // identity, so the canonicalization is load-bearing rather than incidental.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -637,27 +638,146 @@ test("the reflection primitives are captured too, one layer below the readers", 
   }
 });
 
-test("the whole reflection family is captured, not just the readers a reviewer named", () => {
-  // One case per primitive that was measured colliding while dynamic. Each patch carries a live
-  // control, and each pair carries the equal-case collapse a wholly-broken read cannot fake.
+test("no intrinsic on the identity path is read dynamically", () => {
+  // The gated replacement for a prose claim that was measured short in three consecutive review
+  // rounds — by three primitives, then by one, then by one again. Every fix was correct and every
+  // restatement of "the family is complete" was wrong, because nothing re-derived it. This does.
+  //
+  // Anything matching an intrinsic read below, OUTSIDE the capture block, fails. That includes
+  // `x.call(...)` on an already-captured function: `call` is an ordinary mutable property of the
+  // function object, so `mapForEach.call = () => undefined` defeats a capture — measured. The
+  // encoder therefore invokes through `Reflect.apply`, captured once.
+  const source = readFileSync(
+    new URL("./diagnostics.ts", import.meta.url),
+    "utf8",
+  );
+  // The capture block is "the run of `const <name> = <intrinsic>;` lines starting at the first
+  // one", derived rather than delimited by a newline pattern or a hard-coded end marker: an
+  // earlier version looked for a blank line as "\n\n" and silently matched nothing in a CRLF file,
+  // which is the same class of instrument failure this test is written to gate.
+  const lines = source.split(/\r?\n/);
+  const first = lines.findIndex((line) =>
+    line.startsWith("const dictIsGenuine ="),
+  );
+  assert.ok(first > 0, "the capture block must be findable");
+  let last = first;
+  while (/^const \w+ = [\w.]+;$/.test(lines[last + 1])) {
+    last += 1;
+  }
+  assert.ok(
+    last - first >= 10,
+    `the capture block must still be a run of captures; found ${last - first + 1}`,
+  );
+  const outside = [...lines.slice(0, first), ...lines.slice(last + 1)].join(
+    "\n",
+  );
+  // ONE extractor, used for the file AND for the control below — so the control exercises the exact
+  // code path that produced the empty result rather than a second copy of it that could differ.
+  const intrinsicReads = (text) =>
+    [
+      ...text
+        // Strip comments and string/template contents so prose naming a primitive is not a finding.
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "")
+        .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+        .replace(/`(?:[^`\\]|\\.)*`/g, "``")
+        .matchAll(
+          /\b(?:Object|Number|Symbol|Reflect|Array)\.[A-Za-z]+\s*\(|\.prototype\.[A-Za-z]+|\.call\s*\(|\.apply\s*\(/g,
+        ),
+    ].map((match) => match[0]);
+  assert.deepEqual(
+    intrinsicReads(outside),
+    [],
+    "every intrinsic on the identity path must be read from the module-load capture block",
+  );
+  // Instrument control: the scan must be able to see such a read at all, or an empty result above
+  // proves nothing. (That is the failure mode this scan exists to replace, one level down.)
+  assert.deepEqual(
+    intrinsicReads(
+      "const x = Object.keys(y); a.call(b); c.prototype.sort; // Object.is( here",
+    ),
+    ["Object.keys(", ".call(", ".prototype.sort"],
+    "the scan sees each read shape, and does not see one inside a comment",
+  );
+});
+
+test("every captured intrinsic is falsifiable — patching it must not change the answer", () => {
+  // One row per capture, and each row carries its OWN liveness control and its OWN restore.
+  // A shared `finally` was measured defeatable by deleting a single restore line: later rows then
+  // silently re-ran the first row's patch while printing their own name, so the control was
+  // satisfied by the LEAK rather than by the patch it named. That is the same "satisfied by
+  // something other than the mechanism" shape this whole slice exists to remove, one level down.
   const patches = [
-    ["Object.keys", () => (Object.keys = () => [])],
-    ["Object.is", () => (Object.is = () => true)],
-    ["Array.prototype.sort", () => (Array.prototype.sort = () => [])],
+    [
+      "Object.keys",
+      () => (Object.keys = () => []),
+      () => Object.keys({ a: 1 }).length === 0,
+      (real) => (Object.keys = real),
+      Object.keys,
+    ],
+    [
+      "Object.is",
+      () => (Object.is = () => true),
+      () => Object.is(1, 2) === true,
+      (real) => (Object.is = real),
+      Object.is,
+    ],
+    [
+      "Array.prototype.sort",
+      () => (Array.prototype.sort = () => []),
+      () => [3, 1].sort().length === 0,
+      (real) => (Array.prototype.sort = real),
+      Array.prototype.sort,
+    ],
+    [
+      "Number.isFinite",
+      () => (Number.isFinite = () => true),
+      () => Number.isFinite(Number.NaN) === true,
+      (real) => (Number.isFinite = real),
+      Number.isFinite,
+    ],
+    [
+      "Number.isInteger",
+      () => (Number.isInteger = () => true),
+      () => Number.isInteger(1.5) === true,
+      (real) => (Number.isInteger = real),
+      Number.isInteger,
+    ],
+    [
+      "Symbol.keyFor",
+      () => (Symbol.keyFor = () => "same"),
+      () => Symbol.keyFor(Symbol("x")) === "same",
+      (real) => (Symbol.keyFor = real),
+      Symbol.keyFor,
+    ],
+    [
+      "Map.prototype.forEach.call",
+      () => (Map.prototype.forEach.call = () => undefined),
+      () => {
+        let visited = 0;
+        Map.prototype.forEach.call(new Map([["k", 1]]), () => {
+          visited += 1;
+        });
+        return visited === 0;
+      },
+      (real) => (Map.prototype.forEach.call = real),
+      Map.prototype.forEach.call,
+    ],
   ];
-  const realKeys = Object.keys;
-  const realIs = Object.is;
-  const realSort = Array.prototype.sort;
-  for (const [name, patch] of patches) {
+  const fractionalIndexed = (marker) => {
+    const array = [1, 2];
+    array["1.5"] = marker;
+    return array;
+  };
+  const populated = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return dictionary;
+  };
+  for (const [name, patch, isLive, restore, real] of patches) {
     try {
       patch();
-      assert.deepEqual(
-        Object.keys({ a: 1 }).length === 0 ||
-          Object.is(1, 2) === true ||
-          [3, 1].sort().length === 0,
-        true,
-        `the ${name} patch is live`,
-      );
+      assert.equal(isLive(), true, `the ${name} patch is live`);
       assert.equal(
         survivors({ a: 1 }, { a: 2 }),
         2,
@@ -673,11 +793,34 @@ test("the whole reflection family is captured, not just the readers a reviewer n
         2,
         `-0 and 0 stay distinct under a patched ${name}`,
       );
+      assert.equal(
+        survivors(new OLTurtle(Number.NaN), new OLTurtle(Number.NaN)),
+        2,
+        `two NaN-id turtles stay two faults under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(fractionalIndexed("x"), fractionalIndexed("y")),
+        2,
+        `a fractional array property stays part of the value under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(populated(1), populated(2)),
+        2,
+        `two different dicts stay two faults under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(populated(3), populated(3)),
+        1,
+        `and two equal dicts still collapse to ONE under a patched ${name}`,
+      );
     } finally {
-      Object.keys = realKeys;
-      Object.is = realIs;
-      Array.prototype.sort = realSort;
+      restore(real);
     }
+    assert.equal(
+      isLive(),
+      false,
+      `the ${name} patch must be restored, or it leaks into every test after this one`,
+    );
   }
 });
 

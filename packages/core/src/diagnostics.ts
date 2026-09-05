@@ -195,11 +195,14 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * value whose `get` says one thing and whose descriptor says another has no privileged reading —
  * and an object can hide state in a private slot that no reflection reports at all, behind a
  * prototype reset to something this encoder admits. Both were measured colliding. Neither is
- * reachable from an OpenLogo program: the language has no lambda, no reflection and no way to
- * construct a `Proxy`, so the attacker is already host JavaScript inside the realm, and nothing in
- * this tree does it. The sound fix is a **trusted transport representation** at the worker
- * boundary rather than a further reflective test, which is a design change and not this slice's.
- * Adding another guard here would look like progress and close nothing.
+ * reachable from an OpenLogo program **as specified for v0.1**: the language has no lambda, no
+ * reflection and no way to construct a `Proxy` (`spec/conformance.md:59-60`), and no production path
+ * in this tree constructs one — the only `Proxy`s here are adversarial fixtures in
+ * `dedupe-diagnostics.test.mjs`, and every one of them lands opaque. The sound fix is a **trusted
+ * transport representation** at the worker boundary rather than a further reflective test, which
+ * is a design change and not this slice's: issue #1128. Adding another guard here would look like
+ * progress and close nothing. Note the v0.1 qualifier is load-bearing — a future host-object
+ * escape would make this disposition wrong, and #1128 carries that.
  *
  * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
  * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
@@ -228,12 +231,14 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * the same shape one level down again — patching it to report an empty map made two genuine dicts
  * holding `1` and `2` collide, straight through every brand check above it.
  *
- * The pattern is what matters, not the three instances: **capturing some of the chain leaves the
- * rest of it dynamic**, and the hardening is only as strong as its most reachable link. So every
- * reflection primitive the identity path touches is captured here, not just the ones a reviewer
- * happened to name. `forEach.call` also reaches a `Map`'s internal slot directly, so a subclass
- * cannot interpose and a Proxy (which has no such slot) throws, landing in the caller's catch as
- * opaque identity.
+ * The pattern is what matters, not the instances: **capturing some of the chain leaves the rest of
+ * it dynamic**, and the hardening is only as strong as its most reachable link. Three review rounds
+ * running, a sentence here claimed the family was complete and a reviewer measured it short — by
+ * three, then by one, then by one again. So the claim is no longer made in prose: the test
+ * `"no intrinsic on the identity path is read dynamically"` **enumerates this file** and fails on
+ * any dynamic read outside this block, including a `.call` on a captured function (which is itself
+ * a mutable property of that function object — hence `Reflect.apply`). If you need to know what is
+ * captured, read the list below; if you need to know that the list is complete, read that test.
  */
 const dictIsGenuine = OLDict.isGenuine;
 const recordIsGenuine = OLRecord.isGenuine;
@@ -247,7 +252,10 @@ const isArray = Array.isArray;
 const objectKeys = Object.keys;
 const sameValue = Object.is;
 const isFiniteNumber = Number.isFinite;
+const isIntegerNumber = Number.isInteger;
+const registeredSymbolKey = Symbol.keyFor;
 const sortStrings = Array.prototype.sort;
+const applyFunction = Reflect.apply;
 
 /**
  * Snapshot a `Map`'s entries through the captured intrinsic, or throw.
@@ -257,9 +265,11 @@ const sortStrings = Array.prototype.sort;
  */
 function mapEntrySnapshot(map: unknown): [unknown, unknown][] {
   const snapshot: [unknown, unknown][] = [];
-  mapForEach.call(map as Map<unknown, unknown>, (value, key) => {
-    snapshot.push([key, value]);
-  });
+  applyFunction(mapForEach, map as Map<unknown, unknown>, [
+    (value: unknown, key: unknown) => {
+      snapshot.push([key, value]);
+    },
+  ]);
   return snapshot;
 }
 
@@ -317,7 +327,7 @@ function opaqueIdentity(value: symbol | object): string {
   // two `Symbol.for("x")` are the same symbol, and encoding them alike is correct rather than a
   // collision.
   if (typeof value === "symbol") {
-    const registeredKey = Symbol.keyFor(value);
+    const registeredKey = registeredSymbolKey(value);
     if (registeredKey !== undefined) {
       return tagged("regsym", registeredKey);
     }
@@ -348,7 +358,7 @@ function structuralEntries(value: object): [string, unknown][] | undefined {
   }
   const descriptors = ownDescriptors(value);
   const entries: [string, unknown][] = [];
-  for (const key of sortStrings.call(objectKeys(descriptors))) {
+  for (const key of applyFunction(sortStrings, objectKeys(descriptors), [])) {
     const descriptor = descriptors[key] as PropertyDescriptor;
     if (!descriptor.enumerable || !("value" in descriptor)) {
       return undefined;
@@ -369,7 +379,7 @@ function structuralEntries(value: object): [string, unknown][] | undefined {
 function isArrayIndexName(name: string): boolean {
   const index = Number(name);
   return (
-    Number.isInteger(index) &&
+    isIntegerNumber(index) &&
     index >= 0 &&
     index < 2 ** 32 - 1 &&
     String(index) === name
@@ -545,8 +555,8 @@ function describe(value: object): Described | undefined {
     // slice's merge-base too), and unreachable from an OpenLogo program — the language has no
     // lambda, no reflection and no way to construct a Proxy, so the attacker is already host JS
     // inside the realm. It is recorded here rather than left silent because two of three classes
-    // being hardened reads as "all three are handled". Tracked separately; do not read the absence
-    // of a brand here as a decision that one is unnecessary.
+    // being hardened reads as "all three are handled". Tracked by issue #1129; do not read the
+    // absence of a brand here as a decision that one is unnecessary.
     const id = dataProperty(value, "id");
     // A turtle's identity is its id, so an id that is not a finite number identifies nothing —
     // `String()` rendered two `OLTurtle(NaN)` alike although `NaN !== NaN` makes them different

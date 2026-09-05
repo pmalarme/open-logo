@@ -138,8 +138,11 @@ The rules above make the **tree** trustworthy. This one makes your **measurement
 — a different question, and the one that fails silently.
 
 The principle: **an instrument inherits the blind spots of whatever it is built on, and reports
-success from inside them.** Three mechanisms recur — they are not the only three, but they are the
-ones that keep costing work here — and all three return plausible output rather than an error.
+success from inside them.** Several mechanisms recur — not the only ones, but the ones that keep
+costing work here — and all of them return plausible output rather than an error. (This sentence
+used to carry a count. It was wrong in three consecutive review rounds, twice falsified by the very
+edit that corrected it, because every new instance has to remember to increment a number nothing
+re-derives. The number is the defect, not its value; the list below is the enumeration.)
 
 **1. The instrument enumerates a narrower set than the truth.** A tool that enumerates the repository
 through git cannot see an untracked file, so a green run over unstaged work certifies a tree that
@@ -170,7 +173,7 @@ in one slice. **Attribute a failure to a test by NAME, and make every perturbati
 behavioural control proving the mutation reached the artifact you are measuring** — a fail *count*
 tells you something changed, not that the thing you meant to break is what broke.
 
-**A fourth door onto the same room, which that remedy does *not* close: the whole module graph
+**Another door onto the same room, which that remedy does *not* close: the whole module graph
 resolving into a different checkout.** In an npm workspace, `node_modules/@scope/*` are links into
 `packages/*`, and `npm` repoints them at whatever directory it last ran in. A disposable clone that
 reuses the implementing worktree's `node_modules` therefore **steals** those links, and deleting the
