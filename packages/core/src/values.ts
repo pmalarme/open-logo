@@ -39,7 +39,7 @@ interface OLDictEntry {
  * (`spec/execution-model.md:13-40`), same as a list.
  */
 export class OLDict {
-  private readonly entries = new Map<string, OLDictEntry>();
+  readonly #entries = new Map<string, OLDictEntry>();
 
   /**
    * The canonical string a key collapses onto for lookup: a number canonicalizes to its printed
@@ -60,7 +60,7 @@ export class OLDict {
     if (typeof key !== "string" && typeof key !== "number") {
       return false;
     }
-    return this.entries.has(OLDict.canonicalKey(key));
+    return this.#entries.has(OLDict.canonicalKey(key));
   }
 
   /** The value stored under `key`, or `undefined` if absent (including a wrong-typed key). */
@@ -68,18 +68,18 @@ export class OLDict {
     if (typeof key !== "string" && typeof key !== "number") {
       return undefined;
     }
-    return this.entries.get(OLDict.canonicalKey(key))?.value;
+    return this.#entries.get(OLDict.canonicalKey(key))?.value;
   }
 
   /** Upsert `value` under `key`, preserving the first-insertion position on update. */
   set(key: OLDictKey, value: OLValue): void {
     const canonical = OLDict.canonicalKey(key);
-    const existing = this.entries.get(canonical);
+    const existing = this.#entries.get(canonical);
     if (existing !== undefined) {
       existing.value = value;
       return;
     }
-    this.entries.set(canonical, { key, value });
+    this.#entries.set(canonical, { key, value });
   }
 
   /** Remove the entry named by `key`; reports whether an entry was actually removed. */
@@ -87,27 +87,27 @@ export class OLDict {
     if (typeof key !== "string" && typeof key !== "number") {
       return false;
     }
-    return this.entries.delete(OLDict.canonicalKey(key));
+    return this.#entries.delete(OLDict.canonicalKey(key));
   }
 
   /** Remove every entry. */
   clear(): void {
-    this.entries.clear();
+    this.#entries.clear();
   }
 
   /** The number of entries. */
   get size(): number {
-    return this.entries.size;
+    return this.#entries.size;
   }
 
   /** Keys in insertion order, each in its original word-or-number form. */
   keys(): OLDictKey[] {
-    return [...this.entries.values()].map((entry) => entry.key);
+    return [...this.#entries.values()].map((entry) => entry.key);
   }
 
   /** Values in the same insertion order as {@link keys}. */
   values(): OLValue[] {
-    return [...this.entries.values()].map((entry) => entry.value);
+    return [...this.#entries.values()].map((entry) => entry.value);
   }
 }
 
@@ -133,13 +133,13 @@ export class OLRecord {
    * `[ x X ]` names one field, not two, and `fields()` must not report a phantom position that no
    * slot backs.
    */
-  private readonly declaredFields: readonly string[];
+  readonly #declaredFields: readonly string[];
   /**
    * Field values keyed by the case-folded field name. Identifiers are case-insensitive
    * (`spec/grammar.md:13`), so `.x`, `.X`, and `.x` all address one slot; the folded key is the
    * single canonical form the accessors resolve against.
    */
-  private readonly slots: Map<string, OLValue>;
+  readonly #slots: Map<string, OLValue>;
 
   /**
    * Build a record of struct type `type` binding each of `fields` (declared order) to the value
@@ -166,8 +166,8 @@ export class OLRecord {
         declaredFields.push(field);
       }
     }
-    this.declaredFields = declaredFields;
-    this.slots = new Map(
+    this.#declaredFields = declaredFields;
+    this.#slots = new Map(
       fields.map((field, index) => [
         field.toLowerCase(),
         values[index] as OLValue,
@@ -177,12 +177,12 @@ export class OLRecord {
 
   /** Whether `field` is one of this record's fixed, declared fields (case-insensitive). */
   has(field: string): boolean {
-    return this.slots.has(field.toLowerCase());
+    return this.#slots.has(field.toLowerCase());
   }
 
   /** The value stored in `field`, or `undefined` when `field` is not a declared field. */
   get(field: string): OLValue | undefined {
-    return this.slots.get(field.toLowerCase());
+    return this.#slots.get(field.toLowerCase());
   }
 
   /**
@@ -191,12 +191,12 @@ export class OLRecord {
    * folds case (`spec/grammar.md:13`), so `:p.X = …` mutates the same slot `:p.x` reads.
    */
   set(field: string, value: OLValue): void {
-    this.slots.set(field.toLowerCase(), value);
+    this.#slots.set(field.toLowerCase(), value);
   }
 
   /** The record's field names, in declared order and original spelling. */
   fields(): string[] {
-    return [...this.declaredFields];
+    return [...this.#declaredFields];
   }
 }
 

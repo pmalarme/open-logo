@@ -185,6 +185,21 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * objects through `Object.keys` was measured both colliding (symbol-keyed and non-enumerable
  * properties are invisible to it) and *throwing* (an enumerable getter that raises).
  */
+/**
+ * The trusted collection readers, **captured at module load**.
+ *
+ * `OLDict.prototype.keys` looked up at call time is still a mutable slot: monkey-patching the
+ * prototype to return `[]` was measured collapsing two different populated dicts into one fault.
+ * Reading the reference once, before any host code can run, removes that. The classes' backing
+ * state is a genuine `#private` field, so these functions **brand-check** — a Proxy that answers
+ * publicly while hiding its real contents throws here instead of describing itself, and the caller
+ * turns that into opaque identity.
+ */
+const readDictKeys = OLDict.prototype.keys;
+const readDictValues = OLDict.prototype.values;
+const readRecordFields = OLRecord.prototype.fields;
+const readRecordField = OLRecord.prototype.get;
+
 /** A string rendered so it cannot be confused with anything around it. */
 function tagged(tag: string, text: string): string {
   return `${tag}${text.length}:${text}`;
@@ -434,7 +449,14 @@ type Described =
  */
 function describe(value: object): Described | undefined {
   if (value instanceof OLTurtle) {
-    return { kind: "atom", text: `turtle${dataProperty(value, "id")};` };
+    const id = dataProperty(value, "id");
+    // A turtle's identity is its id, so an id that is not a finite number identifies nothing —
+    // `String()` rendered two `OLTurtle(NaN)` alike although `NaN !== NaN` makes them different
+    // turtles, and collapsed id `1` onto the string `"1"`. Anything else is opaque.
+    if (typeof id !== "number" || !Number.isFinite(id)) {
+      return undefined;
+    }
+    return { kind: "atom", text: `turtle${id};` };
   }
   const children: unknown[] = [];
   if (Array.isArray(value)) {
@@ -448,20 +470,25 @@ function describe(value: object): Described | undefined {
     return { kind: "container", head: `arr${value.length}(`, children };
   }
   if (value instanceof OLDict) {
-    // Snapshotted ONCE, through the base implementation. Asking `values()` per key rebuilt the
-    // whole collection per entry; asking the INSTANCE let a subclass answer for it.
-    const keys = OLDict.prototype.keys.call(value);
-    const values = OLDict.prototype.values.call(value);
+    // Snapshotted ONCE, through the captured base implementation. Asking `values()` per key rebuilt
+    // the whole collection per entry; asking the INSTANCE, or the prototype at call time, let a
+    // subclass or a monkey-patch answer for it.
+    const keys = readDictKeys.call(value);
+    const values = readDictValues.call(value);
     for (let index = 0; index < keys.length; index++) {
       children.push(keys[index], values[index]);
     }
     return { kind: "container", head: `dict${keys.length}(`, children };
   }
   if (value instanceof OLRecord) {
-    const fields = OLRecord.prototype.fields.call(value);
     const type = dataProperty(value, "type");
+    if (typeof type !== "string") {
+      // Record type `1` and record type `"1"` are different types; `String()` made them one.
+      return undefined;
+    }
+    const fields = readRecordFields.call(value);
     for (const field of fields) {
-      children.push(field, OLRecord.prototype.get.call(value, field));
+      children.push(field, readRecordField.call(value, field));
     }
     return {
       kind: "container",
@@ -484,17 +511,20 @@ function describe(value: object): Described | undefined {
 }
 
 /**
- * An own **data** property of `value`, read through its descriptor rather than through a
- * possibly-installed accessor. Throws when the slot is missing or is an accessor, which the caller
- * turns into opaque identity — a turtle whose `id` getter raises, or a record whose `type` has been
- * redefined, describes nothing trustworthy.
+ * An own **data** property of `value`, returned RAW and read through its descriptor rather than
+ * through a possibly-installed accessor. Throws when the slot is missing or is an accessor, which
+ * the caller turns into opaque identity.
+ *
+ * It deliberately does not stringify. `String()` erased both type and equality: two `OLTurtle(NaN)`
+ * rendered alike although `NaN !== NaN` makes them different turtles, turtle id `1` collapsed onto
+ * the string `"1"`, and record type `1` onto `"1"`. Each caller validates the domain it expects.
  */
-function dataProperty(value: object, name: string): string {
+function dataProperty(value: object, name: string): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, name);
   if (descriptor === undefined || !("value" in descriptor)) {
     throw new TypeError(`${name} is not a data property`);
   }
-  return String(descriptor.value);
+  return descriptor.value;
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {

@@ -306,41 +306,116 @@ test("a deep or cyclic value terminates instead of throwing", () => {
 });
 
 test("a large collection is snapshotted once, not once per entry", () => {
-  // A TIMING ceiling does not guard this. The previous version allowed 2 s, and a review measured
-  // the restored quadratic shape at 396 ms for 8,000 entries — the test would have passed with the
-  // defect back in place. So the assertion counts the calls instead: whatever the machine, reading
-  // a collection once per entry is a different number from reading it once.
+  // This guard is deliberately weaker than the one it replaces, and the comment says so rather
+  // than overstating it.
   //
-  // The count is taken on `OLDict.prototype` rather than on a subclass, because the encoder now
-  // reads through the base implementation on purpose — a subclass override is exactly what a
-  // hostile value would install, so it must NOT be consulted, and a subclass-based counter would
-  // silently measure nothing.
+  // The STRONG guarantee is now structural: the two reads sit outside any loop, and they go
+  // through references captured at module load, so nothing — not a subclass, not a monkey-patched
+  // prototype, not a test — can intercept them. The counting test that used to live here counted
+  // through a `CountingDict` SUBCLASS, which the encoder now refuses to consult; it would have kept
+  // passing while measuring nothing at all. That is the third time in this slice a test survived a
+  // change that made it meaningless.
+  //
+  // What remains observable is cost, so the backstop is a timing one — but chosen from measurement
+  // rather than from caution. At 16,000 entries this machine runs the correct shape in 6-10 ms and
+  // the per-entry shape in ~1,690 ms: a ~200x separation. A 300 ms ceiling therefore leaves the
+  // correct shape 30-50x of headroom while the defect overshoots by 5.6x. The previous ceiling
+  // failed precisely because its margin was 5x and the defect fitted inside it.
+  const large = new OLDict();
+  for (let index = 0; index < 16_000; index++) {
+    large.set(`k${index}`, index);
+  }
+  const started = process.hrtime.bigint();
+  dedupeDiagnostics([carrying(large)]);
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(
+    elapsedMs < 300,
+    `de-duplicating one 16,000-entry dict took ${elapsedMs.toFixed(1)} ms; the per-entry shape measures ~1,690 ms`,
+  );
+});
+
+test("the captured readers cannot be replaced by patching the prototype", () => {
+  // `OLDict.prototype.keys` looked up at call time is a mutable slot: patching it to return `[]`
+  // collapsed two different populated dicts into one fault. The references are captured at module
+  // load, before any host code can run.
   const realKeys = OLDict.prototype.keys;
   const realValues = OLDict.prototype.values;
-  let keysReads = 0;
-  let valuesReads = 0;
-  OLDict.prototype.keys = function countedKeys() {
-    keysReads += 1;
-    return realKeys.call(this);
+  const populated = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return dictionary;
   };
-  OLDict.prototype.values = function countedValues() {
-    valuesReads += 1;
-    return realValues.call(this);
-  };
+  const one = populated(1);
+  const two = populated(2);
+  OLDict.prototype.keys = () => [];
+  OLDict.prototype.values = () => [];
   try {
-    const counted = new OLDict();
-    for (let index = 0; index < 200; index++) {
-      counted.set(`k${index}`, index);
-    }
-    keysReads = 0;
-    valuesReads = 0;
-    dedupeDiagnostics([carrying(counted)]);
+    assert.deepEqual(one.keys(), [], "the patch is live");
+    assert.deepEqual(one.values(), [], "on both readers");
+    assert.equal(survivors(one, two), 2);
   } finally {
     OLDict.prototype.keys = realKeys;
     OLDict.prototype.values = realValues;
   }
-  assert.equal(keysReads, 1, "keys() must be snapshotted once");
-  assert.equal(valuesReads, 1, "values() must be snapshotted once");
+});
+
+test("a proxy that hides its contents from the reader is opaque, not a collision", () => {
+  // The backing state is a genuine `#private` field, and a private-field brand check happens
+  // BEFORE any `get` trap can answer — so the captured reader rejects the proxy outright rather
+  // than being lied to. The distinction matters: an earlier version of this comment credited the
+  // trap, and coverage showed the trap is never consulted at all. The assertion below pins that
+  // the deception is live when the proxy is asked publicly, so the test cannot pass merely because
+  // there was nothing to deceive with.
+  const hiding = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return new Proxy(dictionary, {
+      get(target, key) {
+        return key === "entries" ? new Map() : Reflect.get(target, key, target);
+      },
+    });
+  };
+  const one = hiding(1);
+  assert.equal(
+    one.entries.size,
+    0,
+    "the deception is live when asked publicly",
+  );
+  assert.throws(
+    () => one.keys(),
+    /private member/,
+    "and the brand check rejects the proxy as a receiver, whoever asks",
+  );
+  assert.equal(survivors(one, hiding(2)), 2);
+});
+
+test("an identity slot that is not the type it must be makes the value opaque", () => {
+  // `String()` erased both type and equality. Two `OLTurtle(NaN)` rendered alike although
+  // `NaN !== NaN` makes them different turtles; turtle id `1` collapsed onto the word `"1"`; and
+  // record type `1` onto `"1"`.
+  assert.equal(
+    survivors(new OLTurtle(Number.NaN), new OLTurtle(Number.NaN)),
+    2,
+    "an id that is not a finite number identifies nothing",
+  );
+
+  const stringId = new OLTurtle(1);
+  Object.defineProperty(stringId, "id", {
+    value: "1",
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  assert.equal(survivors(new OLTurtle(1), stringId), 2);
+
+  const numericType = new OLRecord("p", [], []);
+  Object.defineProperty(numericType, "type", {
+    value: 1,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+  assert.equal(survivors(numericType, new OLRecord("1", [], [])), 2);
 });
 
 test("a wide value does not overflow the host stack", () => {
