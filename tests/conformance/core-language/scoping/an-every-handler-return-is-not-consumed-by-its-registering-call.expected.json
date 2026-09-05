@@ -1,0 +1,135 @@
+{
+  "description": "The `return` cell of `an-every-handler-stop-is-not-consumed-by-its-registering-call`, which carries the rationale. `return` is the signal spec/execution-model.md:660-664 names explicitly — a value-carrying escape is the one a live caller frame could actually absorb as its own result — so it raises `ol-return-outside-proc` (spec/error-model.md:116) while `setup` is still on the stack. Separate from its `stop` sibling because the runtime converts the two signals in two adjacent branches at each of the four handler sites, so a mutant can remove either one alone; and separate from every other fixture because execution stops at the first diagnostic. The `return` trace event is still emitted by the statement before the boundary reclassifies the escaping signal.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [1, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 23]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [3, 3],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "payload": {
+        "value": 5
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/scoping/an-every-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
