@@ -153,6 +153,22 @@ function procedureBody(source, name) {
   return lines.slice(startIndex, endIndex + 1).join("\n");
 }
 
+/**
+ * The straight-line distance of every `move` event in `result`, in order — the measured side
+ * lengths a drawing actually produced. Lesson explanations state these as plain numbers ("20,
+ * 30, 40, 50, 60, 70"), which nothing else in the pipeline checks, so the tests compare against
+ * this rather than trusting the prose.
+ */
+function sideLengths(result) {
+  return result.events
+    .filter((event) => event.kind === "move")
+    .map((event) => {
+      const [fromX, fromY] = event.payload.from;
+      const [toX, toY] = event.payload.to;
+      return Math.round(Math.hypot(toX - fromX, toY - fromY) * 1e6) / 1e6;
+    });
+}
+
 test("getLessonsByLevel('5') contains only valid, Level 5 Lessons", () => {
   assert.equal(level5Lessons.length > 0, true);
   for (const lesson of level5Lessons) {
@@ -187,7 +203,7 @@ test("level5Exercises ramps through every difficulty exactly once per lesson", (
   }
 });
 
-test("the objective states define/return/local and the build-polygon-from-repeat guardrail", () => {
+test("the objective states define/return/the procedure boundary and the build-polygon-from-repeat guardrail", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
@@ -196,8 +212,12 @@ test("the objective states define/return/local and the build-polygon-from-repeat
     lesson.objective.includes("define … end names a reusable procedure"),
     true,
   );
+  // Issue #829: under saga #819's ruling privacy is automatic, so this level no longer sells
+  // `local` as the thing that creates it. The objective must name the boundary instead.
   assert.equal(
-    lesson.objective.includes("local (a procedure's own private variable)"),
+    lesson.objective.includes(
+      "the boundary around a procedure (the names it sets are its own, and an input is yours to change)",
+    ),
     true,
   );
   assert.equal(
@@ -208,22 +228,51 @@ test("the objective states define/return/local and the build-polygon-from-repeat
   );
 });
 
-test("no learner-facing L5 string names Heritage spellings, Level 6, or absolute placement (issue #436)", () => {
-  const lesson = level5Lessons.find(
-    (item) => item.id === "l5-polygon-procedure",
-  );
-  assert.ok(lesson);
-
+// Issue #829's headline consequence for this level, pinned so a later edit cannot quietly
+// reintroduce it. `local` survives the ruling as a way to shadow a name that is already visible
+// (`spec/execution-model.md:501-506`), which is only meaningful after a learner has met `global`
+// — so no Level 5 program may use it, and no learner-facing Level 5 string may name it. The
+// scan covers the whole level, both lessons, not just the one that used to carry it.
+test("no Level 5 content teaches local — privacy is automatic under the scoping ruling", () => {
   const learnerStrings = [
-    lesson.objective,
-    lesson.exercisePrompt,
-    ...lesson.workedExamples.map((example) => example.explanation),
+    ...level5Lessons.flatMap((lesson) => [
+      lesson.title,
+      lesson.objective,
+      lesson.exercisePrompt,
+      ...lesson.workedExamples.flatMap((example) => [
+        example.source,
+        example.explanation,
+      ]),
+    ]),
     ...level5Exercises.flatMap((exercise) => [
       exercise.prompt,
       exercise.referenceSolution.source,
       exercise.referenceSolution.explanation,
     ]),
   ];
+  for (const text of learnerStrings) {
+    assert.equal(
+      /\blocal\b/i.test(text),
+      false,
+      `Level 5 still mentions local: ${text}`,
+    );
+  }
+});
+
+test("no learner-facing L5 string names Heritage spellings, Level 6, or absolute placement (issue #436)", () => {
+  const learnerStrings = level5Lessons.flatMap((lesson) => [
+    lesson.objective,
+    lesson.exercisePrompt,
+    ...lesson.workedExamples.map((example) => example.explanation),
+  ]);
+  assert.equal(learnerStrings.length > 0, true);
+  learnerStrings.push(
+    ...level5Exercises.flatMap((exercise) => [
+      exercise.prompt,
+      exercise.referenceSolution.source,
+      exercise.referenceSolution.explanation,
+    ]),
+  );
 
   const bannedPatterns = [
     /heritage/i,
@@ -586,7 +635,7 @@ test("l5-street-of-houses draws exactly two complete houses (7 drawn segments ea
   assert.equal(procedureEnters.length, 8);
 });
 
-test("the reporter worked examples (double :n) both return 80 for double 40 / 42 for double 21", () => {
+test("the reporter worked example (double :n) returns 80 for double 40, and the boundary examples measure both halves of the seal", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
@@ -597,9 +646,159 @@ test("the reporter worked examples (double :n) both return 80 for double 40 / 42
   assert.equal(moves.length, 1);
   assert.deepEqual(moves[0].payload.to, [0, 80]);
 
-  const localExample = lesson.workedExamples[2];
-  const localResult = execute(localExample.source, "double-local.logo");
-  const prints = localResult.events.filter((event) => event.kind === "print");
-  assert.equal(prints.length, 1);
-  assert.deepEqual(prints[0].payload.values, [42]);
+  // Issue #829 / saga #819: the names a procedure sets are its own, so the same spelling inside
+  // and outside `double` is two variables. 42 then 5 is the claim the explanation makes.
+  const privacyExample = lesson.workedExamples[2];
+  const privacyResult = execute(privacyExample.source, "double-privacy.logo");
+  assert.deepEqual(privacyResult.diagnostics, []);
+  assert.deepEqual(
+    privacyResult.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[42], [5]],
+  );
+
+  // The other half of the boundary (`spec/execution-model.md:471-474`): rebinding a parameter
+  // never escapes, so an input really is the procedure's to change. 107 then 7.
+  const inputExample = lesson.workedExamples[3];
+  const inputResult = execute(inputExample.source, "input-is-yours.logo");
+  assert.deepEqual(inputResult.diagnostics, []);
+  assert.deepEqual(
+    inputResult.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[107], [7]],
+  );
+});
+
+// The `global` lesson (issue #829). Every number its explanations promise a learner is measured
+// here, including the sequence of side lengths, because a "20, 30, 40, 50, 60, 70" written in
+// prose is exactly the kind of derived claim nothing else in the pipeline checks.
+test("l5-global-shared-value's worked examples print and draw what they promise", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-global-shared-value",
+  );
+  assert.ok(lesson);
+  assert.equal(lesson.workedExamples.length, 2);
+
+  const counter = execute(lesson.workedExamples[0].source, "global-bump.logo");
+  assert.deepEqual(counter.diagnostics, []);
+  assert.deepEqual(
+    counter.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[2]],
+  );
+
+  const steps = execute(lesson.workedExamples[1].source, "global-step.logo");
+  assert.deepEqual(steps.diagnostics, []);
+  assert.deepEqual(sideLengths(steps), [20, 30, 40, 50, 60, 70]);
+});
+
+// The claim the first `global` explanation makes about the *broken* program a learner starts
+// from: without the declaration the procedure cannot see the name and OpenLogo says so. The
+// lesson corpus itself must stay clean (every other test here asserts that), so this variant is
+// built here rather than shipped as content — and it is built by editing the lesson's own source,
+// so it cannot drift from the program the learner is actually shown.
+test("dropping the global declaration is what raises ol-var-not-visible, naming the procedure", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-global-shared-value",
+  );
+  assert.ok(lesson);
+  const shared = lesson.workedExamples[0].source;
+  assert.equal(shared.includes("global count = 0"), true);
+  const withoutGlobal = shared.replace("global count = 0", ":count = 0");
+
+  const result = execute(withoutGlobal, "global-bump-broken.logo");
+  const boundary = result.diagnostics.find(
+    (diagnostic) => diagnostic.code === "ol-var-not-visible",
+  );
+  assert.ok(
+    boundary,
+    `expected ol-var-not-visible, got ${JSON.stringify(result.diagnostics)}`,
+  );
+  assert.equal(boundary.message.includes(":count"), true);
+  assert.equal(boundary.message.includes("bump"), true);
+});
+
+test("l5-global-share-a-count is a one-line diff that shares the count and still closes the square", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-share-a-count",
+  );
+  assert.ok(exercise);
+  const source = exercise.referenceSolution.source;
+  assert.equal(source.includes("global drawn = 0"), true);
+
+  const result = execute(source, "global-share-a-count.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[4]],
+  );
+  assert.deepEqual(sideLengths(result), [60, 60, 60, 60]);
+
+  // "the drawing is unchanged" — four sides and four right angles bring the turtle home.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const [endX, endY] = moves[moves.length - 1].payload.to;
+  assert.ok(Math.hypot(endX, endY) < 1e-6);
+
+  // The one-line-diff claim: only the first line differs from the plain top-level version.
+  const plain = source.replace("global drawn = 0", ":drawn = 0");
+  const changed = source
+    .split("\n")
+    .filter((line, index) => line !== plain.split("\n")[index]);
+  assert.equal(changed.length, 1);
+});
+
+test("l5-global-total-of-inputs keeps per-call inputs separate while sharing one total", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-total-of-inputs",
+  );
+  assert.ok(exercise);
+  const result = execute(
+    exercise.referenceSolution.source,
+    "global-total-of-inputs.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(sideLengths(result), [30, 50, 70, 90]);
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[30 + 50 + 70 + 90]],
+  );
+});
+
+test("l5-global-staircase stacks four steps of growing rise and reports the total climb", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-staircase",
+  );
+  assert.ok(exercise);
+  const result = execute(exercise.referenceSolution.source, "staircase.logo");
+  assert.deepEqual(result.diagnostics, []);
+
+  // Four calls, each a rise then a fixed 40-step tread.
+  assert.deepEqual(sideLengths(result), [20, 40, 30, 40, 40, 40, 50, 40]);
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[20 + 30 + 40 + 50]],
+  );
+
+  // "the steps stack, climbing to the right": every step ends higher and further right than it
+  // started, which is the shape claim the explanation makes and a length list cannot prove.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const [startX, startY] = moves[0].payload.from;
+  for (let step = 0; step < 4; step += 1) {
+    const [beforeX, beforeY] = moves[step * 2].payload.from;
+    const [afterX, afterY] = moves[step * 2 + 1].payload.to;
+    assert.ok(afterY > beforeY, `step ${step} did not rise`);
+    assert.ok(afterX > beforeX, `step ${step} did not move right`);
+  }
+  const [endX, endY] = moves[moves.length - 1].payload.to;
+  assert.ok(Math.abs(endY - startY - 140) < 1e-6);
+  assert.ok(Math.abs(endX - startX - 160) < 1e-6);
 });

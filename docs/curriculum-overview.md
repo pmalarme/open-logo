@@ -3,8 +3,12 @@
 > The first five of OpenLogo's [8 progressive learner levels](../spec/educational-model.md#the-8-progressive-levels)
 > — movement through procedures — each teaching one new idea on top of the last, and each
 > culminating in a challenge that composes a **recognizable object** (a house, a tree, a small
-> street) rather than an abstract drill. Authored as validated `Lesson`/`Exercise` content in
-> `@openlogo/edu` (`packages/edu/src/lessons/level-1.ts` … `level-5.ts`, aggregated by
+> street, a snail's shell, a staircase) rather than an abstract drill. Levels 3 and 5 carry two
+> lessons each: the second in both cases teaches saga
+> [#819](https://github.com/pmalarme/open-logo/issues/819)'s variable-scoping ruling at the point
+> a learner first meets it ([#829](https://github.com/pmalarme/open-logo/issues/829)). Authored as
+> validated `Lesson`/`Exercise` content in `@openlogo/edu`
+> (`packages/edu/src/lessons/level-1.ts` … `level-5.ts`, aggregated by
 > `packages/edu/src/lessons/registry.ts`). Levels 6–8 (geometry, data structures, algorithms) are
 > out of scope for this saga; see [`spec/educational-model.md`](../spec/educational-model.md)
 > for the full 8-level model.
@@ -70,6 +74,8 @@ that changes only the repeat count, the payoff moment for why `repeat` matters.
 
 ## Level 3 — Variables
 
+### One name, many places
+
 **Objective:** See that storing a value in `:size` and reusing it lets one name control every side
 of a shape, whether the value is assigned with `=` or with the worded `set … to` form.
 
@@ -90,8 +96,49 @@ The graded exercises ramp from introducing `:size` into a fixed square, to resiz
 the worded `set … to` form, to the open challenge: a resizable **house** whose walls and roof both
 reuse the one `:size` name, so a single change resizes the whole shape.
 
-**Lesson content:** [`level-3.ts`](../packages/edu/src/lessons/level-3.ts) (lesson
-`l3-size-square`).
+### Where a name is born decides how long it lives
+
+**Objective:** See that a name is born where it is first given a value, and that a name born
+inside a `repeat`'s body starts over on every turn while a name born before the loop is one
+variable every turn keeps changing.
+
+This is saga [#819](https://github.com/pmalarme/open-logo/issues/819)'s variable-scoping ruling at
+the first point a learner can feel it. A name is born where it is first assigned and lives until
+that scope ends, so a name born inside a block goes out of scope at the `end` of that block
+([`spec/execution-model.md`](../spec/execution-model.md#blocks-update-what-they-can-see)). Two
+programs with a word-for-word identical loop body therefore do completely different things
+depending only on which side of the `repeat` the first assignment sits:
+
+```logo
+# why: :x is born inside the loop, so every turn starts it over at 0
+repeat 4
+  :x = 0
+  :x = :x + 1
+  print :x
+end repeat
+```
+
+That prints `1 1 1 1`. Move the one line above the loop and the same body counts up:
+
+```logo
+# why: :x is born before the loop, so all four turns change one variable
+:x = 0
+repeat 4
+  :x = :x + 1
+  print :x
+end repeat
+```
+
+That prints `1 2 3 4`. Being born outside is what makes the accumulator idiom possible at all —
+`:side` surviving from turn to turn is how a loop grows a drawing rather than repeating it.
+
+The graded exercises ramp from moving that single line so the same loop counts up, to drawing four
+sides that each come out longer than the last, to the open challenge: a **snail's shell** — the
+same side-and-quarter-turn pattern as a square, winding outward only because the growing name
+outlives each turn.
+
+**Lesson content:** [`level-3.ts`](../packages/edu/src/lessons/level-3.ts) (lessons
+`l3-size-square`, `l3-where-a-name-is-born`).
 
 ## Level 4 — Conditions
 
@@ -128,11 +175,13 @@ condition — green if `:size >= 80`, purple otherwise.
 
 ## Level 5 — Functions and procedures
 
+### `define` names a reusable idea; `return` hands back its answer
+
 **Objective:** See that `define … end` names a reusable procedure, that parameters such as
 `:sides` and `:size` are variables scoped to it, that `return` hands a value back from a reporter,
-that a command procedure may draw without returning a value, and that `local` names a variable
-that lives only inside the procedure. `polygon` is always **built up** from `repeat` here — never
-handed to the learner as an opaque primitive.
+that a command procedure may draw without returning a value, and that a procedure's own names are
+private **automatically**. `polygon` is always **built up** from `repeat` here — never handed to
+the learner as an opaque primitive.
 
 ```logo
 # why: polygon is the side-and-turn pattern with names for the parts
@@ -156,13 +205,74 @@ end
 forward double 40
 ```
 
+A procedure is a boundary in both directions, and nothing has to be declared to get it. The names
+a procedure sets are its own — so the two `:answer` lines below are two different variables, and
+this prints `42` then `5`:
+
+```logo
+# why: the names a procedure sets are its own, even when the name is already in use
+:answer = 5
+define double :n
+  :answer = :n * 2
+  print :answer
+end
+
+double 21
+print :answer
+```
+
+The other half is that an input is yours: change it as freely as the procedure needs and the
+caller keeps what it had.
+
 The graded exercises ramp from a single-line change to the `polygon` call, to defining a second
 procedure (`triangle`) that reuses `polygon` instead of repeating its logic, to the open challenge:
 reusing `spec/examples/06-geometry.logo`'s validated `polygon` → `triangle` → `house` chain to
 define `house :size`, then calling it twice to draw a small street of two houses side by side.
 
-**Lesson content:** [`level-5.ts`](../packages/edu/src/lessons/level-5.ts) (lesson
-`l5-polygon-procedure`).
+### `global` shares one value with every procedure
+
+**Objective:** See that a procedure cannot reach a name it was never handed — it sees only its own
+inputs, the names it sets itself, and names declared `global` — and that `global name = value` is
+how a program deliberately shares one value across several calls.
+
+`global` is the one way through the boundary above, and it is the first time a learner meets
+deliberate shared state. The name is written **bare**, without a colon, and a starting value is
+required ([`spec/execution-model.md`](../spec/execution-model.md#global)):
+
+```logo
+# why: global says out loud that this one value is shared with every procedure
+global count = 0
+define bump
+  :count = :count + 1
+end
+
+bump
+bump
+print :count
+```
+
+That prints `2`. Written as a plain `:count = 0` the program stops instead, because `bump` cannot
+see a name that was never handed to it — OpenLogo reports `ol-var-not-visible`, naming the
+procedure whose boundary hid it: *":count is not defined inside bump"*. Note where that message
+appears today: the studio's diagnostics pane does not yet run the semantic checker while a learner
+types ([#814](https://github.com/pmalarme/open-logo/issues/814)), so the learner meets this by
+pressing **Run** and reading the runtime's copy of the message, not by seeing it appear as they
+write. The lesson teaches the boundary and the one-word fix, not an IDE experience that is not
+wired up yet.
+
+The graded exercises ramp from that one-word fix, to a procedure given an input *as well as* a
+shared total — so the two kinds of name are contrasted rather than described — to the open
+challenge: a **staircase** whose steps are drawn from their inputs while a shared name accumulates
+how far it climbed.
+
+Under saga [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling, `local` is no longer
+taught at this level. It used to be what *made* a procedure's variable private; now privacy is the
+default and `local` survives as a way to deliberately **shadow** a name that is already visible
+([`spec/execution-model.md`](../spec/execution-model.md#local)) — which only means something once
+a learner has met `global`, making it a later and narrower idea than Level 5.
+
+**Lesson content:** [`level-5.ts`](../packages/edu/src/lessons/level-5.ts) (lessons
+`l5-polygon-procedure`, `l5-global-shared-value`).
 
 ## See also
 
