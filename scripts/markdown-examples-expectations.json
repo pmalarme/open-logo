@@ -58,6 +58,15 @@
       "codes": ["ol-not-a-place"]
     }
   ],
+  "docs/design-notes/0008-sealed-procedure-boundary-and-block-lifetime.md": [
+    {
+      "fingerprint": "9063362e0d0560cf",
+      "excerpt": ":count = 0",
+      "kind": "deliberate-error",
+      "why": "The record's Decision section shows the program the sealed procedure boundary rejects, and the sentence directly under it names ol-var-not-visible and gives the one-word `global count = 0` fix. A clean run here would mean the boundary no longer seals reads.",
+      "codes": ["ol-var-not-visible"]
+    }
+  ],
   "docs/educational-commands.md": [
     {
       "fingerprint": "62bdd113cf88a286",
