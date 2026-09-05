@@ -1,0 +1,4 @@
+global score = 0
+on_click [ :score = :score + 1 ]
+wait 5
+print :score

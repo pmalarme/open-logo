@@ -1,0 +1,95 @@
+{
+  "description": "Visibility is decided by where code is written, never by who called it (spec/execution-model.md:383). The `repeat` body is STILL RUNNING when it calls `helper`, so a dynamically scoped runtime walking the caller's scopes finds `:temp` and prints `5` twice; a lexical one cannot see it at all. `:temp` is born in a block scope and a block encloses no procedure body, so the sealed boundary is not what hides it and the read is the ordinary `ol-undefined-var` (spec/error-model.md:102) rather than `ol-var-not-visible`. The sibling `a-name-only-a-top-level-block-binds-is-not-boundary-hidden` calls the procedure AFTER the block has ended, where a dead scope explains the failure on its own; this fixture is the live-block shape, where only lexical scoping does.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [4, 1],
+        "end": [4, 32]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [4, 12],
+        "end": [4, 21]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [4, 24],
+        "end": [4, 30]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [4, 24],
+        "end": [4, 30]
+      },
+      "payload": {
+        "name": "helper",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [2, 3],
+        "end": [2, 14]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-cannot-see-the-block-that-is-calling-it",
+        "start": [2, 9],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "temp"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+define setup
+  on_key "a" [ return 5 ]
+  wait 3
+  print 99
+end
+setup

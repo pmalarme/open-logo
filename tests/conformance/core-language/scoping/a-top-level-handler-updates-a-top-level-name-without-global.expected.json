@@ -1,0 +1,160 @@
+{
+  "description": "The sentence spec/execution-model.md:597-601 adds to the block rule: \"a top-level `on_click [ :score = :score + 1 ]` needs no declaration: `:score` is a top-level name and the handler block is written at the top level\". Dropping the `global` from the sibling `a-global-counts-clicks-across-handler-firings` must therefore change nothing — the same two clicks still leave `2`. Pinned because the sealed boundary makes `global` look like the price of shared mutable state, and for a top-level handler it is not; requiring it here would be a regression the `global` fixture alone cannot see.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "click"
+        },
+        {
+          "tick": 2,
+          "kind": "click"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-handler-updates-a-top-level-name-without-global",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

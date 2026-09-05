@@ -1,0 +1,4 @@
+:n = 1
+while :n < 2 [ :n = :n + 1   :seen = 7 ]
+print :n
+print :seen

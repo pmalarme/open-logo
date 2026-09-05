@@ -1,0 +1,148 @@
+{
+  "description": "Capturing the registering frame's bindings does not put a handler into that procedure's control flow (spec/execution-model.md:657-664): a handler invocation is a separate, deferred instruction, so `return` inside a handler block is outside any procedure and raises `ol-return-outside-proc` (spec/error-model.md:116) \"even when the handler was registered inside a `define`\". The spec gives two reasons and this fixture is the second one — \"one firing after it returned would have no procedure to leave\": `setup` has already returned by the time the `every` fires from the top-level `wait`, so there is no frame the signal could be consumed as the result of. The existing `interaction-events/when/when-return-in-handler-inside-proc` covers the first reason, a handler firing while the registering call is still on the stack; that shape cannot show this one. The `return` trace event is still emitted by the statement before the handler boundary reclassifies the escaping signal. Measured during the review gate: removing the handler-level conversion alone does NOT change this program's output, because a signal escaping to the top level is converted there under the same code — the implementation this fixture discriminates against is one that SWALLOWS a deferred `return`, which produces no diagnostic at all.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 3],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 3],
+        "end": [2, 23]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [4, 1],
+        "end": [4, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "result": null
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 3],
+        "end": [2, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "payload": {
+        "value": 5
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/scoping/a-deferred-return-outlives-the-procedure-that-registered-it",
+        "start": [2, 13],
+        "end": [2, 21]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "description": "Three procedures whose bodies each write a name the boundary hides, and only two are diagnosed (spec/execution-model.md:492-499). `silent`'s plain `:d = 5` creates its own binding — correct, and undiagnosable per spec/execution-model.md:443-446 — while `loud`'s `:d.k = 5` and `louder`'s `:lst[1] = 9` resolve their base as a read first and raise `ol-var-not-visible` on the base, each naming its own procedure (spec/error-model.md:132). Written as one program so the contrast is asserted rather than distributed across fixtures a reader must find: a checker that diagnosed every write, or none, fails on the count.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-postfix-base-but-not-a-plain-write",
+        "start": [7, 3],
+        "end": [7, 5]
+      },
+      "params": {
+        "name": "d",
+        "procedure": "loud"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-postfix-base-but-not-a-plain-write",
+        "start": [10, 3],
+        "end": [10, 7]
+      },
+      "params": {
+        "name": "lst",
+        "procedure": "louder"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

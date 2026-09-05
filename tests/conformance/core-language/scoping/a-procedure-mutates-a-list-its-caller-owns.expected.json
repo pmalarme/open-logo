@@ -1,0 +1,106 @@
+{
+  "description": "spec/execution-model.md:462-474's own worked example, verbatim, and a REQUIRED NEGATIVE: the boundary seals names, not values, so passing a list copies the reference and the callee's `add` is visible to the caller — the program prints `[1 2 99]` and the spec says such a procedure \"is doing what the language promises and MUST NOT be diagnosed\" (spec/execution-model.md:473-474). Nothing in the `ol-var-not-visible` machinery may reach this program: measured, an implementation that copies a list argument instead of sharing the reference prints `[1 2]` here, breaking the idiom the spec guarantees, and this fixture is what stops that.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [4, 1],
+        "end": [4, 19]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": {
+        "name": "push_last",
+        "args": [[1, 2]]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [2, 3],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Add"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [5, 1],
+        "end": [5, 19]
+      },
+      "payload": {
+        "name": "push_last",
+        "result": null
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-list-its-caller-owns",
+        "start": [6, 1],
+        "end": [6, 15]
+      },
+      "payload": {
+        "values": [[1, 2, 99]]
+      }
+    }
+  ],
+  "diagnostics": []
+}

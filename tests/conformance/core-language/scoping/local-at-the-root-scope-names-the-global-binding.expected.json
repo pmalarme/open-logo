@@ -1,0 +1,130 @@
+{
+  "description": "The one place `local` does NOT create a new binding. At the root scope there is no enclosing scope to shadow into, so when a `global` of that name already exists `local` leaves it global and `local name = value` assigns the initializer to it (spec/execution-model.md:520-526, spec/commands.md:121) — a second, procedure-invisible binding beside it would hide shared state from every procedure without saying so. `peek` therefore still reads the shared binding and prints `5`, as does the top level. The procedure read is the whole point: measured, an implementation whose root-scope `local` forks the binding away from the global stops at `peek` with `ol-undefined-var` and never reaches the top-level `print` at all, so a fixture that only printed at the top level would report `5` either way.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [3, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "name": "peek",
+        "args": []
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "values": [5]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "name": "peek",
+        "result": null
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/local-at-the-root-scope-names-the-global-binding",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "values": [5]
+      }
+    }
+  ],
+  "diagnostics": []
+}

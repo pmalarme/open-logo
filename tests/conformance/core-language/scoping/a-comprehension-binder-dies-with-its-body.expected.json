@@ -1,0 +1,70 @@
+{
+  "description": "A comprehension body is a block scope (spec/execution-model.md:367-369), so its binder goes out of scope at the `]` like any other block-born name (spec/execution-model.md:603-605). `print :doubled` reports `[2 4]` — which is what proves the binder was bound and the body ran — and the read of `:n` afterwards raises `ol-undefined-var` (spec/error-model.md:102). The existing check fixture `undefined-var-binder-not-leaked` makes this claim for `for … in` at the semantic stage; this is the comprehension binder at runtime.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-comprehension-binder-dies-with-its-body",
+        "start": [1, 1],
+        "end": [1, 39]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-comprehension-binder-dies-with-its-body",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-comprehension-binder-dies-with-its-body",
+        "start": [2, 1],
+        "end": [2, 15]
+      },
+      "payload": {
+        "values": [[2, 4]]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-comprehension-binder-dies-with-its-body",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-comprehension-binder-dies-with-its-body",
+        "start": [3, 7],
+        "end": [3, 9]
+      },
+      "params": {
+        "name": "n"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "description": "The semantic-stage twin of `sprites/ask-body-is-a-block-scope` and `sprites/each-body-is-a-block-scope`: a name born in an `ask` or an `each` body is not visible after it (spec/execution-model.md:603-605,664-666), so both reads are `ol-undefined-var` (spec/error-model.md:102). Both halves are asserted in one program because the checker reports every read, which is exactly what the two execute fixtures cannot do — execution stops at the first error. Added at the QA reviewer's request during the review gate, which enumerated every `check: true` fixture in the corpus carrying an `ask` or `each` body (`ask-checks-clean`, `each-checks-clean`, `ask-unknown-without-sprites`, `each-unknown-without-sprites`, `shape-checks-clean`) and found all of them to be about clean parses or unknown commands, none about variable scope — then built a checker that leaks a Sprites body's bindings outward and measured it surviving all 1029 fixtures.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/sprites-body-scope-check/sprites-body-scope-check",
+        "start": [3, 7],
+        "end": [3, 13]
+      },
+      "params": {
+        "name": "asked"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/sprites-body-scope-check/sprites-body-scope-check",
+        "start": [6, 7],
+        "end": [6, 14]
+      },
+      "params": {
+        "name": "eached"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

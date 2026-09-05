@@ -1,0 +1,123 @@
+{
+  "description": "The same required negative through a record field. Records are mutable reference values like lists (spec/execution-model.md:457-460), so writing `:p.x` inside the procedure updates the caller's record and `print :q.x` reports `99`, with no diagnostic. The postfix write is the interesting part: `:p.x = 99` resolves its base `:p` as a READ before assigning (spec/execution-model.md:492-499), and here that read succeeds because `:p` is a parameter — the sibling `a-postfix-write-reads-its-base-across-the-boundary` is the same syntax over a base the boundary hides, and it is diagnosed. The two together say the postfix rule is about visibility of the BASE, not about postfix writes being restricted.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [1, 1],
+        "end": [1, 21]
+      },
+      "payload": {
+        "statement_kind": "StructDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [5, 1],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [6, 1],
+        "end": [6, 10]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [6, 1],
+        "end": [6, 10]
+      },
+      "payload": {
+        "name": "move_x",
+        "args": [
+          {
+            "x": 1,
+            "y": 2
+          }
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [3, 3],
+        "end": [3, 12]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [6, 1],
+        "end": [6, 10]
+      },
+      "payload": {
+        "name": "move_x",
+        "result": null
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [7, 1],
+        "end": [7, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-procedure-mutates-a-record-field-its-caller-owns",
+        "start": [7, 1],
+        "end": [7, 11]
+      },
+      "payload": {
+        "values": [99]
+      }
+    }
+  ],
+  "diagnostics": []
+}

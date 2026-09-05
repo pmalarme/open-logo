@@ -1,0 +1,84 @@
+{
+  "description": "\"A postfix place differs in one observable way, and it follows from evaluation order rather than from scoping\" (spec/execution-model.md:492-499): `:d.k = <value>` resolves its base `:d` as a read before assigning, so inside a procedure that cannot see `d` it raises `ol-var-not-visible` on the BASE, while the same-looking plain write `:d = <value>` silently creates a procedure-local instead. The span is the base `:d`, not the whole place, and `params.procedure` names the boundary as spec/error-model.md:132 requires. The silent half of the contrast is `a-write-first-procedure-silently-shadows-and-still-draws`; the two shapes look identical in source and have opposite outcomes.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [5, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [5, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "name": "f",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/scoping/a-postfix-write-reads-its-base-across-the-boundary",
+        "start": [3, 3],
+        "end": [3, 5]
+      },
+      "params": {
+        "name": "d",
+        "procedure": "f"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
