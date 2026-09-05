@@ -143,8 +143,9 @@ export const level3Lessons: readonly Lesson[] = [
  * house's walls and roof together. `l3-where-a-name-is-born` (issue #829) ramps from moving one
  * line so the same loop body counts up instead of standing still, to carrying *two* names across
  * the turns at once — one growing the drawing, one accumulating a measurement — to the composed
- * object: a mirrored pair of curled horns, which is a pair only because the second horn's growing
- * name is born again before its own loop.
+ * object: a mirrored pair of curled horns, where the second horn only matches the first because
+ * the growing name is set back — a name that outlives a loop remembers, which is the same fact
+ * that made it useful in the practice exercise and a hazard here.
  */
 export const level3Exercises: readonly Exercise[] = [
   {
@@ -273,12 +274,12 @@ export const level3Exercises: readonly Exercise[] = [
     level: "3",
     difficulty: "challenge",
     prompt:
-      "Compose a pair of curled horns that mirror each other. Draw one horn by repeating a side and a same-sized turn while the side keeps growing, so the path curls instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second horn the same way but turning the other way. Both horns must curl to the same size — think about what the second one needs before its own loop starts.",
+      "Compose a pair of curled horns that mirror each other. Draw one horn by repeating a side and a same-sized turn while the side keeps growing, so the path curls instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second horn the same way but turning the other way. Both horns must curl to the same size — and the growing name is still holding whatever the first horn left in it, so work out what the second loop needs before it starts.",
     referenceSolution: {
       source: [
         "# why: the first horn curls because :side is born before its loop and keeps growing",
         ":side = 10",
-        "repeat 9",
+        "repeat 7",
         "  forward :side",
         "  right 40",
         "  :side = :side + 6",
@@ -286,17 +287,17 @@ export const level3Exercises: readonly Exercise[] = [
         "pen_up",
         "home",
         "pen_down",
-        "# why: the second horn needs its OWN starting value born before its own loop —",
-        "# leave this line out and the left horn carries on from where the right one stopped",
+        "# why: :side survived the first loop still holding 52, so it has to be set back to 10",
+        "# — leave this line out and the left horn starts five times too big",
         ":side = 10",
-        "repeat 9",
+        "repeat 7",
         "  forward :side",
         "  left 40",
         "  :side = :side + 6",
         "end repeat",
       ].join("\n"),
       explanation:
-        "Each horn is the same nine growing sides — 10, 16, 22 and on up to 58 — turning 40 degrees each time, so the path curls right round instead of closing. The two horns mirror each other exactly, because the second loop turns left where the first turned right. The line that makes them match is the second :side = 10: without it, :side is still 64 from the end of the first horn, so the left horn starts more than six times too big and the pair stops being a pair. Composing the second horn is what turns one curl into an object, and it only works if you know where a name has to be born.",
+        "Each horn is the same seven growing sides — 10, 16, 22 and on up to 46 — turning 40 degrees each time, so the path curls round instead of closing. The two horns mirror each other exactly, because the second loop turns left where the first turned right. Now notice what the second :side = 10 really is. It is not a new name being born: :side was born once, at the very top, and being born outside the loops is exactly why it is still there afterwards — holding 52, the value the first horn left in it. So that line sets it back rather than starting it. Leave it out and the left horn begins at 52 instead of 10, more than five times too big, and the pair stops being a pair. A name that outlives a loop is useful for the same reason it is a trap: it remembers.",
     },
   },
 ];

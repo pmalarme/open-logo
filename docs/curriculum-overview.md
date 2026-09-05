@@ -134,8 +134,9 @@ That prints `1 2 3 4`. Being born outside is what makes the accumulator idiom po
 
 The graded exercises ramp from moving that single line so the same loop counts up, to carrying two
 names across the turns at once (one growing the drawing, one totalling the distance), to the open
-challenge: a **pair of curled horns** that mirror each other — and are a pair only because the
-second horn's growing name is born again before its own loop.
+challenge: a **pair of curled horns** that mirror each other — where the second horn matches the
+first only because the growing name is set back, since a name that outlives a loop remembers what
+the last loop left in it.
 
 **Lesson content:** [`level-3.ts`](../packages/edu/src/lessons/level-3.ts) (lessons
 `l3-size-square`, `l3-where-a-name-is-born`).

@@ -308,12 +308,26 @@ test("the maintainer's formulation reaches the learner in its own words, not par
 // write one document, so the accurate claim is about *this program*, and the unqualified
 // universal must not come back.
 test("no Level 5 string claims a global is shared with every procedure everywhere", () => {
-  const learnerStrings = level5Lessons.flatMap((lesson) => [
-    lesson.title,
-    lesson.objective,
-    lesson.exercisePrompt,
-    ...lesson.workedExamples.map((example) => example.explanation),
-  ]);
+  // Round 2 (rubber-duck): the first version of this guard scanned lessons only. A reviewer put
+  // the overbroad phrase into an *exercise* explanation, confirmed it reached `dist`, and all 31
+  // Level 5 tests passed. Exercises carry learner-facing prose too, so they are scanned here.
+  const learnerStrings = [
+    ...level5Lessons.flatMap((lesson) => [
+      lesson.title,
+      lesson.objective,
+      lesson.exercisePrompt,
+      ...lesson.workedExamples.flatMap((example) => [
+        example.source,
+        example.explanation,
+      ]),
+    ]),
+    ...level5Exercises.flatMap((exercise) => [
+      exercise.prompt,
+      exercise.referenceSolution.source,
+      exercise.referenceSolution.explanation,
+    ]),
+  ];
+  assert.equal(learnerStrings.length > 0, true);
   for (const text of learnerStrings) {
     assert.equal(
       /every procedure\b(?! in this program)/i.test(text),

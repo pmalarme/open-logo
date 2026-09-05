@@ -48,6 +48,14 @@ const EXPECTED_DIAGNOSTIC = new Map([
 /** Matches a fenced OpenLogo block, capturing its inner source (line endings already normalized). */
 const FENCE = /```logo\n([\s\S]*?)```/g;
 
+/**
+ * How many ` ```logo ` blocks and how many "prints `…`" claims `docs/curriculum-overview.md`
+ * carries. Pinned so the harness cannot silently enumerate a narrower set than the document —
+ * a deleted block or a re-worded claim must be an explicit, deliberate edit here.
+ */
+const CURRICULUM_LOGO_BLOCK_COUNT = 10;
+const CURRICULUM_PRINT_CLAIM_COUNT = 4;
+
 /** Extract every fenced OpenLogo snippet from `relativePath`, normalizing CRLF so keys are stable. */
 function extractSnippets(relativePath) {
   const text = readFileSync(join(repoRoot, relativePath), "utf8").replace(
@@ -63,7 +71,7 @@ function extractSnippets(relativePath) {
   return snippets;
 }
 
-// Round 1 (@testing finding 3): every `logo` block in `docs/curriculum-overview.md` is currently
+// Round 2 (@testing finding 3): every `logo` block in `docs/curriculum-overview.md` is currently
 // byte-identical to a lesson worked example or reference solution, and that identity is load
 // bearing. The doc states derived numbers beside its blocks ("That prints `1 1 1 1`", "prints
 // `42` then `5`"), but neither gate that reads the doc asserts a value: `check-markdown-examples`
@@ -74,7 +82,14 @@ function extractSnippets(relativePath) {
 // what keeps the doc's prose covered by the lesson tests.
 test("every curriculum-overview logo block is byte-identical to a lesson source", () => {
   const curriculumSnippets = extractSnippets("docs/curriculum-overview.md");
-  assert.ok(curriculumSnippets.length > 0);
+  // Round 2 (@testing finding 3, second half): `> 0` guards against a totally-vacuous match but
+  // not against losing one block. The count is pinned so a deleted or re-labelled fence fails
+  // here rather than quietly reducing what is measured.
+  assert.equal(
+    curriculumSnippets.length,
+    CURRICULUM_LOGO_BLOCK_COUNT,
+    "docs/curriculum-overview.md gained or lost a ```logo block; update the count deliberately",
+  );
 
   const lessonSources = new Set([
     ...OL.LESSONS.flatMap((lesson) =>
@@ -92,6 +107,120 @@ test("every curriculum-overview logo block is byte-identical to a lesson source"
       `docs/curriculum-overview.md block #${index} matches no lesson source, so the numbers stated beside it are measured by nothing:\n${snippet}`,
     );
   }
+});
+
+// Round 2 (rubber-duck, blocking): byte-identity between a doc block and a lesson source does
+// NOT pin the numbers the doc states *beside* the block. Mutation-confirmed by the reviewer:
+// changing a documented output from `1 1 1 1` to `2 2 2 2` left all 16 snippet tests green,
+// because the block itself still ran clean and still matched a lesson source. The prose claim is
+// the thing a learner reads, so it is executed here: every "prints `…`" sentence following a
+// block is compared against what that block actually prints.
+test("every 'prints ...' claim in curriculum-overview matches what the block above it prints", () => {
+  const text = readFileSync(
+    join(repoRoot, "docs/curriculum-overview.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+
+  // Split on fences so each block is paired with the prose around it.
+  const parts = text.split(/```logo\n([\s\S]*?)```/);
+  const claims = [];
+
+  /**
+   * The last sentence of `prose`, which is where a lead-in claim ending in ":" lives. `split`
+   * always yields at least one element, so no empty fallback is needed (and an unreachable one
+   * would be an uncovered branch under the 100% gate).
+   */
+  const lastSentence = (prose) => {
+    const paragraphs = prose.trim().split(/\n\s*\n/);
+    const sentences = paragraphs[paragraphs.length - 1].split(/(?<=\.)\s+/);
+    return sentences[sentences.length - 1];
+  };
+
+  /** The first sentence of `prose`, which is where a trailing claim lives. */
+  const firstSentence = (prose) => prose.trim().split(/(?<=\.)\s+/)[0];
+
+  // A claim names the block it is adjacent to, so it must be in the sentence touching the fence
+  // — not merely somewhere in the paragraph. "That prints `1 1 1 1`. Move the one line above the
+  // loop and the same body counts up:" precedes the SECOND block, and its claim belongs to the
+  // first; sentence scoping is what keeps that from being mis-attributed.
+  const CLAIM = /\bprints\s+(`[^`]+`(?:\s+(?:then|and)\s+`[^`]+`)*)/;
+
+  // parts = [prose, block, prose, block, ..., prose] — `split` with one capture group always
+  // brackets every block with prose, so parts[index - 1] and parts[index + 1] both exist.
+  for (let index = 1; index < parts.length; index += 2) {
+    const source = parts[index];
+    for (const sentence of [
+      lastSentence(parts[index - 1]),
+      firstSentence(parts[index + 1]),
+    ]) {
+      const claim = sentence.match(CLAIM);
+      // "prints nothing at all" carries no backticks and is a statement about a different,
+      // counterfactual program, so it deliberately does not match.
+      if (claim === null) {
+        continue;
+      }
+      const expected = [...claim[1].matchAll(/`([^`]+)`/g)].flatMap((match) =>
+        match[1].trim().split(/\s+/).map(Number),
+      );
+      claims.push({ source, expected, sentence: claim[0] });
+    }
+  }
+
+  // The instrument must not silently enumerate nothing: the doc makes exactly these claims today.
+  assert.equal(
+    claims.length,
+    CURRICULUM_PRINT_CLAIM_COUNT,
+    "the number of 'prints ...' claims in curriculum-overview.md changed; update the count deliberately",
+  );
+
+  for (const { source, expected, sentence } of claims) {
+    const result = execute(source, "curriculum-overview-claim.logo");
+    assert.deepEqual(result.diagnostics, []);
+    const printed = result.events
+      .filter((event) => event.kind === "print")
+      .flatMap((event) => event.payload.values);
+    assert.deepEqual(
+      printed,
+      expected,
+      `the doc says "${sentence}" but the block above it prints ${JSON.stringify(printed)}`,
+    );
+  }
+});
+
+// Round 2 (@testing finding 2): the doc quotes the `ol-var-not-visible` message in a ```text
+// block, which neither markdown gate executes and neither identity test reaches — so if the
+// runtime's wording changed, `level-5.ts`'s copy would be caught (level-5.test.mjs pins it) and
+// the doc's copy would silently drift. The doc's copy is hard-wrapped, so it is compared with
+// whitespace normalized rather than byte for byte.
+test("the diagnostic quoted in curriculum-overview is the message the runtime actually produces", () => {
+  const text = readFileSync(
+    join(repoRoot, "docs/curriculum-overview.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  const quoted = [...text.matchAll(/```text\n([\s\S]*?)```/g)].map((match) =>
+    match[1].trim().replace(/\s+/g, " "),
+  );
+  assert.equal(
+    quoted.length,
+    1,
+    "expected exactly one quoted diagnostic block",
+  );
+
+  const broken = [
+    ":count = 0",
+    "define bump",
+    "  :count = :count + 1",
+    "end",
+    "",
+    "bump",
+    "print :count",
+  ].join("\n");
+  const result = execute(broken, "curriculum-overview-diagnostic.logo");
+  const boundary = result.diagnostics.find(
+    (diagnostic) => diagnostic.code === "ol-var-not-visible",
+  );
+  assert.ok(boundary, "expected the program to raise ol-var-not-visible");
+  assert.equal(quoted[0], boundary.message.replace(/\s+/g, " "));
 });
 
 for (const relativePath of DOC_FILES) {

@@ -62,8 +62,8 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   matters: `spec/execution-model.md:607-615`'s born-inside / born-outside contrast, where the same
   loop body prints `1 1 1 1` or `1 2 3 4` depending only on which side of the `repeat` the first
   assignment sits. Its exercises ramp from moving that one line, to carrying two names across the
-  turns at once, to a mirrored pair of curled horns that are a pair only because the second horn's
-  growing name is born again before its own loop.
+  turns at once, to a mirrored pair of curled horns whose second horn matches the first only
+  because the growing name is set back — a name that outlives a loop remembers.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
   combinators `and`/`or`/`not`, and a worded predicate such as `is between`
