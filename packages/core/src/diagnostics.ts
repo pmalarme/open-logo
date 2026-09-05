@@ -8,6 +8,7 @@
  */
 
 import type { SourceSpan } from "./spans.js";
+import { OLDict, OLRecord, OLTurtle } from "./values.js";
 
 /**
  * The normative `ol-*` error/semantic/runtime code registry from `spec/error-model.md`.
@@ -143,20 +144,72 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * `params` entry, `spec/error-model.md:144-147`), and two identical findings whose nested keys were
  * inserted in different orders were measured surviving as two.
  *
- * The encoding is **injective**, and that direction is the one that matters. A missed duplicate is
- * merely visible — the learner reads the same fault twice. A *collision* is silent: two genuinely
- * different faults are judged one and the second is discarded with nothing to show it ever existed,
- * inside a slice whose subject is never silently dropping a diagnostic. So every value is wrapped in
- * a `[tag, payload]` pair rather than rendered structurally: an object's sorted entry list would
- * otherwise be byte-identical to a literal array of the same pairs, which is reachable — `params`
- * carry both objects (`original_span`) and arrays (`expected`).
+ * The encoding is **injective**, **total**, and **cycle-safe**, and each of the three is load-bearing
+ * in the same direction. A missed duplicate is merely visible — the learner reads the same fault
+ * twice. A *collision* is silent: two genuinely different faults are judged one and the second is
+ * discarded with nothing to show it ever existed, inside a slice whose subject is never silently
+ * dropping a diagnostic. So:
+ *
+ * - Every value is wrapped in a `[tag, payload]` pair rather than rendered structurally. An object's
+ *   sorted entry list would otherwise be byte-identical to a literal array of the same pairs, which
+ *   is reachable — `params` carry both objects (`original_span`) and arrays (`expected`).
+ * - **`OLValue`s are read through their own accessors, not through `Object.keys`.** `OLDict` and
+ *   `OLRecord` keep their contents in a *private* `Map`, which `Object.keys` reports as empty — so
+ *   every dict collapsed onto every other dict, and `ol-type {actual: {a: 1}}` and
+ *   `{actual: {a: 2}}` at one span were one fault. That is the round-11 defect exactly, one level
+ *   deeper than where it was found. `OLTurtle` is keyed by `id`, which `spec/execution-model.md:541`
+ *   makes a turtle's identity.
+ * - **A cycle terminates instead of overflowing.** `:x = []  add :x to :x  forward :x` builds a
+ *   self-referential list, and a naive recursion blew the stack — turning the owed `ol-type` into
+ *   `ol-limit`, which is a wrong diagnostic produced by the machinery that decides which diagnostics
+ *   survive. A value already on the path is emitted as a back-reference to its depth.
+ * - **Atoms keep their identity.** `JSON.stringify` renders `undefined`, `NaN`, `Infinity` and
+ *   `-Infinity` all as `null`, so four distinct params compared equal. Each is encoded by name.
+ *   There is deliberately no `bigint` arm: `OLValue` has no bigint, so an arm for one would be
+ *   unreachable code that only a contrived test could cover — the coverage-theatre shape a review
+ *   caught earlier in this slice.
  */
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return ["array", value.map(canonicalize)];
+function canonicalize(value: unknown, path: readonly unknown[] = []): unknown {
+  const seenAt = path.indexOf(value);
+  if (seenAt !== -1) {
+    return ["cycle", seenAt];
+  }
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    return ["atom", Number.isNaN(value) ? "NaN" : `${value}`];
+  }
+  if (value === undefined) {
+    return ["atom", "undefined"];
   }
   if (typeof value !== "object" || value === null) {
     return ["atom", value];
+  }
+
+  const nested = [...path, value];
+  if (Array.isArray(value)) {
+    return ["array", value.map((item) => canonicalize(item, nested))];
+  }
+  if (value instanceof OLDict) {
+    return [
+      "dict",
+      value
+        .keys()
+        .map((key, index) => [
+          canonicalize(key, nested),
+          canonicalize(value.values()[index], nested),
+        ]),
+    ];
+  }
+  if (value instanceof OLRecord) {
+    return [
+      "record",
+      value.type,
+      value
+        .fields()
+        .map((field) => [field, canonicalize(value.get(field), nested)]),
+    ];
+  }
+  if (value instanceof OLTurtle) {
+    return ["turtle", value.id];
   }
   return [
     "object",
@@ -164,7 +217,7 @@ function canonicalize(value: unknown): unknown {
       .sort()
       .map((key) => [
         key,
-        canonicalize((value as Record<string, unknown>)[key]),
+        canonicalize((value as Record<string, unknown>)[key], nested),
       ]),
   ];
 }

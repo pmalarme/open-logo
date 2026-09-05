@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dedupeDiagnostics } from "@openlogo/core";
+import { dedupeDiagnostics, OLDict, OLTurtle } from "@openlogo/core";
 
 /** An `ol-duplicate-definition` whose `original_span` object is built with the given key order. */
 function duplicateDefinition(originalSpan) {
@@ -162,4 +162,107 @@ test("tagging does not weaken the duplicate collapse it exists beside", () => {
     "key order at any depth is still not part of a fault's identity",
   );
   assert.equal(kept[0]?.stage, "semantic", "the first report survives");
+});
+
+// --- Round-12 review: injective, TOTAL, and CYCLE-SAFE -----------------------------------------
+//
+// Round 11 fixed the object-vs-array collision. Round 12 found the same defect one level deeper and
+// twice more, all in the silent direction — two different faults judged one, and the second
+// discarded with nothing left to show it existed.
+
+test("two dicts with different contents are different faults", () => {
+  // `OLDict` keeps its entries in a PRIVATE Map, which `Object.keys` reports as empty — so every
+  // dict canonicalized identically and every dict-valued param collapsed onto every other.
+  const first = new OLDict();
+  first.set("a", 1);
+  const second = new OLDict();
+  second.set("a", 2);
+  const base = {
+    code: "ol-type",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  assert.equal(
+    dedupeDiagnostics([
+      { ...base, params: { actual: first } },
+      { ...base, params: { actual: second } },
+    ]).length,
+    2,
+  );
+});
+
+test("two dicts with equal contents are still one fault", () => {
+  const first = new OLDict();
+  first.set("a", 1);
+  const second = new OLDict();
+  second.set("a", 1);
+  const base = {
+    code: "ol-type",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  assert.equal(
+    dedupeDiagnostics([
+      { ...base, params: { actual: first } },
+      { ...base, params: { actual: second } },
+    ]).length,
+    1,
+    "reading the contents must not stop equal dicts collapsing",
+  );
+});
+
+test("turtles are distinguished by the id that IS their identity", () => {
+  const base = {
+    code: "ol-type",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  assert.equal(
+    dedupeDiagnostics([
+      { ...base, params: { actual: new OLTurtle(1) } },
+      { ...base, params: { actual: new OLTurtle(2) } },
+    ]).length,
+    2,
+    "spec/execution-model.md:541 makes the id a turtle's identity",
+  );
+});
+
+test("undefined, NaN and the infinities are not each other, nor null", () => {
+  // `JSON.stringify` renders all four as `null`, so four distinct params compared equal.
+  const base = {
+    code: "ol-type",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  const distinct = [null, undefined, Number.NaN, Infinity, -Infinity].map(
+    (n) => ({ ...base, params: { n } }),
+  );
+  assert.equal(dedupeDiagnostics(distinct).length, 5);
+});
+
+test("a self-referential param terminates instead of overflowing the stack", () => {
+  // `:x = []  add :x to :x  forward :x` builds this, and a naive recursion turned the owed
+  // `ol-type` into `ol-limit` — a wrong diagnostic produced by the machinery that decides which
+  // diagnostics survive.
+  const cyclic = [];
+  cyclic.push(cyclic);
+  const base = {
+    code: "ol-type",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  assert.equal(
+    dedupeDiagnostics([{ ...base, params: { v: cyclic } }]).length,
+    1,
+  );
 });

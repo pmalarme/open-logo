@@ -491,11 +491,15 @@ test("a return or stop escaping an event handler body is still the runtime's to 
 // The behaviour is pinned below rather than described, because a comment claiming "nothing to run"
 // is exactly the kind of unverified prose this slice exists to distrust. It predates issue #815 —
 // no run of any profile has ever created a local frame entry — and converting it to
-// `ol-not-implemented` would refuse 78 corpus uses inside a slice scoped to the check gate,
-// value-position commands, the terminal rule and de-duplication. It is escalated, not absorbed.
+// `ol-not-implemented` would refuse the corpus programs that use `local`, inside a slice scoped to
+// the check gate, value-position commands, the terminal rule and de-duplication. It is escalated,
+// not absorbed: **issue #818** already tracks it ("runtime: `local` has no effect at execution — the
+// checker gets it right, `execute()` ignores it"), and this measurement is an independent
+// rediscovery of it.
 //
-// WHEN `local` IS IMPLEMENTED these assertions must FLIP, and the `Local` arm of
-// `isExpressionStatement` must be deleted rather than preserved.
+// WHEN #818 IS FIXED these assertions must FLIP, and the `Local` arm of `isExpressionStatement`
+// must be deleted rather than preserved. Naming the issue is what makes that a tracked claim rather
+// than a sentence hoping someone reads it.
 
 /** Every value `source` prints, in order. */
 function printed(source, options) {
@@ -529,4 +533,34 @@ test("`local` is skipped SILENTLY — the gap is invisible, which is why it is r
   // The terminal rule turns an undispatched statement into `ol-not-implemented`. `Local` is
   // excluded from that rule, so nothing marks the gap at run time. This assertion is the marker.
   assert.deepEqual(codes("define f\n  local y\nend\nf\n", CORE_AND_TURTLE), []);
+});
+
+// --- Round-12 review: the de-duplicator must not decide which diagnostic a program gets ---------
+//
+// `canonicalize` walks a diagnostic's `params`, and `params` carry real `OLValue`s. A self-
+// referential list overflowed that walk, so the owed `ol-type` was replaced by `ol-limit` — a wrong
+// diagnostic manufactured by the machinery whose only job is to decide which findings survive.
+// `spec/execution-model.md:717-720` requires evaluation to end in a value, an effect, or a
+// diagnostic; it does not permit the wrong one.
+
+test("a cyclic list reaches the diagnostic it is owed, not ol-limit", () => {
+  const result = execute(":x = []\nadd :x to :x\nforward :x\n", doc, {
+    profiles: ["core-language", "turtle-rendering", "data"],
+  });
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
+});
+
+test("a cyclic list nested inside another value is also safe", () => {
+  const result = execute(
+    ":x = []\nadd :x to :x\n:y = [1]\nadd :x to :y\nforward :y\n",
+    doc,
+    { profiles: ["core-language", "turtle-rendering", "data"] },
+  );
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
 });

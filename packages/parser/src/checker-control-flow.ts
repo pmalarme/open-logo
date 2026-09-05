@@ -103,11 +103,18 @@ interface Context {
  *
  * Every other kind is judged by {@link isExpressionKind}, **derived from the `ExpressionNode` union
  * rather than enumerated**. The enumeration this replaces named eight kinds and omitted `DictLit`
- * and `ValueOfKey` — the two Data-profile expression forms — so `map i in :xs [ {a: 1} ]` was told
+ * (a **Data**-profile form) and `ValueOfKey` (the Heritage dict reader `value of … for key …`,
+ * which depends on Data — `spec/data-structures.md:16`), so `map i in :xs [ {a: 1} ]` was told
  * `ol-no-value` about a dict literal. Harmless while `ol-no-value` was advisory; since issue #815
  * put a severity gate in front of `execute()` the same wrong finding **refuses to run the program**,
- * which is how an omission from a six-year-old list becomes a blocking defect. The derived form
- * cannot omit a kind: `isExpressionKind` is exhaustiveness-checked against the union itself.
+ * which is how an omission from an old list becomes a blocking defect. The derived form cannot omit
+ * a kind: `isExpressionKind` is exhaustiveness-checked against the union itself.
+ *
+ * It is deliberately profile-BLIND. Whether a form's profile is active is a different question from
+ * whether the form produces a value, and answering the second with the first is what made a wrong
+ * `ol-no-value` look like profile enforcement. OpenLogo has no diagnostic for syntax belonging to an
+ * inactive profile — `ol-unknown-command` is name resolution (`spec/error-model.md:131`) and a dict
+ * literal has no name — so that gap is a spec question, recorded rather than improvised here.
  */
 export function producesValue(
   node: StatementNode,

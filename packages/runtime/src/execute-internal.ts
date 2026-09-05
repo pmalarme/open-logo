@@ -4942,12 +4942,17 @@ function canonicalizeHeritageAliasCall(
  * `define f  local x  :x = 2  end` assigns the GLOBAL `x`, where the parameter-shadowing control
  * `define g :x  :x = 2  end` correctly does not. That is a defect in `local`'s binding semantics,
  * not in the terminal rule, and it predates issue #815: no run of any profile has ever created a
- * local frame entry. Excluding `Local` here preserves that pre-existing behaviour exactly rather
- * than converting 78 corpus uses into `ol-not-implemented` inside a slice scoped to the check gate,
- * value-position commands, the terminal rule and de-duplication. It is escalated, not absorbed.
+ * local frame entry. **Issue #818** tracks it. Excluding `Local` here preserves that pre-existing
+ * behaviour exactly rather than converting corpus programs that use `local` into
+ * `ol-not-implemented` inside a slice scoped to the check gate, value-position commands, the
+ * terminal rule and de-duplication. (How many such programs there are is deliberately not written
+ * down: a derived count in prose is an assertion nothing re-checks, and a review measured a
+ * different number from the same tree. `git grep -c "\blocal\b" -- "*.logo"` is the enumerator.)
  *
  * The distinction matters to whoever removes this arm: the first two exclusions are permanent, the
- * third is a placeholder. Implementing `local` deletes it; it is not something to preserve.
+ * third is a placeholder. Fixing #818 deletes it; it is not something to preserve. The
+ * characterization tests in `check-before-execution.test.mjs` fail when it is fixed, so the two
+ * cannot drift apart.
  */
 function isExpressionStatement(statement: StatementNode): boolean {
   return (
@@ -5544,8 +5549,14 @@ function executeStatements(
     //   ending that cannot be wrong: it reports, or it raises where the fault actually is.
     //
     // Before this, such a statement emitted its `instruction` event and then did nothing at all.
-    // The only kinds that legitimately fall past here are the **declarations** Phase 1 already
-    // registered — `ProcedureDef` and `StructDef` — which have nothing to run.
+    // Three kinds fall past here, and only two do so legitimately: the **declarations** Phase 1
+    // already registered — `ProcedureDef` and `StructDef` — which have nothing left to run. The
+    // third, `Local`, falls past here **silently and wrongly**: `local` is specified to bind in the
+    // enclosing frame (`spec/execution-model.md:340-349`) and this evaluator never creates one, so
+    // the assignment after it reaches the global. That is issue #818, a defect in `local`'s binding
+    // semantics rather than in this rule; `isExpressionStatement`'s doc comment says which of the
+    // three exclusions are permanent and which is a placeholder to delete, and
+    // `check-before-execution.test.mjs` characterizes the behaviour so it cannot change unnoticed.
     //
     // The `isExpressionStatement` test is deliberately by exclusion rather than by an allow-list of
     // expression kinds. An allow-list is the shape this rule had first, naming only `Call` and

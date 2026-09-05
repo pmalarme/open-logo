@@ -163,3 +163,15 @@ test("a body whose last statement really produces no value still reports ol-no-v
     "ol-no-value",
   ]);
 });
+
+test("the exported kind list is frozen, so it cannot drift from the predicate", () => {
+  // `as const` is erased at run time. Without `Object.freeze` a JavaScript consumer of the
+  // published package could push onto this array, while `isExpressionKind` answers from a `Set`
+  // built once at module load — two exports disagreeing about one question, both looking
+  // authoritative. An export is a contract that outlives the slice.
+  assert.equal(Object.isFrozen(EXPRESSION_NODE_KINDS), true);
+  assert.throws(() => {
+    EXPRESSION_NODE_KINDS.push("NotAKind");
+  });
+  assert.equal(isExpressionKind("NotAKind"), false);
+});

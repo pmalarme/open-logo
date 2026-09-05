@@ -594,8 +594,13 @@ export type ExpressionNode =
  * `ExpressionNode` without adding it here fails `typecheck`, and vice versa. Callers that need to
  * ask "is this node an expression?" at run time use {@link isExpressionKind} rather than their own
  * list.
+ *
+ * `Object.freeze` is not decoration. `as const` is erased at run time, so a JavaScript consumer of
+ * the published package could push onto this array — and {@link isExpressionKind} answers from a
+ * `Set` built once at module load, so the two exports would then disagree about the same question
+ * while both looking authoritative. An export is a contract that outlives the slice.
  */
-export const EXPRESSION_NODE_KINDS = [
+export const EXPRESSION_NODE_KINDS = Object.freeze([
   "NumberLit",
   "WordLit",
   "BooleanLit",
@@ -610,7 +615,7 @@ export const EXPRESSION_NODE_KINDS = [
   "ComparisonChain",
   "IsPredicate",
   "Comprehension",
-] as const;
+] as const);
 
 /** Fails to compile if {@link EXPRESSION_NODE_KINDS} names a kind `ExpressionNode` does not have. */
 type _NoExtraExpressionKinds =
