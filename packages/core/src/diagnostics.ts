@@ -690,14 +690,13 @@ function describe(value: object): Described | undefined {
     //      arm shipped without the equivalent. Note the dict and record arms above do NOT guard
     //      this: two `OLDict`s (or `OLRecord`s) differing only in an extra own property were
     //      measured colliding, 1 survivor where there should be 2. That is INTRODUCED BY THIS
-    //      SLICE, and not by changing an encoder at an existing boundary — the boundary itself is
-    //      new. At the merge base nothing de-duplicated runtime diagnostics at all; the only
+    //      SLICE. At the merge base nothing de-duplicated runtime diagnostics at all; the only
     //      `dedupeDiagnostics` was module-private in `parser.ts`, over parse-stage findings, and
     //      that file contained zero references to `OLDict`, so a dict never reached it.
-    //      The merge-base boundary these values DID cross is studio's `diagnosticsKey`
-    //      (`a11y.ts:363-367`), which keyed on `JSON.stringify` — and there they collided far
-    //      worse, because `JSON.stringify` cannot serialize a `Map`'s internal slots, so every
-    //      dict rendered as `{"entries":{}}` whatever it held. (Not because the map was private:
+    //      The merge-base boundary these values DID cross is studio's `diagnosticsKey`, which
+    //      keyed on `JSON.stringify` — and there they collided far worse, because
+    //      `JSON.stringify` cannot serialize a `Map`'s internal slots, so every dict rendered as
+    //      `{"entries":{}}` whatever it held. (Not because the map was private:
     //      `private readonly entries` is TypeScript-only and erased at run time.) So this slice
     //      closed a collision that fired on every dict and opened a narrower one that fires only
     //      on extra own state. Deferring rests on reachability alone: no OpenLogo operation writes
