@@ -257,7 +257,7 @@ test("both stages stay clean on the programs the ruling exists to permit", () =>
   }
 });
 
-// ── The sanctioned divergences, pinned so they stay deliberate ───────────────────────────────
+// ── The one sanctioned divergence, and the two cases that look like it ───────────────────────
 
 test("SANCTIONED DIVERGENCE: a read before a LATER `global` declaration — the checker is silent, the runtime raises", () => {
   // `spec/execution-model.md:571-574` — a `global` declaration takes effect when it runs, so a read
