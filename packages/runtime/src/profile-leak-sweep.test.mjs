@@ -356,9 +356,15 @@ function preambleUsesProfileUnderTest({ preamble, profile }) {
   if (preamble === "") {
     return false;
   }
-  return profilePrimitiveNames(profile).some((name) =>
-    new RegExp(`\\b${name}\\b`).test(preamble),
+  // Tokenised, not matched by regex. Escaping the name is not enough: three manifest names end in
+  // `?` (`empty?`, `is_a?`, `member?`), and a trailing `\b` after `?` never matches, because `?`
+  // and the following space are both non-word characters. So the escaped form answered `false` for
+  // exactly the names the escaping was added for — a guard failing silently in the direction it
+  // exists to prevent. Comparing whole tokens has no such edge.
+  const tokens = new Set(
+    preamble.split(/[^\w?]+/u).filter((word) => word !== ""),
   );
+  return profilePrimitiveNames(profile).some((name) => tokens.has(name));
 }
 
 /** Effects the form adds beyond its preamble, under `profiles`. */
@@ -399,6 +405,10 @@ for (const form of KEYWORD_FORMS) {
 test("the preamble guard itself bites", () => {
   // The control for the control. If `preambleUsesProfileUnderTest` silently answered `false` for
   // everything, the guard above would be decoration — which is the exact failure it exists to stop.
+  //
+  // Note what this does NOT show: every preamble in `KEYWORD_FORMS` is now `""`, so the guard
+  // returns early and never consults the manifest for any live row. It is a tripwire for the next
+  // case added, not evidence about the eight present ones.
   assert.equal(
     preambleUsesProfileUnderTest({
       preamble: ":a = new_turtle\n",
@@ -410,5 +420,22 @@ test("the preamble guard itself bites", () => {
   assert.equal(
     preambleUsesProfileUnderTest({ preamble: ":a = 1\n", profile: "sprites" }),
     false,
+  );
+  // A name ending in `?` must be matched whole. `empty?` is a Core primitive, and the regex form
+  // this replaced answered `false` for it — the trailing `\b` could never match after a `?`.
+  assert.equal(
+    preambleUsesProfileUnderTest({
+      preamble: ":q = empty? [1]\n",
+      profile: "core-language",
+    }),
+    true,
+  );
+  assert.equal(
+    preambleUsesProfileUnderTest({
+      preamble: ":q = empt\n",
+      profile: "core-language",
+    }),
+    false,
+    "`empty?` must not match the shorter word `empt`",
   );
 });

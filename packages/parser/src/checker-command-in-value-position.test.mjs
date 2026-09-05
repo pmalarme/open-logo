@@ -16,9 +16,57 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { analyze } from "@openlogo/parser";
+import { analyze, parse } from "@openlogo/parser";
 
 const PROFILES = ["core-language", "turtle-rendering", "data"];
+
+/**
+ * The `kind` of the nearest AST node enclosing the call to `callee` in `source`.
+ *
+ * A label in a table is prose, and prose is what this slice distrusts. Two rows here claimed to
+ * exercise `ComparisonChain` and `IsPredicate` operands and measured **neither**: `forward` binds
+ * the whole following expression, so `if forward 1 == 2 [ … ]` parses as `if (forward (1 == 2))`
+ * and the diagnostic comes from the `If` arm the row above already covers. Every assertion passed
+ * honestly — one `ol-no-output`, at `semantic`, naming `forward`, no parse noise, no events — which
+ * is exactly why nothing caught it, and why excluding those two kinds from the rule left the whole
+ * Definition of Done green.
+ *
+ * So each row now asserts the shape it claims to construct. A row can no longer lie about itself.
+ */
+function nearestEnclosingKind(source, callee) {
+  const { ast, diagnostics } = parse(source, "value-position.logo");
+  assert.deepEqual(
+    diagnostics,
+    [],
+    `${source}: must parse cleanly, or the case measures error recovery`,
+  );
+  let enclosing;
+  const visit = (node, parent) => {
+    if (node === null || typeof node !== "object") {
+      return;
+    }
+    if (
+      (node.kind === "Call" || node.kind === "ParenCall") &&
+      node.callee?.name === callee
+    ) {
+      // Every row nests the call, so a missing parent is a broken row rather than a top-level
+      // case: it fails the comparison below with "undefined" instead of being papered over.
+      enclosing = parent?.kind;
+    }
+    const nextParent = node.kind === undefined ? parent : node;
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          visit(item, nextParent);
+        }
+      } else {
+        visit(value, nextParent);
+      }
+    }
+  };
+  visit(ast, null);
+  return enclosing;
+}
 
 /** The codes `analyze` reports for `source`, in order. */
 function codes(source) {
@@ -41,36 +89,49 @@ function onlyNoOutput(source) {
 }
 
 test("a command is reported in every nesting the grammar admits as a value position", () => {
-  // One case per nesting form. `Call`/`ParenCall`/`Repeat`/`If`/`While` were already covered
-  // elsewhere; the remaining seven had no deliberate test, and a mutation narrowing the rule to the
-  // covered ones left 5,099 tests and 1,004 fixtures green.
-  for (const [form, source] of [
-    ["call argument", "print forward 1"],
-    ["parenthesized call argument", ":x = (count forward 1)"],
-    ["assignment value", ":x = forward 1"],
-    ["repeat count", "repeat forward 1 [ print 1 ]"],
-    ["if condition", "if forward 1 [ print 1 ]"],
-    ["while condition", "while forward 1 [ print 1 ]"],
-    ["list literal element", ":x = [ 1 forward 1 ]"],
-    ["throw operand", "throw forward 1"],
-    ["comprehension source", ":x = map n in forward 1 [ :n ]"],
-    ["comparison operand", "if forward 1 == 2 [ print 1 ]"],
-    ["for-range bound", "for i from 1 to forward 1 [ print 1 ]"],
-    ["for-in sequence", "for i in forward 1 [ print 1 ]"],
-    ["is-predicate operand", "if forward 1 is empty [ print 1 ]"],
-    ["dict literal value", ":x = {a: forward 1}"],
-    ["postfix base", ":x = (forward 1)[1]"],
+  // One row per AST nesting, each asserting the shape it claims to construct — see
+  // `nearestEnclosingKind`. `Call`/`ParenCall`/`Repeat`/`If`/`While` were already covered
+  // elsewhere; the rest had no deliberate test, and a mutation narrowing the rule to the covered
+  // ones left 5,105 tests and 1,004 fixtures green.
+  for (const [enclosing, source] of [
+    ["Call", "print forward 1"],
+    ["ParenCall", ":x = (count forward 1)"],
+    ["Assign", ":x = forward 1"],
+    ["Repeat", "repeat forward 1 [ print 1 ]"],
+    ["If", "if forward 1 [ print 1 ]"],
+    ["While", "while forward 1 [ print 1 ]"],
+    ["ListLit", ":x = [ 1 forward 1 ]"],
+    ["Throw", "throw forward 1"],
+    ["Comprehension", ":x = map n in forward 1 [ :n ]"],
+    ["ComparisonChain", ":x = 1 < (forward 1) < 3"],
+    ["ForRange", "for i from 1 to forward 1 [ print 1 ]"],
+    ["ForIn", "for i in forward 1 [ print 1 ]"],
+    ["IsPredicate", ":x = (forward 1) is empty"],
+    ["DictLit", ":x = {a: forward 1}"],
+    ["PostfixExpression", ":x = (forward 1)[1]"],
   ]) {
+    assert.equal(
+      nearestEnclosingKind(source, "forward"),
+      enclosing,
+      `${source}: this row claims to nest the command in ${enclosing}`,
+    );
+    // Pinned rather than filtered: a case that only reports through parse recovery would otherwise
+    // be tolerated, which is how three earlier drafts of these rows measured nothing.
+    assert.deepEqual(
+      codes(source),
+      ["ol-no-output"],
+      `${enclosing}: exactly one finding, and nothing else`,
+    );
     const finding = onlyNoOutput(source);
     assert.deepEqual(
       finding.params,
       { procedure: "forward" },
-      `${form}: names the command that produced no value`,
+      `${enclosing}: names the command that produced no value`,
     );
     assert.equal(
       finding.stage,
       "semantic",
-      `${form}: the rule is static, so it must be decidable before the program runs`,
+      `${enclosing}: the rule is static, so it must be decidable before the program runs`,
     );
   }
 });
@@ -107,6 +168,8 @@ test("a user procedure with no return is reported at RUNTIME, and that is correc
   //
   // Asserted here rather than assumed, because "uniform across forms" could otherwise be read as
   // "uniform across stages", and a future reader finding this case absent from the static rule
-  // would reasonably think it a gap.
+  // would reasonably think it a gap. The runtime half IS measured, so this is a boundary rather
+  // than a hole: see `tests/conformance/core-language/execution/procedure-no-output-as-value`
+  // and `packages/runtime/src/undefined-var-case-identity.test.mjs`.
   assert.deepEqual(codes("define f\n  forward 1\nend\nprint f"), []);
 });

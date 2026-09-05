@@ -38,6 +38,49 @@ function events(source, options) {
   return execute(source, doc, options).events.map((event) => event.kind);
 }
 
+/**
+ * The `kind` of the nearest AST node enclosing the call to `callee` in `source`.
+ *
+ * A duplicate of the helper in `@openlogo/parser`'s `checker-command-in-value-position.test.mjs`,
+ * and deliberately so: duplicating a *verification* is not the hazard duplicating a *rule* is. If
+ * these two drift, each still checks its own file's claims correctly — whereas a shared identity
+ * rule that drifts makes two packages disagree, which is the defect this slice found three times.
+ */
+function nearestEnclosingKind(source, callee) {
+  const { ast, diagnostics: parsed } = parse(source, doc);
+  assert.deepEqual(
+    parsed,
+    [],
+    `${source}: must parse cleanly, or the case measures error recovery`,
+  );
+  let enclosing;
+  const visit = (node, parent) => {
+    if (node === null || typeof node !== "object") {
+      return;
+    }
+    if (
+      (node.kind === "Call" || node.kind === "ParenCall") &&
+      node.callee?.name === callee
+    ) {
+      // Every row nests the call, so a missing parent is a broken row rather than a top-level
+      // case: it fails the comparison below with "undefined" instead of being papered over.
+      enclosing = parent?.kind;
+    }
+    const nextParent = node.kind === undefined ? parent : node;
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          visit(item, nextParent);
+        }
+      } else {
+        visit(value, nextParent);
+      }
+    }
+  };
+  visit(ast, null);
+  return enclosing;
+}
+
 /** The single diagnostic `source` reports, asserting there is exactly one. */
 function only(source, options) {
   const { diagnostics } = execute(source, doc, options);
@@ -410,12 +453,23 @@ test("value position propagates into EVERY nesting form, statically", () => {
   for (const [form, source] of [
     ["ListLit", ":x = [ 1 forward 1 ]"],
     ["Throw", "throw forward 1"],
-    ["Comprehension source", ":x = map n in forward 1 [ :n ]"],
-    ["ComparisonChain operand", "if forward 1 == 2 [ print 1 ]"],
-    ["ForRange bound", "for i from 1 to forward 1 [ print 1 ]"],
-    ["ForIn sequence", "for i in forward 1 [ print 1 ]"],
-    ["IsPredicate operand", "if forward 1 is empty [ print 1 ]"],
+    ["Comprehension", ":x = map n in forward 1 [ :n ]"],
+    ["ComparisonChain", ":x = 1 < (forward 1) < 3"],
+    ["ForRange", "for i from 1 to forward 1 [ print 1 ]"],
+    ["ForIn", "for i in forward 1 [ print 1 ]"],
+    ["IsPredicate", ":x = (forward 1) is empty"],
+    ["DictLit", ":x = {a: forward 1}"],
+    ["PostfixExpression", ":x = (forward 1)[1]"],
   ]) {
+    // Assert the shape the row claims, not just the diagnostic. Two earlier rows named
+    // `ComparisonChain` and `IsPredicate` and constructed neither — `forward` binds the whole
+    // following expression, so `if forward 1 == 2 [ … ]` is `if (forward (1 == 2))` and the
+    // finding came from the `If` arm a row above already covered. Every other assertion passed.
+    assert.equal(
+      nearestEnclosingKind(source, "forward"),
+      form,
+      `${source}: this row claims to nest the command in ${form}`,
+    );
     const findings = diagnostics(source);
     const noOutput = findings.filter(
       (finding) => finding.code === "ol-no-output",
