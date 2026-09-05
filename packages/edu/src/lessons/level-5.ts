@@ -119,7 +119,7 @@ export const level5Lessons: readonly Lesson[] = [
           "print :answer",
         ].join("\n"),
         explanation:
-          "This prints 42 and then 5. Both :answer lines are spelled the same, but they are two different variables: the one inside show_double is born inside show_double, so it belongs to that call and nothing outside can see it. Nothing had to be declared to make that happen — define … end is a boundary, and a procedure's own names are private automatically, which is what makes a procedure safe to call without reading its body first. Setting a name a procedure does not already have — not one of its inputs, not one that is shared — makes a new one that belongs to it. Reading a name it was never handed and never set itself is the thing it cannot do. So :answer = :n * 2 is fine, because it only writes. Change it to :answer = :answer + 1 and OpenLogo stops, because that has to read :answer first — and at that point show_double has no :answer to read. The next lesson is about the one word that fixes that.",
+          "This prints 42 and then 5. Both :answer lines are spelled the same, but they are two different variables: the one inside show_double is born inside show_double, so it belongs to that call and nothing outside can see it. Nothing had to be declared to make that happen — define … end is a boundary, and a procedure's own names are private automatically, which is what makes a procedure safe to call without reading its body first. Setting a name a procedure does not already have — not one of its inputs, not one that is shared — makes a new one that belongs to it. Reading a name it was never handed, never set itself, and nobody shared with it is the thing it cannot do. So :answer = :n * 2 is fine, because it only writes. Change it to :answer = :answer + 1 and OpenLogo stops, because that has to read :answer first — and at that point show_double has no :answer to read. The next lesson is about the one word that shares a name on purpose.",
       },
       {
         source: [
@@ -371,10 +371,10 @@ export const level5Exercises: readonly Exercise[] = [
     level: "5",
     difficulty: "challenge",
     prompt:
-      "Build a staircase whose steps get taller as it climbs. Define stair :tread so that one call draws a single step — up, then across by the tread it was handed — and leaves the turtle facing up again, ready for the next step. Call it four times with the same tread every time: the steps must still grow, so the height cannot come from the input. Print what the shared rise ended up as.",
+      "Build a staircase whose steps get taller as it climbs. Define stair :tread so that one call draws a single step — up, then across by the tread it was handed — and leaves the turtle facing up again, ready for the next step. Call it four times with the same tread every time: the steps must still grow, so the rise cannot come from the input. Print what the shared rise ended up as.",
     referenceSolution: {
       source: [
-        "# why: the height is shared and grows, so four identical calls draw four",
+        "# why: the rise is shared and grows, so four identical calls draw four",
         "# different steps — the tread is handed in, the rise is shared",
         "global rise = 20",
         "define stair :tread",

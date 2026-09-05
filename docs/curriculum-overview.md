@@ -3,7 +3,7 @@
 > The first five of OpenLogo's [8 progressive learner levels](../spec/educational-model.md#the-8-progressive-levels)
 > — movement through procedures — each teaching one new idea on top of the last, and each
 > culminating in a challenge that composes a **recognizable object** (a house, a tree, a small
-> street, a pair of curled horns, a staircase) rather than an abstract drill. Levels 3 and 5 carry
+> street, a heart, a staircase) rather than an abstract drill. Levels 3 and 5 carry
 > two lessons each: the second in both cases teaches saga
 > [#819](https://github.com/pmalarme/open-logo/issues/819)'s variable-scoping ruling at the point
 > a learner first meets it ([#829](https://github.com/pmalarme/open-logo/issues/829)). Authored as
@@ -134,7 +134,7 @@ That prints `1 2 3 4`. Being born outside is what makes the accumulator idiom po
 
 The graded exercises ramp from moving that single line so the same loop counts up, to carrying two
 names across the turns at once (one growing the drawing, one totalling the distance), to the open
-challenge: a **pair of curled horns** that mirror each other — where the second horn matches the
+challenge: a **heart** made of two mirrored curls — where the second curl matches the
 first only because the growing name is set back, since a name that outlives a loop remembers what
 the last loop left in it.
 
@@ -222,8 +222,9 @@ show_double 21
 print :answer
 ```
 
-Setting a name inside a procedure always makes a new one that belongs to the procedure; **reading**
-a name it was never handed is the thing it cannot do. `:answer = :n * 2` is fine because it only
+Setting a name a procedure does not already have — not one of its inputs, not one that is shared —
+makes a new one that belongs to it. **Reading** a name it was never handed, never set itself, and
+nobody shared with it is the thing it cannot do. `:answer = :n * 2` is fine because it only
 writes — change it to `:answer = :answer + 1` and the program stops, because that has to read
 `:answer` first. That asymmetry is what the next lesson's one word repairs.
 
@@ -278,7 +279,7 @@ never variables, so a `global` never reaches beyond the document that declares i
 The graded exercises ramp from that one-word fix, to a procedure given an input *as well as* a
 shared total — so the two kinds of name are contrasted rather than described — to the open
 challenge: a **staircase** whose steps grow although every call is written identically, because the
-height is shared and the tread is handed in.
+rise is shared and the tread is handed in.
 
 Under saga [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling, `local` is no longer
 taught at this level. It used to be what *made* a procedure's variable private; now privacy is the

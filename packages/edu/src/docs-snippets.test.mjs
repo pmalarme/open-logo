@@ -173,6 +173,20 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
     "the number of 'prints ...' claims in curriculum-overview.md changed; update the count deliberately",
   );
 
+  // Round 3 (@testing finding 1): the count above pins how many claims the sentence-scoped walk
+  // FOUND, which is not the same number as how many the document CONTAINS. A reviewer added a
+  // false claim as a second sentence — "It also prints `9 9 9 9`." — where `firstSentence` never
+  // looks, and every gate stayed green. So the walk is cross-checked against a document-wide
+  // oracle of a different shape: a plain count of "prints `…`" occurrences anywhere in the file.
+  // If the two disagree, a claim exists that nothing is measuring, and that fails here rather
+  // than shipping a number no test has ever run.
+  const everyClaimInDocument = [...text.matchAll(new RegExp(CLAIM, "g"))];
+  assert.equal(
+    everyClaimInDocument.length,
+    claims.length,
+    `docs/curriculum-overview.md contains ${everyClaimInDocument.length} "prints ..." claim(s) but only ${claims.length} sit in a sentence touching a code block, so the rest are measured by nothing: ${JSON.stringify(everyClaimInDocument.map((match) => match[0]))}`,
+  );
+
   for (const { source, expected, sentence } of claims) {
     const result = execute(source, "curriculum-overview-claim.logo");
     assert.deepEqual(result.diagnostics, []);

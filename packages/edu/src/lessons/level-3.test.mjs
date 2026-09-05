@@ -416,9 +416,8 @@ test("l3-born-outside-growing-sides grows the drawing and totals the distance wi
 
 /**
  * True when segments `[a, b]` and `[c, d]` properly cross. Round 2 (@ai-tutor N11) measured that
- * the earlier 9-side, 360-degree horns interlaced seven times — "a pair of curled horns" that
- * tangles is not the object the challenge names. Crossing is a claim about the picture that no
- * length list or mirror check can make, so it is measured directly.
+ * the earlier 9-side, 360-degree curls interlaced seven times. Crossing is a claim about the
+ * picture that no length list or mirror check can make, so it is measured directly.
  */
 function segmentsCross([a, b], [c, d]) {
   const cross = (p, q, r) =>
@@ -433,50 +432,117 @@ function segmentsCross([a, b], [c, d]) {
   );
 }
 
-test("l3-curled-horns draws two mirrored curls that do not tangle, and only because :side is set back", () => {
+// Round 3 (@testing finding 2): the heart test asserts `segmentsCross` is false 49 times and true
+// never, so nothing demonstrated the predicate can fail — forcing `return false` left all Level 3
+// tests green. A detector with no positive control reports "no crossings" forever, which is the
+// same shape as the corpus scan in scoping-audit.test.mjs, and that one has a control.
+test("segmentsCross detects a real crossing and rejects near misses", () => {
+  // A textbook X.
+  assert.equal(
+    segmentsCross(
+      [
+        [0, 0],
+        [10, 10],
+      ],
+      [
+        [0, 10],
+        [10, 0],
+      ],
+    ),
+    true,
+  );
+  // Parallel segments never cross.
+  assert.equal(
+    segmentsCross(
+      [
+        [0, 0],
+        [10, 0],
+      ],
+      [
+        [0, 5],
+        [10, 5],
+      ],
+    ),
+    false,
+  );
+  // A T-touch, where an endpoint lies on the other segment, is not a PROPER crossing — which
+  // matters here because consecutive sides of a curl share endpoints by construction, and both
+  // curls start from the same point.
+  assert.equal(
+    segmentsCross(
+      [
+        [0, 0],
+        [10, 0],
+      ],
+      [
+        [5, 0],
+        [5, 10],
+      ],
+    ),
+    false,
+  );
+});
+
+test("l3-mirrored-heart draws two mirrored curls that meet without tangling, and only because :side is set back", () => {
   const exercise = level3Exercises.find(
-    (item) => item.id === "l3-curled-horns",
+    (item) => item.id === "l3-mirrored-heart",
   );
   assert.ok(exercise);
   const source = exercise.referenceSolution.source;
-  const horns = measure(source, "curled-horns.logo");
+  const heart = measure(source, "mirrored-heart.logo");
 
-  // Seven growing sides per horn, plus the undrawn `home` move between them.
+  // Seven growing sides per curl, plus the undrawn `home` move between them.
   const sevenSides = [10, 16, 22, 28, 34, 40, 46];
-  assert.equal(horns.drawnStrokes, 14);
-  assert.deepEqual(horns.lengths.slice(0, 7), sevenSides);
-  assert.deepEqual(horns.lengths.slice(8), sevenSides);
+  assert.equal(heart.drawnStrokes, 14);
+  assert.deepEqual(heart.lengths.slice(0, 7), sevenSides);
+  assert.deepEqual(heart.lengths.slice(8), sevenSides);
 
-  // "The two horns mirror each other exactly" — the composition claim, and the one a length
-  // list cannot prove. The left horn's points are the right horn's reflected in x.
-  const right = horns.points.slice(0, 7);
-  const left = horns.points.slice(8);
+  // Round 3 (rubber-duck, blocking): the explanation's "turning 40 degrees each time" was
+  // unmeasured — a reviewer changed both turns to 41, confirmed it reached `dist`, and every
+  // assertion here still passed, because mirror symmetry, side lengths, distinct points and
+  // crossing count are all invariant under a symmetric change of turn. Pinning the exact
+  // vertices fixes the angle as well as the lengths: 41 degrees moves every point after the first.
+  assert.deepEqual(heart.points.slice(0, 7), [
+    [0, 10],
+    [10.284602, 22.256711],
+    [31.950372, 26.076971],
+    [56.199084, 12.076971],
+    [67.827769, -19.872578],
+    [54.146963, -57.460283],
+    [14.309794, -80.460283],
+  ]);
+
+  // "The two curls mirror each other exactly" — the composition claim, and the one a length
+  // list cannot prove. The left curl's points are the right curl's reflected in x.
+  const right = heart.points.slice(0, 7);
+  const left = heart.points.slice(8);
   assert.equal(left.length, 7);
   for (let index = 0; index < 7; index += 1) {
     assert.ok(
       Math.abs(left[index][0] + right[index][0]) < 1e-6 &&
         Math.abs(left[index][1] - right[index][1]) < 1e-6,
-      `horn point ${index} is not mirrored: ${JSON.stringify(left[index])} vs ${JSON.stringify(right[index])}`,
+      `curl point ${index} is not mirrored: ${JSON.stringify(left[index])} vs ${JSON.stringify(right[index])}`,
     );
   }
-  // A curl, not a closed polygon: seven sides, seven distinct points per horn.
+  // A curl, not a closed polygon: seven sides, seven distinct points per curl.
   assert.equal(distinctPoints(right), 7);
 
-  // …and the two curls stay clear of each other, so the drawing matches the name.
-  const rightSegments = horns.strokes.slice(0, 7);
-  const leftSegments = horns.strokes.slice(8);
+  // …and the two curls stay clear of each other, so the outline is a clean heart rather than a
+  // tangle. At 9 sides they crossed seven times, which is why the challenge uses 7.
+  const rightSegments = heart.strokes.slice(0, 7);
+  const leftSegments = heart.strokes.slice(8);
   for (const rightSegment of rightSegments) {
     for (const leftSegment of leftSegments) {
       assert.equal(
         segmentsCross(rightSegment, leftSegment),
         false,
-        `the horns cross: ${JSON.stringify(rightSegment)} vs ${JSON.stringify(leftSegment)}`,
+        `the curls cross: ${JSON.stringify(rightSegment)} vs ${JSON.stringify(leftSegment)}`,
       );
     }
   }
 
-  // The stated counterfactual: drop the second `:side = 10` and the left horn carries on from
-  // 52, so the pair stops mirroring. Both halves are asserted — the wrong lengths, and the
+  // The stated counterfactual: drop the second `:side = 10` and the left curl carries on from
+  // 52, so the heart comes out lopsided. Both halves are asserted — the wrong lengths, and the
   // broken symmetry — because either alone would pass under a different defect.
   const withoutReset = source
     .split("\n")
@@ -492,12 +558,12 @@ test("l3-curled-horns draws two mirrored curls that do not tangle, and only beca
     source,
     "the counterfactual line was not removed",
   );
-  const broken = measure(withoutReset, "horns-no-reset.logo");
+  const broken = measure(withoutReset, "heart-no-reset.logo");
   assert.deepEqual(broken.lengths.slice(8), [52, 58, 64, 70, 76, 82, 88]);
   const brokenLeft = broken.points.slice(8);
   assert.ok(
     Math.abs(brokenLeft[0][0] + right[0][0]) > 1e-6 ||
       Math.abs(brokenLeft[0][1] - right[0][1]) > 1e-6,
-    "without setting :side back the second horn must stop mirroring",
+    "without setting :side back the second curl must stop mirroring",
   );
 });

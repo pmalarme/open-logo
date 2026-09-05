@@ -62,7 +62,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   matters: `spec/execution-model.md:607-615`'s born-inside / born-outside contrast, where the same
   loop body prints `1 1 1 1` or `1 2 3 4` depending only on which side of the `repeat` the first
   assignment sits. Its exercises ramp from moving that one line, to carrying two names across the
-  turns at once, to a mirrored pair of curled horns whose second horn matches the first only
+  turns at once, to a heart made of two mirrored curls whose second curl matches the first only
   because the growing name is set back — a name that outlives a loop remembers.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
@@ -88,7 +88,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   ([#829](https://github.com/pmalarme/open-logo/issues/829)) then teaches the one way through that
   boundary — `global name = value` — with exercises ramping from a one-word fix, to a procedure
   given an input *and* a shared total, to a staircase whose steps grow although every call is
-  written identically, because the height is shared and the tread is handed in. Under saga
+  written identically, because the rise is shared and the tread is handed in. Under saga
   [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling a procedure's variables are
   private automatically, so `local` — which survives as a way to deliberately *shadow* a visible
   name (`spec/execution-model.md:501-506`) — is no longer taught at this level: shadowing only

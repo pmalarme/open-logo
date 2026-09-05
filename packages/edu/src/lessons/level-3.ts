@@ -143,9 +143,9 @@ export const level3Lessons: readonly Lesson[] = [
  * house's walls and roof together. `l3-where-a-name-is-born` (issue #829) ramps from moving one
  * line so the same loop body counts up instead of standing still, to carrying *two* names across
  * the turns at once — one growing the drawing, one accumulating a measurement — to the composed
- * object: a mirrored pair of curled horns, where the second horn only matches the first because
- * the growing name is set back — a name that outlives a loop remembers, which is the same fact
- * that made it useful in the practice exercise and a hazard here.
+ * object: a heart made of two mirrored curls, where the second curl only matches the first
+ * because the growing name is set back — a name that outlives a loop remembers, which is the same
+ * fact that made it useful in the practice exercise and a hazard here.
  */
 export const level3Exercises: readonly Exercise[] = [
   {
@@ -269,15 +269,15 @@ export const level3Exercises: readonly Exercise[] = [
     },
   },
   {
-    id: "l3-curled-horns",
+    id: "l3-mirrored-heart",
     lessonId: "l3-where-a-name-is-born",
     level: "3",
     difficulty: "challenge",
     prompt:
-      "Compose a pair of curled horns that mirror each other. Draw one horn by repeating a side and a same-sized turn while the side keeps growing, so the path curls instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second horn the same way but turning the other way. Both horns must curl to the same size — and the growing name is still holding whatever the first horn left in it, so work out what the second loop needs before it starts.",
+      "Compose a heart out of two mirrored curls. Draw one curl by repeating a side and a same-sized turn while the side keeps growing, so the path curls round instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second curl the same way but turning the other way — together the two curls close into a heart. Both curls must come out the same size, and the growing name is still holding whatever the first curl left in it, so work out what the second loop needs before it starts.",
     referenceSolution: {
       source: [
-        "# why: the first horn curls because :side is born before its loop and keeps growing",
+        "# why: the first curl opens out because :side is born before its loop and keeps growing",
         ":side = 10",
         "repeat 7",
         "  forward :side",
@@ -288,7 +288,7 @@ export const level3Exercises: readonly Exercise[] = [
         "home",
         "pen_down",
         "# why: :side survived the first loop still holding 52, so it has to be set back to 10",
-        "# — leave this line out and the left horn starts five times too big",
+        "# — leave this line out and the left curl starts five times too big",
         ":side = 10",
         "repeat 7",
         "  forward :side",
@@ -297,7 +297,7 @@ export const level3Exercises: readonly Exercise[] = [
         "end repeat",
       ].join("\n"),
       explanation:
-        "Each horn is the same seven growing sides — 10, 16, 22 and on up to 46 — turning 40 degrees each time, so the path curls round instead of closing. The two horns mirror each other exactly, because the second loop turns left where the first turned right. Now notice what the second :side = 10 really is. It is not a new name being born: :side was born once, at the very top, and being born outside the loops is exactly why it is still there afterwards — holding 52, the value the first horn left in it. So that line sets it back rather than starting it. Leave it out and the left horn begins at 52 instead of 10, more than five times too big, and the pair stops being a pair. A name that outlives a loop is useful for the same reason it is a trap: it remembers.",
+        "Each curl is the same seven growing sides — 10, 16, 22 and on up to 46 — turning 40 degrees each time, so the path sweeps up, over and back down instead of closing. The second curl turns left where the first turned right, so the two mirror each other exactly and meet at the bottom in a point: a heart. Now notice what the second :side = 10 really is. It is not a new name being born: :side was born once, at the very top, and being born outside the loops is exactly why it is still there afterwards — holding 52, the value the first curl left in it. So that line sets it back rather than starting it. Leave it out and the left curl begins at 52 instead of 10, more than five times too big, and the heart comes out lopsided. A name that outlives a loop is useful for the same reason it is a trap: it remembers.",
     },
   },
 ];
