@@ -124,6 +124,7 @@
  */
 
 import type { SourceSpan } from "@openlogo/core";
+import { diagnosticIdentity } from "@openlogo/core";
 import type { TurtleWorldState } from "@openlogo/turtle";
 import {
   describeTurtleWorldState,
@@ -358,17 +359,25 @@ function describeDiagnostics(diagnostics: StudioState["diagnostics"]): string {
  * diagnostics are unchanged (e.g. re-running clean source stays empty), and announcing that as
  * "new" would spam an assistive-technology user with a redundant interruption on every keystroke
  * or Run.
+ *
+ * `params` are compared through `@openlogo/core`'s own {@link diagnosticIdentity} rather than by
+ * serializing them here. `JSON.stringify` only sees enumerable own properties, so it reported two
+ * records of different shapes as the same `{"type":"p"}` and **silently stopped announcing a
+ * diagnostic that had genuinely changed** (issue #815). A second, approximate copy of an identity
+ * rule is a rule two packages can drift on, and this is the drift.
+ *
+ * `severity` and `stage` are compared beside it on purpose: core's fault identity deliberately
+ * excludes `stage` (`spec/execution-model.md:741-748` makes it record *when* a fault was found, not
+ * which fault it is), but for an announcer a diagnostic moving from `semantic` to `runtime` is a
+ * change worth hearing about.
  */
 function diagnosticsKey(diagnostics: StudioState["diagnostics"]): string {
-  return JSON.stringify(
-    diagnostics.map((diagnostic) => ({
-      code: diagnostic.code,
-      severity: diagnostic.severity,
-      stage: diagnostic.stage,
-      source_span: diagnostic.source_span,
-      params: diagnostic.params,
-    })),
-  );
+  return diagnostics
+    .map(
+      (diagnostic) =>
+        `${diagnostic.severity}\u0000${diagnostic.stage}\u0000${diagnosticIdentity(diagnostic)}`,
+    )
+    .join("\u0001");
 }
 
 /**

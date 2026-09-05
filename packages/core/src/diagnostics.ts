@@ -528,16 +528,37 @@ function dataProperty(value: object, name: string): unknown {
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {
-  const span = diagnostic.source_span;
-  return [
+  // The whole `source_span` goes through `canonicalize` rather than being read field by field.
+  // Reading `span.document` directly assumed a well-formed span and threw on one without it —
+  // `dedupeDiagnostics` and `diagnosticIdentity` are public API, so a host's diagnostic (studio's
+  // own a11y fixtures, for one) crashed the de-duplicator. The encoder is already total over
+  // anything a host can supply; there is no reason for the span to be the one part that is not.
+  return canonicalize([
     diagnostic.code,
-    span.document,
-    `${span.start[0]},${span.start[1]}`,
-    `${span.end[0]},${span.end[1]}`,
-    canonicalize(diagnostic.params),
-  ]
-    .map((part) => tagged("", part))
-    .join("");
+    diagnostic.source_span,
+    diagnostic.params,
+  ]);
+}
+
+/**
+ * The identity of one *fault* as a string, for callers that must tell two diagnostics apart
+ * without re-deriving the rule.
+ *
+ * This is {@link dedupeDiagnostics}' own key, exported so nothing has to approximate it. Studio's
+ * screen-reader announcer used `JSON.stringify(params)` for the same purpose, and that broke the
+ * moment `OLDict`/`OLRecord` moved their contents into `#private` fields: two records of different
+ * shapes both serialized to `{"type":"p"}`, so a genuinely changed diagnostic stopped being
+ * announced to an assistive-technology user. ANY structural comparison of `params` carries that
+ * hazard; this one reads values through their own accessors and is total over what a host can put
+ * in `params`.
+ *
+ * Note the deliberate difference from a "has anything changed" key: `stage` is **excluded**, because
+ * `spec/execution-model.md:741-748` makes it record when a fault was found rather than which fault
+ * it is. A caller that must distinguish the same fault reported at two stages compares `stage`
+ * beside this.
+ */
+export function diagnosticIdentity(diagnostic: Diagnostic): string {
+  return faultIdentity(diagnostic);
 }
 
 /**

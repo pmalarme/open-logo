@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import * as OL_RUNTIME from "@openlogo/runtime";
 import { MAIN_TURTLE_ID } from "@openlogo/turtle";
 
 /** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what a single-turtle
@@ -964,4 +965,69 @@ test("a repeatedly-firing handler is announced by the same head-line rule, and i
   for (let index = 1; index < announcements.length; index += 1) {
     assert.notEqual(announcements[index], announcements[index - 1]);
   }
+});
+
+// --- Issue #815: the announcer must not re-derive diagnostic identity -----------------------------
+//
+// `diagnosticsKey` used `JSON.stringify` over `params` to decide whether a diagnostics list had
+// genuinely changed. `JSON.stringify` sees only enumerable own properties, so the moment `OLRecord`
+// moved its contents into a `#private` field every record serialized to `{"type":"p"}` — and two
+// diagnostics carrying DIFFERENT records at the same span looked identical, so a changed diagnostic
+// was silently not announced. An assistive-technology user simply stopped being told.
+//
+// The lesson is not "avoid JSON.stringify": it is that a second, approximate copy of an identity
+// rule is a rule two packages can drift on, and this was the drift. The key now calls
+// `@openlogo/core`'s own `diagnosticIdentity`, which reads values through their accessors.
+//
+// These use REAL runtime diagnostics rather than hand-built ones, because the defect lived in the
+// shape of a real `params` value and a fixture would have had to reproduce it by accident.
+
+/** The diagnostics a real run of `source` reports, under Core + Turtle + Data. */
+function diagnosticsFrom(source) {
+  return OL_RUNTIME.execute(source, "a11y.logo", {
+    profiles: ["core-language", "turtle-rendering", "data"],
+  }).diagnostics;
+}
+
+test("a diagnostic that changes only inside a record value is still announced", () => {
+  const withFieldX = diagnosticsFrom("struct p [ x ]\nforward p 1\n");
+  const withFieldY = diagnosticsFrom("struct p [ y ]\nforward p 1\n");
+
+  // Both are `ol-type` at the same span carrying a record of type `p` — they differ only in the
+  // record's shape, which is exactly what `JSON.stringify` could not see.
+  assert.deepEqual(
+    withFieldX.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
+  assert.deepEqual(
+    withFieldY.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
+  assert.deepEqual(
+    JSON.stringify(withFieldX[0].params),
+    JSON.stringify(withFieldY[0].params),
+    "the hazard is live: serialization still cannot tell these two apart",
+  );
+
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withFieldX);
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldY);
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "a genuinely different diagnostic must reach the screen reader",
+  );
+});
+
+test("re-publishing the SAME diagnostics still announces nothing", () => {
+  // The control the fix could have broken: the announcer exists to avoid interrupting on every
+  // keystroke, so a stricter identity must not turn into a spammier one.
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(diagnosticsFrom("struct p [ y ]\nforward p 1\n"));
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(diagnosticsFrom("struct p [ y ]\nforward p 1\n"));
+  assert.equal(announcer.getAnnouncements().length, afterFirst);
 });
