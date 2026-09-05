@@ -192,12 +192,16 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
   // opinion in name only — a reviewer defeated both with one extra word, "prints **the value**
   // `9 9 9 9`", which is natural English and matches neither. This third check keys on the VALUE
   // SHAPE instead of the verb, so it shares no vocabulary with `CLAIM`: every numeric inline-code
-  // span in the doc's prose must be a value some accounted-for claim actually printed. Its own
-  // blind spot is a non-numeric printed value, which is stated rather than chased.
+  // span in the doc's prose must be a value some accounted-for claim actually printed. It matches
+  // integers, decimals and negatives, singly or space-separated — round 5 measured that an
+  // integers-only pattern silently let `2.5` and `-5` through while the comment claimed its only
+  // gap was non-numeric values, and OpenLogo prints both. The residual blind spot really is a
+  // NON-NUMERIC printed value (a word or a list), which is stated here rather than chased.
   const prose = text.split(/```[\s\S]*?```/).join("\n");
-  const numericSpans = [...prose.matchAll(/`([0-9]+(?:\s+[0-9]+)*)`/g)].map(
-    (match) => match[1].trim(),
-  );
+  const NUMBER = String.raw`-?[0-9]+(?:\.[0-9]+)?`;
+  const numericSpans = [
+    ...prose.matchAll(new RegExp(`\`(${NUMBER}(?:\\s+${NUMBER})*)\``, "g")),
+  ].map((match) => match[1].trim());
   const accountedFor = new Set(claims.flatMap(({ spans }) => spans));
   for (const span of numericSpans) {
     assert.ok(

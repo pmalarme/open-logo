@@ -383,7 +383,7 @@ test("both surfaces state the visibility rule with all three categories the runt
     -1,
     "docs/curriculum-overview.md no longer carries worked example 3's program",
   );
-  const rulePagagraph = parts[blockIndex + 1].trim().split(/\n\s*\n/)[0];
+  const ruleParagraph = parts[blockIndex + 1].trim().split(/\n\s*\n/)[0];
 
   // The three things a procedure can see (`spec/execution-model.md:389-394`), each with the
   // spellings a learner-facing sentence may reasonably use. This constrains the claim, never the
@@ -400,7 +400,7 @@ test("both surfaces state the visibility rule with all three categories the runt
 
   for (const [label, text] of [
     ["level-5.ts worked example 3", workedExample.explanation],
-    ["docs/curriculum-overview.md's rule paragraph", rulePagagraph],
+    ["docs/curriculum-overview.md's rule paragraph", ruleParagraph],
   ]) {
     for (const { name, pattern } of categories) {
       assert.ok(
