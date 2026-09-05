@@ -174,5 +174,14 @@ down as fact:
 - [ ] Correct `profiles` tag so profile-scoped runs pick it up — and, for an `execute: true` fixture,
       one that covers every optional profile the source actually uses (the harness enforces this).
 - [ ] `ol-*` codes/spans asserted for every error case.
+- [ ] A scope rule is pinned in **both** halves — that a name born in the scope **dies** when it ends,
+      **and** that each *entry* binds fresh (`spec/execution-model.md:377-379`). A death-only fixture
+      passes an implementation that creates the scope once and reuses it, so it needs a sibling whose
+      body observes a **second** entry (a second loop turn, a second handler firing, a second
+      addressed turtle) failing to see what the first bound.
+- [ ] Where an `execute: true` fixture asserts a diagnostic that `check()` also decides, add the
+      `check: true` **twin**. The two settings are mutually exclusive on one fixture — `check` takes
+      precedence and the program is never executed — so one fixture can never cover both stages, and
+      the missing twin is how a checker path goes unpinned (issue #1120).
 - [ ] Every factual claim in each `description` was **measured, not inferred** — especially one that
       justifies why a fixture is absent — and each probe behind it was sanity-asserted.

@@ -1,0 +1,82 @@
+{
+  "description": "The same freshness half for the commonest block of all (spec/execution-model.md:377-379): the second turn of a `repeat` must not find the `:carried` the first turn bound, so the read raises `ol-undefined-var` (spec/error-model.md:102). `repcount` supplies the turn number without needing a binding of its own. The existing `a-fresh-binding-on-every-loop-turn` prints `1 1 1 1` from `repeat 4 [ :x = 0   :x = :x + 1   print :x ]`, which reads like the freshness test but does not discriminate on its own — the `:x = 0` resets a shared frame to exactly the same output — so before this fixture `repeat` freshness was pinned only indirectly, through the handler-capture fixtures. Added at the QA reviewer's request during the review gate.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [3, 3],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [2, 21],
+        "end": [2, 35]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-repeat-turn-binds-fresh-on-every-turn",
+        "start": [2, 27],
+        "end": [2, 35]
+      },
+      "params": {
+        "name": "carried"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

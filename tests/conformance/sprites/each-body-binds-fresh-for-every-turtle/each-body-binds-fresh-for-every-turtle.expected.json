@@ -1,0 +1,258 @@
+{
+  "description": "`each` runs its body once per addressed turtle, and every entry creates a fresh scope with fresh bindings (spec/execution-model.md:377-379,664-666), so the second turtle's pass must not find the `:carried` the first bound — `ol-undefined-var` (spec/error-model.md:102). `:seen` is born outside the `each` and so is one binding all passes update, which is what lets the body count its own passes without depending on the property under test. The sibling `sprites/each-body-is-a-block-scope` pins that a name born in the body dies at the `]`; a body given ONE scope hoisted out of the per-turtle loop passes that fixture unchanged, because the single frame still ends with the statement. Added at the QA reviewer's request during the review gate, which built that implementation — plausible because `ask` legitimately pushes one scope, having no loop — and measured it surviving all 1029 fixtures.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [2, 1],
+        "end": [2, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [2, 6],
+        "end": [2, 16]
+      },
+      "turtle_id": 2,
+      "payload": {
+        "turtle_id": 2,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [3, 1],
+        "end": [3, 15]
+      },
+      "payload": {
+        "name": "tell",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [4, 1],
+        "end": [4, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [5, 1],
+        "end": [9, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [5, 1],
+        "end": [9, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [6, 3],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [7, 3],
+        "end": [8, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [8, 3],
+        "end": [8, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [5, 1],
+        "end": [9, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [2],
+          "current_turtle_id": 2
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [6, 3],
+        "end": [6, 20]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [7, 3],
+        "end": [8, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [7, 18],
+        "end": [7, 32]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [5, 1],
+        "end": [9, 2]
+      },
+      "payload": {
+        "name": "each",
+        "addressing": {
+          "addressed_turtle_ids": [1, 2],
+          "current_turtle_id": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/each-body-binds-fresh-for-every-turtle/each-body-binds-fresh-for-every-turtle",
+        "start": [7, 24],
+        "end": [7, 32]
+      },
+      "params": {
+        "name": "carried"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

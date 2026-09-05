@@ -1,0 +1,174 @@
+{
+  "description": "The other half of the scope rule, which a lifetime fixture cannot reach. spec/execution-model.md:377-379 requires that \"each entry creates a fresh scope with fresh bindings, so every turn of a loop, every call, and every handler invocation binds its own names rather than reusing the previous one's\" — so `:carried`, bound by the first firing, must NOT be there for the second, and the read raises `ol-undefined-var` (spec/error-model.md:102). `:fired` is a `global` precisely so the body can count its own firings without depending on the property under test. The sibling `a-handler-body-temporary-dies-at-the-bracket` pins that the binding DIES; it fires once, so an implementation that creates the handler's scope once at registration and reuses it for every firing passes that fixture unchanged. Added at the QA reviewer's request during the review gate, which built exactly that implementation and measured it surviving all 1029 fixtures.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [2, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [2, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [7, 1],
+        "end": [7, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [4, 3],
+        "end": [5, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [5, 3],
+        "end": [5, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 3
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [4, 3],
+        "end": [5, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [4, 19],
+        "end": [4, 33]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-invocation-binds-fresh-on-every-firing",
+        "start": [4, 25],
+        "end": [4, 33]
+      },
+      "params": {
+        "name": "carried"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

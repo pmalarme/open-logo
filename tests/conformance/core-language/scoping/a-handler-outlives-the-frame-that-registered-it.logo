@@ -1,5 +1,0 @@
-define setup :speed
-  every 5 [ print :speed ]
-end
-setup 10
-wait 8

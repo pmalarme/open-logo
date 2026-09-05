@@ -1,0 +1,46 @@
+{
+  "description": "E-D at runtime. A binding a scope creates for itself is visible only \"from the point the statement that creates it has run\", and a block's read of an enclosing binding created later in the enclosing scope is named explicitly as one of the failures that take `ol-undefined-var` rather than the boundary code (spec/execution-model.md:396-403,408-411, spec/error-model.md:102). No procedure is involved, so the boundary cannot be the cause. The existing check fixture `undefined-var-eager-block-reads-a-later-enclosing-binding` makes this claim at the semantic stage; its description asserts the runtime agrees, and nothing measured that until this fixture — the two stages disagreeing here is exactly what `ol-var-not-visible`'s lexical test exists to prevent (spec/execution-model.md:416-424). Added at the logic/spec reviewer's request during the review gate.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-reads-an-enclosing-binding-created-later",
+        "start": [1, 1],
+        "end": [1, 26]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-reads-an-enclosing-binding-created-later",
+        "start": [1, 12],
+        "end": [1, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-block-reads-an-enclosing-binding-created-later",
+        "start": [1, 18],
+        "end": [1, 24]
+      },
+      "params": {
+        "name": "later"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
