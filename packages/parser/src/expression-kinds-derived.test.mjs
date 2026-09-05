@@ -204,14 +204,23 @@ function handWrittenKindSets(text, path) {
   return found;
 }
 
-test("every consumer reads the one derivation, with no hand-written survivors", () => {
+test("no bracketed literal re-enumerates the expression kinds", () => {
   // The count of "how many copies were replaced" was itself a derived claim, and a review measured
   // it wrong: two survived, in `checker-not-a-place.ts` and `not-a-place-text.ts`, each with its own
   // 14-kind set that nothing observed — corrupting an entry in either left the whole Definition of
-  // Done green. So this asserts the property instead of counting the fixes: no `.ts` source under
-  // `packages/` builds its own set of expression kinds.
+  // Done green. So this asserts a property instead of counting the fixes.
   //
-  // It re-measures on every run, which a number in prose cannot.
+  // **The title says what the detector measures, not what one would wish it measured.** An earlier
+  // version was called "no hand-written survivors" and documented as "no `.ts` under `packages/`
+  // builds its own set of expression kinds" — and matched a single spelling, walking past the
+  // generic `new Set<string>([…])` form the two real survivors were actually written in. Widening
+  // it fixed those, but a review then found a bracket-free `kind === "A" || kind === "B" || …`
+  // escapes too. **A detector for hand-written kind lists cannot be total**, so the honest repair is
+  // a name that claims only the bracketed forms it does check — the same discipline as deleting a
+  // derived count rather than correcting it.
+  //
+  // The rule itself does not rest on this: it is held by `ast.ts`'s two exhaustiveness types and by
+  // the consumer tests. This is a tripwire for the copy that gets written next.
   const offenders = [];
   let filesScanned = 0;
   let excludedDerivation = 0;
