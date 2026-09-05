@@ -77,6 +77,13 @@ export type {
   Frame,
   TurtleState,
 } from "./evaluate.js";
+/**
+ * Re-exported from `@openlogo/parser` so a caller of {@link execute} can name the type of its own
+ * `ExecuteOptions.profiles` without reaching into a second package for it. One value governs both
+ * checking and running (`spec/execution-model.md:673-680`), so the option and its type belong at
+ * the same door.
+ */
+export type { CheckProfile } from "@openlogo/parser";
 export {
   DEFAULT_INSTRUCTION_BUDGET,
   DEFAULT_LEARNER_LEVEL,

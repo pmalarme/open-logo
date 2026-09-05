@@ -58,7 +58,7 @@ export type DiagnosticCode = (typeof OL_DIAGNOSTIC_CODES)[number];
 
 /**
  * Style-lint codes. These reuse the diagnostic shape with `severity: "warning"` and MUST
- * NOT change program meaning. `spec/tooling.md:240-254` registers 13 `ol-style-*` codes; issue
+ * NOT change program meaning. `spec/tooling.md:243-256` registers 14 `ol-style-*` codes; issue
  * #115 slice 1 wired `ol-style-useless-value`, `ol-style-equality-confusion`, and
  * `ol-style-name-case`; #169 slice 2a added `ol-style-magic-number` and
  * `ol-style-predicate-name`; slice 2b (this one) adds the layout group —
@@ -158,9 +158,9 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  *   Type-tagging is what separates the number `NaN` from the word `"NaN"`, and `undefined` from the
  *   word `"undefined"` — a round that encoded special atoms *by name* made all four pairs collide,
  *   and its test compared the specials only against each other, never against their spellings.
- * - **`OLValue`s are read through their own accessors, not through `Object.keys`.** `OLDict` and
- *   `OLRecord` hold their contents in a *private* `Map`, which `Object.keys` reports as empty — so
- *   every dict collapsed onto every other dict, and `ol-type {actual: {a: 1}}` and
+ * - **`OLValue`s are read as own data properties, not through `Object.keys` and not through
+ *   dispatch.** `OLDict` and `OLRecord` hold their contents in a `Map`, which `Object.keys` reports
+ *   as empty — so every dict collapsed onto every other dict, and `ol-type {actual: {a: 1}}` and
  *   `{actual: {a: 2}}` at one span were one fault. Each collection is snapshotted **once**; asking
  *   `values()` per key rebuilt the whole collection per entry, which is quadratic (~280 ms at 8,000
  *   entries). A turtle is encoded by `id`: `spec/execution-model.md:552` requires two turtles to be
@@ -191,14 +191,45 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * declared fields both cloned to `{"type":"p"}`, collided, and the screen-reader announcer stopped
  * reporting the change — a **silent** loss, and a regression against the pre-slice shape where
  * `declaredFields` was an ordinary property that clones natively. So the data stays in ordinary
- * properties and the `#brand` carries the unforgeable part.
+ * properties, `#brand` carries the unforgeable part, and `lockBackingData` keeps the property
+ * pointing at the collection the constructor made.
  *
- * A cloned value loses its prototype, so it is described by the plain-object arm instead. Contents
- * that are `Map`s then take opaque per-instance identity, which means two *equal* cloned dicts
- * false-split into two findings. That is the safe direction — a redundant announcement rather than
- * a missing one — and strictly better than the pre-slice behaviour, where `JSON.stringify` rendered
- * every dict as `{}` and collided equal and unequal alike.
+ * A cloned value also loses its **prototype**, so it arrives as a plain object holding a bare
+ * `Map` — and that is why `Map` has a structural arm here at all. Without one it took opaque
+ * per-instance identity, so EVERY pair of cloned dict/record diagnostics split, including two runs
+ * of the same program: a screen-reader user heard the same error again on every Run, and no such
+ * diagnostic could be de-duplicated on the worker side at all. Both halves of the boundary are
+ * measured in `a11y.test.mjs`, in both directions — announce on change, and only on change.
  */
+/**
+ * The guards and collection readers this encoder trusts, **captured at module load**.
+ *
+ * Every one of these is a mutable slot at call time. `OLDict.isGenuine` is a writable static, so
+ * `OLDict.isGenuine = () => true` was measured admitting an `Object.create(OLDict.prototype)` with
+ * a lying `entries` and collapsing it onto a genuine empty dict. `Map.prototype.forEach` is the
+ * same shape one level down: a `Map` subclass overriding it reports contents its `get` contradicts.
+ * Reading each reference once, before any host code can run, removes both — and `forEach.call`
+ * reaches a `Map`'s internal slot directly, so a subclass cannot interpose and a Proxy (which has
+ * no such slot) throws, landing in the caller's catch as opaque identity.
+ */
+const dictIsGenuine = OLDict.isGenuine;
+const recordIsGenuine = OLRecord.isGenuine;
+const mapForEach = Map.prototype.forEach;
+
+/**
+ * Snapshot a `Map`'s entries through the captured intrinsic, or throw.
+ *
+ * Throwing is the correct outcome for anything that is not a real `Map`: the sole caller treats it
+ * as "cannot be described", which is opaque identity — a false split, never a collision.
+ */
+function mapEntrySnapshot(map: unknown): [unknown, unknown][] {
+  const snapshot: [unknown, unknown][] = [];
+  mapForEach.call(map as Map<unknown, unknown>, (value, key) => {
+    snapshot.push([key, value]);
+  });
+  return snapshot;
+}
+
 /** A string rendered so it cannot be confused with anything around it. */
 function tagged(tag: string, text: string): string {
   return `${tag}${text.length}:${text}`;
@@ -207,16 +238,21 @@ function tagged(tag: string, text: string): string {
 /**
  * Per-instance identity for a value this encoder cannot describe structurally.
  *
- * A `Symbol`, a function, a `Date`, a `Map`, a `Set`, a `RegExp` — none is an `OLValue`, and
- * `String()` cannot tell two of them apart (`Symbol("x")` and a second `Symbol("x")` print the
- * same) while `Object.keys()` flattens them all to an empty object. Encoding them by their printed
- * form therefore *collided* them, which is the silent direction.
+ * A `Symbol`, a function, a `Date`, a `Set`, a `RegExp` — none is an `OLValue`, and `String()`
+ * cannot tell two of them apart (`Symbol("x")` and a second `Symbol("x")` print the same) while
+ * `Object.keys()` flattens them all to an empty object. Encoding them by their printed form
+ * therefore *collided* them, which is the silent direction.
  *
  * They get an opaque serial number instead. That is deliberately **conservative**: two structurally
  * equal exotic values — two `Date(0)`s, say — become two findings rather than one. A false split is
  * visible and a collision is not, and no diagnostic this implementation raises carries such a
  * value, so the split costs nothing real. The alternative, describing every host type structurally,
  * is unbounded work for a domain with no members.
+ *
+ * `Map` **was** on that list and is not any more, because the domain turned out to have a member:
+ * a `structuredClone`d dict or record arrives as a plain object holding a bare `Map`. See the
+ * `Map` arm in {@link describe} — the general argument was right and the specific membership claim
+ * was wrong, so the fix is to move the one member, not to abandon the rule.
  */
 const opaqueIdentities = new WeakMap<WeakKey, number>();
 let nextOpaqueIdentity = 0;
@@ -470,10 +506,12 @@ function describe(value: object): Described | undefined {
     return { kind: "container", head: `arr${value.length}(`, children };
   }
   if (value instanceof OLDict) {
-    // Read the OWN DATA PROPERTY, not a method and not a trapped read. The brand check is what
-    // makes that safe: a Proxy wearing `OLDict`'s prototype passes `instanceof` but fails
-    // `isGenuine`, so it cannot lie about its contents; a subclass or a modified instance whose
-    // `entries` really holds different data is describing real data, which is correct.
+    // Read the OWN DATA PROPERTY, not a method and not a trapped read, and read the collection it
+    // holds through a CAPTURED INTRINSIC rather than through dispatch. Three mutable slots sit on
+    // this path and each was measured producing a collision: the instance's own `keys()`, the
+    // static `OLDict.isGenuine`, and `Map.prototype.forEach` on the backing map. The brand proves
+    // the object is genuine; `lockBackingData` proves the property still points at the map the
+    // constructor made; the captured `forEach` proves the read reaches that map's internal slot.
     //
     // The data deliberately lives in an ordinary property rather than a `#private` one. A private
     // field is invisible to `structuredClone`, and a `Diagnostic` crossing the studio worker's
@@ -481,20 +519,22 @@ function describe(value: object): Described | undefined {
     // identity, one silently discarded, in the accessibility path. Measured: with the data private,
     // two records differing only in their declared fields both cloned to `{"type":"p"}` and the
     // screen-reader announcer stopped reporting the change.
-    if (!OLDict.isGenuine(value)) {
+    if (!dictIsGenuine(value)) {
       return undefined;
     }
-    const entries = dataProperty(value, "entries");
-    if (!(entries instanceof Map)) {
-      return undefined;
+    const snapshot = mapEntrySnapshot(dataProperty(value, "entries"));
+    for (const [, entry] of snapshot) {
+      if (typeof entry !== "object" || entry === null) {
+        return undefined;
+      }
+      // The entry payload is an internal record, so its fields are read as data properties too —
+      // an accessor here would be one more undispatched lie.
+      children.push(dataProperty(entry, "key"), dataProperty(entry, "value"));
     }
-    for (const entry of entries.values()) {
-      children.push(entry.key, entry.value);
-    }
-    return { kind: "container", head: `dict${entries.size}(`, children };
+    return { kind: "container", head: `dict${snapshot.length}(`, children };
   }
   if (value instanceof OLRecord) {
-    if (!OLRecord.isGenuine(value)) {
+    if (!recordIsGenuine(value)) {
       return undefined;
     }
     const type = dataProperty(value, "type");
@@ -503,18 +543,50 @@ function describe(value: object): Described | undefined {
       return undefined;
     }
     const declared = dataProperty(value, "declaredFields");
-    const slots = dataProperty(value, "slots");
-    if (!Array.isArray(declared) || !(slots instanceof Map)) {
+    if (!Array.isArray(declared)) {
       return undefined;
     }
-    for (const field of declared) {
-      children.push(field, slots.get(String(field).toLowerCase()));
+    // The declared names go through the same array snapshot as any other array, so a Proxy over an
+    // array — which `Array.isArray` reports true for — cannot lie about its length or its holes.
+    const declaredNames = arrayElements(declared);
+    if (declaredNames === undefined) {
+      return undefined;
+    }
+    // Encode EVERY slot, not just the declared ones. `set()` folds the key and writes
+    // unconditionally, so a caller that skips `has()` leaves a slot no declared field names —
+    // observable through `get()`, and invisible to an encoding that walks `declaredFields`. Two
+    // records with the same declared fields and different hidden slots collided.
+    const slots = mapEntrySnapshot(dataProperty(value, "slots"));
+    for (const name of declaredNames) {
+      children.push(name);
+    }
+    for (const [key, slot] of slots) {
+      children.push(key, slot);
     }
     return {
       kind: "container",
-      head: `rec${tagged("", type)}${declared.length}(`,
+      head: `rec${tagged("", type)}${declaredNames.length}/${slots.length}(`,
       children,
     };
+  }
+  if (value instanceof Map) {
+    // A `Map` is not an `OLValue`, and this arm was deliberately absent: exotic host types took
+    // opaque identity because describing all of them is unbounded work "for a domain with no
+    // members". That premise was FALSIFIED by measurement. `structuredClone` strips a prototype,
+    // so an `OLDict` crossing the studio worker's `postMessage` arrives as a plain object holding
+    // a bare `Map` — and every such value took a fresh serial. Two DIFFERENT cloned dicts split
+    // (correct, by luck), but so did two IDENTICAL ones: re-running the same erroneous program
+    // re-announced every diagnostic carrying a dict or record, so a screen-reader user heard the
+    // same error again on every Run, and no such diagnostic could be de-duplicated at all on the
+    // worker side. The domain has exactly one member and it is on the accessibility path.
+    //
+    // Read through the captured intrinsic for the same reason the trusted classes do: a `Map`
+    // subclass overriding `forEach` would otherwise misdescribe itself without raising.
+    const snapshot = mapEntrySnapshot(value);
+    for (const [key, entry] of snapshot) {
+      children.push(key, entry);
+    }
+    return { kind: "container", head: `map${snapshot.length}(`, children };
   }
   const prototype = Object.getPrototypeOf(value);
   const entries =
@@ -565,12 +637,11 @@ function faultIdentity(diagnostic: Diagnostic): string {
  * without re-deriving the rule.
  *
  * This is {@link dedupeDiagnostics}' own key, exported so nothing has to approximate it. Studio's
- * screen-reader announcer used `JSON.stringify(params)` for the same purpose, and that broke the
- * moment `OLDict`/`OLRecord` moved their contents into `#private` fields: two records of different
- * shapes both serialized to `{"type":"p"}`, so a genuinely changed diagnostic stopped being
- * announced to an assistive-technology user. ANY structural comparison of `params` carries that
- * hazard; this one reads values through their own accessors and is total over what a host can put
- * in `params`.
+ * screen-reader announcer used `JSON.stringify(params)` for the same purpose, and it collided two
+ * records of different shapes when the contents were behind `#private` fields: both serialized to
+ * `{"type":"p"}`, so a genuinely changed diagnostic stopped being announced to an
+ * assistive-technology user. ANY structural comparison of `params` carries that hazard; this one
+ * reads values as own data properties and is total over what a host can put in `params`.
  *
  * Note the deliberate difference from a "has anything changed" key: **both `stage` and `severity`
  * are excluded**, because `spec/execution-model.md:741-745` defines a fault's identity as `code` +

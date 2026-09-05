@@ -645,7 +645,7 @@ const EXPRESSION_KIND_SET: ReadonlySet<string> = new Set(EXPRESSION_NODE_KINDS);
  * Is `kind` an {@link ExpressionNode}'s kind — that is, could a node of this kind stand where the
  * grammar admits an `expression`?
  */
-export function isExpressionKind(kind: string): boolean {
+export function isExpressionKind(kind: string): kind is ExpressionNode["kind"] {
   return EXPRESSION_KIND_SET.has(kind);
 }
 

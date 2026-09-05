@@ -1112,17 +1112,28 @@ test("the announcer key stays injective across control characters in params", ()
   );
 });
 
-test("a record diagnostic that crosses a structured clone is still announced", () => {
-  // The regression `rubber-duck` measured and the reason the backing data is not `#private`:
-  // `structuredClone` cannot see a private field, so two records differing only in their declared
-  // fields both arrived as `{"type":"p"}` and the announcer went 1 -> 1. Silently. This is the
-  // studio Worker's transport, and it is the accessibility path this slice touched.
-  const withFieldX = structuredClone(
-    diagnosticsFrom("struct p [ x ]\nforward p 1\n"),
-  );
-  const withFieldY = structuredClone(
-    diagnosticsFrom("struct p [ y ]\nforward p 1\n"),
-  );
+test("a record diagnostic crossing a structured clone announces on change and only on change", () => {
+  // The studio Worker's transport, and the accessibility path this slice touched. TWO failures
+  // live here and the test asserts both, because an assertion on either alone is satisfied by the
+  // other's defect:
+  //
+  //   1. UNDER-ANNOUNCING. `structuredClone` cannot see a `#private` field, so with the backing
+  //      data private two records differing only in their declared fields both arrived as
+  //      `{"type":"p"}`, collided, and the announcer went 1 -> 1. Silently.
+  //   2. OVER-ANNOUNCING. A cloned value loses its prototype, so it was described by the
+  //      plain-object arm, where its `Map` contents took a per-instance opaque serial. EVERY pair
+  //      of cloned record diagnostics then split — including two runs of the SAME program, so a
+  //      screen-reader user heard the same error again on every Run.
+  //
+  // Defect 2 is why the first version of this test was worthless: it asserted only the change
+  // direction, and the opaque serial satisfied that assertion whether or not the payload survived
+  // the clone. Perturbing the payload away left it green. A test for "the payload crossed the
+  // boundary" must fail when the payload does not, which means asserting the EQUAL case too.
+  const from = (source) => structuredClone(diagnosticsFrom(source));
+  const withFieldX = from("struct p [ x ]\nforward p 1\n");
+  const withFieldY = from("struct p [ y ]\nforward p 1\n");
+  const withFieldXAgain = from("struct p [ x ]\nforward p 1\n");
+
   const state = OL.createStudioState();
   const announcer = OL.createA11yAnnouncer(state);
   state.setDiagnostics(withFieldX);
@@ -1132,5 +1143,13 @@ test("a record diagnostic that crosses a structured clone is still announced", (
     announcer.getAnnouncements().length,
     afterFirst + 1,
     "a cloned diagnostic that genuinely changed must still reach the screen reader",
+  );
+  const afterChange = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldXAgain);
+  state.setDiagnostics(structuredClone(withFieldXAgain));
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterChange + 1,
+    "and re-running the same program must not re-announce: one change, one announcement",
   );
 });

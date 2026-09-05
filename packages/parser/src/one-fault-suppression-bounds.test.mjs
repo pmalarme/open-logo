@@ -134,37 +134,57 @@ test("BOUND 1, parenthesized: a delimited call's arity is known, so a later toke
   assert.deepEqual(findings("(forward 100) 5"), ["ol-bad-token@1:15"]);
 });
 
-test("no code WRITTEN AS A LITERAL is emitted at both severities, which is what makes first-wins safe", () => {
+test("no code the two scans can see is emitted at both severities, which is what makes first-wins safe", () => {
   // `dedupeDiagnostics` keeps the FIRST of a colliding pair, so a warning arriving before an
   // identical-identity error would drop the error and silently defeat the run gate. The doc argues
   // that cannot happen because only `checker-style.ts` emits warnings, under `ol-style-*` codes no
   // error shares — and a review measured that the argument HOLDS today and that **nothing observes
   // it**. A correct prose promise about a safety precondition is still ungated prose.
   //
-  // This asserts the precondition instead: warning-emitting codes and error-emitting codes are
-  // disjoint. The day a non-style code emits at both severities, this fails instead of the gate
-  // quietly weakening.
+  // WHAT THE INSTRUMENTS ENUMERATE, stated because a scan that does not say so invites being read
+  // as proof of more than it measured. Both walk every `.ts` file under `packages/` except
+  // `node_modules` and `dist`, and they are deliberately DIFFERENT SHAPES, because a single
+  // enumeration cannot see its own blind spot:
   //
-  // WHAT THE INSTRUMENT ENUMERATES, because a scan that does not say so invites being read as
-  // proof of more than it measured: every `.ts` file under `packages/` except `node_modules` and
-  // `dist`, and within each, every `code:` / `severity:` pair written as string literals within
-  // 400 characters of each other, in EITHER property order. It therefore cannot see a code held in
-  // a variable, assembled by a factory, or spread from another object — `severityFor(code)` would
-  // be invisible to it. That is a real blind spot and it is not closed by scanning harder; the
-  // control below only proves the scan sees the shapes it claims, not that no other shape exists.
-  const emitted = new Map();
-  const record = (into, text) => {
+  //   1. OBJECT LITERALS — a `code: "ol-…"` and a `severity:` literal within 400 characters. This
+  //      is the shape the original argument was made about. Measured, it sees 26 of the 45
+  //      registered codes.
+  //   2. FACTORY CALL SITES — `parseError("ol-…"` / `runtimeError("ol-…"`. Those two factories take
+  //      the code as an ARGUMENT and pin `severity: "error"` as a literal in their own bodies, so
+  //      every code they emit is error-only by construction. This is the shape scan 1 is blind to,
+  //      and it is not a hypothetical gap: it swallows the entire parse stage — `ol-type`,
+  //      `ol-limit`, `ol-not-implemented`, every bracket and delimiter code, 19 in all.
+  //
+  // A REVERSED-ORDER arm (`severity:` before `code:`) was added in an earlier round and then
+  // removed, because measuring it is what the rule above demands: it matched 3 times and all 3 were
+  // CROSS-OBJECT artifacts — the lazy quantifier pairing a `severity:` that closes one function's
+  // object with the `code:` of the next function. It contributed zero pairs the forward arm did not
+  // already have, while opening a false-positive channel. Adding an arm because a shape is
+  // conceivable, rather than because the corpus contains it, is how an instrument acquires noise.
+  //
+  // What remains invisible to both: a code held in a variable, or emitted through some third
+  // factory. Closing that properly wants the severity to follow from the code in the type system,
+  // or `dedupeDiagnostics` to be error-dominant rather than first-wins; both are larger than this
+  // slice and neither is assumed here.
+  const add = (into, name, severity) => {
+    into.set(name, (into.get(name) ?? new Set()).add(severity));
+  };
+  const recordLiteralPairs = (into, text) => {
     for (const [, name, severity] of text.matchAll(
       /code:\s*"(ol-[a-z0-9-]+)"[\s\S]{0,400}?severity:\s*"(error|warning)"/g,
     )) {
-      into.set(name, (into.get(name) ?? new Set()).add(severity));
-    }
-    for (const [, severity, name] of text.matchAll(
-      /severity:\s*"(error|warning)"[\s\S]{0,400}?code:\s*"(ol-[a-z0-9-]+)"/g,
-    )) {
-      into.set(name, (into.get(name) ?? new Set()).add(severity));
+      add(into, name, severity);
     }
   };
+  const recordFactoryCalls = (into, text) => {
+    for (const [, name] of text.matchAll(
+      /\b(?:parseError|runtimeError)\(\s*"(ol-[a-z0-9-]+)"/g,
+    )) {
+      add(into, name, "error");
+    }
+  };
+  const fromLiterals = new Map();
+  const fromFactories = new Map();
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -178,33 +198,55 @@ test("no code WRITTEN AS A LITERAL is emitted at both severities, which is what 
         continue;
       }
       const text = readFileSync(full, "utf8");
-      record(emitted, text);
+      recordLiteralPairs(fromLiterals, text);
+      recordFactoryCalls(fromFactories, text);
     }
   };
   walk("packages");
 
-  const both = [...emitted].filter(([, severities]) => severities.size > 1);
+  const union = new Map();
+  for (const source of [fromLiterals, fromFactories]) {
+    for (const [name, severities] of source) {
+      for (const severity of severities) {
+        add(union, name, severity);
+      }
+    }
+  }
   assert.deepEqual(
-    both,
+    [...union].filter(([, severities]) => severities.size > 1),
     [],
     "a code emitted at both severities makes dedupe's first-wins able to drop an error behind a warning",
   );
-  // The instrument control: the scan must have seen codes at all, and must see BOTH literal
-  // orders — the reversed one was added after a review measured the original regex blind to it.
-  assert.ok(
-    emitted.size > 0,
-    "the severity scan found no emitting code at all",
-  );
+
+  // Instrument controls. The first two prove each scan sees the shape it claims; the third proves
+  // the second scan is LOAD-BEARING rather than decorative, which is the assertion the removed
+  // reversed arm could not have passed.
   const control = new Map();
-  record(control, '{ code: "ol-probe-a", severity: "error" }');
-  record(control, '{ severity: "warning", code: "ol-probe-b" }');
+  recordLiteralPairs(control, '{ code: "ol-probe-a", severity: "warning" }');
+  recordFactoryCalls(
+    control,
+    'return parseError("ol-probe-b", span, {}, "m");',
+  );
+  recordFactoryCalls(control, 'runtimeError(\n  "ol-probe-c",\n  span,\n);');
   assert.deepEqual(
     [...control].map(([name, severities]) => [name, [...severities]]).sort(),
     [
-      ["ol-probe-a", ["error"]],
-      ["ol-probe-b", ["warning"]],
+      ["ol-probe-a", ["warning"]],
+      ["ol-probe-b", ["error"]],
+      ["ol-probe-c", ["error"]],
     ],
-    "the scan must see both property orders, or a reversed literal would pass unmeasured",
+    "each scan must see its own shape, including a factory call broken across lines",
+  );
+  assert.ok(
+    fromLiterals.size > 0 && fromFactories.size > 0,
+    "neither scan may be silently matching nothing",
+  );
+  const onlyFromFactories = [...fromFactories.keys()].filter(
+    (name) => !fromLiterals.has(name),
+  );
+  assert.ok(
+    onlyFromFactories.length > 0,
+    `the factory scan must reach codes the literal scan cannot, or it adds nothing; it reached ${onlyFromFactories.length}`,
   );
 });
 

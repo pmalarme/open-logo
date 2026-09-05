@@ -203,6 +203,22 @@ function survivors(left, right) {
   return dedupeDiagnostics([carrying(left), carrying(right)]).length;
 }
 
+/**
+ * How many entries a `Map` reports through its OWN `forEach`, whatever that currently is.
+ *
+ * Shared by the two hostile-`Map` tests below so one callback serves both: they each need to prove
+ * a lie is LIVE before asserting the encoder is unmoved by it, and a counter that is only ever run
+ * against a liar reports 0 without ever executing — which is the same "asserted but never
+ * exercised" signal those tests exist to catch, one level down.
+ */
+function countVisited(map) {
+  let seen = 0;
+  map.forEach(() => {
+    seen += 1;
+  });
+  return seen;
+}
+
 test("a special atom never collides with the word that spells it", () => {
   // The round-12 defect exactly: encoding `NaN` as the text "NaN" made it equal to the word "NaN".
   for (const [special, spelling] of [
@@ -261,9 +277,9 @@ test("equal values of every carried type still collapse to one", () => {
   }
 });
 
-test("dicts, records and turtles are read through their own accessors", () => {
-  // `OLDict`/`OLRecord` keep their contents in a PRIVATE Map, which `Object.keys` reports as empty
-  // — so before this every dict canonicalized identically and collapsed onto every other.
+test("dicts, records and turtles are read as own data properties", () => {
+  // `OLDict`/`OLRecord` keep their contents in a `Map`, which `Object.keys` reports as empty — so
+  // before this every dict canonicalized identically and collapsed onto every other.
   const one = new OLDict();
   one.set("a", 1);
   const two = new OLDict();
@@ -340,10 +356,12 @@ test("a large collection is snapshotted once, not once per entry", () => {
   );
 });
 
-test("the captured readers cannot be replaced by patching the prototype", () => {
+test("patching the public accessors on the prototype does not reach the reader", () => {
   // `OLDict.prototype.keys` looked up at call time is a mutable slot: patching it to return `[]`
-  // collapsed two different populated dicts into one fault. The references are captured at module
-  // load, before any host code can run.
+  // collapsed two different populated dicts into one fault. The reader no longer calls it at all —
+  // it reads the `entries` data property directly — so this pins the DISPATCH-FREE property rather
+  // than a captured reference. (The captured-reference mechanism still exists, one level down, for
+  // `Map.prototype.forEach` and the `isGenuine` guards; those have their own tests.)
   const realKeys = OLDict.prototype.keys;
   const realValues = OLDict.prototype.values;
   const populated = (marker) => {
@@ -365,14 +383,15 @@ test("the captured readers cannot be replaced by patching the prototype", () => 
   }
 });
 
-test("a proxy that hides its contents from the reader is opaque, not a collision", () => {
-  // The brand is an unforgeable `#private` field, and the brand check happens BEFORE any property
-  // is read — so a hostile receiver is rejected outright rather than being believed. (The backing
-  // data itself is deliberately NOT private: a review measured that privacy made two records
-  // COLLIDE after `structuredClone`, silently. See the doc in `diagnostics.ts`.) The assertions
-  // below pin that the deception is live when the proxy is asked publicly, so the test cannot pass
-  // merely because there was nothing to deceive with.
-  const hiding = (marker) => {
+test("a proxy cannot lie about a locked backing property, and is opaque anyway", () => {
+  // Two independent mechanisms, and the test asserts each separately because either alone would
+  // make the other look load-bearing when it is not.
+  //
+  // FIRST: `lockBackingData` makes `entries` non-writable and non-configurable, and a Proxy `get`
+  // trap MUST report the target's own value for such a property. The engine enforces that, so the
+  // lie below does not merely fail to convince the reader — it throws. An earlier version of this
+  // test asserted the deception was live; the lock retired the deception.
+  const lying = (marker) => {
     const dictionary = new OLDict();
     dictionary.set("a", marker);
     return new Proxy(dictionary, {
@@ -381,16 +400,28 @@ test("a proxy that hides its contents from the reader is opaque, not a collision
       },
     });
   };
-  const one = hiding(1);
-  assert.equal(
-    one.entries.size,
-    0,
-    "the deception is live when asked publicly",
+  assert.throws(
+    () => lying(1).entries,
+    TypeError,
+    "a proxy invariant, not a courtesy: the lie is unrepresentable once the property is locked",
   );
   assert.equal(
-    typeof one.set,
+    typeof lying(1).set,
     "function",
-    "and it is a faithful stand-in on every other property, so nothing else gives it away",
+    "and the trap forwards everything else honestly, so `entries` is the only thing it lies about",
+  );
+
+  // SECOND: even an honest proxy is not a genuine instance, so the reader never reads through it.
+  const honest = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return new Proxy(dictionary, {});
+  };
+  const one = honest(1);
+  assert.equal(
+    one.entries.size,
+    1,
+    "the honest proxy really does forward, so the brand is what rejects it, not a read failure",
   );
   assert.equal(
     OLDict.isGenuine(one),
@@ -402,7 +433,149 @@ test("a proxy that hides its contents from the reader is opaque, not a collision
     true,
     "which is exactly why instanceof is not the check",
   );
-  assert.equal(survivors(one, hiding(2)), 2);
+  assert.equal(survivors(one, honest(2)), 2);
+});
+
+test("the backing collections cannot be swapped for a liar after construction", () => {
+  // `readonly` is erased at run time. Without the lock, an `OLDict` subclass could install a `Map`
+  // subclass whose `forEach` reports contents its `get` contradicts, pass the brand check (it
+  // genuinely ran the base constructor), and collapse two different dicts onto one fault. The
+  // swap now throws at construction, which is loud rather than silent.
+  class LyingMap extends Map {
+    forEach() {}
+    get size() {
+      return 0;
+    }
+  }
+  class Subclass extends OLDict {
+    constructor(secret) {
+      super();
+      this.entries = new LyingMap([["k", { key: "k", value: secret }]]);
+    }
+  }
+  // PREMISE: the liar really does lie. Without this the test could pass because the fixture was
+  // harmless rather than because the lock refused it — and coverage showed the lying members were
+  // never invoked at all, since construction throws before anything reads them.
+  const liar = new LyingMap([["k", { key: "k", value: 1 }]]);
+  assert.equal(liar.get("k").value, 1, "the liar really holds the entry");
+  assert.equal(liar.size, 0, "and really understates its size");
+  assert.equal(
+    countVisited(new Map([["k", 1]])),
+    1,
+    "instrument control: the counter does count, on a genuine Map",
+  );
+  assert.equal(countVisited(liar), 0, "and its forEach really reports nothing");
+  assert.throws(
+    () => new Subclass(1),
+    TypeError,
+    "a subclass that tries to replace the backing map is refused at construction",
+  );
+  assert.throws(
+    () => {
+      Object.defineProperty(new OLDict(), "entries", { value: new Map() });
+    },
+    TypeError,
+    "and redefining it is refused too, so non-writable alone would not have been enough",
+  );
+  const record = new OLRecord("p", ["x"], [1]);
+  for (const name of ["type", "declaredFields", "slots"]) {
+    assert.throws(
+      () => {
+        Object.defineProperty(record, name, { value: undefined });
+      },
+      TypeError,
+      `a record's ${name} is locked too`,
+    );
+  }
+  // The CONTENTS stay mutable — records and dicts are mutable values, and locking the reference
+  // must not have frozen them.
+  record.set("x", 2);
+  assert.equal(record.get("x"), 2);
+});
+
+test("a hidden slot no declared field names is still part of the record's identity", () => {
+  // `set()` folds the key and writes unconditionally — its contract says the caller must have
+  // confirmed the field via `has()`. A caller that skips that leaves a slot `declaredFields` does
+  // not name, observable through `get()`. An encoding that walked `declaredFields` could not see
+  // it, so two records differing only there collided: the silent direction.
+  const withSeven = new OLRecord("p", ["x"], [1]);
+  withSeven.set("hidden", 7);
+  const withNine = new OLRecord("p", ["x"], [1]);
+  withNine.set("hidden", 9);
+  assert.notEqual(
+    withSeven.get("hidden"),
+    withNine.get("hidden"),
+    "the two records really are observably different",
+  );
+  assert.equal(survivors(withSeven, withNine), 2);
+  assert.equal(
+    survivors(new OLRecord("p", ["x"], [1]), new OLRecord("p", ["x"], [1])),
+    1,
+    "and two records with no hidden slot still collide, so the split is not unconditional",
+  );
+});
+
+test("the guards are captured, so replacing them publicly changes nothing", () => {
+  // `OLDict.isGenuine` is a writable static. Assigning `() => true` was measured admitting an
+  // `Object.create(OLDict.prototype)` carrying a lying `entries` and collapsing it onto a genuine
+  // empty dict. The encoder holds the reference it captured at module load.
+  const impostor = Object.create(OLDict.prototype);
+  impostor.entries = new Map([["k", { key: "k", value: 42 }]]);
+  const before = survivors(impostor, new OLDict());
+  const real = OLDict.isGenuine;
+  try {
+    OLDict.isGenuine = () => true;
+    assert.equal(
+      OLDict.isGenuine(impostor),
+      true,
+      "the patch is live, so the test is not passing because the patch failed to apply",
+    );
+    assert.equal(
+      survivors(impostor, new OLDict()),
+      before,
+      "but the encoder reads its captured guard, so the impostor stays opaque",
+    );
+  } finally {
+    OLDict.isGenuine = real;
+  }
+  assert.equal(before, 2, "and opaque means a false split, never a collision");
+});
+
+test("a Map subclass cannot interpose on the backing read", () => {
+  // One level below the brand: `Map.prototype.forEach` is a mutable slot, and the backing map is
+  // read through the reference captured at module load rather than through dispatch.
+  const real = Map.prototype.forEach;
+  const populated = () => {
+    const dictionary = new OLDict();
+    dictionary.set("a", 1);
+    return dictionary;
+  };
+  const one = populated();
+  const two = new OLDict();
+  try {
+    Map.prototype.forEach = () => {};
+    // PREMISE: the patch is live. Without this the test could pass because the patch failed to
+    // apply — and coverage showed the replacement function was never invoked at all, which is the
+    // same signal one level down. `countVisited` is shared with the lock test above, so its
+    // callback is exercised against a genuine `Map` there and reports 0 here.
+    assert.equal(
+      countVisited(new Map([["k", "v"]])),
+      0,
+      "the patched forEach really does report nothing",
+    );
+    assert.equal(
+      new Map([["k", "v"]]).size,
+      1,
+      "and the patch does not disturb size, so a collision would have to come from the read",
+    );
+    assert.equal(
+      survivors(one, two),
+      2,
+      "a populated dict and an empty one stay two faults under a patched forEach",
+    );
+  } finally {
+    Map.prototype.forEach = real;
+  }
 });
 
 test("an identity slot that is not the type it must be makes the value opaque", () => {
@@ -424,14 +597,12 @@ test("an identity slot that is not the type it must be makes the value opaque", 
   });
   assert.equal(survivors(new OLTurtle(1), stringId), 2);
 
-  const numericType = new OLRecord("p", [], []);
-  Object.defineProperty(numericType, "type", {
-    value: 1,
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
-  assert.equal(survivors(numericType, new OLRecord("1", [], [])), 2);
+  const numericType = new OLRecord(1, [], []);
+  assert.equal(
+    survivors(numericType, new OLRecord("1", [], [])),
+    2,
+    "the type slot is locked at construction, so this is the only route left to a non-string one",
+  );
 });
 
 test("a wide value does not overflow the host stack", () => {
@@ -444,10 +615,10 @@ test("a wide value does not overflow the host stack", () => {
 });
 
 test("a value this encoder cannot describe gets per-instance identity, never a collision", () => {
-  // `String()` renders two `Symbol("x")` identically and `Object.keys()` flattens a Date, a Map, a
-  // Set and a RegExp all to an empty object — so encoding them by printed form collided them.
-  // None is an `OLValue`; the conservative answer is an opaque serial, which may FALSE SPLIT two
-  // equal exotic values. That direction is visible; a collision is not.
+  // `String()` renders two `Symbol("x")` identically and `Object.keys()` flattens a Date, a Set and
+  // a RegExp all to an empty object — so encoding them by printed form collided them. None is an
+  // `OLValue`; the conservative answer is an opaque serial, which may FALSE SPLIT two equal exotic
+  // values. That direction is visible; a collision is not.
   const oneWay = () => 1;
   const theOtherWay = () => 1;
   assert.equal(
@@ -460,7 +631,6 @@ test("a value this encoder cannot describe gets per-instance identity, never a c
     [Symbol("x"), Symbol("x"), "two symbols with the same description"],
     [oneWay, theOtherWay, "two closures with identical source and behaviour"],
     [new Date(0), new Date(1), "two dates"],
-    [new Map([["a", 1]]), new Map([["a", 2]]), "two maps"],
     [new Set([1]), new Set([2]), "two sets"],
     [/a/, /b/, "two regular expressions"],
   ]) {
@@ -472,6 +642,34 @@ test("a value this encoder cannot describe gets per-instance identity, never a c
     survivors(symbol, symbol),
     1,
     "the SAME instance must keep one identity, or nothing would ever de-duplicate",
+  );
+});
+
+test("a Map is described structurally, because the clone boundary puts one in reach", () => {
+  // `Map` sat in the list above until measurement moved it. `structuredClone` strips a prototype,
+  // so an `OLDict` crossing the studio worker's `postMessage` arrives as a plain object holding a
+  // BARE `Map` — and an opaque serial made every pair of such values split, including two runs of
+  // the same program. The general rule (describe `OLValue`s, keep host types opaque) was right; the
+  // claim that no diagnostic could carry a `Map` was wrong.
+  assert.equal(
+    survivors(new Map([["a", 1]]), new Map([["a", 2]])),
+    2,
+    "two maps differing in a value are two faults",
+  );
+  assert.equal(
+    survivors(new Map([["a", 1]]), new Map([["a", 1]])),
+    1,
+    "and two equal maps are ONE — the half an opaque serial could never give",
+  );
+  assert.equal(
+    survivors(new Map([["a", 1]]), new Map([["b", 1]])),
+    2,
+    "two maps differing in a key are two faults",
+  );
+  assert.equal(
+    survivors(new Map([["a", 1]]), new Map()),
+    2,
+    "and a populated map does not collapse onto an empty one",
   );
 });
 
@@ -667,7 +865,7 @@ test("reflection that raises makes a value opaque, never a crash", () => {
   });
 
   // The three overrides are live hazards — asking the instance really does throw — but since the
-  // encoder reads dicts and records through the BASE prototype and a turtle's `id` as a data
+  // encoder reads dicts and records as own DATA PROPERTIES and a turtle's `id` as a data
   // descriptor, they are now closed TWICE: never invoked, and caught if they somehow were. The
   // proxies are the cases that still reach the catch, since reflection precedes any classification.
   assert.throws(() => new DictWithThrowingKeys().keys(), /must not crash/);
@@ -711,7 +909,8 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
   // The guard that catches a throwing override does not see a successful misdescription: an
   // `OLDict` subclass whose `keys()` returns `[]` made two dicts with different contents into one
   // fault, and a populated liar collapse onto a genuinely empty dict. Misdescription never raises,
-  // so it never reaches the catch. Contents are read through the BASE implementation instead.
+  // so it never reaches the catch. The contents are read as own data properties instead, so no
+  // override is on the path at all.
   class LyingDict extends OLDict {
     keys() {
       return [];

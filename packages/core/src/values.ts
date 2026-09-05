@@ -29,6 +29,39 @@ interface OLDictEntry {
 }
 
 /**
+ * Pin a value class's backing collections to the objects its constructor made.
+ *
+ * The brand (`#brand`) proves an object is a genuine instance; it says nothing about what that
+ * instance's properties currently hold. A subclass, or anything holding a reference, could swap
+ * `entries` for a `Map` subclass whose `forEach` reports different contents than its `get` — and
+ * `@openlogo/core`'s diagnostic de-duplicator reads those collections to tell two faults apart, so
+ * a successful lie there is a **silently discarded diagnostic**, which is the failure that whole
+ * encoding exists to prevent. `readonly` is erased at run time and stops nobody.
+ *
+ * Making the properties non-writable and non-configurable closes it at the source rather than at
+ * every reader: the reference cannot be replaced or redefined after construction, so a reader that
+ * has brand-checked knows the collection is the constructor's own. A subclass attempting the swap
+ * now throws at construction (module code is strict), which is loud instead of silent. It also
+ * makes the lie unrepresentable through a Proxy, because a `get` trap may not report a value other
+ * than the target's for a non-writable, non-configurable own data property.
+ *
+ * The properties stay **enumerable**, deliberately: `structuredClone` copies enumerable own
+ * properties and cannot see a `#private` field, and a diagnostic payload crossing the studio
+ * worker's `postMessage` with its contents erased is the same silent collision by another route.
+ * The collections' *contents* stay mutable — records and dicts are mutable values.
+ */
+function lockBackingData(target: object, names: readonly string[]): void {
+  for (const name of names) {
+    Object.defineProperty(target, name, {
+      value: (target as Record<string, unknown>)[name],
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
+  }
+}
+
+/**
  * The Data-profile `dict` value (`spec/data-structures.md:143-250`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
  * (`spec/execution-model.md:490-491`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
@@ -39,18 +72,23 @@ interface OLDictEntry {
  * (`spec/execution-model.md:13-40`), same as a list.
  */
 export class OLDict {
-  readonly entries = new Map<string, OLDictEntry>();
+  private readonly entries = new Map<string, OLDictEntry>();
 
   /** Unforgeable brand — see {@link OLDict.isGenuine}. */
   readonly #brand = true;
 
+  constructor() {
+    lockBackingData(this, ["entries"]);
+  }
+
   /**
-   * Is alue a genuine instance, rather than a Proxy wearing one's prototype?
+   * Is `value` a genuine instance, rather than a Proxy wearing one's prototype?
    *
-   * A private field is keyed on the target object, so #brand in proxy is alse even for a Proxy
-   * whose target IS an OLDict — which instanceof cannot tell apart. The data itself lives in an
-   * ordinary own property so structuredClone preserves it across a worker boundary; the brand is
-   * what makes reading that property safe.
+   * A private field is keyed on the target object, so `#brand in proxy` is false even for a Proxy
+   * whose target IS an `OLDict` — which `instanceof` cannot tell apart. The data itself lives in an
+   * ordinary own property so `structuredClone` preserves it across a worker boundary; the brand is
+   * what makes reading that property safe, and {@link lockBackingData} is what keeps the property
+   * pointing at the collection this constructor made.
    */
   static isGenuine(value: unknown): boolean {
     return typeof value === "object" && value !== null && #brand in value;
@@ -148,18 +186,18 @@ export class OLRecord {
    * `[ x X ]` names one field, not two, and `fields()` must not report a phantom position that no
    * slot backs.
    */
-  readonly declaredFields: readonly string[];
+  private readonly declaredFields: readonly string[];
   /**
    * Field values keyed by the case-folded field name. Identifiers are case-insensitive
    * (`spec/grammar.md:13`), so `.x`, `.X`, and `.x` all address one slot; the folded key is the
    * single canonical form the accessors resolve against.
    */
-  readonly slots: Map<string, OLValue>;
+  private readonly slots: Map<string, OLValue>;
 
   /** Unforgeable brand — see {@link OLRecord.isGenuine}. */
   readonly #brand = true;
 
-  /** Is alue a genuine instance? See {@link OLDict.isGenuine} for why instanceof is not enough. */
+  /** Is `value` a genuine instance? See {@link OLDict.isGenuine} for why `instanceof` is not enough. */
   static isGenuine(value: unknown): boolean {
     return typeof value === "object" && value !== null && #brand in value;
   }
@@ -196,6 +234,7 @@ export class OLRecord {
         values[index] as OLValue,
       ]),
     );
+    lockBackingData(this, ["type", "declaredFields", "slots"]);
   }
 
   /** Whether `field` is one of this record's fixed, declared fields (case-insensitive). */
