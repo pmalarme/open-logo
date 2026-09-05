@@ -119,6 +119,45 @@ function endsInUnresolvableCall(
  * of its own because the call before it, on the same line, had unknown arity. See the module doc
  * comment for why an orphan is a statement-list neighbour rather than a token offset.
  */
+/**
+ * Could `statement` have been read as an ARGUMENT to the call before it?
+ *
+ * The suppression is bounded by the word *only*: a token is spared exactly when its only fault is
+ * following a callee nothing resolves (`spec/execution-model.md:768-770`). A statement-only form —
+ * `if`, an assignment, a `define` — could never have been an argument expression whatever the
+ * callee turned out to be, so its `ol-bad-token` is an independent fault and is still reported, for
+ * the same reason `spec/execution-model.md:771-773` keeps the unmatched `]` in `fowad 100 ]`.
+ *
+ * Measured before this bound existed: `fowad if true [ print 1 ]` parses to `ol-bad-token{text:
+ * "if"}` plus the unknown command, and the orphan rule removed the `ol-bad-token`.
+ */
+function couldBeAnArgument(statement: StatementNode): boolean {
+  return ARGUMENT_STATEMENT_KINDS.has(statement.kind);
+}
+
+/**
+ * Statement kinds that are also `expression` productions, so the reader could have attached them to
+ * a preceding call had its arity been known. Everything else is a statement-only form.
+ */
+const ARGUMENT_STATEMENT_KINDS: ReadonlySet<string> = new Set([
+  "Call",
+  "ParenCall",
+  "NumberLit",
+  "WordLit",
+  "BooleanLit",
+  "ListLit",
+  "DictLit",
+  "VarRef",
+  "Place",
+  "ValueOfKey",
+  "Arithmetic",
+  "Comparison",
+  "Logical",
+  "Not",
+  "Negate",
+  "Comprehension",
+]);
+
 function orphanStarts(
   program: ProgramNode,
   unresolvable: ReadonlySet<string>,
@@ -131,7 +170,12 @@ function orphanStarts(
       const orphaned: boolean =
         previous !== undefined &&
         (previousWasOrphan || endsInUnresolvableCall(previous, unresolvable)) &&
-        statement.source_span.start[0] === previous.source_span.end[0];
+        // Same document, then same line. Comparing lines alone let a statement from one source be
+        // called the orphan of a call in another when both happened to sit on line 1 — the same
+        // defect `positionKey` fixes for the keys, on the axis the keys do not reach.
+        statement.source_span.document === previous.source_span.document &&
+        statement.source_span.start[0] === previous.source_span.end[0] &&
+        couldBeAnArgument(statement);
       if (orphaned) {
         starts.add(positionKey(statement.source_span));
       }

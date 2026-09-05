@@ -539,3 +539,61 @@ test("precedence suppressing a parse error does not let a recovery AST run", () 
   );
   assert.deepEqual(kept.events, []);
 });
+
+test("a NON-CALL expression statement that fails stops the run", () => {
+  // The terminal rule at statement position was written as an allow-list naming `Call`/`ParenCall`,
+  // and the grammar admits every `ExpressionNode` as a statement — so every other expression form
+  // was silently skipped. Measured then: `:x[2]` on a one-element list discarded the out-of-range
+  // read with no `ol-range` at all, and the following statement ran. That is this slice's own
+  // defect class, at a statement kind the first version of the rule did not enumerate.
+  const result = execute(`:x = [1]\n:x[2]\n${CORE_SENTINEL}\n`, doc, {});
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-range"],
+  );
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "instruction"],
+    "nothing after the failing expression statement may run",
+  );
+});
+
+test("a declaration of an inactive profile stays inert even when never executed", () => {
+  // `registerDeclarations` walks the WHOLE program, so a `struct` inside an untaken branch is
+  // registered in Phase 1 and never passes the executed-statement guard. Measured before this:
+  // under Core Language alone, `if false [ struct point [ x ] ]` then `print (point 1).x` printed
+  // `1`, and `print (is_a? 1 "point")` answered `false` with no diagnostic at all — the constructor
+  // and the type lookup both bypassing the profile set the run claimed.
+  const dormant = "if false [ struct point [ x ] ]\n";
+  const constructed = execute(`${dormant}print (point 1).x\n`, doc, {
+    profiles: ["core-language"],
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    constructed.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.ok(
+    !constructed.events.some((event) => event.kind === "print"),
+    "the constructor must not run under a set that has no struct",
+  );
+
+  const typed = execute(`${dormant}print (is_a? 1 "point")\n`, doc, {
+    profiles: ["core-language"],
+  });
+  assert.deepEqual(
+    typed.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-type"],
+    "the type word must be unknown too, not silently false",
+  );
+
+  // The control: with Data claimed, the same dormant declaration works normally.
+  const withData = execute(`${dormant}print (point 1).x\n`, doc, {
+    profiles: ["core-language", "data"],
+  });
+  assert.deepEqual(withData.diagnostics, []);
+  assert.equal(
+    withData.events.filter((event) => event.kind === "print").length,
+    1,
+  );
+});

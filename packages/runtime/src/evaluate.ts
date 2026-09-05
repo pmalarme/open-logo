@@ -4900,7 +4900,7 @@ function asExpressionStatement(
  * evaluate an AST it never had source text for. Without it the node kind is the only name left, so
  * that is the fallback: a worse word, never a missing diagnostic.
  */
-function statementHeadWord(
+export function statementHeadWord(
   statement: StatementNode,
   source: string | undefined,
 ): string {

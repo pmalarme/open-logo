@@ -89,6 +89,7 @@ import {
   createTurtleAddressing,
   currentTurtleState,
   evaluate,
+  statementHeadWord,
   executeAdd,
   executeAssign,
   executeClear,
@@ -4369,7 +4370,10 @@ type DeclarationRegistration =
  * The first collision found in source order halts the whole program — nothing runs, so the
  * `define foo` twice that used to print the *second* body prints nothing at all.
  */
-function registerDeclarations(program: ProgramNode): DeclarationRegistration {
+function registerDeclarations(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): DeclarationRegistration {
   const procedures = new Map<string, ProcedureDefNode>();
   const structs = new Map<string, StructDefNode>();
   const firstDeclaration = new Map<string, SourceSpan>();
@@ -4400,7 +4404,21 @@ function registerDeclarations(program: ProgramNode): DeclarationRegistration {
     firstDeclaration.set(key, declared.source_span);
     if (node.kind === "ProcedureDef") {
       procedures.set(key, node);
-    } else {
+    } else if (profiles.includes("data")) {
+      // A `struct` whose profile the run does not claim is not registered, so its constructor and
+      // its type word are unknown exactly as `collectVisibleNames` already reports them — that
+      // function adds struct names "only when `data` is active", and this is the run agreeing.
+      //
+      // Gating registration rather than each consumer is deliberate: the registry has three
+      // readers (the constructor, and `is a` / `is_a?`'s type lookup), and a dormant declaration
+      // reached none of the executed-statement guard. Measured under Core Language alone,
+      // `if false [ struct point [ x ] ]` then `print (point 1).x` printed `1`, and
+      // `print (is_a? 1 "point")` printed `false` with no diagnostic at all.
+      //
+      // The name still occupies `firstDeclaration` above, so it keeps colliding with a later
+      // declaration of the same name: whether a name may be DECLARED is fixed by the language
+      // version, never by the profile set (`spec/grammar.md:408`), and only the calling question
+      // consults profiles.
       structs.set(key, node);
     }
   });
@@ -4899,6 +4917,28 @@ function canonicalizeHeritageAliasCall(
  * A name no profile registers at all is left alone rather than reported here: it may be a user
  * procedure, and if it is not, `evaluateCall`'s terminal rule reports it with the same code.
  */
+/**
+ * Is `statement` an expression the block-result rule says to run for effect and discard
+ * (`spec/execution-model.md:214-227`)?
+ *
+ * Written by EXCLUSION, naming the three **declaration** kinds that legitimately have nothing to
+ * run once Phase 1 has registered them. The grammar admits every `ExpressionNode` as a statement,
+ * so the expression side is open-ended and an allow-list silently skips whatever it forgets —
+ * which is what happened: naming only `Call`/`ParenCall` discarded an out-of-range `:x[2]` read
+ * with no diagnostic. The closed set is the other one.
+ *
+ * Every remaining `StatementNode` kind — control forms, `Assign`, the list mutators, `Return`,
+ * `Throw`, `ProfileStatement` — is dispatched before this point, so reaching here with one means a
+ * dispatch was missed, and the caller turns that into `ol-not-implemented` rather than a skip.
+ */
+function isExpressionStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind !== "ProcedureDef" &&
+    statement.kind !== "StructDef" &&
+    statement.kind !== "Local"
+  );
+}
+
 function inactiveProfileCallee(
   rawStatement: StatementNode,
   environment: Environment,
@@ -5486,8 +5526,16 @@ function executeStatements(
     //   ending that cannot be wrong: it reports, or it raises where the fault actually is.
     //
     // Before this, such a statement emitted its `instruction` event and then did nothing at all.
-    // Every other statement kind still falling through is genuinely nothing to run — `ProcedureDef`
-    // and `StructDef` are declarations Phase 1 already registered.
+    // The only kinds that legitimately fall past here are the **declarations** Phase 1 already
+    // registered — `ProcedureDef` and `StructDef` — which have nothing to run.
+    //
+    // The `isExpressionStatement` test is deliberately by exclusion rather than by an allow-list of
+    // expression kinds. An allow-list is the shape this rule had first, naming only `Call` and
+    // `ParenCall`, and it silently skipped every other expression form the grammar admits as a
+    // statement (`ast.ts`'s `ExpressionNode` is a valid `StatementNode`): measured, `:x = [1]` then
+    // `:x[2]` discarded the out-of-range read with no `ol-range` and ran on. A rule whose whole
+    // subject is "never silently skip" must not be written as a list of things it remembers to
+    // handle.
     if (statement.kind === "Call" || statement.kind === "ParenCall") {
       const callee = statement.callee.name.toLowerCase();
       if (isPrimitiveCommandName(callee)) {
@@ -5495,7 +5543,22 @@ function executeStatements(
           runtimeDiag.notImplemented(statement.callee.source_span, callee),
         );
       }
+    }
+    if (isExpressionStatement(statement)) {
       const outcome = evaluate(statement as ExpressionNode, environment);
+      // `evaluate` answers `undefined` for a node it does not recognise as an expression. That can
+      // only mean a statement kind reached here without being dispatched above, which is this
+      // implementation's gap — so it ends in a diagnostic, never a skip. The terminal rule admits
+      // no third outcome (`spec/execution-model.md:717-720`), and writing this branch is what stops
+      // a statement form added later from re-opening the defect this slice closes.
+      if (outcome === undefined) {
+        return halt(
+          runtimeDiag.notImplemented(
+            statement.source_span,
+            statementHeadWord(statement, environment.source),
+          ),
+        );
+      }
       if (!outcome.ok) {
         return halt(outcome.diagnostic);
       }
@@ -6057,7 +6120,7 @@ export function runProgram(
       return { events: [], diagnostics };
     }
 
-    const registration = registerDeclarations(program);
+    const registration = registerDeclarations(program, runProfiles);
     if (!registration.ok) {
       // Phase 1 declines too, and its finding joins the check's rather than replacing them: under
       // `runUnchecked` the check has already reported, and dropping those would break the opt-out's

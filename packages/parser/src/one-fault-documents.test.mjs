@@ -82,3 +82,55 @@ test("an unresolvable callee in a different document does not create orphans her
     "neither finding is the other's orphan across documents",
   );
 });
+
+test("a following statement from ANOTHER document is not this program's orphan", () => {
+  // The adjacency test, not the key. `positionKey` fixed the lookup; this fixes what is put into
+  // it. Adjacency compared line numbers only, so a statement from one source became the orphan of a
+  // call in another when both sat on line 1. The earlier cross-document tests add a foreign
+  // diagnostic but no foreign AST node, so they never reached this path.
+  const here = parse("fowad 100\n", "a.logo").ast;
+  const elsewhere = parse("100\n", "b.logo").ast;
+  const mixed = { ...here, body: [...here.body, ...elsewhere.body] };
+  const kept = applyOneFaultRules(mixed, [
+    finding("ol-unknown-command", "a.logo", 1, 1, { name: "fowad" }),
+    finding("ol-bad-token", "b.logo", 1, 1, { text: "100" }),
+  ]);
+  assert.ok(
+    kept.some((diagnostic) => diagnostic.source_span.document === "b.logo"),
+    "a statement in another source is not adjacent to this program's unresolvable call",
+  );
+});
+
+test("a statement-only form after an unresolvable callee keeps its own diagnostic", () => {
+  // The `only` in "a token whose ONLY fault is that it follows a callable name nothing resolves"
+  // (`spec/execution-model.md:768-770`). An `if` could never have been an argument expression
+  // whatever the callee turned out to be, so its `ol-bad-token` is an independent fault — the same
+  // reasoning that keeps the unmatched `]` in `fowad 100 ]` at `:771-773`.
+  const source = "fowad if true [ print 1 ]\n";
+  const parsed = parse(source, "a.logo");
+  assert.ok(
+    parsed.diagnostics.some((diagnostic) => diagnostic.code === "ol-bad-token"),
+    "the reader must raise ol-bad-token at `if` for this to be testable",
+  );
+  const kept = applyOneFaultRules(parsed.ast, [
+    ...parsed.diagnostics,
+    finding("ol-unknown-command", "a.logo", 1, 1, { name: "fowad" }),
+  ]);
+  assert.deepEqual(kept.map((diagnostic) => diagnostic.code).sort(), [
+    "ol-bad-token",
+    "ol-unknown-command",
+  ]);
+});
+
+test("but a value-shaped statement after one IS suppressed", () => {
+  // The other side of the bound, so the test above cannot pass by disabling the rule.
+  const parsed = parse("fowad 100\n", "a.logo");
+  const kept = applyOneFaultRules(parsed.ast, [
+    ...parsed.diagnostics,
+    finding("ol-unknown-command", "a.logo", 1, 1, { name: "fowad" }),
+  ]);
+  assert.deepEqual(
+    kept.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+});

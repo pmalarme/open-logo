@@ -135,21 +135,33 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * **excluded** — the spec says outright that `stage` "records when the fault was found, not which
  * fault it is", so the same fault reported at `semantic` and again at `runtime` is one fault.
  *
- * `params` keys are sorted before serializing so two findings that carry the same entries in a
- * different insertion order compare equal. Two rules can legitimately build the same params object
- * field-by-field in different orders, and an identity that depended on that order would silently
- * let the duplicate through.
+ * `params` are serialized **canonically and recursively**: keys are sorted at every depth, so two
+ * findings carrying the same entries in a different insertion order compare equal. Two rules can
+ * legitimately build the same params object field-by-field in different orders, and an identity
+ * that depended on that order would silently let the duplicate through. Sorting only the top level
+ * is not enough — `ol-duplicate-definition`'s `original_span` is itself an object (a normative
+ * `params` entry, `spec/error-model.md:144-147`), and two identical findings whose nested keys were
+ * inserted in different orders were measured surviving as two.
  */
-function faultIdentity(diagnostic: Diagnostic): string {
-  const params = Object.keys(diagnostic.params)
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  return Object.keys(value as Record<string, unknown>)
     .sort()
-    .map((key) => [key, diagnostic.params[key]]);
+    .map((key) => [key, canonicalize((value as Record<string, unknown>)[key])]);
+}
+
+function faultIdentity(diagnostic: Diagnostic): string {
   return JSON.stringify([
     diagnostic.code,
     diagnostic.source_span.document,
     diagnostic.source_span.start,
     diagnostic.source_span.end,
-    params,
+    canonicalize(diagnostic.params),
   ]);
 }
 
