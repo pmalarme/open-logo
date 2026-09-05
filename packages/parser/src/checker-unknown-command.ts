@@ -226,58 +226,33 @@ function messageFor(name: string, suggestion: string | undefined): string {
  * at eighty declarations than at none, and that ratio is what reproduces.
  *
  * ## The snapshot cannot go stale, and that is structural rather than lucky
+ * ## The snapshot cannot go stale
  *
- * A bound resolver is a cache, so the question is what invalidates it.
+ * A bound resolver is a cache, so the question is what invalidates it. Three structural facts, and
+ * deliberately no supporting argument beyond them — this paragraph was rewritten four times and
+ * every error was in the justification rather than in these.
  *
- * **The load-bearing fact is that the language has no dynamic evaluation.** There is no `run`,
- * `eval`, `apply`, `call`, `parse` or `load` anywhere in `spec/built-in-names.json` — measured over
- * all 148 entries — so no constructed code can ever be executed and the bound AST cannot grow after
- * binding. Every other argument below is narrower than this one.
+ * 1. **The language has no dynamic evaluation.** No `run`, `eval`, `apply`, `call`, `parse` or
+ *    `load` appears anywhere in `spec/built-in-names.json` (measured: zero matches across all 148
+ *    entries), so no constructed code can be executed and the bound AST cannot grow.
+ * 2. **The registries are written once, before this exists.** `@openlogo/runtime`'s
+ *    `registerDeclarations` holds the only two writes to the procedure and struct registries in
+ *    that package (`execute-internal.ts:4402,4404`), and completes before the environment — and so
+ *    this resolver — is built.
+ * 3. **The falsifier is a STAGE, not a name.** `alias` is the one form whose first operand names a
+ *    callable (`spec/grammar.md:165,382`), but a spec-faithful `alias` cannot grow the visible set:
+ *    `spec/localization.md:21,44-50` resolve it in the C2 reader **pre-pass**, normalizing tokens to
+ *    their canonical spelling before parsing, and `:40` says "Aliases do not create new
+ *    procedures". `spec/localization.md:223` then requires that pre-pass to run "before syntax
+ *    checking, highlighting structural keywords, or reporting unknown commands" — this module being
+ *    the unknown-command reporter. **An implementation that resolved aliases inside the checker
+ *    instead would break that ordering, and the fixed-set assumption with it.** That is the edit to
+ *    watch for; the correct home is the pre-pass, upstream of here.
  *
- * Within this implementation the name space is additionally **closed by Phase 1**:
- * `@openlogo/runtime`'s `registerDeclarations` holds the only two writes to the procedure and
- * struct registries in that package, and runs to completion before the environment — and therefore
- * this resolver — is built. A failed registration returns before the environment exists at all, so
- * a partially-registered program never reaches one. Nesting and source order cannot separate the
- * two either, because `registerDeclarations` and {@link collectVisibleNames} both `walk()` the
- * **whole** program: measured, a `define` inside a `when` handler, a `define` inside another
- * procedure, a `struct` inside a handler, and a call written before its own `define` all resolve.
- *
- * ## What to protect, which is not what it first looks like
- *
- * The obvious candidate for a future stale-maker is `alias`, because `spec/grammar.md:165` and
- * `:382` make its **first operand** one of the grammar's four declaration slots — "`define`, the
- * heritage `to`, `struct`, and the first operand of `alias`". `import` is not a declaration slot
- * and `spec/grammar.md:384` says `export` is not one either, so `alias` is the only one of the
- * three that names a callable at all.
- *
- * **But a spec-faithful `alias` cannot grow the visible set, and that is the point.**
- * `spec/localization.md:21` makes it "a special form resolved in the C2 reader pre-pass", running
- * "before procedure registration and before top-level execution"; `:40` says "Aliases do not create
- * new procedures", and after resolution "`avance 100` is the same instruction as `forward 100`".
- * The pre-pass rewrites tokens to canonical spellings, so by the time this checker sees a program
- * the alias is gone. Implemented per the spec, `alias` **strengthens** this invariant rather than
- * falsifying it.
- *
- * So the thing to protect is the STAGE, not the name: `spec/localization.md:223` requires tools to
- * "run the same alias pre-pass as the interpreter before syntax checking, highlighting structural
- * keywords, or reporting unknown commands" — this rule being one of those callers. An
- * implementation that resolved aliases *inside* the checker instead would break that ordering, and
- * with it the assumption that the visible set is fixed when the resolver is built. That is the edit
- * to watch for.
- *
- * Two inferences to avoid, both of which were made here and corrected. Do **not** read
- * `registries: ["reserved"]` as evidence a form is inert: `define` and `struct` carry the identical
- * marker and are exactly the forms that DO register callables — it encodes "may not be declared as
- * a name". And do **not** read keyword-list membership as a profile claim: `spec/grammar.md:378`
- * says membership "answers one question — *may a program declare this name?* — and no other". By
- * the DAG, `alias` is **Localization**, which `spec/conformance.md:188-189` makes dependent on
- * **Modules**; it is not a Core word.
- *
- * (Today all three are unreachable for a narrower reason than "no grammar form":
- * `spec/grammar.md:160-162` **does** define `alias-statement`, `import-statement` and
- * `export-statement`. What is missing is a production in *this reader*, so each is `ol-bad-token`,
- * measured.)
+ * One trap, because a maintainer checking fact 3 will hit it: `spec/built-in-names.json` tags
+ * `alias` `"profile": "core-language"`. That field records which registry reserves the name, not
+ * which profile owns the feature — the manifest's own `invariants.unconditional` says "nothing may
+ * branch on it". By the DAG `alias` is Localization (`spec/conformance.md:188`).
  */
 export interface NameResolver {
   /** Is `name` callable in the bound program under the bound profile set? */

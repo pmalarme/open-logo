@@ -33,10 +33,11 @@ function parseError(
  * real production that `parser.ts` does not implement, so each raises `ol-bad-token` for its own
  * grammar-correct spelling (`alias forward fd`, `export square`, `import "shapes"`, all measured).
  *
- * They are **not** Core words, and calling them that was an inference from keyword-list membership
- * that `spec/grammar.md:378` forbids — membership "answers one question — *may a program declare
- * this name?* — and no other". By the DAG, `import`/`export` are **Modules** and `alias` is
- * **Localization**, which `spec/conformance.md:188-189` makes dependent on Modules.
+ * They are in `OL_KEYWORDS` — the profile-independent list this package calls the Core keywords —
+ * but that membership carries no profile claim: `spec/grammar.md:378` says it "answers one
+ * question — *may a program declare this name?* — and no other". By the DAG their behavior belongs
+ * to **Modules** (`import`, `export`) and **Localization** (`alias`), which
+ * `spec/conformance.md:188-189` makes dependent on Modules.
  *
  * They are excluded from {@link misplacedKeywordClause} because for them the sentence's **causality**
  * would be false. Everywhere else the reader rejects a keyword, the grammar is the reason: a keyword
