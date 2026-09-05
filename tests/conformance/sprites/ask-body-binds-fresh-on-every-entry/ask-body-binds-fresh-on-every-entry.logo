@@ -1,0 +1,7 @@
+:t = new_turtle
+repeat 2 [
+  ask :t [
+    if repcount > 1 [ print :carried ]
+    :carried = 7
+  ]
+]

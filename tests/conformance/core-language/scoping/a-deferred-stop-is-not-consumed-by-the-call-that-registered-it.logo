@@ -1,0 +1,4 @@
+define setup
+  when "start" [ stop ]
+end
+setup

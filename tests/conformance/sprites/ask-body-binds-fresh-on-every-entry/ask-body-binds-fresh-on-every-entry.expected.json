@@ -1,0 +1,202 @@
+{
+  "description": "The freshness half for `ask`, whose second entry is NOT the one its `each` sibling uses. `each` runs its body once per addressed turtle, so a second turtle is a second entry; `ask` runs its body once for the whole addressed set, so its second entry is a second EXECUTION of the statement — here a second turn of the enclosing `repeat`. Each entry still creates a fresh scope with fresh bindings (spec/execution-model.md:377-379,664-666), so the second entry must not find the `:carried` the first bound, and the read raises `ol-undefined-var` (spec/error-model.md:102). Added at the QA reviewer's request during review round 3, which measured that sharing one frame across `ask` body entries survives all 1035 fixtures: the round-2 fixtures gave `ask` the death half only, and generalising `each`'s second-entry recipe to `ask` is exactly how the gap was missed. This fixture has no check: true twin on purpose: check() does flag the same read, but positionally — the read precedes the write in source order — and never by freshness, which is a property a single static walk of the block cannot express. A twin would pin the already-pinned positional rule (check/undefined-var-eager-block-reads-a-later-enclosing-binding) while reading as though it pinned this one.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [2, 1],
+        "end": [7, 2]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [4, 5],
+        "end": [5, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [5, 5],
+        "end": [5, 17]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [4, 5],
+        "end": [5, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [4, 23],
+        "end": [4, 37]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/ask-body-binds-fresh-on-every-entry/ask-body-binds-fresh-on-every-entry",
+        "start": [4, 29],
+        "end": [4, 37]
+      },
+      "params": {
+        "name": "carried"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
