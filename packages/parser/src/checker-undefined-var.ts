@@ -72,9 +72,10 @@
  * to assume otherwise: a handler form a later profile adds, and does not put in that registry, would
  * be treated as eager and could report a **false positive** on a conforming program. It is safe
  * today only because the registry is complete — `OL_PROFILE_KEYWORDS` carries exactly the Sprites
- * and Interaction & Events block-heads, and the Sprites ones (`ask`, `each`, `tell`) really do run
- * their bodies where they are written, which is measured rather than assumed:
- * `ask :t [ print :later ]` before `:later = 1` raises `ol-undefined-var` under `execute()`.
+ * and Interaction & Events block-heads, and the Sprites ones that *have* a body (`ask` and `each`;
+ * `tell` is a plain command and carries none) really do run it where it is written, which is
+ * measured rather than assumed: `ask :t [ print :later ]` before `:later = 1` raises
+ * `ol-undefined-var` under `execute()`.
  *
  * A procedure body reading a name its boundary hides is decidable for a different reason, and that
  * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
@@ -608,10 +609,10 @@ function checkBaseRead(
  * block. `deferred` picks which of the two chains the new scope reads through — see {@link Scope}.
  *
  * Callers decide `deferred` from {@link DEFERRED_BLOCK_HEADS}: only the Interaction & Events handler
- * heads defer their body. Every control form's own body and every Sprites body (`ask`, `each`,
- * `tell`) runs where it is written and is entered eagerly. **The default is eager**, which is the
- * *reporting* direction — see the module doc comment for why that makes registering a new deferred
- * head mandatory rather than optional.
+ * heads defer their body. Every control form's own body and every Sprites body (`ask` and `each` —
+ * `tell` is a plain command and carries no block) runs where it is written and is entered eagerly.
+ * **The default is eager**, which is the *reporting* direction — see the module doc comment for why
+ * that makes registering a new deferred head mandatory rather than optional.
  */
 function enterBlockScope(
   parent: Scope,
@@ -799,8 +800,7 @@ function checkNode(
     case "Block":
       // Reached from the `ProfileStatement` case for a deferred handler head, and from nowhere
       // else: every control form's own body has its own case below, and a `Block` appears in this
-      // AST only as some node's declared body. See {@link enterBlockScope} for why deferredness is
-      // derived structurally rather than from a list of handler names.
+      // AST only as some node's declared body. Which heads defer is {@link DEFERRED_BLOCK_HEADS}.
       checkScope(
         node.body,
         enterBlockScope(scope, node.body, [], facts, true),
@@ -888,8 +888,9 @@ function checkNode(
       return;
     }
     case "ProfileStatement": {
-      // A profile block-head. Only the Interaction & Events handlers defer their body; `ask`, `each`
-      // and `tell` run theirs where it is written — see {@link DEFERRED_BLOCK_HEADS}.
+      // A profile block-head. Only the Interaction & Events handlers defer their body; `ask` and
+      // `each` run theirs where it is written — see {@link DEFERRED_BLOCK_HEADS}. Several heads
+      // (`tell`, `new_turtle`, …) carry no body at all, which is why `node.body` is optional.
       for (const argument of node.args) {
         checkNode(argument, scope, facts, diagnostics);
       }

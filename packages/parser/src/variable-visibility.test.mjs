@@ -606,19 +606,20 @@ test("a DEFERRED handler block sees its enclosing scope in full, whenever it fir
   }
 });
 
-test("`ask`, `each` and `tell` bodies are EAGER, not deferred — they run where they are written", () => {
-  // Measured, not assumed: `execute()` raises `ol-undefined-var` on all three programs below, so a
+test("`ask` and `each` bodies are EAGER, not deferred — they run where they are written", () => {
+  // Measured, not assumed: `execute()` raises `ol-undefined-var` on both programs below, so a
   // checker that treated every profile block-head as deferred would miss a diagnostic the runtime
   // raises. The split comes from `signatures.ts`'s Interaction & Events registry, so the Sprites
   // heads — which are not in it — land on the eager side without a second list to maintain.
   //
   // `each` is asserted in its own right rather than assumed to follow `ask`: nothing else in this
-  // file fails if `each` alone becomes deferred, which is what `@testing` caught.
+  // file fails if `each` alone becomes deferred, which is what `@testing` caught. `tell` is
+  // deliberately absent — it is a plain command carrying no block at all (`node.body` is
+  // `undefined`), so it says nothing about body classification either way.
   const profiles = ["core-language", "turtle-rendering", "sprites"];
   for (const source of [
     ":t = new_turtle\nask :t [ print :later ]\n:later = 1\n",
     "each [ print :later ]\n:later = 1\n",
-    ":t = new_turtle\ntell :t\nprint :later\n:later = 1\n",
   ]) {
     assert.deepEqual(
       codesOf(checkSource(source, profiles)),
@@ -626,11 +627,10 @@ test("`ask`, `each` and `tell` bodies are EAGER, not deferred — they run where
       source,
     );
   }
-  // The paired positive controls: bind it first and all three are clean.
+  // The paired positive controls: bind it first and both are clean.
   for (const source of [
     ":later = 1\n:t = new_turtle\nask :t [ print :later ]\n",
     ":later = 1\neach [ print :later ]\n",
-    ":later = 1\n:t = new_turtle\ntell :t\nprint :later\n",
   ]) {
     assert.deepEqual(checkSource(source, profiles), [], source);
   }
@@ -735,15 +735,18 @@ test("NON-REGRESSION: the spec's own block-lifetime contrast example stays clean
   );
 });
 
-// ── The one boundary this rule still DECLINES to cross ───────────────────────────────────────
+// ── The excuse a misplaced `global` grants, and how far it reaches ───────────────────────────
 
 test("a misplaced `global` suppresses reads of its name, and the suppression follows the same order/lexical split", () => {
   // Raised by `rubber-duck` as a blocking finding, and its second counter-example was right: the
   // suppression means "assume the reported mistake is repaired", so it is only sound where
   // relocating the declaration to the root really would make the read resolve.
   //
-  // In a NESTED scope it always would — a root `global` is visible to every procedure body and
-  // every block, position-blind:
+  // The rule is **positional iff the nearest non-eager ancestor is the root**. A PROCEDURE BODY and
+  // a DEFERRED HANDLER re-base to the whole document's set, because a root `global` is visible to
+  // them wherever in the document either one sits; an EAGER block and the root's own statement list
+  // are positional. The assertions below walk all four, and the eager/deferred pair at the end is
+  // the one that looks identical in the source:
   assert.deepEqual(
     codesOf(
       checkSource("define f\n  global count = 0\n  print :count\nend\nf\n"),
