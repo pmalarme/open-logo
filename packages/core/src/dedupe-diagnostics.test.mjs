@@ -310,25 +310,37 @@ test("a large collection is snapshotted once, not once per entry", () => {
   // the restored quadratic shape at 396 ms for 8,000 entries — the test would have passed with the
   // defect back in place. So the assertion counts the calls instead: whatever the machine, reading
   // a collection once per entry is a different number from reading it once.
-  class CountingDict extends OLDict {
+  //
+  // The count is taken on `OLDict.prototype` rather than on a subclass, because the encoder now
+  // reads through the base implementation on purpose — a subclass override is exactly what a
+  // hostile value would install, so it must NOT be consulted, and a subclass-based counter would
+  // silently measure nothing.
+  const realKeys = OLDict.prototype.keys;
+  const realValues = OLDict.prototype.values;
+  let keysReads = 0;
+  let valuesReads = 0;
+  OLDict.prototype.keys = function countedKeys() {
+    keysReads += 1;
+    return realKeys.call(this);
+  };
+  OLDict.prototype.values = function countedValues() {
+    valuesReads += 1;
+    return realValues.call(this);
+  };
+  try {
+    const counted = new OLDict();
+    for (let index = 0; index < 200; index++) {
+      counted.set(`k${index}`, index);
+    }
     keysReads = 0;
     valuesReads = 0;
-    keys() {
-      this.keysReads += 1;
-      return super.keys();
-    }
-    values() {
-      this.valuesReads += 1;
-      return super.values();
-    }
+    dedupeDiagnostics([carrying(counted)]);
+  } finally {
+    OLDict.prototype.keys = realKeys;
+    OLDict.prototype.values = realValues;
   }
-  const counted = new CountingDict();
-  for (let index = 0; index < 200; index++) {
-    counted.set(`k${index}`, index);
-  }
-  dedupeDiagnostics([carrying(counted)]);
-  assert.equal(counted.keysReads, 1, "keys() must be snapshotted once");
-  assert.equal(counted.valuesReads, 1, "values() must be snapshotted once");
+  assert.equal(keysReads, 1, "keys() must be snapshotted once");
+  assert.equal(valuesReads, 1, "values() must be snapshotted once");
 });
 
 test("a wide value does not overflow the host stack", () => {
@@ -563,6 +575,17 @@ test("reflection that raises makes a value opaque, never a crash", () => {
     },
   });
 
+  // The three overrides are live hazards — asking the instance really does throw — but since the
+  // encoder reads dicts and records through the BASE prototype and a turtle's `id` as a data
+  // descriptor, they are now closed TWICE: never invoked, and caught if they somehow were. The
+  // proxies are the cases that still reach the catch, since reflection precedes any classification.
+  assert.throws(() => new DictWithThrowingKeys().keys(), /must not crash/);
+  assert.throws(
+    () => new RecordWithThrowingFields("p", [], []).fields(),
+    /must not crash/,
+  );
+  assert.throws(() => turtleWithThrowingId.id, /must not crash/);
+
   for (const [hostile, why] of [
     [throwingOwnKeys, "a Proxy that throws from ownKeys"],
     [throwingPrototype, "a Proxy that throws from getPrototypeOf"],
@@ -591,4 +614,69 @@ test("the trusted classes are still read structurally when they behave", () => {
   );
   assert.equal(survivors(new OLTurtle(1), new OLTurtle(1)), 1);
   assert.equal(survivors(new OLTurtle(1), new OLTurtle(2)), 2);
+});
+
+test("a subclass that LIES about its contents cannot collide two values", () => {
+  // The guard that catches a throwing override does not see a successful misdescription: an
+  // `OLDict` subclass whose `keys()` returns `[]` made two dicts with different contents into one
+  // fault, and a populated liar collapse onto a genuinely empty dict. Misdescription never raises,
+  // so it never reaches the catch. Contents are read through the BASE implementation instead.
+  class LyingDict extends OLDict {
+    keys() {
+      return [];
+    }
+    values() {
+      return [];
+    }
+  }
+  const oneValue = new LyingDict();
+  oneValue.set("a", 1);
+  const anotherValue = new LyingDict();
+  anotherValue.set("a", 2);
+  assert.deepEqual(
+    oneValue.keys(),
+    [],
+    "the lie is live: asking the instance reports nothing",
+  );
+  assert.deepEqual(oneValue.values(), []);
+  assert.equal(survivors(oneValue, anotherValue), 2, "different contents");
+  assert.equal(
+    survivors(oneValue, new OLDict()),
+    2,
+    "a populated liar is not an empty dict",
+  );
+
+  // A MODIFIED INSTANCE is the same attack without a subclass, and `instanceof` admits it equally.
+  const shadowed = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    dictionary.keys = () => [];
+    dictionary.values = () => [];
+    return dictionary;
+  };
+  const shadowedOne = shadowed(1);
+  assert.deepEqual(shadowedOne.keys(), [], "the shadowing is live too");
+  assert.deepEqual(shadowedOne.values(), []);
+  assert.equal(survivors(shadowedOne, shadowed(2)), 2);
+
+  class LyingRecord extends OLRecord {
+    fields() {
+      return [];
+    }
+  }
+  const lyingRecord = new LyingRecord("p", ["x"], [1]);
+  assert.deepEqual(lyingRecord.fields(), [], "and here");
+  assert.equal(survivors(lyingRecord, new LyingRecord("p", ["x"], [2])), 2);
+  assert.equal(survivors(lyingRecord, new OLRecord("p", [], [])), 2);
+
+  // A turtle's `id` is read as DATA, so an accessor installed over it describes nothing
+  // trustworthy and the value becomes opaque rather than impersonating turtle 99.
+  const impostor = new OLTurtle(1);
+  Object.defineProperty(impostor, "id", {
+    get() {
+      return 99;
+    },
+  });
+  assert.equal(impostor.id, 99, "the impersonation is live");
+  assert.equal(survivors(impostor, new OLTurtle(99)), 2);
 });

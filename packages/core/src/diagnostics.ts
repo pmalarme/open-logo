@@ -422,10 +422,19 @@ type Described =
 /**
  * Classify `value` and snapshot its children, or return `undefined` when it has no structural
  * description. May throw — the sole caller treats that identically to `undefined`.
+ *
+ * **Trusted-class contents are read through the base prototype, never through dispatch.** A guard
+ * that only catches *throwing* overrides still trusts *lying* ones: an `OLDict` subclass whose
+ * `keys()` returns `[]` was measured making two dicts with different contents into one fault, and a
+ * populated liar collapse onto a genuinely empty dict — the silent discard this whole encoding
+ * exists to prevent, reached through the one path the `try` cannot see, because misdescription
+ * never raises. `instanceof` is likewise not proof of shape: `Symbol.hasInstance` can be trapped.
+ * Calling `OLDict.prototype.keys` on the value reads the real private state or throws, and throwing
+ * lands in the caller's catch as opaque identity. Nothing here depends on the instance behaving.
  */
 function describe(value: object): Described | undefined {
   if (value instanceof OLTurtle) {
-    return { kind: "atom", text: `turtle${value.id};` };
+    return { kind: "atom", text: `turtle${dataProperty(value, "id")};` };
   }
   const children: unknown[] = [];
   if (Array.isArray(value)) {
@@ -439,19 +448,20 @@ function describe(value: object): Described | undefined {
     return { kind: "container", head: `arr${value.length}(`, children };
   }
   if (value instanceof OLDict) {
-    // Snapshotted ONCE. Asking `values()` per key rebuilt the whole collection per entry.
-    const keys = value.keys();
-    const values = value.values();
+    // Snapshotted ONCE, through the base implementation. Asking `values()` per key rebuilt the
+    // whole collection per entry; asking the INSTANCE let a subclass answer for it.
+    const keys = OLDict.prototype.keys.call(value);
+    const values = OLDict.prototype.values.call(value);
     for (let index = 0; index < keys.length; index++) {
       children.push(keys[index], values[index]);
     }
     return { kind: "container", head: `dict${keys.length}(`, children };
   }
   if (value instanceof OLRecord) {
-    const fields = value.fields();
-    const type = value.type;
+    const fields = OLRecord.prototype.fields.call(value);
+    const type = dataProperty(value, "type");
     for (const field of fields) {
-      children.push(field, value.get(field));
+      children.push(field, OLRecord.prototype.get.call(value, field));
     }
     return {
       kind: "container",
@@ -471,6 +481,20 @@ function describe(value: object): Described | undefined {
     children.push(key, entry);
   }
   return { kind: "container", head: `obj${entries.length}(`, children };
+}
+
+/**
+ * An own **data** property of `value`, read through its descriptor rather than through a
+ * possibly-installed accessor. Throws when the slot is missing or is an accessor, which the caller
+ * turns into opaque identity — a turtle whose `id` getter raises, or a record whose `type` has been
+ * redefined, describes nothing trustworthy.
+ */
+function dataProperty(value: object, name: string): string {
+  const descriptor = Object.getOwnPropertyDescriptor(value, name);
+  if (descriptor === undefined || !("value" in descriptor)) {
+    throw new TypeError(`${name} is not a data property`);
+  }
+  return String(descriptor.value);
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {
