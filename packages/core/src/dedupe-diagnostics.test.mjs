@@ -727,9 +727,16 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
     `the derived alphabet must enumerate the realm; found ${globalIntrinsics.length}`,
   );
   assert.deepEqual(
-    ["Object", "Number", "String", "Symbol", "Reflect", "Array", "Set"].filter(
-      (name) => !globalIntrinsics.includes(name),
-    ),
+    [
+      "Object",
+      "Number",
+      "String",
+      "Symbol",
+      "Reflect",
+      "Array",
+      "Set",
+      "structuredClone",
+    ].filter((name) => !globalIntrinsics.includes(name)),
     [],
     "the derived alphabet must include every namespace this file actually reads",
   );
@@ -807,15 +814,19 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
         continue;
       }
       // A REGEX LITERAL is the one construct this pass does not model, and a quote inside one would
-      // open a phantom string that swallows the rest of the file — a reviewer measured four variants
-      // hiding a live `String(1)` that way. Rather than grow the lexer, REFUSE: a `/` that is not a
-      // comment and not a division operator fails the test instead of scanning something it cannot
-      // read, turning a silent false negative into a loud one. Division is distinguished by the
-      // preceding token: after a value-ish character `/` divides, otherwise it opens a regex.
+      // open a phantom string that swallows the rest of the file. Rather than grow the lexer,
+      // REFUSE — and refuse CATEGORICALLY. An earlier version tried to tell division from regex by
+      // the preceding character, and three reviewers measured it silent in every regex position
+      // whose keyword ends in a word character: `return /["]/…`, `typeof /["]/`, `case /["]/`, and
+      // `if (x) /["]/` all classified as division. One of them hid a live `const probeRead = Symbol;`
+      // inside `diagnostics.ts` itself with the whole suite green. A heuristic that is wrong in the
+      // silent direction is worse than no heuristic, and the census says the carve-out was never
+      // earning anything: ZERO slashes in this file reach this decision, because every `/` here is
+      // a comment opener. So division is refused too. If that ever costs something, the repair is
+      // to hoist the division out of this file or to do the `#1131` spike — not to guess again.
       if (here === "/") {
-        assert.ok(
-          /[\w$)\]]/.test(out.trimEnd().slice(-1)),
-          `this scanner does not model regex literals; found one near "${text.slice(Math.max(0, index - 40), index + 20)}"`,
+        assert.fail(
+          `this scanner does not model regex literals or division; found "/" near "${text.slice(Math.max(0, index - 40), index + 20)}"`,
         );
       }
       if (here === '"' || here === "'") {
@@ -855,36 +866,56 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
       out += here;
       index += 1;
     }
+    // An unterminated template or string blanks the rest of the file while preserving length. That
+    // is only reachable through a mis-lexed construct, but "only reachable through the bug we just
+    // fixed" is how the last five rounds started, so it is checked rather than argued.
+    assert.equal(
+      stack.length,
+      0,
+      "the scanner ended inside a literal, so the tail of the file was never scanned",
+    );
     return out;
   };
   const intrinsicReads = (text) =>
     [...stripLiterals(text).matchAll(pattern)].map((match) => match[0]);
-  // The offset→line mapping only works if the strip is LENGTH-PRESERVING, so that is asserted
-  // rather than assumed: two accounting slips (a missing `/*`, a collapsing comment) each shifted
-  // the reported lines silently, and the pinned list below would have absorbed the shift.
-  assert.equal(
-    stripLiterals(outside).length,
-    outside.length,
-    "the strip must preserve length, or a finding's offset no longer names its line",
+  // The offset→line mapping needs PER-OFFSET alignment, not merely equal total length: two
+  // compensating slips would satisfy a length check and still shift every reported line, and the
+  // pinned list below would absorb the shift. So alignment is asserted directly — every character
+  // is either the original one or the space/newline that replaced it.
+  const stripped = stripLiterals(outside);
+  assert.ok(
+    stripped.length === outside.length &&
+      [...stripped].every(
+        (character, offset) =>
+          character === " " ||
+          character === "\n" ||
+          character === outside[offset],
+      ),
+    "the strip must align with the original, or a finding's offset no longer names its line",
   );
   // TYPE POSITIONS are the price of scanning the source instead of the emitted artifact, and they
-  // are paid visibly: each is pinned by NAME AND LINE, so a real read that happens to share a name
-  // with one of them still fails. Two today. If this list needs an entry you did not add
-  // deliberately, that is a finding, not a formality.
+  // are paid visibly: each pin carries the LINE and the exact TEXT of that line. Pinning name and
+  // line alone was measured insufficient — three reviewers replaced the annotation on a pinned line
+  // with a live `Map` read and the whole core package stayed green (81/81), because the found list
+  // was unchanged. Pinning the text makes any edit to a pinned line fail, which is exactly when you
+  // want to look.
   //
-  // A false positive here is LOUD — the test names the identifier — and the repair is to rename
-  // the local or pin the annotation, NOT to re-add a filter to the alphabet. The alphabet derives
-  // from the running realm and includes Node's builtin-module names (`path`, `events`, `buffer`),
-  // so a local called `events` in this file would fire. That is the safe direction and the whole
-  // point; six review rounds went into deleting the hand-written filters that hid real reads.
+  // A false positive here is LOUD — the test names the identifier — and the repair is to RENAME THE
+  // LOCAL, not to re-add a filter to the alphabet and not to add a pin. Adding pins is how this
+  // list would rot: every entry is one more line on which a read could hide, and the text pin is
+  // what stops that. The alphabet derives from the running realm and carries lowercase names too
+  // (`parseInt`, `structuredClone`, `crypto`), so a local with one of those names would fire; the
+  // alphabet assertion below includes one of them so that half of this claim is gated rather than
+  // asserted. The realm grows with Node versions, so a name that fires on your machine and not in
+  // CI is a version difference, not a regression — check your Node before assuming one.
   const typePositions = [
-    [279, "Map"], // `map as Map<unknown, unknown>`
-    [437, "Map"], // `readonly depthOf: Map<unknown, number>`
+    [279, "Map", "  applyFunction(mapForEach, map as Map<unknown, unknown>, ["],
+    [437, "Map", "  readonly depthOf: Map<unknown, number>;"],
   ];
-  const found = [...stripLiterals(outside).matchAll(pattern)].map((match) => [
-    outside.slice(0, match.index).split("\n").length,
-    match[0],
-  ]);
+  const found = [...stripped.matchAll(pattern)].map((match) => {
+    const line = outside.slice(0, match.index).split("\n").length;
+    return [line, match[0], lines[line - 1]];
+  });
   assert.deepEqual(
     found,
     typePositions,
@@ -914,7 +945,7 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
         "const multi = `line one\r\nline two " +
         "${" +
         "Number} end`;\r\n" +
-        "const d = total / count; JSON;",
+        "const d = total; JSON;",
     ),
     [
       "String",
@@ -929,14 +960,91 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
     ],
     "a bare name is seen wherever it really is code, and never inside a comment or a literal",
   );
-  // The regex refusal is LOUD, and that is asserted rather than described. Without it a quote
-  // inside a regex opens a phantom string that swallows the rest of the file — a reviewer measured
-  // four variants hiding a live `String(1)` exactly that way.
-  assert.throws(
-    () => intrinsicReads("const r = /[\"']/; String(1);"),
-    /does not model regex literals/,
-    "a regex literal must fail the scan, not be mis-lexed into silence",
+  // The regex/division refusal is CATEGORICAL and LOUD, and that is asserted rather than described.
+  // Both arms are pinned, because the previous version refused only the `=`-preceded one and three
+  // reviewers measured every keyword-preceded regex passing silently.
+  for (const refused of [
+    "const r = /[\"']/; String(1);",
+    "function f() { return /[\"']/.test(x); } String(1);",
+    "if (x) /[\"']/.test(y); String(1);",
+    "const d = total / count; String(1);",
+  ]) {
+    assert.throws(
+      () => intrinsicReads(refused),
+      /does not model regex literals or division/,
+      `a slash must fail the scan, not be mis-lexed into silence: ${refused}`,
+    );
+  }
+  // The two cases that motivated the mode stack, committed so the fix cannot regress unnoticed.
+  assert.deepEqual(
+    intrinsicReads("const z = `x " + "${" + '"}" + String(k)} y`; Date;'),
+    ["String", "Date"],
+    "a `}` inside a string inside a substitution must not end the substitution early",
   );
+  assert.deepEqual(
+    intrinsicReads("const n = `a " + "${" + "`b " + "${" + "Number} c`} d`;"),
+    ["Number"],
+    "and a nested template inside a substitution must nest",
+  );
+});
+
+test("the trusted arms are entered on the brand, not on a trappable instanceof", () => {
+  // `instanceof` consults the constructor's own `Symbol.hasInstance`. `Function.prototype`'s is
+  // non-writable, but a class constructor is extensible, so an own definition SHADOWS it — and
+  // trapping it to `() => false` made two IDENTICAL values split, because the value skipped its arm
+  // and took a per-reference opaque serial from the plain-object arm. That is the screen-reader
+  // regression this slice exists to remove, so the arms are entered on the unforgeable brand.
+  //
+  // Reverting either arm to `instanceof` leaves every other test in this file green, which is why
+  // this one exists: the fix was measured correct and was not load-bearing until now.
+  const dictOf = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return dictionary;
+  };
+  for (const [name, valueClass, sameValue, otherValue] of [
+    ["OLDict", OLDict, () => dictOf(1), () => dictOf(2)],
+    [
+      "OLRecord",
+      OLRecord,
+      () => new OLRecord("p", ["x"], [1]),
+      () => new OLRecord("p", ["x"], [2]),
+    ],
+  ]) {
+    assert.equal(
+      survivors(sameValue(), sameValue()),
+      1,
+      `${name}: two equal values collapse before the trap, or the test proves nothing`,
+    );
+    Object.defineProperty(valueClass, Symbol.hasInstance, {
+      value: () => false,
+      configurable: true,
+    });
+    try {
+      assert.equal(
+        sameValue() instanceof valueClass,
+        false,
+        `${name}: the trap must be live`,
+      );
+      assert.equal(
+        survivors(sameValue(), sameValue()),
+        1,
+        `${name}: two equal values must still collapse under a trapped Symbol.hasInstance`,
+      );
+      assert.equal(
+        survivors(sameValue(), otherValue()),
+        2,
+        `${name}: and two different values must still split`,
+      );
+    } finally {
+      delete valueClass[Symbol.hasInstance];
+    }
+    assert.equal(
+      sameValue() instanceof valueClass,
+      true,
+      `${name}: the trap must be removed again`,
+    );
+  }
 });
 
 test("every captured intrinsic is falsifiable — patching it must not change the answer", () => {
