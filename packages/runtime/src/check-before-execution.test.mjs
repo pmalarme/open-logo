@@ -781,3 +781,15 @@ test("a dispatched statement kind does NOT reach the net", () => {
   );
   assert.notEqual(signal.kind, "halt");
 });
+
+test("no test-only seam leaks into the package's public surface", async () => {
+  // `executeStatementsForTests` and `recoverFromNativeStackOverflowForTests` each carry a comment
+  // saying they are "never re-exported by `index.ts`" — a stated decision with, until now, nothing
+  // asserting it. That is the class this review keeps finding, in its cheapest possible form, and
+  // the seam added for the terminal rule's safety net is a new instance of it.
+  const surface = await import("@openlogo/runtime");
+  assert.deepEqual(
+    Object.keys(surface).filter((name) => name.endsWith("ForTests")),
+    [],
+  );
+});

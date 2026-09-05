@@ -169,7 +169,6 @@ function renderBinder(binder: Binder): string {
 }
 
 /**
-/**
  * Whether a statement is a bare expression — `ast.ts`'s `StatementNode` doc: "a bare expression is
  * a valid statement". Used to recognize a comprehension body's common, spec-conventional shape: a
  * single bracketed expression, no lambda.

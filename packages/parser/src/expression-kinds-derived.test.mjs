@@ -178,15 +178,22 @@ test("the exported kind list is frozen, so it cannot drift from the predicate", 
 });
 
 /**
- * Every `new Set([...])` in `text` that enumerates five or more expression kinds — a hand-written
+ * Every bracketed literal in `text` that enumerates five or more expression kinds — a hand-written
  * copy of the classification `isExpressionKind` exists to be the only source of.
+ *
+ * It matches the **quoted kind names inside any bracketed literal**, not one spelling of one
+ * construct. A review measured the narrower `new Set([…])` form walking straight past
+ * `new Set<string>([…])` — one keystroke away, and exactly how the two survivors it had just caught
+ * were written — and past `const C = [ … ] as const`, which is the shape closest to
+ * `EXPRESSION_NODE_KINDS` itself and therefore the one a future copier would copy. A tripwire whose
+ * claim is broader than its mechanism is the prose-count failure again, one level up.
  *
  * Five is the threshold that separates a re-enumeration from an unrelated small set; `ast.ts`'s own
  * list is excluded by its caller, because that one IS the derivation.
  */
 function handWrittenKindSets(text, path) {
   const found = [];
-  for (const literal of text.match(/new Set\(\[[^\]]*\]\)/gs) ?? []) {
+  for (const literal of text.match(/\[[^[\]]*\]/gs) ?? []) {
     const named = EXPRESSION_NODE_KINDS.filter((kind) =>
       literal.includes(`"${kind}"`),
     );
@@ -206,6 +213,8 @@ test("every consumer reads the one derivation, with no hand-written survivors", 
   //
   // It re-measures on every run, which a number in prose cannot.
   const offenders = [];
+  let filesScanned = 0;
+  let excludedDerivation = 0;
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -215,17 +224,28 @@ test("every consumer reads the one derivation, with no hand-written survivors", 
         }
         continue;
       }
-      // `ast.ts` IS the derivation, so its own list is the one legitimate enumeration.
-      if (
-        !entry.name.endsWith(".ts") ||
-        full.replace(/\\/g, "/").endsWith("parser/src/ast.ts")
-      ) {
+      if (!entry.name.endsWith(".ts")) {
         continue;
       }
+      // `ast.ts` IS the derivation, so its own list is the one legitimate enumeration.
+      if (full.replace(/\\/g, "/").endsWith("parser/src/ast.ts")) {
+        excludedDerivation += 1;
+        continue;
+      }
+      filesScanned += 1;
       offenders.push(...handWrittenKindSets(readFileSync(full, "utf8"), full));
     }
   };
   walk("packages");
+  // The traversal is asserted, not just the matcher. If the `.ts` filter or the `ast.ts` exclusion
+  // were ever mistyped into matching everything, an empty scan would satisfy the assertion below
+  // forever — the same shape as a mechanism with no assertion, one level up from the matcher.
+  assert.ok(filesScanned > 50, `scanned only ${filesScanned} TypeScript files`);
+  assert.equal(
+    excludedDerivation,
+    1,
+    "exactly one file is the derivation and is excluded by name",
+  );
   assert.deepEqual(
     offenders,
     [],
@@ -233,19 +253,27 @@ test("every consumer reads the one derivation, with no hand-written survivors", 
   );
 });
 
-test("the survivor detector can actually see one", () => {
+test("the survivor detector can actually see one, in every spelling", () => {
   // The instrument control, and it is not optional here: with the tree clean the detector's only
-  // reportable branch never runs, so the test above would pass identically if it could see nothing
+  // reportable branch never runs, so the scan above would pass identically if it could see nothing
   // at all. That is the failure mode this slice has now met eight times.
-  assert.deepEqual(
-    handWrittenKindSets(
-      'const KINDS = new Set(["NumberLit", "WordLit", "BooleanLit", "ListLit", "VarRef"]);',
-      "synthetic.ts",
-    ),
-    ["synthetic.ts (names 5 expression kinds)"],
-  );
+  //
+  // All three spellings are asserted because a review measured the narrower matcher walking past
+  // two of them — including the generic `Set` form the deleted survivors were actually written in.
+  const fiveKinds = '"NumberLit", "WordLit", "BooleanLit", "ListLit", "VarRef"';
+  for (const [spelling, source] of [
+    ["plain Set", `const K = new Set([${fiveKinds}]);`],
+    ["generic Set", `const K = new Set<string>([${fiveKinds}]);`],
+    ["array literal", `const K = [${fiveKinds}] as const;`],
+  ]) {
+    assert.deepEqual(
+      handWrittenKindSets(source, "synthetic.ts"),
+      ["synthetic.ts (names 5 expression kinds)"],
+      spelling,
+    );
+  }
   // And it must not fire on a small, unrelated set — the threshold is what keeps it from flagging
-  // every `new Set` in the tree.
+  // every bracketed literal in the tree.
   assert.deepEqual(
     handWrittenKindSets('new Set(["NumberLit", "WordLit"]);', "small.ts"),
     [],
