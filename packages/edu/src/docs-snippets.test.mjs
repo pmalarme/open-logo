@@ -192,13 +192,20 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
   // opinion in name only — a reviewer defeated both with one extra word, "prints **the value**
   // `9 9 9 9`", which is natural English and matches neither. This third check keys on the VALUE
   // SHAPE instead of the verb, so it shares no vocabulary with `CLAIM`: every numeric inline-code
-  // span in the doc's prose must be a value some accounted-for claim actually printed. It matches
-  // integers, decimals and negatives, singly or space-separated — round 5 measured that an
-  // integers-only pattern silently let `2.5` and `-5` through while the comment claimed its only
-  // gap was non-numeric values, and OpenLogo prints both. The residual blind spot really is a
-  // NON-NUMERIC printed value (a word or a list), which is stated here rather than chased.
+  // span in the doc's prose must be a value some accounted-for claim actually printed.
+  //
+  // `NUMBER` is transcribed from the normative number production, `spec/grammar.md:60-61`, rather
+  // than hand-rolled — hand-rolling it was wrong twice. Round 5 measured an integers-only pattern
+  // letting `2.5` and `-5` through, and round 6 measured the decimal version letting `1e3` through
+  // (`print 1e3` reports 1000, and the runtime also *prints* in exponent form beyond ~1e21).
+  // Following the grammar makes the perimeter derived rather than guessed, so the residual blind
+  // spot really is a NON-NUMERIC printed value — a word, or a list.
+  //
+  // Note for whoever next writes prose here: this is stricter than "claims must be true". A
+  // backticked numeric span that is not a printed value at all ("the loop runs `4` times") would
+  // also fail, which the failure message names. That slot is unoccupied today.
   const prose = text.split(/```[\s\S]*?```/).join("\n");
-  const NUMBER = String.raw`-?[0-9]+(?:\.[0-9]+)?`;
+  const NUMBER = String.raw`-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?`;
   const numericSpans = [
     ...prose.matchAll(new RegExp(`\`(${NUMBER}(?:\\s+${NUMBER})*)\``, "g")),
   ].map((match) => match[1].trim());
@@ -206,7 +213,7 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
   for (const span of numericSpans) {
     assert.ok(
       accountedFor.has(span),
-      `docs/curriculum-overview.md states \`${span}\` in prose, but no measured "prints ..." claim produces it — a printed value stated in words that the claim extractor does not recognise is measured by nothing`,
+      `docs/curriculum-overview.md states \`${span}\` in prose, but no measured "prints ..." claim produces it. Either it is a printed value stated in words the claim extractor does not recognise — in which case nothing measures it — or it is a number that is not a printed value at all, in which case it does not belong in backticks here.`,
     );
   }
 
