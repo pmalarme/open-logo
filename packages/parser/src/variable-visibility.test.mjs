@@ -46,6 +46,7 @@ function checkSource(source, profiles = ["core-language", "turtle-rendering"]) {
 }
 
 const codesOf = (diagnostics) => diagnostics.map((d) => d.code);
+const isUndefinedVar = (diagnostic) => diagnostic.code === "ol-undefined-var";
 
 /**
  * The section's own worked example (`spec/execution-model.md:431-447`), verbatim. It is also
@@ -97,7 +98,10 @@ test("the message names the boundary AND the fix (spec/error-model.md:132)", () 
     finding.message.includes(":count is not defined inside draw_steps"),
     finding.message,
   );
-  assert.ok(finding.message.includes("global count = ..."), finding.message);
+  assert.ok(
+    finding.message.includes("global count = (its starting value)"),
+    finding.message,
+  );
 });
 
 test("both reads in the body are reported — the second is the read inside the write's own value, not the write", () => {
@@ -452,6 +456,137 @@ test("#1102: a local declared inside a block does not leak out of it", () => {
 
 test("#1102: a bare `local x` still shadows for the rest of its own scope", () => {
   assert.deepEqual(checkSource("local x\n:x = 1\nprint :x\n"), []);
+});
+
+// ── Read positions that 100% coverage did NOT make load-bearing ──────────────────────────────
+//
+// `@testing`'s review-gate mutation sweep found five branches of `checker-undefined-var.ts` that
+// were *covered* — some test executed them — but that no test *depended on*: each could be deleted
+// and the whole 5107-test suite plus 994 conformance fixtures stayed green. Coverage answers "was
+// this line run?", never "would anything notice if it stopped working", and these five are the gap
+// between the two questions. Each case below is the distinguishing program the sweep measured.
+
+test('a `thing` callee is matched case-insensitively (`print THING "missing"`)', () => {
+  const [finding] = checkSource('print THING "missing"').filter(isUndefinedVar);
+
+  assert.deepEqual(finding.params, { name: "missing" });
+});
+
+test("a read-Place's index KEY is itself a read (`print :nums[:missing]`)", () => {
+  const findings = checkSource(":nums = [1 2]\nprint :nums[:missing]\n").filter(
+    isUndefinedVar,
+  );
+
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].params, { name: "missing" });
+  assert.deepEqual(findings[0].source_span.start, [2, 13]);
+});
+
+test("a `for … from … to … by` STEP expression is a read, resolved in the enclosing scope", () => {
+  const [finding] = checkSource(
+    "for i from 1 to 10 by :step\n  print :i\nend\n",
+  ).filter(isUndefinedVar);
+
+  assert.deepEqual(finding.params, { name: "step" });
+  // The enclosing scope, not the loop body: the step is evaluated before the binder exists.
+  assert.deepEqual(finding.source_span.start, [1, 23]);
+});
+
+test("a `reduce`'s `from` seed is a read, resolved OUTSIDE the comprehension body", () => {
+  const [finding] = checkSource(
+    ":t = reduce sum n in [ 1 2 ] from :missing [ :sum + :n ]\n",
+  ).filter(isUndefinedVar);
+
+  assert.deepEqual(finding.params, { name: "missing" });
+});
+
+test("a SEGMENTED assignment target binds nothing — its base stays a read, before and after", () => {
+  // `:people.tom = 1` is not a declaration of `people`: there is no intermediate auto-vivification
+  // (`spec/execution-model.md:492-499`), so the base is a read that fails, and it does not go on to
+  // make `people` visible to the next line either. Both findings, or the rule has quietly turned a
+  // postfix write into a binding.
+  const findings = checkSource(":people.tom = 1\nprint :people\n").filter(
+    isUndefinedVar,
+  );
+
+  assert.deepEqual(
+    findings.map((finding) => finding.source_span.start),
+    [
+      [1, 1],
+      [2, 7],
+    ],
+  );
+});
+
+// ── The two boundaries this rule DECLINES to cross, pinned so they stay deliberate ───────────
+//
+// Both were raised as blocking findings by the `rubber-duck` reviewer in #825's review gate, and
+// both are declined **with the measurement that justifies it**. Pinning them here is the point: a
+// declined finding that is not asserted is indistinguishable from one that was forgotten.
+
+test("PERMITTED FALSE NEGATIVE: a block's read of an enclosing binding created later is NOT reported", () => {
+  // `spec/execution-model.md:409-411` classifies this failed read as `ol-undefined-var` — that is
+  // about which CODE it gets when it fails, at whichever stage. The checker's own obligation is
+  // narrower: `:416-419` requires agreement with the evaluator only "within one scope's
+  // straight-line statement list", and this read is in a NESTED scope; `:423-424` then forbids
+  // reporting across a scope boundary "a name that a later declaration or a deferred handler could
+  // reach".
+  //
+  // The three programs below are why the line is drawn at the boundary rather than at inlineness.
+  // They differ only in which block form is used, and the checker cannot separate them without
+  // modelling deferredness through a whole nested chain — the handler in the third is registered
+  // inside a loop body, so what it captures is that turn's scope, not the root's. Getting that
+  // wrong produces a FALSE POSITIVE on a conforming program, which is strictly worse than the
+  // silence below. Tracked as issue #1118 if a later slice wants the sharper analysis.
+  for (const source of [
+    "repeat 1 [ print :later ]\n:later = 1\n",
+    "on_click [ print :later ]\n:later = 1\n",
+    'repeat 3 [ every 5 [ print :label ] ]\n:label = "hi"\n',
+  ]) {
+    assert.deepEqual(
+      checkSource(source, [
+        "core-language",
+        "turtle-rendering",
+        "interaction-events",
+      ]),
+      [],
+      source,
+    );
+  }
+});
+
+test("the paired positive control: move the same read into the enclosing scope's own list and it IS reported", () => {
+  // What keeps the silence above from being a hole rather than a boundary: the rule is not "reads
+  // of later bindings are never reported", it is "not ACROSS a scope boundary".
+  assert.deepEqual(codesOf(checkSource("print :later\n:later = 1\n")), [
+    "ol-undefined-var",
+  ]);
+});
+
+test("a misplaced `global` suppresses reads of its name, and that is sound: repairing it makes them resolve", () => {
+  // The second declined finding. The suppression is document-wide and name-keyed, which looks
+  // over-broad — a `global` misplaced in one procedure silences a read in another. It is sound, and
+  // this test is the argument: the suppression means exactly "assume the reported mistake is
+  // repaired", and a root-level `global` is visible to every procedure in the document, so the
+  // suppressed read really does resolve once the learner does the one thing they were told to do.
+  // Answering one mistake with two diagnostics — the second of which disappears when the first is
+  // fixed — is what issue #823 established this suppression to avoid.
+  const reported =
+    "define bad\n  global x = 0\nend\ndefine f\n  print :x\n  local x = 1\nend\nf\n";
+  assert.deepEqual(codesOf(checkSource(reported)), ["ol-global-outside-root"]);
+
+  // Repair 1 — move it to the root, which is what `ol-global-outside-root` tells them to do:
+  assert.deepEqual(
+    checkSource("global x = 0\ndefine f\n  print :x\n  local x = 1\nend\nf\n"),
+    [],
+  );
+
+  // Repair 2 — delete it instead. Then the read has nothing behind it and IS reported, so the
+  // suppression is genuinely tied to the misplaced declaration rather than swallowing the name.
+  assert.deepEqual(
+    codesOf(checkSource("define f\n  print :x\n  local x = 1\nend\nf\n")),
+    ["ol-undefined-var"],
+  );
 });
 
 // ── Profile sensitivity: the rule reads no profile set (the #814 trap) ───────────────────────

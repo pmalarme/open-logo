@@ -77,7 +77,7 @@ test("a procedure cannot see a plain top-level name — the READ raises ol-var-n
   });
   assert.equal(diagnostic.stage, "runtime");
   assert.match(diagnostic.message, /:count is not defined inside draw_steps/);
-  assert.match(diagnostic.message, /global count = \.\.\./);
+  assert.match(diagnostic.message, /global count = \(its starting value\)/);
 });
 
 test("the same program with `global count = 0` runs, and the global accumulates across calls", () => {

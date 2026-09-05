@@ -53,9 +53,15 @@ function runFindings(source) {
 
 /**
  * Both stages must report the same identity at the same place. The runtime stops at the first
- * failure, so only the checker's first finding is compared — and the checker never reports
- * *earlier* than the runtime fails, which is what `spec/execution-model.md:416-419` means by "within
- * one scope's straight-line statement list the two agree exactly".
+ * failure, so `expected` describes that first finding — and the checker never reports *earlier* than
+ * the runtime fails, which is what `spec/execution-model.md:416-419` means by "within one scope's
+ * straight-line statement list the two agree exactly".
+ *
+ * `expected.count` closes the one hole a first-finding comparison would otherwise leave: the checker
+ * could agree on finding 1 and still **over-report** afterwards, which is the direction a false
+ * positive arrives from and the one that would actually hurt a learner. Every call passes it, so
+ * spurious extra findings fail here rather than being averaged away. `null` asserts both stages are
+ * clean, which has no first finding to compare and needs no count.
  */
 function assertAgree(label, source, expected) {
   const fromCheck = checkFindings(source);
@@ -67,7 +73,11 @@ function assertAgree(label, source, expected) {
     return;
   }
 
-  assert.ok(fromCheck.length > 0, `${label}: check() reported nothing`);
+  assert.equal(
+    fromCheck.length,
+    expected.count,
+    `${label}: check() reported ${fromCheck.length} finding(s), expected ${expected.count}`,
+  );
   assert.equal(
     fromRun.length,
     1,
@@ -89,25 +99,43 @@ function assertAgree(label, source, expected) {
 
 // ── The root-scope name set: the exact axis the two models could drift on ────────────────────
 //
-// `ol-var-not-visible` is decided from "the names the root scope binds anywhere, minus the ones
-// declared `global`" — `collectRootScopeNames` in the runtime, `DocumentFacts.rootScopeNames` in the
-// checker. The five cases below pin that set from every side, so a perturbation of either derivation
-// turns one of them red rather than passing unnoticed:
+// `ol-var-not-visible` is decided from the names the root scope binds anywhere —
+// `collectRootScopeNames` in the runtime, `DocumentFacts.rootBindings` in the checker.
+//
+// The two are NOT literally the same set, and the difference is deliberate rather than drift. The
+// runtime subtracts every name a root-level `global` declares, because it can reach `boundaryHiding`
+// for such a name: a read that runs *before* the declaration line finds no binding, and
+// `spec/execution-model.md:412-414` says that read is an ordinary `ol-undefined-var`. The checker
+// performs no such subtraction, because there the subtraction is **unobservable** — its check is
+// lexical, so a root-level `global` is already visible through the seal at every read in the
+// document, and `boundaryHiding` is only ever consulted after a read has already failed. Measured,
+// not assumed: removing the subtraction from the checker changed no test and no corpus finding,
+// which is exactly why it was removed rather than kept as code nothing could fail.
+// `checker-undefined-var.ts`'s doc table records it; issue #1116 records what a future unification
+// must not get wrong.
+//
+// The five cases below pin the set from every side, so a perturbation of either derivation turns one
+// of them red rather than passing unnoticed:
 //
 //   - a plain top-level assignment IS in the set          → both say ol-var-not-visible
 //   - a top-level `local` IS in the set                   → both say ol-var-not-visible
-//   - a `global` is NOT in the set                        → both stay clean
+//   - a `global` is NOT boundary-hidden                   → both stay clean
 //   - a name only a top-level BLOCK binds is NOT in it    → both say ol-undefined-var
 //   - a name nothing binds is NOT in it                   → both say ol-undefined-var
 //
-// and the sixth pins that the set is **lexical, not temporal**: the read runs before the top-level
-// line that binds the name, and both stages still call it the boundary's fault.
+// a sixth pins that the set is **lexical, not temporal** — the read runs before the top-level line
+// that binds the name, and both stages still call it the boundary's fault — and a seventh runs the
+// spec's own worked example end to end.
 
 test("a procedure reading a plain top-level name: both stages say ol-var-not-visible, same params, same span", () => {
   assertAgree(
     "plain top-level name",
     ":count = 0\ndefine f\n  print :count\nend\nf\n",
-    { code: "ol-var-not-visible", params: { name: "count", procedure: "f" } },
+    {
+      code: "ol-var-not-visible",
+      params: { name: "count", procedure: "f" },
+      count: 1,
+    },
   );
 });
 
@@ -115,7 +143,11 @@ test("a top-level `local` binds in the root scope too, so it is boundary-hidden 
   assertAgree(
     "top-level local",
     "local held\n:held = 1\ndefine f\n  print :held\nend\nf\n",
-    { code: "ol-var-not-visible", params: { name: "held", procedure: "f" } },
+    {
+      code: "ol-var-not-visible",
+      params: { name: "held", procedure: "f" },
+      count: 1,
+    },
   );
 });
 
@@ -134,7 +166,7 @@ test("a name only a top-level BLOCK binds is not boundary-hidden: both say ol-un
   assertAgree(
     "block-bound name",
     "repeat 1 [ :b = 1 ]\ndefine f\n  print :b\nend\nf\n",
-    { code: "ol-undefined-var", params: { name: "b" } },
+    { code: "ol-undefined-var", params: { name: "b" }, count: 1 },
   );
 });
 
@@ -142,6 +174,7 @@ test("a name bound nowhere at all: both say ol-undefined-var", () => {
   assertAgree("bound nowhere", "define f\n  print :nowhere\nend\nf\n", {
     code: "ol-undefined-var",
     params: { name: "nowhere" },
+    count: 1,
   });
 });
 
@@ -155,6 +188,7 @@ test("the code is LEXICAL, not temporal: the read runs BEFORE the binding line a
     {
       code: "ol-var-not-visible",
       params: { name: "later", procedure: "peek" },
+      count: 1,
     },
   );
 });
@@ -166,6 +200,10 @@ test("the spec's own worked example agrees at both stages, on the READ", () => {
     {
       code: "ol-var-not-visible",
       params: { name: "count", procedure: "draw_steps" },
+      // BOTH reads in the body: `forward :count * 10` and the `:count + 1` inside the write. The
+      // runtime halts at the first, so only the checker can see the pair — which is precisely why
+      // the count is asserted here rather than inferred from the run.
+      count: 2,
     },
   );
 });
@@ -183,7 +221,7 @@ test("ol-var-not-visible's message is byte-identical at both stages (spec/error-
   assert.ok(
     checked.message.includes(":count is not defined inside draw_steps"),
   );
-  assert.ok(checked.message.includes("global count = ..."));
+  assert.ok(checked.message.includes("global count = (its starting value)"));
 });
 
 // ── Non-regressions: over-reaching is this slice's real risk ─────────────────────────────────
@@ -250,5 +288,6 @@ test("NON-DIVERGENCE control: within ONE scope's straight-line list the two agre
   assertAgree("straight-line root read", "print :later\n:later = 1\n", {
     code: "ol-undefined-var",
     params: { name: "later" },
+    count: 1,
   });
 });

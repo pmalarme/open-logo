@@ -641,22 +641,44 @@ test("two different procedures' own parameters do not leak into each other's fra
 });
 
 test("a nested procedure definition does not inherit its enclosing procedure's frame or locals (no closures) — reconciling the flat whole-program model this rule replaced", () => {
+  // `inner` reads `:a`, which is `outer`'s PARAMETER, and that read is what makes this test
+  // load-bearing: a `define` is registered in phase 1 and never captures the scope it is written in
+  // (`spec/execution-model.md:651-655`), so `inner`'s chain is `[inner's frame, root]` and `:a` is
+  // invisible to it. Before the review gate this test asserted only the outward direction (`outer`
+  // cannot see `inner`'s local), which a checker that WRONGLY gave nested procedures their lexical
+  // parents would still have passed — the rubber-duck reviewer caught that it pinned half a rule.
   const source = [
     "define outer :a",
     "  define inner",
     "    local secret",
     "    :secret = 1",
     "    print :secret",
+    "    print :a",
     "  end",
     "  inner",
     "  print :secret",
     "end",
     "outer 1",
   ].join("\n");
-  const diagnostics = checkSource(source);
-  const findings = diagnostics.filter(isUndefinedVar);
+  const findings = checkSource(source).filter(isUndefinedVar);
+
+  assert.deepEqual(
+    findings.map((finding) => finding.params),
+    [{ name: "a" }, { name: "secret" }],
+  );
+});
+
+test("a procedure defined INSIDE A BLOCK is registered globally too, so it captures no block scope either", () => {
+  // The same rule from the other side. `spec/execution-model.md:651-655` contrasts a `define`
+  // written inside a body — registered in phase 1, capturing nothing — with a handler block written
+  // in the same place, which does capture. A checker that walked `define` like any other nested node
+  // would let `:held` leak in.
+  const findings = checkSource(
+    "repeat 1 [ :held = 1\n  define uses\n    print :held\n  end ]\nuses\n",
+  ).filter(isUndefinedVar);
+
   assert.equal(findings.length, 1);
-  assert.deepEqual(findings[0].params, { name: "secret" });
+  assert.deepEqual(findings[0].params, { name: "held" });
 });
 
 test("a for binder is invisible after its own loop body ends (no scope leakage past the block)", () => {

@@ -59,7 +59,17 @@
  *   that binding when it fires (`spec/execution-model.md:401-403`), and nothing here reports it.
  *
  * The consequence is that nesting a read one scope deeper can only ever make this module quieter,
- * never louder — which is the direction a conservative checker must err in.
+ * never louder — which is the direction a conservative checker must err in. The price is one
+ * **permitted false negative**: `repeat 1 [ print :later ]` followed by `:later = 1` is silent,
+ * although no execution order makes that read resolve. `spec/execution-model.md:409-411` names that
+ * shape as `ol-undefined-var`, but it is classifying *which code a failed read gets*, at whichever
+ * stage; the checker's own obligation to agree with the evaluator is scoped by `:416-419` to "one
+ * scope's straight-line statement list", which a nested read is not in. Separating it from the
+ * *deferred* case — `on_click [ print :later ]`, which `:401-403` says legitimately sees the later
+ * binding — needs deferredness modelled through a whole nested chain (a handler registered inside a
+ * loop body captures that turn's scope, not the root's), and getting that wrong is a false positive
+ * on a conforming program. Issue #1118 holds the sharper analysis; `variable-visibility.test.mjs`
+ * pins both the silence and its paired positive control so the boundary stays deliberate.
  *
  * A procedure body reading a name its boundary hides is decidable for a different reason, and that
  * is what earns `ol-var-not-visible` the `semantic` stage: the boundary is **lexical and absolute**,
@@ -143,6 +153,15 @@ interface DocumentFacts {
    * reads are suppressed. **The suppression stops there and MUST NOT reach `ol-var-not-visible`:** a
    * learner who put `global` in the wrong place still needs the diagnostic that names the fix when a
    * procedure body reads a name the root scope really does bind.
+   *
+   * **The suppression is document-wide and name-keyed, and that is sound rather than lazy.** It
+   * means exactly "assume the reported mistake is repaired": a root-level `global` is visible to
+   * every procedure in the document, so every read this silences really does resolve once the
+   * learner does the one thing `ol-global-outside-root` told them to do. Reporting it as well would
+   * answer one mistake with a second diagnostic that vanishes when the first is fixed — the thing
+   * issue #823 introduced this suppression to avoid. Delete the misplaced declaration instead of
+   * moving it and the read is reported again, so the silence is tied to the declaration rather than
+   * swallowing the name; `variable-visibility.test.mjs` pins both repairs.
    */
   readonly misplacedGlobals: NameSet;
   /**
@@ -392,9 +411,30 @@ function undefinedVarMessage(name: string): string {
  * Byte-identical to `@openlogo/runtime`'s `varNotVisible` prose, because `execute()` never runs
  * `check()` and the two stages must report **one identity for one defect** — the same rule
  * `ol-global-outside-root` already follows across `checker-global-placement.ts` and `errors.ts`.
+ *
+ * Three things in the wording are deliberate, each from a review-gate finding by
+ * `@learner-experience`:
+ *
+ * - **"the fix is one word at the top level"**, which is `spec/execution-model.md:447`'s own
+ *   framing. The learner reading this has *already* written `:count = 0` at the top level, so an
+ *   earlier draft's "declare it at the top level" told them to do the thing they believe they have
+ *   done. The repair is a change to what they wrote, not a new line somewhere else, and the
+ *   sentence has to say which.
+ * - **"the names it sets itself"** is the third of the three visible categories
+ *   (`spec/execution-model.md:389-394`). Naming only parameters and `global` explained the rule by
+ *   listing two things this learner's program contains neither of, and omitted the very mechanism
+ *   that makes a write-first touch correctly silent.
+ * - **"(its starting value)"** rather than `...`, because a screen reader does not speak an ellipsis
+ *   at default punctuation verbosity: `global count = ...` was heard as "global count equals" and
+ *   the entire actionable clause vanished. The placeholder stays a placeholder — the learner's real
+ *   initializer is in neither param, and `spec/error-model.md:45-48` requires prose to be derived
+ *   from `code` and `params` alone, so printing `= 0` here would need a spec change.
+ *
+ * Three short sentences rather than one em-dashed run-on, matching every neighbouring message in
+ * this package.
  */
 function varNotVisibleMessage(name: string, procedure: string): string {
-  return `:${name} is not defined inside ${procedure} — a procedure only sees its own inputs and names declared global, so declare it at the top level with global ${name} = ... to share it.`;
+  return `:${name} is not defined inside ${procedure}. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global ${name} = (its starting value).`;
 }
 
 /**
