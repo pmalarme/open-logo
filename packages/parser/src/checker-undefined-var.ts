@@ -889,8 +889,8 @@ function checkNode(
     }
     case "ProfileStatement": {
       // A profile block-head. Only the Interaction & Events handlers defer their body; `ask` and
-      // `each` run theirs where it is written — see {@link DEFERRED_BLOCK_HEADS}. Several heads
-      // (`tell` is the only one today) carry no body at all, which is why `node.body` is optional.
+      // `each` run theirs where it is written — see {@link DEFERRED_BLOCK_HEADS}. One head, `tell`,
+      // carries no body at all today, which is why `node.body` is optional.
       for (const argument of node.args) {
         checkNode(argument, scope, facts, diagnostics);
       }

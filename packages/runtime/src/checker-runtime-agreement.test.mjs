@@ -295,9 +295,13 @@ test("a DEFERRED handler's read of a name bound later: the checker is silent, an
   // This sits beside the divergence above because it is the case people expect to be one, and is
   // not. The checker MUST NOT report it (`spec/execution-model.md:401-403,423-424`: a handler sees
   // the binding whenever it fires), and `execute()` does not report it either — but for a reason
-  // that proves nothing: an `on_click` handler needs host input, so under an empty host it never
-  // fires at all. **Zero print events, measured.** A clean run here is vacuous, so this test asserts
-  // only the check stage and says so, rather than citing runtime agreement it has not earned.
+  // that carries no semantic weight: an `on_click` handler needs host input, so under an empty host
+  // it never fires at all. **Zero print events, measured.**
+  //
+  // Both stages are asserted below, and deliberately: the runtime line is a **record** of what this
+  // host produces, not evidence that the two models agree about deferred visibility. It would still
+  // be clean if the checker's deferred handling were removed entirely. The semantic claim this test
+  // makes is the check-stage one.
   //
   // Round 1 shipped this as a "SANCTIONED DIVERGENCE ... the runtime raises", which was simply
   // false. `rubber-duck` caught the same shape in two fixture descriptions; auditing every
