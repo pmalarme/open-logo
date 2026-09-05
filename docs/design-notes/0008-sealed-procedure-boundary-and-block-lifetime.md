@@ -144,7 +144,7 @@ than a name does (§ *`repcount` is lexical*).
 This is the part of the decision a knowledgeable reader will attack first, and it deserves a
 straight answer: **OpenLogo is stricter here than Python, JavaScript, Go, Java, C++, or Rust, each of
 which lets a function read enclosing state without naming it at the function's boundary.** (Rust
-qualifies that in one direction only — reading a *mutable* `static` needs `unsafe` — but an ordinary
+qualifies that in one case only — a *mutable* `static` needs `unsafe` even to read — but an ordinary
 immutable one is read freely, and the restriction is about memory safety rather than about scoping.)
 Reading is commonly treated as the
 easy case. OpenLogo treats it as the load-bearing one.
@@ -220,8 +220,8 @@ name outside a function is a *declaration*, so "global" there is a *position* ra
 Precisely because that position is an unambiguous declaration, those three let a function mutate it
 freely with no per-write ceremony. (Rust shares the declaration half but not the mutation half, and
 is worth naming separately: a mutable `static` is reachable — for reads as well as writes — only
-through `unsafe`, while safe shared mutation instead uses synchronisation or interior-mutability
-types held in an ordinary immutable `static`. That ceremony is about memory safety, not about
+through `unsafe`, while safe shared mutation instead uses a synchronisation type held in an ordinary
+immutable `static`. That ceremony is about memory safety, not about
 scoping.) Python
 needs `global x` once inside every function that writes the name, because it has no
 declaration syntax to hang the permission on — a top-level `x = 5` is an ordinary assignment,
@@ -286,10 +286,11 @@ handler registered inside it may still run (§ *Frames, handlers, and lifetime*)
 
 That is closure **lifetime**, and it is not closure **values**. Blocks are still not values, and the
 reason is grammatical rather than behavioural: **no syntax puts a block in value position at all.**
-A `[ … ]` after `=`, or in any other value position, is a *list literal*; an instruction block exists
-only as a control-form or `define` body, a comprehension body, or a profile effect-block (`ask`,
-`each`, `when`, `every`, `on_key`, `on_click`) — each a distinct grammar slot, and the roles never
-overlap (`spec/execution-model.md`, § *Brackets, blocks, and body forms*). So there is nothing to
+A `[ … ]` after `=`, or in any other value position, is a *list literal*; a block of instructions
+exists only as a control-form body, a `define` body (a long `… end` block, never a bracketed one), a
+comprehension body, or a profile effect-block (`ask`, `each`, `when`, `every`, `on_key`,
+`on_click`) — each a distinct grammar slot, and no slot is a value position
+(`spec/execution-model.md`, § *Brackets, blocks, and body forms*). So there is nothing to
 store in a
 variable or pass to a procedure — not a block that is rejected, but a block that cannot be written
 there. v0.1 still has no lambda, and deferred
@@ -390,8 +391,8 @@ OpenLogo's `global` is this model, not Python's.
 
 **Rust** belongs in the same group for the declaration half and not for the mutation half: a name at
 module scope is likewise a declaration, but a mutable `static` is reachable — for reads as well as
-writes — only through `unsafe`. Safe shared mutation instead uses a synchronisation or
-interior-mutability type (a `Mutex`, a `Cell`, an atomic) held in an ordinary *immutable* `static`,
+writes — only through `unsafe`. Safe shared mutation instead uses a synchronisation type (a `Mutex`,
+a `RwLock`, an atomic) held in an ordinary *immutable* `static`,
 which is a different construct from a `static mut`. That ceremony is about memory safety — aliasing
 and re-entrancy as much as threads — not about scoping, so Rust is not evidence either way for the
 per-write-marker question.
