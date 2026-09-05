@@ -81,7 +81,11 @@ import type {
   ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
-import { isBuiltInName, isPrimitiveCommandName } from "@openlogo/parser";
+import {
+  isBuiltInName,
+  isExpressionKind,
+  isPrimitiveCommandName,
+} from "@openlogo/parser";
 import { isActiveProfileCommandName } from "@openlogo/parser";
 import type { CheckProfile, NameResolver } from "@openlogo/parser";
 import { createNameResolver } from "@openlogo/parser";
@@ -4853,38 +4857,26 @@ function evaluateRandom(
 // diagnostic, "at any depth". Such a body raises `ol-not-implemented` naming the form it could not
 // run, so this evaluator's narrower scope is visible to the learner instead of silently discarding
 // the whole comprehension.
-
-/**
- * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
- * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
- * (issue #114) minus `PostfixExpression` and `IsPredicate`.
- */
-const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "VarRef",
-  "Place",
-  "ComparisonChain",
-  "Comprehension",
-]);
-
-/** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a statement
- * kind with no expression counterpart (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`). A
- * `Call`/`ParenCall` is always narrowed — whether it is value-producing (a reporter) or not (a
- * command) is a separate question {@link isValueProducingStatement} answers. */
+/** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a
+ * statement-only kind (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`/`Assign`/…).
+ *
+ * **Derived from the AST union, never listed.** This was a hand-written set that named eight
+ * expression kinds and omitted four the union has — so a leading `[10][1]` in a comprehension body
+ * halted with `ol-not-implemented{name:"[10][1]"}`, blaming a limitation on a form this evaluator
+ * runs perfectly well, and a `{a: 1}` or an `is` predicate in final position reported `ol-no-value`
+ * for a statement that plainly produces one. Both are the wrong diagnostic rather than a missing
+ * one, which is the failure mode a slice about honest diagnosis can least afford.
+ * {@link isExpressionKind} is exhaustiveness-checked against `ExpressionNode` itself, so a new kind
+ * cannot be added to the AST without this narrowing following it.
+ *
+ * Whether a `Call`/`ParenCall` narrowed here is *value-producing* (a reporter) or not (a command) is
+ * a separate question {@link isValueProducingStatement} answers. */
 function asExpressionStatement(
   statement: StatementNode,
 ): ExpressionNode | undefined {
-  if (
-    VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind) ||
-    statement.kind === "Call" ||
-    statement.kind === "ParenCall"
-  ) {
-    return statement as ExpressionNode;
-  }
-  return undefined;
+  return isExpressionKind(statement.kind)
+    ? (statement as ExpressionNode)
+    : undefined;
 }
 
 /**
@@ -4918,16 +4910,21 @@ export function statementHeadWord(
  * classification the checker's `producesValue` uses (`checker-control-flow.ts`): a `Call`/
  * `ParenCall` produces a value unless its callee is a primitive the registry declares a **Command**
  * ({@link isPrimitiveCommandName} — `@openlogo/parser`'s profile-blind lookup over the
- * profile-keyed registry, issue #932); every other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind
- * always does. A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so this is what classifies a comprehension body's
- * final statement at runtime — reading the one registry both stages share rather than a second
- * copy of its names.
+ * profile-keyed registry, issue #932); every other expression kind always does. A caller driving
+ * `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of
+ * `execute()`), so this is what classifies a comprehension body's final statement at runtime —
+ * reading the one registry both stages share rather than a second copy of its names.
+ *
+ * The non-`Call` half is `isExpressionKind`, **not** an enumeration of the kinds that report. That
+ * is the direction that fails loudly: a statement-only kind wrongly admitted here is narrowed by
+ * {@link asExpressionStatement} and would fail to compile, whereas a value-producing kind wrongly
+ * omitted silently answered `ol-no-value` for a `{a: 1}` or a `[10][1]` that produces one.
  */
 function isValueProducingStatement(statement: StatementNode): boolean {
   if (statement.kind === "Call" || statement.kind === "ParenCall") {
     return !isPrimitiveCommandName(statement.callee.name);
   }
-  return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
+  return isExpressionKind(statement.kind);
 }
 
 /**

@@ -479,3 +479,72 @@ test("a return or stop escaping an event handler body is still the runtime's to 
     );
   }
 });
+
+// --- Round-11 review: `local` is a KNOWN GAP, characterized here rather than assumed ------------
+//
+// `isExpressionStatement` excludes three statement kinds. Two — `ProcedureDef` and `StructDef` —
+// are excluded because Phase 1 already registered them, so the statement has nothing left to do.
+// The third, `Local`, was excluded on the same stated reason, and that reason is FALSE: `local` is
+// specified to introduce a binding in the enclosing procedure's frame
+// (`spec/execution-model.md:340-349`), and this evaluator never creates one.
+//
+// The behaviour is pinned below rather than described, because a comment claiming "nothing to run"
+// is exactly the kind of unverified prose this slice exists to distrust. It predates issue #815 —
+// no run of any profile has ever created a local frame entry — and converting it to
+// `ol-not-implemented` would refuse 78 corpus uses inside a slice scoped to the check gate,
+// value-position commands, the terminal rule and de-duplication. It is escalated, not absorbed.
+//
+// WHEN `local` IS IMPLEMENTED these assertions must FLIP, and the `Local` arm of
+// `isExpressionStatement` must be deleted rather than preserved.
+
+test("CHARACTERIZATION: `local` does not shadow — the assignment reaches the global", () => {
+  const result = execute(
+    ":x = 1\ndefine f\n  local x\n  :x = 2\nend\nf\nprint :x\n",
+    "d.logo",
+    { profiles: ["core-language", "turtle-rendering"] },
+  );
+  assert.deepEqual(
+    result.diagnostics.map((d) => d.code),
+    [],
+  );
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[2]],
+    "spec/execution-model.md:340-349 requires 2 here to be the LOCAL x and the global to stay 1",
+  );
+});
+
+test("the parameter-shadowing control proves frames themselves work", () => {
+  // This is what makes the case above a `local` defect rather than a scoping one: the same
+  // program written with a parameter shadows correctly, so the frame machinery is present and
+  // only `local` fails to write into it.
+  const result = execute(
+    ":x = 1\ndefine g :x\n  :x = 2\nend\ng 5\nprint :x\n",
+    "d.logo",
+    { profiles: ["core-language", "turtle-rendering"] },
+  );
+  assert.deepEqual(
+    result.diagnostics.map((d) => d.code),
+    [],
+  );
+  assert.deepEqual(
+    result.events
+      .filter((event) => event.kind === "print")
+      .map((event) => event.payload.values),
+    [[1]],
+  );
+});
+
+test("`local` is skipped SILENTLY — the gap is invisible, which is why it is recorded", () => {
+  // The terminal rule turns an undispatched statement into `ol-not-implemented`. `Local` is
+  // excluded from that rule, so nothing marks the gap at run time. This assertion is the marker.
+  const result = execute("define f\n  local y\nend\nf\n", "d.logo", {
+    profiles: ["core-language", "turtle-rendering"],
+  });
+  assert.deepEqual(
+    result.diagnostics.map((d) => d.code),
+    [],
+  );
+});

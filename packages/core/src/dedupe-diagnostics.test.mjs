@@ -88,3 +88,78 @@ test("the document is part of identity, so the same position in two sources is t
   };
   assert.equal(dedupeDiagnostics([here, there]).length, 2);
 });
+
+// --- Round-11 review: the canonical encoding must be INJECTIVE ------------------------------
+//
+// A missed duplicate is merely visible — the learner reads the same fault twice. A COLLISION is
+// silent: two genuinely different faults are judged one and the second is discarded with nothing
+// left to show it existed, which is the exact failure this slice exists to remove. The structural
+// encoding that sorted an object into its entry list rendered `{a: 1}` and `[["a", 1]]`
+// identically, and both shapes are reachable in `params` (`original_span` is an object, `expected`
+// is an array).
+
+/** Two findings that differ ONLY in whether a `params` entry is an object or the array of its
+ * entries — the shape the pre-tag canonicalization rendered identically. */
+function objectVersusPairs() {
+  const base = {
+    code: "ol-duplicate-definition",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 5] },
+    message: "m",
+    stage: "semantic",
+    severity: "error",
+  };
+  return [
+    { ...base, params: { x: { a: 1 } } },
+    { ...base, params: { x: [["a", 1]] } },
+  ];
+}
+
+test("an object param and the array of its entries are different faults", () => {
+  const [asObject, asPairs] = objectVersusPairs();
+  const kept = dedupeDiagnostics([asObject, asPairs]);
+  assert.equal(
+    kept.length,
+    2,
+    "a dict-valued param and a list-of-pairs param are distinct faults; collapsing them discards a real diagnostic",
+  );
+  assert.deepEqual(kept[0]?.params, { x: { a: 1 } });
+  assert.deepEqual(kept[1]?.params, { x: [["a", 1]] });
+});
+
+test("a nested object and its entry list are also distinguished", () => {
+  const base = {
+    code: "ol-no-output",
+    source_span: { document: "d.logo", start: [2, 1], end: [2, 4] },
+    message: "m",
+    stage: "runtime",
+    severity: "error",
+  };
+  const kept = dedupeDiagnostics([
+    { ...base, params: { outer: { inner: { a: 1 } } } },
+    { ...base, params: { outer: { inner: [["a", 1]] } } },
+  ]);
+  assert.equal(
+    kept.length,
+    2,
+    "the tag must apply at every depth, not only the top level",
+  );
+});
+
+test("tagging does not weaken the duplicate collapse it exists beside", () => {
+  const base = {
+    code: "ol-no-output",
+    source_span: { document: "d.logo", start: [2, 1], end: [2, 4] },
+    message: "m",
+    severity: "error",
+  };
+  const kept = dedupeDiagnostics([
+    { ...base, stage: "semantic", params: { a: 1, b: { c: 2, d: [3, 4] } } },
+    { ...base, stage: "runtime", params: { b: { d: [3, 4], c: 2 }, a: 1 } },
+  ]);
+  assert.equal(
+    kept.length,
+    1,
+    "key order at any depth is still not part of a fault's identity",
+  );
+  assert.equal(kept[0]?.stage, "semantic", "the first report survives");
+});

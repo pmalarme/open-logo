@@ -582,6 +582,69 @@ export type ExpressionNode =
   | ComprehensionNode;
 
 /**
+ * Every {@link ExpressionNode}'s `kind`, as a runtime set.
+ *
+ * The type union above cannot be enumerated at run time, and a hand-written copy of it drifts:
+ * issue #815's precedence rule shipped one that named five kinds this AST has never had
+ * (`Arithmetic`, `Comparison`, `Logical`, `Not`, `Negate`) while missing three it does
+ * (`PostfixExpression`, `ComparisonChain`, `IsPredicate`) — written from memory of the union
+ * twenty lines away rather than from the union.
+ *
+ * The two exhaustiveness assertions below make that impossible: adding a member to
+ * `ExpressionNode` without adding it here fails `typecheck`, and vice versa. Callers that need to
+ * ask "is this node an expression?" at run time use {@link isExpressionKind} rather than their own
+ * list.
+ */
+export const EXPRESSION_NODE_KINDS = [
+  "NumberLit",
+  "WordLit",
+  "BooleanLit",
+  "ListLit",
+  "DictLit",
+  "ValueOfKey",
+  "VarRef",
+  "Place",
+  "PostfixExpression",
+  "Call",
+  "ParenCall",
+  "ComparisonChain",
+  "IsPredicate",
+  "Comprehension",
+] as const;
+
+/** Fails to compile if {@link EXPRESSION_NODE_KINDS} names a kind `ExpressionNode` does not have. */
+type _NoExtraExpressionKinds =
+  Exclude<
+    (typeof EXPRESSION_NODE_KINDS)[number],
+    ExpressionNode["kind"]
+  > extends never
+    ? true
+    : never;
+/** Fails to compile if `ExpressionNode` gains a kind {@link EXPRESSION_NODE_KINDS} does not name. */
+type _NoMissingExpressionKinds =
+  Exclude<
+    ExpressionNode["kind"],
+    (typeof EXPRESSION_NODE_KINDS)[number]
+  > extends never
+    ? true
+    : never;
+const _expressionKindsAreExhaustive: [
+  _NoExtraExpressionKinds,
+  _NoMissingExpressionKinds,
+] = [true, true];
+void _expressionKindsAreExhaustive;
+
+const EXPRESSION_KIND_SET: ReadonlySet<string> = new Set(EXPRESSION_NODE_KINDS);
+
+/**
+ * Is `kind` an {@link ExpressionNode}'s kind — that is, could a node of this kind stand where the
+ * grammar admits an `expression`?
+ */
+export function isExpressionKind(kind: string): boolean {
+  return EXPRESSION_KIND_SET.has(kind);
+}
+
+/**
  * Nodes usable in statement position. A bare expression is a valid statement, so every
  * {@link ExpressionNode} is also a statement, alongside the statement-only forms.
  */

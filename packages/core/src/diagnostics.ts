@@ -142,17 +142,31 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * is not enough — `ol-duplicate-definition`'s `original_span` is itself an object (a normative
  * `params` entry, `spec/error-model.md:144-147`), and two identical findings whose nested keys were
  * inserted in different orders were measured surviving as two.
+ *
+ * The encoding is **injective**, and that direction is the one that matters. A missed duplicate is
+ * merely visible — the learner reads the same fault twice. A *collision* is silent: two genuinely
+ * different faults are judged one and the second is discarded with nothing to show it ever existed,
+ * inside a slice whose subject is never silently dropping a diagnostic. So every value is wrapped in
+ * a `[tag, payload]` pair rather than rendered structurally: an object's sorted entry list would
+ * otherwise be byte-identical to a literal array of the same pairs, which is reachable — `params`
+ * carry both objects (`original_span`) and arrays (`expected`).
  */
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(canonicalize);
+    return ["array", value.map(canonicalize)];
   }
   if (typeof value !== "object" || value === null) {
-    return value;
+    return ["atom", value];
   }
-  return Object.keys(value as Record<string, unknown>)
-    .sort()
-    .map((key) => [key, canonicalize((value as Record<string, unknown>)[key])]);
+  return [
+    "object",
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => [
+        key,
+        canonicalize((value as Record<string, unknown>)[key]),
+      ]),
+  ];
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {

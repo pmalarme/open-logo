@@ -51,7 +51,7 @@
 import type { Diagnostic, SourceSpan } from "@openlogo/core";
 import { dedupeDiagnostics } from "@openlogo/core";
 import type { AnyNode, ProgramNode, StatementNode } from "./ast.js";
-import { walk } from "./ast.js";
+import { isExpressionKind, walk } from "./ast.js";
 
 /**
  * The callee spans of every `ol-unknown-command` finding in `diagnostics`, as `"line:column"` keys.
@@ -128,35 +128,16 @@ function endsInUnresolvableCall(
  * callee turned out to be, so its `ol-bad-token` is an independent fault and is still reported, for
  * the same reason `spec/execution-model.md:771-773` keeps the unmatched `]` in `fowad 100 ]`.
  *
- * Measured before this bound existed: `fowad if true [ print 1 ]` parses to `ol-bad-token{text:
- * "if"}` plus the unknown command, and the orphan rule removed the `ol-bad-token`.
+ * **Derived, never listed.** This was a hand-written set, and it named five kinds this AST has
+ * never had while missing three it does — so `fowad [1][1]`, `fowad 1 < 2 < 3` and
+ * `fowad [] is empty` each kept a token that IS a valid argument. The direction matters as much as
+ * the derivation: a *missing* entry here only over-reports, but a *wrong* entry suppresses a real
+ * diagnostic silently, so this list must be closed by the type system rather than by memory.
+ * {@link isExpressionKind} is exhaustiveness-checked against the `ExpressionNode` union itself.
  */
 function couldBeAnArgument(statement: StatementNode): boolean {
-  return ARGUMENT_STATEMENT_KINDS.has(statement.kind);
+  return isExpressionKind(statement.kind);
 }
-
-/**
- * Statement kinds that are also `expression` productions, so the reader could have attached them to
- * a preceding call had its arity been known. Everything else is a statement-only form.
- */
-const ARGUMENT_STATEMENT_KINDS: ReadonlySet<string> = new Set([
-  "Call",
-  "ParenCall",
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "DictLit",
-  "VarRef",
-  "Place",
-  "ValueOfKey",
-  "Arithmetic",
-  "Comparison",
-  "Logical",
-  "Not",
-  "Negate",
-  "Comprehension",
-]);
 
 function orphanStarts(
   program: ProgramNode,

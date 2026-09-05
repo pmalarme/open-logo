@@ -4311,9 +4311,10 @@ function canonicalCalleeName(node: CallNode | ParenCallNode): string {
 
 /**
  * Phase-1 registration (`spec/execution-model.md:82-89`) for the whole program: every
- * `define`/`to` procedure and every `struct` declaration, collected in one pre-order walk before
- * any statement runs, so a callable may be used before its textual declaration and `type_of`/`is_a?`
- * see every struct type up front. Either the two registries, or the first collision in source order.
+ * `define`/`to` procedure and every `struct` declaration whose profile is active, collected in one
+ * pre-order walk before any statement runs, so a callable may be used before its textual
+ * declaration and `type_of`/`is_a?` see every struct type up front. Either the two registries, or
+ * the first collision in source order.
  */
 type DeclarationRegistration =
   | {
@@ -4355,11 +4356,14 @@ type DeclarationRegistration =
  * here claims otherwise. What *is* observable, and is pinned, is that a `define`/`struct` collision
  * is reported in **both** orders and that `original_span` names the earlier declaration.
  *
- * **Neither kind is profile-gated, and neither is depth-gated.** `spec/execution-model.md:82-88`
- * makes phase-1 registration unconditional, `execute()` has no active profile set to gate on in any
- * case, and the `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148`
- * makes a declaration an ordinary statement, so `define outer / define forward / end / end` is a
- * collision exactly as the top-level form is.
+ * **`define` is not profile-gated; `struct` is. Neither is depth-gated.**
+ * `spec/execution-model.md:82-88` makes phase-1 registration unconditional for procedures, and the
+ * `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148` makes a
+ * declaration an ordinary statement, so `define outer / define forward / end / end` is a collision
+ * exactly as the top-level form is. Since issue #815 `execute()` DOES carry the run's profile set,
+ * and a `struct` declaration is refused when **Data** is inactive: a run claiming Core Language
+ * alone was measured registering a `struct` and then executing its constructor, which no arm
+ * downstream could catch because the constructor is a user-declared name rather than a built-in.
  *
  * **One half of `spec/execution-model.md:86-87` is out of scope here and NOT covered:** it also
  * makes a name "an imported module already registered" a duplicate. `import` has no runtime
@@ -4921,15 +4925,29 @@ function canonicalizeHeritageAliasCall(
  * Is `statement` an expression the block-result rule says to run for effect and discard
  * (`spec/execution-model.md:214-227`)?
  *
- * Written by EXCLUSION, naming the three **declaration** kinds that legitimately have nothing to
- * run once Phase 1 has registered them. The grammar admits every `ExpressionNode` as a statement,
- * so the expression side is open-ended and an allow-list silently skips whatever it forgets —
- * which is what happened: naming only `Call`/`ParenCall` discarded an out-of-range `:x[2]` read
- * with no diagnostic. The closed set is the other one.
+ * Written by EXCLUSION. The grammar admits every `ExpressionNode` as a statement, so the expression
+ * side is open-ended and an allow-list silently skips whatever it forgets — which is what happened:
+ * naming only `Call`/`ParenCall` discarded an out-of-range `:x[2]` read with no diagnostic. The
+ * closed set is the other one. Every remaining `StatementNode` kind — control forms, `Assign`, the
+ * list mutators, `Return`, `Throw`, `ProfileStatement` — is dispatched before this point, so
+ * reaching here with one means a dispatch was missed, and the caller turns that into
+ * `ol-not-implemented` rather than a skip.
  *
- * Every remaining `StatementNode` kind — control forms, `Assign`, the list mutators, `Return`,
- * `Throw`, `ProfileStatement` — is dispatched before this point, so reaching here with one means a
- * dispatch was missed, and the caller turns that into `ol-not-implemented` rather than a skip.
+ * `ProcedureDef` and `StructDef` are excluded because Phase 1 has already registered them
+ * (`registerDeclarations`), leaving the statement itself with nothing to perform.
+ *
+ * `Local` is excluded for a **different and weaker reason, and this is a known gap rather than a
+ * property of the form.** `local` is specified to introduce a binding in the enclosing procedure's
+ * frame (`spec/execution-model.md:340-349`); this evaluator never registers one, so — measured —
+ * `define f  local x  :x = 2  end` assigns the GLOBAL `x`, where the parameter-shadowing control
+ * `define g :x  :x = 2  end` correctly does not. That is a defect in `local`'s binding semantics,
+ * not in the terminal rule, and it predates issue #815: no run of any profile has ever created a
+ * local frame entry. Excluding `Local` here preserves that pre-existing behaviour exactly rather
+ * than converting 78 corpus uses into `ol-not-implemented` inside a slice scoped to the check gate,
+ * value-position commands, the terminal rule and de-duplication. It is escalated, not absorbed.
+ *
+ * The distinction matters to whoever removes this arm: the first two exclusions are permanent, the
+ * third is a placeholder. Implementing `local` deletes it; it is not something to preserve.
  */
 function isExpressionStatement(statement: StatementNode): boolean {
   return (

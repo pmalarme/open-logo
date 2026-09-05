@@ -14,7 +14,13 @@
  * re-exported from `@openlogo/core` for convenience. See
  * `docs/adr/0006-cross-cutting-contracts.md`.
  */
-export { ast, OL_NODE_KINDS, walk } from "./ast.js";
+export {
+  ast,
+  EXPRESSION_NODE_KINDS,
+  isExpressionKind,
+  OL_NODE_KINDS,
+  walk,
+} from "./ast.js";
 export type {
   AddNode,
   AnyNode,

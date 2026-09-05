@@ -48,7 +48,6 @@ import type {
   AnyNode,
   ComprehensionNode,
   DestructuringBinderNode,
-  NodeKind,
   ProgramNode,
   ReduceComprehensionNode,
   ReturnNode,
@@ -56,7 +55,7 @@ import type {
   StatementNode,
   StopNode,
 } from "./ast.js";
-import { childrenOf } from "./ast.js";
+import { childrenOf, isExpressionKind } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import {
   canonicalOfHeritageFormHead,
@@ -88,24 +87,6 @@ interface Context {
 }
 
 /**
- * AST node kinds that are always value-producing expressions in the Core grammar. Consumed by
- * {@link producesValue} below, which is what `checker-style.ts`'s `ol-style-useless-value` rule
- * (issue #115) imports so the two codes share one classification.
- */
-const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "VarRef",
-  "Place",
-  "PostfixExpression",
-  "ComparisonChain",
-  "IsPredicate",
-  "Comprehension",
-]);
-
-/**
  * Does this statement statically produce a value the surrounding block-result rule can use?
  * Shared by `ol-no-value` (this module, error) and `ol-style-useless-value`
  * (`checker-style.ts`, warning) — the two codes judge the same question, one inside a
@@ -119,6 +100,14 @@ const VALUE_PRODUCING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
  * misspelling, a primitive of an inactive profile) is treated as value-producing: its kind is not
  * statically known, and "Tools MUST NOT report speculative type errors when dynamic values are
  * unknown" (`spec/tooling.md:199-200`).
+ *
+ * Every other kind is judged by {@link isExpressionKind}, **derived from the `ExpressionNode` union
+ * rather than enumerated**. The enumeration this replaces named eight kinds and omitted `DictLit`
+ * and `ValueOfKey` — the two Data-profile expression forms — so `map i in :xs [ {a: 1} ]` was told
+ * `ol-no-value` about a dict literal. Harmless while `ol-no-value` was advisory; since issue #815
+ * put a severity gate in front of `execute()` the same wrong finding **refuses to run the program**,
+ * which is how an omission from a six-year-old list becomes a blocking defect. The derived form
+ * cannot omit a kind: `isExpressionKind` is exhaustiveness-checked against the union itself.
  */
 export function producesValue(
   node: StatementNode,
@@ -127,7 +116,7 @@ export function producesValue(
   if (node.kind === "Call" || node.kind === "ParenCall") {
     return !isActiveProfileCommandName(node.callee.name, profiles);
   }
-  return VALUE_PRODUCING_KINDS.has(node.kind);
+  return isExpressionKind(node.kind);
 }
 
 /**
