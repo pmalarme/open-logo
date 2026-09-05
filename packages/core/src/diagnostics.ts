@@ -686,9 +686,13 @@ function describe(value: object): Described | undefined {
     //      accessibility regression this arm was added
     //      to fix. A `Map` subclass still lands opaque: it fails this test, then fails the
     //      plain-object arm's prototype test too.
-    //   2. NO OWN PROPERTIES — `map.extra = "x"` is part of the value and was ignored. Every other
-    //      container arm already guards this; `arrayElements` rejects an array with a named own
-    //      property for the same reason, and this arm shipped without the equivalent.
+    //   2. NO OWN PROPERTIES — `map.extra = "x"` is part of the value and was ignored.
+    //      `arrayElements` rejects an array with a named own property for the same reason, and this
+    //      arm shipped without the equivalent. Note the dict and record arms above do NOT guard
+    //      this: two `OLDict`s (or `OLRecord`s) differing only in an extra own property were
+    //      measured colliding, 1 survivor where there should be 2. Pre-existing, unreachable from
+    //      an OpenLogo program, and tracked by #1133 — recorded here rather than left implied,
+    //      because an earlier version of this line claimed every other container arm guarded it.
     //   3. PRIMITIVE KEYS ONLY — see `keyComparesStructurally`. A map keyed by objects has
     //      reference semantics that a structural encoding cannot represent.
     //

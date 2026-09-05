@@ -1010,11 +1010,13 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
   // `diagnostics.ts` warns about in its own turtle arm.
   //
   // What this asserts is insensitivity to a trapped `Symbol.hasInstance`, which is the negative
-  // half of the name. That the entry test is specifically the BRAND — rather than some other
-  // unforgeable check, such as an exact-prototype comparison through the captured `prototypeOf` —
-  // is pinned by the equal-subclass case in "a subclass that LIES about its contents cannot
-  // collide two values". A review measured that swap passing the whole file before that assertion
-  // existed, so this credit is checked rather than asserted.
+  // half of the name. The entry test has TWO requirements — unforgeable, and total over subclasses
+  // — and they are pinned by two different tests: this one for the first, the equal-subclass cases
+  // in "a subclass that LIES about its contents cannot collide two values" for the second. Neither
+  // gets there alone, and neither singles out the brand: a chain walk over the captured
+  // `prototypeOf` satisfies both and was measured green across the whole suite. What is ruled out
+  // is the exact-prototype check (not total) and `instanceof` (not unforgeable), which are the two
+  // rivals anyone actually reaches for.
   //
   // Reverting either arm to `instanceof` leaves every other test in this file green, which is why
   // this one exists: the fix was measured correct and was not load-bearing until now.
@@ -1635,19 +1637,24 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
     2,
     "a populated liar is not an empty dict",
   );
-  // The EQUAL case, which is what discriminates the brand from any other unforgeable entry test.
-  // A review swapped the dict arm's entry test for `prototypeOf(value) === OLDict.prototype` —
-  // also unforgeable, since `prototypeOf` is captured — and the whole file stayed green, because
-  // every assertion above is 2 under both. Only the brand is total over SUBCLASSES: under the
-  // prototype check a subclassed dict skips the arm entirely and two equal ones false-split, which
-  // is the screen-reader regression this slice exists to remove. 1 under the brand, 2 under the
-  // swap.
+  // The EQUAL case, which pins that the entry test is TOTAL OVER SUBCLASSES. A review swapped the
+  // dict arm's entry test for `prototypeOf(value) === OLDict.prototype` — no more forgeable than
+  // the brand, since `prototypeOf` is captured — and the whole file stayed green, because every
+  // SURVIVOR COUNT above is 2 under both. Under an exact-prototype check a subclassed dict skips
+  // the arm entirely and two equal ones false-split, which is the screen-reader regression this
+  // slice exists to remove. 1 under the brand, 2 under that swap.
+  //
+  // What this does NOT pin, stated because two reviewers each measured a rival that passes: any
+  // entry test that is total over subclasses satisfies it. `value instanceof OLDict` does (it is
+  // trappable, which the `Symbol.hasInstance` test catches instead), and so does a chain walk over
+  // the captured `prototypeOf` (measured green across all 5137 tests). Totality and unforgeability
+  // are two requirements, pinned by two different tests, and neither test gets there alone.
   const sameAsOne = new LyingDict();
   sameAsOne.set("a", 1);
   assert.equal(
     survivors(oneValue, sameAsOne),
     1,
-    "a genuine subclass is still described STRUCTURALLY — only the brand is total over subclasses",
+    "a genuine subclass is still described STRUCTURALLY — the entry test must be total over subclasses",
   );
 
   // A MODIFIED INSTANCE is the same attack without a subclass, and `instanceof` admits it equally.
@@ -1672,6 +1679,17 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
   assert.deepEqual(lyingRecord.fields(), [], "and here");
   assert.equal(survivors(lyingRecord, new LyingRecord("p", ["x"], [2])), 2);
   assert.equal(survivors(lyingRecord, new OLRecord("p", [], [])), 2);
+
+  // The RECORD arm has the identical entry test and was not covered: a review applied the
+  // exact-prototype swap to `recordIsGenuine` and the whole file stayed green, because every
+  // survivor count here is 2 under both. Same shape as every "two of three arms hardened" finding
+  // in this slice, one binding over.
+  const sameLyingRecord = new LyingRecord("p", ["x"], [1]);
+  assert.equal(
+    survivors(lyingRecord, sameLyingRecord),
+    1,
+    "and two equal ones collapse — the record arm's entry test is total over subclasses too",
+  );
 
   // A turtle's `id` is read as DATA, so an accessor installed over it describes nothing
   // trustworthy and the value becomes opaque rather than impersonating turtle 99.
