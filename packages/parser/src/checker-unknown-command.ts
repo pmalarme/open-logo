@@ -226,7 +226,6 @@ function messageFor(name: string, suggestion: string | undefined): string {
  * at eighty declarations than at none, and that ratio is what reproduces.
  *
  * ## The snapshot cannot go stale, and that is structural rather than lucky
- * ## The snapshot cannot go stale
  *
  * A bound resolver is a cache, so the question is what invalidates it. Three structural facts, and
  * deliberately no supporting argument beyond them — this paragraph was rewritten four times and

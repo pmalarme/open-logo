@@ -790,4 +790,23 @@ test("core's fault identity deliberately ignores stage and severity", () => {
     diagnosticIdentity({ ...at("semantic", "error"), code: "ol-no-value" }),
     "but the code is",
   );
+  // …and so are `params` and `source_span`. Without these, the two equalities above would also
+  // hold for an identity that collapsed everything — the control has to exclude a constant, not
+  // just a code-blind one.
+  assert.notEqual(
+    diagnosticIdentity(at("semantic", "error")),
+    diagnosticIdentity({
+      ...at("semantic", "error"),
+      params: { procedure: "back" },
+    }),
+    "params are",
+  );
+  assert.notEqual(
+    diagnosticIdentity(at("semantic", "error")),
+    diagnosticIdentity({
+      ...at("semantic", "error"),
+      source_span: { document: "d.logo", start: [2, 1], end: [2, 2] },
+    }),
+    "and so is the span",
+  );
 });
