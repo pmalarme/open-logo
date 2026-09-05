@@ -143,7 +143,10 @@ than a name does (§ *`repcount` is lexical*).
 
 This is the part of the decision a knowledgeable reader will attack first, and it deserves a
 straight answer: **OpenLogo is stricter here than Python, JavaScript, Go, Java, C++, or Rust, each of
-which lets a function read enclosing state without ceremony.** Reading is commonly treated as the
+which lets a function read enclosing state without naming it at the function's boundary.** (Rust
+qualifies that in one direction only — reading a *mutable* `static` needs `unsafe` — but an ordinary
+immutable one is read freely, and the restriction is about memory safety rather than about scoping.)
+Reading is commonly treated as the
 easy case. OpenLogo treats it as the load-bearing one.
 
 The reason is pedagogical and is stated in the normative text itself: *everything a procedure
@@ -169,8 +172,9 @@ is about **reuse**, not about lexical reach. Under lexical scoping a procedure's
 environment is on the page just as a block's is, and most lexically scoped languages let a procedure
 read it; that much is conceded. What differs is what the two constructs are *for*.
 
-A block is an inline continuation of the code around it: it runs once, in place, as part of the
-statement containing it, and whoever reads the block is already reading the scope it sits in. A
+A block is an inline continuation of the code around it: it is written in exactly one place, it
+cannot be named or called, and only the construct it is written into decides when and how often it
+is entered — so whoever reads the block is already reading the scope it sits in. A
 procedure is a **named, reusable unit** — registered before execution so it can be called from
 anywhere in the document, including from above its own text, and meant to be called from many places
 and moved between programs. A construct that is designed to be invoked from arbitrary places should
@@ -214,9 +218,11 @@ The alternative, marking each *writing procedure*, is Python's, and it was rejec
 being mistaken for a design. Go, Java, and C++ have no free-standing top-level statement list: a
 name outside a function is a *declaration*, so "global" there is a *position* rather than a keyword.
 Precisely because that position is an unambiguous declaration, those three let a function mutate it
-freely with no per-write ceremony. (Rust is the exception in that group and is worth naming
-separately: a mutable `static` is reachable only through `unsafe`, or through synchronisation or
-interior-mutability types, so its ceremony is about memory safety rather than about scoping.) Python
+freely with no per-write ceremony. (Rust shares the declaration half but not the mutation half, and
+is worth naming separately: a mutable `static` is reachable — for reads as well as writes — only
+through `unsafe`, while safe shared mutation instead uses synchronisation or interior-mutability
+types held in an ordinary immutable `static`. That ceremony is about memory safety, not about
+scoping.) Python
 needs `global x` once inside every function that writes the name, because it has no
 declaration syntax to hang the permission on — a top-level `x = 5` is an ordinary assignment,
 indistinguishable from a local one. **OpenLogo has top-level executable code and therefore has
@@ -224,8 +230,9 @@ Python's problem, but it solved it with Go's answer**: introduce the declaration
 free from position, then use the name freely.
 
 The spelling followed from the same reasoning. `global name = value` takes a bare name, like the
-other keyword-introduced forms that name a binding (`local x`, `set x to 5`, and the `for`/`map`
-binders), rather than the `:name` of a place. `:=` was considered
+other keyword-introduced forms that name a binding (`local x`, `set x to 5`, and the simple
+`for`/`map` binders — a destructuring pattern is the one exception, spelling its names `:x`),
+rather than the `:name` of a place. `:=` was considered
 and rejected twice over: `:=` raises `ol-bad-token` today and no production admits `:` followed by
 `=`, and Go's precedent points the opposite way — `:=`
 is illegal at package level there and creates *locals* inside a function.
@@ -280,8 +287,10 @@ handler registered inside it may still run (§ *Frames, handlers, and lifetime*)
 That is closure **lifetime**, and it is not closure **values**. Blocks are still not values, and the
 reason is grammatical rather than behavioural: **no syntax puts a block in value position at all.**
 A `[ … ]` after `=`, or in any other value position, is a *list literal*; an instruction block exists
-only in a control-form or comprehension body, or in a profile handler head
-(`spec/execution-model.md`, § *Brackets, blocks, and body forms*). So there is nothing to store in a
+only as a control-form or `define` body, a comprehension body, or a profile effect-block (`ask`,
+`each`, `when`, `every`, `on_key`, `on_click`) — each a distinct grammar slot, and the roles never
+overlap (`spec/execution-model.md`, § *Brackets, blocks, and body forms*). So there is nothing to
+store in a
 variable or pass to a procedure — not a block that is rejected, but a block that cannot be written
 there. v0.1 still has no lambda, and deferred
 event handlers are the only construct where the question arises at all. LDR-0004's promise is
@@ -380,13 +389,15 @@ program write a free-standing statement list at file scope the way OpenLogo and 
 OpenLogo's `global` is this model, not Python's.
 
 **Rust** belongs in the same group for the declaration half and not for the mutation half: a name at
-module scope is likewise a declaration, but a mutable `static` is reachable only through `unsafe`,
-or through synchronisation or interior-mutability types. That ceremony is about memory safety in the
-presence of threads, not about scoping, so Rust is not evidence either way for the per-write-marker
-question.
+module scope is likewise a declaration, but a mutable `static` is reachable — for reads as well as
+writes — only through `unsafe`. Safe shared mutation instead uses a synchronisation or
+interior-mutability type (a `Mutex`, a `Cell`, an atomic) held in an ordinary *immutable* `static`,
+which is a different construct from a `static mut`. That ceremony is about memory safety — aliasing
+and re-entrancy as much as threads — not about scoping, so Rust is not evidence either way for the
+per-write-marker question.
 
-(These four rows are documented from the languages'
-own references; unlike the Python and JavaScript rows above, they were not executed for this
+(These four languages are documented from their
+own references; unlike the Python and JavaScript comparisons above, they were not executed for this
 record.)
 
 **Scheme** provides the lexical-closure baseline: an inner procedure sees its
