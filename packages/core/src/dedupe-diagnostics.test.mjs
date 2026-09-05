@@ -1009,14 +1009,14 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
   // a test called "the trusted arms" would read as all three, which is the misreading
   // `diagnostics.ts` warns about in its own turtle arm.
   //
-  // What this asserts is insensitivity to a trapped `Symbol.hasInstance`, which is the negative
-  // half of the name. The entry test has TWO requirements — unforgeable, and total over subclasses
-  // — and they are pinned by two different tests: this one for the first, the equal-subclass cases
-  // in "a subclass that LIES about its contents cannot collide two values" for the second. Neither
-  // gets there alone, and neither singles out the brand: a chain walk over the captured
-  // `prototypeOf` satisfies both and was measured green across the whole suite. What is ruled out
-  // is the exact-prototype check (not total) and `instanceof` (not unforgeable), which are the two
-  // rivals anyone actually reaches for.
+  // What this asserts is insensitivity to a trapped `Symbol.hasInstance`. The entry test needs
+  // THREE properties — insensitivity to that trap, totality over subclasses, and resistance to a
+  // Proxy wearing the prototype — and each is pinned by a different assertion: this one, the
+  // equal-subclass cases in "a subclass that LIES about its contents cannot collide two values",
+  // and the Proxy pair below. None of them alone singles out the brand: an exact-prototype check
+  // and a chain walk over the captured `prototypeOf` each PASS some of them, and the chain walk was
+  // measured green across all 5137 tests before the Proxy pair existed. What is claimed here is
+  // which tests each rival passes — not which properties it has.
   //
   // Reverting either arm to `instanceof` leaves every other test in this file green, which is why
   // this one exists: the fix was measured correct and was not load-bearing until now.
@@ -1066,6 +1066,38 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
       sameValue() instanceof valueClass,
       true,
       `${name}: the trap must be removed again`,
+    );
+  }
+
+  // PROXY RESISTANCE is a THIRD property, and it is what the brand is actually for. Two reviewers
+  // measured that both rivals above — the exact-prototype check and a chain walk over the captured
+  // `prototypeOf` — admit a Proxy wearing the prototype and let it impersonate a genuine value,
+  // while the brand rejects it. Capturing `prototypeOf` defends against PATCHING the intrinsic; it
+  // does nothing against a TRAP. `values.ts` says so in as many words: "`#brand in proxy` is false
+  // even for a Proxy whose target IS an `OLDict`".
+  //
+  // Before this assertion existed, nothing in 5137 tests pinned it: the chain-walk swap was green
+  // across the whole suite while losing the one property the brand exists for. So it is asserted
+  // here rather than described, and the comments above claim only that the rivals PASS the other
+  // two tests — not that they satisfy the requirements those tests are named for.
+  for (const [label, genuine, wearing] of [
+    ["dict", () => dictOf(1), () => new Proxy(dictOf(1), {})],
+    [
+      "record",
+      () => new OLRecord("p", ["x"], [1]),
+      () => new Proxy(new OLRecord("p", ["x"], [1]), {}),
+    ],
+  ]) {
+    const impostor = wearing();
+    assert.equal(
+      Object.getPrototypeOf(impostor),
+      Object.getPrototypeOf(genuine()),
+      `${label}: the impostor really does wear the prototype, or this pair is vacuous`,
+    );
+    assert.equal(
+      survivors(genuine(), impostor),
+      2,
+      `${label}: a Proxy wearing the prototype must NOT impersonate a genuine value — this is the property only the brand has`,
     );
   }
 });
@@ -1638,17 +1670,18 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
     "a populated liar is not an empty dict",
   );
   // The EQUAL case, which pins that the entry test is TOTAL OVER SUBCLASSES. A review swapped the
-  // dict arm's entry test for `prototypeOf(value) === OLDict.prototype` — no more forgeable than
-  // the brand, since `prototypeOf` is captured — and the whole file stayed green, because every
+  // dict arm's entry test for `prototypeOf(value) === OLDict.prototype` — forgeable in a way the
+  // brand is not, since it admits a Proxy wearing the prototype, though not via a redefined
+  // `Object.getPrototypeOf`, which is captured — and the whole file stayed green, because every
   // SURVIVOR COUNT above is 2 under both. Under an exact-prototype check a subclassed dict skips
   // the arm entirely and two equal ones false-split, which is the screen-reader regression this
   // slice exists to remove. 1 under the brand, 2 under that swap.
   //
-  // What this does NOT pin, stated because two reviewers each measured a rival that passes: any
-  // entry test that is total over subclasses satisfies it. `value instanceof OLDict` does (it is
-  // trappable, which the `Symbol.hasInstance` test catches instead), and so does a chain walk over
-  // the captured `prototypeOf` (measured green across all 5137 tests). Totality and unforgeability
-  // are two requirements, pinned by two different tests, and neither test gets there alone.
+  // What this does NOT pin, stated because two reviewers each measured a rival that passes it: any
+  // entry test total over subclasses satisfies it, including `value instanceof OLDict` and a chain
+  // walk over the captured `prototypeOf`. Being total is one of three properties the entry test
+  // needs; the other two are pinned elsewhere, and the Proxy pair is what rules those two rivals
+  // out.
   const sameAsOne = new LyingDict();
   sameAsOne.set("a", 1);
   assert.equal(
