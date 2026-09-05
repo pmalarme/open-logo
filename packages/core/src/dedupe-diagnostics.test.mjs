@@ -9,7 +9,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dedupeDiagnostics, OLDict, OLRecord, OLTurtle } from "@openlogo/core";
+import {
+  dedupeDiagnostics,
+  diagnosticIdentity,
+  OLDict,
+  OLRecord,
+  OLTurtle,
+} from "@openlogo/core";
 
 /** An `ol-duplicate-definition` whose `original_span` object is built with the given key order. */
 function duplicateDefinition(originalSpan) {
@@ -754,4 +760,34 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
   });
   assert.equal(impostor.id, 99, "the impersonation is live");
   assert.equal(survivors(impostor, new OLTurtle(99)), 2);
+});
+
+test("core's fault identity deliberately ignores stage and severity", () => {
+  // The reciprocal half of studio's announcer contract, pinned on this side too so the two cannot
+  // drift apart: `spec/execution-model.md:741-748` says `stage` "records when the fault was found,
+  // not which fault it is", so the same fault at two stages is ONE fault here. A caller that must
+  // distinguish them — the screen-reader announcer does — compares those fields beside this.
+  const at = (stage, severity) => ({
+    code: "ol-no-output",
+    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    params: { procedure: "forward" },
+    message: "m",
+    stage,
+    severity,
+  });
+  assert.equal(
+    diagnosticIdentity(at("semantic", "error")),
+    diagnosticIdentity(at("runtime", "error")),
+    "stage is not part of a fault's identity",
+  );
+  assert.equal(
+    diagnosticIdentity(at("semantic", "error")),
+    diagnosticIdentity(at("semantic", "warning")),
+    "nor is severity",
+  );
+  assert.notEqual(
+    diagnosticIdentity(at("semantic", "error")),
+    diagnosticIdentity({ ...at("semantic", "error"), code: "ol-no-value" }),
+    "but the code is",
+  );
 });

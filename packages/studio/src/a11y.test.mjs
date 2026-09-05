@@ -1031,3 +1031,47 @@ test("re-publishing the SAME diagnostics still announces nothing", () => {
   state.setDiagnostics(diagnosticsFrom("struct p [ y ]\nforward p 1\n"));
   assert.equal(announcer.getAnnouncements().length, afterFirst);
 });
+
+test("the announcer hears a diagnostic that changes only in stage or severity", () => {
+  // `diagnosticsKey` compares `severity` and `stage` BESIDE core's fault identity, because that
+  // identity deliberately excludes both — `spec/execution-model.md:741-748` makes `stage` record
+  // when a fault was found rather than which fault it is. Measured, `diagnosticIdentity` collapses
+  // both axes, so those two extra components ARE the mechanism.
+  //
+  // Dropping either one leaves the whole Definition of Done green while an assistive-technology
+  // user stops being told the diagnostic changed — the same silent non-announcement that
+  // `JSON.stringify` caused and that this file's other #815 test exists to repair, one field along.
+  // `ol-no-output` moving `semantic` → `runtime` under `runUnchecked` is a real transition.
+  const at = (stage, severity) => [
+    {
+      code: "ol-no-output",
+      source_span: { document: "a11y.logo", start: [1, 1], end: [1, 2] },
+      params: { procedure: "forward" },
+      message: "m",
+      stage,
+      severity,
+    },
+  ];
+
+  const forStage = OL.createStudioState();
+  const stageAnnouncer = OL.createA11yAnnouncer(forStage);
+  forStage.setDiagnostics(at("semantic", "error"));
+  const afterStage = stageAnnouncer.getAnnouncements().length;
+  forStage.setDiagnostics(at("runtime", "error"));
+  assert.equal(
+    stageAnnouncer.getAnnouncements().length,
+    afterStage + 1,
+    "a fault moving from semantic to runtime is a change worth hearing",
+  );
+
+  const forSeverity = OL.createStudioState();
+  const severityAnnouncer = OL.createA11yAnnouncer(forSeverity);
+  forSeverity.setDiagnostics(at("semantic", "error"));
+  const afterSeverity = severityAnnouncer.getAnnouncements().length;
+  forSeverity.setDiagnostics(at("semantic", "warning"));
+  assert.equal(
+    severityAnnouncer.getAnnouncements().length,
+    afterSeverity + 1,
+    "an error becoming a warning is a change worth hearing",
+  );
+});

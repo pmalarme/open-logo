@@ -175,3 +175,22 @@ test("the exported kind list is frozen, so it cannot drift from the predicate", 
   });
   assert.equal(isExpressionKind("NotAKind"), false);
 });
+
+test("the suppression is bounded by the statement's TRAILING position", () => {
+  // The orphan test asks whether the unresolvable call finishes where the STATEMENT finishes —
+  // not merely whether some call ends somewhere. Comparing each call's end against itself instead
+  // suppresses the `7` in `[ fowad 1 ] 7`, where `fowad` merely occurs INSIDE a completed list
+  // literal and the `7` is an independent fault. That mutation leaves 5,105 tests and 1,004
+  // fixtures green, and silently discards a real diagnostic inside a slice whose whole subject is
+  // never silently discarding one (`spec/execution-model.md:768-777`).
+  assert.deepEqual(codesFor("[ fowad 1 ] 7"), [
+    "ol-bad-token",
+    "ol-unknown-command",
+  ]);
+  // The neighbouring bound, for contrast: here `fowad` DOES finish the statement, so its trailing
+  // token is suppressed while the unmatched bracket — never an argument — survives.
+  assert.deepEqual(codesFor("fowad 100 ]"), [
+    "ol-unmatched-bracket",
+    "ol-unknown-command",
+  ]);
+});

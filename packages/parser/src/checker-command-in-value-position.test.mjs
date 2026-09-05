@@ -173,19 +173,64 @@ test("a Program, a Block, and an assignment TARGET are not value positions", () 
   assert.deepEqual(codes("print forward 1"), ["ol-no-output"]);
 });
 
+test("an inactive-profile alias is NOT classified here — one fault, one diagnostic", () => {
+  // `fd` is a Heritage alias. Under a run that does not claim Heritage the name does not resolve,
+  // so `ol-unknown-command` is the whole answer. The rule therefore gates on the name the learner
+  // WROTE, not the canonical spelling the reader records.
+  //
+  // The reader stores `canonical: "forward"` unconditionally — `parse()` takes no profiles — so
+  // classifying the canonical name instead produces `ol-unknown-command` AND `ol-no-output`, the
+  // second naming a spelling the learner never wrote, under a run that cannot resolve the alias.
+  // Two answers to one question. That mutation leaves 5,105 tests and 1,004 fixtures green.
+  assert.deepEqual(codes("print fd 5"), ["ol-unknown-command"]);
+
+  // And with Heritage claimed the alias resolves, so the rule fires — reporting the CANONICAL
+  // spelling, as `spec/error-model.md:114` requires of the `procedure` param.
+  const withHeritage = analyze("print fd 5", "value-position.logo", {
+    profiles: [...PROFILES, "heritage"],
+  }).diagnostics;
+  assert.deepEqual(
+    withHeritage.map((finding) => finding.code),
+    ["ol-no-output"],
+  );
+  assert.deepEqual(withHeritage[0]?.params, { procedure: "forward" });
+});
+
+test("the reported procedure is case-folded to its canonical spelling", () => {
+  // OpenLogo names are case-insensitive — `FORWARD 100` is a clean program — and
+  // `spec/error-model.md:114` requires `procedure` to carry the built-in's canonical spelling.
+  // Dropping the fold reports `procedure: "FORWARD"`, which contradicts the spec and splits one
+  // fault's identity across two spellings of the same call. That mutation leaves the DoD green.
+  const finding = onlyNoOutput("print FORWARD 5");
+  assert.deepEqual(finding.params, { procedure: "forward" });
+});
+
 test("a reporter in the same positions is silent", () => {
   // The control that makes the cases above mean something: the rule must key on the callee being a
-  // Command, not on the position being nested. Shape-asserted like the positive table, because a
-  // review measured that `if count [1 2] == 3 [ … ]` nests the call in `If`, not `ComparisonChain`
-  // — the same greedy argument binding that made two positive rows measure the wrong thing. An
-  // unlabelled table cannot state a falsehood, but it can quietly cover less than it appears to.
+  // Command, not on the position being nested. It mirrors the positive table row for row — a
+  // review noted it covered 6 of 15 and had dropped its only `If` row when it gained shape
+  // assertions, and a table-driven control that covers less than the thing it controls is a
+  // weaker control than it appears.
+  //
+  // Shape-asserted for the same reason the positive table is: `if count [1 2] == 3 [ … ]` nests
+  // the call in `If`, not `ComparisonChain`, by the same greedy argument binding that made two
+  // positive rows measure the wrong thing.
   for (const [enclosing, source] of [
     ["Call", "print count [1 2]"],
+    ["ParenCall", ":x = (word count [1 2])"],
+    ["Assign", ":x = count [1 2]"],
+    ["Repeat", "repeat count [1 2] [ print 1 ]"],
+    ["If", "if count [1 2] [ print 1 ]"],
+    ["While", "while count [1 2] [ print 1 ]"],
     ["ListLit", ":x = [ 1 count [1 2] ]"],
     ["Throw", "throw count [1 2]"],
+    ["Comprehension", ":x = map n in count [1 2] [ :n ]"],
     ["ComparisonChain", ":x = 1 < (count [1 2]) < 3"],
+    ["ForRange", "for i from 1 to count [1 2] [ print 1 ]"],
+    ["ForIn", "for i in count [1 2] [ print 1 ]"],
     ["IsPredicate", ":x = (count [1 2]) is empty"],
     ["DictLit", ":x = {a: count [1 2]}"],
+    ["PostfixExpression", ":x = (count [1 2])[1]"],
   ]) {
     assert.equal(
       nearestEnclosingKind(source, "count"),
