@@ -639,24 +639,40 @@ test("the reflection primitives are captured too, one layer below the readers", 
 });
 
 test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
-  // The gated replacement for a prose claim that was measured short in three consecutive review
-  // rounds. The first gated version was measured short too — because its alphabet of intrinsics was
-  // HAND-LISTED, which is a hand-counted claim in a new medium. `@testing`'s line: the lesson taken
-  // was "state it in a test"; the lesson available was "DERIVE it".
+  // The gated replacement for a prose claim that was measured short in FIVE consecutive review
+  // rounds. Each round the mechanism was right and the claim beside it was wider than its evidence,
+  // and each fix narrowed one hand-written part while leaving another:
   //
-  // So the namespace alphabet below is derived from the realm, not written down: every own
-  // function-valued property of `globalThis`. That catches a bare `String(` / `Number(` — one of
-  // which was measured reinstating the documented `"01"` array collision while the hand-listed
-  // version reported clean.
+  //   prose "every reflection primitive is captured"  -> short by 3, then 1, then 1
+  //   a test with a HAND-LISTED alphabet              -> short by 7 (two measured colliding)
+  //   a derived alphabet with a HAND-LISTED position  -> short by 3 (two measured colliding)
   //
-  // WHAT THIS DOES NOT COVER, stated in the name and here rather than left for a reviewer to
-  // measure a fourth time: an **instance-method** read, such as `snapshot.push(…)`,
-  // `out.join("")`, or `open.depthOf.get(…)`. Those resolve through a receiver, not through a
-  // global name, so no text scan can attribute them without a type checker — and three separate
-  // reviewers measured three of them colliding under a patched prototype. Widening this regex to
-  // `.push(|.join(|.get(` would make the alternation the new uncounted list and guarantee another
-  // round. The residual is tracked by #1131, which records the sound instrument (a TypeScript
-  // symbol-based scan resolving accesses into `lib.*.d.ts`) rather than a longer denylist.
+  // Both hand-written halves are now derived, and the residual is named rather than restated.
+  //
+  //   ALPHABET — every own property of `globalThis` holding a function or a namespace object.
+  //     Filtering to callables silently dropped `Reflect`; filtering to `^[A-Z]` silently dropped
+  //     `parseInt`/`structuredClone`. Neither filter survives.
+  //   POSITION — none. A BARE NAME is a finding. `\bName\s*[.(]` missed `instanceof Map`,
+  //     `new Set<string>()` and `new WeakMap<…>()`, because a name can be followed by `<` or by
+  //     nothing at all. Two of those three were measured exploitable: a lying `Set` subclass made
+  //     `dedupeDiagnostics` DISCARD a distinct fault, and redefining `Map[Symbol.hasInstance]`
+  //     reinstated the screen-reader regression the `Map` arm exists to fix.
+  //   SUBJECT — the EMITTED `dist/diagnostics.js`, not the source. That is what makes a bare-name
+  //     match sound: the compiler erases type positions, so `Map<unknown, number>` in an
+  //     annotation is simply gone, and "the name appears" really does mean "the global is read".
+  //     Scanning the source instead would need a hand-written carve-out for type positions —
+  //     the same defect one more time.
+  //
+  // WHAT THIS STILL DOES NOT COVER, in the name and here: an INSTANCE-METHOD read such as
+  // `out.join("")`, `open.depthOf.get(…)` or `seen.has(…)`. Those resolve through a receiver, not
+  // a global name, so no text scan can attribute them — three reviewers measured three colliding.
+  // Tracked by #1131 with the sound instrument; note that issue's stated remedy needs revising,
+  // because TypeScript 7 ships no compiler API (`import * as ts` exposes `version` and nothing
+  // else), so an AST-based scan is not available in this toolchain today.
+  const emitted = readFileSync(
+    new URL("../dist/diagnostics.js", import.meta.url),
+    "utf8",
+  );
   const source = readFileSync(
     new URL("./diagnostics.ts", import.meta.url),
     "utf8",
@@ -665,11 +681,20 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   // one", derived rather than delimited by a newline pattern or a hard-coded end marker: an
   // earlier version looked for a blank line as "\n\n" and silently matched nothing in a CRLF file,
   // which is the same class of instrument failure this test is written to gate.
-  const lines = source.split(/\r?\n/);
+  //
+  // Truncation is fail-SAFE by monotonicity, which is the real safety property rather than the
+  // floor below it: if the run stops early, the remaining capture lines fall INTO the scanned
+  // region and are dense with the very names being looked for, so they fire. The region can only
+  // over-extend across lines matching the capture grammar, which are captures by definition. Do
+  // not "fix" the floor and mistake it for the guard.
+  const lines = emitted.split(/\r?\n/);
   const first = lines.findIndex((line) =>
     line.startsWith("const dictIsGenuine ="),
   );
-  assert.ok(first > 0, "the capture block must be findable");
+  assert.ok(
+    first > 0,
+    "the capture block must be findable in the emitted file",
+  );
   let last = first;
   while (/^const \w+ = [\w.]+;$/.test(lines[last + 1])) {
     last += 1;
@@ -678,65 +703,134 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
     last - first >= 10,
     `the capture block must still be a run of captures; found ${last - first + 1}`,
   );
+  // Staleness guard: a scan of `dist` proves nothing if `dist` predates the source. Every capture
+  // name in the source must appear in the emitted block, and the counts must agree.
+  const sourceCaptures = source
+    .split(/\r?\n/)
+    .filter((line) => /^const \w+ = [\w.]+;$/.test(line))
+    .map((line) => line.split(" ")[1]);
+  const emittedCaptures = lines
+    .slice(first, last + 1)
+    .map((line) => line.split(" ")[1]);
+  assert.deepEqual(
+    emittedCaptures,
+    sourceCaptures,
+    "dist/diagnostics.js is stale — rebuild before trusting this scan",
+  );
   const outside = [...lines.slice(0, first), ...lines.slice(last + 1)].join(
     "\n",
   );
-  // ONE extractor, used for the file AND for the control below — so the control exercises the exact
-  // code path that produced the empty result rather than a second copy of it that could differ.
-  // The namespace alternation is DERIVED from the realm rather than written down.
-  const globalCallables = Object.getOwnPropertyNames(globalThis)
-    .filter((name) => /^[A-Z]\w*$/.test(name))
-    .filter((name) => {
-      // Functions (`String`, `Number`) AND namespace objects (`Reflect`, `Math`, `JSON`), because
-      // both carry intrinsics. Deriving only the callables silently dropped `Reflect` — caught by
-      // the assertion below, which is why that assertion names the ones this file actually uses.
-      const value = Object.getOwnPropertyDescriptor(globalThis, name)?.value;
+  // The ALPHABET, derived from the realm. No `^[A-Z]` filter: that silently dropped `parseInt`,
+  // `structuredClone` and every other lowercase global intrinsic. No callables-only filter either:
+  // that silently dropped `Reflect`, which is a namespace object.
+  const globalIntrinsics = Object.getOwnPropertyNames(globalThis).filter(
+    (name) => {
+      const value = globalThis[name];
       return (
-        typeof value === "function" ||
-        (typeof value === "object" && value !== null)
+        /^\w+$/.test(name) &&
+        (typeof value === "function" ||
+          (typeof value === "object" && value !== null))
       );
-    });
-  assert.ok(
-    globalCallables.length > 20 &&
-      ["Object", "Number", "String", "Symbol", "Reflect", "Array"].every(
-        (name) => globalCallables.includes(name),
-      ),
-    "the derived alphabet must actually enumerate the realm's intrinsic namespaces",
+    },
   );
+  assert.ok(
+    globalIntrinsics.length > 20,
+    `the derived alphabet must enumerate the realm; found ${globalIntrinsics.length}`,
+  );
+  assert.deepEqual(
+    ["Object", "Number", "String", "Symbol", "Reflect", "Array", "Set"].filter(
+      (name) => !globalIntrinsics.includes(name),
+    ),
+    [],
+    "the derived alphabet must include every namespace this file actually reads",
+  );
+  // The POSITION: none. A bare occurrence of the name is a finding, full stop.
   const pattern = new RegExp(
-    `\\b(?:${globalCallables.join("|")})\\s*[.(]|\\.prototype\\.[A-Za-z]+|\\.call\\s*\\(|\\.apply\\s*\\(`,
+    `(?<![.\\w$])(?:${globalIntrinsics.join("|")})(?![\\w$])`,
     "g",
   );
+  // ONE extractor, used for the file AND for the control below, so the control exercises the exact
+  // code path that produced the empty result rather than a second copy of it that could differ.
+  //
+  // Comments and literals are removed by a SINGLE LEFT-TO-RIGHT PASS, not by sequential regex
+  // replacements. Sequential passes have an ordering bug in whichever direction they are ordered:
+  // stripping comments first lets a `//` inside a string eat the rest of that line — a reviewer hid
+  // a live `String(index)` behind `["https://", …]` and the scan reported clean. A single pass has
+  // no ordering, because it always knows which construct it is currently inside.
+  const stripLiterals = (text) => {
+    let out = "";
+    let index = 0;
+    while (index < text.length) {
+      const here = text[index];
+      const next = text[index + 1];
+      if (here === "/" && next === "/") {
+        while (index < text.length && text[index] !== "\n") index += 1;
+        continue;
+      }
+      if (here === "/" && next === "*") {
+        index += 2;
+        while (
+          index < text.length &&
+          !(text[index] === "*" && text[index + 1] === "/")
+        )
+          index += 1;
+        index += 2;
+        continue;
+      }
+      if (here === '"' || here === "'" || here === "`") {
+        index += 1;
+        while (index < text.length && text[index] !== here) {
+          // A template's `${…}` holds real code, so it is emitted rather than swallowed.
+          if (here === "`" && text[index] === "$" && text[index + 1] === "{") {
+            index += 2;
+            let depth = 1;
+            while (index < text.length && depth > 0) {
+              if (text[index] === "{") depth += 1;
+              else if (text[index] === "}") depth -= 1;
+              if (depth > 0) out += text[index];
+              index += 1;
+            }
+            continue;
+          }
+          if (text[index] === "\\") index += 1;
+          index += 1;
+        }
+        index += 1;
+        continue;
+      }
+      out += here;
+      index += 1;
+    }
+    return out;
+  };
   const intrinsicReads = (text) =>
-    [
-      ...text
-        // Strip comments and string/template contents so prose naming a primitive is not a finding.
-        // Order is a known approximation: a `//` inside a double-quoted string would eat the rest
-        // of that line. Measured — `diagnostics.ts` contains no such literal, and the direction is
-        // silent, so the control below deliberately feeds one through.
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "")
-        .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-        .replace(/'(?:[^'\\]|\\.)*'/g, "''")
-        .replace(/`(?:[^`\\]|\\.)*`/g, "``")
-        .matchAll(pattern),
-    ].map((match) => match[0]);
+    [...stripLiterals(text).matchAll(pattern)].map((match) => match[0]);
   assert.deepEqual(
     intrinsicReads(outside),
     [],
     "every global intrinsic on the identity path must be read from the module-load capture block",
   );
-  // Instrument control: the scan must be able to see each shape at all, or an empty result above
-  // proves nothing. (That is the failure mode this scan exists to replace, one level down.) The
-  // input deliberately exercises every strip step — block comment, line comment, double-quoted
-  // string, single-quoted string, template — plus a CRLF newline.
+  // Instrument control: the scan must be able to see a bare name at all, or an empty result above
+  // proves nothing — that is the failure mode this scan exists to replace, one level down. The
+  // input exercises every branch of the lexer AND the case a reviewer used to hide a live read:
+  // a `//` inside a string, which a comments-first pass would have let eat the rest of the line.
   assert.deepEqual(
     intrinsicReads(
-      "const x = Object.keys(y);\r\nvoid String(1); a.call(b); c.prototype.sort;\r\n" +
-        "/* Object.is( */ // Number(\r\nconst s = \"Reflect.apply(\";\r\nconst t = 'Symbol.keyFor(';\r\nconst u = `Array.isArray(`;",
+      'const a = ["https://", String(i)][1];\r\n' +
+        "/* Object */ // Number\r\n" +
+        'const s = "Reflect";\r\n' +
+        "const t = 'Symbol';\r\n" +
+        "const u = `Array " +
+        "${" +
+        "Map} Set`;\r\n" +
+        "new WeakMap(); x instanceof Boolean;\r\n" +
+        'const v = "a\\" String"; Date;\r\n' +
+        "const w = `p " +
+        "${" +
+        " {q: Proxy} } r`;",
     ),
-    ["Object.", "String(", ".call(", ".prototype.sort"],
-    "the scan sees each read shape, and sees none inside a comment or a string of any quoting",
+    ["String", "Map", "WeakMap", "Boolean", "Date", "Proxy"],
+    "a bare name is seen wherever it really is code, and never inside a comment or a literal",
   );
 });
 
@@ -800,8 +894,8 @@ test("every captured intrinsic is falsifiable — patching it must not change th
         return visited === 0;
       },
       // `call` is INHERITED from Function.prototype, so assigning the saved value back would leave
-      // a new own property where none existed. Delete instead, and only then fall back to
-      // assignment — a review measured the shape change (`{before:false, after:true}`).
+      // a new own property where none existed. Delete it — a review measured the shape change
+      // (`{before:false, after:true}`).
       () => {
         delete Map.prototype.forEach.call;
       },

@@ -195,15 +195,16 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * value whose `get` says one thing and whose descriptor says another has no privileged reading —
  * and an object can hide state in a private slot that no reflection reports at all, behind a
  * prototype reset to something this encoder admits. Both were measured colliding. Neither is
- * reachable from an OpenLogo program **as specified for v0.1**: the language has no lambda
- * (`spec/conformance.md:59-60`), and no reflection or `Proxy` — which the spec does not mention at
- * all, so that half is an inference from Core's enumeration being closed rather than a citation.
- * No production path in this tree constructs one either; the only `Proxy`s here are adversarial
- * fixtures in `dedupe-diagnostics.test.mjs`, and every one of them lands opaque. The sound fix is
- * a **trusted transport representation** at the worker boundary rather than a further reflective
- * test, which is a design change and not this slice's: issue #1128. Adding another guard here
- * would look like progress and close nothing. Note the v0.1 qualifier is load-bearing — a future
- * host-object escape would make this disposition wrong, and #1128 carries that.
+ * reachable from an OpenLogo program **as specified for v0.1**: the language has no lambda and no
+ * function values (`spec/execution-model.md:413`), and no reflection or `Proxy` — which the spec
+ * does not mention at all, so that half is an inference from Core's enumeration being closed
+ * rather than a citation. No production path in this tree constructs one either; the only
+ * `Proxy`s here are adversarial fixtures in `dedupe-diagnostics.test.mjs`, and every one of them
+ * lands opaque. The sound fix is a **trusted transport representation** at the worker boundary
+ * rather than a further reflective test, which is a design change and not this slice's: issue
+ * #1128. Adding another guard here would look like progress and close nothing. Note the v0.1
+ * qualifier is load-bearing — a future host-object escape would make this disposition wrong, and
+ * #1128 carries that.
  *
  * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
  * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
@@ -260,6 +261,8 @@ const applyFunction = Reflect.apply;
 const toNumber = Number;
 const toText = String;
 const MapConstructor = Map;
+const SetConstructor = Set;
+const WeakMapConstructor = WeakMap;
 const SymbolConstructor = Symbol;
 const TypeErrorConstructor = TypeError;
 const mapPrototype = Map.prototype;
@@ -326,7 +329,7 @@ function tagged(tag: string, text: string): string {
  * member has moved: a `Map` with a subclass prototype, an own property, or an object key is still
  * opaque, because those carry state or reference semantics a structural encoding cannot represent.
  */
-const opaqueIdentities = new WeakMap<WeakKey, number>();
+const opaqueIdentities = new WeakMapConstructor<WeakKey, number>();
 let nextOpaqueIdentity = 0;
 
 function opaqueIdentity(value: symbol | object): string {
@@ -655,7 +658,7 @@ function describe(value: object): Described | undefined {
       children,
     };
   }
-  if (value instanceof Map) {
+  if (prototypeOf(value) === mapPrototype) {
     // A `Map` is not an `OLValue`, and this arm was deliberately absent: exotic host types took
     // opaque identity because describing all of them is unbounded work "for a domain with no
     // members". That premise was FALSIFIED by measurement. `structuredClone` strips a prototype,
@@ -670,7 +673,13 @@ function describe(value: object): Described | undefined {
     // value OFF the opaque path trades a guaranteed false split for the possibility of a
     // collision. Three guards, and every one of them was measured colliding without it:
     //
-    //   1. EXACT PROTOTYPE — a `Map` subclass carries state this encoding cannot see.
+    //   1. EXACT PROTOTYPE — a `Map` subclass carries state this encoding cannot see. This is now
+    //      the ARM'S OWN TEST rather than a check inside it: the arm used to be entered on
+    //      `value instanceof Map`, and `instanceof` consults `Map[Symbol.hasInstance]`, which is
+    //      writable. Two reviewers measured that redefining it to `() => false` made two IDENTICAL
+    //      cloned dicts split — reinstating the exact accessibility regression this arm was added
+    //      to fix. A `Map` subclass still lands opaque: it fails this test, then fails the
+    //      plain-object arm's prototype test too.
     //   2. NO OWN PROPERTIES — `map.extra = "x"` is part of the value and was ignored. Every other
     //      container arm already guards this; `arrayElements` rejects an array with a named own
     //      property for the same reason, and this arm shipped without the equivalent.
@@ -680,11 +689,7 @@ function describe(value: object): Described | undefined {
     // A cloned dict's or record's backing map satisfies all three (exact prototype, zero own
     // properties, string keys), so the clone path this arm exists for is untouched. Anything else
     // falls back to the opaque serial it had before, which is the safe direction.
-    if (
-      prototypeOf(value) !== mapPrototype ||
-      ownNames(value).length > 0 ||
-      ownSymbols(value).length > 0
-    ) {
+    if (ownNames(value).length > 0 || ownSymbols(value).length > 0) {
       return undefined;
     }
     // Read through the captured intrinsic for the same reason the trusted classes do: a `Map`
@@ -788,7 +793,7 @@ export function diagnosticIdentity(diagnostic: Diagnostic): string {
 export function dedupeDiagnostics(
   diagnostics: readonly Diagnostic[],
 ): readonly Diagnostic[] {
-  const seen = new Set<string>();
+  const seen = new SetConstructor<string>();
   const result: Diagnostic[] = [];
   for (const diagnostic of diagnostics) {
     const identity = faultIdentity(diagnostic);
