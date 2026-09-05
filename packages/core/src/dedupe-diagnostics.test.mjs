@@ -366,12 +366,12 @@ test("the captured readers cannot be replaced by patching the prototype", () => 
 });
 
 test("a proxy that hides its contents from the reader is opaque, not a collision", () => {
-  // The backing state is a genuine `#private` field, and a private-field brand check happens
-  // BEFORE any `get` trap can answer — so the captured reader rejects the proxy outright rather
-  // than being lied to. The distinction matters: an earlier version of this comment credited the
-  // trap, and coverage showed the trap is never consulted at all. The assertion below pins that
-  // the deception is live when the proxy is asked publicly, so the test cannot pass merely because
-  // there was nothing to deceive with.
+  // The brand is an unforgeable `#private` field, and the brand check happens BEFORE any property
+  // is read — so a hostile receiver is rejected outright rather than being believed. (The backing
+  // data itself is deliberately NOT private: a review measured that privacy made two records
+  // COLLIDE after `structuredClone`, silently. See the doc in `diagnostics.ts`.) The assertions
+  // below pin that the deception is live when the proxy is asked publicly, so the test cannot pass
+  // merely because there was nothing to deceive with.
   const hiding = (marker) => {
     const dictionary = new OLDict();
     dictionary.set("a", marker);
@@ -387,10 +387,20 @@ test("a proxy that hides its contents from the reader is opaque, not a collision
     0,
     "the deception is live when asked publicly",
   );
-  assert.throws(
-    () => one.keys(),
-    /private member/,
-    "and the brand check rejects the proxy as a receiver, whoever asks",
+  assert.equal(
+    typeof one.set,
+    "function",
+    "and it is a faithful stand-in on every other property, so nothing else gives it away",
+  );
+  assert.equal(
+    OLDict.isGenuine(one),
+    false,
+    "a Proxy wearing OLDict's prototype passes instanceof but fails the private-field brand",
+  );
+  assert.equal(
+    one instanceof OLDict,
+    true,
+    "which is exactly why instanceof is not the check",
   );
   assert.equal(survivors(one, hiding(2)), 2);
 });

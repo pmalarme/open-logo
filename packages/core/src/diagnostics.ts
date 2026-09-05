@@ -185,45 +185,20 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * objects through `Object.keys` was measured both colliding (symbol-keyed and non-enumerable
  * properties are invisible to it) and *throwing* (an enumerable getter that raises).
  *
- * **KNOWN GAP — a structured clone loses OL value data, and this slice moved it the wrong way.**
- * `OLDict`/`OLRecord` hold their contents in `#private` fields, which `structuredClone` cannot see,
- * so a diagnostic crossing a `postMessage` boundary arrives with `{}` where a dict was and
- * `{"type":"point"}` where a record was. Two different dicts then share an identity and one is
- * silently discarded — the direction this encoding exists to prevent. Measured: live values are
- * distinguished correctly, cloned ones are not, and `packages/studio/src/worker-execution-host.ts`
- * posts `Diagnostic[]` across exactly that boundary.
+ * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
+ * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
+ * `{}` where a dict was. Measured with the data private: two records differing only in their
+ * declared fields both cloned to `{"type":"p"}`, collided, and the screen-reader announcer stopped
+ * reporting the change — a **silent** loss, and a regression against the pre-slice shape where
+ * `declaredFields` was an ordinary property that clones natively. So the data stays in ordinary
+ * properties and the `#brand` carries the unforgeable part.
  *
- * Before the `#private` conversion the backing `Map` was an own enumerable property, which
- * `structuredClone` clones natively, so cloned values stayed **distinct** — a false split, which is
- * visible. The conversion was made to brand-check against a hostile receiver (a Proxy answering
- * publicly while hiding its contents from the reader) and it fixed real collisions among live
- * values; it also turned a safe false split into a silent collision across the clone boundary.
- *
- * The repair belongs in the host rather than here: a `Diagnostic` crossing a worker boundary needs a
- * serialization that preserves OL values, and no encoding on this side can recover data the clone
- * algorithm has already dropped. Two further measurements, recorded so the next reader does not
- * spend a round rediscovering them: `structuredClone` does **not** consult `toJSON`, so a
- * `#private`-backed value with a working `toJSON` still clones to `{}`; and comparing `message`
- * beside identity does not help either, because the message is value-independent by design — both
- * `forward {a: 1}` and `forward {a: 2}` say "forward needs a number, but got a dict.". A wire
- * format also fixes only the worker boundary: `describe()` brand-checks with `instanceof`, so any
- * duplicated `@openlogo/core` module instance collides identically, `postMessage` or not.
+ * A cloned value loses its prototype, so it is described by the plain-object arm instead. Contents
+ * that are `Map`s then take opaque per-instance identity, which means two *equal* cloned dicts
+ * false-split into two findings. That is the safe direction — a redundant announcement rather than
+ * a missing one — and strictly better than the pre-slice behaviour, where `JSON.stringify` rendered
+ * every dict as `{}` and collided equal and unequal alike.
  */
-/**
- * The trusted collection readers, **captured at module load**.
- *
- * `OLDict.prototype.keys` looked up at call time is still a mutable slot: monkey-patching the
- * prototype to return `[]` was measured collapsing two different populated dicts into one fault.
- * Reading the reference once, before any host code can run, removes that. The classes' backing
- * state is a genuine `#private` field, so these functions **brand-check** — a Proxy that answers
- * publicly while hiding its real contents throws here instead of describing itself, and the caller
- * turns that into opaque identity.
- */
-const readDictKeys = OLDict.prototype.keys;
-const readDictValues = OLDict.prototype.values;
-const readRecordFields = OLRecord.prototype.fields;
-const readRecordField = OLRecord.prototype.get;
-
 /** A string rendered so it cannot be confused with anything around it. */
 function tagged(tag: string, text: string): string {
   return `${tag}${text.length}:${text}`;
@@ -462,14 +437,15 @@ type Described =
  * Classify `value` and snapshot its children, or return `undefined` when it has no structural
  * description. May throw — the sole caller treats that identically to `undefined`.
  *
- * **Trusted-class contents are read through the base prototype, never through dispatch.** A guard
- * that only catches *throwing* overrides still trusts *lying* ones: an `OLDict` subclass whose
- * `keys()` returns `[]` was measured making two dicts with different contents into one fault, and a
+ * **Trusted-class contents are read as own data properties, never through dispatch.** A guard that
+ * only catches *throwing* overrides still trusts *lying* ones: an `OLDict` subclass whose `keys()`
+ * returns `[]` was measured making two dicts with different contents into one fault, and a
  * populated liar collapse onto a genuinely empty dict — the silent discard this whole encoding
  * exists to prevent, reached through the one path the `try` cannot see, because misdescription
  * never raises. `instanceof` is likewise not proof of shape: `Symbol.hasInstance` can be trapped.
- * Calling `OLDict.prototype.keys` on the value reads the real private state or throws, and throwing
- * lands in the caller's catch as opaque identity. Nothing here depends on the instance behaving.
+ * So each trusted arm first checks an unforgeable `#private` brand, then reads the backing state
+ * through its own property descriptor — a hostile receiver fails the brand and a `get` trap never
+ * runs. Nothing here depends on the instance behaving.
  */
 function describe(value: object): Described | undefined {
   if (value instanceof OLTurtle) {
@@ -494,29 +470,49 @@ function describe(value: object): Described | undefined {
     return { kind: "container", head: `arr${value.length}(`, children };
   }
   if (value instanceof OLDict) {
-    // Snapshotted ONCE, through the captured base implementation. Asking `values()` per key rebuilt
-    // the whole collection per entry; asking the INSTANCE, or the prototype at call time, let a
-    // subclass or a monkey-patch answer for it.
-    const keys = readDictKeys.call(value);
-    const values = readDictValues.call(value);
-    for (let index = 0; index < keys.length; index++) {
-      children.push(keys[index], values[index]);
+    // Read the OWN DATA PROPERTY, not a method and not a trapped read. The brand check is what
+    // makes that safe: a Proxy wearing `OLDict`'s prototype passes `instanceof` but fails
+    // `isGenuine`, so it cannot lie about its contents; a subclass or a modified instance whose
+    // `entries` really holds different data is describing real data, which is correct.
+    //
+    // The data deliberately lives in an ordinary property rather than a `#private` one. A private
+    // field is invisible to `structuredClone`, and a `Diagnostic` crossing the studio worker's
+    // `postMessage` then arrives with `{}` where a dict was — two different dicts sharing an
+    // identity, one silently discarded, in the accessibility path. Measured: with the data private,
+    // two records differing only in their declared fields both cloned to `{"type":"p"}` and the
+    // screen-reader announcer stopped reporting the change.
+    if (!OLDict.isGenuine(value)) {
+      return undefined;
     }
-    return { kind: "container", head: `dict${keys.length}(`, children };
+    const entries = dataProperty(value, "entries");
+    if (!(entries instanceof Map)) {
+      return undefined;
+    }
+    for (const entry of entries.values()) {
+      children.push(entry.key, entry.value);
+    }
+    return { kind: "container", head: `dict${entries.size}(`, children };
   }
   if (value instanceof OLRecord) {
+    if (!OLRecord.isGenuine(value)) {
+      return undefined;
+    }
     const type = dataProperty(value, "type");
     if (typeof type !== "string") {
       // Record type `1` and record type `"1"` are different types; `String()` made them one.
       return undefined;
     }
-    const fields = readRecordFields.call(value);
-    for (const field of fields) {
-      children.push(field, readRecordField.call(value, field));
+    const declared = dataProperty(value, "declaredFields");
+    const slots = dataProperty(value, "slots");
+    if (!Array.isArray(declared) || !(slots instanceof Map)) {
+      return undefined;
+    }
+    for (const field of declared) {
+      children.push(field, slots.get(String(field).toLowerCase()));
     }
     return {
       kind: "container",
-      head: `rec${tagged("", type)}${fields.length}(`,
+      head: `rec${tagged("", type)}${declared.length}(`,
       children,
     };
   }

@@ -134,7 +134,7 @@ test("BOUND 1, parenthesized: a delimited call's arity is known, so a later toke
   assert.deepEqual(findings("(forward 100) 5"), ["ol-bad-token@1:15"]);
 });
 
-test("no code is emitted at both severities, which is what makes first-wins safe", () => {
+test("no code WRITTEN AS A LITERAL is emitted at both severities, which is what makes first-wins safe", () => {
   // `dedupeDiagnostics` keeps the FIRST of a colliding pair, so a warning arriving before an
   // identical-identity error would drop the error and silently defeat the run gate. The doc argues
   // that cannot happen because only `checker-style.ts` emits warnings, under `ol-style-*` codes no
@@ -144,7 +144,27 @@ test("no code is emitted at both severities, which is what makes first-wins safe
   // This asserts the precondition instead: warning-emitting codes and error-emitting codes are
   // disjoint. The day a non-style code emits at both severities, this fails instead of the gate
   // quietly weakening.
+  //
+  // WHAT THE INSTRUMENT ENUMERATES, because a scan that does not say so invites being read as
+  // proof of more than it measured: every `.ts` file under `packages/` except `node_modules` and
+  // `dist`, and within each, every `code:` / `severity:` pair written as string literals within
+  // 400 characters of each other, in EITHER property order. It therefore cannot see a code held in
+  // a variable, assembled by a factory, or spread from another object — `severityFor(code)` would
+  // be invisible to it. That is a real blind spot and it is not closed by scanning harder; the
+  // control below only proves the scan sees the shapes it claims, not that no other shape exists.
   const emitted = new Map();
+  const record = (into, text) => {
+    for (const [, name, severity] of text.matchAll(
+      /code:\s*"(ol-[a-z0-9-]+)"[\s\S]{0,400}?severity:\s*"(error|warning)"/g,
+    )) {
+      into.set(name, (into.get(name) ?? new Set()).add(severity));
+    }
+    for (const [, severity, name] of text.matchAll(
+      /severity:\s*"(error|warning)"[\s\S]{0,400}?code:\s*"(ol-[a-z0-9-]+)"/g,
+    )) {
+      into.set(name, (into.get(name) ?? new Set()).add(severity));
+    }
+  };
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
@@ -158,12 +178,7 @@ test("no code is emitted at both severities, which is what makes first-wins safe
         continue;
       }
       const text = readFileSync(full, "utf8");
-      // Pair each `code: "ol-…"` with the nearest `severity:` that follows it in the same literal.
-      for (const [, name, severity] of text.matchAll(
-        /code:\s*"(ol-[a-z0-9-]+)"[\s\S]{0,400}?severity:\s*"(error|warning)"/g,
-      )) {
-        emitted.set(name, (emitted.get(name) ?? new Set()).add(severity));
-      }
+      record(emitted, text);
     }
   };
   walk("packages");
@@ -174,10 +189,22 @@ test("no code is emitted at both severities, which is what makes first-wins safe
     [],
     "a code emitted at both severities makes dedupe's first-wins able to drop an error behind a warning",
   );
-  // The instrument control: the scan must have seen codes at all.
+  // The instrument control: the scan must have seen codes at all, and must see BOTH literal
+  // orders — the reversed one was added after a review measured the original regex blind to it.
   assert.ok(
     emitted.size > 0,
     "the severity scan found no emitting code at all",
+  );
+  const control = new Map();
+  record(control, '{ code: "ol-probe-a", severity: "error" }');
+  record(control, '{ severity: "warning", code: "ol-probe-b" }');
+  assert.deepEqual(
+    [...control].map(([name, severities]) => [name, [...severities]]).sort(),
+    [
+      ["ol-probe-a", ["error"]],
+      ["ol-probe-b", ["warning"]],
+    ],
+    "the scan must see both property orders, or a reversed literal would pass unmeasured",
   );
 });
 

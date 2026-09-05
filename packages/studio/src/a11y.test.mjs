@@ -994,7 +994,12 @@ test("a diagnostic that changes only inside a record value is still announced", 
   const withFieldY = diagnosticsFrom("struct p [ y ]\nforward p 1\n");
 
   // Both are `ol-type` at the same span carrying a record of type `p` — they differ only in the
-  // record's shape, which is exactly what `JSON.stringify` could not see.
+  // record's shape. When this test was written the two `params` were `JSON.stringify`-identical,
+  // because the record's fields were behind a `#private` slot; a review then measured that the
+  // same privacy made two such records COLLIDE after `structuredClone`, silently, so the data
+  // moved back to ordinary properties guarded by an unforgeable brand. Serialization can now tell
+  // these two apart again — which is why the assertion is on the ANNOUNCEMENT, not on the
+  // serialization: the announcer must report the change however the params happen to render.
   assert.deepEqual(
     withFieldX.map((diagnostic) => diagnostic.code),
     ["ol-type"],
@@ -1002,11 +1007,6 @@ test("a diagnostic that changes only inside a record value is still announced", 
   assert.deepEqual(
     withFieldY.map((diagnostic) => diagnostic.code),
     ["ol-type"],
-  );
-  assert.deepEqual(
-    JSON.stringify(withFieldX[0].params),
-    JSON.stringify(withFieldY[0].params),
-    "the hazard is live: serialization still cannot tell these two apart",
   );
 
   const state = OL.createStudioState();
@@ -1109,5 +1109,28 @@ test("the announcer key stays injective across control characters in params", ()
     announcer.getAnnouncements().length,
     afterFirst + 1,
     "two params differing only in a control character are different diagnostics",
+  );
+});
+
+test("a record diagnostic that crosses a structured clone is still announced", () => {
+  // The regression `rubber-duck` measured and the reason the backing data is not `#private`:
+  // `structuredClone` cannot see a private field, so two records differing only in their declared
+  // fields both arrived as `{"type":"p"}` and the announcer went 1 -> 1. Silently. This is the
+  // studio Worker's transport, and it is the accessibility path this slice touched.
+  const withFieldX = structuredClone(
+    diagnosticsFrom("struct p [ x ]\nforward p 1\n"),
+  );
+  const withFieldY = structuredClone(
+    diagnosticsFrom("struct p [ y ]\nforward p 1\n"),
+  );
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withFieldX);
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldY);
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "a cloned diagnostic that genuinely changed must still reach the screen reader",
   );
 });
