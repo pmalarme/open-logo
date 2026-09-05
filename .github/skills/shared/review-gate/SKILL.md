@@ -158,6 +158,18 @@ used the same regex, so it confirmed the move it had itself mis-parsed. **A veri
 subject's own parser is a second opinion in name only.** (Commit `499da987` records the 48; its diff
 carries the two comma-tailed citations whose head moved while the tail did not.)
 
+**3. The reporter suppresses the signal you are filtering for.** The instrument runs, the subject
+really does fail, and your filter reports success — because it is matching a string the reporter
+never emits. `node --test`'s default reporter does **not** print TAP `not ok`, so a perturbation
+harness grepping for `not ok` concludes "my test is not load-bearing" no matter what happened; pass
+`--test-reporter=tap`. The same shape caught a reviewer from the other direction: `[System.IO.File]::WriteAllText`
+resolves relative paths against **.NET's** working directory, which PowerShell's `cd` does not
+change, so three perturbations were written into a different checkout than the one being built and
+tested (set `[System.Environment]::CurrentDirectory = $pwd`). Both cost multiple false conclusions
+in one slice. **Attribute a failure to a test by NAME, and make every perturbation carry a
+behavioural control proving the mutation reached the artifact you are measuring** — a fail *count*
+tells you something changed, not that the thing you meant to break is what broke.
+
 **The operational form — and the only reliable check.** An instrument cannot detect its own blind
 spot, so the remedy is never a more careful pass with the same one: it is **a second,
 differently-shaped instrument**. Re-running your own sweep more attentively re-measures the same set.

@@ -177,13 +177,17 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  *
  * The value **domain is bounded**, not universal. `params` is typed `Record<string, unknown>`, but
  * the values diagnostics actually carry are `OLValue`s, spans, words and numbers, and only those are
- * described structurally. Everything else — a `Symbol`, a function, a `Date`, a `Map`, an object with
+ * described structurally. Everything else — a `Symbol`, a function, a `Date`, a `Set`, an object with
  * a symbol key, a non-enumerable slot or an accessor — takes an **opaque per-instance identity**.
  * That is conservative in the safe direction: two *equal* exotic values false-split into two
  * findings, which a reader can see, rather than colliding, which nobody can. Describing every host
- * type structurally would be unbounded work for a domain with no members, and reading unknown
- * objects through `Object.keys` was measured both colliding (symbol-keyed and non-enumerable
- * properties are invisible to it) and *throwing* (an enumerable getter that raises).
+ * type structurally would be unbounded work, and reading unknown objects through `Object.keys` was
+ * measured both colliding (symbol-keyed and non-enumerable properties are invisible to it) and
+ * *throwing* (an enumerable getter that raises).
+ *
+ * A **plain `Map` with primitive keys** is the one exception, and the exception has a reason rather
+ * than a convenience: it is what a `structuredClone`d dict or record arrives as. See the `Map` arm
+ * in {@link describe} and the retraction below — the rule held and one membership claim did not.
  *
  * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
  * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
@@ -202,19 +206,32 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * measured in `a11y.test.mjs`, in both directions — announce on change, and only on change.
  */
 /**
- * The guards and collection readers this encoder trusts, **captured at module load**.
+ * The guards, readers and **reflection primitives** this encoder trusts, captured at module load.
  *
- * Every one of these is a mutable slot at call time. `OLDict.isGenuine` is a writable static, so
- * `OLDict.isGenuine = () => true` was measured admitting an `Object.create(OLDict.prototype)` with
- * a lying `entries` and collapsing it onto a genuine empty dict. `Map.prototype.forEach` is the
- * same shape one level down: a `Map` subclass overriding it reports contents its `get` contradicts.
- * Reading each reference once, before any host code can run, removes both — and `forEach.call`
- * reaches a `Map`'s internal slot directly, so a subclass cannot interpose and a Proxy (which has
- * no such slot) throws, landing in the caller's catch as opaque identity.
+ * Every one of these is a mutable slot at call time, and each was measured producing a collision
+ * when left dynamic. `OLDict.isGenuine` is a writable static, so `OLDict.isGenuine = () => true`
+ * admitted an `Object.create(OLDict.prototype)` with a lying `entries` and collapsed it onto a
+ * genuine empty dict. `Map.prototype.forEach` is the same shape one level down: a `Map` subclass
+ * overriding it reports contents its `get` contradicts. And `Object.getOwnPropertyDescriptor` is
+ * the same shape one level down again — patching it to report an empty map made two genuine dicts
+ * holding `1` and `2` collide, straight through every brand check above it.
+ *
+ * The pattern is what matters, not the three instances: **capturing some of the chain leaves the
+ * rest of it dynamic**, and the hardening is only as strong as its most reachable link. So every
+ * reflection primitive the identity path touches is captured here, not just the ones a reviewer
+ * happened to name. `forEach.call` also reaches a `Map`'s internal slot directly, so a subclass
+ * cannot interpose and a Proxy (which has no such slot) throws, landing in the caller's catch as
+ * opaque identity.
  */
 const dictIsGenuine = OLDict.isGenuine;
 const recordIsGenuine = OLRecord.isGenuine;
 const mapForEach = Map.prototype.forEach;
+const ownDescriptor = Object.getOwnPropertyDescriptor;
+const ownDescriptors = Object.getOwnPropertyDescriptors;
+const ownNames = Object.getOwnPropertyNames;
+const ownSymbols = Object.getOwnPropertySymbols;
+const prototypeOf = Object.getPrototypeOf;
+const isArray = Array.isArray;
 
 /**
  * Snapshot a `Map`'s entries through the captured intrinsic, or throw.
@@ -228,6 +245,25 @@ function mapEntrySnapshot(map: unknown): [unknown, unknown][] {
     snapshot.push([key, value]);
   });
   return snapshot;
+}
+
+/**
+ * Does structural equality agree with `Map`'s own key comparison for this key?
+ *
+ * A `Map` compares keys by SameValueZero, which is **reference** identity for objects, functions
+ * and symbols — while this encoder compares structurally. The two disagree exactly there, and the
+ * disagreement is the silent direction: two maps keyed by *different* empty objects encode alike
+ * (both keys describe as `obj0(`) although neither `has` the other's key. Measured, they collided.
+ *
+ * For every primitive the two agree, which covers the whole reason the `Map` arm exists — a cloned
+ * dict keys its backing map by canonical strings, a cloned record by folded field names.
+ */
+function keyComparesStructurally(key: unknown): boolean {
+  const kind = typeof key;
+  return (
+    key === null ||
+    (kind !== "object" && kind !== "function" && kind !== "symbol")
+  );
 }
 
 /** A string rendered so it cannot be confused with anything around it. */
@@ -252,7 +288,9 @@ function tagged(tag: string, text: string): string {
  * `Map` **was** on that list and is not any more, because the domain turned out to have a member:
  * a `structuredClone`d dict or record arrives as a plain object holding a bare `Map`. See the
  * `Map` arm in {@link describe} — the general argument was right and the specific membership claim
- * was wrong, so the fix is to move the one member, not to abandon the rule.
+ * was wrong, so the fix is to move the one member, not to abandon the rule. Only the shape that
+ * member has moved: a `Map` with a subclass prototype, an own property, or an object key is still
+ * opaque, because those carry state or reference semantics a structural encoding cannot represent.
  */
 const opaqueIdentities = new WeakMap<WeakKey, number>();
 let nextOpaqueIdentity = 0;
@@ -289,10 +327,10 @@ function opaqueIdentity(value: symbol | object): string {
  * false-split but cannot collide or throw.
  */
 function structuralEntries(value: object): [string, unknown][] | undefined {
-  if (Object.getOwnPropertySymbols(value).length > 0) {
+  if (ownSymbols(value).length > 0) {
     return undefined;
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const descriptors = ownDescriptors(value);
   const entries: [string, unknown][] = [];
   for (const key of Object.keys(descriptors).sort()) {
     const descriptor = descriptors[key] as PropertyDescriptor;
@@ -328,10 +366,10 @@ function isArrayIndexName(name: string): boolean {
  * {@link ARRAY_HOLE}.
  */
 function arrayElements(value: readonly unknown[]): unknown[] | undefined {
-  if (Object.getOwnPropertySymbols(value).length > 0) {
+  if (ownSymbols(value).length > 0) {
     return undefined;
   }
-  for (const name of Object.getOwnPropertyNames(value)) {
+  for (const name of ownNames(value)) {
     if (name !== "length" && !isArrayIndexName(name)) {
       return undefined;
     }
@@ -344,7 +382,7 @@ function arrayElements(value: readonly unknown[]): unknown[] | undefined {
       elements.push(ARRAY_HOLE);
       continue;
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    const descriptor = ownDescriptor(value, index);
     if (descriptor === undefined || !("value" in descriptor)) {
       return undefined;
     }
@@ -435,7 +473,7 @@ function encodeAtomOrOpen(
   // the trusted-class exemption is trusted about the CLASS, not about the instance. One guard
   // closes the whole family: any failure to classify or snapshot a value means it cannot be
   // described, and a value that cannot be described gets an opaque identity — which is exactly what
-  // the boundary already does for a `Date` or a `Map`. Patching the three known instances would
+  // the boundary already does for a `Date` or a `Set`. Patching the three known instances would
   // have left the fourth.
   let described: Described | undefined;
   try {
@@ -485,6 +523,14 @@ type Described =
  */
 function describe(value: object): Described | undefined {
   if (value instanceof OLTurtle) {
+    // NOTE — `OLTurtle` is the third value class on this path and the only one with NO brand and no
+    // locked backing property, so a Proxy wearing its prototype CAN lie about `id` and collapse two
+    // different turtles into one fault. That is measured, pre-existing (it was unbranded at this
+    // slice's merge-base too), and unreachable from an OpenLogo program — the language has no
+    // lambda, no reflection and no way to construct a Proxy, so the attacker is already host JS
+    // inside the realm. It is recorded here rather than left silent because two of three classes
+    // being hardened reads as "all three are handled". Tracked separately; do not read the absence
+    // of a brand here as a decision that one is unnecessary.
     const id = dataProperty(value, "id");
     // A turtle's identity is its id, so an id that is not a finite number identifies nothing —
     // `String()` rendered two `OLTurtle(NaN)` alike although `NaN !== NaN` makes them different
@@ -495,7 +541,7 @@ function describe(value: object): Described | undefined {
     return { kind: "atom", text: `turtle${id};` };
   }
   const children: unknown[] = [];
-  if (Array.isArray(value)) {
+  if (isArray(value)) {
     const elements = arrayElements(value);
     if (elements === undefined) {
       return undefined;
@@ -523,13 +569,19 @@ function describe(value: object): Described | undefined {
       return undefined;
     }
     const snapshot = mapEntrySnapshot(dataProperty(value, "entries"));
-    for (const [, entry] of snapshot) {
+    for (const [canonicalKey, entry] of snapshot) {
       if (typeof entry !== "object" || entry === null) {
         return undefined;
       }
-      // The entry payload is an internal record, so its fields are read as data properties too —
-      // an accessor here would be one more undispatched lie.
-      children.push(dataProperty(entry, "key"), dataProperty(entry, "value"));
+      // The CANONICAL KEY is encoded beside the payload, not discarded. It is the key `get()`
+      // resolves against, so two dicts whose payloads match but whose backing keys differ answer
+      // `get` differently while encoding alike — measured colliding. The payload's own `key` is
+      // the original spelling and is a different fact, so both are part of the value.
+      children.push(
+        canonicalKey,
+        dataProperty(entry, "key"),
+        dataProperty(entry, "value"),
+      );
     }
     return { kind: "container", head: `dict${snapshot.length}(`, children };
   }
@@ -543,7 +595,7 @@ function describe(value: object): Described | undefined {
       return undefined;
     }
     const declared = dataProperty(value, "declaredFields");
-    if (!Array.isArray(declared)) {
+    if (!isArray(declared)) {
       return undefined;
     }
     // The declared names go through the same array snapshot as any other array, so a Proxy over an
@@ -580,15 +632,39 @@ function describe(value: object): Described | undefined {
     // same error again on every Run, and no such diagnostic could be de-duplicated at all on the
     // worker side. The domain has exactly one member and it is on the accessibility path.
     //
+    // The arm is therefore admitted only for the shape that member actually has, because moving a
+    // value OFF the opaque path trades a guaranteed false split for the possibility of a
+    // collision. Three guards, and every one of them was measured colliding without it:
+    //
+    //   1. EXACT PROTOTYPE — a `Map` subclass carries state this encoding cannot see.
+    //   2. NO OWN PROPERTIES — `map.extra = "x"` is part of the value and was ignored. Every other
+    //      container arm already guards this; `arrayElements` rejects an array with a named own
+    //      property for the same reason, and this arm shipped without the equivalent.
+    //   3. PRIMITIVE KEYS ONLY — see `keyComparesStructurally`. A map keyed by objects has
+    //      reference semantics that a structural encoding cannot represent.
+    //
+    // A cloned dict's or record's backing map satisfies all three (exact prototype, zero own
+    // properties, string keys), so the clone path this arm exists for is untouched. Anything else
+    // falls back to the opaque serial it had before, which is the safe direction.
+    if (
+      prototypeOf(value) !== Map.prototype ||
+      ownNames(value).length > 0 ||
+      ownSymbols(value).length > 0
+    ) {
+      return undefined;
+    }
     // Read through the captured intrinsic for the same reason the trusted classes do: a `Map`
     // subclass overriding `forEach` would otherwise misdescribe itself without raising.
     const snapshot = mapEntrySnapshot(value);
     for (const [key, entry] of snapshot) {
+      if (!keyComparesStructurally(key)) {
+        return undefined;
+      }
       children.push(key, entry);
     }
     return { kind: "container", head: `map${snapshot.length}(`, children };
   }
-  const prototype = Object.getPrototypeOf(value);
+  const prototype = prototypeOf(value);
   const entries =
     prototype === Object.prototype || prototype === null
       ? structuralEntries(value)
@@ -612,7 +688,7 @@ function describe(value: object): Described | undefined {
  * the string `"1"`, and record type `1` onto `"1"`. Each caller validates the domain it expects.
  */
 function dataProperty(value: object, name: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
+  const descriptor = ownDescriptor(value, name);
   if (descriptor === undefined || !("value" in descriptor)) {
     throw new TypeError(`${name} is not a data property`);
   }

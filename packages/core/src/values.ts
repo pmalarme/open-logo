@@ -49,6 +49,16 @@ interface OLDictEntry {
  * properties and cannot see a `#private` field, and a diagnostic payload crossing the studio
  * worker's `postMessage` with its contents erased is the same silent collision by another route.
  * The collections' *contents* stay mutable — records and dicts are mutable values.
+ *
+ * **What it costs, and what it does not buy.** `Object.defineProperty` on an instance takes the
+ * object off V8's fast allocation path, and a review measured construction at roughly 11× for a
+ * dict and 14× for a record — sub-microsecond either way, with reads unaffected, but `dict` and
+ * `record` are core value types a learner program allocates in loops, so it is a real cost and not
+ * a pure win. What it buys is defence against **host JavaScript already inside the realm**; no
+ * OpenLogo program can reach any of it, because the language has no lambda, no reflection and no
+ * way to construct a Proxy. It also imposes a permanent constraint worth stating plainly: a
+ * subclass declaring a field named `entries`, `type`, `declaredFields` or `slots` now throws at
+ * construction. That is deliberate, and loud, rather than accidental.
  */
 function lockBackingData(target: object, names: readonly string[]): void {
   for (const name of names) {
@@ -64,7 +74,7 @@ function lockBackingData(target: object, names: readonly string[]): void {
 /**
  * The Data-profile `dict` value (`spec/data-structures.md:143-250`): a mutable, insertion-ordered
  * key/value collection. Keys are words or numbers, compared under OpenLogo's number↔word equality
- * (`spec/execution-model.md:490-491`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
+ * (`spec/execution-model.md:554-556`, e.g. `5` and `"5"` name the same slot, `5` and `"05"` do
  * not). {@link set} on an existing canonical key updates the stored value in place rather than
  * reinserting, so "last-duplicate-wins value, first-insertion-position iteration"
  * (`spec/data-structures.md:160-168`) falls directly out of the backing `Map`'s own

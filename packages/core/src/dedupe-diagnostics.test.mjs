@@ -573,9 +573,129 @@ test("a Map subclass cannot interpose on the backing read", () => {
       2,
       "a populated dict and an empty one stay two faults under a patched forEach",
     );
+    assert.equal(
+      survivors(populated(), populated()),
+      1,
+      "and two EQUAL dicts still collapse to ONE — the half that fails if the read broke entirely",
+    );
   } finally {
     Map.prototype.forEach = real;
   }
+});
+
+test("the reflection primitives are captured too, one layer below the readers", () => {
+  // The hardening is only as strong as its most reachable link. `Map.prototype.forEach` was
+  // captured while `Object.getOwnPropertyDescriptor` — which every trusted arm reads its backing
+  // property through — was still looked up dynamically. Patching it to report an empty map made
+  // two genuine dicts holding 1 and 2 collide, straight through the brand checks above it.
+  const real = Object.getOwnPropertyDescriptor;
+  const populated = (marker) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", marker);
+    return dictionary;
+  };
+  const one = populated(1);
+  const two = populated(2);
+  try {
+    Object.getOwnPropertyDescriptor = (target, key) =>
+      key === "entries"
+        ? {
+            value: new Map(),
+            writable: false,
+            enumerable: true,
+            configurable: false,
+          }
+        : real(target, key);
+    assert.equal(
+      Object.getOwnPropertyDescriptor(one, "entries").value.size,
+      0,
+      "the patch is live: asking publicly reports an empty map",
+    );
+    assert.equal(
+      Object.getOwnPropertyDescriptor({ other: 7 }, "other").value,
+      7,
+      "and it forwards every other key honestly, so `entries` is all it lies about",
+    );
+    assert.equal(
+      survivors(one, two),
+      2,
+      "but the encoder reads its captured descriptor reader, so the two dicts stay two faults",
+    );
+    assert.equal(
+      survivors(populated(3), populated(3)),
+      1,
+      "and two EQUAL dicts still collapse to ONE, so the read did not simply break",
+    );
+  } finally {
+    Object.getOwnPropertyDescriptor = real;
+  }
+});
+
+test("a Map carrying state outside its entries is opaque, not a collision", () => {
+  // Moving `Map` off the opaque path traded a guaranteed false split for the possibility of a
+  // collision, and the first version of the arm took that trade without the guards every sibling
+  // arm already had. Each row below was MEASURED colliding before them.
+  const withExtra = (marker) => {
+    const map = new Map([["a", 1]]);
+    map.extra = marker;
+    return map;
+  };
+  assert.notEqual(
+    withExtra("x").extra,
+    withExtra("y").extra,
+    "the two maps really do differ, so the split below is not vacuous",
+  );
+  assert.equal(
+    survivors(withExtra("x"), withExtra("y")),
+    2,
+    "an own property on a Map is part of the value, exactly as it is on an array",
+  );
+
+  class Subclass extends Map {}
+  assert.equal(
+    survivors(new Subclass([["a", 1]]), new Map([["a", 1]])),
+    2,
+    "a Map subclass carries state this encoding cannot see, so it stays opaque",
+  );
+
+  const objectKeyed = () => new Map([[{}, 1]]);
+  const one = objectKeyed();
+  const other = objectKeyed();
+  assert.equal(
+    one.has([...other.keys()][0]),
+    false,
+    "Map compares object keys by REFERENCE, so neither map has the other's key",
+  );
+  assert.equal(
+    survivors(one, other),
+    2,
+    "and a structural encoding cannot represent that, so an object key makes the map opaque",
+  );
+  assert.equal(
+    survivors(new Map([["a", 1]]), new Map([["a", 1]])),
+    1,
+    "while primitive keys, the whole reason this arm exists, still compare structurally",
+  );
+});
+
+test("a dict's backing lookup key is part of its identity", () => {
+  // The backing map keys each entry by its CANONICAL form, and `get()` resolves against that key.
+  // The encoding walked only the payload, so two dicts whose payloads matched but whose backing
+  // keys differed answered `get` differently and encoded alike. TypeScript privacy is erased at
+  // run time, so this state is reachable.
+  const keyedAs = (canonical) => {
+    const dictionary = new OLDict();
+    dictionary.set("a", 1);
+    const entry = dictionary.entries.get("a");
+    dictionary.entries.delete("a");
+    dictionary.entries.set(canonical, entry);
+    return dictionary;
+  };
+  const underA = keyedAs("a");
+  const underB = keyedAs("b");
+  assert.equal(underA.get("a"), 1, "the two dicts answer `get` differently");
+  assert.equal(underB.get("a"), undefined);
+  assert.equal(survivors(underA, underB), 2);
 });
 
 test("an identity slot that is not the type it must be makes the value opaque", () => {

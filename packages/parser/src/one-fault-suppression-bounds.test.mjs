@@ -248,6 +248,27 @@ test("no code the two scans can see is emitted at both severities, which is what
     onlyFromFactories.length > 0,
     `the factory scan must reach codes the literal scan cannot, or it adds nothing; it reached ${onlyFromFactories.length}`,
   );
+  // PREMISE of the factory scan: it attributes `"error"` to every code those two factories emit,
+  // which is only sound while the factories PIN that severity themselves and offer no way to vary
+  // it. Nothing asserted that, so adding a severity parameter to either one would have silently
+  // weakened the gate this test exists to be — the same "a mechanism with no assertion" shape the
+  // scan itself was written to fix, one level up.
+  for (const [path, factory] of [
+    ["packages/parser/src/errors.ts", "parseError"],
+    ["packages/runtime/src/errors.ts", "runtimeError"],
+  ]) {
+    const source = readFileSync(path, "utf8");
+    const body = source.slice(source.indexOf(`function ${factory}(`));
+    const signature = body.slice(0, body.indexOf("): Diagnostic"));
+    assert.ok(
+      body.includes('severity: "error"'),
+      `${factory} must pin severity as a literal, or the scan's attribution is invented`,
+    );
+    assert.ok(
+      !/severity/.test(signature),
+      `${factory} must not take a severity parameter, or its call sites could vary it`,
+    );
+  }
 });
 
 test("BOUND 1's premise: a ParenCall's span starts before its callee's", () => {
