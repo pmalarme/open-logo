@@ -866,13 +866,15 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
       out += here;
       index += 1;
     }
-    // An unterminated template or string blanks the rest of the file while preserving length. That
-    // is only reachable through a mis-lexed construct, but "only reachable through the bug we just
-    // fixed" is how the last five rounds started, so it is checked rather than argued.
+    // An unterminated TEMPLATE or SUBSTITUTION blanks the rest of the file while preserving length,
+    // and only those two push the stack, so only those two are caught here. An unterminated `'`/`"`
+    // is caught by the per-offset alignment assertion instead — its arm runs one space past the end
+    // and the lengths diverge. Both are loud; the guards are named separately because someone will
+    // otherwise read the alignment check as redundant and delete it.
     assert.equal(
       stack.length,
       0,
-      "the scanner ended inside a literal, so the tail of the file was never scanned",
+      "the scanner ended inside a template, so the tail of the file was never scanned",
     );
     return out;
   };
@@ -894,32 +896,39 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
     "the strip must align with the original, or a finding's offset no longer names its line",
   );
   // TYPE POSITIONS are the price of scanning the source instead of the emitted artifact, and they
-  // are paid visibly: each pin carries the LINE and the exact TEXT of that line. Pinning name and
-  // line alone was measured insufficient — three reviewers replaced the annotation on a pinned line
-  // with a live `Map` read and the whole core package stayed green (81/81), because the found list
-  // was unchanged. Pinning the text makes any edit to a pinned line fail, which is exactly when you
+  // are paid visibly: each pin carries the NAME and the exact TEXT of its line. Pinning name and
+  // line was measured insufficient — a reviewer replaced the annotation on a pinned line with a
+  // live `Map` read and the whole core package stayed green (81/81), because the found list was
+  // unchanged. Pinning the text makes any edit to a pinned line fail, which is exactly when you
   // want to look.
+  //
+  // The LINE NUMBER is deliberately NOT compared. It carries no detection the text does not
+  // already carry — a replacement on a pinned line is caught by the text — while an unrelated
+  // insertion anywhere above would fail the gate with an identical text column, training the
+  // reader to bump numbers without looking. That reflex is the one the next paragraph warns
+  // against, and the ordinal was the last hand-maintained number in this instrument. The line is
+  // still REPORTED, so a failure says where to go.
   //
   // A false positive here is LOUD — the test names the identifier — and the repair is to RENAME THE
   // LOCAL, not to re-add a filter to the alphabet and not to add a pin. Adding pins is how this
   // list would rot: every entry is one more line on which a read could hide, and the text pin is
   // what stops that. The alphabet derives from the running realm and carries lowercase names too
   // (`parseInt`, `structuredClone`, `crypto`), so a local with one of those names would fire; the
-  // alphabet assertion below includes one of them so that half of this claim is gated rather than
+  // alphabet assertion above includes one of them so that half of this claim is gated rather than
   // asserted. The realm grows with Node versions, so a name that fires on your machine and not in
   // CI is a version difference, not a regression — check your Node before assuming one.
   const typePositions = [
-    [279, "Map", "  applyFunction(mapForEach, map as Map<unknown, unknown>, ["],
-    [437, "Map", "  readonly depthOf: Map<unknown, number>;"],
+    ["Map", "  applyFunction(mapForEach, map as Map<unknown, unknown>, ["],
+    ["Map", "  readonly depthOf: Map<unknown, number>;"],
   ];
   const found = [...stripped.matchAll(pattern)].map((match) => {
     const line = outside.slice(0, match.index).split("\n").length;
-    return [line, match[0], lines[line - 1]];
+    return { name: match[0], text: lines[line - 1], at: `line ${line}` };
   });
   assert.deepEqual(
-    found,
+    found.map((entry) => [entry.name, entry.text]),
     typePositions,
-    "every global intrinsic on the identity path must be read from the module-load capture block",
+    `every global intrinsic on the identity path must be read from the module-load capture block; found at ${found.map((entry) => entry.at).join(", ")}`,
   );
   // Instrument control: the scan must be able to see a bare name at all, or an empty result above
   // proves nothing — that is the failure mode this scan exists to replace, one level down. The
@@ -988,12 +997,21 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   );
 });
 
-test("the trusted arms are entered on the brand, not on a trappable instanceof", () => {
+test("the dict and record arms are entered on the brand, not on a trappable instanceof", () => {
   // `instanceof` consults the constructor's own `Symbol.hasInstance`. `Function.prototype`'s is
   // non-writable, but a class constructor is extensible, so an own definition SHADOWS it — and
-  // trapping it to `() => false` made two IDENTICAL values split, because the value skipped its arm
-  // and took a per-reference opaque serial from the plain-object arm. That is the screen-reader
+  // shadowing it with `() => false` made two IDENTICAL values split, because the value skipped its
+  // arm and took a per-reference opaque serial from the plain-object arm. That is the screen-reader
   // regression this slice exists to remove, so the arms are entered on the unforgeable brand.
+  //
+  // TWO arms, not three: `OLTurtle` has no brand and is still entered on `instanceof`, measured
+  // trappable in exactly this way. That is pre-existing and tracked by #1129 — named here because
+  // a test called "the trusted arms" would read as all three, which is the misreading
+  // `diagnostics.ts` warns about in its own turtle arm.
+  //
+  // What this asserts is insensitivity to a trapped `Symbol.hasInstance`, which is the negative
+  // half of the name. That the entry test is specifically the BRAND — rather than some other
+  // unforgeable check — is covered by the neighbouring captured-guard and lying-subclass tests.
   //
   // Reverting either arm to `instanceof` leaves every other test in this file green, which is why
   // this one exists: the fix was measured correct and was not load-bearing until now.

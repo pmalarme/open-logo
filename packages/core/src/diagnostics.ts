@@ -604,7 +604,9 @@ function describe(value: object): Described | undefined {
     // screen-reader announcer stopped reporting the change.
     //
     // The arm is ENTERED on the brand, not on `instanceof`. `instanceof` consults
-    // `OLDict[Symbol.hasInstance]`, which is writable: trapping it to `() => false` made two
+    // `OLDict[Symbol.hasInstance]`. The inherited `Function.prototype[Symbol.hasInstance]` is
+    // non-writable, but a class constructor is EXTENSIBLE, so `Object.defineProperty` installs a
+    // shadowing own property — and shadowing it with `() => false` made two
     // IDENTICAL dicts split, because the value skipped this arm and took a per-reference opaque
     // serial from the plain-object arm — the same screen-reader regression the `Map` arm's own
     // entry test was changed to avoid, one binding over. The brand is unforgeable and total, so it
@@ -677,8 +679,10 @@ function describe(value: object): Described | undefined {
     //
     //   1. EXACT PROTOTYPE — a `Map` subclass carries state this encoding cannot see. This is now
     //      the ARM'S OWN TEST rather than a check inside it: the arm used to be entered on
-    //      `value instanceof Map`, and `instanceof` consults `Map[Symbol.hasInstance]`, which is
-    //      writable. Two reviewers measured that redefining it to `() => false` made two IDENTICAL
+    //      `value instanceof Map`, and `instanceof` consults `Map[Symbol.hasInstance]`. The
+    //      inherited `Function.prototype` one is non-writable, but a constructor is EXTENSIBLE, so
+    //      `Object.defineProperty` shadows it. Two reviewers measured that shadowing it with
+    //      `() => false` made two IDENTICAL
     //      cloned dicts split — reinstating the exact accessibility regression this arm was added
     //      to fix. A `Map` subclass still lands opaque: it fails this test, then fails the
     //      plain-object arm's prototype test too.
