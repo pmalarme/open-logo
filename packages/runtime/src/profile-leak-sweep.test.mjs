@@ -266,11 +266,27 @@ test("no non-Core primitive acts under every profile EXCEPT its own", () => {
 // covered by the sweep above.
 //
 // Each case carries a **preamble** and is measured by the effects the form adds *beyond* it. That
-// is not tidiness: the sprites forms need a turtle to address, and `new_turtle` emits
-// `spawn-turtle` whether or not the form under test does anything — so measuring the whole
-// program's effects would let a form pass its own control on an effect its preamble produced.
-// Measured while writing this: `ask` with a bad operand still yielded `spawn-turtle` and acted on
-// nothing.
+// is not tidiness: a form needing a turtle to address would otherwise be credited with the
+// `spawn-turtle` its preamble produced. Measured while writing this: `ask` with a bad operand still
+// yielded `spawn-turtle` and acted on nothing.
+//
+// **A preamble must never use a primitive of the profile under test.** The three sprites forms
+// originally began `:a = new_turtle`, which is itself a Sprites primitive — so in the NEGATIVE
+// direction the terminal rule halted the run on the preamble and the form was never reached. The
+// assertion "no effects beyond the preamble" was satisfied by a program that stopped before the
+// subject, and a review proved it: deleting the `ProfileStatement` guard for exactly `tell`/`ask`/
+// `each` left the whole suite green, while `each [ forward 1 ]` drew a line under a run that never
+// claimed Sprites.
+//
+// The per-form control below cannot see that. It checks the POSITIVE direction, where the preamble
+// works and the form acts, so it passes either way. A control that only proves the subject *can*
+// act is structurally blind to a negative case short-circuiting before it — which is this file's
+// own stated lesson, applied to the primitive half and not, until now, to this one.
+//
+// So the sprites forms are addressed **preamble-free**, using an empty turtle list as the operand
+// where a turtle would otherwise be needed. That is enough: measured under the Sprites closure,
+// `tell []` / `ask [] [ … ]` / `each [ … ]` produce `[primitive]` / `[primitive, primitive]` /
+// `[primitive, move, draw-segment, primitive]`, and without Sprites all three produce nothing.
 const KEYWORD_FORMS = [
   {
     head: "when",
@@ -299,20 +315,20 @@ const KEYWORD_FORMS = [
   {
     head: "tell",
     profile: "sprites",
-    preamble: ":a = new_turtle\n",
-    source: ":a = new_turtle\ntell :a\nforward 1\n",
+    preamble: "",
+    source: "tell []\nforward 1\n",
   },
   {
     head: "ask",
     profile: "sprites",
-    preamble: ":a = new_turtle\n",
-    source: ":a = new_turtle\nask :a [ forward 1 ]\n",
+    preamble: "",
+    source: "ask [] [ forward 1 ]\n",
   },
   {
     head: "each",
     profile: "sprites",
-    preamble: ":a = new_turtle\ntell [ :a ]\n",
-    source: ":a = new_turtle\ntell [ :a ]\neach [ forward 1 ]\n",
+    preamble: "",
+    source: "each [ forward 1 ]\n",
   },
   {
     head: "struct",
@@ -321,6 +337,29 @@ const KEYWORD_FORMS = [
     source: "struct point [ x y ]\nprint (point 1 2).x\n",
   },
 ];
+
+/** Every primitive name the manifest assigns to `profile`. */
+function profilePrimitiveNames(profile) {
+  return BUILT_INS.filter(
+    (entry) => entry.profile === profile && entry.category === "primitive",
+  ).map((entry) => entry.name);
+}
+
+/**
+ * Does `form`'s preamble name a primitive of the profile it is testing?
+ *
+ * A preamble that does halts in the negative direction and satisfies the case without ever reaching
+ * the subject — the defect this file was carrying. Asserted rather than remembered, because the
+ * next person adding a form here will reach for a preamble by reflex.
+ */
+function preambleUsesProfileUnderTest({ preamble, profile }) {
+  if (preamble === "") {
+    return false;
+  }
+  return profilePrimitiveNames(profile).some((name) =>
+    new RegExp(`\\b${name}\\b`).test(preamble),
+  );
+}
 
 /** Effects the form adds beyond its preamble, under `profiles`. */
 function effectsBeyondPreamble({ preamble, source }, profiles) {
@@ -331,6 +370,13 @@ function effectsBeyondPreamble({ preamble, source }, profiles) {
 for (const form of KEYWORD_FORMS) {
   const { head, profile } = form;
   test(`the ${head} form does not act unless ${profile} is claimed`, () => {
+    // Guard the instrument before trusting it: a preamble drawn from the profile under test halts
+    // in the negative direction and makes the case vacuous.
+    assert.equal(
+      preambleUsesProfileUnderTest(form),
+      false,
+      `${head}'s preamble uses a ${profile} primitive, so the negative case would halt before reaching ${head}`,
+    );
     const banned = new Set(withDependents(profile));
     const withoutIt = ALL_PROFILES.filter(
       (candidate) => !banned.has(candidate),
@@ -349,3 +395,20 @@ for (const form of KEYWORD_FORMS) {
     );
   });
 }
+
+test("the preamble guard itself bites", () => {
+  // The control for the control. If `preambleUsesProfileUnderTest` silently answered `false` for
+  // everything, the guard above would be decoration — which is the exact failure it exists to stop.
+  assert.equal(
+    preambleUsesProfileUnderTest({
+      preamble: ":a = new_turtle\n",
+      profile: "sprites",
+    }),
+    true,
+    "the retired sprites preamble must still be recognised as self-defeating",
+  );
+  assert.equal(
+    preambleUsesProfileUnderTest({ preamble: ":a = 1\n", profile: "sprites" }),
+    false,
+  );
+});

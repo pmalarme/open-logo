@@ -28,6 +28,16 @@ function codes(source, options) {
   );
 }
 
+/** Every diagnostic `source` reports, in order. */
+function diagnostics(source, options) {
+  return execute(source, doc, options).diagnostics;
+}
+
+/** The kinds of every trace event `source` emits — empty when Phase 2 never began. */
+function events(source, options) {
+  return execute(source, doc, options).events.map((event) => event.kind);
+}
+
 /** The single diagnostic `source` reports, asserting there is exactly one. */
 function only(source, options) {
   const { diagnostics } = execute(source, doc, options);
@@ -371,13 +381,67 @@ test("a list literal's elements are value expressions, so a command there is ol-
   // calls the elements "whitespace-separated value expressions". So `[ print 1 ]` holds a Command
   // where a value is required, and `[a b c]` is three calls to names nothing resolves — a list of
   // words is written `["a" "b" "c"]`. Both used to be silent.
-  assert.deepEqual(codes("print [ print 1 ]"), ["ol-no-output"]);
+  assert.equal(only("print [ print 1 ]").stage, "semantic");
+  assert.deepEqual(events("print [ print 1 ]"), []);
   assert.deepEqual(codes("print [a b c]"), [
     "ol-unknown-command",
     "ol-unknown-command",
     "ol-unknown-command",
   ]);
   assert.deepEqual(codes('print ["a" "b"]'), []);
+});
+
+test("value position propagates into EVERY nesting form, statically", () => {
+  // `ol-no-output` has a RUNTIME twin, so asserting the code alone cannot tell "the checker caught
+  // it before Phase 2" from "the program ran and the runtime raised it afterwards". A review
+  // proved the difference is real: deleting the one line that propagates value position through
+  // non-`Program`/`Block` nodes left the whole Definition of Done green while an `instruction`
+  // event escaped for `print [ print 1 ]` — mechanism 1's headline promise ("on a `severity:
+  // error`, no instruction, no trace event") violated and unobserved.
+  //
+  // So `stage` and the EVENT STREAM are what these assert. The event stream is the load-bearing
+  // half: it is the only observation that distinguishes a program refused before Phase 2 from one
+  // that ran and was diagnosed on the way.
+  //
+  // Each entry names a different `ExpressionNode` nesting, because the rule is written
+  // structurally — everything that is not `Program`/`Block` is a value position — and only
+  // deliberate coverage of each form can tell that design from an enumeration of the four that
+  // happened to be tested.
+  for (const [form, source] of [
+    ["ListLit", ":x = [ 1 forward 1 ]"],
+    ["Throw", "throw forward 1"],
+    ["Comprehension source", ":x = map n in forward 1 [ :n ]"],
+    ["ComparisonChain operand", "if forward 1 == 2 [ print 1 ]"],
+    ["ForRange bound", "for i from 1 to forward 1 [ print 1 ]"],
+    ["ForIn sequence", "for i in forward 1 [ print 1 ]"],
+    ["IsPredicate operand", "if forward 1 is empty [ print 1 ]"],
+  ]) {
+    const findings = diagnostics(source);
+    const noOutput = findings.filter(
+      (finding) => finding.code === "ol-no-output",
+    );
+    assert.equal(
+      noOutput.length,
+      1,
+      `${form}: expected one ol-no-output, got ${JSON.stringify(findings.map((f) => f.code))}`,
+    );
+    assert.equal(
+      noOutput[0]?.stage,
+      "semantic",
+      `${form}: reported at runtime means the program RAN — the gate did not stop it`,
+    );
+    assert.deepEqual(
+      events(source),
+      [],
+      `${form}: Phase 2 must not begin at all`,
+    );
+  }
+
+  // The instrument control: `events` must be able to see an event stream, or every assertion above
+  // is satisfied by a helper that reports nothing whatever it is given. This is the same shape as
+  // the empty-list controls elsewhere in this file, and the reason they exist: a review found a
+  // profile sweep whose negative cases were all satisfied by a preamble that halted first.
+  assert.notDeepEqual(events("forward 1"), []);
 });
 
 // --- The runtime twins the gate would otherwise hide --------------------------------------------
@@ -516,7 +580,7 @@ test("CHARACTERIZATION: `local` does not shadow — the assignment reaches the g
   assert.deepEqual(
     printed(source, CORE_AND_TURTLE),
     [[2]],
-    "spec/execution-model.md:340-349 requires 2 here to be the LOCAL x and the global to stay 1",
+    "CHARACTERIZES THE WRONG BEHAVIOUR (#818): the global was written. Correct is [[1]] — when this fails with actual [[1]], #818 is fixed and this assertion must flip",
   );
 });
 
