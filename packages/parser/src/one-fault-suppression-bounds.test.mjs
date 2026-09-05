@@ -28,9 +28,11 @@
 // the AST shape a row claims to construct, transposed onto positions.
 
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
-import { analyze } from "@openlogo/parser";
+import { analyze, parse, walk } from "@openlogo/parser";
 
 const PROFILES = ["core-language", "turtle-rendering", "data"];
 
@@ -130,4 +132,86 @@ test("BOUND 1, parenthesized: a delimited call's arity is known, so a later toke
     "ol-unknown-command@1:2",
   ]);
   assert.deepEqual(findings("(forward 100) 5"), ["ol-bad-token@1:15"]);
+});
+
+test("no code is emitted at both severities, which is what makes first-wins safe", () => {
+  // `dedupeDiagnostics` keeps the FIRST of a colliding pair, so a warning arriving before an
+  // identical-identity error would drop the error and silently defeat the run gate. The doc argues
+  // that cannot happen because only `checker-style.ts` emits warnings, under `ol-style-*` codes no
+  // error shares — and a review measured that the argument HOLDS today and that **nothing observes
+  // it**. A correct prose promise about a safety precondition is still ungated prose.
+  //
+  // This asserts the precondition instead: warning-emitting codes and error-emitting codes are
+  // disjoint. The day a non-style code emits at both severities, this fails instead of the gate
+  // quietly weakening.
+  const emitted = new Map();
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules" && entry.name !== "dist") {
+          walk(full);
+        }
+        continue;
+      }
+      if (!entry.name.endsWith(".ts")) {
+        continue;
+      }
+      const text = readFileSync(full, "utf8");
+      // Pair each `code: "ol-…"` with the nearest `severity:` that follows it in the same literal.
+      for (const [, name, severity] of text.matchAll(
+        /code:\s*"(ol-[a-z0-9-]+)"[\s\S]{0,400}?severity:\s*"(error|warning)"/g,
+      )) {
+        emitted.set(name, (emitted.get(name) ?? new Set()).add(severity));
+      }
+    }
+  };
+  walk("packages");
+
+  const both = [...emitted].filter(([, severities]) => severities.size > 1);
+  assert.deepEqual(
+    both,
+    [],
+    "a code emitted at both severities makes dedupe's first-wins able to drop an error behind a warning",
+  );
+  // The instrument control: the scan must have seen codes at all.
+  assert.ok(
+    emitted.size > 0,
+    "the severity scan found no emitting code at all",
+  );
+});
+
+test("BOUND 1's premise: a ParenCall's span starts before its callee's", () => {
+  // The `ParenCall` arm of `endsInUnresolvableCall` was removed as structurally dead — restoring it
+  // leaves 5,122 tests and 1,004 fixtures green, so the behaviour pin above cannot detect it coming
+  // back. What the removal actually rests on is two facts, and this asserts them so that the day
+  // either moves, something goes red rather than the arm quietly coming alive as a silent
+  // over-suppression:
+  //
+  //   1. a `ParenCall`'s span starts at its `(`, NOT at its callee, and
+  //   2. `checker-unknown-command` reports at the CALLEE's span.
+  //
+  // Together they make the arm's key lookup unable to match, which is why it never fired.
+  const { ast } = parse("(fowad 100) 5", "one-fault.logo");
+  let parenCall;
+  walk(ast, (node) => {
+    if (node.kind === "ParenCall") {
+      parenCall = node;
+    }
+  });
+  assert.ok(parenCall, "the sample must actually build a ParenCall");
+  assert.notDeepEqual(
+    parenCall.source_span.start,
+    parenCall.callee.source_span.start,
+    "a ParenCall starting at its callee would make the removed arm live again",
+  );
+
+  const reported = analyze("(fowad 100) 5", "one-fault.logo", {
+    profiles: PROFILES,
+  }).diagnostics.find((d) => d.code === "ol-unknown-command");
+  assert.deepEqual(
+    reported?.source_span.start,
+    parenCall.callee.source_span.start,
+    "ol-unknown-command is reported at the callee span, not the node span",
+  );
 });

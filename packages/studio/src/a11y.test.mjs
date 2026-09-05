@@ -1076,11 +1076,19 @@ test("the announcer hears a diagnostic that changes only in stage or severity", 
   );
 });
 
-test("the announcer key is injective across control characters in params", () => {
-  // The three parts are length-prefixed rather than joined by a separator. `diagnosticIdentity` is
-  // self-delimiting internally, but its output can contain any character a `params` value carries —
-  // including the `\u0000`/`\u0001` an earlier version of this key joined on. A separator-joined key
-  // could then render two different lists identically and cost a re-announcement.
+test("the announcer key stays injective across control characters in params", () => {
+  // A REGRESSION GUARD, not a demonstration — and the distinction is the finding. Two reviewers
+  // independently established that the previous `\u0000`/`\u0001`-joined key was **already
+  // injective**: `canonicalize` emits a single balanced `arr3(…)` term with length-prefixed leaves,
+  // so identity output is prefix-free and the separator-joined form was uniquely decodable. One
+  // reviewer raised the collision and retracted it by construction; the other fuzzed 200,000
+  // adversarial lists over an alphabet containing `\u0000`, `\u0001`, `arr3(`, `)` and `:` and
+  // found **zero collisions under either encoding**.
+  //
+  // So this passes against the old key as well, and is kept as defence in depth because the new
+  // encoding is injective self-evidently rather than by an argument about another package. Its
+  // comment must not imply it caught something: a test whose stated reason is not the reason it
+  // passes is the shape this review spent eleven rounds removing.
   const withParam = (name) => [
     {
       code: "ol-unknown-command",

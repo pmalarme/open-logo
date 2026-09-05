@@ -371,10 +371,17 @@ function describeDiagnostics(diagnostics: StudioState["diagnostics"]): string {
  * `source_span`), but for an announcer a diagnostic moving from `semantic` to `runtime`, or an
  * error becoming a warning, is a change worth hearing about.
  *
- * The three parts are **length-prefixed** rather than joined by a separator. `diagnosticIdentity`
- * is self-delimiting internally, but its output can contain any character a `params` value carries,
- * including the `\u0000`/`\u0001` an earlier version of this key joined on — so a control character
- * in source could make two different lists render the same key and cost a re-announcement.
+ * The three parts are **length-prefixed** rather than joined by a separator. To be precise about
+ * what that did and did not fix: a review claimed the old `\u0000`/`\u0001`-joined key could
+ * collide, then **retracted it and proved the opposite**, and a second review independently fuzzed
+ * 200,000 adversarial lists — params containing `\u0000`, `\u0001`, `arr3(`, `error`, `semantic`,
+ * `)` and `:` — and found **zero collisions under either encoding**. `canonicalize` emits a single
+ * balanced `arr3(…)` term with length-prefixed leaves, so identity output is prefix-free and the
+ * separator-joined form was uniquely decodable too.
+ *
+ * So this is **defence in depth, not the repair of a measured fault**: the encoding is injective
+ * self-evidently, without resting on an argument about a helper one package away. The test below
+ * pins that property; it passes against the old key as well, and its comment says so.
  */
 function diagnosticsKey(diagnostics: StudioState["diagnostics"]): string {
   return diagnostics

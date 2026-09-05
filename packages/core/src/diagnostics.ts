@@ -201,7 +201,13 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  *
  * The repair belongs in the host rather than here: a `Diagnostic` crossing a worker boundary needs a
  * serialization that preserves OL values, and no encoding on this side can recover data the clone
- * algorithm has already dropped. It is recorded here because this is where the trade was made.
+ * algorithm has already dropped. Two further measurements, recorded so the next reader does not
+ * spend a round rediscovering them: `structuredClone` does **not** consult `toJSON`, so a
+ * `#private`-backed value with a working `toJSON` still clones to `{}`; and comparing `message`
+ * beside identity does not help either, because the message is value-independent by design — both
+ * `forward {a: 1}` and `forward {a: 2}` say "forward needs a number, but got a dict.". A wire
+ * format also fixes only the worker boundary: `describe()` brand-checks with `instanceof`, so any
+ * duplicated `@openlogo/core` module instance collides identically, `postMessage` or not.
  */
 /**
  * The trusted collection readers, **captured at module load**.
@@ -571,7 +577,7 @@ function faultIdentity(diagnostic: Diagnostic): string {
  * in `params`.
  *
  * Note the deliberate difference from a "has anything changed" key: **both `stage` and `severity`
- * are excluded**, because `spec/execution-model.md:741-743` defines a fault's identity as `code` +
+ * are excluded**, because `spec/execution-model.md:741-745` defines a fault's identity as `code` +
  * `params` + `source_span` and nothing else — `stage` "records when the fault was found, not which
  * fault it is", and severity is a property of the code rather than of the occurrence. A caller that
  * must distinguish either compares it beside this; `packages/studio/src/a11y.ts` compares both.
