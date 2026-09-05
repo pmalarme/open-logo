@@ -255,6 +255,24 @@ function structuralEntries(value: object): [string, unknown][] | undefined {
 }
 
 /**
+ * Is `name` the **canonical** spelling of an array index?
+ *
+ * `/^\d+$/` is not the same question and was measured wrong: `"01"` matches it but is an ordinary
+ * named property that no index walk ever visits, so two arrays differing only in `array["01"]`
+ * collided. An index is a non-negative integer below `2^32 - 1` whose canonical decimal spelling is
+ * the name itself.
+ */
+function isArrayIndexName(name: string): boolean {
+  const index = Number(name);
+  return (
+    Number.isInteger(index) &&
+    index >= 0 &&
+    index < 2 ** 32 - 1 &&
+    String(index) === name
+  );
+}
+
+/**
  * The elements of `value` when its indices are plain data properties, or `undefined` when it
  * carries accessors or extra own properties and must be treated as opaque. Holes are reported as
  * {@link ARRAY_HOLE}.
@@ -264,7 +282,7 @@ function arrayElements(value: readonly unknown[]): unknown[] | undefined {
     return undefined;
   }
   for (const name of Object.getOwnPropertyNames(value)) {
-    if (name !== "length" && !/^\d+$/.test(name)) {
+    if (name !== "length" && !isArrayIndexName(name)) {
       return undefined;
     }
   }
@@ -360,57 +378,99 @@ function encodeAtomOrOpen(
   if (value === null) {
     return "nul;";
   }
-  if (value instanceof OLTurtle) {
-    return `turtle${value.id};`;
-  }
 
-  const children: unknown[] = [];
-  let head: string;
-  if (Array.isArray(value)) {
-    const elements = arrayElements(value);
-    if (elements === undefined) {
-      return opaqueIdentity(value);
-    }
-    head = `arr${value.length}(`;
-    for (const element of elements) {
-      children.push(element);
-    }
-  } else if (value instanceof OLDict) {
-    // Snapshotted ONCE. Asking `values()` per key rebuilt the whole collection per entry.
-    const keys = value.keys();
-    const values = value.values();
-    head = `dict${keys.length}(`;
-    for (let index = 0; index < keys.length; index++) {
-      children.push(keys[index], values[index]);
-    }
-  } else if (value instanceof OLRecord) {
-    const fields = value.fields();
-    head = `rec${tagged("", value.type)}${fields.length}(`;
-    for (const field of fields) {
-      children.push(field, value.get(field));
-    }
-  } else {
-    const prototype = Object.getPrototypeOf(value);
-    const entries =
-      prototype === Object.prototype || prototype === null
-        ? structuralEntries(value)
-        : undefined;
-    if (entries === undefined) {
-      return opaqueIdentity(value);
-    }
-    head = `obj${entries.length}(`;
-    for (const [key, entry] of entries) {
-      children.push(key, entry);
-    }
+  // EVERYTHING from here reflects on a host-supplied object, and reflection itself can raise: a
+  // Proxy may throw from `ownKeys` or `getPrototypeOf`, an `OLDict` subclass may override `keys()`,
+  // an `OLTurtle` subclass may give `id` a throwing accessor. `instanceof` admits all of them, so
+  // the trusted-class exemption is trusted about the CLASS, not about the instance. One guard
+  // closes the whole family: any failure to classify or snapshot a value means it cannot be
+  // described, and a value that cannot be described gets an opaque identity — which is exactly what
+  // the boundary already does for a `Date` or a `Map`. Patching the three known instances would
+  // have left the fourth.
+  let described: Described | undefined;
+  try {
+    described = describe(value);
+  } catch {
+    return opaqueIdentity(value);
+  }
+  if (described === undefined) {
+    return opaqueIdentity(value);
+  }
+  if (described.kind === "atom") {
+    return described.text;
   }
 
   open.depthOf.set(value, open.stack.length);
   open.stack.push(value);
   work.push(null);
+  const { children } = described;
   for (let index = children.length - 1; index >= 0; index--) {
     work.push([children[index]]);
   }
-  return head;
+  return described.head;
+}
+
+/** A value's structural description: complete in itself, or a container with children to visit. */
+type Described =
+  | { readonly kind: "atom"; readonly text: string }
+  | {
+      readonly kind: "container";
+      readonly head: string;
+      readonly children: readonly unknown[];
+    };
+
+/**
+ * Classify `value` and snapshot its children, or return `undefined` when it has no structural
+ * description. May throw — the sole caller treats that identically to `undefined`.
+ */
+function describe(value: object): Described | undefined {
+  if (value instanceof OLTurtle) {
+    return { kind: "atom", text: `turtle${value.id};` };
+  }
+  const children: unknown[] = [];
+  if (Array.isArray(value)) {
+    const elements = arrayElements(value);
+    if (elements === undefined) {
+      return undefined;
+    }
+    for (const element of elements) {
+      children.push(element);
+    }
+    return { kind: "container", head: `arr${value.length}(`, children };
+  }
+  if (value instanceof OLDict) {
+    // Snapshotted ONCE. Asking `values()` per key rebuilt the whole collection per entry.
+    const keys = value.keys();
+    const values = value.values();
+    for (let index = 0; index < keys.length; index++) {
+      children.push(keys[index], values[index]);
+    }
+    return { kind: "container", head: `dict${keys.length}(`, children };
+  }
+  if (value instanceof OLRecord) {
+    const fields = value.fields();
+    const type = value.type;
+    for (const field of fields) {
+      children.push(field, value.get(field));
+    }
+    return {
+      kind: "container",
+      head: `rec${tagged("", type)}${fields.length}(`,
+      children,
+    };
+  }
+  const prototype = Object.getPrototypeOf(value);
+  const entries =
+    prototype === Object.prototype || prototype === null
+      ? structuralEntries(value)
+      : undefined;
+  if (entries === undefined) {
+    return undefined;
+  }
+  for (const [key, entry] of entries) {
+    children.push(key, entry);
+  }
+  return { kind: "container", head: `obj${entries.length}(`, children };
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {

@@ -497,3 +497,98 @@ test("the ordinary shapes diagnostics really carry are still structural", () => 
   );
   assert.equal(survivors({ a: 1 }, { a: 2 }), 2);
 });
+
+test("a numeric-LOOKING array property is not an index", () => {
+  // `/^\d+$/` matches `"01"`, but `"01"` is an ordinary named property that no index walk visits,
+  // so two arrays differing only in it collided. An index is a non-negative integer below
+  // 2^32 - 1 whose canonical decimal spelling is the name itself.
+  const withOhOne = (marker) => {
+    const array = [1];
+    array["01"] = marker;
+    return array;
+  };
+  assert.equal(survivors(withOhOne("x"), withOhOne("y")), 2);
+
+  const withMaxUint = (marker) => {
+    const array = [1];
+    array["4294967295"] = marker;
+    return array;
+  };
+  assert.equal(
+    survivors(withMaxUint("x"), withMaxUint("y")),
+    2,
+    "2^32 - 1 is one past the last valid index",
+  );
+
+  assert.equal(survivors([1, 2], [1, 2]), 1, "ordinary arrays still collapse");
+  assert.equal(survivors([1, 2], [1, 3]), 2);
+});
+
+test("reflection that raises makes a value opaque, never a crash", () => {
+  // Every one of these was measured crashing de-duplication. `instanceof` admits host subclasses
+  // and modified instances, so the trusted-class exemption is trusted about the CLASS, not about
+  // the instance — and reflection on a Proxy can raise before any class is even determined. One
+  // guard covers the family; patching the four known cases would have left the fifth.
+  const throwingOwnKeys = new Proxy(
+    {},
+    {
+      ownKeys() {
+        throw new Error("ownKeys must not crash de-duplication");
+      },
+    },
+  );
+  const throwingPrototype = new Proxy(
+    {},
+    {
+      getPrototypeOf() {
+        throw new Error("getPrototypeOf must not crash de-duplication");
+      },
+    },
+  );
+
+  class DictWithThrowingKeys extends OLDict {
+    keys() {
+      throw new Error("keys() must not crash de-duplication");
+    }
+  }
+  class RecordWithThrowingFields extends OLRecord {
+    fields() {
+      throw new Error("fields() must not crash de-duplication");
+    }
+  }
+  const turtleWithThrowingId = new OLTurtle(1);
+  Object.defineProperty(turtleWithThrowingId, "id", {
+    get() {
+      throw new Error("id must not crash de-duplication");
+    },
+  });
+
+  for (const [hostile, why] of [
+    [throwingOwnKeys, "a Proxy that throws from ownKeys"],
+    [throwingPrototype, "a Proxy that throws from getPrototypeOf"],
+    [new DictWithThrowingKeys(), "an OLDict subclass that throws from keys()"],
+    [
+      new RecordWithThrowingFields("p", [], []),
+      "an OLRecord subclass that throws from fields()",
+    ],
+    [turtleWithThrowingId, "an OLTurtle whose id accessor throws"],
+  ]) {
+    assert.equal(survivors(hostile, { a: 1 }), 2, why);
+  }
+});
+
+test("the trusted classes are still read structurally when they behave", () => {
+  // The guard must not quietly make every OL value opaque: that would false-split every real
+  // duplicate, trading a crash for silence of a different kind.
+  const first = new OLDict();
+  first.set("a", 1);
+  const second = new OLDict();
+  second.set("a", 1);
+  assert.equal(survivors(first, second), 1);
+  assert.equal(
+    survivors(new OLRecord("p", ["x"], [1]), new OLRecord("p", ["x"], [1])),
+    1,
+  );
+  assert.equal(survivors(new OLTurtle(1), new OLTurtle(1)), 1);
+  assert.equal(survivors(new OLTurtle(1), new OLTurtle(2)), 2);
+});
