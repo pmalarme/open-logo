@@ -690,19 +690,10 @@ function describe(value: object): Described | undefined {
     //      arm shipped without the equivalent. Note the dict and record arms above do NOT guard
     //      this: two `OLDict`s (or `OLRecord`s) differing only in an extra own property were
     //      measured colliding, 1 survivor where there should be 2. That is INTRODUCED BY THIS
-    //      SLICE. At the merge base nothing de-duplicated runtime diagnostics at all; the only
-    //      `dedupeDiagnostics` was module-private in `parser.ts`, over parse-stage findings, and
-    //      that file contained zero references to `OLDict`, so a dict never reached it.
-    //      The merge-base boundary these values DID cross is studio's `diagnosticsKey`, which
-    //      keyed on `JSON.stringify` — and there they collided far worse, because
-    //      `JSON.stringify` cannot serialize a `Map`'s internal slots, so every dict rendered as
-    //      `{"entries":{}}` whatever it held. (Not because the map was private:
-    //      `private readonly entries` is TypeScript-only and erased at run time.) So this slice
-    //      closed a collision that fired on every dict and opened a narrower one that fires only
-    //      on extra own state. Deferring rests on reachability alone: no OpenLogo operation writes
-    //      a named own property onto a host object, so no program can construct it. Tracked by
-    //      #1133 — recorded here rather than left implied, because an earlier version of this line
-    //      claimed every other container arm guarded it.
+    //      SLICE. Deferring rests on reachability alone: no OpenLogo operation writes a named own
+    //      property onto a host object, so no program can construct it. Tracked by #1133 —
+    //      recorded here rather than left implied, because an earlier version of this line claimed
+    //      every other container arm guarded it.
     //   3. PRIMITIVE KEYS ONLY — see `keyComparesStructurally`. A map keyed by objects has
     //      reference semantics that a structural encoding cannot represent.
     //
