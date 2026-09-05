@@ -10,7 +10,7 @@
 //
 // It is a supported input shape rather than a hypothesis: `applyOneFaultRules` is exported (see
 // `index.ts`) precisely so a caller assembling findings itself can apply it, and
-// `spec/error-model.md:126` says either span "MAY name a different source document, so an imported module's declaration is an ordinary case".
+// `spec/error-model.md:126` says either span of `ol-duplicate-definition` "MAY name a different source document, so an imported module's declaration is an ordinary case".
 // `@openlogo/core`'s `faultIdentity` already keys de-duplication on the document; these tests pin
 // the precedence half agreeing with it.
 

@@ -221,7 +221,7 @@ function messageFor(name: string, suggestion: string | undefined): string {
  * with every `define` they add to the worksheet.
  *
  * The shape is stated rather than the milliseconds, which are hardware-dependent, unreproducible
- * and ungated (two reviewers' absolute figures for the same benchmark differed by 13×). Binding
+ * and ungated (two reviewers measured this same benchmark an order of magnitude apart). Binding
  * once makes cost **flat in declaration count**; a simulated per-call rebuild is roughly 24× slower
  * at eighty declarations than at none, and that ratio is what reproduces.
  *
@@ -238,11 +238,27 @@ function messageFor(name: string, suggestion: string | undefined): string {
  * `when` handler, a `define` inside another procedure, a `struct` inside a handler, and a call
  * written before its own `define` all resolve. Agreement by construction, not by coincidence.
  *
- * **The falsifier, with a tripwire.** A future Modules `import` would be the first thing able to
- * introduce a callable after Phase 1, and would need this snapshot revisited. Today `import`,
- * `alias` and `export` are reserved words with no grammar form (`spec/built-in-names.json` gives
- * them `registries: ["reserved"]`), and Modules and Localization contribute zero names — so such a
- * feature must add a grammar form first, which is a change that lands in front of this comment.
+ * **What actually closes the hole:** there is no dynamic-eval primitive in the language — no `run`,
+ * `eval`, `apply`, `call`, `parse` or `load` anywhere in `spec/built-in-names.json` — so no
+ * constructed code can be executed and the bound AST cannot grow after binding.
+ *
+ * **The falsifier, and it is `alias` rather than `import`.** `spec/grammar.md:165` and `:382` make
+ * the **first operand of `alias`** one of the grammar's four declaration slots — "`define`, the
+ * heritage `to`, `struct`, and the first operand of `alias`" — so `alias` is a name-REGISTERING
+ * declaration, and it sits in Core's keyword list rather than behind Modules. It is the nearest
+ * thing able to introduce a callable, and a comment pointing at `import` instead would send a
+ * future maintainer to the wrong word.
+ *
+ * Today `alias`, `import` and `export` are unreachable for a narrower reason than "no grammar
+ * form": `spec/grammar.md:160-162` **does** define `alias-statement`, `import-statement` and
+ * `export-statement`. What is missing is a production in *this reader*, so each is `ol-bad-token`
+ * — measured. (Do not read `registries: ["reserved"]` as evidence of that: `define` and `struct`
+ * carry the identical marker and are exactly the forms that DO register callables. It encodes "may
+ * not be declared as a name", a different property.)
+ *
+ * So the tripwire is not a grammar change. Implementing `alias` means adding a reader production
+ * and a case to {@link collectVisibleNames} in `checker-names.ts` — and whoever adds that case must
+ * revisit this snapshot, because it is the first edit that lets the visible set grow.
  */
 export interface NameResolver {
   /** Is `name` callable in the bound program under the bound profile set? */
