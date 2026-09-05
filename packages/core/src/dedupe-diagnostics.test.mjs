@@ -898,7 +898,7 @@ test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   // TYPE POSITIONS are the price of scanning the source instead of the emitted artifact, and they
   // are paid visibly: each pin carries the NAME and the exact TEXT of its line. Pinning name and
   // line was measured insufficient — a reviewer replaced the annotation on a pinned line with a
-  // live `Map` read and the whole core package stayed green (81/81), because the found list was
+  // live `Map` read and the whole core package stayed green, because the found list was
   // unchanged. Pinning the text makes any edit to a pinned line fail, which is exactly when you
   // want to look.
   //
@@ -1011,7 +1011,10 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
   //
   // What this asserts is insensitivity to a trapped `Symbol.hasInstance`, which is the negative
   // half of the name. That the entry test is specifically the BRAND — rather than some other
-  // unforgeable check — is covered by the neighbouring captured-guard and lying-subclass tests.
+  // unforgeable check, such as an exact-prototype comparison through the captured `prototypeOf` —
+  // is pinned by the equal-subclass case in "a subclass that LIES about its contents cannot
+  // collide two values". A review measured that swap passing the whole file before that assertion
+  // existed, so this credit is checked rather than asserted.
   //
   // Reverting either arm to `instanceof` leaves every other test in this file green, which is why
   // this one exists: the fix was measured correct and was not load-bearing until now.
@@ -1631,6 +1634,20 @@ test("a subclass that LIES about its contents cannot collide two values", () => 
     survivors(oneValue, new OLDict()),
     2,
     "a populated liar is not an empty dict",
+  );
+  // The EQUAL case, which is what discriminates the brand from any other unforgeable entry test.
+  // A review swapped the dict arm's entry test for `prototypeOf(value) === OLDict.prototype` —
+  // also unforgeable, since `prototypeOf` is captured — and the whole file stayed green, because
+  // every assertion above is 2 under both. Only the brand is total over SUBCLASSES: under the
+  // prototype check a subclassed dict skips the arm entirely and two equal ones false-split, which
+  // is the screen-reader regression this slice exists to remove. 1 under the brand, 2 under the
+  // swap.
+  const sameAsOne = new LyingDict();
+  sameAsOne.set("a", 1);
+  assert.equal(
+    survivors(oneValue, sameAsOne),
+    1,
+    "a genuine subclass is still described STRUCTURALLY — only the brand is total over subclasses",
   );
 
   // A MODIFIED INSTANCE is the same attack without a subclass, and `instanceof` admits it equally.

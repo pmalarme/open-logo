@@ -606,8 +606,8 @@ function describe(value: object): Described | undefined {
     // The arm is ENTERED on the brand, not on `instanceof`. `instanceof` consults
     // `OLDict[Symbol.hasInstance]`. The inherited `Function.prototype[Symbol.hasInstance]` is
     // non-writable, but a class constructor is EXTENSIBLE, so `Object.defineProperty` installs a
-    // shadowing own property — and shadowing it with `() => false` made two
-    // IDENTICAL dicts split, because the value skipped this arm and took a per-reference opaque
+    // shadowing own property — and shadowing it with `() => false` made two IDENTICAL dicts split,
+    // because the value skipped this arm and took a per-reference opaque
     // serial from the plain-object arm — the same screen-reader regression the `Map` arm's own
     // entry test was changed to avoid, one binding over. The brand is unforgeable and total, so it
     // is both the entry test and the guard.
@@ -682,8 +682,8 @@ function describe(value: object): Described | undefined {
     //      `value instanceof Map`, and `instanceof` consults `Map[Symbol.hasInstance]`. The
     //      inherited `Function.prototype` one is non-writable, but a constructor is EXTENSIBLE, so
     //      `Object.defineProperty` shadows it. Two reviewers measured that shadowing it with
-    //      `() => false` made two IDENTICAL
-    //      cloned dicts split — reinstating the exact accessibility regression this arm was added
+    //      `() => false` made two IDENTICAL cloned dicts split — reinstating the exact
+    //      accessibility regression this arm was added
     //      to fix. A `Map` subclass still lands opaque: it fails this test, then fails the
     //      plain-object arm's prototype test too.
     //   2. NO OWN PROPERTIES — `map.extra = "x"` is part of the value and was ignored. Every other
