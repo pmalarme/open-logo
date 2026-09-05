@@ -4,10 +4,22 @@
 // REUSE, not recursion — per the maintainer's scope-trim comment on issue #327, which moves any
 // recursive ("tree"/"xmas tree") exercise out to Level 6 (Geometry).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
 import * as Parser from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
+
+// This test lives at packages/edu/src/lessons/, so the repo root is four levels up.
+const repoRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "..",
+);
 
 const level5Lessons = OL.getLessonsByLevel("5");
 const level5Exercises = OL.getExercisesByLevel("5");
@@ -334,6 +346,68 @@ test("no Level 5 string claims a global is shared with every procedure everywher
       false,
       `a global's reach must be qualified to this program: ${text}`,
     );
+  }
+});
+
+// Round 4 (@ai-tutor's suggestion). The visibility rule is stated in learner prose on two
+// surfaces — `level-5.ts`'s worked example 3 and `docs/curriculum-overview.md`'s matching
+// paragraph — and the duplication has now needed the same correction twice: once when "always
+// makes a new one" was false for a parameter or global, and again when the doc kept the stale
+// wording after the lesson was fixed. Deriving learner prose from data would be worse than
+// duplicating it, so this does not test the wording. It tests the *claim*: each surface must name
+// all three categories the runtime names. That would have failed on both earlier defects, and it
+// constrains nothing about how the sentence is phrased.
+test("both surfaces state the visibility rule with all three categories the runtime names", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-polygon-procedure",
+  );
+  assert.ok(lesson);
+  const workedExample = lesson.workedExamples[2];
+  const docText = readFileSync(
+    join(repoRoot, "docs/curriculum-overview.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+
+  // Locate the doc's rule paragraph STRUCTURALLY — the first paragraph after the block that is
+  // byte-identical to this worked example's source — rather than by searching for the wording
+  // under test, which would be circular, or by scanning the whole file, which is too coarse:
+  // "sets itself" and "shared" also appear in the `global` objective and the quoted diagnostic,
+  // so a whole-file scan passes even when the rule paragraph has lost a category (measured).
+  const parts = docText.split(/```logo\n([\s\S]*?)```/);
+  const blockIndex = parts.findIndex(
+    (part, index) =>
+      index % 2 === 1 && part.replace(/\n$/, "") === workedExample.source,
+  );
+  assert.notEqual(
+    blockIndex,
+    -1,
+    "docs/curriculum-overview.md no longer carries worked example 3's program",
+  );
+  const rulePagagraph = parts[blockIndex + 1].trim().split(/\n\s*\n/)[0];
+
+  // The three things a procedure can see (`spec/execution-model.md:389-394`), each with the
+  // spellings a learner-facing sentence may reasonably use. This constrains the claim, never the
+  // wording — which is the point: the prose is duplicated on purpose, but the duplication was
+  // undetectable, and it needed the same correction twice (round 2 and round 3).
+  const categories = [
+    {
+      name: "the names it was handed (its inputs)",
+      pattern: /\bhanded\b|\binputs?\b/i,
+    },
+    { name: "the names it set itself", pattern: /\bsets? itself\b/i },
+    { name: "names shared with it", pattern: /\bshared\b|\bglobal\b/i },
+  ];
+
+  for (const [label, text] of [
+    ["level-5.ts worked example 3", workedExample.explanation],
+    ["docs/curriculum-overview.md's rule paragraph", rulePagagraph],
+  ]) {
+    for (const { name, pattern } of categories) {
+      assert.ok(
+        pattern.test(text),
+        `${label} states the visibility rule without naming ${name}: ${text}`,
+      );
+    }
   }
 });
 
@@ -930,7 +1004,7 @@ test("l5-global-staircase grows its steps from the shared name, not from its inp
   assert.ok(Math.abs(endX - startX - 4 * 40) < 1e-6);
 
   // Without the shared growth every step would be identical — the drawing, not just a printed
-  // number, is what `global` is buying here. And the program cannot even report the height: a
+  // number, is what `global` is buying here. And the program cannot even report the rise: a
   // name the procedure sets belongs to the procedure, so the top-level `print :rise` has nothing
   // to read. Both halves are asserted, because either alone understates what `global` does.
   const unshared = source.replace(

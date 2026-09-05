@@ -159,10 +159,11 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
       if (claim === null) {
         continue;
       }
-      const expected = [...claim[1].matchAll(/`([^`]+)`/g)].flatMap((match) =>
-        match[1].trim().split(/\s+/).map(Number),
+      const spans = [...claim[1].matchAll(/`([^`]+)`/g)].map((match) =>
+        match[1].trim(),
       );
-      claims.push({ source, expected, sentence: claim[0] });
+      const expected = spans.flatMap((span) => span.split(/\s+/).map(Number));
+      claims.push({ source, expected, spans, sentence: claim[0] });
     }
   }
 
@@ -186,6 +187,24 @@ test("every 'prints ...' claim in curriculum-overview matches what the block abo
     claims.length,
     `docs/curriculum-overview.md contains ${everyClaimInDocument.length} "prints ..." claim(s) but only ${claims.length} sit in a sentence touching a code block, so the rest are measured by nothing: ${JSON.stringify(everyClaimInDocument.map((match) => match[0]))}`,
   );
+
+  // Round 4 (@testing finding 2): that oracle shares `CLAIM` with the walk, so it is a second
+  // opinion in name only — a reviewer defeated both with one extra word, "prints **the value**
+  // `9 9 9 9`", which is natural English and matches neither. This third check keys on the VALUE
+  // SHAPE instead of the verb, so it shares no vocabulary with `CLAIM`: every numeric inline-code
+  // span in the doc's prose must be a value some accounted-for claim actually printed. Its own
+  // blind spot is a non-numeric printed value, which is stated rather than chased.
+  const prose = text.split(/```[\s\S]*?```/).join("\n");
+  const numericSpans = [...prose.matchAll(/`([0-9]+(?:\s+[0-9]+)*)`/g)].map(
+    (match) => match[1].trim(),
+  );
+  const accountedFor = new Set(claims.flatMap(({ spans }) => spans));
+  for (const span of numericSpans) {
+    assert.ok(
+      accountedFor.has(span),
+      `docs/curriculum-overview.md states \`${span}\` in prose, but no measured "prints ..." claim produces it — a printed value stated in words that the claim extractor does not recognise is measured by nothing`,
+    );
+  }
 
   for (const { source, expected, sentence } of claims) {
     const result = execute(source, "curriculum-overview-claim.logo");

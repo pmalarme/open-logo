@@ -483,7 +483,7 @@ test("segmentsCross detects a real crossing and rejects near misses", () => {
   );
 });
 
-test("l3-mirrored-heart draws two mirrored curls that meet without tangling, and only because :side is set back", () => {
+test("l3-mirrored-heart draws two mirrored curls that taper toward each other without tangling, and only because :side is set back", () => {
   const exercise = level3Exercises.find(
     (item) => item.id === "l3-mirrored-heart",
   );
@@ -540,6 +540,23 @@ test("l3-mirrored-heart draws two mirrored curls that meet without tangling, and
       );
     }
   }
+
+  // Round 4 (rubber-duck blocking / @ai-tutor N13): the explanation used to say the curls "meet
+  // at the bottom in a point", and nothing compared their endpoints — the claim lived only in
+  // prose and in this test's own title. They do NOT meet: the tips are 28.62 apart, level with
+  // each other. That is the same defect class as calling the figure "horns" — text describing a
+  // picture nobody measured — so the shape the drawing actually has is pinned here.
+  const rightTip = right[6];
+  const leftTip = left[6];
+  assert.deepEqual(rightTip, [14.309794, -80.460283]);
+  assert.deepEqual(leftTip, [-14.309794, -80.460283]);
+  const tipGap = Math.hypot(rightTip[0] - leftTip[0], rightTip[1] - leftTip[1]);
+  assert.ok(
+    Math.abs(tipGap - 28.619588) < 1e-6,
+    `the tips are ${tipGap} apart; the explanation says they taper toward each other without meeting`,
+  );
+  // …and the lobes really do share their first stroke, which is the crease the explanation names.
+  assert.deepEqual(heart.strokes[0], heart.strokes[8]);
 
   // The stated counterfactual: drop the second `:side = 10` and the left curl carries on from
   // 52, so the heart comes out lopsided. Both halves are asserted — the wrong lengths, and the

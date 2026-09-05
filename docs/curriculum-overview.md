@@ -222,11 +222,11 @@ show_double 21
 print :answer
 ```
 
-Setting a name a procedure does not already have — not one of its inputs, not one that is shared —
-makes a new one that belongs to it. **Reading** a name it was never handed, never set itself, and
-nobody shared with it is the thing it cannot do. `:answer = :n * 2` is fine because it only
-writes — change it to `:answer = :answer + 1` and the program stops, because that has to read
-`:answer` first. That asymmetry is what the next lesson's one word repairs.
+A procedure can read three kinds of name: the ones it was **handed**, the ones it **set itself**,
+and ones deliberately **shared** with it. Nothing else. Setting a name it does not already have
+makes a new one that belongs to it, which is why `:answer = :n * 2` is fine — it only writes.
+Change it to `:answer = :answer + 1` and the program stops, because that has to read `:answer`
+first. That asymmetry is what the next lesson's one word repairs.
 
 The other half is that inputs are yours: change them freely, the caller never sees it.
 
