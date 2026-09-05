@@ -609,8 +609,8 @@ function describe(value: object): Described | undefined {
     // shadowing own property — and shadowing it with `() => false` made two IDENTICAL dicts split,
     // because the value skipped this arm and took a per-reference opaque serial from the
     // plain-object arm — the same screen-reader regression the `Map` arm's own entry test was
-    // changed to avoid, one binding over. The brand is unforgeable and total, so it
-    // is both the entry test and the guard.
+    // changed to avoid, one binding over. The brand is unforgeable and total, so it is both the
+    // entry test and the guard.
     const snapshot = mapEntrySnapshot(dataProperty(value, "entries"));
     for (const [canonicalKey, entry] of snapshot) {
       if (typeof entry !== "object" || entry === null) {
@@ -690,13 +690,20 @@ function describe(value: object): Described | undefined {
     //      arm shipped without the equivalent. Note the dict and record arms above do NOT guard
     //      this: two `OLDict`s (or `OLRecord`s) differing only in an extra own property were
     //      measured colliding, 1 survivor where there should be 2. That is INTRODUCED BY THIS
-    //      SLICE, not inherited — at the merge base de-duplication keyed on
-    //      `JSON.stringify(params)`, which saw the extra property and split the pair; the
-    //      structural encoder here ignores it. Deferring rests on reachability alone: no OpenLogo
-    //      program can construct it (v0.1 has no lambda, no function values, no reflection), and
-    //      the same encoder fixed a far larger collision at that boundary, where every dict
-    //      serialized to `{}`. Tracked by #1133 — recorded here rather than left implied, because
-    //      an earlier version of this line claimed every other container arm guarded it.
+    //      SLICE, and not by changing an encoder at an existing boundary — the boundary itself is
+    //      new. At the merge base nothing de-duplicated runtime diagnostics at all; the only
+    //      `dedupeDiagnostics` was module-private in `parser.ts`, over parse-stage findings, and
+    //      that file contained zero references to `OLDict`, so a dict never reached it.
+    //      The merge-base boundary these values DID cross is studio's `diagnosticsKey`
+    //      (`a11y.ts:363-367`), which keyed on `JSON.stringify` — and there they collided far
+    //      worse, because `JSON.stringify` cannot serialize a `Map`'s internal slots, so every
+    //      dict rendered as `{"entries":{}}` whatever it held. (Not because the map was private:
+    //      `private readonly entries` is TypeScript-only and erased at run time.) So this slice
+    //      closed a collision that fired on every dict and opened a narrower one that fires only
+    //      on extra own state. Deferring rests on reachability alone: no OpenLogo operation writes
+    //      a named own property onto a host object, so no program can construct it. Tracked by
+    //      #1133 — recorded here rather than left implied, because an earlier version of this line
+    //      claimed every other container arm guarded it.
     //   3. PRIMITIVE KEYS ONLY — see `keyComparesStructurally`. A map keyed by objects has
     //      reference semantics that a structural encoding cannot represent.
     //

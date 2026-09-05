@@ -1078,8 +1078,18 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
   //
   // Before this assertion existed, nothing in 5137 tests pinned it: the chain-walk swap was green
   // across the whole suite while losing the one property the brand exists for. So it is asserted
-  // here rather than described, and the comments above claim only that the rivals PASS the other
-  // two tests — not that they satisfy the requirements those tests are named for.
+  // here rather than described. The MEASURED matrix, stated rather than summarised, because a
+  // summary of it has been wrong in five consecutive rounds:
+  //
+  //                        trap-insensitive   total over subclasses   rejects this Proxy
+  //   brand                      yes                  yes                    yes
+  //   `instanceof`               no                   yes                    no
+  //   exact prototype            yes                  no                     no
+  //   chain walk                 yes                  yes                    no
+  //
+  // So the exact-prototype rival fails BOTH named tests, not one; the chain walk fails only this
+  // pair. A rival not in that table is not covered by it — a `WeakSet` registry populated in the
+  // constructor was measured passing all three, and passing the whole suite.
   for (const [label, genuine, wearing] of [
     ["dict", () => dictOf(1), () => new Proxy(dictOf(1), {})],
     [
@@ -1097,7 +1107,7 @@ test("the dict and record arms are entered on the brand, not on a trappable inst
     assert.equal(
       survivors(genuine(), impostor),
       2,
-      `${label}: a Proxy wearing the prototype must NOT impersonate a genuine value — this is the property only the brand has`,
+      `${label}: a Proxy wearing the prototype must NOT impersonate a genuine value — the brand rejects it, the exact-prototype check and the chain walk do not`,
     );
   }
 });
