@@ -1075,3 +1075,31 @@ test("the announcer hears a diagnostic that changes only in stage or severity", 
     "an error becoming a warning is a change worth hearing",
   );
 });
+
+test("the announcer key is injective across control characters in params", () => {
+  // The three parts are length-prefixed rather than joined by a separator. `diagnosticIdentity` is
+  // self-delimiting internally, but its output can contain any character a `params` value carries —
+  // including the `\u0000`/`\u0001` an earlier version of this key joined on. A separator-joined key
+  // could then render two different lists identically and cost a re-announcement.
+  const withParam = (name) => [
+    {
+      code: "ol-unknown-command",
+      source_span: { document: "a11y.logo", start: [1, 1], end: [1, 2] },
+      params: { name },
+      message: "m",
+      stage: "semantic",
+      severity: "error",
+    },
+  ];
+
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withParam("a\u0000b"));
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withParam("a\u0001b"));
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "two params differing only in a control character are different diagnostics",
+  );
+});

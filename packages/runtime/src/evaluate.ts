@@ -4892,6 +4892,15 @@ function asExpressionStatement(
  * evaluate an AST it never had source text for. Without it the node kind is the only name left, so
  * that is the fallback: a worse word, never a missing diagnostic.
  *
+ * **Where that fallback strains the spec, recorded rather than hidden.** `spec/error-model.md:131`
+ * scopes `ol-not-implemented` to "a callable this specification defines, and this implementation
+ * registered", and prescribes the message `i know the word {name}, but i can't run it yet`. A node
+ * KIND is none of those, so the terminal rule's safety net — reached only by a statement form whose
+ * dispatch arm has not been written — would tell a learner OpenLogo knows a word it has never
+ * heard of. The net must still fire, because the alternative is the silent skip this slice exists
+ * to abolish, and no other `ol-*` code fits an undispatched statement. The gap is between the row's
+ * scope and this use, not in the choice to report.
+ *
  * The result is **case-folded**, and that is a separate decision from reading it out of the source.
  * OpenLogo names are case-insensitive — `FORWARD 100` is a clean program — so `IF` and `if` are one
  * word, while `faultIdentity` keys on `params` and would make them two faults at one span. The
@@ -4924,9 +4933,15 @@ export function statementHeadWord(
  * reading the one registry both stages share rather than a second copy of its names.
  *
  * The non-`Call` half is `isExpressionKind`, **not** an enumeration of the kinds that report. That
- * is the direction that fails loudly: a statement-only kind wrongly admitted here is narrowed by
- * {@link asExpressionStatement} and would fail to compile, whereas a value-producing kind wrongly
- * omitted silently answered `ol-no-value` for a `{a: 1}` or a `[10][1]` that produces one.
+ * is the direction that fails loudly: a value-producing kind wrongly omitted silently answered
+ * `ol-no-value` for a `{a: 1}` or a `[10][1]` that produces one, whereas a statement-only kind
+ * wrongly *admitted* here is caught at compile time by `ast.ts`'s `_NoExtraExpressionKinds`
+ * assertion, which is what makes `EXPRESSION_NODE_KINDS` exhaustive against the union.
+ *
+ * The guarantee is **not** {@link asExpressionStatement}'s narrowing, as an earlier version of this
+ * comment claimed: that uses an unchecked `statement as ExpressionNode` and compiles whatever it is
+ * given. Crediting the wrong mechanism is the class of comment this slice's review kept finding —
+ * prose that argues for a decision reads exactly like prose that reports a tested one.
  */
 function isValueProducingStatement(statement: StatementNode): boolean {
   if (statement.kind === "Call" || statement.kind === "ParenCall") {

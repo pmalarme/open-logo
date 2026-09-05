@@ -55,9 +55,22 @@ import { isExpressionKind, walk } from "./ast.js";
 
 /**
  * The callee spans of every `ol-unknown-command` finding in `diagnostics`, as `"line:column"` keys.
- * `checker-unknown-command.ts` reports at the callee's own span, and a `Call`/`ParenCall` node
- * starts at its callee, so a call node is unresolvable exactly when its span **start** is in this
- * set.
+ * `checker-unknown-command.ts` reports at the callee's own span, and a **bare** `Call` node starts
+ * at its callee, so such a call is unresolvable exactly when its span **start** is in this set.
+ *
+ * A `ParenCall` does NOT: `(fowad 100)` spans from the `(` at `1:1` while its callee is at `1:2`,
+ * so its start is never in this set. That is why {@link endsInUnresolvableCall} matches `Call`
+ * only — and it is the right answer for a reason beyond the span arithmetic. The suppression's
+ * rationale (`spec/execution-model.md:759-766`) is that a token following a callee nothing resolves
+ * *might* have been its argument, which cannot be judged because the callee's arity is unknown. A
+ * parenthesized call has its arguments **delimited by the parentheses**, so a token after the `)` is
+ * independent whatever the callee is: `(fowad 100) 5` keeps its `ol-bad-token`, exactly as
+ * `(forward 100) 5` does.
+ *
+ * An earlier version of this comment claimed a `ParenCall` "starts at its callee" and matched on it
+ * accordingly. Measured, that arm was structurally dead — 144 `Call` matches across the corpus and
+ * **zero** `ParenCall` — so the behaviour was right by accident, and would have come alive as a
+ * silent over-suppression the day `checker-unknown-command` reported at the node span instead.
  */
 /**
  * A position key that includes the **document**.
@@ -101,7 +114,7 @@ function endsInUnresolvableCall(
   // unresolvable call that finishes where the statement finishes.
   let found = false;
   walk(statement, (node) => {
-    if (found || (node.kind !== "Call" && node.kind !== "ParenCall")) {
+    if (found || node.kind !== "Call") {
       return;
     }
     if (!unresolvable.has(positionKey(node.source_span))) {

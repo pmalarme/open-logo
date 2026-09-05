@@ -184,6 +184,24 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * type structurally would be unbounded work for a domain with no members, and reading unknown
  * objects through `Object.keys` was measured both colliding (symbol-keyed and non-enumerable
  * properties are invisible to it) and *throwing* (an enumerable getter that raises).
+ *
+ * **KNOWN GAP — a structured clone loses OL value data, and this slice moved it the wrong way.**
+ * `OLDict`/`OLRecord` hold their contents in `#private` fields, which `structuredClone` cannot see,
+ * so a diagnostic crossing a `postMessage` boundary arrives with `{}` where a dict was and
+ * `{"type":"point"}` where a record was. Two different dicts then share an identity and one is
+ * silently discarded — the direction this encoding exists to prevent. Measured: live values are
+ * distinguished correctly, cloned ones are not, and `packages/studio/src/worker-execution-host.ts`
+ * posts `Diagnostic[]` across exactly that boundary.
+ *
+ * Before the `#private` conversion the backing `Map` was an own enumerable property, which
+ * `structuredClone` clones natively, so cloned values stayed **distinct** — a false split, which is
+ * visible. The conversion was made to brand-check against a hostile receiver (a Proxy answering
+ * publicly while hiding its contents from the reader) and it fixed real collisions among live
+ * values; it also turned a safe false split into a silent collision across the clone boundary.
+ *
+ * The repair belongs in the host rather than here: a `Diagnostic` crossing a worker boundary needs a
+ * serialization that preserves OL values, and no encoding on this side can recover data the clone
+ * algorithm has already dropped. It is recorded here because this is where the trade was made.
  */
 /**
  * The trusted collection readers, **captured at module load**.
@@ -552,10 +570,21 @@ function faultIdentity(diagnostic: Diagnostic): string {
  * hazard; this one reads values through their own accessors and is total over what a host can put
  * in `params`.
  *
- * Note the deliberate difference from a "has anything changed" key: `stage` is **excluded**, because
- * `spec/execution-model.md:741-748` makes it record when a fault was found rather than which fault
- * it is. A caller that must distinguish the same fault reported at two stages compares `stage`
- * beside this.
+ * Note the deliberate difference from a "has anything changed" key: **both `stage` and `severity`
+ * are excluded**, because `spec/execution-model.md:741-743` defines a fault's identity as `code` +
+ * `params` + `source_span` and nothing else — `stage` "records when the fault was found, not which
+ * fault it is", and severity is a property of the code rather than of the occurrence. A caller that
+ * must distinguish either compares it beside this; `packages/studio/src/a11y.ts` compares both.
+ *
+ * An earlier version of this doc argued the `stage` exclusion carefully and cited the spec for it,
+ * while saying nothing about `severity` — so a next caller would have got one right because it was
+ * documented and the other wrong because it was not. Both are named here for that reason.
+ *
+ * One latent consequence, recorded because it is not reachable today rather than because it is
+ * harmless: {@link dedupeDiagnostics} keeps the FIRST of a colliding pair, so a warning arriving
+ * before an identical-identity error would drop the error and defeat a severity gate downstream.
+ * Only `checker-style.ts` emits warnings and only under `ol-style-*` codes, which no error shares,
+ * so no pair can collide.
  */
 export function diagnosticIdentity(diagnostic: Diagnostic): string {
   return faultIdentity(diagnostic);

@@ -367,17 +367,23 @@ function describeDiagnostics(diagnostics: StudioState["diagnostics"]): string {
  * rule is a rule two packages can drift on, and this is the drift.
  *
  * `severity` and `stage` are compared beside it on purpose: core's fault identity deliberately
- * excludes `stage` (`spec/execution-model.md:741-748` makes it record *when* a fault was found, not
- * which fault it is), but for an announcer a diagnostic moving from `semantic` to `runtime` is a
- * change worth hearing about.
+ * excludes both (`spec/execution-model.md:741-743` defines identity as `code` + `params` +
+ * `source_span`), but for an announcer a diagnostic moving from `semantic` to `runtime`, or an
+ * error becoming a warning, is a change worth hearing about.
+ *
+ * The three parts are **length-prefixed** rather than joined by a separator. `diagnosticIdentity`
+ * is self-delimiting internally, but its output can contain any character a `params` value carries,
+ * including the `\u0000`/`\u0001` an earlier version of this key joined on — so a control character
+ * in source could make two different lists render the same key and cost a re-announcement.
  */
 function diagnosticsKey(diagnostics: StudioState["diagnostics"]): string {
   return diagnostics
-    .map(
-      (diagnostic) =>
-        `${diagnostic.severity}\u0000${diagnostic.stage}\u0000${diagnosticIdentity(diagnostic)}`,
+    .map((diagnostic) =>
+      [diagnostic.severity, diagnostic.stage, diagnosticIdentity(diagnostic)]
+        .map((part) => `${part.length}:${part}`)
+        .join(""),
     )
-    .join("\u0001");
+    .join("");
 }
 
 /**

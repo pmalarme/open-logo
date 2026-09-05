@@ -118,3 +118,16 @@ test("BOUND 3 (same line): orphanhood propagates along a line and stops at its e
     "ol-unknown-command@1:1",
   ]);
 });
+
+test("BOUND 1, parenthesized: a delimited call's arity is known, so a later token is independent", () => {
+  // `(fowad 100) 5` keeps its `ol-bad-token`. The suppression's rationale
+  // (`spec/execution-model.md:759-766`) is that a token after an unresolvable callee MIGHT have been
+  // its argument, which cannot be judged because the arity is unknown. Parentheses delimit the
+  // arguments, so that doubt does not arise — and the control shows the token's independence has
+  // nothing to do with whether the callee resolves.
+  assert.deepEqual(findings("(fowad 100) 5"), [
+    "ol-bad-token@1:13",
+    "ol-unknown-command@1:2",
+  ]);
+  assert.deepEqual(findings("(forward 100) 5"), ["ol-bad-token@1:15"]);
+});
