@@ -638,15 +638,25 @@ test("the reflection primitives are captured too, one layer below the readers", 
   }
 });
 
-test("no intrinsic on the identity path is read dynamically", () => {
+test("no GLOBAL intrinsic on the identity path is read dynamically", () => {
   // The gated replacement for a prose claim that was measured short in three consecutive review
-  // rounds — by three primitives, then by one, then by one again. Every fix was correct and every
-  // restatement of "the family is complete" was wrong, because nothing re-derived it. This does.
+  // rounds. The first gated version was measured short too — because its alphabet of intrinsics was
+  // HAND-LISTED, which is a hand-counted claim in a new medium. `@testing`'s line: the lesson taken
+  // was "state it in a test"; the lesson available was "DERIVE it".
   //
-  // Anything matching an intrinsic read below, OUTSIDE the capture block, fails. That includes
-  // `x.call(...)` on an already-captured function: `call` is an ordinary mutable property of the
-  // function object, so `mapForEach.call = () => undefined` defeats a capture — measured. The
-  // encoder therefore invokes through `Reflect.apply`, captured once.
+  // So the namespace alphabet below is derived from the realm, not written down: every own
+  // function-valued property of `globalThis`. That catches a bare `String(` / `Number(` — one of
+  // which was measured reinstating the documented `"01"` array collision while the hand-listed
+  // version reported clean.
+  //
+  // WHAT THIS DOES NOT COVER, stated in the name and here rather than left for a reviewer to
+  // measure a fourth time: an **instance-method** read, such as `snapshot.push(…)`,
+  // `out.join("")`, or `open.depthOf.get(…)`. Those resolve through a receiver, not through a
+  // global name, so no text scan can attribute them without a type checker — and three separate
+  // reviewers measured three of them colliding under a patched prototype. Widening this regex to
+  // `.push(|.join(|.get(` would make the alternation the new uncounted list and guarantee another
+  // round. The residual is tracked by #1131, which records the sound instrument (a TypeScript
+  // symbol-based scan resolving accesses into `lib.*.d.ts`) rather than a longer denylist.
   const source = readFileSync(
     new URL("./diagnostics.ts", import.meta.url),
     "utf8",
@@ -673,31 +683,60 @@ test("no intrinsic on the identity path is read dynamically", () => {
   );
   // ONE extractor, used for the file AND for the control below — so the control exercises the exact
   // code path that produced the empty result rather than a second copy of it that could differ.
+  // The namespace alternation is DERIVED from the realm rather than written down.
+  const globalCallables = Object.getOwnPropertyNames(globalThis)
+    .filter((name) => /^[A-Z]\w*$/.test(name))
+    .filter((name) => {
+      // Functions (`String`, `Number`) AND namespace objects (`Reflect`, `Math`, `JSON`), because
+      // both carry intrinsics. Deriving only the callables silently dropped `Reflect` — caught by
+      // the assertion below, which is why that assertion names the ones this file actually uses.
+      const value = Object.getOwnPropertyDescriptor(globalThis, name)?.value;
+      return (
+        typeof value === "function" ||
+        (typeof value === "object" && value !== null)
+      );
+    });
+  assert.ok(
+    globalCallables.length > 20 &&
+      ["Object", "Number", "String", "Symbol", "Reflect", "Array"].every(
+        (name) => globalCallables.includes(name),
+      ),
+    "the derived alphabet must actually enumerate the realm's intrinsic namespaces",
+  );
+  const pattern = new RegExp(
+    `\\b(?:${globalCallables.join("|")})\\s*[.(]|\\.prototype\\.[A-Za-z]+|\\.call\\s*\\(|\\.apply\\s*\\(`,
+    "g",
+  );
   const intrinsicReads = (text) =>
     [
       ...text
         // Strip comments and string/template contents so prose naming a primitive is not a finding.
+        // Order is a known approximation: a `//` inside a double-quoted string would eat the rest
+        // of that line. Measured — `diagnostics.ts` contains no such literal, and the direction is
+        // silent, so the control below deliberately feeds one through.
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/\/\/[^\n]*/g, "")
         .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+        .replace(/'(?:[^'\\]|\\.)*'/g, "''")
         .replace(/`(?:[^`\\]|\\.)*`/g, "``")
-        .matchAll(
-          /\b(?:Object|Number|Symbol|Reflect|Array)\.[A-Za-z]+\s*\(|\.prototype\.[A-Za-z]+|\.call\s*\(|\.apply\s*\(/g,
-        ),
+        .matchAll(pattern),
     ].map((match) => match[0]);
   assert.deepEqual(
     intrinsicReads(outside),
     [],
-    "every intrinsic on the identity path must be read from the module-load capture block",
+    "every global intrinsic on the identity path must be read from the module-load capture block",
   );
-  // Instrument control: the scan must be able to see such a read at all, or an empty result above
-  // proves nothing. (That is the failure mode this scan exists to replace, one level down.)
+  // Instrument control: the scan must be able to see each shape at all, or an empty result above
+  // proves nothing. (That is the failure mode this scan exists to replace, one level down.) The
+  // input deliberately exercises every strip step — block comment, line comment, double-quoted
+  // string, single-quoted string, template — plus a CRLF newline.
   assert.deepEqual(
     intrinsicReads(
-      "const x = Object.keys(y); a.call(b); c.prototype.sort; // Object.is( here",
+      "const x = Object.keys(y);\r\nvoid String(1); a.call(b); c.prototype.sort;\r\n" +
+        "/* Object.is( */ // Number(\r\nconst s = \"Reflect.apply(\";\r\nconst t = 'Symbol.keyFor(';\r\nconst u = `Array.isArray(`;",
     ),
-    ["Object.keys(", ".call(", ".prototype.sort"],
-    "the scan sees each read shape, and does not see one inside a comment",
+    ["Object.", "String(", ".call(", ".prototype.sort"],
+    "the scan sees each read shape, and sees none inside a comment or a string of any quoting",
   );
 });
 
@@ -760,8 +799,13 @@ test("every captured intrinsic is falsifiable — patching it must not change th
         });
         return visited === 0;
       },
-      (real) => (Map.prototype.forEach.call = real),
-      Map.prototype.forEach.call,
+      // `call` is INHERITED from Function.prototype, so assigning the saved value back would leave
+      // a new own property where none existed. Delete instead, and only then fall back to
+      // assignment — a review measured the shape change (`{before:false, after:true}`).
+      () => {
+        delete Map.prototype.forEach.call;
+      },
+      undefined,
     ],
   ];
   const fractionalIndexed = (marker) => {
@@ -812,6 +856,16 @@ test("every captured intrinsic is falsifiable — patching it must not change th
         survivors(populated(3), populated(3)),
         1,
         `and two equal dicts still collapse to ONE under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(Symbol.for("a"), Symbol.for("b")),
+        2,
+        `two registered symbols stay two faults under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(Symbol.for("c"), Symbol.for("c")),
+        1,
+        `and the same registered symbol still collapses to ONE under a patched ${name}`,
       );
     } finally {
       restore(real);

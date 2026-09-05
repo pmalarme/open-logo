@@ -173,6 +173,14 @@ in one slice. **Attribute a failure to a test by NAME, and make every perturbati
 behavioural control proving the mutation reached the artifact you are measuring** — a fail *count*
 tells you something changed, not that the thing you meant to break is what broke.
 
+**And the authoring counterpart, which writes the wrong artifact rather than measuring one.** A
+shell escape can silently put a *control character* into source: PowerShell's backtick turns
+`` `value` `` into `<VT>alue`, `` `false` `` into `<FF>alse`, and `` `events` `` into `<ESC>vents`,
+destroying the code span around it. Four instances were found by hand in one slice and **one had
+already reached `main`**, because build, typecheck, lint, format, the full test suite, conformance
+and 100% coverage are all blind to it — reading a file as text hides the byte. There is no gate;
+`#1130` specifies one. Until it lands, sweep raw bytes yourself after any here-string edit.
+
 **Another door onto the same room, which that remedy does *not* close: the whole module graph
 resolving into a different checkout.** In an npm workspace, `node_modules/@scope/*` are links into
 `packages/*`, and `npm` repoints them at whatever directory it last ran in. A disposable clone that

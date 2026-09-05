@@ -269,7 +269,8 @@ test("no code the two scans can see is emitted at both severities, which is what
     const body = source
       .slice(start, source.indexOf("\n}", start) + 2)
       .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
+      .replace(/\/\/[^\n]*/g, "")
+      .replace(/'(?:[^'\\]|\\.)*'/g, "''");
     const signature = body.slice(0, body.indexOf("): Diagnostic"));
     assert.ok(
       body.includes('severity: "error"'),
@@ -280,15 +281,23 @@ test("no code the two scans can see is emitted at both severities, which is what
       `${factory} must not take a severity parameter, or its call sites could vary it`,
     );
   }
-  // And the behavioural half, which no comment can fake: a diagnostic each factory really produced
-  // must actually carry `severity: "error"`. `[` is a parse fault, `forward p 1` a runtime one.
+  // And the behavioural half, which no comment and no decoy string can fake: a diagnostic each
+  // factory really produced must actually carry `severity: "error"`. `[` is a parse fault and
+  // `fowad 100` a SEMANTIC one — both from `parseError`. `runtimeError` lives in another package,
+  // so its probe is in `packages/runtime`'s own suite; a review measured that this file alone could
+  // not see `runtimeError` lose its pinned severity, and a single-quoted decoy defeated the textual
+  // check, which is why both quoting styles are now stripped above.
   const produced = [
     parse("[", "one-fault.logo").diagnostics[0],
     analyze("fowad 100", "one-fault.logo", { profiles: PROFILES })
       .diagnostics[0],
   ];
+  assert.deepEqual(
+    produced.map((diagnostic) => diagnostic?.stage),
+    ["parse", "semantic"],
+    "the probes must really be the stages this test claims to cover",
+  );
   for (const diagnostic of produced) {
-    assert.ok(diagnostic, "each probe must actually produce a diagnostic");
     assert.equal(
       diagnostic.severity,
       "error",

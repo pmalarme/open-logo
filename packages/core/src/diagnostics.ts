@@ -195,14 +195,15 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * value whose `get` says one thing and whose descriptor says another has no privileged reading —
  * and an object can hide state in a private slot that no reflection reports at all, behind a
  * prototype reset to something this encoder admits. Both were measured colliding. Neither is
- * reachable from an OpenLogo program **as specified for v0.1**: the language has no lambda, no
- * reflection and no way to construct a `Proxy` (`spec/conformance.md:59-60`), and no production path
- * in this tree constructs one — the only `Proxy`s here are adversarial fixtures in
- * `dedupe-diagnostics.test.mjs`, and every one of them lands opaque. The sound fix is a **trusted
- * transport representation** at the worker boundary rather than a further reflective test, which
- * is a design change and not this slice's: issue #1128. Adding another guard here would look like
- * progress and close nothing. Note the v0.1 qualifier is load-bearing — a future host-object
- * escape would make this disposition wrong, and #1128 carries that.
+ * reachable from an OpenLogo program **as specified for v0.1**: the language has no lambda
+ * (`spec/conformance.md:59-60`), and no reflection or `Proxy` — which the spec does not mention at
+ * all, so that half is an inference from Core's enumeration being closed rather than a citation.
+ * No production path in this tree constructs one either; the only `Proxy`s here are adversarial
+ * fixtures in `dedupe-diagnostics.test.mjs`, and every one of them lands opaque. The sound fix is
+ * a **trusted transport representation** at the worker boundary rather than a further reflective
+ * test, which is a design change and not this slice's: issue #1128. Adding another guard here
+ * would look like progress and close nothing. Note the v0.1 qualifier is load-bearing — a future
+ * host-object escape would make this disposition wrong, and #1128 carries that.
  *
  * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
  * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
@@ -256,6 +257,13 @@ const isIntegerNumber = Number.isInteger;
 const registeredSymbolKey = Symbol.keyFor;
 const sortStrings = Array.prototype.sort;
 const applyFunction = Reflect.apply;
+const toNumber = Number;
+const toText = String;
+const MapConstructor = Map;
+const SymbolConstructor = Symbol;
+const TypeErrorConstructor = TypeError;
+const mapPrototype = Map.prototype;
+const objectPrototype = Object.prototype;
 
 /**
  * Snapshot a `Map`'s entries through the captured intrinsic, or throw.
@@ -377,12 +385,12 @@ function structuralEntries(value: object): [string, unknown][] | undefined {
  * the name itself.
  */
 function isArrayIndexName(name: string): boolean {
-  const index = Number(name);
+  const index = toNumber(name);
   return (
     isIntegerNumber(index) &&
     index >= 0 &&
     index < 2 ** 32 - 1 &&
-    String(index) === name
+    toText(index) === name
   );
 }
 
@@ -418,7 +426,7 @@ function arrayElements(value: readonly unknown[]): unknown[] | undefined {
 }
 
 /** Marks an array hole, so `[, ]` and `[undefined]` do not encode alike. */
-const ARRAY_HOLE = Symbol("array-hole");
+const ARRAY_HOLE = SymbolConstructor("array-hole");
 
 /** The containers currently open on the walk, for cycle detection. */
 interface OpenContainers {
@@ -430,7 +438,7 @@ interface OpenContainers {
 
 function canonicalize(value: unknown): string {
   const out: string[] = [];
-  const open: OpenContainers = { depthOf: new Map(), stack: [] };
+  const open: OpenContainers = { depthOf: new MapConstructor(), stack: [] };
   /**
    * Explicit work stack. Each entry is either a one-element array holding the value to encode, or
    * `null` marking "the container opened here is finished". The wrapper array matters: a value to
@@ -673,7 +681,7 @@ function describe(value: object): Described | undefined {
     // properties, string keys), so the clone path this arm exists for is untouched. Anything else
     // falls back to the opaque serial it had before, which is the safe direction.
     if (
-      prototypeOf(value) !== Map.prototype ||
+      prototypeOf(value) !== mapPrototype ||
       ownNames(value).length > 0 ||
       ownSymbols(value).length > 0
     ) {
@@ -692,7 +700,7 @@ function describe(value: object): Described | undefined {
   }
   const prototype = prototypeOf(value);
   const entries =
-    prototype === Object.prototype || prototype === null
+    prototype === objectPrototype || prototype === null
       ? structuralEntries(value)
       : undefined;
   if (entries === undefined) {
@@ -716,7 +724,7 @@ function describe(value: object): Described | undefined {
 function dataProperty(value: object, name: string): unknown {
   const descriptor = ownDescriptor(value, name);
   if (descriptor === undefined || !("value" in descriptor)) {
-    throw new TypeError(`${name} is not a data property`);
+    throw new TypeErrorConstructor(`${name} is not a data property`);
   }
   return descriptor.value;
 }

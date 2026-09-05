@@ -793,3 +793,24 @@ test("no test-only seam leaks into the package's public surface", async () => {
     [],
   );
 });
+
+test("runtimeError pins severity, and a runtime diagnostic really carries it", () => {
+  // The counterpart to `one-fault-suppression-bounds.test.mjs`'s factory-severity pin, which lives
+  // in `@openlogo/parser` and therefore could only exercise `parseError`. A review measured
+  // `runtimeError` returning `severity: "warning"` with a single-quoted decoy in its body while
+  // that gate stayed green — the severity-disjointness argument attributes "error" to every code
+  // BOTH factories emit, so half of it was unobserved.
+  //
+  // This is behavioural: no comment and no decoy string can fake a value on a produced diagnostic.
+  const produced = diagnostics("forward [ 1 ]\n", { runUnchecked: true });
+  const runtimeFault = produced.find((d) => d.stage === "runtime");
+  assert.ok(
+    runtimeFault,
+    "the probe must really reach the runtime stage, or it proves nothing about runtimeError",
+  );
+  assert.equal(
+    runtimeFault.severity,
+    "error",
+    `${runtimeFault.code} is attributed "error" by the factory scan and must really be one`,
+  );
+});
