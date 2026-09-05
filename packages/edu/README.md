@@ -51,12 +51,19 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   body) as the open challenge, and a further "taller tree" exercise that changes only the
   repeat count — the payoff moment for why `repeat` matters, since growing the tree by hand
   would mean retyping every tier.
-- `lessons/level-3.ts` — the Level 3 lesson ("One name, many places") + graded exercises,
-  covering the `:name` variable idiom, `=` and worded `set ... to` assignment, and `==`
-  comparison (`spec/educational-model.md:89-121`). The worked examples reproduce the spec's
-  `:size` square verbatim; the graded exercises introduce `:size` into a fixed square, resize it
-  once with the worded form, then reuse the single `:size` name across a resizable house's walls
-  and roof together, so one change resizes the whole shape.
+- `lessons/level-3.ts` — the Level 3 lessons + graded exercises. "One name, many places" covers
+  the `:name` variable idiom, `=` and worded `set ... to` assignment, and `==` comparison
+  (`spec/educational-model.md:89-121`); its worked examples reproduce the spec's `:size` square
+  verbatim, and its exercises introduce `:size` into a fixed square, resize it once with the
+  worded form, then reuse the single `:size` name across a resizable house's walls and roof
+  together, so one change resizes the whole shape. "Where a name is born decides how long it
+  lives" ([#829](https://github.com/pmalarme/open-logo/issues/829)) then teaches saga
+  [#819](https://github.com/pmalarme/open-logo/issues/819)'s scoping ruling at the point it first
+  matters: `spec/execution-model.md:607-615`'s born-inside / born-outside contrast, where the same
+  loop body prints `1 1 1 1` or `1 2 3 4` depending only on which side of the `repeat` the first
+  assignment sits. Its exercises ramp from moving that one line, to carrying two names across the
+  turns at once, to a heart made of two mirrored curls whose second curl matches the first only
+  because the growing name is set back — a name that outlives a loop remembers.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
   combinators `and`/`or`/`not`, and a worded predicate such as `is between`
@@ -65,17 +72,28 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   compose-a-recognizable-object rule: a guided single-operator change (`==` to `!=`), a practice
   single-operator change (`!=` to `>=`) on the same shape and value, then a challenge that
   reuses Level 3's house and colors it with one condition on `:size`.
-- `lessons/level-5.ts` — the Level 5 lesson ("`define` names a reusable idea; `return` hands
-  back its answer") + graded exercises, covering `define … end` procedures, parameters as
-  variables scoped to the procedure, `return` for reporters, and `local` for a procedure's own
-  scratch variable (`spec/educational-model.md:156-203`). The worked examples reproduce the
-  spec's `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`,
-  never handed over as an opaque primitive. The graded exercises ramp from a single-line change
-  to the lesson's `polygon` call (guided), to a new `triangle` procedure that calls `polygon`
-  (practice), to composing `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house`
-  chain and calling `house` twice to build a small street (challenge) — procedure reuse, not
-  recursion; Heritage's `to … end`/`output` spellings are mentioned in prose only, taught after
-  `define`/`return`.
+- `lessons/level-5.ts` — the Level 5 lessons + graded exercises. "`define` names a reusable idea;
+  `return` hands back its answer" covers `define … end` procedures, parameters as variables that belong
+  to the procedure, `return` for reporters, and the procedure boundary
+  (`spec/educational-model.md:156-203`). The first two worked examples reproduce the spec's
+  `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`, never
+  handed over as an opaque primitive — and two more show the boundary itself: the names a
+  procedure sets are its own automatically, and an input is the procedure's to change without the
+  caller seeing it. The graded exercises ramp from a single-line change to the lesson's `polygon`
+  call (guided), to a new `triangle` procedure that calls `polygon` (practice), to composing
+  `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house` chain and calling `house`
+  twice to build a small street (challenge) — procedure reuse, not recursion; Heritage's
+  `to … end`/`output` spellings are mentioned in prose only, taught after `define`/`return`.
+  "`global` shares one value across your procedures"
+  ([#829](https://github.com/pmalarme/open-logo/issues/829)) then teaches the one way through that
+  boundary — `global name = value` — with exercises ramping from a one-word fix, to a procedure
+  given an input *and* a shared total, to a staircase whose steps grow although every call is
+  written identically, because the rise is shared and the tread is handed in. Under saga
+  [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling a procedure's variables are
+  private automatically, so `local` — which survives as a way to deliberately *shadow* a visible
+  name (`spec/execution-model.md:501-506`) — is no longer taught at this level: shadowing only
+  means something once a learner has met `global`, which makes it a later, narrower idea. A test
+  in `level-5.test.mjs` pins that absence so it cannot be reintroduced by accident.
 - `lessons/exercise.ts` — the `Exercise` contract: a graded exercise additive to `Lesson`
   (`lessonId`, a `LearnerLevel`, a `"guided" | "practice" | "challenge"` difficulty, a prompt,
   and a runnable `referenceSolution`). `Lesson` itself only carries a single `exercisePrompt`

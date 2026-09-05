@@ -6,18 +6,33 @@
  * `=` assigns. Only Level 1-3 vocabulary appears here — no `if`/comparison-as-condition
  * (Level 4) and no `define`/procedures (Level 5), per educational-model.md:37's discovery
  * guardrail.
+ *
+ * Issue #829 adds a second lesson here, `l3-where-a-name-is-born`, once saga #819's
+ * variable-scoping ruling landed: a name is born where it is first assigned, and a name born
+ * inside a block goes out of scope at the end of that block
+ * (`spec/execution-model.md:351-352`, `:603-605`). That turns one moved line into two opposite
+ * results from the same loop body, which is the earliest point in the curriculum where *where*
+ * a name is written visibly changes what a program does — so it belongs beside `repeat` and
+ * variables rather than waiting for procedures. The normative contrast at
+ * `spec/execution-model.md:607-615` is written with `[ … ]` blocks; the lesson uses the long
+ * `… end repeat` spelling every other Level 2/3 lesson uses, which
+ * `spec/execution-model.md:367-369` makes the same block scope — and `level-3.test.mjs` pins
+ * both spellings to the same printed numbers rather than assuming it.
  */
 
 import type { Lesson } from "../lesson.js";
 import type { Exercise } from "./exercise.js";
 
 /**
- * The single Level 3 lesson: one name, `:size`, controlling every side of a square. The first
- * two worked examples reproduce `spec/educational-model.md:105-118`'s two `:size` blocks
- * verbatim — the symbol assignment form and the worded form — so the lesson never drifts from
- * the normative sample. The third worked example adds `:size = :size + 10` to show the same
- * name being read and written in one statement, per the issue's "one name controls many
- * places" objective.
+ * The Level 3 lessons. `l3-size-square` teaches one name, `:size`, controlling every side of a
+ * square: the first two worked examples reproduce `spec/educational-model.md:105-118`'s two
+ * `:size` blocks verbatim — the symbol assignment form and the worded form — so the lesson never
+ * drifts from the normative sample, and the third adds `:size = :size + 10` to show the same
+ * name being read and written in one statement, per the issue's "one name controls many places"
+ * objective. `l3-where-a-name-is-born` (issue #829) then teaches *where* a name is written: its
+ * first two worked examples are `spec/execution-model.md:607-615`'s normative born-inside /
+ * born-outside contrast in the long block spelling, and the third shows the accumulator that
+ * contrast makes possible.
  */
 export const level3Lessons: readonly Lesson[] = [
   {
@@ -72,12 +87,65 @@ export const level3Lessons: readonly Lesson[] = [
     exercisePrompt:
       "Take a square with a fixed side length, introduce :size in its place, and change :size's value once — do not add any new steps — so every side changes together.",
   },
+  {
+    id: "l3-where-a-name-is-born",
+    title: "Where a name is born decides how long it lives",
+    level: "3",
+    objective:
+      "See that a name is born where it is first given a value, and that a name born inside a repeat's body starts over on every turn while a name born before the loop is one variable every turn keeps changing — the same loop body, one line moved, two completely different results. print shows a value so you can check which of the two you wrote.",
+    workedExamples: [
+      {
+        source: [
+          "# why: :x is born inside the loop, so every turn starts it over at 0",
+          "repeat 4",
+          "  :x = 0",
+          "  :x = :x + 1",
+          "  print :x",
+          "end repeat",
+        ].join("\n"),
+        explanation:
+          "This prints 1 1 1 1. :x is first given a value inside the repeat's body, so it is born there — and a name born inside the body only lives until that turn of the loop ends. The next turn starts over with a brand-new :x set back to 0, adds 1 again, and prints 1 again, four times over.",
+      },
+      {
+        source: [
+          "# why: :x is born before the loop, so all four turns change one variable",
+          ":x = 0",
+          "repeat 4",
+          "  :x = :x + 1",
+          "  print :x",
+          "end repeat",
+        ].join("\n"),
+        explanation:
+          "This prints 1 2 3 4. The loop body is word for word the same as above except that :x = 0 has moved above the repeat, so :x is born outside the loop and lives on past the end of each turn. Now every turn adds 1 to the one :x that is already there, and the printed number climbs. One line moved, and the same body counts up instead of standing still.",
+      },
+      {
+        source: [
+          "# why: a name born before the loop can grow the drawing turn by turn",
+          ":side = 20",
+          "repeat 4",
+          "  forward :side",
+          "  right 90",
+          "  :side = :side + 20",
+          "end repeat",
+        ].join("\n"),
+        explanation:
+          "Being born outside the loop is what makes this useful rather than just interesting: :side survives from one turn to the next, so the four sides come out 20, 40, 60, and 80 steps long instead of four equal sides. Had :side = 20 been written inside the body, every turn would have started it back at 20 and the turtle would have drawn a plain square.",
+      },
+    ],
+    exercisePrompt:
+      "Move the line that first gives a name its value — from inside the loop to above it, and back again — and say out loud what the four printed numbers will be before you run each version.",
+  },
 ];
 
 /**
- * Graded Level 3 exercises for `l3-size-square`, ramping from introducing `:size` into a fixed
- * square, to resizing it once with the worded `set ... to` form, to reusing `:size` across a
- * resizable house's walls and roof together.
+ * Graded Level 3 exercises. `l3-size-square` ramps from introducing `:size` into a fixed square,
+ * to resizing it once with the worded `set ... to` form, to reusing `:size` across a resizable
+ * house's walls and roof together. `l3-where-a-name-is-born` (issue #829) ramps from moving one
+ * line so the same loop body counts up instead of standing still, to carrying *two* names across
+ * the turns at once — one growing the drawing, one accumulating a measurement — to the composed
+ * object: a heart made of two mirrored curls, where the second curl only matches the first
+ * because the growing name is set back — a name that outlives a loop remembers, which is the same
+ * fact that made it useful in the practice exercise and a hazard here.
  */
 export const level3Exercises: readonly Exercise[] = [
   {
@@ -153,6 +221,83 @@ export const level3Exercises: readonly Exercise[] = [
       ].join("\n"),
       explanation:
         "The square walls and the triangular roof are two separate repeats, but both read the same :size, so changing its one value at the top resizes the walls and the roof together instead of needing a separate change for each shape.",
+    },
+  },
+  {
+    id: "l3-born-outside-count-up",
+    lessonId: "l3-where-a-name-is-born",
+    level: "3",
+    difficulty: "guided",
+    prompt:
+      "This loop prints 1 1 1 1: repeat 4, then :count = 0, then :count = :count + 1, then print :count. Move the single line :count = 0 out of the loop to above the repeat — change nothing else — and predict the four numbers before you run it.",
+    referenceSolution: {
+      source: [
+        "# why: moving the first value above the loop makes all four turns share one name",
+        ":count = 0",
+        "repeat 4",
+        "  :count = :count + 1",
+        "  print :count",
+        "end repeat",
+      ].join("\n"),
+      explanation:
+        "Moving :count = 0 above the repeat is the only change, and it prints 1 2 3 4 instead of 1 1 1 1. :count is now born outside the loop, so it is not started over on every turn: each turn adds 1 to the value the previous turn left behind.",
+    },
+  },
+  {
+    id: "l3-born-outside-growing-sides",
+    lessonId: "l3-where-a-name-is-born",
+    level: "3",
+    difficulty: "practice",
+    prompt:
+      "Draw four sides that each come out longer than the one before, and at the same time keep a running total of how far the turtle has travelled, printed once at the end. Both names have to survive from turn to turn — work out where each one has to be born for that to happen.",
+    referenceSolution: {
+      source: [
+        "# why: two names born before the loop — :side grows the drawing, :total adds up",
+        "# the distance, and neither would survive the end of a turn born inside the body",
+        ":side = 30",
+        ":total = 0",
+        "repeat 4",
+        "  forward :side",
+        "  right 90",
+        "  :total = :total + :side",
+        "  :side = :side + 30",
+        "end repeat",
+        "print :total",
+      ].join("\n"),
+      explanation:
+        "The four sides are 30, 60, 90, and 120 steps long and the total printed is 300. Both names are doing the same job the loop needs — carrying a value from one turn into the next — and both stop working if they are born inside the body, in two different ways. :side would restart at 30 on every turn, so all four sides would come out the same length. :total would be worse than wrong: a name born inside the loop is gone once the loop ends, so print :total would have nothing to read and OpenLogo would stop and say that :total has no value yet.",
+    },
+  },
+  {
+    id: "l3-mirrored-heart",
+    lessonId: "l3-where-a-name-is-born",
+    level: "3",
+    difficulty: "challenge",
+    prompt:
+      "Compose a heart out of two mirrored curls. Draw one curl by repeating a side and a same-sized turn while the side keeps growing, so the path curls round instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second curl the same way but turning the other way — together the two curls make a heart. Both curls must come out the same size, and the growing name is still holding whatever the first curl left in it, so work out what the second loop needs before it starts.",
+    referenceSolution: {
+      source: [
+        "# why: the first curl opens out because :side is born before its loop and keeps growing",
+        ":side = 10",
+        "repeat 7",
+        "  forward :side",
+        "  right 40",
+        "  :side = :side + 6",
+        "end repeat",
+        "pen_up",
+        "home",
+        "pen_down",
+        "# why: :side survived the first loop still holding 52, so it has to be set back to 10",
+        "# — leave this line out and the left curl starts five times too big",
+        ":side = 10",
+        "repeat 7",
+        "  forward :side",
+        "  left 40",
+        "  :side = :side + 6",
+        "end repeat",
+      ].join("\n"),
+      explanation:
+        "Each curl is the same seven growing sides — 10, 16, 22 and on up to 46 — turning 40 degrees each time, so the path sweeps up, over and back down instead of closing. The second curl turns left where the first turned right, so the two mirror each other exactly and taper toward each other at the bottom: a heart. They stop short of touching, so the point at the bottom is left open, and the two lobes share the short first side, which draws the crease down the middle. Now notice what the second :side = 10 really is. It is not a new name being born: :side was born once, at the very top, and being born outside the loops is exactly why it is still there afterwards — holding 52, the value the first curl left in it. So that line sets it back rather than starting it. Leave it out and the left curl begins at 52 instead of 10, more than five times too big, and the heart comes out lopsided. A name that outlives a loop is useful for the same reason it is a trap: it remembers.",
     },
   },
 ];

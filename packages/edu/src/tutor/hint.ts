@@ -78,7 +78,7 @@ const LEVEL_CONCEPTS: Record<
     skeleton: "if :‹name› > ‹value› [ forward :‹name› ]",
   },
   "5": {
-    name: "procedures (`define … end`)",
+    name: "procedures (`define … end`), and `global` when calls must share a value",
     skeleton: "define ‹name› :‹parameter›\n  ‹body›\nend",
   },
   "6": {

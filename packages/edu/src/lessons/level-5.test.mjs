@@ -4,10 +4,22 @@
 // REUSE, not recursion — per the maintainer's scope-trim comment on issue #327, which moves any
 // recursive ("tree"/"xmas tree") exercise out to Level 6 (Geometry).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import * as OL from "@openlogo/edu";
 import * as Parser from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
+
+// This test lives at packages/edu/src/lessons/, so the repo root is four levels up.
+const repoRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "..",
+);
 
 const level5Lessons = OL.getLessonsByLevel("5");
 const level5Exercises = OL.getExercisesByLevel("5");
@@ -153,6 +165,29 @@ function procedureBody(source, name) {
   return lines.slice(startIndex, endIndex + 1).join("\n");
 }
 
+/**
+ * The straight-line distance of every `move` event in `result`, in order — the measured side
+ * lengths a drawing actually produced. Lesson explanations state these as plain numbers ("20,
+ * 30, 40, 50, 60, 70"), which nothing else in the pipeline checks, so the tests compare against
+ * this rather than trusting the prose.
+ */
+function sideLengths(result) {
+  return result.events
+    .filter((event) => event.kind === "move")
+    .map((event) => {
+      const [fromX, fromY] = event.payload.from;
+      const [toX, toY] = event.payload.to;
+      return Math.round(Math.hypot(toX - fromX, toY - fromY) * 1e6) / 1e6;
+    });
+}
+
+/** Every `print` event's values in `result`, in order — one array per `print`. */
+function printedValues(result) {
+  return result.events
+    .filter((event) => event.kind === "print")
+    .map((event) => event.payload.values);
+}
+
 test("getLessonsByLevel('5') contains only valid, Level 5 Lessons", () => {
   assert.equal(level5Lessons.length > 0, true);
   for (const lesson of level5Lessons) {
@@ -187,7 +222,7 @@ test("level5Exercises ramps through every difficulty exactly once per lesson", (
   }
 });
 
-test("the objective states define/return/local and the build-polygon-from-repeat guardrail", () => {
+test("the objective states define/return/the procedure boundary and the build-polygon-from-repeat guardrail", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
@@ -196,9 +231,21 @@ test("the objective states define/return/local and the build-polygon-from-repeat
     lesson.objective.includes("define … end names a reusable procedure"),
     true,
   );
+  // Issue #829: under saga #819's ruling privacy is automatic, so this level no longer sells
+  // `local` as the thing that creates it. The objective must carry the maintainer's own
+  // formulation from issue #821 instead — #829's comment asks for that wording rather than a
+  // paraphrase of the normative text, because it was written to be teachable.
   assert.equal(
-    lesson.objective.includes("local (a procedure's own private variable)"),
+    lesson.objective.includes("define … end is a boundary"),
     true,
+    "the objective must state the boundary in the maintainer's wording",
+  );
+  assert.equal(
+    lesson.objective.includes(
+      "inputs are yours — change them freely, the caller never sees it",
+    ),
+    true,
+    "the objective must carry the maintainer's second line",
   );
   assert.equal(
     lesson.objective.includes(
@@ -208,22 +255,176 @@ test("the objective states define/return/local and the build-polygon-from-repeat
   );
 });
 
-test("no learner-facing L5 string names Heritage spellings, Level 6, or absolute placement (issue #436)", () => {
-  const lesson = level5Lessons.find(
-    (item) => item.id === "l5-polygon-procedure",
-  );
-  assert.ok(lesson);
-
+// Issue #829's headline consequence for this level, pinned so a later edit cannot quietly
+// reintroduce it. `local` survives the ruling as a way to shadow a name that is already visible
+// (`spec/execution-model.md:501-506`), which is only meaningful after a learner has met `global`
+// — so no Level 5 program may use it, and no learner-facing Level 5 string may name it. The
+// scan covers the whole level, both lessons, not just the one that used to carry it.
+test("no Level 5 content teaches local — privacy is automatic under the scoping ruling", () => {
   const learnerStrings = [
-    lesson.objective,
-    lesson.exercisePrompt,
-    ...lesson.workedExamples.map((example) => example.explanation),
+    ...level5Lessons.flatMap((lesson) => [
+      lesson.title,
+      lesson.objective,
+      lesson.exercisePrompt,
+      ...lesson.workedExamples.flatMap((example) => [
+        example.source,
+        example.explanation,
+      ]),
+    ]),
     ...level5Exercises.flatMap((exercise) => [
       exercise.prompt,
       exercise.referenceSolution.source,
       exercise.referenceSolution.explanation,
     ]),
   ];
+  for (const text of learnerStrings) {
+    assert.equal(
+      /\blocal\b/i.test(text),
+      false,
+      `Level 5 still mentions local: ${text}`,
+    );
+  }
+});
+
+// Round 1 (rubber-duck, blocking): #829's comment asks for the maintainer's four-line
+// formulation recorded on issue #821 to be the lesson text rather than a paraphrase of the
+// normative wording, because it was written to be teachable — no jargon, no exceptions. Three of
+// the four lines apply at this level; the fourth is about lists and dicts, which are Level 7a/7b,
+// and its deliberate deferral is recorded in level-5.ts's module comment. This pins the three.
+test("the maintainer's formulation reaches the learner in its own words, not paraphrased", () => {
+  const learnerText = level5Lessons
+    .flatMap((lesson) => [
+      lesson.objective,
+      lesson.exercisePrompt,
+      ...lesson.workedExamples.map((example) => example.explanation),
+    ])
+    .join("\n")
+    .toLowerCase();
+
+  for (const line of [
+    "define … end is a boundary",
+    "inputs are yours — change them freely, the caller never sees it",
+    "global is shared — that's what makes it writable from inside",
+  ]) {
+    assert.equal(
+      learnerText.includes(line),
+      true,
+      `the maintainer's line is missing from Level 5: "${line}"`,
+    );
+  }
+});
+
+// Round 1 (rubber-duck, blocking): "shared with every procedure" is broader than the contract.
+// `spec/execution-model.md:585-590` scopes a `global` to the procedures declared in the same
+// document — `import` shares procedures and alias declarations, never variables. Level 5 learners
+// write one document, so the accurate claim is about *this program*, and the unqualified
+// universal must not come back.
+test("no Level 5 string claims a global is shared with every procedure everywhere", () => {
+  // Round 2 (rubber-duck): the first version of this guard scanned lessons only. A reviewer put
+  // the overbroad phrase into an *exercise* explanation, confirmed it reached `dist`, and all 31
+  // Level 5 tests passed. Exercises carry learner-facing prose too, so they are scanned here.
+  const learnerStrings = [
+    ...level5Lessons.flatMap((lesson) => [
+      lesson.title,
+      lesson.objective,
+      lesson.exercisePrompt,
+      ...lesson.workedExamples.flatMap((example) => [
+        example.source,
+        example.explanation,
+      ]),
+    ]),
+    ...level5Exercises.flatMap((exercise) => [
+      exercise.prompt,
+      exercise.referenceSolution.source,
+      exercise.referenceSolution.explanation,
+    ]),
+  ];
+  assert.equal(learnerStrings.length > 0, true);
+  for (const text of learnerStrings) {
+    assert.equal(
+      /every procedure\b(?! in this program)/i.test(text),
+      false,
+      `a global's reach must be qualified to this program: ${text}`,
+    );
+  }
+});
+
+// Round 4 (@ai-tutor's suggestion). The visibility rule is stated in learner prose on two
+// surfaces — `level-5.ts`'s worked example 3 and `docs/curriculum-overview.md`'s matching
+// paragraph — and the duplication has now needed the same correction twice: once when "always
+// makes a new one" was false for a parameter or global, and again when the doc kept the stale
+// wording after the lesson was fixed. Deriving learner prose from data would be worse than
+// duplicating it, so this does not test the wording. It tests the *claim*: each surface must name
+// all three categories the runtime names. That would have failed on both earlier defects, and it
+// constrains nothing about how the sentence is phrased.
+test("both surfaces state the visibility rule with all three categories the runtime names", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-polygon-procedure",
+  );
+  assert.ok(lesson);
+  const workedExample = lesson.workedExamples[2];
+  const docText = readFileSync(
+    join(repoRoot, "docs/curriculum-overview.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+
+  // Locate the doc's rule paragraph STRUCTURALLY — the first paragraph after the block that is
+  // byte-identical to this worked example's source — rather than by searching for the wording
+  // under test, which would be circular, or by scanning the whole file, which is too coarse:
+  // "sets itself" and "shared" also appear in the `global` objective and the quoted diagnostic,
+  // so a whole-file scan passes even when the rule paragraph has lost a category (measured).
+  const parts = docText.split(/```logo\n([\s\S]*?)```/);
+  const blockIndex = parts.findIndex(
+    (part, index) =>
+      index % 2 === 1 && part.replace(/\n$/, "") === workedExample.source,
+  );
+  assert.notEqual(
+    blockIndex,
+    -1,
+    "docs/curriculum-overview.md no longer carries worked example 3's program",
+  );
+  const ruleParagraph = parts[blockIndex + 1].trim().split(/\n\s*\n/)[0];
+
+  // The three things a procedure can see (`spec/execution-model.md:389-394`), each with the
+  // spellings a learner-facing sentence may reasonably use. This constrains the claim, never the
+  // wording — which is the point: the prose is duplicated on purpose, but the duplication was
+  // undetectable, and it needed the same correction twice (round 2 and round 3).
+  const categories = [
+    {
+      name: "the names it was handed (its inputs)",
+      pattern: /\bhanded\b|\binputs?\b/i,
+    },
+    { name: "the names it set itself", pattern: /\bsets? itself\b/i },
+    { name: "names shared with it", pattern: /\bshared\b|\bglobal\b/i },
+  ];
+
+  for (const [label, text] of [
+    ["level-5.ts worked example 3", workedExample.explanation],
+    ["docs/curriculum-overview.md's rule paragraph", ruleParagraph],
+  ]) {
+    for (const { name, pattern } of categories) {
+      assert.ok(
+        pattern.test(text),
+        `${label} states the visibility rule without naming ${name}: ${text}`,
+      );
+    }
+  }
+});
+
+test("no learner-facing L5 string names Heritage spellings, Level 6, or absolute placement (issue #436)", () => {
+  const learnerStrings = level5Lessons.flatMap((lesson) => [
+    lesson.objective,
+    lesson.exercisePrompt,
+    ...lesson.workedExamples.map((example) => example.explanation),
+  ]);
+  assert.equal(learnerStrings.length > 0, true);
+  learnerStrings.push(
+    ...level5Exercises.flatMap((exercise) => [
+      exercise.prompt,
+      exercise.referenceSolution.source,
+      exercise.referenceSolution.explanation,
+    ]),
+  );
 
   const bannedPatterns = [
     /heritage/i,
@@ -586,7 +787,7 @@ test("l5-street-of-houses draws exactly two complete houses (7 drawn segments ea
   assert.equal(procedureEnters.length, 8);
 });
 
-test("the reporter worked examples (double :n) both return 80 for double 40 / 42 for double 21", () => {
+test("the reporter worked example (double :n) returns 80 for double 40, and the boundary examples measure both halves of the seal", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
@@ -597,9 +798,223 @@ test("the reporter worked examples (double :n) both return 80 for double 40 / 42
   assert.equal(moves.length, 1);
   assert.deepEqual(moves[0].payload.to, [0, 80]);
 
-  const localExample = lesson.workedExamples[2];
-  const localResult = execute(localExample.source, "double-local.logo");
-  const prints = localResult.events.filter((event) => event.kind === "print");
-  assert.equal(prints.length, 1);
-  assert.deepEqual(prints[0].payload.values, [42]);
+  // Issue #829 / saga #819: the names a procedure sets are its own, so the same spelling inside
+  // and outside `show_double` is two variables. 42 then 5 is the claim the explanation makes.
+  const privacyExample = lesson.workedExamples[2];
+  const privacyResult = execute(privacyExample.source, "show-double.logo");
+  assert.deepEqual(privacyResult.diagnostics, []);
+  assert.deepEqual(printedValues(privacyResult), [[42], [5]]);
+
+  // The other half of the boundary (`spec/execution-model.md:471-474`): rebinding a parameter
+  // never escapes, so an input really is the procedure's to change. 107 then 7.
+  const inputExample = lesson.workedExamples[3];
+  const inputResult = execute(inputExample.source, "input-is-yours.logo");
+  assert.deepEqual(inputResult.diagnostics, []);
+  assert.deepEqual(printedValues(inputResult), [[107], [7]]);
+});
+
+// Round 1 (@ai-tutor B1): worked example 3 teaches that a write inside a procedure makes the
+// procedure's own name, and the `global` lesson then shows a write inside a procedure FAILING.
+// Both are true, and the rule that reconciles them is the write/read asymmetry — so the lesson
+// now states it, and the statement is measured here in both directions rather than asserted.
+test("the write/read asymmetry worked example 3 states is real in both directions", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-polygon-procedure",
+  );
+  assert.ok(lesson);
+  const source = lesson.workedExamples[2].source;
+  assert.equal(source.includes(":answer = :n * 2"), true);
+
+  // Writing only: legal, and creates the procedure's own binding.
+  assert.deepEqual(execute(source, "write-only.logo").diagnostics, []);
+
+  // Reading first: exactly the edit the explanation names, and it must stop the program.
+  const readsFirst = source.replace(
+    ":answer = :n * 2",
+    ":answer = :answer + 1",
+  );
+  assert.notEqual(readsFirst, source, "the asymmetry edit did not apply");
+  const blocked = execute(readsFirst, "reads-first.logo");
+  assert.equal(blocked.diagnostics.length, 1);
+  assert.equal(blocked.diagnostics[0].code, "ol-var-not-visible");
+  assert.equal(blocked.diagnostics[0].message.includes("show_double"), true);
+  assert.deepEqual(printedValues(blocked), []);
+});
+
+// The `global` lesson (issue #829). Every number its explanations promise a learner is measured
+// here, including the sequence of side lengths, because a "20, 30, 40, 50, 60, 70" written in
+// prose is exactly the kind of derived claim nothing else in the pipeline checks.
+test("l5-global-shared-value's worked examples print and draw what they promise", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-global-shared-value",
+  );
+  assert.ok(lesson);
+  assert.equal(lesson.workedExamples.length, 2);
+
+  const counter = execute(lesson.workedExamples[0].source, "global-bump.logo");
+  assert.deepEqual(counter.diagnostics, []);
+  assert.deepEqual(printedValues(counter), [[2]]);
+
+  const steps = execute(lesson.workedExamples[1].source, "global-step.logo");
+  assert.deepEqual(steps.diagnostics, []);
+  assert.deepEqual(sideLengths(steps), [20, 30, 40, 50, 60, 70]);
+
+  // "take the sharing away and every call would draw the same 20-step side" — the claim that
+  // makes `global` visible in the drawing rather than only in a printed number.
+  const shared = lesson.workedExamples[1].source;
+  assert.equal(shared.includes("global side = 20"), true);
+  const unshared = shared.replace(
+    "global side = 20\ndefine step\n  forward :side",
+    "define step\n  :side = 20\n  forward :side",
+  );
+  assert.notEqual(unshared, shared, "the unshared edit did not apply");
+  const flat = execute(unshared, "global-step-unshared.logo");
+  assert.deepEqual(flat.diagnostics, []);
+  assert.deepEqual(sideLengths(flat), [20, 20, 20, 20, 20, 20]);
+});
+
+// The claim the first `global` explanation makes about the *broken* program a learner is told to
+// try: it prints nothing at all and OpenLogo names the procedure, the rule, and the fix. The
+// lesson corpus itself must stay statically clean (built-in-names.test.mjs and
+// scoping-audit.test.mjs both assert that), so the broken variant is built here rather than
+// shipped as a worked example — and it is built by editing the lesson's own source, so it cannot
+// drift from the program the learner is shown. Round 1 (rubber-duck) found the earlier version
+// asserting only the code plus two substrings, which would have stayed green if execution had
+// continued or the quoted sentence had changed; the lesson quotes the message verbatim, so the
+// whole quoted string is pinned.
+test("dropping the global declaration stops the program with the message the lesson quotes", () => {
+  const lesson = level5Lessons.find(
+    (item) => item.id === "l5-global-shared-value",
+  );
+  assert.ok(lesson);
+  const shared = lesson.workedExamples[0].source;
+  assert.equal(shared.includes("global count = 0"), true);
+  const withoutGlobal = shared.replace("global count = 0", ":count = 0");
+  assert.notEqual(
+    withoutGlobal,
+    shared,
+    "the counterfactual edit did not apply",
+  );
+
+  const result = execute(withoutGlobal, "global-bump-broken.logo");
+  assert.equal(result.diagnostics.length, 1);
+  const boundary = result.diagnostics[0];
+  assert.equal(boundary.code, "ol-var-not-visible");
+
+  // "it prints nothing at all" — the program stops, it does not carry on with a wrong number.
+  assert.deepEqual(printedValues(result), []);
+
+  // The lesson quotes the message inside its explanation; that quote must be the real one.
+  const quoted =
+    ":count is not defined inside bump. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global count = (its starting value).";
+  assert.equal(boundary.message, quoted);
+  assert.equal(
+    lesson.workedExamples[0].explanation.includes(quoted),
+    true,
+    "the lesson's quoted diagnostic has drifted from the real message",
+  );
+});
+
+test("l5-global-share-a-count shares the count, still closes the square, and is a one-line fix", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-share-a-count",
+  );
+  assert.ok(exercise);
+  const source = exercise.referenceSolution.source;
+  assert.equal(source.includes("global drawn = 0"), true);
+
+  const result = execute(source, "global-share-a-count.logo");
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(printedValues(result), [[4]]);
+  assert.deepEqual(sideLengths(result), [60, 60, 60, 60]);
+
+  // "the drawing is unchanged" — four sides and four right angles bring the turtle home.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const [endX, endY] = moves[moves.length - 1].payload.to;
+  assert.ok(Math.hypot(endX, endY) < 1e-6);
+
+  // Round 1 (@testing findings 1 and 2): the old assertion counted differing lines between the
+  // fixed source and a one-line replacement of it, which is tautologically 1 and could never
+  // fail. What the prompt actually claims is behavioural — that the program it describes STOPS
+  // with a named diagnostic, and that `global` is the whole repair — so that is what is measured.
+  const plain = source.replace("global drawn = 0", ":drawn = 0");
+  assert.notEqual(plain, source, "the prompt's starting program was not built");
+  const broken = execute(plain, "share-a-count-broken.logo");
+  assert.equal(broken.diagnostics.length, 1);
+  assert.equal(broken.diagnostics[0].code, "ol-var-not-visible");
+  assert.equal(
+    broken.diagnostics[0].message.startsWith(
+      ":drawn is not defined inside draw_side.",
+    ),
+    true,
+  );
+  assert.deepEqual(printedValues(broken), []);
+  // The prompt quotes that first clause; keep the two from drifting apart.
+  assert.equal(
+    exercise.prompt.includes(":drawn is not defined inside draw_side"),
+    true,
+  );
+});
+
+test("l5-global-total-of-inputs keeps per-call inputs separate while sharing one total", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-total-of-inputs",
+  );
+  assert.ok(exercise);
+  const result = execute(
+    exercise.referenceSolution.source,
+    "global-total-of-inputs.logo",
+  );
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(sideLengths(result), [30, 50, 70, 90]);
+  assert.deepEqual(printedValues(result), [[30 + 50 + 70 + 90]]);
+});
+
+test("l5-global-staircase grows its steps from the shared name, not from its input", () => {
+  const exercise = level5Exercises.find(
+    (item) => item.id === "l5-global-staircase",
+  );
+  assert.ok(exercise);
+  const source = exercise.referenceSolution.source;
+  const result = execute(source, "staircase.logo");
+  assert.deepEqual(result.diagnostics, []);
+
+  // Four calls, each a rise then the 40-step tread it was handed. The rises grow although every
+  // call is written `stair 40` — which is the whole point of the exercise.
+  assert.deepEqual(sideLengths(result), [20, 40, 30, 40, 40, 40, 50, 40]);
+  assert.deepEqual(printedValues(result), [[60]]);
+  const calls = source
+    .split("\n")
+    .filter((line) => line.trim().startsWith("stair "));
+  assert.equal(calls.length, 4);
+  assert.equal(new Set(calls.map((line) => line.trim())).size, 1);
+
+  // "the steps stack, climbing to the right": every step ends higher and further right than it
+  // started, which is the shape claim the explanation makes and a length list cannot prove.
+  const moves = result.events.filter((event) => event.kind === "move");
+  const [startX, startY] = moves[0].payload.from;
+  for (let step = 0; step < 4; step += 1) {
+    const [beforeX, beforeY] = moves[step * 2].payload.from;
+    const [afterX, afterY] = moves[step * 2 + 1].payload.to;
+    assert.ok(afterY > beforeY, `step ${step} did not rise`);
+    assert.ok(afterX > beforeX, `step ${step} did not move right`);
+  }
+  const [endX, endY] = moves[moves.length - 1].payload.to;
+  assert.ok(Math.abs(endY - startY - (20 + 30 + 40 + 50)) < 1e-6);
+  assert.ok(Math.abs(endX - startX - 4 * 40) < 1e-6);
+
+  // Without the shared growth every step would be identical — the drawing, not just a printed
+  // number, is what `global` is buying here. And the program cannot even report the rise: a
+  // name the procedure sets belongs to the procedure, so the top-level `print :rise` has nothing
+  // to read. Both halves are asserted, because either alone understates what `global` does.
+  const unshared = source.replace(
+    "global rise = 20\ndefine stair :tread\n  forward :rise",
+    "define stair :tread\n  :rise = 20\n  forward :rise",
+  );
+  assert.notEqual(unshared, source, "the unshared edit did not apply");
+  const flat = execute(unshared, "staircase-unshared.logo");
+  assert.deepEqual(sideLengths(flat), [20, 40, 20, 40, 20, 40, 20, 40]);
+  assert.deepEqual(printedValues(flat), []);
+  assert.equal(flat.diagnostics.length, 1);
+  assert.equal(flat.diagnostics[0].code, "ol-undefined-var");
 });
