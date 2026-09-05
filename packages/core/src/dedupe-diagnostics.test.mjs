@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dedupeDiagnostics, OLDict, OLTurtle } from "@openlogo/core";
+import { dedupeDiagnostics, OLDict, OLRecord, OLTurtle } from "@openlogo/core";
 
 /** An `ol-duplicate-definition` whose `original_span` object is built with the given key order. */
 function duplicateDefinition(originalSpan) {
@@ -164,105 +164,160 @@ test("tagging does not weaken the duplicate collapse it exists beside", () => {
   assert.equal(kept[0]?.stage, "semantic", "the first report survives");
 });
 
-// --- Round-12 review: injective, TOTAL, and CYCLE-SAFE -----------------------------------------
+// --- Round-12 review: INJECTIVE, TOTAL, and CYCLE-SAFE ------------------------------------------
 //
-// Round 11 fixed the object-vs-array collision. Round 12 found the same defect one level deeper and
-// twice more, all in the silent direction — two different faults judged one, and the second
-// discarded with nothing left to show it existed.
+// Round 11 fixed one collision (an object vs the array of its entries). Round 12 found the same
+// defect three more times, and the pattern in how it kept being missed is the point: each fix was
+// tested against the case it fixed, and the CONTROL that would have caught the next one was left
+// out. Special atoms were encoded by name — so the number `NaN` and the word `"NaN"` collided —
+// and the test compared the specials only against each other, never against their spellings.
+//
+// So the table below is written as pairs that must be DISTINGUISHED plus pairs that must still
+// COLLAPSE, across every type `params` can carry. `params` is `Record<string, unknown>`, not
+// `OLValue`, so a host can put anything there; the encoding is total over all of it.
+//
+// The failure direction is why this is worth the space: a missed duplicate is visible — the learner
+// reads the same fault twice — while a collision silently discards a real diagnostic, and a crash
+// in the de-duplicator replaces the diagnostic a program was owed with whatever the throw becomes.
 
-test("two dicts with different contents are different faults", () => {
-  // `OLDict` keeps its entries in a PRIVATE Map, which `Object.keys` reports as empty — so every
-  // dict canonicalized identically and every dict-valued param collapsed onto every other.
-  const first = new OLDict();
-  first.set("a", 1);
-  const second = new OLDict();
-  second.set("a", 2);
-  const base = {
+/** One diagnostic carrying `value`, at a fixed code and span so only `params` can differ. */
+function carrying(value) {
+  return {
     code: "ol-type",
     source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
+    params: { v: value },
     message: "m",
     stage: "runtime",
     severity: "error",
   };
+}
+
+/** How many findings survive de-duplication when `left` and `right` are reported at one span. */
+function survivors(left, right) {
+  return dedupeDiagnostics([carrying(left), carrying(right)]).length;
+}
+
+test("a special atom never collides with the word that spells it", () => {
+  // The round-12 defect exactly: encoding `NaN` as the text "NaN" made it equal to the word "NaN".
+  for (const [special, spelling] of [
+    [Number.NaN, "NaN"],
+    [Infinity, "Infinity"],
+    [-Infinity, "-Infinity"],
+    [undefined, "undefined"],
+    [null, "null"],
+    [true, "true"],
+    [1, "1"],
+  ]) {
+    assert.equal(
+      survivors(special, spelling),
+      2,
+      `${String(special)} and the word "${spelling}" are different faults`,
+    );
+  }
+});
+
+test("values of different shapes never collide", () => {
+  const dict = new OLDict();
+  dict.set("a", 1);
+  for (const [left, right, why] of [
+    [{ a: 1 }, [["a", 1]], "an object and the array of its entries"],
+    [["x", "y"], ["xy"], "two words and their concatenation"],
+    [
+      "a:b",
+      ["a", "b"],
+      "a word containing the separator and the pair it looks like",
+    ],
+    [0, -0, "positive and negative zero"],
+    [dict, new OLRecord("p", [], []), "an empty-keyed dict and a record"],
+    [5n, "5", "a bigint and its printed form"],
+  ]) {
+    assert.equal(survivors(left, right), 2, why);
+  }
+});
+
+test("equal values of every carried type still collapse to one", () => {
+  const dictA = new OLDict();
+  dictA.set("a", 1);
+  const dictB = new OLDict();
+  dictB.set("a", 1);
+  for (const [left, right, why] of [
+    [Number.NaN, Number.NaN, "NaN is one fault, not two"],
+    [dictA, dictB, "dicts with equal contents"],
+    [
+      new OLRecord("p", ["x", "y"], [1, 2]),
+      new OLRecord("p", ["x", "y"], [1, 2]),
+      "records with equal type and fields",
+    ],
+    [new OLTurtle(1), new OLTurtle(1), "the same turtle"],
+    [{ a: 1, b: 2 }, { b: 2, a: 1 }, "key order is not identity"],
+  ]) {
+    assert.equal(survivors(left, right), 1, why);
+  }
+});
+
+test("dicts, records and turtles are read through their own accessors", () => {
+  // `OLDict`/`OLRecord` keep their contents in a PRIVATE Map, which `Object.keys` reports as empty
+  // — so before this every dict canonicalized identically and collapsed onto every other.
+  const one = new OLDict();
+  one.set("a", 1);
+  const two = new OLDict();
+  two.set("a", 2);
+  assert.equal(survivors(one, two), 2, "dicts differing in a value");
+
   assert.equal(
-    dedupeDiagnostics([
-      { ...base, params: { actual: first } },
-      { ...base, params: { actual: second } },
-    ]).length,
+    survivors(
+      new OLRecord("p", ["x", "y"], [1, 2]),
+      new OLRecord("p", ["x", "y"], [1, 3]),
+    ),
     2,
+    "records differing in a field value",
   );
-});
-
-test("two dicts with equal contents are still one fault", () => {
-  const first = new OLDict();
-  first.set("a", 1);
-  const second = new OLDict();
-  second.set("a", 1);
-  const base = {
-    code: "ol-type",
-    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
-    message: "m",
-    stage: "runtime",
-    severity: "error",
-  };
   assert.equal(
-    dedupeDiagnostics([
-      { ...base, params: { actual: first } },
-      { ...base, params: { actual: second } },
-    ]).length,
-    1,
-    "reading the contents must not stop equal dicts collapsing",
-  );
-});
-
-test("turtles are distinguished by the id that IS their identity", () => {
-  const base = {
-    code: "ol-type",
-    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
-    message: "m",
-    stage: "runtime",
-    severity: "error",
-  };
-  assert.equal(
-    dedupeDiagnostics([
-      { ...base, params: { actual: new OLTurtle(1) } },
-      { ...base, params: { actual: new OLTurtle(2) } },
-    ]).length,
+    survivors(
+      new OLRecord("p", ["x", "y"], [1, 2]),
+      new OLRecord("q", ["x", "y"], [1, 2]),
+    ),
     2,
-    "spec/execution-model.md:541 makes the id a turtle's identity",
+    "records differing only in struct type",
+  );
+  assert.equal(
+    survivors(new OLTurtle(1), new OLTurtle(2)),
+    2,
+    "spec/execution-model.md:552 makes two turtles == only when they are the same turtle",
   );
 });
 
-test("undefined, NaN and the infinities are not each other, nor null", () => {
-  // `JSON.stringify` renders all four as `null`, so four distinct params compared equal.
-  const base = {
-    code: "ol-type",
-    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
-    message: "m",
-    stage: "runtime",
-    severity: "error",
-  };
-  const distinct = [null, undefined, Number.NaN, Infinity, -Infinity].map(
-    (n) => ({ ...base, params: { n } }),
-  );
-  assert.equal(dedupeDiagnostics(distinct).length, 5);
-});
-
-test("a self-referential param terminates instead of overflowing the stack", () => {
-  // `:x = []  add :x to :x  forward :x` builds this, and a naive recursion turned the owed
-  // `ol-type` into `ol-limit` — a wrong diagnostic produced by the machinery that decides which
-  // diagnostics survive.
+test("a deep or cyclic value terminates instead of throwing", () => {
+  // Both shapes turned the diagnostic a program was owed into whatever the throw became. The
+  // traversal is iterative over an explicit stack, so neither consumes the host call stack —
+  // 50,000 levels is far past the ~1,500 at which the recursive form raised `RangeError`.
   const cyclic = [];
   cyclic.push(cyclic);
-  const base = {
-    code: "ol-type",
-    source_span: { document: "d.logo", start: [1, 1], end: [1, 2] },
-    message: "m",
-    stage: "runtime",
-    severity: "error",
-  };
-  assert.equal(
-    dedupeDiagnostics([{ ...base, params: { v: cyclic } }]).length,
-    1,
+  assert.equal(dedupeDiagnostics([carrying(cyclic)]).length, 1);
+
+  const deep = [];
+  let cursor = deep;
+  for (let level = 0; level < 50_000; level++) {
+    const next = [];
+    cursor.push(next);
+    cursor = next;
+  }
+  assert.equal(dedupeDiagnostics([carrying(deep)]).length, 1);
+});
+
+test("a large collection is canonicalized once, not once per entry", () => {
+  // Asking `values()` per key rebuilt the whole collection per entry: quadratic, ~280 ms at 8,000
+  // entries. This is a generous ceiling — it is guarding the complexity class, not a millisecond
+  // budget, so it will not flake on a slow machine while still failing loudly if the quadratic
+  // shape returns.
+  const big = new OLDict();
+  for (let index = 0; index < 8_000; index++) {
+    big.set(`k${index}`, index);
+  }
+  const started = Date.now();
+  dedupeDiagnostics([carrying(big)]);
+  assert.ok(
+    Date.now() - started < 2_000,
+    "de-duplicating one 8,000-entry dict must not be quadratic in its size",
   );
 });

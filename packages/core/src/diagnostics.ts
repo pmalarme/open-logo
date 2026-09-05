@@ -136,100 +136,161 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * **excluded** — the spec says outright that `stage` "records when the fault was found, not which
  * fault it is", so the same fault reported at `semantic` and again at `runtime` is one fault.
  *
- * `params` are serialized **canonically and recursively**: keys are sorted at every depth, so two
- * findings carrying the same entries in a different insertion order compare equal. Two rules can
- * legitimately build the same params object field-by-field in different orders, and an identity
- * that depended on that order would silently let the duplicate through. Sorting only the top level
- * is not enough — `ol-duplicate-definition`'s `original_span` is itself an object (a normative
- * `params` entry, `spec/error-model.md:144-147`), and two identical findings whose nested keys were
- * inserted in different orders were measured surviving as two.
+ * `params` are serialized **canonically**: keys are sorted at every depth, so two findings carrying
+ * the same entries in a different insertion order compare equal. Two rules can legitimately build
+ * the same params object field-by-field in different orders, and an identity that depended on that
+ * order would silently let the duplicate through. Sorting only the top level is not enough —
+ * `ol-duplicate-definition`'s `original_span` is itself an object (a normative `params` entry,
+ * `spec/error-model.md:144-147`), and two identical findings whose nested keys were inserted in
+ * different orders were measured surviving as two.
  *
- * The encoding is **injective**, **total**, and **cycle-safe**, and each of the three is load-bearing
- * in the same direction. A missed duplicate is merely visible — the learner reads the same fault
- * twice. A *collision* is silent: two genuinely different faults are judged one and the second is
- * discarded with nothing to show it ever existed, inside a slice whose subject is never silently
- * dropping a diagnostic. So:
+ * Beyond ordering, the encoding must be **injective**, **total**, and **cycle-safe**, and all three
+ * fail in the same direction. A missed duplicate is merely visible — the learner reads the same
+ * fault twice. A *collision* or a crash is silent or wrong: two different faults are judged one and
+ * the second is discarded, or the de-duplicator itself throws and replaces the diagnostic a program
+ * was owed. That is intolerable in the one component whose entire job is deciding which findings
+ * survive. Three review rounds each found the previous encoding failing one of the three:
  *
- * - Every value is wrapped in a `[tag, payload]` pair rather than rendered structurally. An object's
- *   sorted entry list would otherwise be byte-identical to a literal array of the same pairs, which
- *   is reachable — `params` carry both objects (`original_span`) and arrays (`expected`).
+ * - **Injective by construction.** Values are not rendered structurally: an object's sorted entry
+ *   list is byte-identical to a literal array of the same pairs, and `params` carry both (an object
+ *   in `original_span`, arrays in `expected`). Every value emits a **type tag**, and strings are
+ *   **length-prefixed**, so no payload can be mistaken for a different shape's rendering.
+ *   Type-tagging is what separates the number `NaN` from the word `"NaN"`, and `undefined` from the
+ *   word `"undefined"` — a round that encoded special atoms *by name* made all four pairs collide,
+ *   and its test compared the specials only against each other, never against their spellings.
  * - **`OLValue`s are read through their own accessors, not through `Object.keys`.** `OLDict` and
- *   `OLRecord` keep their contents in a *private* `Map`, which `Object.keys` reports as empty — so
+ *   `OLRecord` hold their contents in a *private* `Map`, which `Object.keys` reports as empty — so
  *   every dict collapsed onto every other dict, and `ol-type {actual: {a: 1}}` and
- *   `{actual: {a: 2}}` at one span were one fault. That is the round-11 defect exactly, one level
- *   deeper than where it was found. `OLTurtle` is keyed by `id`, which `spec/execution-model.md:541`
- *   makes a turtle's identity.
- * - **A cycle terminates instead of overflowing.** `:x = []  add :x to :x  forward :x` builds a
- *   self-referential list, and a naive recursion blew the stack — turning the owed `ol-type` into
- *   `ol-limit`, which is a wrong diagnostic produced by the machinery that decides which diagnostics
- *   survive. A value already on the path is emitted as a back-reference to its depth.
- * - **Atoms keep their identity.** `JSON.stringify` renders `undefined`, `NaN`, `Infinity` and
- *   `-Infinity` all as `null`, so four distinct params compared equal. Each is encoded by name.
- *   There is deliberately no `bigint` arm: `OLValue` has no bigint, so an arm for one would be
- *   unreachable code that only a contrived test could cover — the coverage-theatre shape a review
- *   caught earlier in this slice.
+ *   `{actual: {a: 2}}` at one span were one fault. Each collection is snapshotted **once**; asking
+ *   `values()` per key rebuilt the whole collection per entry, which is quadratic (~280 ms at 8,000
+ *   entries). A turtle is encoded by `id`: `spec/execution-model.md:552` requires two turtles to be
+ *   `==` when they are the "Same turtle identity" but says nothing about how identity is
+ *   represented — that `id` *is* the representation is {@link OLTurtle}'s own contract, not the
+ *   spec's. (An earlier draft of this comment cited the spec for the second claim as well. It
+ *   resolved and did not support it, which is the failure mode `npm run spec-citations` prints that
+ *   it cannot see.)
+ * - **Total, including deep and cyclic values.** The traversal is **iterative over an explicit
+ *   stack**, so it does not consume the host call stack. Recursion failed twice here: on
+ *   `:x = []  add :x to :x  forward :x`, whose cycle looped forever, and then on a merely *deep*
+ *   value — ~1,500 nested lists, which a program can build — where the `RangeError` surfaced as
+ *   `ol-limit` in place of the `ol-type` the program was owed. A cycle is emitted as a
+ *   back-reference to the depth of the value it revisits.
+ *
+ * `params` is `Record<string, unknown>`, not `OLValue`, so this is deliberately **total over
+ * anything a host can put there** — including a `bigint`, which `JSON.stringify` throws on. An
+ * exotic value gets its type tag and its `String()` form rather than an exception. An earlier draft
+ * argued the opposite, that a `bigint` arm would be unreachable because `OLValue` has none; that
+ * reasoned from the wrong type, and the reachable consequence was a throw inside the component
+ * whose job is deciding which diagnostics survive.
  */
-function canonicalize(value: unknown, path: readonly unknown[] = []): unknown {
+function canonicalize(value: unknown): string {
+  const out: string[] = [];
+  /** The chain of containers currently open, for cycle detection by depth. */
+  const path: unknown[] = [];
+  /**
+   * Explicit work stack. Each entry is either a one-element array holding the value to encode, or
+   * `null` marking "the container opened here is finished". The wrapper array matters: a value to
+   * encode may itself be `null`, and boxing keeps that from reading as the sentinel.
+   */
+  const work: (readonly [unknown] | null)[] = [[value]];
+
+  while (work.length > 0) {
+    const item = work.pop();
+    if (item === undefined || item === null) {
+      path.pop();
+      out.push(")");
+      continue;
+    }
+    out.push(encodeAtomOrOpen(item[0], path, work));
+  }
+  return out.join("");
+}
+
+/** A string rendered so it cannot be confused with anything around it. */
+function tagged(tag: string, text: string): string {
+  return `${tag}${text.length}:${text}`;
+}
+
+/**
+ * Emit `value`'s encoding, pushing its children onto `work` when it is a container. Returns the
+ * text to append; container children are pushed in reverse so they are visited in order, with a
+ * `null` sentinel beneath them to close the group and pop the cycle path.
+ */
+function encodeAtomOrOpen(
+  value: unknown,
+  path: unknown[],
+  work: (readonly [unknown] | null)[],
+): string {
   const seenAt = path.indexOf(value);
   if (seenAt !== -1) {
-    return ["cycle", seenAt];
+    return `cyc${seenAt};`;
   }
-  if (typeof value === "number" && !Number.isFinite(value)) {
-    return ["atom", Number.isNaN(value) ? "NaN" : `${value}`];
+  switch (typeof value) {
+    case "undefined":
+      return "und;";
+    case "boolean":
+      return value ? "bool1;" : "bool0;";
+    case "number":
+      // `Object.is` separates -0 from 0, which `String()` renders identically.
+      return tagged("num", Object.is(value, -0) ? "-0" : `${value}`);
+    case "string":
+      return tagged("str", value);
+    case "object":
+      break;
+    default:
+      // bigint, symbol, function — not `OLValue`s, but `params` is `Record<string, unknown>`.
+      return tagged(typeof value, String(value));
   }
-  if (value === undefined) {
-    return ["atom", "undefined"];
-  }
-  if (typeof value !== "object" || value === null) {
-    return ["atom", value];
+  if (value === null) {
+    return "nul;";
   }
 
-  const nested = [...path, value];
+  path.push(value);
+  work.push(null);
+  const children: unknown[] = [];
+  let head: string;
   if (Array.isArray(value)) {
-    return ["array", value.map((item) => canonicalize(item, nested))];
+    head = `arr${value.length}(`;
+    children.push(...value);
+  } else if (value instanceof OLDict) {
+    const keys = value.keys();
+    const values = value.values();
+    head = `dict${keys.length}(`;
+    for (let index = 0; index < keys.length; index++) {
+      children.push(keys[index], values[index]);
+    }
+  } else if (value instanceof OLRecord) {
+    const fields = value.fields();
+    head = `rec${tagged("", value.type)}${fields.length}(`;
+    for (const field of fields) {
+      children.push(field, value.get(field));
+    }
+  } else if (value instanceof OLTurtle) {
+    head = `turtle${value.id}(`;
+  } else {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    head = `obj${keys.length}(`;
+    for (const key of keys) {
+      children.push(key, (value as Record<string, unknown>)[key]);
+    }
   }
-  if (value instanceof OLDict) {
-    return [
-      "dict",
-      value
-        .keys()
-        .map((key, index) => [
-          canonicalize(key, nested),
-          canonicalize(value.values()[index], nested),
-        ]),
-    ];
+  for (let index = children.length - 1; index >= 0; index--) {
+    work.push([children[index]]);
   }
-  if (value instanceof OLRecord) {
-    return [
-      "record",
-      value.type,
-      value
-        .fields()
-        .map((field) => [field, canonicalize(value.get(field), nested)]),
-    ];
-  }
-  if (value instanceof OLTurtle) {
-    return ["turtle", value.id];
-  }
-  return [
-    "object",
-    Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map((key) => [
-        key,
-        canonicalize((value as Record<string, unknown>)[key], nested),
-      ]),
-  ];
+  return head;
 }
 
 function faultIdentity(diagnostic: Diagnostic): string {
-  return JSON.stringify([
+  const span = diagnostic.source_span;
+  return [
     diagnostic.code,
-    diagnostic.source_span.document,
-    diagnostic.source_span.start,
-    diagnostic.source_span.end,
+    span.document,
+    `${span.start[0]},${span.start[1]}`,
+    `${span.end[0]},${span.end[1]}`,
     canonicalize(diagnostic.params),
-  ]);
+  ]
+    .map((part) => tagged("", part))
+    .join("");
 }
 
 /**
