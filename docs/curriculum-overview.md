@@ -3,8 +3,8 @@
 > The first five of OpenLogo's [8 progressive learner levels](../spec/educational-model.md#the-8-progressive-levels)
 > — movement through procedures — each teaching one new idea on top of the last, and each
 > culminating in a challenge that composes a **recognizable object** (a house, a tree, a small
-> street, a snail's shell, a staircase) rather than an abstract drill. Levels 3 and 5 carry two
-> lessons each: the second in both cases teaches saga
+> street, a pair of curled horns, a staircase) rather than an abstract drill. Levels 3 and 5 carry
+> two lessons each: the second in both cases teaches saga
 > [#819](https://github.com/pmalarme/open-logo/issues/819)'s variable-scoping ruling at the point
 > a learner first meets it ([#829](https://github.com/pmalarme/open-logo/issues/829)). Authored as
 > validated `Lesson`/`Exercise` content in `@openlogo/edu`
@@ -132,10 +132,10 @@ end repeat
 That prints `1 2 3 4`. Being born outside is what makes the accumulator idiom possible at all —
 `:side` surviving from turn to turn is how a loop grows a drawing rather than repeating it.
 
-The graded exercises ramp from moving that single line so the same loop counts up, to drawing four
-sides that each come out longer than the last, to the open challenge: a **snail's shell** — the
-same side-and-quarter-turn pattern as a square, winding outward only because the growing name
-outlives each turn.
+The graded exercises ramp from moving that single line so the same loop counts up, to carrying two
+names across the turns at once (one growing the drawing, one totalling the distance), to the open
+challenge: a **pair of curled horns** that mirror each other — and are a pair only because the
+second horn's growing name is born again before its own loop.
 
 **Lesson content:** [`level-3.ts`](../packages/edu/src/lessons/level-3.ts) (lessons
 `l3-size-square`, `l3-where-a-name-is-born`).
@@ -178,7 +178,7 @@ condition — green if `:size >= 80`, purple otherwise.
 ### `define` names a reusable idea; `return` hands back its answer
 
 **Objective:** See that `define … end` names a reusable procedure, that parameters such as
-`:sides` and `:size` are variables scoped to it, that `return` hands a value back from a reporter,
+`:sides` and `:size` are variables that belong to it, that `return` hands a value back from a reporter,
 that a command procedure may draw without returning a value, and that a procedure's own names are
 private **automatically**. `polygon` is always **built up** from `repeat` here — never handed to
 the learner as an opaque primitive.
@@ -212,35 +212,39 @@ this prints `42` then `5`:
 ```logo
 # why: the names a procedure sets are its own, even when the name is already in use
 :answer = 5
-define double :n
+define show_double :n
   :answer = :n * 2
   print :answer
 end
 
-double 21
+show_double 21
 print :answer
 ```
 
-The other half is that an input is yours: change it as freely as the procedure needs and the
-caller keeps what it had.
+Setting a name inside a procedure always makes a new one that belongs to the procedure; **reading**
+a name it was never handed is the thing it cannot do. `:answer = :n * 2` is fine because it only
+writes — change it to `:answer = :answer + 1` and the program stops, because that has to read
+`:answer` first. That asymmetry is what the next lesson's one word repairs.
+
+The other half is that inputs are yours: change them freely, the caller never sees it.
 
 The graded exercises ramp from a single-line change to the `polygon` call, to defining a second
 procedure (`triangle`) that reuses `polygon` instead of repeating its logic, to the open challenge:
 reusing `spec/examples/06-geometry.logo`'s validated `polygon` → `triangle` → `house` chain to
 define `house :size`, then calling it twice to draw a small street of two houses side by side.
 
-### `global` shares one value with every procedure
+### `global` shares one value across your procedures
 
 **Objective:** See that a procedure cannot reach a name it was never handed — it sees only its own
-inputs, the names it sets itself, and names declared `global` — and that `global name = value` is
-how a program deliberately shares one value across several calls.
+inputs, the names it sets itself, and names declared `global` — and that `global` is shared, which
+is what makes it writable from inside.
 
 `global` is the one way through the boundary above, and it is the first time a learner meets
 deliberate shared state. The name is written **bare**, without a colon, and a starting value is
 required ([`spec/execution-model.md`](../spec/execution-model.md#global)):
 
 ```logo
-# why: global says out loud that this one value is shared with every procedure
+# why: global is shared — that's what makes it writable from inside
 global count = 0
 define bump
   :count = :count + 1
@@ -251,19 +255,29 @@ bump
 print :count
 ```
 
-That prints `2`. Written as a plain `:count = 0` the program stops instead, because `bump` cannot
-see a name that was never handed to it — OpenLogo reports `ol-var-not-visible`, naming the
-procedure whose boundary hid it: *":count is not defined inside bump"*. Note where that message
-appears today: the studio's diagnostics pane does not yet run the semantic checker while a learner
-types ([#814](https://github.com/pmalarme/open-logo/issues/814)), so the learner meets this by
-pressing **Run** and reading the runtime's copy of the message, not by seeing it appear as they
-write. The lesson teaches the boundary and the one-word fix, not an IDE experience that is not
-wired up yet.
+That prints `2`. Written as a plain `:count = 0` the program prints nothing at all and stops on the
+first call, because `:count = :count + 1` has to read `:count` before it can change it and `bump`
+was never handed one. OpenLogo reports `ol-var-not-visible`, and its message names the procedure,
+the rule, and the fix:
+
+```text
+:count is not defined inside bump. a procedure only sees its own inputs, the names it sets
+itself, and names declared global. the fix is one word at the top level: write global count =
+(its starting value).
+```
+
+Note where that message reaches the learner today: the studio's diagnostics pane does not yet run
+the semantic checker while a learner types
+([#814](https://github.com/pmalarme/open-logo/issues/814)), so they meet it by pressing **Run** and
+reading the runtime's copy, not by seeing it appear as they write. The lesson teaches the boundary
+and the one-word fix, not an IDE experience that is not wired up yet. Once declared, the name is
+shared with every procedure in this program — `import` shares procedures and alias declarations,
+never variables, so a `global` never reaches beyond the document that declares it.
 
 The graded exercises ramp from that one-word fix, to a procedure given an input *as well as* a
 shared total — so the two kinds of name are contrasted rather than described — to the open
-challenge: a **staircase** whose steps are drawn from their inputs while a shared name accumulates
-how far it climbed.
+challenge: a **staircase** whose steps grow although every call is written identically, because the
+height is shared and the tread is handed in.
 
 Under saga [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling, `local` is no longer
 taught at this level. It used to be what *made* a procedure's variable private; now privacy is the

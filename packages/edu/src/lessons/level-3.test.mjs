@@ -189,34 +189,50 @@ test("l3-size-house resizes the walls and the roof together from one :size", () 
 // l3-where-a-name-is-born (issue #829) — saga #819's scoping ruling as a lesson.
 // ---------------------------------------------------------------------------
 
-/** Every printed value of `source`, in order, as a flat array of the numbers printed. */
-function printedNumbers(source, label) {
+/**
+ * Runs `source`, asserting it is diagnostic-free, and returns the shapes the lesson's prose makes
+ * claims about: what it printed, how long each stroke was, and the turtle's path.
+ *
+ * Round 1 of the review gate found the earlier version of these tests measuring **only** stroke
+ * lengths, which is strictly weaker than the prose: a reviewer mutated `right 90` to `right 80`
+ * in a lesson source, confirmed the change reached `dist`, and all 19 Level 3 tests still passed
+ * — so "the turtle would have drawn a plain square" was an unchecked assertion sitting beside a
+ * green suite. Turn angles and closure are therefore measured too.
+ */
+function measure(source, label) {
   const result = execute(source, label);
   assert.deepEqual(
     result.diagnostics,
     [],
     `${label} raised diagnostics: ${JSON.stringify(result.diagnostics)}`,
   );
-  return result.events
-    .filter((event) => event.kind === "print")
-    .flatMap((event) => event.payload.values);
+  // `+ 0` normalises `-0` to `0`: floating-point turns can land a coordinate on negative zero,
+  // which `deepStrictEqual` and a `${x},${y}` key both treat as different from `0`.
+  const round = (value) => {
+    const rounded = Math.round(value * 1e6) / 1e6;
+    return rounded === 0 ? 0 : rounded;
+  };
+  const moves = result.events.filter((event) => event.kind === "move");
+  const points = moves.map((move) => move.payload.to);
+  return {
+    printed: result.events
+      .filter((event) => event.kind === "print")
+      .flatMap((event) => event.payload.values),
+    lengths: moves.map((move) => {
+      const [fromX, fromY] = move.payload.from;
+      const [toX, toY] = move.payload.to;
+      return round(Math.hypot(toX - fromX, toY - fromY));
+    }),
+    drawnStrokes: result.events.filter((event) => event.kind === "draw-segment")
+      .length,
+    start: moves.length > 0 ? moves[0].payload.from : undefined,
+    points: points.map(([x, y]) => [round(x), round(y)]),
+  };
 }
 
-/** The straight-line distance of every `move` event in `source`, in order. */
-function sideLengths(source, label) {
-  const result = execute(source, label);
-  assert.deepEqual(
-    result.diagnostics,
-    [],
-    `${label} raised diagnostics: ${JSON.stringify(result.diagnostics)}`,
-  );
-  return result.events
-    .filter((event) => event.kind === "move")
-    .map((event) => {
-      const [fromX, fromY] = event.payload.from;
-      const [toX, toY] = event.payload.to;
-      return Math.round(Math.hypot(toX - fromX, toY - fromY) * 1e6) / 1e6;
-    });
+/** How many DISTINCT points a path visits, so a retraced figure can be told from a growing one. */
+function distinctPoints(points) {
+  return new Set(points.map(([x, y]) => `${x},${y}`)).size;
 }
 
 const bornLesson = level3Lessons.find(
@@ -226,11 +242,11 @@ const bornLesson = level3Lessons.find(
 test("the born-inside/born-outside worked examples really print 1 1 1 1 and 1 2 3 4", () => {
   assert.ok(bornLesson);
   assert.deepEqual(
-    printedNumbers(bornLesson.workedExamples[0].source, "born-inside.logo"),
+    measure(bornLesson.workedExamples[0].source, "born-inside.logo").printed,
     [1, 1, 1, 1],
   );
   assert.deepEqual(
-    printedNumbers(bornLesson.workedExamples[1].source, "born-outside.logo"),
+    measure(bornLesson.workedExamples[1].source, "born-outside.logo").printed,
     [1, 2, 3, 4],
   );
 });
@@ -265,32 +281,39 @@ test("the two worked examples differ only by where the :x = 0 line sits", () => 
 // what the lesson's two programs print.
 test("the normative bracketed contrast prints the same as the lesson's long-form spelling", () => {
   assert.deepEqual(
-    printedNumbers(
-      "repeat 4 [ :x = 0   :x = :x + 1   print :x ]",
-      "spec-born-inside.logo",
-    ),
+    measure("repeat 4 [ :x = 0   :x = :x + 1   print :x ]", "spec-inside.logo")
+      .printed,
     [1, 1, 1, 1],
   );
   assert.deepEqual(
-    printedNumbers(
-      ":x = 0\nrepeat 4 [ :x = :x + 1   print :x ]",
-      "spec-born-outside.logo",
-    ),
+    measure(":x = 0\nrepeat 4 [ :x = :x + 1   print :x ]", "spec-outside.logo")
+      .printed,
     [1, 2, 3, 4],
   );
 });
 
 test("the third worked example grows its sides 20, 40, 60, 80 because :side outlives each turn", () => {
   assert.ok(bornLesson);
-  assert.deepEqual(
-    sideLengths(bornLesson.workedExamples[2].source, "growing-square.logo"),
-    [20, 40, 60, 80],
+  const grown = measure(
+    bornLesson.workedExamples[2].source,
+    "growing-square.logo",
+  );
+  assert.deepEqual(grown.lengths, [20, 40, 60, 80]);
+  // Four different lengths means four different corners: the path cannot close.
+  assert.equal(distinctPoints(grown.points), 4);
+  assert.ok(
+    Math.hypot(
+      grown.points[3][0] - grown.start[0],
+      grown.points[3][1] - grown.start[1],
+    ) > 1e-6,
+    "a growing square must not return to its starting point",
   );
 });
 
-// The counterfactual that worked example states in prose: "Had :side = 20 been written inside
-// the body … the turtle would have drawn a plain square." Built by editing the shipped source,
-// so the claim tracks the program a learner is actually shown.
+// The counterfactual worked example 3 states in prose: "Had :side = 20 been written inside the
+// body … the turtle would have drawn a plain square." Built by editing the shipped source, and
+// asserted as a SQUARE — four equal sides AND four right-angle corners AND a closed path — not
+// merely as four equal lengths, which is what round 1's mutation probe slipped through.
 test("moving the third example's birth line inside the loop really does draw a plain square", () => {
   assert.ok(bornLesson);
   const source = bornLesson.workedExamples[2].source;
@@ -299,10 +322,20 @@ test("moving the third example's birth line inside the loop really does draw a p
     "\n:side = 20\nrepeat 4\n",
     "\nrepeat 4\n  :side = 20\n",
   );
-  assert.deepEqual(
-    sideLengths(bornInside, "plain-square.logo"),
-    [20, 20, 20, 20],
-  );
+  assert.notEqual(bornInside, source, "the counterfactual edit did not apply");
+
+  const square = measure(bornInside, "plain-square.logo");
+  assert.deepEqual(square.lengths, [20, 20, 20, 20]);
+  // A square, specifically: the four corners are the four points of a 20-unit box, and the
+  // fourth side lands back on the start. A 20-unit rhombus (right 80) fails both.
+  assert.equal(distinctPoints(square.points), 4);
+  assert.deepEqual(square.points, [
+    [0, 20],
+    [20, 20],
+    [20, 0],
+    [0, 0],
+  ]);
+  assert.deepEqual(square.start, [0, 0]);
 });
 
 test("l3-born-outside-count-up counts 1 2 3 4 from one moved line", () => {
@@ -310,54 +343,131 @@ test("l3-born-outside-count-up counts 1 2 3 4 from one moved line", () => {
     (item) => item.id === "l3-born-outside-count-up",
   );
   assert.ok(exercise);
-  assert.deepEqual(
-    printedNumbers(exercise.referenceSolution.source, "count-up.logo"),
-    [1, 2, 3, 4],
+  const source = exercise.referenceSolution.source;
+  assert.deepEqual(measure(source, "count-up.logo").printed, [1, 2, 3, 4]);
+
+  // The prompt describes the program the learner STARTS from — born inside, printing 1 1 1 1 —
+  // and asks for one line to be moved. Round 1 found that starting program unmeasured, so the
+  // prompt was making two claims (its output, and "only one line moved") that nothing checked.
+  assert.equal(source.includes("\n:count = 0\nrepeat 4\n"), true);
+  const startingPoint = source.replace(
+    "\n:count = 0\nrepeat 4\n",
+    "\nrepeat 4\n  :count = 0\n",
   );
+  assert.notEqual(startingPoint, source, "the prompt's edit did not apply");
+  assert.deepEqual(
+    measure(startingPoint, "count-up-before.logo").printed,
+    [1, 1, 1, 1],
+  );
+  // "Move the single line … change nothing else": the two programs are the same multiset of
+  // trimmed lines, so the diff really is a move rather than an edit.
+  const trimmedLines = (text) =>
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .sort();
+  assert.deepEqual(trimmedLines(startingPoint), trimmedLines(source));
 });
 
-test("l3-born-outside-growing-sides draws 30, 60, 90, 120", () => {
+test("l3-born-outside-growing-sides grows the drawing and totals the distance with two names", () => {
   const exercise = level3Exercises.find(
     (item) => item.id === "l3-born-outside-growing-sides",
   );
   assert.ok(exercise);
-  assert.deepEqual(
-    sideLengths(exercise.referenceSolution.source, "growing-sides.logo"),
-    [30, 60, 90, 120],
+  const source = exercise.referenceSolution.source;
+  const grown = measure(source, "growing-sides.logo");
+  assert.deepEqual(grown.lengths, [30, 60, 90, 120]);
+  assert.deepEqual(grown.printed, [300]);
+
+  // Both counterfactuals the explanation states, each built from the shipped source. Born
+  // inside, `:side` restarts so every side is 30…
+  assert.equal(source.includes("\n:side = 30\n:total = 0\nrepeat 4\n"), true);
+  const sideInside = source.replace(
+    "\n:side = 30\n:total = 0\nrepeat 4\n",
+    "\n:total = 0\nrepeat 4\n  :side = 30\n",
   );
+  assert.notEqual(sideInside, source, "the :side edit did not apply");
+  assert.deepEqual(
+    measure(sideInside, "sides-equal.logo").lengths,
+    [30, 30, 30, 30],
+  );
+
+  // …and born inside, `:total` does not merely restart — it is gone by the time `print` runs,
+  // which is the block-lifetime half of the ruling (`spec/execution-model.md:603-605`) and a
+  // sharper claim than "the number would be wrong". Measured, including the message.
+  const totalInside = source.replace(
+    "\n:side = 30\n:total = 0\nrepeat 4\n",
+    "\n:side = 30\nrepeat 4\n  :total = 0\n",
+  );
+  assert.notEqual(totalInside, source, "the :total edit did not apply");
+  const gone = execute(totalInside, "total-gone.logo");
+  assert.deepEqual(
+    gone.events.filter((event) => event.kind === "print"),
+    [],
+  );
+  assert.equal(gone.diagnostics.length, 1);
+  assert.equal(gone.diagnostics[0].code, "ol-undefined-var");
+  assert.equal(gone.diagnostics[0].message.includes("has no value yet"), true);
 });
 
-test("l3-snail-shell winds outward — twelve growing sides that never return to the start", () => {
-  const exercise = level3Exercises.find((item) => item.id === "l3-snail-shell");
+test("l3-curled-horns draws two mirrored curls, and only because :side is born again", () => {
+  const exercise = level3Exercises.find(
+    (item) => item.id === "l3-curled-horns",
+  );
   assert.ok(exercise);
   const source = exercise.referenceSolution.source;
-  const lengths = sideLengths(source, "snail-shell.logo");
-  assert.deepEqual(
-    lengths,
-    [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-  );
+  const horns = measure(source, "curled-horns.logo");
 
-  // "the path can never come back to where it started" — the shell claim, measured rather than
-  // inferred from the lengths: no move ends where the very first one began.
-  const result = execute(source, "snail-shell.logo");
-  const moves = result.events.filter((event) => event.kind === "move");
-  const [startX, startY] = moves[0].payload.from;
-  for (const move of moves) {
-    const [toX, toY] = move.payload.to;
+  // Nine growing sides per horn, plus the undrawn `home` move between them.
+  const nineSides = [10, 16, 22, 28, 34, 40, 46, 52, 58];
+  assert.equal(horns.drawnStrokes, 18);
+  assert.deepEqual(horns.lengths.slice(0, 9), nineSides);
+  assert.deepEqual(horns.lengths.slice(10), nineSides);
+
+  // "The two horns mirror each other exactly" — the composition claim, and the one a length
+  // list cannot prove. The left horn's points are the right horn's reflected in x.
+  const right = horns.points.slice(0, 9);
+  const left = horns.points.slice(10);
+  assert.equal(left.length, 9);
+  for (let index = 0; index < 9; index += 1) {
     assert.ok(
-      Math.hypot(toX - startX, toY - startY) > 1e-6,
-      "the shell closed back onto its starting point",
+      Math.abs(left[index][0] + right[index][0]) < 1e-6 &&
+        Math.abs(left[index][1] - right[index][1]) < 1e-6,
+      `horn point ${index} is not mirrored: ${JSON.stringify(left[index])} vs ${JSON.stringify(right[index])}`,
     );
   }
+  // A curl, not a closed polygon: nine sides, nine distinct points per horn.
+  assert.equal(distinctPoints(right), 9);
 
-  // And the stated counterfactual: born inside, the same twelve turns retrace one small square.
-  assert.equal(source.includes("\n:side = 10\nrepeat 12\n"), true);
-  const bornInside = source.replace(
-    "\n:side = 10\nrepeat 12\n",
-    "\nrepeat 12\n  :side = 10\n",
+  // The stated counterfactual: drop the second `:side = 10` and the left horn carries on from
+  // 64, so the pair stops mirroring. Both halves are asserted — the wrong lengths, and the
+  // broken symmetry — because either alone would pass under a different defect.
+  const restart =
+    "pen_down\n# why: the second horn needs its OWN starting value";
+  assert.equal(source.includes(restart), true);
+  const withoutRestart = source
+    .split("\n")
+    .filter((line, index, lines) => {
+      const previous = lines[index - 1] ?? "";
+      return !(
+        line === ":side = 10" && previous.startsWith("# leave this line")
+      );
+    })
+    .join("\n");
+  assert.notEqual(
+    withoutRestart,
+    source,
+    "the counterfactual line was not removed",
   );
+  const broken = measure(withoutRestart, "horns-no-restart.logo");
   assert.deepEqual(
-    sideLengths(bornInside, "retraced-square.logo"),
-    [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
+    broken.lengths.slice(10),
+    [64, 70, 76, 82, 88, 94, 100, 106, 112],
+  );
+  const brokenLeft = broken.points.slice(10);
+  assert.ok(
+    Math.abs(brokenLeft[0][0] + right[0][0]) > 1e-6 ||
+      Math.abs(brokenLeft[0][1] - right[0][1]) > 1e-6,
+    "without its own starting value the second horn must stop mirroring",
   );
 });

@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import * as OL from "@openlogo/edu";
 import { execute } from "@openlogo/runtime";
 
 // This test lives at packages/edu/src/, so the repo root is three levels up.
@@ -61,6 +62,37 @@ function extractSnippets(relativePath) {
   }
   return snippets;
 }
+
+// Round 1 (@testing finding 3): every `logo` block in `docs/curriculum-overview.md` is currently
+// byte-identical to a lesson worked example or reference solution, and that identity is load
+// bearing. The doc states derived numbers beside its blocks ("That prints `1 1 1 1`", "prints
+// `42` then `5`"), but neither gate that reads the doc asserts a value: `check-markdown-examples`
+// only requires a block to run clean, and the per-snippet test above only requires no diagnostics
+// plus at least one event. The VALUES are asserted in `lessons/level-*.test.mjs` — against the
+// LESSON sources. So if a doc block and its lesson source ever drift apart, the doc's numbers
+// silently stop being measured by anything while every gate stays green. Pinning the identity is
+// what keeps the doc's prose covered by the lesson tests.
+test("every curriculum-overview logo block is byte-identical to a lesson source", () => {
+  const curriculumSnippets = extractSnippets("docs/curriculum-overview.md");
+  assert.ok(curriculumSnippets.length > 0);
+
+  const lessonSources = new Set([
+    ...OL.LESSONS.flatMap((lesson) =>
+      lesson.workedExamples.map((example) => example.source),
+    ),
+    ...OL.EXERCISES.map((exercise) => exercise.referenceSolution.source),
+  ]);
+  assert.ok(lessonSources.size > 0);
+
+  for (const [index, snippet] of curriculumSnippets.entries()) {
+    // Fenced blocks carry a trailing newline the authored `source` strings do not.
+    assert.equal(
+      lessonSources.has(snippet.replace(/\n$/, "")),
+      true,
+      `docs/curriculum-overview.md block #${index} matches no lesson source, so the numbers stated beside it are measured by nothing:\n${snippet}`,
+    );
+  }
+});
 
 for (const relativePath of DOC_FILES) {
   const snippets = extractSnippets(relativePath);

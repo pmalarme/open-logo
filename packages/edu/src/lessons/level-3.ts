@@ -92,7 +92,7 @@ export const level3Lessons: readonly Lesson[] = [
     title: "Where a name is born decides how long it lives",
     level: "3",
     objective:
-      "See that a name is born where it is first given a value, and that a name born inside a repeat's body starts over on every turn while a name born before the loop is one variable every turn keeps changing — the same loop body, one line moved, two completely different results.",
+      "See that a name is born where it is first given a value, and that a name born inside a repeat's body starts over on every turn while a name born before the loop is one variable every turn keeps changing — the same loop body, one line moved, two completely different results. print shows a value so you can check which of the two you wrote.",
     workedExamples: [
       {
         source: [
@@ -141,9 +141,10 @@ export const level3Lessons: readonly Lesson[] = [
  * Graded Level 3 exercises. `l3-size-square` ramps from introducing `:size` into a fixed square,
  * to resizing it once with the worded `set ... to` form, to reusing `:size` across a resizable
  * house's walls and roof together. `l3-where-a-name-is-born` (issue #829) ramps from moving one
- * line so the same loop body counts up instead of standing still, to using a name born outside
- * the loop to grow four sides, to the composed object: a snail's shell that only winds outward
- * because the growing name outlives each turn.
+ * line so the same loop body counts up instead of standing still, to carrying *two* names across
+ * the turns at once — one growing the drawing, one accumulating a measurement — to the composed
+ * object: a mirrored pair of curled horns, which is a pair only because the second horn's growing
+ * name is born again before its own loop.
  */
 export const level3Exercises: readonly Exercise[] = [
   {
@@ -247,41 +248,55 @@ export const level3Exercises: readonly Exercise[] = [
     level: "3",
     difficulty: "practice",
     prompt:
-      "Draw four sides that each come out longer than the one before, by giving :side its first value above the repeat and adding to it inside the body. Turn right 90 after each side.",
+      "Draw four sides that each come out longer than the one before, and at the same time keep a running total of how far the turtle has travelled, printed once at the end. Both names have to survive from turn to turn — work out where each one has to be born for that to happen.",
     referenceSolution: {
       source: [
-        "# why: :side is born before the loop, so each turn draws a longer side",
+        "# why: two names born before the loop — :side grows the drawing, :total adds up",
+        "# the distance, and neither would survive the end of a turn born inside the body",
         ":side = 30",
+        ":total = 0",
         "repeat 4",
         "  forward :side",
         "  right 90",
+        "  :total = :total + :side",
         "  :side = :side + 30",
         "end repeat",
+        "print :total",
       ].join("\n"),
       explanation:
-        "The four sides are 30, 60, 90, and 120 steps long. :side is born above the repeat, so the :side = :side + 30 inside the body changes the one name that the next turn will read — if :side = 30 were written inside the body instead, every turn would start it back at 30 and all four sides would be the same length.",
+        "The four sides are 30, 60, 90, and 120 steps long and the total printed is 300. Both names are doing the same job the loop needs — carrying a value from one turn into the next — and both stop working if they are born inside the body, in two different ways. :side would restart at 30 on every turn, so all four sides would come out the same length. :total would be worse than wrong: a name born inside the loop is gone once the loop ends, so print :total would have nothing to read and OpenLogo would stop and say that :total has no value yet.",
     },
   },
   {
-    id: "l3-snail-shell",
+    id: "l3-curled-horns",
     lessonId: "l3-where-a-name-is-born",
     level: "3",
     difficulty: "challenge",
     prompt:
-      "Draw a snail's shell: keep making the same quarter turn every time, but make every side a little longer than the last, so the path winds outward instead of closing up. Give the growing name its first value in the one place that lets it survive from turn to turn, and use enough turns for the shell to be recognizable.",
+      "Compose a pair of curled horns that mirror each other. Draw one horn by repeating a side and a same-sized turn while the side keeps growing, so the path curls instead of closing. Then lift the pen, send the turtle home, put the pen down, and draw the second horn the same way but turning the other way. Both horns must curl to the same size — think about what the second one needs before its own loop starts.",
     referenceSolution: {
       source: [
-        "# why: one :side born before the loop grows on every turn, so the same",
-        "# side-and-quarter-turn pattern winds outward into a shell instead of closing",
+        "# why: the first horn curls because :side is born before its loop and keeps growing",
         ":side = 10",
-        "repeat 12",
+        "repeat 9",
         "  forward :side",
-        "  right 90",
-        "  :side = :side + 10",
+        "  right 40",
+        "  :side = :side + 6",
+        "end repeat",
+        "pen_up",
+        "home",
+        "pen_down",
+        "# why: the second horn needs its OWN starting value born before its own loop —",
+        "# leave this line out and the left horn carries on from where the right one stopped",
+        ":side = 10",
+        "repeat 9",
+        "  forward :side",
+        "  left 40",
+        "  :side = :side + 6",
         "end repeat",
       ].join("\n"),
       explanation:
-        "The turn is the same quarter turn every time, exactly as in a square — the shell comes entirely from :side being born before the loop, so the twelve sides come out 10, 20, 30, and on up to 120 steps long and the path can never come back to where it started. Writing :side = 10 inside the body instead would start it over at 10 on every turn: twelve identical 10-step sides, and the turtle would just retrace one small square three times.",
+        "Each horn is the same nine growing sides — 10, 16, 22 and on up to 58 — turning 40 degrees each time, so the path curls right round instead of closing. The two horns mirror each other exactly, because the second loop turns left where the first turned right. The line that makes them match is the second :side = 10: without it, :side is still 64 from the end of the first horn, so the left horn starts more than six times too big and the pair stops being a pair. Composing the second horn is what turns one curl into an object, and it only works if you know where a name has to be born.",
     },
   },
 ];

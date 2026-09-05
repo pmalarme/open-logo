@@ -1,7 +1,7 @@
 /**
  * Level 5 — functions and procedures (`spec/educational-model.md:156-203`, issue #327). The
  * learner question is "How can I teach OpenLogo a new idea?": `define … end` names a reusable
- * idea, parameters such as `:sides` and `:size` are variables scoped to that idea, `return` hands
+ * idea, parameters such as `:sides` and `:size` are variables that belong to that idea, `return` hands
  * a value back from a reporter, and a command procedure may draw without returning a value.
  * Heritage spellings `to … end` and `output` are recognized but are taught second, after
  * `define`/`return` (educational-model.md:160) — this lesson only mentions them in prose, per the
@@ -37,6 +37,19 @@
  * `global` semantic-token modifier exists (#1115) but the studio drops modifiers when mapping
  * tokens to CSS (issue #1106).
  *
+ * **Two things deliberately deferred, so the next author knows they are owed.**
+ *
+ * - The fourth line of the maintainer's formulation on issue #821 — "Lists and dicts are shared —
+ *   change what's *inside* one and everyone sees it; replace it entirely and nobody does"
+ *   (`spec/execution-model.md:455-474`) — is **not** taught here, because lists are Level 7a and
+ *   dicts 7b. `l5-polygon-procedure`'s fourth worked example therefore scopes "inputs are yours"
+ *   to the numbers this level actually works with and flags that mutable values have one more
+ *   thing to say; the Level 7a lesson owes the rest of that line.
+ * - A learner who is stuck because of the procedure boundary is not yet guided to `global` by
+ *   `hint()`: its Level 5 concept now names `global`, but its last-resort skeleton is still the
+ *   `define` shape, and making the escalation depend on the learner's actual diagnostic is a
+ *   tutor-side change rather than a curriculum one. Tracked as issue #1126.
+ *
  * Per the discovery guardrail (educational-model.md:541), `polygon` is always **built up** from
  * `repeat` here — it is never handed to the learner as an opaque primitive — and the
  * `triangle`/`house` composition reuses `spec/examples/06-geometry.logo`'s validated `house 70`
@@ -48,7 +61,7 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The Level 5 lessons. `l5-polygon-procedure` teaches `define … end` naming a reusable
- * procedure, parameters as variables scoped to it, `return` handing back a reporter's value, and
+ * procedure, parameters as variables that belong to it, `return` handing back a reporter's value, and
  * the boundary that makes a procedure's own names private automatically. Its first worked
  * example reproduces `spec/educational-model.md:171-182`'s `polygon` example verbatim — built up
  * from `repeat`, never an opaque primitive — and the second reproduces :186-191's `double`
@@ -63,7 +76,7 @@ export const level5Lessons: readonly Lesson[] = [
     title: "define names a reusable idea; return hands back its answer",
     level: "5",
     objective:
-      "See that define … end names a reusable procedure and that parameters such as :sides and :size are variables scoped to it, so calling the procedure again with different values reuses the same steps — the procedure reuse the exercises practice. return (a reporter handing a value back) and the boundary around a procedure (the names it sets are its own, and an input is yours to change) are supporting ideas the worked examples show. Learners build polygon from repeat; it is never introduced as a black-box drawing trick.",
+      "See that define … end names a reusable procedure and that parameters such as :sides and :size are variables that belong to it, so calling the procedure again with different values reuses the same steps — the procedure reuse the exercises practice. return (a reporter handing a value back) is a supporting idea the worked examples show, and so is the rule that define … end is a boundary: the names a procedure sets are its own, and inputs are yours — change them freely, the caller never sees it. Learners build polygon from repeat; it is never introduced as a black-box drawing trick.",
     workedExamples: [
       {
         source: [
@@ -97,16 +110,16 @@ export const level5Lessons: readonly Lesson[] = [
         source: [
           "# why: the names a procedure sets are its own, even when the name is already in use",
           ":answer = 5",
-          "define double :n",
+          "define show_double :n",
           "  :answer = :n * 2",
           "  print :answer",
           "end",
           "",
-          "double 21",
+          "show_double 21",
           "print :answer",
         ].join("\n"),
         explanation:
-          "This prints 42 and then 5. Both :answer lines are spelled the same, but they are two different variables: the one inside double is born inside double, so it belongs to that call and nothing outside can see it. Nothing had to be declared to make that happen — a procedure's own names are private automatically, which is what makes a procedure safe to call without reading its body first.",
+          "This prints 42 and then 5. Both :answer lines are spelled the same, but they are two different variables: the one inside show_double is born inside show_double, so it belongs to that call and nothing outside can see it. Nothing had to be declared to make that happen — define … end is a boundary, and a procedure's own names are private automatically, which is what makes a procedure safe to call without reading its body first. Setting a name inside a procedure always makes a new one that belongs to the procedure; reading a name it was never handed is the thing it cannot do. So :answer = :n * 2 is fine, because it only writes. Change it to :answer = :answer + 1 and OpenLogo stops, because that has to read :answer first — and inside show_double there is no :answer to read. The next lesson is about the one word that fixes that.",
       },
       {
         source: [
@@ -121,7 +134,7 @@ export const level5Lessons: readonly Lesson[] = [
           "print :start",
         ].join("\n"),
         explanation:
-          "This prints 107 and then 7. show_bigger changes :n freely, and :start is untouched afterwards, because :n is show_bigger's own name for the value it was handed, not another way of saying :start. So an input is yours: change it as much as the procedure needs, and the program that called you keeps what it had.",
+          "This prints 107 and then 7. show_bigger changes :n freely, and :start is untouched afterwards, because :n is show_bigger's own name for the value it was handed, not another way of saying :start. Inputs are yours — change them freely, the caller never sees it. That is the rule for the numbers and words this level works with; values you can change the inside of, such as lists, come later and have one more thing to say.",
       },
     ],
     exercisePrompt:
@@ -129,14 +142,14 @@ export const level5Lessons: readonly Lesson[] = [
   },
   {
     id: "l5-global-shared-value",
-    title: "global shares one value with every procedure",
+    title: "global shares one value across your procedures",
     level: "5",
     objective:
-      "See that a procedure cannot reach a name it was never handed — it sees only its own inputs, the names it sets itself, and names declared global — and that global name = value is how a program deliberately shares one value, so several calls can add to the same running count or total.",
+      "See that a procedure cannot reach a name it was never handed — it sees only its own inputs, the names it sets itself, and names declared global — and that global is shared — that's what makes it writable from inside, so several calls can add to the same running count or total.",
     workedExamples: [
       {
         source: [
-          "# why: global says out loud that this one value is shared with every procedure",
+          "# why: global is shared — that's what makes it writable from inside",
           "global count = 0",
           "define bump",
           "  :count = :count + 1",
@@ -147,7 +160,7 @@ export const level5Lessons: readonly Lesson[] = [
           "print :count",
         ].join("\n"),
         explanation:
-          "This prints 2. Written as a plain :count = 0 the program would stop instead, because bump cannot see a name that was never handed to it — OpenLogo would say that :count is not defined inside bump. The word global on that first line is the whole fix: it says the value is shared, and from then on bump reads and changes it with no further ceremony. Note the shape of the declaration — the name is written bare, without a colon, and a starting value is required.",
+          'This prints 2. The word global on the first line is doing all the work. Without it — written as a plain :count = 0 — the program stops on the very first call and prints nothing at all, because :count = :count + 1 has to read :count before it can change it, and bump was never handed one. Try it and read what OpenLogo says: ":count is not defined inside bump. a procedure only sees its own inputs, the names it sets itself, and names declared global. the fix is one word at the top level: write global count = (its starting value)." That middle sentence is this whole level in one line. You meet the message when you run a program, not while you are typing it. Note the shape of the declaration too: the name is written bare, without a colon, and a starting value is required. Once it is declared, bump reads and changes the shared value with no further ceremony, and so does every other procedure in this program.',
       },
       {
         source: [
@@ -164,7 +177,7 @@ export const level5Lessons: readonly Lesson[] = [
           "end repeat",
         ].join("\n"),
         explanation:
-          "The six sides come out 20, 30, 40, 50, 60, and 70 steps long. Every call to step draws with the shared :side and then leaves it bigger, so the next call inherits the change — this is Level 3's grow-a-name-each-turn idea, except the growing now happens inside a procedure, which is exactly what a procedure could not do without global.",
+          "The six sides come out 20, 30, 40, 50, 60, and 70 steps long. Every call to step draws with the shared :side and then leaves it bigger, so the next call inherits the change — this is Level 3's grow-a-name-each-turn idea, except the growing now happens inside a procedure, which is exactly what a procedure could not do without global. Notice you can see the sharing in the drawing: take the sharing away and every call would draw the same 20-step side.",
       },
     ],
     exercisePrompt:
@@ -358,28 +371,28 @@ export const level5Exercises: readonly Exercise[] = [
     level: "5",
     difficulty: "challenge",
     prompt:
-      "Build a staircase: define stair :rise so that one call draws a single step — up by :rise, then across by a fixed tread — and leaves the turtle facing up again, ready for the next step. Call it four times with rises that grow, and have the staircase report how far it climbed in total, using a shared name the procedure adds to.",
+      "Build a staircase whose steps get taller as it climbs. Define stair :tread so that one call draws a single step — up, then across by the tread it was handed — and leaves the turtle facing up again, ready for the next step. Call it four times with the same tread every time: the steps must still grow, so the height cannot come from the input. Print what the height ended up as.",
     referenceSolution: {
       source: [
-        "# why: one call draws one step and returns the turtle to facing up, so calls stack",
-        "global climbed = 0",
-        "define stair :rise",
+        "# why: the height is shared and grows, so four identical calls draw four",
+        "# different steps — the tread is handed in, the rise is shared",
+        "global rise = 20",
+        "define stair :tread",
         "  forward :rise",
         "  right 90",
-        "  forward 40",
+        "  forward :tread",
         "  left 90",
-        "  :climbed = :climbed + :rise",
+        "  :rise = :rise + 10",
         "end",
         "",
-        "# why: four steps, each taller than the last, climbing to the right",
-        "stair 20",
-        "stair 30",
         "stair 40",
-        "stair 50",
-        "print :climbed",
+        "stair 40",
+        "stair 40",
+        "stair 40",
+        "print :rise",
       ].join("\n"),
       explanation:
-        "The four calls draw eight lines — a rise and a 40-step tread each — that stack into a staircase climbing to the right, and the program prints 140, which is 20 + 30 + 40 + 50. The staircase is drawn by the inputs and reported by the shared name: :rise is different on every call and belongs to that call alone, while :climbed is the one thing the whole program is keeping track of, so it is the one thing declared global. Ending each call with left 90 is what makes the steps stack, because it hands the next call a turtle facing the way the first one started.",
+        "The four calls are word for word identical — stair 40 every time — yet they draw steps that rise 20, 30, 40, and 50, because each call leaves the shared :rise ten bigger for the next one. That is the point of the exercise: the growth is visible in the drawing and it cannot come from the input, so the shared name is doing something you can see rather than just reporting a number. The final print shows :rise ended at 60, ready for a fifth step. Ending each call with left 90 is what makes the steps stack, because it hands the next call a turtle facing the way the first one started.",
     },
   },
 ];

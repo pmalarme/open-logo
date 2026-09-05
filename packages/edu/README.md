@@ -61,8 +61,9 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   [#819](https://github.com/pmalarme/open-logo/issues/819)'s scoping ruling at the point it first
   matters: `spec/execution-model.md:607-615`'s born-inside / born-outside contrast, where the same
   loop body prints `1 1 1 1` or `1 2 3 4` depending only on which side of the `repeat` the first
-  assignment sits. Its exercises ramp from moving that one line, to growing four sides with a name
-  that outlives each turn, to a snail's shell that only winds outward for the same reason.
+  assignment sits. Its exercises ramp from moving that one line, to carrying two names across the
+  turns at once, to a mirrored pair of curled horns that are a pair only because the second horn's
+  growing name is born again before its own loop.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
   combinators `and`/`or`/`not`, and a worded predicate such as `is between`
@@ -72,7 +73,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   single-operator change (`!=` to `>=`) on the same shape and value, then a challenge that
   reuses Level 3's house and colors it with one condition on `:size`.
 - `lessons/level-5.ts` — the Level 5 lessons + graded exercises. "`define` names a reusable idea;
-  `return` hands back its answer" covers `define … end` procedures, parameters as variables scoped
+  `return` hands back its answer" covers `define … end` procedures, parameters as variables that belong
   to the procedure, `return` for reporters, and the procedure boundary
   (`spec/educational-model.md:156-203`). The first two worked examples reproduce the spec's
   `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`, never
@@ -83,10 +84,11 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   `spec/examples/06-geometry.logo`'s `polygon` → `triangle` → `house` chain and calling `house`
   twice to build a small street (challenge) — procedure reuse, not recursion; Heritage's
   `to … end`/`output` spellings are mentioned in prose only, taught after `define`/`return`.
-  "`global` shares one value with every procedure"
+  "`global` shares one value across your procedures"
   ([#829](https://github.com/pmalarme/open-logo/issues/829)) then teaches the one way through that
   boundary — `global name = value` — with exercises ramping from a one-word fix, to a procedure
-  given an input *and* a shared total, to a staircase that reports how far it climbed. Under saga
+  given an input *and* a shared total, to a staircase whose steps grow although every call is
+  written identically, because the height is shared and the tread is handed in. Under saga
   [#819](https://github.com/pmalarme/open-logo/issues/819)'s ruling a procedure's variables are
   private automatically, so `local` — which survives as a way to deliberately *shadow* a visible
   name (`spec/execution-model.md:501-506`) — is no longer taught at this level: shadowing only
