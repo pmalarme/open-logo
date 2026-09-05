@@ -258,7 +258,13 @@ test("no code the two scans can see is emitted at both severities, which is what
     ["packages/runtime/src/errors.ts", "runtimeError"],
   ]) {
     const source = readFileSync(path, "utf8");
-    const body = source.slice(source.indexOf(`function ${factory}(`));
+    const start = source.indexOf(`function ${factory}(`);
+    assert.notEqual(start, -1, `${factory} must exist in ${path}`);
+    // Bound the slice to the factory's OWN body. Slicing to end-of-file made the assertion
+    // satisfiable by any later occurrence in the file — a review measured `parseError` unpinned
+    // plus one comment mentioning `severity: "error"` three hundred lines below passing the whole
+    // suite. A premise pin that a decoy can satisfy is the shape this test exists to reject.
+    const body = source.slice(start, source.indexOf("\n}", start) + 2);
     const signature = body.slice(0, body.indexOf("): Diagnostic"));
     assert.ok(
       body.includes('severity: "error"'),

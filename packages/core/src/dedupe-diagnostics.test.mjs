@@ -588,6 +588,12 @@ test("the reflection primitives are captured too, one layer below the readers", 
   // captured while `Object.getOwnPropertyDescriptor` — which every trusted arm reads its backing
   // property through — was still looked up dynamically. Patching it to report an empty map made
   // two genuine dicts holding 1 and 2 collide, straight through the brand checks above it.
+  //
+  // Two reviewers then measured, independently, that THREE more were still dynamic. `Object.keys`
+  // was the worst of them: patching it to `[]` collapses every plain object to `obj0()`, which
+  // erases the `source_span` as well, so every diagnostic in a run collides with every other. That
+  // is the argument for capturing the whole family rather than the members a reviewer named —
+  // which is what the doc claimed while three counter-examples were live.
   const real = Object.getOwnPropertyDescriptor;
   const populated = (marker) => {
     const dictionary = new OLDict();
@@ -628,6 +634,50 @@ test("the reflection primitives are captured too, one layer below the readers", 
     );
   } finally {
     Object.getOwnPropertyDescriptor = real;
+  }
+});
+
+test("the whole reflection family is captured, not just the readers a reviewer named", () => {
+  // One case per primitive that was measured colliding while dynamic. Each patch carries a live
+  // control, and each pair carries the equal-case collapse a wholly-broken read cannot fake.
+  const patches = [
+    ["Object.keys", () => (Object.keys = () => [])],
+    ["Object.is", () => (Object.is = () => true)],
+    ["Array.prototype.sort", () => (Array.prototype.sort = () => [])],
+  ];
+  const realKeys = Object.keys;
+  const realIs = Object.is;
+  const realSort = Array.prototype.sort;
+  for (const [name, patch] of patches) {
+    try {
+      patch();
+      assert.deepEqual(
+        Object.keys({ a: 1 }).length === 0 ||
+          Object.is(1, 2) === true ||
+          [3, 1].sort().length === 0,
+        true,
+        `the ${name} patch is live`,
+      );
+      assert.equal(
+        survivors({ a: 1 }, { a: 2 }),
+        2,
+        `two different objects stay two faults under a patched ${name}`,
+      );
+      assert.equal(
+        survivors({ a: 1 }, { a: 1 }),
+        1,
+        `and two equal objects still collapse to ONE under a patched ${name}`,
+      );
+      assert.equal(
+        survivors(-0, 0),
+        2,
+        `-0 and 0 stay distinct under a patched ${name}`,
+      );
+    } finally {
+      Object.keys = realKeys;
+      Object.is = realIs;
+      Array.prototype.sort = realSort;
+    }
   }
 });
 
@@ -696,6 +746,11 @@ test("a dict's backing lookup key is part of its identity", () => {
   assert.equal(underA.get("a"), 1, "the two dicts answer `get` differently");
   assert.equal(underB.get("a"), undefined);
   assert.equal(survivors(underA, underB), 2);
+  assert.equal(
+    survivors(keyedAs("a"), keyedAs("a")),
+    1,
+    "and two dicts keyed alike still collapse to ONE, so the split is not the read failing",
+  );
 });
 
 test("an identity slot that is not the type it must be makes the value opaque", () => {

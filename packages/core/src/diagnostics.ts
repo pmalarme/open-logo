@@ -180,14 +180,26 @@ export function isDiagnosticCode(value: string): value is DiagnosticCode {
  * described structurally. Everything else — a `Symbol`, a function, a `Date`, a `Set`, an object with
  * a symbol key, a non-enumerable slot or an accessor — takes an **opaque per-instance identity**.
  * That is conservative in the safe direction: two *equal* exotic values false-split into two
- * findings, which a reader can see, rather than colliding, which nobody can. Describing every host
- * type structurally would be unbounded work, and reading unknown objects through `Object.keys` was
- * measured both colliding (symbol-keyed and non-enumerable properties are invisible to it) and
- * *throwing* (an enumerable getter that raises).
+ * findings rather than colliding. Both are deviations from `spec/execution-model.md:741-748`'s
+ * "report such a fault once" — the difference is that a reader can see a split and nobody can see
+ * a collision. Describing every host type structurally would be unbounded work, and reading
+ * unknown objects through `Object.keys` was measured both colliding (symbol-keyed and
+ * non-enumerable properties are invisible to it) and *throwing* (an enumerable getter that raises).
  *
  * A **plain `Map` with primitive keys** is the one exception, and the exception has a reason rather
  * than a convenience: it is what a `structuredClone`d dict or record arrives as. See the `Map` arm
  * in {@link describe} and the retraction below — the rule held and one membership claim did not.
+ *
+ * **Where this stops, stated rather than implied.** Every guard here is *reflective*, and
+ * reflection has two blind spots no further guard can close. A `Proxy` answers its own traps, so a
+ * value whose `get` says one thing and whose descriptor says another has no privileged reading —
+ * and an object can hide state in a private slot that no reflection reports at all, behind a
+ * prototype reset to something this encoder admits. Both were measured colliding. Neither is
+ * reachable from an OpenLogo program: the language has no lambda, no reflection and no way to
+ * construct a `Proxy`, so the attacker is already host JavaScript inside the realm, and nothing in
+ * this tree does it. The sound fix is a **trusted transport representation** at the worker
+ * boundary rather than a further reflective test, which is a design change and not this slice's.
+ * Adding another guard here would look like progress and close nothing.
  *
  * **The clone boundary, and why the data is NOT `#private`.** A private field is invisible to
  * `structuredClone`, so a `Diagnostic` crossing the studio worker's `postMessage` would arrive with
@@ -232,6 +244,10 @@ const ownNames = Object.getOwnPropertyNames;
 const ownSymbols = Object.getOwnPropertySymbols;
 const prototypeOf = Object.getPrototypeOf;
 const isArray = Array.isArray;
+const objectKeys = Object.keys;
+const sameValue = Object.is;
+const isFiniteNumber = Number.isFinite;
+const sortStrings = Array.prototype.sort;
 
 /**
  * Snapshot a `Map`'s entries through the captured intrinsic, or throw.
@@ -332,7 +348,7 @@ function structuralEntries(value: object): [string, unknown][] | undefined {
   }
   const descriptors = ownDescriptors(value);
   const entries: [string, unknown][] = [];
-  for (const key of Object.keys(descriptors).sort()) {
+  for (const key of sortStrings.call(objectKeys(descriptors))) {
     const descriptor = descriptors[key] as PropertyDescriptor;
     if (!descriptor.enumerable || !("value" in descriptor)) {
       return undefined;
@@ -452,7 +468,7 @@ function encodeAtomOrOpen(
       return value ? "bool1;" : "bool0;";
     case "number":
       // `Object.is` separates -0 from 0, which `String()` renders identically.
-      return tagged("num", Object.is(value, -0) ? "-0" : `${value}`);
+      return tagged("num", sameValue(value, -0) ? "-0" : `${value}`);
     case "string":
       return tagged("str", value);
     case "bigint":
@@ -535,7 +551,7 @@ function describe(value: object): Described | undefined {
     // A turtle's identity is its id, so an id that is not a finite number identifies nothing —
     // `String()` rendered two `OLTurtle(NaN)` alike although `NaN !== NaN` makes them different
     // turtles, and collapsed id `1` onto the string `"1"`. Anything else is opaque.
-    if (typeof id !== "number" || !Number.isFinite(id)) {
+    if (typeof id !== "number" || !isFiniteNumber(id)) {
       return undefined;
     }
     return { kind: "atom", text: `turtle${id};` };
@@ -598,8 +614,8 @@ function describe(value: object): Described | undefined {
     if (!isArray(declared)) {
       return undefined;
     }
-    // The declared names go through the same array snapshot as any other array, so a Proxy over an
-    // array — which `Array.isArray` reports true for — cannot lie about its length or its holes.
+    // The declared names go through the same array snapshot as any other array, so an array with
+    // extra own properties or holes is described faithfully rather than by length alone.
     const declaredNames = arrayElements(declared);
     if (declaredNames === undefined) {
       return undefined;

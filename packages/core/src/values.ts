@@ -51,14 +51,19 @@ interface OLDictEntry {
  * The collections' *contents* stay mutable — records and dicts are mutable values.
  *
  * **What it costs, and what it does not buy.** `Object.defineProperty` on an instance takes the
- * object off V8's fast allocation path, and a review measured construction at roughly 11× for a
- * dict and 14× for a record — sub-microsecond either way, with reads unaffected, but `dict` and
- * `record` are core value types a learner program allocates in loops, so it is a real cost and not
- * a pure win. What it buys is defence against **host JavaScript already inside the realm**; no
- * OpenLogo program can reach any of it, because the language has no lambda, no reflection and no
- * way to construct a Proxy. It also imposes a permanent constraint worth stating plainly: a
- * subclass declaring a field named `entries`, `type`, `declaredFields` or `slots` now throws at
- * construction. That is deliberate, and loud, rather than accidental.
+ * object off V8's fast allocation path, so construction gets measurably slower while reads are
+ * unaffected. Two independent measurements of *how much* disagreed by a factor of five on the
+ * record case, so no number is quoted here: a derived figure nothing re-derives is an unenforced
+ * assertion, and `dict`/`record` are core value types a learner allocates in loops, so anyone
+ * weighing this should measure it on their own machine rather than trust a number in a comment.
+ * The direction is not in doubt and it is a real cost, not a pure win.
+ *
+ * What it buys is defence against **host JavaScript already inside the realm**; no OpenLogo program
+ * can reach any of it, because the language has no lambda, no reflection and no way to construct a
+ * Proxy. It also imposes a permanent constraint worth stating plainly: a subclass that declares a
+ * field shadowing one its base locked now throws at construction — `entries` for an `OLDict`,
+ * `type`/`declaredFields`/`slots` for an `OLRecord`, each class only its own. That is deliberate,
+ * and loud, rather than accidental.
  */
 function lockBackingData(target: object, names: readonly string[]): void {
   for (const name of names) {
