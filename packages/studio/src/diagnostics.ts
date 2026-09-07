@@ -2,39 +2,58 @@
  * The diagnostics pane (#125) — a headless, fully-testable view-model + controller over the
  * single studio state model's (#123) `diagnostics` field. Every diagnostic surfaced anywhere in
  * the studio — parse-stage (this module wires it live), runtime-stage (#126's run controller
- * already writes `execute()`'s diagnostics into the same field), and semantic/style-stage (this
- * module can opt into `@openlogo/parser`'s `check()`, see below) — renders through **one**
- * unified path: {@link toDiagnosticsView} projects whatever is in `state.getState().diagnostics`
- * right now, regardless of which stage produced it. There is no separate ad-hoc "runtime error"
- * surface.
+ * already writes `execute()`'s diagnostics into the same field), and semantic-stage (this module
+ * runs `@openlogo/parser`'s `check()` live since #817, with style-stage still opt-in beside it —
+ * see below) — renders through **one** unified path: {@link toDiagnosticsView} projects whatever
+ * is in `state.getState().diagnostics` right now, regardless of which stage produced it. There is
+ * no separate ad-hoc "runtime error" surface.
  *
  * ## The diagnostic-identity rule (`spec/error-model.md`)
  * Every decision here — grouping, counting, severity — keys off `code`/`params`/`severity`/
  * `stage`. `message` is carried through for display only; nothing in this module parses or
  * branches on its English prose.
  *
- * ## Live parse-stage wiring
+ * ## Live parse-stage and semantic-stage wiring
  * {@link createDiagnosticsController} subscribes to the shared store and, whenever `source`
- * changes, re-parses it via `@openlogo/parser`'s `parse()` (Layer 1 — issue #9) and republishes
- * the result through `state.setDiagnostics`, so a bad line (e.g. `ol-bad-token`) surfaces at its
- * `source_span` as the learner types, without a Run. `parse()` never throws on malformed input —
- * it reports diagnostics instead — so an erroneous line can never crash the session.
+ * changes, re-parses it via `@openlogo/parser`'s `parse()` (Layer 1 — issue #9) and re-checks it
+ * via `check()` (Layer 2 — see below), republishing the result through `state.setDiagnostics`, so
+ * both a bad line (e.g. `ol-bad-token`) and an unknown name (`ol-unknown-command`) surface at their
+ * `source_span` as the learner types, without a Run. Neither `parse()` nor `check()` throws on
+ * malformed input — they report diagnostics instead — so an erroneous line can never crash the
+ * session.
  *
- * ## Semantic checking (`check()`) is opt-in, not default
- * `@openlogo/parser`'s `check()` (epic #108) is the Layer-2/3 entry point this controller is
- * wired to accept — interface-level readiness for #125's AC — but it is **not** run by default
- * yet. The reason is **duplication, not false positives** — a distinction worth stating precisely,
- * because the older rationale (that `check()` here ran under Core Language alone and so would flag
- * `forward 100` as `ol-unknown-command`) stopped being true at issue #740, which made this
- * controller pass `options.profiles ?? STUDIO_PROFILES`. Measured against the base of this slice,
- * `check(parse("forward 100").ast, { profiles: STUDIO_PROFILES })` already returned no
- * diagnostics. What settles it now is issue #815: a run checks itself under the profile set it
- * CLAIMS (`spec/execution-model.md:673-680`), and `execute()` does so before Phase 2, so the Run
- * path already surfaces these findings and turning this on would DUPLICATE them rather than add
- * them. Pass
- * `semanticCheck: true` (see epic #813) to layer semantic/style diagnostics into
- * the exact same unified `diagnostics` field — no rendering-side change needed when that flag
- * flips, because {@link toDiagnosticsView} already renders every stage identically.
+ * ## Semantic checking (`check()`) runs by default (#817)
+ * `@openlogo/parser`'s `check()` (epic #108) is the Layer-2/3 entry point this controller runs on
+ * every re-check, appending its findings after the Layer-1 parse diagnostics. It was opt-in until
+ * issue #817; both recorded reasons for that default were re-measured and neither survived.
+ *
+ * The **older** reason was false positives: `check()` here ran under Core Language alone, where
+ * `forward 100` really is `ol-unknown-command`. That stopped being true at issue #740, which made
+ * this controller pass `options.profiles ?? STUDIO_PROFILES`. Measured on this slice's base
+ * commit, under {@link STUDIO_PROFILES}: `forward 100` reports nothing, the whole
+ * `define sq :n / repeat 4 [ forward :n right 90 ] / end / sq 50` program reports nothing, and all
+ * **13** `spec/examples/*.logo` files together report **0** semantic diagnostics. The same corpus
+ * under `["core-language"]` alone does report — which is what makes those zeros a measurement of
+ * the profile set rather than of a checker that never ran. `tests/conformance/`'s two
+ * `PROFILE-ARGUMENT` fixtures hold that contrast as a wall against re-introducing the false
+ * positive.
+ *
+ * The **later** reason was duplication: issue #815 made `execute()` check itself under the profile
+ * set the run CLAIMS (`spec/execution-model.md:673-680`) before Phase 2, so the Run path already
+ * surfaces these findings. That is true and it is why nothing here reports them a second time —
+ * but it is not a reason to withhold them *before* a Run. Both paths write the same unified
+ * `diagnostics` field through `setDiagnostics`, which **replaces** rather than appends, and
+ * {@link DiagnosticsController.refresh}'s unchanged-`source` guard keeps a Run's own diagnostics
+ * from being clobbered — so a finding is never listed twice. What flipping this default changes is
+ * exclusively **when** the learner is told: at the keystroke instead of at the Run. A learner who
+ * has typed an unknown name otherwise sees nothing at all until they press Run, which is the blank
+ * canvas issue #817 is about.
+ *
+ * Pass `semanticCheck: false` to switch this back off (a host that runs its own checker, say).
+ * Layer-3 style lints stay **opt-in** beside it — see {@link DiagnosticsControllerOptions.styleCheck}
+ * for the measurement that decided that. No rendering-side change was needed when this default
+ * flipped, because {@link toDiagnosticsView} already renders every stage identically — which is the
+ * claim #817 asked this slice to prove rather than restate.
  *
  * ## One profile set, shared with the highlighter (#740)
  * When `check()` does run, its active profile set defaults to `profiles.ts`'s
@@ -122,16 +141,20 @@ export interface DiagnosticsControllerOptions {
   /** The document identifier passed to `parse()`/`check()`. Defaults to `"studio-session"`. */
   readonly document?: string;
   /**
-   * Opt into Layer-2 semantic checking (`@openlogo/parser`'s `check()`, epic #108) on every
-   * re-check, appended after the Layer-1 parse diagnostics. Defaults to `false` — see this
-   * module's doc comment for why: the Run path already reports these findings, so turning it on
-   * would duplicate them rather than falsely flag anything.
+   * Run Layer-2 semantic checking (`@openlogo/parser`'s `check()`, epic #108) on every re-check,
+   * appended after the Layer-1 parse diagnostics. Defaults to **`true`** since issue #817 — see
+   * this module's doc comment for the measurements that retired both earlier reasons for `false`.
+   * Pass `false` to switch it off.
    */
   readonly semanticCheck?: boolean;
   /**
-   * Also opt into Layer-3 style lints (`check()`'s `style: true`, issue #115) when
-   * `semanticCheck` is `true`. Has no effect unless `semanticCheck` is also `true`. Defaults to
-   * `false`, matching `check()`'s own opt-in default.
+   * Also run Layer-3 style lints (`check()`'s `style: true`, issue #115). Has no effect when
+   * `semanticCheck` is `false`. Defaults to `false`, matching `check()`'s own opt-in default, and
+   * it stays `false` even though `semanticCheck` flipped at #817: style lints are **opinions about
+   * working code**, and measured across `spec/examples/*.logo` they fire **46** times (mostly
+   * `ol-style-magic-number`) on the same 13 files that produce 0 semantic diagnostics. Turning them
+   * on as-you-type would bury a real `ol-unknown-command` under advice about a program that is
+   * already correct.
    */
   readonly styleCheck?: boolean;
   /**
@@ -165,7 +188,7 @@ function runChecks(
 ): readonly Diagnostic[] {
   const document = options.document ?? DEFAULT_DIAGNOSTICS_DOCUMENT;
   const parsed = parse(source, document);
-  if (options.semanticCheck !== true) {
+  if (options.semanticCheck === false) {
     return parsed.diagnostics;
   }
   const checked = check(parsed.ast, {

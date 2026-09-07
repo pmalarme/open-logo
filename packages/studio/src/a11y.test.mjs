@@ -1153,3 +1153,42 @@ test("a record diagnostic crossing a structured clone announces on change and on
     "and re-running the same program must not re-announce: one change, one announcement",
   );
 });
+
+test("#817: a semantic diagnostic is announced and reachable exactly like a parse one", () => {
+  // The issue's accessibility AC, proved rather than asserted. `toDiagnosticsView` and the
+  // announcer both claim to be stage-agnostic; this drives the real diagnostics controller with a
+  // program whose only fault is SEMANTIC (`ol-unknown-command`, stage `"semantic"`) and compares
+  // it against a program whose only fault is a Layer-1 parse error, expecting identical treatment.
+  function announcementsFor(source) {
+    const state = OL.createStudioState();
+    OL.createDiagnosticsController(state);
+    const announcer = OL.createA11yAnnouncer(state);
+    state.setSource(source);
+    return {
+      announcements: announcer.getAnnouncements(),
+      stages: state.getState().diagnostics.map((each) => each.stage),
+    };
+  }
+
+  const semantic = announcementsFor("flibbertigibbet");
+  const parseStage = announcementsFor("%");
+
+  // The fixtures really are the two different stages, so this is not one stage compared to itself.
+  assert.deepEqual(semantic.stages, ["semantic"]);
+  assert.deepEqual(parseStage.stages, ["parse"]);
+
+  // Announced identically: same politeness, same structured text, one interruption each.
+  assert.deepEqual(semantic.announcements, [
+    { politeness: "assertive", message: "1 error found." },
+  ]);
+  assert.deepEqual(semantic.announcements, parseStage.announcements);
+
+  // And reachable: the diagnostics list is a keyboard focus stop, so a screen-reader user can move
+  // to the pane the announcement is about rather than only hearing the count.
+  const stop = OL.REPL_FOCUS_ORDER.find(
+    (each) => each.region === "diagnostics",
+  );
+  assert.ok(stop, "the diagnostics pane is not a keyboard focus stop");
+  assert.equal(stop.role, "log");
+  assert.equal(stop.label, "Diagnostics");
+});

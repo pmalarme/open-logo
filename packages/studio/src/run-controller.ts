@@ -453,6 +453,7 @@ import type {
   RecordedAnswer,
 } from "./execution-host.js";
 import type { InputPromptHost } from "./input-prompt.js";
+import { STUDIO_PROFILES } from "./profiles.js";
 import type { RunStatus, StudioStateStore } from "./state-model.js";
 import {
   isInstantTickDelay,
@@ -1186,6 +1187,11 @@ export function createRunController(
       // matters there only for reproducing a whole run — and, since #952, for making a
       // delivered-input replay a genuine continuation under any host.
       randomSeed: chainRandomSeed,
+      // #817 — the profile set this run claims, so `execute()`'s check-before-Phase-2 judges the
+      // learner's names under the environment the studio actually provides. The same constant the
+      // diagnostics pane and the highlighter default to, which is what keeps the as-you-type
+      // finding and the Run finding the same finding.
+      profiles: STUDIO_PROFILES,
       // #876 — the controller's cancellation state, carried as data because an object's mutation is
       // invisible across a thread boundary. `stop()` latches `signal.aborted` and only `reset()`
       // clears it, so a `run()` after a Stop is expected to halt immediately with `ol-limit`

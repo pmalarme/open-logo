@@ -823,3 +823,37 @@ test("a stop() replay RESUMES the canvas with one seek, never by stepping the pr
   assert.equal(observed.steps, 1, "the step spy must count a real step() call");
   assert.deepEqual(observed.seekArguments, []);
 });
+
+test("#817: run() tells the host which profile set the run claims", () => {
+  // The run controller is the only place an `ExecutionRequest` is built, so this is the one seam
+  // where the studio's claim enters the Run path. A capturing host reads the request verbatim:
+  // if the controller stopped setting `profiles`, this reads `undefined` and fails, rather than
+  // silently inheriting `execute()`'s own fallback and behaving identically.
+  const requests = [];
+  let cancelCount = 0;
+  const store = OL.createStudioState({ source: "forward 100" });
+  const controller = OL.createRunController(store, {
+    executionHost: {
+      execute(request) {
+        requests.push(request);
+      },
+      cancel() {
+        cancelCount += 1;
+      },
+    },
+  });
+
+  controller.run();
+
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].profiles, OL.STUDIO_PROFILES);
+  // Stated positively too: the claimed set must include the profile that makes `forward` a known
+  // command, which is the whole failure `spec/execution-model.md:673-680` calls non-conforming.
+  assert.ok(requests[0].profiles.includes("turtle-rendering"));
+
+  // The capturing host never settles, so this run is still outstanding — Stop must reach the host
+  // it was given. Asserting it keeps the stub honest: a `cancel` that is only *declared* would let
+  // this double as a test of a host the controller never actually drives.
+  controller.stop();
+  assert.equal(cancelCount, 1);
+});

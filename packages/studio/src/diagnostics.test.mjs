@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import * as OL from "@openlogo/studio";
 
 const {
@@ -102,12 +105,23 @@ test("multiple bad tokens surface as multiple diagnostics, still without crashin
   assert.ok(view.items.every((item) => item.code === "ol-bad-token"));
 });
 
-test("an ordinary Core program has no parse-stage diagnostics by default (no false positives)", () => {
-  // Regression guard for the semanticCheck-defaults-to-false design decision: check()'s
-  // ol-unknown-command rule doesn't yet recognize every Turtle & Rendering primitive, so it
-  // must not run by default. (Note: `forward` itself isn't a clean example here — it isn't yet
-  // registered in the parser's own arity table either, so `forward 100` is presently a genuine
-  // Layer-1 parse diagnostic, not something this pane should suppress or hide.)
+test("an ordinary Core program has no diagnostics at all — parse OR semantic (no false positives)", () => {
+  // #817 — this guard's *premise* changed, so it is rewritten rather than left quietly green.
+  //
+  // It was written to protect the "semanticCheck defaults to false" design decision, and its
+  // comment gave two reasons that were both re-measured on this slice's base commit and are both
+  // FALSE:
+  //   1. "check()'s ol-unknown-command rule doesn't yet recognize every Turtle & Rendering
+  //      primitive, so it must not run by default" — it does recognize them, once the active
+  //      profile set is passed. That has been true since #740.
+  //   2. "`forward` isn't yet registered in the parser's own arity table either, so `forward 100`
+  //      is presently a genuine Layer-1 parse diagnostic" — measured: `parse("forward 100")`
+  //      reports ZERO diagnostics, and `check()` under STUDIO_PROFILES reports zero as well.
+  //
+  // So the default flipped to `true`, and what this test guards flipped with it: not "semantic
+  // checking is off" but "with semantic checking ON, an ordinary program is still clean". That is
+  // the false-positive wall, and it is now the load-bearing one — see the `forward`-based
+  // assertions below, which the old comment specifically claimed could not be written.
   const state = createStudioState();
   createDiagnosticsController(state);
 
@@ -116,19 +130,122 @@ test("an ordinary Core program has no parse-stage diagnostics by default (no fal
   assert.deepEqual(state.getState().diagnostics, []);
 });
 
-test("semanticCheck: true layers real semantic diagnostics into the same unified field", () => {
+test("#817 AC: a Turtle & Rendering program is clean under the default profile set", () => {
+  // The exact program issue #817 names, and the exact claim the retired comment denied. Under the
+  // studio's active set this is clean; `an explicit Core-Language-only set...` below is the
+  // falsification that keeps this zero from being the zero of a checker that never ran.
   const state = createStudioState();
-  createDiagnosticsController(state, { semanticCheck: true });
+  createDiagnosticsController(state);
 
-  state.setSource("flibbertigibbet 5");
+  state.setSource(
+    "define sq :n\n  repeat 4 [ forward :n right 90 ]\nend\nsq 50\n",
+  );
+
+  assert.deepEqual(state.getState().diagnostics, []);
+});
+
+test("#817 AC: the same turtle program IS flagged under Core Language alone (falsification)", () => {
+  // Without this, the test above would pass identically if semantic checking were switched off
+  // entirely. Reporting the *names* is what makes it a measurement rather than a count of zero.
+  const state = createStudioState();
+  createDiagnosticsController(state, { profiles: ["core-language"] });
+
+  state.setSource(
+    "define sq :n\n  repeat 4 [ forward :n right 90 ]\nend\nsq 50\n",
+  );
+
+  assert.deepEqual(reportedNames(state), ["forward", "right"]);
+});
+
+test("#817 AC: an unknown reporter is flagged as the learner types, with no Run", () => {
+  // The user story: `difference` is not an OpenLogo name, and before this slice the learner saw
+  // nothing at all until they pressed Run. No run() is involved anywhere in this test.
+  const state = createStudioState();
+  createDiagnosticsController(state);
+
+  state.setSource("print (difference 10 5)");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.equal(view.items.length, 1);
+  assert.equal(view.items[0].code, "ol-unknown-command");
+  assert.equal(view.items[0].stage, "semantic");
+  assert.equal(view.items[0].severity, "error");
+  assert.deepEqual(view.items[0].params, { name: "difference" });
+  // At the span of `difference`, not of the whole line — the pane renders it inline there.
+  assert.deepEqual(view.items[0].sourceSpan.start, [1, 8]);
+  assert.deepEqual(view.items[0].sourceSpan.end, [1, 18]);
+});
+
+test("#817 AC: in a mixed program ONLY the invalid name is flagged", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state);
+
+  state.setSource("forward 100\nprint (wibble 2)\nright 90\n");
+
+  assert.deepEqual(reportedNames(state), ["wibble"]);
+});
+
+test("#817 AC: every runnable spec example is free of semantic false positives", () => {
+  // The corpus check the issue asks for, run through the controller itself rather than through a
+  // separate call to check() — a false positive here would be one a learner meets on day one.
+  const examplesDirectory = fileURLToPath(
+    new URL("../../../spec/examples/", import.meta.url),
+  );
+  const files = readdirSync(examplesDirectory)
+    .filter((name) => name.endsWith(".logo"))
+    .sort();
+  assert.ok(files.length > 0, "no spec examples were found to check");
+
+  /** Every finding one program produces, labelled — the single instrument this test trusts. */
+  function findingsIn(label, source) {
+    const state = createStudioState();
+    createDiagnosticsController(state);
+    state.setSource(source);
+    return toDiagnosticsView(state.getState().diagnostics).items.map(
+      (item) => `${label}: ${item.code} ${JSON.stringify(item.params)}`,
+    );
+  }
+
+  const flagged = files.flatMap((file) =>
+    findingsIn(file, readFileSync(join(examplesDirectory, file), "utf8")),
+  );
+
+  assert.deepEqual(flagged, []);
+
+  // Falsification, through **the same function** rather than a parallel one: an instrument that
+  // reports nothing on the corpus proves nothing until it is shown able to report at all. Running
+  // the control here also means the reporting path above is exercised rather than merely present.
+  // The bare name (no argument) is deliberate — `flibbertigibbet 5` additionally trips a Layer-1
+  // `ol-bad-token`, because the parser has no arity for an unknown name and reads `5` as a second
+  // instruction on the line, which would make this control assert two faults instead of the one it
+  // is about.
+  assert.deepEqual(findingsIn("control", "forward 100\nflibbertigibbet"), [
+    'control: ol-unknown-command {"name":"flibbertigibbet"}',
+  ]);
+});
+
+test("semanticCheck: false opts back out, leaving only Layer-1 parse diagnostics", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, { semanticCheck: false });
+
+  state.setSource("flibbertigibbet");
+
+  assert.deepEqual(state.getState().diagnostics, []);
+});
+
+test("semantic diagnostics land in the same unified field by default", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state);
+
+  state.setSource("flibbertigibbet");
 
   const view = toDiagnosticsView(state.getState().diagnostics);
   assert.ok(view.items.some((item) => item.code === "ol-unknown-command"));
 });
 
-test("styleCheck: true additionally layers Layer-3 style-lint warnings when semanticCheck is on", () => {
+test("styleCheck: true additionally layers Layer-3 style-lint warnings", () => {
   const state = createStudioState();
-  createDiagnosticsController(state, { semanticCheck: true, styleCheck: true });
+  createDiagnosticsController(state, { styleCheck: true });
 
   state.setSource("define MyProc\nend");
 
@@ -136,9 +253,50 @@ test("styleCheck: true additionally layers Layer-3 style-lint warnings when sema
   assert.ok(view.items.some((item) => item.code === "ol-style-name-case"));
 });
 
-test("styleCheck: true has no effect when semanticCheck is false (default)", () => {
+test("style lints stay OFF by default even though semantic checking is on (#817)", () => {
+  // The half of the flip that did NOT change, with its reason gated rather than asserted in prose:
+  // over the same spec-example corpus that yields ZERO semantic diagnostics, the style lints fire
+  // repeatedly (46 of them at the time of writing, mostly `ol-style-magic-number`). Turning both on
+  // as-you-type would bury a real `ol-unknown-command` under advice about programs that are already
+  // correct. The exact count is deliberately not pinned — the contrast is the load-bearing part,
+  // and pinning 46 would make every future example edit a failing test.
+  const examplesDirectory = fileURLToPath(
+    new URL("../../../spec/examples/", import.meta.url),
+  );
+  const files = readdirSync(examplesDirectory)
+    .filter((name) => name.endsWith(".logo"))
+    .sort();
+
+  let styleLints = 0;
+  for (const file of files) {
+    const opted = createStudioState();
+    createDiagnosticsController(opted, { styleCheck: true });
+    opted.setSource(readFileSync(join(examplesDirectory, file), "utf8"));
+    styleLints += toDiagnosticsView(opted.getState().diagnostics).items.filter(
+      (item) => item.code.startsWith("ol-style-"),
+    ).length;
+  }
+
+  assert.ok(
+    styleLints > 0,
+    "the corpus produced no style lints at all, so the contrast this default rests on is untested",
+  );
+
+  // And by default that same advice stays silent.
   const state = createStudioState();
-  createDiagnosticsController(state, { styleCheck: true });
+  createDiagnosticsController(state);
+
+  state.setSource("define MyProc\nend");
+
+  assert.deepEqual(state.getState().diagnostics, []);
+});
+
+test("styleCheck: true has no effect when semanticCheck is explicitly false", () => {
+  const state = createStudioState();
+  createDiagnosticsController(state, {
+    semanticCheck: false,
+    styleCheck: true,
+  });
 
   state.setSource("define MyProc\nend");
 
