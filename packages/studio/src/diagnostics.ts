@@ -376,10 +376,19 @@ export function createDiagnosticsController(
   options: DiagnosticsControllerOptions = {},
 ): DiagnosticsController {
   let lastCheckedSource: string | null = null;
-  // Whether the notice currently on screen is OURS. `setNotice(null)` is a global stomp and the
-  // field is shared (persistence uses it for "your work could not be saved"), so clearing
-  // unconditionally would silently erase somebody else's warning.
-  let noticeIsOurs = false;
+  // The exact `Notice` object this controller last published, or `null`. `setNotice(null)` is a
+  // global stomp and the field is shared — persistence uses it for "your work could not be saved" —
+  // so the controller must clear only its OWN notice.
+  //
+  // A reference, not a boolean. A boolean records that we once wrote a notice; it does not record
+  // whether ours is still the one on screen. Measured with a boolean: the controller sets its
+  // notice, persistence then replaces it (a `setNotice` alone does not change `source`, so
+  // `refresh()` early-returns and the flag stays latched), and the next successful check clears
+  // "your work could not be saved" — so a learner who has lost work also loses the only warning
+  // that they lost it. `guardedRunChecks` builds a fresh object every time, so identity is exact,
+  // and it is the same instrument the run controller uses to tell a live finding from a stale run
+  // result.
+  let ourNotice: Notice | null = null;
   const onFailure = options.onCheckFailure ?? rethrowCheckFailureAsynchronously;
 
   function refresh(): void {
@@ -396,10 +405,10 @@ export function createDiagnosticsController(
     );
     state.setDiagnostics(outcome.diagnostics);
     if (outcome.notice !== null) {
-      noticeIsOurs = true;
+      ourNotice = outcome.notice;
       state.setNotice(outcome.notice);
-    } else if (noticeIsOurs) {
-      noticeIsOurs = false;
+    } else if (ourNotice !== null && state.getState().notice === ourNotice) {
+      ourNotice = null;
       state.setNotice(null);
     }
   }

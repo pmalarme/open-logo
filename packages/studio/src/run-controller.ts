@@ -1127,8 +1127,25 @@ export function createRunController(
     userStopped = true;
     const output = currentOutput;
     state.setOutput(output);
-    state.setDiagnostics(attemptDiagnostics);
-    lastRunDiagnostics = attemptDiagnostics;
+    // #817 (review round 2) — the same rule as the settlement path, and for the same reason: the
+    // live field is a statement about the text in the editor, and this attempt can only speak for
+    // the text it was given. This path is the *shipped* studio's, not a hypothetical host's —
+    // `input-prompt.ts:14-16` records that the browser prompt is deliberately asynchronous and
+    // non-modal ("A browser cannot block its event loop for an arbitrary styled, keyboard-operable,
+    // screen-reader-announced prompt"), so the editor stays fully live while a question is on
+    // screen. Measured without this guard: run a program using `input`, edit to `wibble 5` while
+    // the question is up, dismiss it, and the pane replaced the correct live `ol-unknown-command`
+    // with this run's `ol-limit` — about a program no longer in the editor. It then STAYS wrong,
+    // because `diagnostics.ts`'s unchanged-`source` guard sees `wibble 5` as already checked and
+    // declines to repair it. `stop()` reaches this same function, so it had the same hole.
+    //
+    // `setLastRunResult` stays unconditional, exactly as on the settlement path: it is the
+    // immutable record OF THIS ATTEMPT, it carries its own `source`, and `run-log.ts` depends on it
+    // being written for every settlement.
+    if (state.getState().source === preparedSource) {
+      state.setDiagnostics(attemptDiagnostics);
+      lastRunDiagnostics = attemptDiagnostics;
+    }
     state.setLastRunResult({
       source: preparedSource,
       output,
@@ -1945,7 +1962,15 @@ export function createRunController(
     // settlement's republication becomes structurally identical, so `a11y.ts`'s anti-spam key
     // suppresses it and the learner is told once.
     if (state.getState().diagnostics === lastRunDiagnostics) {
-      state.setDiagnostics([]);
+      const cleared: readonly Diagnostic[] = [];
+      state.setDiagnostics(cleared);
+      // Keep the tracker pointing at what we just wrote. Without this assignment the comment above
+      // would be false the instant it ran — the field would hold an array this controller published
+      // while `lastRunDiagnostics` pointed at the previous one. Nothing currently depends on the
+      // difference (every path that publishes a non-empty result syncs the tracker, and an
+      // already-empty field needs no clearing), but an invariant that is only accidentally true is
+      // one refactor from being a bug.
+      lastRunDiagnostics = cleared;
     }
     state.setTutorOutput([]);
     state.setLastRunResult({

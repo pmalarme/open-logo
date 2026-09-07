@@ -1198,7 +1198,6 @@ test("#817: a semantic diagnostic is announced and reachable exactly like a pars
   // The pane that stop names is the pane the semantic finding actually renders into: same store,
   // same unified field, projected by the same view model the region renders.
   const semanticState = OL.createStudioState();
-  OL.createDiagnosticsController(semanticState);
   const shell = OL.createAppShell(semanticState);
   const controller = OL.createDiagnosticsController(semanticState);
   OL.mountDiagnosticsPane(shell, controller);

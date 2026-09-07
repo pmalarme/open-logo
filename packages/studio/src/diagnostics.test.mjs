@@ -495,8 +495,14 @@ test("#817: one fault produces one message — the live pane matches execute() e
   //
   // Asserting the two lists are EQUAL rather than asserting a count is what stops the two paths
   // drifting again: any future divergence in either direction fails here.
+  //
+  // Every case must be a program the check REFUSES, so nothing executes. The live pane runs only
+  // Layers 1 and 2 and can never see a runtime finding, so adding a case that actually runs — say
+  // `print 1 / 0` — would fail this test for an entirely correct reason. `execute()`'s output is
+  // filtered to the static stages below so that trap is closed rather than merely documented.
+  const staticOnly = (list) => list.filter((each) => each.stage !== "runtime");
   const shape = (list) =>
-    list.map(
+    staticOnly(list).map(
       (each) =>
         `${each.stage}/${each.code}${JSON.stringify(each.params)}@${JSON.stringify(each.source_span.start)}`,
     );
@@ -508,6 +514,10 @@ test("#817: one fault produces one message — the live pane matches execute() e
     "print (difference 10 5)",
     "flibbertigibbet",
     "forward 100",
+    // A program that RUNS and produces a runtime diagnostic. It is here to keep the
+    // `stage !== "runtime"` filter honest: delete the filter and this case fails, which is what
+    // stops the filter from being an unexamined convenience.
+    "print 1 / 0",
   ]) {
     const state = createStudioState();
     createDiagnosticsController(state, { document: RUN_DOCUMENT });
@@ -697,4 +707,35 @@ test("#817: a notice this controller did not set is never cleared", () => {
     level: "warning",
     message: "your work could not be saved",
   });
+});
+
+test("#817: a foreign notice that REPLACES ours is still not cleared", () => {
+  // The ordering the test above cannot reach, and the one that actually bit. With ownership tracked
+  // by a boolean, this sequence erased persistence's warning: the flag recorded that we had once
+  // written a notice, not whether ours was still the one on screen. A `setNotice` alone does not
+  // change `source`, so `refresh()` early-returns and the flag stayed latched.
+  //
+  // A learner who has lost their work would also lose the only warning that they lost it.
+  const state = createStudioState();
+  const { profiles, state: explosion } = explodingProfiles();
+  createDiagnosticsController(state, { profiles, onCheckFailure: () => {} });
+
+  // 1. We set our own notice.
+  state.setSource("forward 100");
+  assert.equal(
+    state.getState().notice?.message,
+    CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+  );
+
+  // 2. Another subsystem replaces it.
+  const foreign = { level: "warning", message: "your work could not be saved" };
+  state.setNotice(foreign);
+
+  // 3. The next check succeeds.
+  explosion.exploding = false;
+  state.setSource("forward 200");
+
+  // The foreign notice survives, and the successful check really did happen.
+  assert.deepEqual(state.getState().notice, foreign);
+  assert.deepEqual(state.getState().diagnostics, []);
 });
