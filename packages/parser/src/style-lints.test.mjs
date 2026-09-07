@@ -2056,3 +2056,97 @@ test("ol-style-ambiguous-continuation: `/*` opener with trailing op — silent",
   );
   assert.deepEqual(diagnostics, []);
 });
+
+// --- Issue #1101: code after `*/` on same line visible to depth model ----------
+
+test("ol-style-ambiguous-continuation: `*/` close line with trailing `+` suppresses -5 (issue #1101 shape 1)", () => {
+  // `*/ +` closes the block comment and exposes `+` as a trailing operator.
+  // The backward scan must see it and suppress the `-5` negative-literal warning.
+  // Before fix: the `-5` line got a wrong message saying it starts a new statement.
+  const diagnostics = checkStyle("print [ 1\n/* comment\n*/ +\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  // The leading `+` on the `*/`-close line is flagged, but `-5` is suppressed.
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+  assert.equal(diagnostics[0].source_span.start[0], 3);
+});
+
+test("ol-style-ambiguous-continuation: inline `/* c */` before leading `+` — fires (issue #1101 shape 2)", () => {
+  // `/* c */ + 5` opens and closes a block comment inline, leaving `+ 5` as code.
+  // The leading `+` must be flagged. Before fix: silent (false negative).
+  const diagnostics = checkStyle("print 10\n/* c */ + 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+  assert.equal(diagnostics[0].source_span.start[0], 2);
+  assert.equal(diagnostics[0].source_span.start[1], 9);
+});
+
+test("ol-style-ambiguous-continuation: `*/` close line with no code — -5 still fires", () => {
+  // `continued */` has no code after the close, so the backward scan
+  // should skip it and find `1` (no trailing operator) — the `-5` fires.
+  const diagnostics = checkStyle(
+    "print [ 1\n/* comment\ncontinued */\n-5 ]",
+  ).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "-5",
+    reading: "new-statement",
+  });
+  assert.equal(diagnostics[0].source_span.start[0], 4);
+});
+
+test("ol-style-ambiguous-continuation: inline `/* */` before `-5` — first element suppressed", () => {
+  // After stripping the inline comment, `-5` is the first element after `[`.
+  const diagnostics = checkStyle("print [\n/* c */\n-5 ]").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `*/` close line inside `()` grouping — silent", () => {
+  // `print (1\n/* c\n*/ + 2)` — the `+` after `*/` is inside `(…)` grouping
+  // and should NOT be flagged (grouping already disambiguates).
+  const diagnostics = checkStyle("print (1\n/* c\n*/ + 2)").filter(
+    isAmbiguousContinuation,
+  );
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ol-style-ambiguous-continuation: `*/` close then new `/*` on same line", () => {
+  // `*/ + 5 /* second` closes the inherited comment, exposes `+ 5`, then
+  // opens a new comment. The `+` must still be flagged.
+  const diagnostics = checkStyle(
+    "print 10\n/* first\n*/ + 5 /* second\ncontinued */",
+  ).filter(isAmbiguousContinuation);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+  assert.equal(diagnostics[0].source_span.start[0], 3);
+});
+
+test("ol-style-ambiguous-continuation: non-BMP chars in inline comment — column is code-point-based", () => {
+  // `/* 😀 */` contains a non-BMP character (2 UTF-16 code units, 1 code point).
+  // The column of `+` must be code-point-based (col 9), not UTF-16 (col 10).
+  const diagnostics = checkStyle("print 10\n/* \u{1F600} */ + 5").filter(
+    isAmbiguousContinuation,
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(diagnostics[0].params, {
+    token: "+",
+    reading: "continuation",
+  });
+  assert.equal(diagnostics[0].source_span.start[0], 2);
+  assert.equal(diagnostics[0].source_span.start[1], 9);
+  assert.equal(diagnostics[0].source_span.end[1], 10);
+});

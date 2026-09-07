@@ -1609,7 +1609,6 @@ function firstBlockChildLine(node: StatementNode): number | undefined {
  */
 function leadingInfixOperator(trimmedLine: string): string | undefined {
   const ch = trimmedLine[0];
-  if (ch === undefined) return undefined;
 
   if (ch === "+" || ch === "*") return ch;
   if (ch === "-") {
@@ -1647,18 +1646,38 @@ function leadingInfixOperator(trimmedLine: string): string | undefined {
 const NEGATIVE_LITERAL_RE = /^(-(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)/;
 
 /**
+ * Per-line depth info returned by {@link groupingDepthPerLine}.
+ *
+ * - `depths[i]` is the effective grouping depth at the start of 1-based line
+ *   `i + 1`. `Infinity` means entirely inside a multi-line token; `> 0` means
+ *   inside explicit `(…)` / `{…}` grouping.
+ * - `lineStartsInsideBlockComment[i]` is `true` when 1-based line `i + 1`
+ *   begins inside an unclosed block comment from a previous line, even if the
+ *   comment closes later on the same line. Used by the leading-operator check
+ *   to strip the comment-close prefix before inspecting code (#1101).
+ */
+interface LineDepthResult {
+  readonly depths: readonly number[];
+  readonly lineStartsInsideBlockComment: readonly boolean[];
+}
+
+/**
  * Compute the parenthesis/brace grouping depth at the **start** of each 1-based
- * source line. `result[0]` is the depth at the start of line 1. Lines inside an
- * unclosed `(` or `{` have `depth > 0`; those lines are explicitly grouped and
- * their leading operator is not ambiguous. Lines inside a multi-line token
- * (triple-quoted string or block comment) use a sentinel depth of `Infinity`.
+ * source line. `result.depths[0]` is the depth at the start of line 1. Lines
+ * inside an unclosed `(` or `{` have `depth > 0`; those lines are explicitly
+ * grouped and their leading operator is not ambiguous. Lines entirely inside a
+ * multi-line token (triple-quoted string, or a block comment that does NOT close
+ * on this line) use a sentinel depth of `Infinity`. Lines that start inside a
+ * block comment but close it get the actual depth (so the code after the close
+ * visible to backward scans), and are marked in `lineStartsInsideBlockComment`.
  *
  * `[`/`]` are deliberately excluded because they are ambiguous between blocks and
  * list literals. Delimiters inside single-line strings or comments produce a (rare) false
  * negative — acceptable for an opt-in style lint.
  */
-function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
+function groupingDepthPerLine(lines: readonly string[]): LineDepthResult {
   const depths: number[] = [0];
+  const lineStartsInsideBlockComment: boolean[] = [];
   let depth = 0;
   let inTripleQuote = false;
   let inBlockComment = false;
@@ -1667,9 +1686,20 @@ function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
     const line = lines[i]!;
 
     // Lines whose content is inside a multi-line token are data/commentary.
+    // However, if a block comment closes on this line, code after the close
+    // is visible — so we tentatively mark it and may revert below (#1101).
+    const startedInBlockComment = inBlockComment;
+    lineStartsInsideBlockComment.push(startedInBlockComment);
     if (inTripleQuote || inBlockComment) {
       depths[i] = Infinity;
     }
+
+    // Track whether an inherited block comment (one that was open at line
+    // start) closes on this line. A new `/*` may reopen later on the same
+    // line — the code between `*/` and `/*` is still visible, so we record
+    // the close independently of the final `inBlockComment` state (#1101).
+    let closedInheritedComment = false;
+    let depthAtCommentClose = depth;
 
     let j = 0;
     while (j < line.length) {
@@ -1693,6 +1723,10 @@ function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
         if (star && slash) {
           inBlockComment = false;
           j += 2;
+          if (startedInBlockComment && !closedInheritedComment) {
+            closedInheritedComment = true;
+            depthAtCommentClose = depth;
+          }
         } else {
           j++;
         }
@@ -1735,10 +1769,20 @@ function groupingDepthPerLine(lines: readonly string[]): readonly number[] {
       j++;
     }
 
+    // A line that started inside a block comment but closed it has code after
+    // the close. Revert its depth from `Infinity` to the grouping depth at
+    // the point where the comment closed, so backward scans and leading-
+    // operator checks can see that code. Using the depth at close (not end-
+    // of-line) is correct: a `)` after `*/` reduces depth, but the code
+    // portion still started inside the grouping (#1101).
+    if (closedInheritedComment) {
+      depths[i] = depthAtCommentClose;
+    }
+
     depths.push(depth);
   }
 
-  return depths;
+  return { depths, lineStartsInsideBlockComment };
 }
 
 /** Build an `ol-style-ambiguous-continuation` diagnostic. */
@@ -1807,6 +1851,64 @@ function stripTrailingComment(line: string): string {
 }
 
 /**
+ * Strip leading block-comment content from a line to expose the code portion.
+ *
+ * - When `startsInsideBlockComment` is true, the line begins inside an unclosed
+ *   block comment from a previous line. Everything up to and including the first
+ *   close-comment token is commentary; this helper returns everything after it
+ *   (trimmed of leading whitespace) and the 0-based column offset where the code
+ *   starts.
+ *
+ * - Regardless, any leading inline block-comment sequences that open **and
+ *   close** on the same line are stripped (e.g. `[slash][star] c [star][slash] + 5`).
+ *
+ * Returns `{ code, offset }` where `code` is the visible code portion and
+ * `offset` is its character position in the original untrimmed line.
+ */
+function stripLeadingBlockComment(
+  lineText: string,
+  startsInsideBlockComment: boolean,
+): { code: string; offset: number } {
+  let text = lineText;
+  let offset = 0;
+
+  if (startsInsideBlockComment) {
+    // Callers only pass startsInsideBlockComment=true for lines whose depth
+    // model confirmed the inherited comment closes (lines without a close
+    // keep Infinity depth and are skipped before reaching this function).
+    const closeIndex = text.indexOf("*/");
+    offset = closeIndex + 2;
+    text = text.slice(offset);
+  }
+
+  // Strip any leading whitespace, then any leading inline `/* … */` sequences.
+  for (;;) {
+    const beforeTrim = text.length;
+    const trimmed = text.trimStart();
+    offset += beforeTrim - trimmed.length;
+    text = trimmed;
+
+    if (text.startsWith("/*")) {
+      const close = text.indexOf("*/", 2);
+      if (close !== -1) {
+        const skip = close + 2;
+        offset += skip;
+        text = text.slice(skip);
+        continue;
+      }
+    }
+    break;
+  }
+
+  // Final trim of any whitespace between the last stripped comment and code.
+  const beforeFinalTrim = text.length;
+  text = text.trimStart();
+  offset += beforeFinalTrim - text.length;
+
+  return { code: text, offset };
+}
+
+/**
  * `ol-style-ambiguous-continuation` (issue #1074): flags lines whose reading
  * depends on whitespace under the continuation rules (`spec/grammar.md:34`).
  *
@@ -1833,7 +1935,7 @@ export function ambiguousContinuationRule(
 ): readonly Diagnostic[] {
   if (source === undefined) return [];
   const lines = source.split("\n");
-  const depths = groupingDepthPerLine(lines);
+  const { depths, lineStartsInsideBlockComment } = groupingDepthPerLine(lines);
   const diagnostics: Diagnostic[] = [];
   const document = program.source_span.document;
   /** Lines already flagged — prevents duplicates when an outer statement and
@@ -1869,15 +1971,24 @@ export function ambiguousContinuationRule(
           if (depths[lineNum - 1]! > 0) continue; // inside grouping or multi-line token
           if (flaggedLines.has(lineNum)) continue; // already reported
           const lineText = lines[lineNum - 1]!;
-          const trimmed = lineText.trimStart();
-          const operator = leadingInfixOperator(trimmed);
+          // Strip any block-comment prefix (`*/` close or `/* … */` inline)
+          // to expose the actual code that the parser sees (#1101).
+          const startsInBlock = lineStartsInsideBlockComment[lineNum - 1]!;
+          const { code: codePortion, offset: codeOffset } =
+            stripLeadingBlockComment(lineText, startsInBlock);
+          if (codePortion.length === 0) continue; // entirely comment
+          // Parser positions count Unicode code points, not UTF-16 units
+          // (`tokens.ts:11`). Convert the UTF-16 offset to a 1-based
+          // code-point column so diagnostic spans match parser spans.
+          const codeCol = [...lineText.slice(0, codeOffset)].length + 1;
+          const operator = leadingInfixOperator(codePortion);
           if (operator !== undefined) {
             // For `-`, suppress when the operand is not a digit: both
             // `- :x` and `-:x` parse identically as subtraction, so there
             // is no genuine ambiguity.  Only `- <digit>` vs `-<digit>`
             // changes the parse (subtraction vs negative literal).
             if (operator === "-") {
-              const afterOp = trimmed.slice(1).trimStart();
+              const afterOp = codePortion.slice(1).trimStart();
               const firstAfter = afterOp[0];
               if (
                 firstAfter === undefined ||
@@ -1887,8 +1998,7 @@ export function ambiguousContinuationRule(
                 // No ambiguity — fall through to the negative-literal
                 // sub-case check (which will also reject non-digits).
               } else {
-                const indent = lineText.length - trimmed.length;
-                const col = indent + 1;
+                const col = codeCol;
                 const name = INFIX_OPERATOR_NAMES.get(operator)!;
                 const message = `This line starts with \`-\` (${name}), which continues the previous line. \`-\` before a number without a space would start a new statement as a negative literal.`;
                 diagnostics.push(
@@ -1905,8 +2015,7 @@ export function ambiguousContinuationRule(
                 flaggedLines.add(lineNum);
               }
             } else {
-              const indent = lineText.length - trimmed.length;
-              const col = indent + 1;
+              const col = codeCol;
               const name = INFIX_OPERATOR_NAMES.get(operator)!;
               const message = `This line starts with \`${operator}\` (${name}), which continues the previous line. Without this operator, the line would start a new statement.`;
 
@@ -1923,7 +2032,7 @@ export function ambiguousContinuationRule(
               );
               flaggedLines.add(lineNum);
             }
-          } else if (trimmed[0] === "-") {
+          } else if (codePortion[0] === "-") {
             // Sub-case: negative literal inside a multi-line statement (e.g. in
             // a list literal). Adding a space would make it subtraction. Skip
             // when a preceding line (scanning backwards past blanks/comments)
@@ -1933,7 +2042,14 @@ export function ambiguousContinuationRule(
               // Skip lines inside multi-line tokens (triple-quoted strings,
               // block comments) — their content is data, not code.
               if (depths[prev - 1]! === Infinity) continue;
-              const stripped = stripTrailingComment(lines[prev - 1]!);
+              // For lines that start inside a block comment but close it,
+              // extract only the code portion after the close (#1101).
+              const prevStartsInBlock = lineStartsInsideBlockComment[prev - 1]!;
+              const { code: prevCode } = stripLeadingBlockComment(
+                lines[prev - 1]!,
+                prevStartsInBlock,
+              );
+              const stripped = stripTrailingComment(prevCode);
               if (stripped.length === 0) continue; // blank or comment-only
               trailingOp =
                 stripped.endsWith("+") ||
@@ -1954,7 +2070,13 @@ export function ambiguousContinuationRule(
               let firstElement = false;
               for (let prev = lineNum - 1; prev >= startLine; prev--) {
                 if (depths[prev - 1]! === Infinity) continue;
-                const stripped = stripTrailingComment(lines[prev - 1]!);
+                const prevStartsInBlock =
+                  lineStartsInsideBlockComment[prev - 1]!;
+                const { code: prevCode } = stripLeadingBlockComment(
+                  lines[prev - 1]!,
+                  prevStartsInBlock,
+                );
+                const stripped = stripTrailingComment(prevCode);
                 if (stripped.length === 0) continue;
                 firstElement = stripped.endsWith("[");
                 break;
@@ -1962,12 +2084,11 @@ export function ambiguousContinuationRule(
               if (firstElement) {
                 // no-op: `-5` is the first list element, no ambiguity
               } else {
-                const ch1 = trimmed[1];
+                const ch1 = codePortion[1];
                 if (ch1 !== undefined && ch1 >= "0" && ch1 <= "9") {
-                  const literal = NEGATIVE_LITERAL_RE.exec(trimmed)?.[1];
+                  const literal = NEGATIVE_LITERAL_RE.exec(codePortion)?.[1];
                   if (literal !== undefined) {
-                    const indent = lineText.length - trimmed.length;
-                    const col = indent + 1;
+                    const col = codeCol;
                     const message =
                       "This line starts with `" +
                       literal +
