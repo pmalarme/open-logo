@@ -265,21 +265,45 @@ test("a new Run clears every field the previous run owned, so an early Stop leav
   // pane publishes a false "No diagnostics." and a screen reader re-announces a finding that never
   // changed. `print 1 / 0` supplies the runtime finding.
   //
-  // So if you re-fixture this with a statically-refused program (a misspelled command, say), these
-  // assertions will fail — and the fix is to restore a runtime-stage fault here, **not** to weaken
-  // the carry rule in `run-controller.ts`. Measured: the failure you will actually see first is
-  // "fixture must produce tutor output", because `execute()` refuses before Phase 2 on an
-  // error-severity static finding, so `explain` never runs. That same refusal is why one program
-  // cannot produce both kinds at once, and why this is documented rather than asserted — an
-  // `every(stage === "runtime")` check here could never fail, and a guard that cannot fire is worse
-  // than a sentence that explains. This is the next layer of the same trap the paragraph above
-  // describes.
+  // So if you re-fixture this with a statically-refused program (a misspelled command, say), the
+  // stage assertion below fails — and the fix is to restore a runtime-stage fault here, **not** to
+  // weaken the carry rule in `run-controller.ts`. This is the next layer of the same trap the
+  // paragraph above describes.
+  //
+  // That assertion is placed **before** the tutor-output precondition deliberately. `execute()`
+  // refuses before Phase 2 on an error-severity static finding, so `explain` never runs and a
+  // statically-refused re-fixture trips "fixture must produce tutor output" first — pointing a
+  // confused maintainer at `explain` rather than at the requirement they actually broke. Ordered
+  // this way, the failure names the real one.
+  //
+  // Note what is NOT claimed here: that a program cannot produce both stages at once. Refusal is by
+  // **severity**, not presence (`spec/execution-model.md:666-671`), so a *warning*-severity semantic
+  // finding does not refuse — the program runs, `explain` runs, and both stages appear together.
+  // Measured with `styleChecks: true`: `repeat 4 [ FORWARD 100 right 90 ] / explain / print 1 / 0`
+  // returns `semantic/ol-style-name-case` (warning) beside `runtime/ol-div-zero` (error), with 24
+  // events either way.
+  //
+  // This fixture is not that program, and the difference is one keystroke: its commands are
+  // lowercase, so it trips no style lint and returns the runtime finding alone even under
+  // `styleChecks: true` (measured). The studio's Run path additionally never passes `styleChecks` at
+  // all — `execution-host.ts`'s `toExecuteOptions` does not thread it — so every semantic finding
+  // reachable here is error-severity and refuses.
+  //
+  // Both of those are contingent facts, one about this source and one living in another file, which
+  // is why the stage assertion is a real guard rather than a decorative one: it fires today on a
+  // statically-refused re-fixture, and it would fire again if either contingency changed.
   const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint 1 / 0";
   const settled = settlementFor(source);
   assert.equal(
     settled.diagnostics.length > 0,
     true,
     "fixture must produce a diagnostic",
+  );
+  assert.ok(
+    settled.diagnostics.every((diagnostic) => diagnostic.stage === "runtime"),
+    "fixture must produce a RUNTIME-stage diagnostic: a parse- or semantic-stage finding is " +
+      "deliberately carried across a chain start (#817), so the assertions below would be " +
+      "guarding the wrong rule",
   );
   assert.equal(
     settled.tutorOutput.length > 0,
