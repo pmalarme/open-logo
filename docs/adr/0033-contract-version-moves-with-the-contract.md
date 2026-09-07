@@ -73,10 +73,13 @@ import unless `OL_GRAMMAR_VERSION === OPENLOGO_VERSION`, and `versionFindings()`
 `scripts/built-in-names-gate.mjs` fails unless `manifest.specVersion === api.OPENLOGO_VERSION`.
 
 **`spec/conformance.md`'s `openlogo.version` — the normative statement of the contract, and the one
-the other three exist to mirror — is compared to nothing.** Verified by mutation: rewriting all seven
-of its version sites to `9.9.9` leaves `npm run built-in-names` reporting *"spec version 0.2.0 — 0
-finding(s)"* and `npm run spec-citations` green. Nor does any gate read a
-`> OpenLogo Specification vX` stamp.
+the other three exist to mirror — is compared to nothing.** Verified by mutation: with all seven of
+its version sites rewritten to `9.9.9`, so that the normative document declares a version no part of
+the implementation reports, **every one of the eleven Definition-of-Done gates passes** — `build`,
+`typecheck`, `lint`, `format:check`, `test` (5195/0), `coverage` (100/100/100), `conformance`
+(1044/0/0), `examples`, `adr-numbering`, `spec-citations`, and `built-in-names`, the last still
+printing *"spec version 0.2.0 — 0 finding(s)"*. The mutation was confirmed present in the tree after
+the run, not merely applied before it. Nor does any gate read a `> OpenLogo Specification vX` stamp.
 
 And even the three that *are* coupled prove only that they agree with **each other**, never that the
 value is right for the contract they describe. Three files agreeing on a stale number is exactly what
@@ -106,17 +109,34 @@ Concretely:
   and deterministic export** (`spec/rendering.md`), or the **accessibility** obligations. These are
   normative too, and a test framed only around accept/reject would silently exempt every one of them.
 
-**2. What does not move it.** Editorial changes that leave every conformance obligation unchanged:
-typo and link fixes, clarifications and rewordings that add no requirement, formatting, examples that
-merely restate settled behaviour, and non-normative rationale.
+**2. What does not move it.** Two distinct categories, and the second is the one that is easy to get
+wrong.
 
-**The reviewer's test.** *Name the conformance obligation or observable result that changes, and say
-how you would observe it* — a program whose verdict differs, an event or metadata field that differs,
-a token painted differently, a rendered or exported artifact that differs. If nothing can be named,
-the version does not move. A program is the **most common** oracle, not the only one: an earlier
-draft of this rule said "name a program whose verdict changes", which would have exempted a rendering
-or token-class change from ever moving the version. And the oracle must be **observed** rather than
-assumed — see the `:end = 1` note above, where a plausible-sounding verdict turned out to be wrong.
+**Editorial changes** that leave every conformance obligation unchanged: typo and link fixes,
+clarifications and rewordings that add no requirement, formatting, examples that merely restate
+settled behaviour, and non-normative rationale.
+
+**Implementation-only corrections against unchanged normative text.** A runtime bug fix routinely
+changes an observable result — a diagnostic, an event, a rendered artifact — while the normative
+contract it is measured against did not move at all: the implementation was simply wrong about it
+before, and is right about it now. **That does not move the contract version.** The contract is what
+`spec/` *requires*, not what the implementation currently *does*, and the version identifies the
+former. The **package** version is what identifies the changed artifact, which is exactly the
+separation this ADR exists to preserve — treating every behaviour fix as a contract change would
+re-merge the two lines from the other direction. The test below is therefore framed on the
+**normative** obligation, not on the observation alone.
+
+**The reviewer's test.** *Name the normative obligation that changes — the required or permitted
+behaviour in `spec/` — and say how you would observe it:* a program whose verdict differs, an event
+or metadata field that differs, a token painted differently, a rendered or exported artifact that
+differs. Both halves are load-bearing. **No normative obligation changed ⇒ the version does not
+move**, however visible the behaviour change (that is rule 2's second category). **No way to observe
+it ⇒ nothing normative changed**, and the edit was editorial (rule 2's first).
+
+A program is the **most common** oracle, not the only one: an earlier draft said "name a program
+whose verdict changes", which would have exempted a rendering, token-class, event or metadata change
+from ever moving the version. And the oracle must be **observed** rather than assumed — see the
+`:end = 1` note above, where a plausible-sounding verdict turned out to be wrong.
 
 **3. When it moves.** In the **same PR** as the change, never later, across **all four** sites that
 carry it — `spec/conformance.md`'s `openlogo.version`, `spec/built-in-names.json`'s `specVersion`,
@@ -124,11 +144,23 @@ carry it — `spec/conformance.md`'s `openlogo.version`, `spec/built-in-names.js
 prose statement of the version in `spec/` (the per-file `> OpenLogo Specification vX — Draft` stamps
 and the sentences in `README.md`, `conformance.md`, and `commands.md`).
 
+**Choose the version relative to the PR's target branch, not to where the branch was cut.** Two
+contract-changing PRs cut from the same base will each compute the same "next" version, and after the
+first merges the second still merges cleanly — its version edits are now *identical* to what is
+already there, so nothing conflicts — leaving **two different normative contracts both labelled
+`0.2.0`**. That is the very ambiguity this ADR exists to remove, reintroduced by following its own
+procedure in a repository that deliberately fans work out in parallel. It is the same hazard the
+`adr-numbering` gate warns about in its own output ("it reads ONE tree, so two branches can each take
+the same next-free number"), and ADR-0025 records an instance of exactly that. So: before merging,
+re-check the version against the **current tip of the target**; if the target already carries the
+version you claimed, rebase and take the next one. Contract-changing PRs serialize at merge.
+
 Be precise about how much of that is enforced, because it is less than the symmetry suggests. **Three
 of the four are mechanically coupled** — `OPENLOGO_VERSION` ↔ `OL_GRAMMAR_VERSION` at import, and
 `specVersion` ↔ `OPENLOGO_VERSION` in the built-in-names gate — so those three cannot drift apart
 silently. **`spec/conformance.md`'s value and all the prose are checked by nothing** (see the mutation
-above). At the bump that produced this ADR that left **28 of the 29 version statements in `spec/`
+above), and **nothing checks the base-relative rule in the paragraph above either** — #1144 covers
+both. At the bump that produced this ADR that left **28 of the 29 version statements in `spec/`
 hand-maintained**, which is why they are enumerated here rather than left to be noticed.
 
 **The two version lines are independent and MUST NOT be aligned.** The contract line and the
@@ -143,6 +175,15 @@ other.
 **Past tags are not renumbered.** #1100 evaluated retroactive renumbering and rejected it; released
 artifacts are immutable. This decision fixes the going-forward identity, and #1100 remains the record
 of the three tags that share `0.1.0`.
+
+**This first bump is a one-time migration, and it does not itself satisfy the same-PR rule.** Saga
+#819's Core Language semantics changed in earlier PRs, before this decision existed; those changes
+are already on `saga/819-variable-scoping` when this ADR lands. So the PR carrying this ADR bumps
+`0.1.0` → `0.2.0` **for** a contract change it does not contain — the one arrangement the rule above
+forbids. It is recorded here rather than glossed, because an ADR whose own introduction violates it
+would otherwise read as a precedent. The rule binds **from this decision forward**: the next
+contract change carries its version bump in the same PR as the change, where a reviewer can see both
+together.
 
 ## Consequences
 

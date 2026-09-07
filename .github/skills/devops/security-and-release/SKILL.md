@@ -198,15 +198,24 @@ build · typecheck · lint · format · coverage <L/B/F> · conformance <passed/
 **Full changelog:** <changelog URL — see below>
 ```
 
-Two rules the template cannot enforce for you. Keep the **release version** and `openlogo.version`
-visibly distinct — `0.2.0` shipped against spec `0.1.0` (the #1100 defect, not a model to copy) — and
-collapsing the two would misstate the compatibility contract. **Never bump `openlogo.version` here.** It is a contract identifier that
-moves in the PR that changes the normative contract, not at release time; releasing only ever *reads*
-it (`docs/delivery.md` §1.1,
+**Three** rules the template cannot enforce for you.
+
+**1. Keep the release version and `openlogo.version` visibly distinct.** Collapsing them would
+misstate the compatibility contract — they are independent lines and a release routinely ships a
+package version that differs from the spec version. `v0.2.0` shipped against spec `0.1.0`, which is
+legitimate *only* when the contract genuinely did not change; there it had, and the version had
+simply never been moved. That is the #1100 defect, and it is a defect of the version **sitting
+still**, not of the two numbers differing.
+
+**2. Never bump `openlogo.version` here.** It is a contract identifier that moves in the PR that
+changes the normative contract, not at release time; releasing only ever *reads* it
+(`docs/delivery.md` §1.1,
 [ADR-0033](../../../../docs/adr/0033-contract-version-moves-with-the-contract.md)). If the contract
-changed on a branch and the version did not move there, that is a defect in that PR — report it
-rather than repairing it in the release. And quote the **DoD numbers actually produced by the tagged
-SHA**; copying the previous release's figures is how a stale claim ships.
+changed on a branch and the version did not move there, that is a defect in **that** PR — report it
+rather than repairing it in the release.
+
+**3. Quote the DoD numbers actually produced by the tagged SHA.** Copying the previous release's
+figures is how a stale claim ships.
 
 **Do not drop the Known-issues section to make a release look cleaner.** `v0.1.0` shipped one
 declaring that `sin`/`cos`/`tan`/`pi` parse but are not evaluated at runtime (#323) — precisely the
