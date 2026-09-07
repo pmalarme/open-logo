@@ -25,7 +25,7 @@ import type {
   TutorOutput,
 } from "../tutor-context.js";
 
-/** The nudge -> concept -> partial -> last-resort order (`spec/educational-model.md:496-501`). */
+/** The nudge -> concept -> partial -> last-resort order (`spec/educational-model.md:515-520`). */
 const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
   "nudge",
   "concept",
@@ -111,7 +111,7 @@ const LEVEL_CONCEPTS: Record<
 /**
  * A short, learner-facing label for the target the hint is about — the callee name when the
  * context identifies one, otherwise a generic reference to the selected instruction
- * (`spec/educational-model.md:498`'s "point attention to the relevant place").
+ * (`spec/educational-model.md:517`'s "point attention to the relevant place").
  */
 function describeTarget(
   commandMetadata: TutorCommandMetadata | undefined,
@@ -127,7 +127,7 @@ function describeTarget(
 
 /**
  * Builds the single learner-facing segment for `stage`, following the four progression bullets
- * verbatim from `spec/educational-model.md:498-501`.
+ * verbatim from `spec/educational-model.md:517-520`.
  */
 function segmentForStage(
   stage: TutorHintStage,
