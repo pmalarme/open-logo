@@ -629,8 +629,8 @@ wait 8
 
 Each registration captures its own `:n`, so the three handlers MUST print `10`,
 `20`, and `30`. `:n` is born inside the loop body, so each turn's block scope
-binds its own rather than updating a shared one — the first of the two
-`repeat` loops above, now read from a handler's side.
+binds its own rather than updating a shared one — the `1 1 1 1` loop above,
+now read from a handler's side.
 
 A scope's bindings last as long as anything can still reach them. **A scope — a
 block scope as much as a procedure frame — therefore lives as long as any handler
