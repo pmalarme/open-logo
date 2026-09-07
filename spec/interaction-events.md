@@ -96,8 +96,8 @@ wait 8
 ```
 
 The three handlers MUST print `10`, `20`, and `30` — not the same value three
-times. Every turn of the loop gives `:n` its own binding, so each handler
-resolves `:n` to the value the turn that registered it put there.
+times. `:n` is born inside the loop body, so each turn binds its own, and each
+handler resolves `:n` to the value the turn that registered it put there.
 
 **A scope lives as long as any handler registered inside it may still run** — a
 block scope as much as a procedure frame. A handler registered in a procedure
