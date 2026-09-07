@@ -199,8 +199,8 @@ build · typecheck · lint · format · coverage <L/B/F> · conformance <passed/
 ```
 
 Two rules the template cannot enforce for you. Keep the **release version** and `openlogo.version`
-visibly distinct — `0.2.0` shipped against spec `0.1.0`, and collapsing the two would misstate the
-compatibility contract. **Never bump `openlogo.version` here.** It is a contract identifier that
+visibly distinct — `0.2.0` shipped against spec `0.1.0` (the #1100 defect, not a model to copy) — and
+collapsing the two would misstate the compatibility contract. **Never bump `openlogo.version` here.** It is a contract identifier that
 moves in the PR that changes the normative contract, not at release time; releasing only ever *reads*
 it (`docs/delivery.md` §1.1,
 [ADR-0033](../../../../docs/adr/0033-contract-version-moves-with-the-contract.md)). If the contract

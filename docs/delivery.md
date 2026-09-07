@@ -35,29 +35,42 @@ This rule exists because the version *didn't* move: tags went `v0.1.0` → `v0.2
 `openlogo.version` stayed `0.1.0` throughout, because everyone treated it as a release artifact and
 waited for a "release time" that only ever bumped `package.json`. The result is
 [#1100](https://github.com/pmalarme/open-logo/issues/1100): three tags claiming spec `0.1.0` that do
-**not** implement the same language (`:end = 1` is rejected at `v0.1.0` and conforming today).
+**not** implement the same language. Measured by building each tag and running it — `define end` /
+`return 1` / `end` is accepted at `v0.1.0` and `v0.2.0` and rejected with `ol-reserved-word` at
+`v0.3.0`, while all three report `OPENLOGO_VERSION = 0.1.0`.
 
 | | |
 |---|---|
-| **Moves it** — a change to a conformance verdict | a normative behaviour change in any profile (incl. scoping/lifetime); a new/removed/re-spelled **reserved word or built-in name**; a new/removed/re-specified **`ol-*` code**; a grammar change that accepts or rejects a program it previously didn't; a profile-membership change |
+| **Moves it** — a conformance obligation or observable result changes | a normative behaviour change in any profile (incl. scoping/lifetime); a new/removed/re-spelled **reserved word or built-in name**; a new/removed/re-specified **`ol-*` code**; a grammar change that accepts or rejects a program it previously didn't; a profile-membership change; **and** a change to a normative surface no program's verdict reveals — trace/events, feature-detection metadata, token classes, rendering/export, accessibility |
 | **Does not move it** — editorial only | typo and link fixes; clarifications and rewordings that add no requirement; formatting; examples restating settled behaviour; non-normative rationale |
 
-The reviewer's test: **name a program whose verdict changes.** If you can't, the version doesn't move.
+The reviewer's test: **name the conformance obligation or observable result that changes, and say how
+you would observe it** — a program whose verdict differs, an event or metadata field, a token painted
+differently, a rendered or exported artifact. If you can't name one, the version doesn't move. A
+program is the most common oracle, not the only one, and the oracle must be **observed**: `:end = 1`
+looks like a reserved-word rejection and is in fact accepted at every released tag (a program may not
+**declare** a built-in name, but may **bind** a value to any name).
 
-**The bump is atomic across four coupled constants** — `spec/conformance.md`'s `openlogo.version`,
+**The bump covers four sites** — `spec/conformance.md`'s `openlogo.version`,
 `spec/built-in-names.json`'s `specVersion`, `@openlogo/core`'s `OPENLOGO_VERSION`, and
-`@openlogo/parser`'s `OL_GRAMMAR_VERSION`. Move all four together or the tree does not import:
-`assertGrammarVersionInSync()` throws at module import and `npm run built-in-names` fails on the
-mismatch. **Also update every prose statement of the version in `spec/`** — the per-file
-`> OpenLogo Specification vX — Draft` stamps and the sentences in `README.md`, `conformance.md` and
-`commands.md`. Those are **not** gated: the four constants can agree on a stale value and go green,
-so the prose is a manual step that must be done in the same PR.
+`@openlogo/parser`'s `OL_GRAMMAR_VERSION` — **plus every prose statement of the version in `spec/`**
+(the per-file `> OpenLogo Specification vX — Draft` stamps and the sentences in `README.md`,
+`conformance.md` and `commands.md`).
+
+**Only three of those are mechanically enforced**, and it is worth knowing which:
+`assertGrammarVersionInSync()` throws at module import unless `OL_GRAMMAR_VERSION ===
+OPENLOGO_VERSION`, and `npm run built-in-names` fails unless `specVersion === OPENLOGO_VERSION`.
+**`spec/conformance.md`'s value is compared to nothing, and neither is any prose stamp** — rewriting
+all seven of `conformance.md`'s version sites to `9.9.9` leaves every gate green. At the `0.1.0` →
+`0.2.0` bump that introduced this rule, **28 of the 29 version statements in `spec/` were
+hand-maintained**. Treat them as a manual checklist in the same PR, not as something CI will catch —
+#1144 tracks closing that gap.
 
 **The two version lines are independent.** The contract line and the `package.json` line are
-different numbers that may coincide — both read `0.2.0` today. **Do not align them.** A release with
-no normative change bumps only the package line; a contract change on a branch bumps only the
-contract line. Past tags are never renumbered (#1100 rejected that; released artifacts are
-immutable).
+different numbers that may coincide — they read the same on a branch that predates a release bump,
+and separate again as soon as it merges. **Do not align them.** A release with no normative change
+bumps only the package line; a contract change on a branch bumps only the contract line. Past tags
+are never renumbered (#1100 rejected that; released artifacts are immutable).
 
 ## 2. Per-domain release trains and how they interlock
 
