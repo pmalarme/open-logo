@@ -34,7 +34,7 @@ export type TutorLearnerLevel =
 
 /**
  * Known metadata about the primitive or procedure a target instruction calls, when the target
- * is a call the tutor can identify (`spec/educational-model.md:420-434`'s "known command
+ * is a call the tutor can identify (`spec/educational-model.md:421-435`'s "known command
  * metadata" input). Absent when the target is not a call, or no target is selected.
  */
 export interface TutorCommandMetadata {
@@ -52,7 +52,7 @@ export interface TutorCommandMetadata {
   /**
    * Whether the callee is a built-in primitive, a control/binding **special form** (e.g.
    * `repeat`, `if`, `define` — `explain` MUST be able to name these, per
-   * `spec/educational-model.md:451`'s "Name the command or special form"), or a learner-defined
+   * `spec/educational-model.md:452`'s "Name the command or special form"), or a learner-defined
    * procedure.
    */
   readonly kind: "primitive" | "special-form" | "procedure";
@@ -60,7 +60,7 @@ export interface TutorCommandMetadata {
 
 /**
  * The shared input contract for a baseline meta-command invocation
- * (`spec/educational-model.md:420-434`: "the parsed program, source spans, trace events,
+ * (`spec/educational-model.md:421-435`: "the parsed program, source spans, trace events,
  * diagnostics, and known command metadata"), plus the hint-stage progression state the spec
  * requires a host to track itself (`spec/execution-model.md:1007-1019` — progression state "is a
  * property of the host implementation, not the wire event itself").

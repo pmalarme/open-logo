@@ -69,12 +69,12 @@
   ],
   "packages/edu/src/lesson.ts": [
     {
-      "subject": "spec/educational-model.md:530",
+      "subject": "spec/educational-model.md:531",
       "observed": "blank-region",
       "kind": "stale-citation",
       "issue": "#948",
-      "why": "Lands on blank space in educational-model.md: the nearest text above is line 529 (\"```\") and below is line 531 (\"Possible response: “`forward` needs a number to tell it how fa…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "48ce6ea8f48684d5"
+      "why": "Lands on blank space in educational-model.md: the nearest text above is line 530 (\"```\") and below is line 532 (\"Possible response: “`forward` needs a number to tell it how fa…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
+      "fingerprint": "6e62609fe05e8304"
     }
   ],
   "packages/parser/src/blocks.test.mjs": [

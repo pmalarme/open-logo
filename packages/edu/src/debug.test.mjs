@@ -804,7 +804,7 @@ test("debug reports only the fields each turtle actually changed", () => {
 });
 
 test("debug lists one turtle's fields in the spec's order: position, heading, pen, color, width", () => {
-  // `spec/educational-model.md:520` fixes the order ("position, heading, pen, color, width"), so a
+  // `spec/educational-model.md:521` fixes the order ("position, heading, pen, color, width"), so a
   // single turtle must carry ALL five at once for the sequence itself to be pinned — splitting them
   // across turtles leaves neighbouring pairs (e.g. color/width) free to swap unnoticed.
   assert.equal(

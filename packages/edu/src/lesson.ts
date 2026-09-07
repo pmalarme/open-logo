@@ -7,9 +7,9 @@
  * The shape follows [`spec/educational-model.md`](../../../spec/educational-model.md), which
  * describes a lesson as teaching one **objective** linked to a learner level, showing one or
  * more **worked examples** (annotated OpenLogo the learner can read/run — see the `explain`
- * template at educational-model.md:447-457), and setting an **exercise prompt** that asks the
+ * template at educational-model.md:448-458), and setting an **exercise prompt** that asks the
  * learner to change one thing at a time (educational-model.md:85). Per educational-model.md:35
- * and :530, a lesson's worked examples must use only concepts already introduced at its level
+ * and :531, a lesson's worked examples must use only concepts already introduced at its level
  * and must never smuggle in a later-level command as a shortcut — this contract does not
  * enforce that (it is a data shape, not a validator), but authors filling it in must honor it.
  */

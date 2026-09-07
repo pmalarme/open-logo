@@ -165,7 +165,7 @@ Core ideas:
 - Parameters are variables such as `:sides` and `:size`.
 - `return` hands a value back from a reporter.
 - A command procedure may draw without returning a value.
-- `local` names a variable that lives only inside the scope that declares it — the procedure or the block.
+- A procedure's names are private automatically: `define … end` is a boundary, so a procedure sees only its inputs, the names its body sets itself, and names declared `global`, and `global name = value` is how a value is deliberately shared across that boundary ([execution-model.md](execution-model.md#variables-scoping-and-procedures)).
 - Learners build `polygon` from `repeat`; it is never introduced as a black-box drawing trick.
 
 ```logo
@@ -407,8 +407,9 @@ end for
 | Variable naming | `:name = value`, `set name to value`, `:name` reads | 3 | One value can control many instructions. |
 | Showing values | `print` | 3 | Learners can read a value, not only see a drawing. |
 | Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
-| Procedures | `define … end`, `local`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
+| Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
+| Deliberate sharing | `global name = value` | 5 | A procedure's names are private, so sharing must be stated. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, plus the renderer-backed `grid`, `axes`, and `measure` overlays | 6 | Shapes are visible math, not hidden primitives; the three overlays are renderer-backed aids. |
 | Turtle placement and marking | `set_xy`, `stamp` | 6 | Coordinates and stamps support diagrams and games. |
 | Number tools | `mod`, `abs`, `int`, `round` | 6 | Arithmetic helpers measure and adjust motion. |

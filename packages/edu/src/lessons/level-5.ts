@@ -22,12 +22,12 @@
  * taught here at all: shadowing is only a meaningful idea once a learner has met `global`, so it
  * is a later, narrower concept than this level.
  *
- * `spec/educational-model.md` is maintainer-owned, so its Level 5 `local` bullet (`:168`) and its
- * concept-to-command map row (`:410`) still name `local` and still have no row for `global`. The
- * matching normative edits are proposed for maintainer review in issue #1124; this module
- * deliberately leads the document rather than waiting for it, because the *behaviour* it teaches
- * is already merged and shipping a lesson that contradicts the runtime would be worse than
- * shipping one that leads the prose.
+ * `spec/educational-model.md` led this module for one slice: its Level 5 privacy bullet (`:168`)
+ * and its concept-to-command map row (`:410`) still named `local` and had no row for `global`,
+ * because the document is maintainer-owned. Issue #1124 closed that gap — the bullet now states
+ * the automatic privacy this module teaches, the Procedures row no longer names `local`, and a
+ * `Deliberate sharing` row (`:412`) places `global name = value` at Level 5 beside procedures,
+ * exactly where `l5-global-shared-value` teaches it. Document and curriculum now agree.
  *
  * **What these lessons may not promise.** The studio's diagnostics pane does not yet run the
  * semantic checker while a learner types (issue #814), so `ol-var-not-visible` reaches a learner
@@ -50,7 +50,7 @@
  *   `define` shape, and making the escalation depend on the learner's actual diagnostic is a
  *   tutor-side change rather than a curriculum one. Tracked as issue #1126.
  *
- * Per the discovery guardrail (educational-model.md:541), `polygon` is always **built up** from
+ * Per the discovery guardrail (educational-model.md:542), `polygon` is always **built up** from
  * `repeat` here — it is never handed to the learner as an opaque primitive — and the
  * `triangle`/`house` composition reuses `spec/examples/06-geometry.logo`'s validated `house 70`
  * program verbatim, so the lesson never drifts from that normative example.
