@@ -60,11 +60,12 @@
  *
  * #125 adds the diagnostics pane — one unified rendering path for every diagnostic stage:
  * - {@link createDiagnosticsController} subscribes to the shared store and re-parses `source`
- *   via `@openlogo/parser`'s `parse()` (Layer 1) whenever it changes, publishing the result
- *   through `state.setDiagnostics` so a bad line surfaces at its span without a Run. Semantic
- *   checking (`check()`, epic #108) is available via `semanticCheck: true` but defaults to
- *   `false` — see `diagnostics.ts`'s doc comment for why: the Run path already reports these
- *   findings, so enabling it would duplicate them rather than add anything. Runtime-stage diagnostics (#126's run controller) flow into the
+ *   via `@openlogo/parser`'s `analyze()` — Layer 1 (`parse()`) and Layer 2 (`check()`, epic #108)
+ *   merged through the one-fault rules, the identical composition `execute()` runs — whenever it
+ *   changes, publishing the result through `state.setDiagnostics` so both a bad line and an unknown
+ *   name surface at their span without a Run. Semantic checking **runs by default** since #817;
+ *   pass `semanticCheck: false` to opt out. Layer-3 style lints stay opt-in (`styleCheck`). See
+ *   `diagnostics.ts`'s doc comment for the measurements behind both defaults. Runtime-stage diagnostics (#126's run controller) flow into the
  *   exact same `diagnostics` field, so this is the single surface for every stage.
  * - {@link toDiagnosticsView} is the pure projection from raw `Diagnostic[]` to a rendering
  *   model (`items`/`errorCount`/`warningCount`/`isEmpty`) — it keys off `code`/`severity`/
@@ -492,9 +493,11 @@ export type {
   DiagnosticViewItem,
 } from "./diagnostics.js";
 export {
+  CHECKER_INCOMPLETE_NOTICE_MESSAGE,
   createDiagnosticsController,
   DEFAULT_DIAGNOSTICS_DOCUMENT,
   mountDiagnosticsPane,
+  rethrowCheckFailureAsynchronously,
   toDiagnosticsView,
 } from "./diagnostics.js";
 

@@ -50,6 +50,7 @@
 import { execute, printedForm } from "@openlogo/runtime";
 import type {
   CancellationSignal,
+  CheckProfile,
   ExecuteOptions,
   HandlerDelivery,
   HostInput,
@@ -148,6 +149,32 @@ export interface ExecutionRequest {
   readonly document: string;
   /** The chain's pinned `ExecuteOptions.randomSeed` (#865/#881). */
   readonly randomSeed: number;
+  /**
+   * The conformance profile set this run **claims** (#817), installed as
+   * `ExecuteOptions.profiles`. `spec/execution-model.md:673-680` makes the set a property of the
+   * run rather than "a constant of the implementation", requires that it "MUST be nameable by
+   * whoever starts the run", and closes with "One value MUST govern both the check and the run" —
+   * the check `execute()` performs before Phase 2, and the run itself.
+   *
+   * **Required, not optional, and for the same reason {@link ExecutionSettlement.tickTimeline} is**
+   * — a host that forgets it is a compile error rather than a silent fallback to somebody else's
+   * default. That matters more here than the current values suggest: this is measurably the same
+   * *value* as the runtime's own default today, because `STUDIO_PROFILES` is a frozen copy of
+   * `@openlogo/core`'s `SUPPORTED_PROFILES` and `execute()` falls back to that very array. So
+   * threading it changes no behaviour on this commit **and is not decorative**: it makes the studio
+   * *state* its claim instead of inheriting one. If the runtime's fallback were ever narrowed, an
+   * inheriting studio would start refusing `forward 100` — the precise failure
+   * `spec/execution-model.md:673-680` calls out as non-conforming — with nothing in this package
+   * changed to explain it.
+   *
+   * Plain data (a string union), so its **value** crosses a Worker boundary by structured clone
+   * unchanged, and both hosts install it through the same {@link toExecuteOptions}. The `freeze` on
+   * `STUDIO_PROFILES` does **not** survive that crossing — `structuredClone` returns an unfrozen,
+   * push-able array — so on the Worker path `execute()` receives a mutable copy. That is harmless
+   * rather than overlooked: the runtime copies the set with `[...]` before using it, and that copy,
+   * not this freeze, is what guarantees one value governs both the check and the run.
+   */
+  readonly profiles: readonly CheckProfile[];
   /**
    * Whether the controller's cancellation is **already latched** when this attempt starts (#876).
    *
@@ -337,6 +364,11 @@ export function collectTutorOutput(
  * so `on_key`/`on_click`/`when` handlers registered and could never fire. Neither half is installed
  * when it is absent, and `hostInput` itself is omitted entirely when both are — so a run with no
  * reader and no delivered input passes exactly the options it always did.
+ *
+ * #817 — `profiles` is installed here too, so the check `execute()` performs before Phase 2 runs
+ * under the set the studio claims rather than under whatever the runtime defaults to. Routing it
+ * through this one function is what stops the in-process and Worker hosts from checking a learner's
+ * program under two different profile sets.
  */
 export function toExecuteOptions(
   request: ExecutionRequest,
@@ -354,6 +386,11 @@ export function toExecuteOptions(
     signal,
     tutorTemplates: eduTutorTemplate,
     randomSeed: request.randomSeed,
+    // #817 — the profile set this run claims, governing both the check `execute()` runs before
+    // Phase 2 and the run itself (`spec/execution-model.md:673-680`). Passed unconditionally
+    // rather than spread-when-present: the whole point is that the studio names its own set
+    // instead of inheriting the runtime's fallback. See `ExecutionRequest.profiles`.
+    profiles: request.profiles,
     // #985 — the tick-timeline sink. A **required** parameter, because when it was optional the
     // Worker host simply did not pass it and every delivery there landed at tick 0. A host that
     // forgets it is now a compile error rather than a silent collapse.

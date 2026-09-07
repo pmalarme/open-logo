@@ -17,6 +17,9 @@ function makeRequest(overrides = {}) {
     source: 'print "hello"',
     document: "host.logo",
     randomSeed: 7,
+    // #817 — the profile set a run claims. Required on `ExecutionRequest`, so the shared helper
+    // supplies what the run controller supplies; tests that care override it.
+    profiles: OL.STUDIO_PROFILES,
     cancellationRequested: false,
     acceptsReads: false,
     answers: [],
@@ -227,6 +230,57 @@ test("the in-process host exposes no resolveRead, which is how the controller kn
   assert.doesNotThrow(() => {
     host.cancel();
   });
+});
+
+test("#817: toExecuteOptions installs the request's claimed profile set", () => {
+  const options = OL.toExecuteOptions(
+    makeRequest(),
+    NEVER_CANCELLED,
+    undefined,
+  );
+
+  assert.deepEqual(options.profiles, OL.STUDIO_PROFILES);
+});
+
+test("#817: a narrowed profile set reaches ExecuteOptions rather than the runtime default", () => {
+  // The non-vacuous half. `STUDIO_PROFILES` is a frozen copy of `@openlogo/core`'s
+  // `SUPPORTED_PROFILES`, which is exactly what `execute()` falls back to, so the assertion above
+  // would pass unchanged even if `toExecuteOptions` dropped the field entirely. A set that is NOT
+  // the runtime's default is what proves the value is carried rather than re-defaulted.
+  const options = OL.toExecuteOptions(
+    makeRequest({ profiles: ["core-language"] }),
+    NEVER_CANCELLED,
+    undefined,
+  );
+
+  assert.deepEqual(options.profiles, ["core-language"]);
+  assert.notDeepEqual(options.profiles, OL.STUDIO_PROFILES);
+});
+
+test("#817: the profile set governs the check execute() runs before Phase 2", () => {
+  // End to end through the real host: the same program is refused under Core Language alone and
+  // runs under the studio's set, so the threading is observable behaviour and not bookkeeping.
+  const program = "forward 100";
+
+  const { settlements: narrowed } = settleAll(
+    makeRequest({ source: program, profiles: ["core-language"] }),
+  );
+  const refused = narrowed.at(-1);
+  assert.deepEqual(
+    refused.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.deepEqual(refused.events, []);
+
+  const { settlements: claimed } = settleAll(
+    makeRequest({ source: program, profiles: OL.STUDIO_PROFILES }),
+  );
+  const ran = claimed.at(-1);
+  assert.deepEqual(ran.diagnostics, []);
+  assert.ok(
+    ran.events.length > 0,
+    "the program produced no trace events under its claimed profile set",
+  );
 });
 
 test("toExecuteOptions always composes studio's own tutor templates", () => {

@@ -453,6 +453,7 @@ import type {
   RecordedAnswer,
 } from "./execution-host.js";
 import type { InputPromptHost } from "./input-prompt.js";
+import { STUDIO_PROFILES } from "./profiles.js";
 import type { RunStatus, StudioStateStore } from "./state-model.js";
 import {
   isInstantTickDelay,
@@ -884,6 +885,15 @@ export function createRunController(
   let chainSource = "";
   let pendingRead: PendingRead | null = null;
   let attemptDiagnostics: readonly Diagnostic[] = [];
+  // #817 — the exact array this controller last wrote into `state.diagnostics`. The field is shared
+  // with `diagnostics.ts`'s live checker, and `setDiagnostics` stores the array it is given, so
+  // reference identity is an exact test for "what is on screen is still MY run's result, not a live
+  // finding about the text the learner has since typed". Used at chain start to clear a stale run
+  // result without clearing a live finding. Never dereferenced — only compared.
+  let lastRunDiagnostics: readonly Diagnostic[] | null = null;
+  // The source `lastRunDiagnostics` describes. Needed because "is this still true?" is a different
+  // question from "is this mine?", and the chain-start clear has to ask both — see its comment.
+  let lastRunDiagnosticsSource: string | null = null;
   let shownEventCount = 0;
   let promptOutstanding = false;
   let promptGeneration = 0;
@@ -1120,7 +1130,26 @@ export function createRunController(
     userStopped = true;
     const output = currentOutput;
     state.setOutput(output);
-    state.setDiagnostics(attemptDiagnostics);
+    // #817 (review round 2) — the same rule as the settlement path, and for the same reason: the
+    // live field is a statement about the text in the editor, and this attempt can only speak for
+    // the text it was given. This path is the *shipped* studio's, not a hypothetical host's —
+    // `input-prompt.ts:14-16` records that the browser prompt is deliberately asynchronous and
+    // non-modal ("A browser cannot block its event loop for an arbitrary styled, keyboard-operable,
+    // screen-reader-announced prompt"), so the editor stays fully live while a question is on
+    // screen. Measured without this guard: run a program using `input`, edit to `wibble 5` while
+    // the question is up, dismiss it, and the pane replaced the correct live `ol-unknown-command`
+    // with this run's `ol-limit` — about a program no longer in the editor. It then STAYS wrong,
+    // because `diagnostics.ts`'s unchanged-`source` guard sees `wibble 5` as already checked and
+    // declines to repair it. `stop()` reaches this same function, so it had the same hole.
+    //
+    // `setLastRunResult` stays unconditional, exactly as on the settlement path: it is the
+    // immutable record OF THIS ATTEMPT, it carries its own `source`, and `run-log.ts` depends on it
+    // being written for every settlement.
+    if (state.getState().source === preparedSource) {
+      state.setDiagnostics(attemptDiagnostics);
+      lastRunDiagnostics = attemptDiagnostics;
+      lastRunDiagnosticsSource = preparedSource;
+    }
     state.setLastRunResult({
       source: preparedSource,
       output,
@@ -1186,6 +1215,15 @@ export function createRunController(
       // matters there only for reproducing a whole run — and, since #952, for making a
       // delivered-input replay a genuine continuation under any host.
       randomSeed: chainRandomSeed,
+      // #817 — the profile set this run claims, so `execute()`'s check-before-Phase-2 judges the
+      // learner's names under the environment the studio actually provides. The same constant the
+      // diagnostics pane and the highlighter default to. Sharing it aligns the *profile set* the
+      // two paths read a program under; what makes the as-you-type finding and the Run finding the
+      // same finding is that both go through `@openlogo/parser`'s `analyze()` — see
+      // `diagnostics.ts`'s `runChecks`. The shared constant alone would not be enough, and an
+      // earlier revision of this slice claimed otherwise while the two paths merged their layers
+      // differently.
+      profiles: STUDIO_PROFILES,
       // #876 — the controller's cancellation state, carried as data because an object's mutation is
       // invisible across a thread boundary. `stop()` latches `signal.aborted` and only `reset()`
       // clears it, so a `run()` after a Stop is expected to halt immediately with `ol-limit`
@@ -1278,7 +1316,24 @@ export function createRunController(
     const output = settlement.output;
     currentOutput = output;
     state.setOutput(output);
-    state.setDiagnostics(diagnostics);
+    // #817 — publish to the LIVE diagnostics field only while this run's source is still the text
+    // in the editor. A host that settles across event-loop turns (the Worker host) can deliver a
+    // settlement after the learner has already edited on: measured as run `flibbertigibbet`, edit to
+    // `wibble`, watch the live pane correctly re-check to `wibble` — and then the older settlement
+    // arrived and put `flibbertigibbet` back, describing text no longer on screen. The
+    // unchanged-`source` guard in `diagnostics.ts` then declines to repair it, because from the live
+    // controller's point of view `wibble` has already been checked, so the wrong finding stays up
+    // until the learner types again.
+    //
+    // The live field is a statement about the text in the editor, and this run can only speak for
+    // the text it was given. `lastRunResult` below is deliberately NOT guarded: it is the immutable
+    // record OF THIS RUN, it carries its own `source`, and `run-log.ts` depends on it being written
+    // for every settlement.
+    if (state.getState().source === preparedSource) {
+      state.setDiagnostics(diagnostics);
+      lastRunDiagnostics = diagnostics;
+      lastRunDiagnosticsSource = preparedSource;
+    }
     // #432 finding 2 — snapshot this run's output/diagnostics immutably, separate from the live
     // `output`/`diagnostics` fields above. Those live fields get overwritten by
     // `diagnostics.ts`'s parse-as-you-type re-checking on every subsequent source edit — including
@@ -1892,7 +1947,59 @@ export function createRunController(
     attemptDiagnostics = [];
     preparedSource = chainSource;
     state.setOutput([]);
-    state.setDiagnostics([]);
+    // #817 — clear the diagnostics field only when what is in it is a PREVIOUS RUN's result, never
+    // when it is the live checker's finding about the text on screen.
+    //
+    // Both are the same field, so "clear everything a run owns" used to clear both. That was
+    // invisible while the live pane reported nothing without a Run; now it reports semantic findings
+    // as the learner types, so the finding on screen when Run is pressed usually describes the very
+    // program about to run. Clearing it published an empty list that the settlement then refilled
+    // with the identical finding, and the screen-reader announcer — which correctly reports every
+    // change to this field — read the same typo out twice with a false "No diagnostics." between:
+    // measured as `1 error found.` → `No diagnostics.` → `1 error found.` for one unchanged
+    // `flibbertigibbet`.
+    //
+    // Reference identity is what tells the two apart, and it is exact rather than heuristic:
+    // `setDiagnostics` stores the array it is given, so the field still holds `lastRunDiagnostics`
+    // if and only if this controller published it and no live re-check has replaced it since. A
+    // previous run's diagnostics are therefore still cleared here — which is what keeps an early
+    // Stop from leaving them on screen — while a live finding survives untouched and the
+    // settlement's republication becomes structurally identical, so `a11y.ts`'s anti-spam key
+    // suppresses it and the learner is told once.
+    if (state.getState().diagnostics === lastRunDiagnostics) {
+      // Two questions, not one. Round 2 asked only "is this mine?", which fixed the FIRST Run —
+      // where the field holds the live checker's array, so the identity test fails and nothing is
+      // cleared. From the second Run onward the field holds the previous run's array, the identity
+      // test passes, and the wholesale clear brought the defect straight back: measured on an
+      // unedited `flibbertigibbet`, Run #2 announced `No diagnostics.` then `1 error found.` again.
+      // Pressing Run twice without editing is an ordinary thing to do after not understanding a
+      // message.
+      //
+      // What separates the two cases is what a diagnostic is ABOUT. A parse- or semantic-stage
+      // finding is a fact about the program TEXT, so it survives while that text is unchanged — it
+      // is exactly what the live checker would republish. A runtime-stage finding is a fact about
+      // an EXECUTION, and this chain has not executed yet, so carrying one would attribute the
+      // previous run's failure to this one. Clearing by stage satisfies both #876 (a chain start
+      // leaves nothing of the previous run behind, so an early Stop cannot show its predecessor's
+      // outcome) and #817 (a finding that still describes the text on screen is not cleared and
+      // re-announced).
+      //
+      // The source test is not redundant with the identity test. Identity implies "no live re-check
+      // has replaced this", which implies an unchanged source *only when a diagnostics controller
+      // is mounted*. A host running the controller alone — as several tests do — can edit freely
+      // without anything republishing, so the source is compared explicitly.
+      const carried =
+        lastRunDiagnosticsSource === chainSource
+          ? lastRunDiagnostics.filter(
+              (diagnostic) => diagnostic.stage !== "runtime",
+            )
+          : [];
+      state.setDiagnostics(carried);
+      // Keep the tracker pointing at what we just wrote, so the invariant it documents is
+      // maintained rather than accidentally true.
+      lastRunDiagnostics = carried;
+      lastRunDiagnosticsSource = chainSource;
+    }
     state.setTutorOutput([]);
     state.setLastRunResult({
       source: chainSource,
@@ -1985,7 +2092,13 @@ export function createRunController(
     signal.aborted = false;
     userStopped = false;
     state.setOutput([]);
+    // Reset is the learner explicitly asking for a blank slate, so unlike a chain start this clears
+    // unconditionally — there is no live finding worth preserving through an action whose whole
+    // meaning is "clear it". The tracking reference goes with it, so a later chain start cannot
+    // match a run result that no longer exists.
     state.setDiagnostics([]);
+    lastRunDiagnostics = null;
+    lastRunDiagnosticsSource = null;
     state.setTutorOutput([]);
     state.setLastRunResult(null);
     animation?.reset();

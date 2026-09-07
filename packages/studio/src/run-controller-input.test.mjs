@@ -1402,3 +1402,59 @@ test("run() is not ignored after a lazy step() follows a chain cancelled from in
     "Run must still work after stepping — a wedged runStatus silently swallows it",
   );
 });
+
+test("#817: dismissing a question after an edit does not overwrite the live pane", () => {
+  // The sibling of the settlement guard, on the path the SHIPPED studio actually uses.
+  // `input-prompt.ts:14-16` records that the browser prompt is deliberately asynchronous and
+  // non-modal, so the editor stays fully live while a question is on screen. Measured before the
+  // guard: dismissing replaced the correct live `ol-unknown-command` with this run's `ol-limit` —
+  // a finding about a program no longer in the editor — and it then STAYED wrong, because
+  // `diagnostics.ts`'s unchanged-source guard sees the new text as already checked.
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  OL.createDiagnosticsController(store);
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+  assert.equal(host.prompts.length, 1, "precondition: a question is open");
+
+  store.setSource("wibble 5");
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+    "precondition: the live pane re-checked the new text",
+  );
+
+  host.respond(undefined);
+
+  // The live field still describes the text on screen...
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+  );
+  // ...while the run's own record still holds the cancelled attempt, with its own source.
+  assert.equal(store.getState().lastRunResult.source, ASK_NAME_SOURCE);
+  assert.ok(
+    store
+      .getState()
+      .lastRunResult.diagnostics.some((each) => each.code === "ol-limit"),
+    "the cancelled attempt must still be recorded in lastRunResult",
+  );
+});
+
+test("#817: dismissing a question with the source UNEDITED still reaches the live pane", () => {
+  // The falsifying control. Without it, deleting the publish entirely would leave the test above
+  // green: a guard that never publishes satisfies "does not overwrite" trivially.
+  const store = OL.createStudioState({ source: ASK_NAME_SOURCE });
+  OL.createDiagnosticsController(store);
+  const host = createTestPromptHost();
+  const controller = OL.createRunController(store, { inputPrompt: host });
+
+  controller.run();
+  host.respond(undefined);
+
+  assert.ok(
+    store.getState().diagnostics.some((each) => each.code === "ol-limit"),
+    "the cancellation must reach the pane when it still describes the editor",
+  );
+});

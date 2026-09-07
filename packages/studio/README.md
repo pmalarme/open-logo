@@ -864,24 +864,30 @@ runtime's own per-call pacing to enforce, is now a learner-controllable slider:
 ## Diagnostics pane (#125)
 
 - `createDiagnosticsController(state, options?)` (`src/diagnostics.ts`) — subscribes to the
-  shared store and, whenever `source` changes, re-parses it via `@openlogo/parser`'s `parse()`
-  (Layer 1, issue #9) and republishes the result through `state.setDiagnostics`, so a bad line
-  (e.g. `ol-bad-token`) surfaces at its `source_span` as the learner types, with no Run needed and
-  without ever crashing the session (`parse()` reports diagnostics instead of throwing).
-- **One unified rendering path for every stage.** Parse-stage (this controller), runtime-stage
-  (#126's run controller, already writing `execute()`'s diagnostics into the same field), and
-  semantic/style-stage (`@openlogo/parser`'s `check()`, epic #108) all flow through the exact same
-  `state.diagnostics` field and render through the exact same {@link toDiagnosticsView} — there is
-  no separate ad-hoc "runtime error" UI.
-- **Semantic checking is opt-in**, not automatic: pass `semanticCheck: true` to also run `check()`
-  after every parse. The reason is **duplicate reporting, not false positives**, and the difference
-  matters because the older rationale — that `check()` ran here under Core Language alone, so
-  `forward 100` would be flagged `ol-unknown-command` — stopped being true at issue #740, which made
-  the controller pass `options.profiles ?? STUDIO_PROFILES`. Issue #815 settles the underlying
-  question — a run checks itself under the profile set it CLAIMS
-  (`spec/execution-model.md:673-680`), and `execute()` now does exactly that, so the Run path
-  already surfaces these findings. Revisiting the pane's opt-in belongs to epic #813; no
-  rendering-side change is needed when it flips.
+  shared store and, whenever `source` changes, re-analyzes it via `@openlogo/parser`'s `analyze()`
+  (Layer 1 `parse()` + Layer 2 `check()`, merged through `applyOneFaultRules`) and republishes the
+  result through `state.setDiagnostics`, so both a bad line (e.g. `ol-bad-token`) and an unknown
+  name (`ol-unknown-command`) surface at their `source_span` as the learner types, with no Run
+  needed. Neither layer reports by throwing, but both can exhaust the native stack on a deeply
+  nested program, so the call is guarded: a throw degrades to Layer 1 plus a `notice` about the
+  **tool** — never a `Diagnostic` about the **program**, which would have no true stage — and is
+  rethrown asynchronously so it still fails CI without wedging the session (`onCheckFailure`).
+- **One unified rendering path for every stage.** Parse-stage, semantic-stage (both this
+  controller), and runtime-stage (#126's run controller, writing `execute()`'s diagnostics into the
+  same field) all flow through the exact same `state.diagnostics` field and render through the
+  exact same {@link toDiagnosticsView} — there is no separate ad-hoc "runtime error" UI.
+- **Semantic checking runs by default** (#817): pass `semanticCheck: false` to opt out. It was
+  opt-in until then, on two rationales that were both re-measured and retired. False positives:
+  stale since issue #740 made the controller pass `options.profiles ?? STUDIO_PROFILES` — under
+  that set all 13 `spec/examples/*.logo` report **0** semantic diagnostics, while under
+  `["core-language"]` alone they report 138, which is what makes the zero a measurement of the
+  profile set rather than of a checker that never ran. Duplicate reporting with the Run path
+  (issue #815, `spec/execution-model.md:673-680`): true, and it is why this controller goes through
+  the same `analyze()` the runtime does — but it is not a reason to withhold a finding *before* a
+  Run, and what the flip changes is only *when* the learner is told. Layer-3 style lints stay
+  **opt-in** (`styleCheck`): the same 13 examples produce 46 of them, which as-you-type would bury
+  a real `ol-unknown-command` under advice about programs that are already correct. No
+  rendering-side change was needed when the default flipped.
 - `toDiagnosticsView(diagnostics)` — the pure projection from a raw `Diagnostic[]` to a rendering
   model (`items`/`errorCount`/`warningCount`/`isEmpty`). It keys off `code`/`severity`/`stage`/
   `params` only and never inspects `message` prose, per the diagnostic-identity rule

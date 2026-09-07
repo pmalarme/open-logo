@@ -1153,3 +1153,127 @@ test("a record diagnostic crossing a structured clone announces on change and on
     "and re-running the same program must not re-announce: one change, one announcement",
   );
 });
+
+test("#817: a semantic diagnostic is announced and reachable exactly like a parse one", () => {
+  // The issue's accessibility AC, proved rather than asserted. `toDiagnosticsView` and the
+  // announcer both claim to be stage-agnostic; this drives the real diagnostics controller with a
+  // program whose only fault is SEMANTIC (`ol-unknown-command`, stage `"semantic"`) and compares
+  // it against a program whose only fault is a Layer-1 parse error, expecting identical treatment.
+  function announcementsFor(source) {
+    const state = OL.createStudioState();
+    OL.createDiagnosticsController(state);
+    const announcer = OL.createA11yAnnouncer(state);
+    state.setSource(source);
+    return {
+      announcements: announcer.getAnnouncements(),
+      stages: state.getState().diagnostics.map((each) => each.stage),
+    };
+  }
+
+  const semantic = announcementsFor("flibbertigibbet");
+  const parseStage = announcementsFor("%");
+
+  // The fixtures really are the two different stages, so this is not one stage compared to itself.
+  assert.deepEqual(semantic.stages, ["semantic"]);
+  assert.deepEqual(parseStage.stages, ["parse"]);
+
+  // Announced identically: same politeness, same structured text, one interruption each.
+  assert.deepEqual(semantic.announcements, [
+    { politeness: "assertive", message: "1 error found." },
+  ]);
+  assert.deepEqual(semantic.announcements, parseStage.announcements);
+
+  // And reachable: a screen-reader user can move to the pane the announcement is about rather than
+  // only hearing the count. Asserted through the SAME state the semantic diagnostic is in, so this
+  // half is about this slice rather than a static fact about a constant — the earlier revision
+  // checked only `REPL_FOCUS_ORDER`, which would have passed identically at the base commit and
+  // with semantic checking switched off entirely.
+  const stop = OL.REPL_FOCUS_ORDER.find(
+    (each) => each.region === "diagnostics",
+  );
+  assert.ok(stop, "the diagnostics pane is not a keyboard focus stop");
+  assert.equal(stop.role, "log");
+  assert.equal(stop.label, "Diagnostics");
+
+  // The pane that stop names is the pane the semantic finding actually renders into: same store,
+  // same unified field, projected by the same view model the region renders.
+  const semanticState = OL.createStudioState();
+  const shell = OL.createAppShell(semanticState);
+  const controller = OL.createDiagnosticsController(semanticState);
+  OL.mountDiagnosticsPane(shell, controller);
+  semanticState.setSource("flibbertigibbet");
+
+  assert.equal(shell.getRegion(stop.region).content, controller);
+  const rendered = controller.getView();
+  assert.equal(rendered.errorCount, 1);
+  assert.equal(rendered.items[0].stage, "semantic");
+  assert.equal(rendered.items[0].code, "ol-unknown-command");
+});
+
+test("#817: a live semantic finding is announced ONCE, not re-announced by the Run that confirms it", () => {
+  // The screen-reader regression the flip introduced. Before it, the live pane reported nothing for
+  // a bare unknown name, so the only announcement came from the Run's settlement. After it, the
+  // learner is told at the keystroke — and the Run then cleared the field and refilled it with the
+  // identical finding, so the announcer correctly reported both changes and read the same typo out
+  // twice, with a false "No diagnostics." between:
+  //     1 error found.  →  No diagnostics.  →  1 error found.
+  // Now the chain start leaves a live finding alone, so the settlement's republication is
+  // structurally identical and `diagnosticsKey` suppresses it.
+  const state = OL.createStudioState({ source: "" });
+  OL.createDiagnosticsController(state);
+  const announcer = OL.createA11yAnnouncer(state);
+
+  state.setSource("flibbertigibbet");
+  // Copied, not aliased: `getAnnouncements()` returns the announcer's live array, so holding the
+  // reference would let this "snapshot" keep growing as the run proceeds.
+  const afterTyping = [...announcer.getAnnouncements()];
+
+  const controller = OL.createRunController(state);
+  controller.run();
+
+  const diagnosticsAnnouncements = announcer
+    .getAnnouncements()
+    .filter(
+      (each) =>
+        each.message.includes("error") || each.message.includes("diagnostic"),
+    );
+
+  // Non-vacuous in both directions: the learner IS told, exactly once, and the run really happened.
+  assert.deepEqual(afterTyping, [
+    { politeness: "assertive", message: "1 error found." },
+  ]);
+  assert.deepEqual(diagnosticsAnnouncements, [
+    { politeness: "assertive", message: "1 error found." },
+  ]);
+  assert.ok(
+    announcer
+      .getAnnouncements()
+      .some((each) => each.message === "Run started."),
+    "the run never started, so this proves nothing about the Run path",
+  );
+  // The finding is still on screen afterwards — suppressing the announcement must not mean
+  // suppressing the diagnostic.
+  assert.deepEqual(
+    state.getState().diagnostics.map((each) => each.code),
+    ["ol-unknown-command"],
+  );
+
+  // And it stays quiet on EVERY subsequent Run, not just the first. The round-2 fix asked only
+  // "is this mine?", which is false on Run #1 (the field holds the live checker's array) and true
+  // from Run #2 (it holds the previous run's), so the defect returned on the second press —
+  // measured as `No diagnostics.` then `1 error found.` again, for an unchanged program. Pressing
+  // Run twice without editing is an ordinary thing to do after not understanding a message.
+  for (const attempt of [2, 3]) {
+    const before = announcer.getAnnouncements().length;
+    controller.run();
+    const said = announcer
+      .getAnnouncements()
+      .slice(before)
+      .map((each) => each.message);
+    assert.deepEqual(
+      said,
+      ["Run started.", "Run complete."],
+      `Run #${attempt} re-announced a finding that never changed: ${JSON.stringify(said)}`,
+    );
+  }
+});

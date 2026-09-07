@@ -6,9 +6,12 @@
 // `ol-no-output`. Any solution that surfaces checker output to a learner is only an improvement if
 // the checker is quiet on programs that are correct — a checker that reports a name as unknown
 // because the profile owning it was not in the active set would turn every learner's turtle program
-// red. That exact false positive is the documented reason `packages/studio/src/diagnostics.ts` still
-// defaults `semanticCheck` to `false`. This sweep is therefore the gate that stops the fix from
-// being worse than the bug; it is deliberately agnostic about which stage ends up reporting what,
+// red. That exact false positive was the documented reason `packages/studio/src/diagnostics.ts`
+// defaulted `semanticCheck` to `false`; issue #817 flipped that default to `true`, which is
+// precisely what makes this sweep load-bearing rather than anticipatory — the studio now shows
+// checker output to a learner on every keystroke, so a false positive here is one a learner meets.
+// This sweep is therefore the gate that stops the fix from being worse than the bug; it is
+// deliberately agnostic about which stage ends up reporting what,
 // and stays valuable however #815 divides the work, since the studio would still surface checker
 // output.
 //

@@ -256,12 +256,54 @@ test("a new Run clears every field the previous run owned, so an early Stop leav
   // already nulls `currentInstructionSourceSpan` — which would hide whether the chain-start clear
   // does. Measured consequence of leaving it: the editor keeps highlighting a line as "currently
   // executing" for a run that never executed it, permanently, because a cancelled run never settles.
+  //
+  // #817 — the fixture's diagnostic is **runtime-stage by design**, and the `deepEqual(…, [])`
+  // assertions below now depend on that. A chain start clears the previous run's findings **by
+  // stage**: a runtime finding is a fact about an execution this chain has not performed, so it is
+  // dropped (which is what this test guards), while a parse- or semantic-stage finding is a fact
+  // about the program TEXT and is deliberately CARRIED while that text is unchanged — otherwise the
+  // pane publishes a false "No diagnostics." and a screen reader re-announces a finding that never
+  // changed. `print 1 / 0` supplies the runtime finding.
+  //
+  // So if you re-fixture this with a statically-refused program (a misspelled command, say), the
+  // stage assertion below fails — and the fix is to restore a runtime-stage fault here, **not** to
+  // weaken the carry rule in `run-controller.ts`. This is the next layer of the same trap the
+  // paragraph above describes.
+  //
+  // That assertion is placed **before** the tutor-output precondition deliberately. `execute()`
+  // refuses before Phase 2 on an error-severity static finding, so `explain` never runs and a
+  // statically-refused re-fixture trips "fixture must produce tutor output" first — pointing a
+  // confused maintainer at `explain` rather than at the requirement they actually broke. Ordered
+  // this way, the failure names the real one.
+  //
+  // Note what is NOT claimed here: that a program cannot produce both stages at once. Refusal is by
+  // **severity**, not presence (`spec/execution-model.md:666-671`), so a *warning*-severity semantic
+  // finding does not refuse — the program runs, `explain` runs, and both stages appear together.
+  // Measured with `styleChecks: true`: `repeat 4 [ FORWARD 100 right 90 ] / explain / print 1 / 0`
+  // returns `semantic/ol-style-name-case` (warning) beside `runtime/ol-div-zero` (error), with 24
+  // events either way.
+  //
+  // This fixture is not that program, and the difference is one keystroke: its commands are
+  // lowercase, so it trips no style lint and returns the runtime finding alone even under
+  // `styleChecks: true` (measured). The studio's Run path additionally never passes `styleChecks` at
+  // all — `execution-host.ts`'s `toExecuteOptions` does not thread it — so every semantic finding
+  // reachable here is error-severity and refuses.
+  //
+  // Both of those are contingent facts, one about this source and one living in another file, which
+  // is why the stage assertion is a real guard rather than a decorative one: it fires today on a
+  // statically-refused re-fixture, and it would fire again if either contingency changed.
   const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint 1 / 0";
   const settled = settlementFor(source);
   assert.equal(
     settled.diagnostics.length > 0,
     true,
     "fixture must produce a diagnostic",
+  );
+  assert.ok(
+    settled.diagnostics.every((diagnostic) => diagnostic.stage === "runtime"),
+    "fixture must produce a RUNTIME-stage diagnostic: a parse- or semantic-stage finding is " +
+      "deliberately carried across a chain start (#817), so the assertions below would be " +
+      "guarding the wrong rule",
   );
   assert.equal(
     settled.tutorOutput.length > 0,
@@ -1107,7 +1149,7 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   // retained answer and the scheduled key, and the handler's output arriving after the line the
   // learner had already read.
   // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
-  // actually registers — a scripted report carrying vents: [] would be refused before scheduling,
+  // actually registers — a scripted report carrying `events: []` would be refused before scheduling,
   // and the test would pass for the wrong reason.
   // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
   // actually registers — a scripted report carrying events: [] would be refused before scheduling,
@@ -1182,4 +1224,88 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   assert.deepEqual(after, ["BEFORE", "Ada", "HANDLER"]);
   assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
   assert.equal(store.getState().runStatus, "done");
+});
+
+test("#817: a settlement that arrives after the learner has edited on does not overwrite the live pane", () => {
+  // A host that settles across event-loop turns can deliver a result for source the learner has
+  // already replaced. Measured before the fix: run `flibbertigibbet`, edit to `wibble`, watch the
+  // live pane correctly re-check to `wibble` — and then the older settlement put `flibbertigibbet`
+  // back, describing text no longer on screen. `diagnostics.ts`'s unchanged-`source` guard then
+  // declined to repair it, because from the live controller's point of view `wibble` had already
+  // been checked, so the wrong finding stayed up until the learner typed again.
+  const store = OL.createStudioState({ source: "flibbertigibbet" });
+  OL.createDiagnosticsController(store);
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+
+  // The live pane already describes the program about to run.
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["flibbertigibbet"],
+  );
+
+  controller.run();
+
+  // The learner edits while the run is still in flight.
+  store.setSource("wibble");
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+    "precondition: the live pane re-checked the new text",
+  );
+
+  // The stale settlement lands.
+  const stale = OL.createStudioState({ source: "flibbertigibbet" });
+  OL.createDiagnosticsController(stale);
+  const staleDiagnostics = stale.getState().diagnostics;
+  assert.equal(staleDiagnostics.length, 1, "fixture must carry a diagnostic");
+  deferred.report({ diagnostics: staleDiagnostics });
+
+  // The live field still describes the text on screen.
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+  );
+  // But the run's own immutable record is still written, with the source it actually ran.
+  assert.equal(store.getState().lastRunResult.source, "flibbertigibbet");
+  assert.deepEqual(
+    store.getState().lastRunResult.diagnostics.map((each) => each.params.name),
+    ["flibbertigibbet"],
+  );
+});
+
+test("#817: a settlement for the UNEDITED source still reaches the live pane", () => {
+  // The falsifying control for the test above: the guard must not simply stop publishing. Without
+  // this, deleting the `setDiagnostics` call entirely would leave that test green.
+  const store = OL.createStudioState({ source: "print 1 / 0" });
+  OL.createDiagnosticsController(store);
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+
+  assert.deepEqual(
+    store.getState().diagnostics,
+    [],
+    "precondition: clean statically",
+  );
+
+  controller.run();
+  const settled = settlementFor("print 1 / 0");
+  assert.ok(
+    settled.diagnostics.length > 0,
+    "fixture must produce a runtime diagnostic",
+  );
+  deferred.report({
+    events: settled.events,
+    output: settled.output,
+    diagnostics: settled.diagnostics,
+  });
+
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.code),
+    settled.diagnostics.map((each) => each.code),
+  );
 });

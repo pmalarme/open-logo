@@ -93,11 +93,11 @@
  * a diagnostics-list identity key — so a fixture pins whichever stage is chosen; that is the field
  * doing its job, not two defects being treated differently.
  *
- * What genuinely differs is *reaching* a consumer at all. A parse-only caller never runs `check()`,
- * and the studio's `semanticCheck` still defaults **off** pending epic #108
- * (`packages/studio/src/diagnostics.ts`'s `runChecks`), so a learner in today's studio sees the
- * reader's `repeat key [ ]` and nothing for `repeat when [ ]` until semantic checking is switched
- * on. That is a property of which layers a caller chooses to run, not of the stage field.
+ * What genuinely differs is *reaching* a consumer at all. A parse-only caller never runs `check()`.
+ * The studio does run it live as of issue #817 (`packages/studio/src/diagnostics.ts` goes through
+ * `analyze()` on every edit), so a learner there now sees both — but a caller that runs Layer 1
+ * alone still sees the reader's `repeat key [ ]` and nothing for `repeat when [ ]`. That is a
+ * property of which layers a caller chooses to run, not of the stage field.
  */
 
 import type { Diagnostic } from "@openlogo/core";
