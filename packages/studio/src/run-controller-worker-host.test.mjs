@@ -256,6 +256,24 @@ test("a new Run clears every field the previous run owned, so an early Stop leav
   // already nulls `currentInstructionSourceSpan` — which would hide whether the chain-start clear
   // does. Measured consequence of leaving it: the editor keeps highlighting a line as "currently
   // executing" for a run that never executed it, permanently, because a cancelled run never settles.
+  //
+  // #817 — the fixture's diagnostic is **runtime-stage by design**, and the `deepEqual(…, [])`
+  // assertions below now depend on that. A chain start clears the previous run's findings **by
+  // stage**: a runtime finding is a fact about an execution this chain has not performed, so it is
+  // dropped (which is what this test guards), while a parse- or semantic-stage finding is a fact
+  // about the program TEXT and is deliberately CARRIED while that text is unchanged — otherwise the
+  // pane publishes a false "No diagnostics." and a screen reader re-announces a finding that never
+  // changed. `print 1 / 0` supplies the runtime finding.
+  //
+  // So if you re-fixture this with a statically-refused program (a misspelled command, say), these
+  // assertions will fail — and the fix is to restore a runtime-stage fault here, **not** to weaken
+  // the carry rule in `run-controller.ts`. Measured: the failure you will actually see first is
+  // "fixture must produce tutor output", because `execute()` refuses before Phase 2 on an
+  // error-severity static finding, so `explain` never runs. That same refusal is why one program
+  // cannot produce both kinds at once, and why this is documented rather than asserted — an
+  // `every(stage === "runtime")` check here could never fail, and a guard that cannot fire is worse
+  // than a sentence that explains. This is the next layer of the same trap the paragraph above
+  // describes.
   const source = "repeat 4 [ forward 100 right 90 ]\nexplain\nprint 1 / 0";
   const settled = settlementFor(source);
   assert.equal(
