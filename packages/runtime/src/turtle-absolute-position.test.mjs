@@ -80,7 +80,18 @@ test("execute accepts the parenthesized call form for zero-argument home", () =>
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized one-argument home", () => {
-  const result = execute("(home 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(home 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
@@ -153,7 +164,18 @@ test("execute raises ol-type for a non-number setxy alias argument, naming the a
 });
 
 test("execute raises ol-not-enough-inputs for a parenthesized one-argument setxy alias", () => {
-  const result = execute("(setxy 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(setxy 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
@@ -165,7 +187,18 @@ test("execute raises ol-not-enough-inputs for a parenthesized one-argument setxy
 });
 
 test("execute raises ol-not-enough-inputs for a parenthesized one-argument set_xy", () => {
-  const result = execute("(set_xy 1)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(set_xy 1)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
@@ -177,7 +210,18 @@ test("execute raises ol-not-enough-inputs for a parenthesized one-argument set_x
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized three-argument set_xy", () => {
-  const result = execute("(set_xy 1 2 3)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(set_xy 1 2 3)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
@@ -216,10 +260,19 @@ test("execute propagates a failing set_xy y-argument expression instead of movin
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
 
-test("execute leaves an unsupported set_xy argument un-evaluated, emitting no move event", () => {
-  const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo");
-  assert.equal(result.events.length, 1);
-  assert.deepEqual(result.diagnostics, []);
+test("execute reports the unresolvable unsupported set_xy argument instead of skipping the call", () => {
+  const result = execute("set_xy (nonexistent_builtin 1) 2", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("execute raises ol-range for a set_xy x argument that overflows to Infinity, instead of moving the turtle to an infinite position", () => {
@@ -299,7 +352,18 @@ test("execute raises ol-type for a non-number seth alias argument, naming the al
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized two-argument seth alias", () => {
-  const result = execute("(seth 1 2)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(seth 1 2)", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
@@ -311,7 +375,18 @@ test("execute raises ol-too-many-inputs for a parenthesized two-argument seth al
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument set_heading", () => {
-  const result = execute("set_heading", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("set_heading", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
@@ -323,7 +398,20 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument set_heading",
 });
 
 test("execute raises ol-too-many-inputs for a parenthesized two-argument set_heading", () => {
-  const result = execute("(set_heading 1 2)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(set_heading 1 2)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.events.length, 1);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
@@ -348,10 +436,19 @@ test("execute propagates a failing set_heading argument expression instead of tu
   assert.equal(result.diagnostics[0].code, "ol-div-zero");
 });
 
-test("execute leaves an unsupported set_heading argument un-evaluated, emitting no turn event", () => {
-  const result = execute("set_heading (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.events.length, 1);
-  assert.deepEqual(result.diagnostics, []);
+test("execute reports the unresolvable unsupported set_heading argument instead of skipping the call", () => {
+  const result = execute("set_heading (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("execute raises ol-range for a set_heading angle that overflows to Infinity, instead of emitting a NaN-corrupted turn event", () => {

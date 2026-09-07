@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/studio";
+import * as OL_RUNTIME from "@openlogo/runtime";
 import { MAIN_TURTLE_ID } from "@openlogo/turtle";
 
 /** A `TurtleWorldState` holding just the main turtle at `state`, last-acted — what a single-turtle
@@ -964,4 +965,191 @@ test("a repeatedly-firing handler is announced by the same head-line rule, and i
   for (let index = 1; index < announcements.length; index += 1) {
     assert.notEqual(announcements[index], announcements[index - 1]);
   }
+});
+
+// --- Issue #815: the announcer must not re-derive diagnostic identity -----------------------------
+//
+// `diagnosticsKey` used `JSON.stringify` over `params` to decide whether a diagnostics list had
+// genuinely changed. `JSON.stringify` sees only enumerable own properties, so the moment `OLRecord`
+// moved its contents into a `#private` field every record serialized to `{"type":"p"}` — and two
+// diagnostics carrying DIFFERENT records at the same span looked identical, so a changed diagnostic
+// was silently not announced. An assistive-technology user simply stopped being told.
+//
+// The lesson is not "avoid JSON.stringify": it is that a second, approximate copy of an identity
+// rule is a rule two packages can drift on, and this was the drift. The key now calls
+// `@openlogo/core`'s own `diagnosticIdentity`, which reads values through their accessors.
+//
+// These use REAL runtime diagnostics rather than hand-built ones, because the defect lived in the
+// shape of a real `params` value and a fixture would have had to reproduce it by accident.
+
+/** The diagnostics a real run of `source` reports, under Core + Turtle + Data. */
+function diagnosticsFrom(source) {
+  return OL_RUNTIME.execute(source, "a11y.logo", {
+    profiles: ["core-language", "turtle-rendering", "data"],
+  }).diagnostics;
+}
+
+test("a diagnostic that changes only inside a record value is still announced", () => {
+  const withFieldX = diagnosticsFrom("struct p [ x ]\nforward p 1\n");
+  const withFieldY = diagnosticsFrom("struct p [ y ]\nforward p 1\n");
+
+  // Both are `ol-type` at the same span carrying a record of type `p` — they differ only in the
+  // record's shape. When this test was written the two `params` were `JSON.stringify`-identical,
+  // because the record's fields were behind a `#private` slot; a review then measured that the
+  // same privacy made two such records COLLIDE after `structuredClone`, silently, so the data
+  // moved back to ordinary properties guarded by an unforgeable brand. Serialization can now tell
+  // these two apart again — which is why the assertion is on the ANNOUNCEMENT, not on the
+  // serialization: the announcer must report the change however the params happen to render.
+  assert.deepEqual(
+    withFieldX.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
+  assert.deepEqual(
+    withFieldY.map((diagnostic) => diagnostic.code),
+    ["ol-type"],
+  );
+
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withFieldX);
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldY);
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "a genuinely different diagnostic must reach the screen reader",
+  );
+});
+
+test("re-publishing the SAME diagnostics still announces nothing", () => {
+  // The control the fix could have broken: the announcer exists to avoid interrupting on every
+  // keystroke, so a stricter identity must not turn into a spammier one.
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(diagnosticsFrom("struct p [ y ]\nforward p 1\n"));
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(diagnosticsFrom("struct p [ y ]\nforward p 1\n"));
+  assert.equal(announcer.getAnnouncements().length, afterFirst);
+});
+
+test("the announcer hears a diagnostic that changes only in stage or severity", () => {
+  // `diagnosticsKey` compares `severity` and `stage` BESIDE core's fault identity, because that
+  // identity deliberately excludes both — `spec/execution-model.md:741-748` makes `stage` record
+  // when a fault was found rather than which fault it is. Measured, `diagnosticIdentity` collapses
+  // both axes, so those two extra components ARE the mechanism.
+  //
+  // Dropping either one leaves the whole Definition of Done green while an assistive-technology
+  // user stops being told the diagnostic changed — the same silent non-announcement that
+  // `JSON.stringify` caused and that this file's other #815 test exists to repair, one field along.
+  // `ol-no-output` moving `semantic` → `runtime` under `runUnchecked` is a real transition.
+  const at = (stage, severity) => [
+    {
+      code: "ol-no-output",
+      source_span: { document: "a11y.logo", start: [1, 1], end: [1, 2] },
+      params: { procedure: "forward" },
+      message: "m",
+      stage,
+      severity,
+    },
+  ];
+
+  const forStage = OL.createStudioState();
+  const stageAnnouncer = OL.createA11yAnnouncer(forStage);
+  forStage.setDiagnostics(at("semantic", "error"));
+  const afterStage = stageAnnouncer.getAnnouncements().length;
+  forStage.setDiagnostics(at("runtime", "error"));
+  assert.equal(
+    stageAnnouncer.getAnnouncements().length,
+    afterStage + 1,
+    "a fault moving from semantic to runtime is a change worth hearing",
+  );
+
+  const forSeverity = OL.createStudioState();
+  const severityAnnouncer = OL.createA11yAnnouncer(forSeverity);
+  forSeverity.setDiagnostics(at("semantic", "error"));
+  const afterSeverity = severityAnnouncer.getAnnouncements().length;
+  forSeverity.setDiagnostics(at("semantic", "warning"));
+  assert.equal(
+    severityAnnouncer.getAnnouncements().length,
+    afterSeverity + 1,
+    "an error becoming a warning is a change worth hearing",
+  );
+});
+
+test("the announcer key stays injective across control characters in params", () => {
+  // A REGRESSION GUARD, not a demonstration — and the distinction is the finding. Two reviewers
+  // independently established that the previous `\u0000`/`\u0001`-joined key was **already
+  // injective**: `canonicalize` emits a single balanced `arr3(…)` term with length-prefixed leaves,
+  // so identity output is prefix-free and the separator-joined form was uniquely decodable. One
+  // reviewer raised the collision and retracted it by construction; the other fuzzed 200,000
+  // adversarial lists over an alphabet containing `\u0000`, `\u0001`, `arr3(`, `)` and `:` and
+  // found **zero collisions under either encoding**.
+  //
+  // So this passes against the old key as well, and is kept as defence in depth because the new
+  // encoding is injective self-evidently rather than by an argument about another package. Its
+  // comment must not imply it caught something: a test whose stated reason is not the reason it
+  // passes is the shape this review spent eleven rounds removing.
+  const withParam = (name) => [
+    {
+      code: "ol-unknown-command",
+      source_span: { document: "a11y.logo", start: [1, 1], end: [1, 2] },
+      params: { name },
+      message: "m",
+      stage: "semantic",
+      severity: "error",
+    },
+  ];
+
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withParam("a\u0000b"));
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withParam("a\u0001b"));
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "two params differing only in a control character are different diagnostics",
+  );
+});
+
+test("a record diagnostic crossing a structured clone announces on change and only on change", () => {
+  // The studio Worker's transport, and the accessibility path this slice touched. TWO failures
+  // live here and the test asserts both, because an assertion on either alone is satisfied by the
+  // other's defect:
+  //
+  //   1. UNDER-ANNOUNCING. `structuredClone` cannot see a `#private` field, so with the backing
+  //      data private two records differing only in their declared fields both arrived as
+  //      `{"type":"p"}`, collided, and the announcer went 1 -> 1. Silently.
+  //   2. OVER-ANNOUNCING. A cloned value loses its prototype, so it was described by the
+  //      plain-object arm, where its `Map` contents took a per-instance opaque serial. EVERY pair
+  //      of cloned record diagnostics then split — including two runs of the SAME program, so a
+  //      screen-reader user heard the same error again on every Run.
+  //
+  // Defect 2 is why the first version of this test was worthless: it asserted only the change
+  // direction, and the opaque serial satisfied that assertion whether or not the payload survived
+  // the clone. Perturbing the payload away left it green. A test for "the payload crossed the
+  // boundary" must fail when the payload does not, which means asserting the EQUAL case too.
+  const from = (source) => structuredClone(diagnosticsFrom(source));
+  const withFieldX = from("struct p [ x ]\nforward p 1\n");
+  const withFieldY = from("struct p [ y ]\nforward p 1\n");
+  const withFieldXAgain = from("struct p [ x ]\nforward p 1\n");
+
+  const state = OL.createStudioState();
+  const announcer = OL.createA11yAnnouncer(state);
+  state.setDiagnostics(withFieldX);
+  const afterFirst = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldY);
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterFirst + 1,
+    "a cloned diagnostic that genuinely changed must still reach the screen reader",
+  );
+  const afterChange = announcer.getAnnouncements().length;
+  state.setDiagnostics(withFieldXAgain);
+  state.setDiagnostics(structuredClone(withFieldXAgain));
+  assert.equal(
+    announcer.getAnnouncements().length,
+    afterChange + 1,
+    "and re-running the same program must not re-announce: one change, one announcement",
+  );
 });

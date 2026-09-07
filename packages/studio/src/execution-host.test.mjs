@@ -91,13 +91,13 @@ test("collectTutorOutput reduces tutor-output events in emission order", () => {
 
 test("a run's diagnostics reach the settlement unchanged", () => {
   const { settlements } = settleAll(
-    makeRequest({ source: "forward 100\nprint :nope" }),
+    makeRequest({ source: "forward 100\nprint 1 / 0" }),
   );
   const [settled] = settlements;
 
   assert.deepEqual(
     settled.diagnostics.map((diagnostic) => diagnostic.code),
-    ["ol-undefined-var"],
+    ["ol-div-zero"],
   );
   // Everything emitted before the failure is still surfaced, so the learner keeps their picture.
   assert.equal(

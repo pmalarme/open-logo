@@ -1,20 +1,21 @@
 {
-  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #816): this locks TODAY'S DEFECTIVE behaviour at the `execute()` stage, not the correct behaviour, and must be FLIPPED to the correct expectation now that the #814 `[spec]` ruling has merged and #815 implements it. The wall was built before the ruling because this defect emits neither a diagnostic nor a crash, so a fixture that merely runs the program passes against the broken build. Fault shape B — a KNOWN command used in VALUE position (issue #716, re-parented under saga #811). This is a DIFFERENT fault from shape A and the fixtures record it separately on purpose. Here `check()` is CLEAN, not merely unconsulted: `forward` resolves fine once `turtle-rendering` is active, so no checker rule fires and there is no correct answer sitting unused. Both stages are silent. Saga #811's stated mechanism (\"`check()` computes the right answer and `execute()` never consults it\") is therefore true of shape A only — measured here rather than assumed. Form under test: `every <command> [ … ]` — the interval handler is never registered. The statement's `instruction` marker is emitted and then nothing else — no effect, no diagnostic. Its `-check` sibling is equally silent, which is the difference from shape A.",
+  "description": "REGRESSION WALL for saga #811, flipped by issue #815 from the characterization issue #816 built against the broken build. It asserts the CORRECT behaviour now: the check before execution runs Layer 1 and Layer 2 over the whole program and, on an `error`-severity finding, **Phase 2 never begins** — \"no instruction executes, no trace event is emitted\" (`spec/execution-model.md:659-664`). So the `events` array is EMPTY, and that emptiness is the assertion: before the fix this program ran, produced events, and reported nothing, which is the silent wrong answer the saga is named for. Reverting the gate turns this red. Fault shape B — a KNOWN command used in VALUE position (issue #716, re-parented under saga #811). This is a DIFFERENT fault from shape A and the fixtures record it separately on purpose, and the distinction was load-bearing: `check()` was CLEAN here, not merely unconsulted — `forward` resolves fine once `turtle-rendering` is active — so saga #811's stated mechanism (\"`check()` computes the right answer and `execute()` never consults it\") was true of shape A only. Shape B therefore needed a new checker rule rather than only the gate, which is why #815 reports it uniformly across every form rather than per-form — the inconsistency #716 recorded. Form under test: `every <command> [ … ]` — the interval handler is never registered, and now the run says why. Its `-check` sibling reports the identical finding, which is the difference from before: both stages were silent, and both now agree.",
   "profiles": ["core-language", "turtle-rendering", "interaction-events"],
   "execute": true,
-  "events": [
+  "events": [],
+  "diagnostics": [
     {
-      "seq": 0,
-      "kind": "instruction",
+      "code": "ol-no-output",
       "source_span": {
         "document": "interaction-events/command-in-value-position/every-interval-execute",
-        "start": [1, 1],
-        "end": [1, 28]
+        "start": [1, 7],
+        "end": [1, 16]
       },
-      "payload": {
-        "statement_kind": "ProfileStatement"
-      }
+      "params": {
+        "procedure": "forward"
+      },
+      "stage": "semantic",
+      "severity": "error"
     }
-  ],
-  "diagnostics": []
+  ]
 }

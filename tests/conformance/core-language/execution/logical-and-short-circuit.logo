@@ -1,1 +1,1 @@
-print false and :missing
+print false and (1 / 0)

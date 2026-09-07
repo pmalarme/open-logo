@@ -57,18 +57,14 @@ function parenCall(name, count) {
 // These name no command. Their subject is "every primitive of every profile in the DAG".
 
 test("every registered primitive of every profile is arity-checked when its profile is active", () => {
-  // Tutor's `challenge` is the one registered primitive with no checker visibility yet: it has no
-  // runtime, and `checker-names.ts` deliberately withholds visibility from a name nothing can run,
-  // so it is reported `ol-unknown-command` — alone, never alongside an arity finding. Asserting the
-  // exception as an exact set rather than a skip is what keeps a SECOND withheld name from being
-  // added unremarked. Since issue #966 `collectVisibleNames` is derived from the same profile-keyed
-  // registry, so a profile registered in `PROFILE_PRIMITIVES` — which TypeScript forces — is made
-  // visible with no edit there; what stays hand-written is the withholding itself
-  // (`namesAwaitingAnEvaluator()`), and this is the assertion that prices it. Note what neither
-  // this test nor any other in this package can detect: that Tutor's evaluator has SHIPPED and the
-  // entry is now stale. That is a fact about `@openlogo/runtime`, which the parser must not depend
-  // on, so retiring the entry is a human step.
-  const notYetVisible = [];
+  // Issue #815 removed the one exception this sweep used to carry. Tutor's `challenge` was
+  // withheld from the visible-name set because nothing could run it, so it reported
+  // `ol-unknown-command` alone and was never arity-checked; `spec/error-model.md:131` now forbids
+  // withholding a registered name that way, so it inherits the arity check like every other
+  // primitive whose profile is active. The bucket that collected the exception is GONE rather than
+  // kept as an expected-empty set: nothing can push to it, so comparing it to `[]` would assert
+  // `[] === []`. A regression in `collectVisibleNames` is caught by the assertion below instead,
+  // which fails by name on the first primitive that reports `ol-unknown-command`.
   const openVariadics = [];
   let registered = 0;
   let checked = 0;
@@ -111,10 +107,10 @@ test("every registered primitive of every profile is arity-checked when its prof
         )}`,
       );
       const [finding] = diagnostics;
-      if (finding.code === "ol-unknown-command") {
-        notYetVisible.push(name);
-        continue;
-      }
+      // Issue #815 emptied this bucket: no registered primitive of an ACTIVE profile is withheld
+      // any more, so a name landing here is a regression in `collectVisibleNames` rather than the
+      // one recorded exception it used to be. It is asserted by name, immediately, instead of being
+      // collected — a collected-then-compared empty set costs a branch nothing can ever take.
       assert.equal(
         finding.code,
         "ol-too-many-inputs",
@@ -130,7 +126,6 @@ test("every registered primitive of every profile is arity-checked when its prof
     }
   }
 
-  assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
   // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
   // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
   // reading this because it failed, the question to answer is "was a primitive meant to disappear?"
@@ -139,14 +134,11 @@ test("every registered primitive of every profile is arity-checked when its prof
     registered >= 85,
     `the DAG registers exactly 85 primitives today; this sweep saw only ${registered}, so a registry entry was emptied or dropped`,
   );
-  // Every registered name was accounted for by exactly one of the three buckets. This is a loop
+  // Every registered name was accounted for by exactly one of the two buckets. This is a loop
   // invariant, not a property of the checker — as the loop is written today it cannot fail — and is
-  // kept only so a future edit that adds a fourth path through the body has to say which bucket it
+  // kept only so a future edit that adds a third path through the body has to say which bucket it
   // belongs to. The assertions above and below are what actually carry this test.
-  assert.equal(
-    checked + openVariadics.length + notYetVisible.length,
-    registered,
-  );
+  assert.equal(checked + openVariadics.length, registered);
   // The ceiling half, as a tripwire rather than a tautology: exactly these four names are open
   // variadics across the whole DAG. A `maxArity` table wired to the wrong profile shows up here
   // immediately — give `data` Core's ceiling table and `list` drops out of this set; give Core

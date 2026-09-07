@@ -131,8 +131,12 @@ test("issue #876: a program that fails to parse appends nothing", () => {
 
 test("issue #876: a run halted by a runtime diagnostic still leaves its prefix in the sink", () => {
   const observed = [];
+  // Issue #815: `:nope` is an unbound read the check decides statically, so a checked run never
+  // draws at all. `runUnchecked` (`spec/execution-model.md:687-694`) keeps this the RUNTIME-halt
+  // sink test it was written to be.
   const result = execute("forward 100\nprint :nope", doc, {
     observedEvents: observed,
+    runUnchecked: true,
   });
 
   assert.deepEqual(

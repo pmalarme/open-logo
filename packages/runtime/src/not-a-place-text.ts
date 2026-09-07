@@ -40,6 +40,7 @@ import type {
   StatementNode,
   ValueOfKeyNode,
 } from "@openlogo/parser";
+import { isExpressionKind } from "@openlogo/parser";
 
 /**
  * Every expression kind the parser can build in non-place assignment-target position, or nest
@@ -138,32 +139,19 @@ function renderBinder(binder: Binder): string {
 }
 
 /**
- * The set of `StatementNode` kinds that are also {@link ExpressionNode} kinds — i.e. a bare
- * expression used as a statement. Used to recognize a comprehension body's common,
- * spec-conventional shape: a single bracketed expression, no lambda.
+ * Whether a statement is a bare expression — `ast.ts`'s `StatementNode` doc: "a bare expression is
+ * a valid statement". Used to recognize a comprehension body's common, spec-conventional shape: a
+ * single bracketed expression, no lambda.
+ *
+ * Derived from the `ExpressionNode` union via {@link isExpressionKind}, not enumerated — the second
+ * of the two copies `isExpressionKind` was exported to eliminate and did not, which made the claim
+ * that six were replaced a derived count with survivors. A review measured that corrupting an entry
+ * here left the whole Definition of Done green.
  */
-const EXPRESSION_STATEMENT_KINDS: ReadonlySet<string> = new Set([
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "DictLit",
-  "ValueOfKey",
-  "VarRef",
-  "Place",
-  "PostfixExpression",
-  "Call",
-  "ParenCall",
-  "ComparisonChain",
-  "IsPredicate",
-  "Comprehension",
-]);
-
-/** Whether a statement is a bare expression (see {@link EXPRESSION_STATEMENT_KINDS}). */
 function isExpressionStatement(
   statement: StatementNode,
 ): statement is ExpressionNode {
-  return EXPRESSION_STATEMENT_KINDS.has(statement.kind);
+  return isExpressionKind(statement.kind);
 }
 
 /**

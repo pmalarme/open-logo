@@ -2,7 +2,8 @@
 // #149): `spec/grammar.md`'s `dict-literal ::= "{" { dict-entry } "}"` and
 // `dict-entry ::= dict-key ":" expression`, with `dict-key ::= identifier | number`. This slice
 // is parse/lex/highlight only — no runtime evaluation (see @openlogo/runtime's
-// `isSupportedExpression`, which always reports a `DictLit` unsupported). Entries are separated
+// the runtime's since-deleted `isSupportedExpression`, which always reported a `DictLit`
+// unsupported). Entries are separated
 // only by whitespace/newlines, never commas (`spec/grammar.md`); `{ }` (matched braces, zero
 // entries) is a valid empty dict, not an error (`spec/error-model.md`); only a genuinely
 // unmatched `{`/`}` reports `ol-unmatched-brace`.

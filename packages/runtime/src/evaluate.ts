@@ -7,7 +7,7 @@
  * `sin`/`cos`/`tan` (one number, in degrees) and the 0-arg constant reporter `pi` — they were
  * already registered in the parser's fixed-arity table (`packages/parser/src/signatures.ts`) and
  * so parsed as ordinary `Call`s with zero diagnostics, but had no evaluator branch and no
- * `isSupportedExpression` entry, so `evaluate()` silently never ran them (no trace event, no
+ * entry in the since-deleted `isSupportedExpression` gate, so `evaluate()` silently never ran them (no trace event, no
  * diagnostic — an uncontrolled silent failure, not a controlled one). `sin`/`cos` follow
  * {@link evaluateUnaryMath}'s exact template; `tan` additionally guards the poles where cosine is
  * `0` (`90` degrees plus any multiple of `180`) and raises the dedicated `ol-tan-undefined`
@@ -81,7 +81,28 @@ import type {
   ValueOfKeyNode,
   WordLitNode,
 } from "@openlogo/parser";
-import { isPrimitiveCommandName } from "@openlogo/parser";
+import {
+  isBuiltInName,
+  isExpressionKind,
+  isPrimitiveCommandName,
+} from "@openlogo/parser";
+import { isActiveProfileCommandName } from "@openlogo/parser";
+import type { CheckProfile, NameResolver } from "@openlogo/parser";
+import { createNameResolver } from "@openlogo/parser";
+import { SUPPORTED_PROFILES } from "@openlogo/core";
+
+/**
+ * The one empty program a bare {@link createEnvironment} uses — assigned to `program` AND used to
+ * build its {@link NameResolver}, so the resolver can never answer about a different program than
+ * the environment holds. There were briefly two of these, agreeing only because both were empty,
+ * which is the hand-maintained agreement this slice spent itself removing.
+ */
+const EMPTY_PROGRAM: ProgramNode = {
+  kind: "Program",
+  body: [],
+  source_span: makeSpan("", [1, 1], [1, 1]),
+};
+
 import { runtimeDiag } from "./errors.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
@@ -240,6 +261,41 @@ export interface CancellationSignal {
 export interface Environment {
   readonly frames: readonly Frame[];
   readonly repeatTurns: number[];
+  /**
+   * The conformance profile set **this run claims** — the same value the check before execution
+   * used, never a second one computed alongside it.
+   *
+   * `spec/execution-model.md:673-680` requires that "the active conformance profile set the
+   * semantic layer uses MUST be the set the run itself uses", that the set "MUST be nameable by
+   * whoever starts the run — it is a property of the run, not a constant of the implementation",
+   * and closes with "One value MUST govern both the check and the run". Carrying it here is what
+   * makes the last sentence literally true: `runProgram` resolves the set once and hands the same
+   * array to `analyze()` and to `createExecutionEnvironment`, so the two cannot drift.
+   *
+   * Without it the run was profile-blind while the check was not, which is observable and wrong in
+   * both directions. Measured under `{ profiles: ["core-language"], runUnchecked: true }`:
+   * `challenge` reported `ol-unknown-command` *and* `ol-not-implemented` — two contradictory
+   * answers about one name, where `spec/error-model.md:131` requires the name to "resolve under the
+   * run's active profile set" before `ol-not-implemented` applies at all and says plainly that "a
+   * call under a profile the run does not claim is still `ol-unknown-command`". A child environment
+   * inherits this by spreading its parent, so a procedure body is judged under the same set.
+   */
+  readonly profiles: readonly CheckProfile[];
+  /**
+   * The checker's name judgements for this run — `isVisible` and `suggestionFor` — bound to this
+   * run's program and claimed profile set, and built once (see {@link NameResolver}).
+   *
+   * The runtime used to compute both itself. `spec/tooling.md:174-177` assigns visibility to the
+   * semantic layer, so the second copy was this package answering a question it does not own; that
+   * is the engineering argument, and it is worth separating from the normative one.
+   * `spec/execution-model.md:680` requires the *profile set* to be one value governing both the
+   * check and the run, which `profiles` above already satisfies — it does not by itself require a
+   * shared implementation. Consolidating is good practice rather than an entailment, and the
+   * measured case for it is concrete: the did-you-mean copy had already drifted to no suggestion at
+   * all, which made a runtime `ol-unknown-command` a *different* fault under
+   * `spec/execution-model.md:741-748`'s identity and delivered one fault to the learner twice.
+   */
+  readonly names: NameResolver;
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
   readonly events: TraceEvent[];
@@ -597,6 +653,16 @@ export function createEnvironment(): Environment {
   return {
     frames: [new Map()],
     repeatTurns: [],
+    // The implementation's own supported set. This bare environment models one expression
+    // evaluation rather than a run someone started, so there is nobody to name a narrower set;
+    // `execute()` overrides it with the run's claimed set (`spec/execution-model.md:673-680`).
+    profiles: SUPPORTED_PROFILES,
+    // A bare environment has no program of its own, so the resolver is built over an EMPTY one:
+    // every profile's primitives are visible, and no `define`d procedure or `struct` constructor
+    // is. Still `@openlogo/parser`'s own resolver rather than a second rule written here — a bare
+    // environment asks a narrower question, not a different one. It is built from the SAME node
+    // assigned to `program` below, so the two cannot answer about different programs.
+    names: createNameResolver(EMPTY_PROGRAM, SUPPORTED_PROFILES),
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
     structs: EMPTY_STRUCTS,
@@ -624,11 +690,7 @@ export function createEnvironment(): Environment {
     // exercise the Educational meta-commands (`execute-internal.ts`'s
     // `createExecutionEnvironment` is the only place a real parsed program is threaded through,
     // per issue #332).
-    program: {
-      kind: "Program",
-      source_span: makeSpan("", [1, 1], [1, 1]),
-      body: [],
-    },
+    program: EMPTY_PROGRAM,
     hintProgress: new Map(),
     tutorTemplate: defaultTutorTemplate,
     learnerLevel: "1",
@@ -1041,236 +1103,6 @@ function isComparisonOperator(name: string): name is ComparisonOperator {
 
 function isLogicalOperator(name: string): name is LogicalOperator {
   return (LOGICAL_OPERATORS as readonly string[]).includes(name);
-}
-
-/**
- * Does {@link evaluate} give `node` a value in this issue's scope? `execute()` uses this guard
- * to decide whether to evaluate a `print` argument at all: expression kinds and callees this
- * issue does not implement yet (`is`-predicates, a dotted `.field` place segment — Data-profile,
- * deferred — and calls to any command other than the arithmetic operators, math builtins,
- * comparison operators, and `thing` below) are left untouched for their own future slice
- * (#94-#105), never reaching {@link evaluate}'s internal "not implemented yet" invariant checks.
- * As of issue #96 a {@link ComparisonChainNode} and the six comparison-operator calls
- * (`== != < > <= >=`) are in scope, so a comparison whose operands are all themselves supported
- * is evaluated. As of issue #94 a `VarRef` (`:name`) is always supported, and a `Place` (`:l[i]`)
- * is supported only when every postfix segment is an `index` selector with a supported key —
- * `.field` segments stay unsupported since record/dict places are a later profile. As of issue
- * #95 `and`/`or`/`not` calls are in scope; note this is a *shape* check only — a short-circuited
- * operand such as `:missing` in `false and :missing` is still a supported `VarRef`, it is simply
- * never reached by {@link evaluate}'s short-circuit at runtime. As of issue #104 a 0-arg
- * `repcount` call is in scope too. As of issue #97 a call whose callee is a name in `procedures`
- * (a user procedure, in either the bare or parenthesized call form) is in scope as well — pass
- * the calling environment's `procedures` registry (defaults to none, for callers with no user
- * procedures in scope). As of issue #105 a {@link ComprehensionNode} (`map`/`filter`/`reduce`) is
- * in scope when its `iterable` (and, for `reduce`, its `initial`) and every body statement are
- * themselves supported (see {@link isSupportedComprehensionBody}) — a comprehension whose body
- * uses a not-yet-implemented expression kind is left wholly unevaluated, same as any other
- * unsupported node, rather than raising a misleading `ol-no-value`. As of issue #99 an
- * {@link IsPredicateNode} is in scope when its `operand` (and, per `test.form`, its `collection`
- * or `low`/`high`) are themselves supported — `test.form === "a"`'s type word is a parse-time
- * literal, never evaluated, so it needs no check of its own — and the prefix `empty?`/`member?`/
- * `is_a?` callees join the known-callee list above. As of issue #101 the Core list reporters
- * `first`/`last`/`butfirst`/`butlast`/`fput`/`lput`/`sentence`/`count` join the known-callee list
- * too. As of issue #203 the turtle-state reporters `xcor`/`ycor`/`heading`/`pos`/`towards`/
- * `distance` join the known-callee list as well — pure reads of the current turtle's state
- * ({@link currentTurtleState}) that
- * emit no trace event. As of issue #234 the word-constructor `word` joins the known-callee list.
- * As of issue #287 the Core Math reporter `random` joins the known-callee list too — it reads and
- * mutates {@link Environment.randomNumberGenerator} but, like the turtle-state reporters above, is
- * otherwise a pure expression with no diagnostic beyond its own argument checks. As of issue #323
- * the trigonometric reporters `sin`/`cos`/`tan` (unary math builtins) and the 0-arg constant
- * reporter `pi` join the known-callee list too — they were already registered in the parser's
- * fixed-arity table but reached no evaluator branch, so a call to them silently produced no value
- * and no diagnostic at all. As of issue #190 the Data-profile derived list reporters
- * `reverse`/`pick`/`sort` join the known-callee list too.
- */
-export function isSupportedExpression(
-  node: ExpressionNode,
-  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  switch (node.kind) {
-    case "NumberLit":
-    case "WordLit":
-    case "BooleanLit":
-    case "VarRef":
-      return true;
-    case "ListLit":
-      return node.elements.every((element) =>
-        isSupportedExpression(element, procedures, structs),
-      );
-    case "ComparisonChain":
-      return node.operands.every((operand) =>
-        isSupportedExpression(operand, procedures, structs),
-      );
-    case "Place":
-      return isSupportedPlace(node, procedures, structs);
-    case "PostfixExpression":
-      return isSupportedPostfixExpression(node, procedures, structs);
-    case "IsPredicate":
-      return isSupportedIsPredicate(node, procedures, structs);
-    case "Call":
-    case "ParenCall": {
-      const name = resolveHeritageAliasName(node, procedures);
-      const isKnownCallee =
-        isBinaryArithmeticOperator(name) ||
-        isUnaryMathBuiltin(name) ||
-        isBinaryMathBuiltin(name) ||
-        isComparisonOperator(name) ||
-        isLogicalOperator(name) ||
-        name === "not" ||
-        name === "thing" ||
-        name === "repcount" ||
-        name === "empty?" ||
-        name === "member?" ||
-        name === "is_a?" ||
-        name === "first" ||
-        name === "last" ||
-        name === "butfirst" ||
-        name === "butlast" ||
-        name === "fput" ||
-        name === "lput" ||
-        name === "sentence" ||
-        name === "word" ||
-        name === "count" ||
-        name === "reverse" ||
-        name === "pick" ||
-        name === "sort" ||
-        name === "list" ||
-        name === "dict" ||
-        name === "keys" ||
-        name === "values" ||
-        name === "type_of" ||
-        name === "xcor" ||
-        name === "ycor" ||
-        name === "heading" ||
-        name === "pos" ||
-        name === "towards" ||
-        name === "distance" ||
-        name === "random" ||
-        name === "pi" ||
-        name === "new_turtle" ||
-        name === "who" ||
-        name === "turtles" ||
-        name === "input" ||
-        procedures.has(name) ||
-        structs.has(name);
-      return (
-        isKnownCallee &&
-        node.args.every((arg) =>
-          isSupportedExpression(arg, procedures, structs),
-        )
-      );
-    }
-    case "Comprehension":
-      return (
-        isSupportedExpression(node.iterable, procedures, structs) &&
-        (node.form !== "reduce" ||
-          isSupportedExpression(node.initial, procedures, structs)) &&
-        isSupportedComprehensionBody(node.body, procedures, structs)
-      );
-    case "DictLit":
-      // Issue #322: a dict literal is supported exactly when every entry's value is.
-      return node.entries.every((entry) =>
-        isSupportedExpression(entry.value, procedures, structs),
-      );
-    case "ValueOfKey":
-      // Issue #322: `value of <dict> for key <key>` — both operands must be supported.
-      return (
-        isSupportedExpression(node.dictionary, procedures, structs) &&
-        isSupportedExpression(node.key, procedures, structs)
-      );
-  }
-}
-
-/**
- * {@link isSupportedExpression} bound to an {@link Environment}'s callable tables in one place.
- * The command executors in `execute-internal.ts` guard every operand with this predicate; routing
- * them through this one-argument wrapper keeps the hot `executeStatements` recursion frame narrow —
- * each call site loads only the `environment` it already holds, instead of re-materialising both
- * `environment.procedures` and `environment.structs` inline. That matters because
- * `executeStatements` recurses once per procedure call, and the deep-recursion budget test of the
- * day (see `execute-internal.ts`'s `executeTurtleMoveCall` canonical frame-width note for its
- * numbers, then and now) runs under `--experimental-test-coverage`, where V8 leaves the frame
- * unoptimised: every inline property temporary widens it, and enough of them push that test over
- * the native call-stack limit (see the frame-width notes on {@link executeShowCall} and its
- * siblings).
- */
-export function isSupportedArgument(
-  node: ExpressionNode,
-  environment: Environment,
-): boolean {
-  return isSupportedExpression(
-    node,
-    environment.procedures,
-    environment.structs,
-  );
-}
-
-/**
- * Is every postfix segment of `place` supported? A `.field` segment (a dict or record read, issue
- * #322) is always supported — its key is a parse-time literal, never evaluated. An `index` segment
- * (`:l[i]`/`:d[key]`) is supported when its key expression is. Vacuously `true` for a
- * zero-segment place (a bare `:name` grown into a place only in assignment-target position).
- */
-function isSupportedPlace(
-  place: PlaceNode,
-  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  return place.segments.every(
-    (segment) =>
-      segment.kind === "field" ||
-      isSupportedExpression(segment.key, procedures, structs),
-  );
-}
-
-/**
- * Is a {@link PostfixExpressionNode} (issue #407/F7 — a postfix read over an arbitrary primary,
- * e.g. `[1 2][1]`, `{tom: 8}.tom`, `(point 0 0).x`) in scope? Its `base` must itself be
- * supported, plus every postfix segment exactly as {@link isSupportedPlace} requires.
- */
-function isSupportedPostfixExpression(
-  node: PostfixExpressionNode,
-  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  return (
-    isSupportedExpression(node.base, procedures, structs) &&
-    node.segments.every(
-      (segment) =>
-        segment.kind === "field" ||
-        isSupportedExpression(segment.key, procedures, structs),
-    )
-  );
-}
-
-/**
- * Is an {@link IsPredicateNode} in scope? Its `operand` must always be supported; per
- * `test.form`, `member-of`'s `collection` and `between`'s `low`/`high` must be too — `empty`
- * takes no sub-expression, and `a`'s type word is a parse-time literal, never evaluated, so it
- * needs no check of its own (issue #99).
- */
-function isSupportedIsPredicate(
-  node: IsPredicateNode,
-  procedures: ProcedureRegistry = EMPTY_PROCEDURES,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  if (!isSupportedExpression(node.operand, procedures, structs)) {
-    return false;
-  }
-  switch (node.test.form) {
-    case "empty":
-    case "a":
-      return true;
-    case "member-of":
-      return isSupportedExpression(node.test.collection, procedures, structs);
-    case "between":
-      return (
-        isSupportedExpression(node.test.low, procedures, structs) &&
-        isSupportedExpression(node.test.high, procedures, structs)
-      );
-  }
 }
 
 /** Evaluate one Core expression node to a runtime {@link OLValue}. */
@@ -1759,7 +1591,7 @@ function evaluateThing(
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
  * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
- * `execute()` never runs `check()` (same convention as `ol-not-a-place`/`ol-undefined-var`).
+ * a caller driving `evaluate()` directly runs no checker (same convention as `ol-not-a-place`/`ol-undefined-var`).
  */
 function evaluateRepcount(
   node: ArithmeticCallNode,
@@ -1786,7 +1618,7 @@ export type AssignResult =
 /**
  * Execute one `Assign` statement (`:place = value`, `set place to value`): the runtime's own
  * `ol-not-a-place` guard for a reporter/command call used as a target (issue #113's checker
- * catches this too, at `stage: "semantic"`, but `execute()` never runs `check()`), then either
+ * catches this too, at `stage: "semantic"`, and since issue #815 a checked `execute()` reports THAT copy), then either
  * `assignVar` for a bare place or {@link writeIndexedPlace} for a postfix (`:l[i] = v`,
  * `:d.key = v`) one. An unsupported value expression, e.g. `:x = :ages.tom` where the read side
  * is not yet evaluable, is silently left un-executed: neither the place nor the value is
@@ -1811,16 +1643,6 @@ export function executeAssign(
     };
   }
   const place = node.place;
-  if (
-    !isSupportedPlace(place, environment.procedures, environment.structs) ||
-    !isSupportedExpression(
-      node.value,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
 
   const valueResult = evaluate(node.value, environment);
   if (!valueResult.ok) {
@@ -1932,20 +1754,6 @@ export function executeAdd(
   node: AddNode,
   environment: Environment,
 ): AssignResult {
-  if (
-    !isSupportedExpression(
-      node.value,
-      environment.procedures,
-      environment.structs,
-    ) ||
-    !isSupportedExpression(
-      node.target,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
   const valueResult = evaluate(node.value, environment);
   if (!valueResult.ok) {
     return { ok: false, diagnostic: valueResult.diagnostic };
@@ -1968,20 +1776,6 @@ export function executeRemove(
   node: RemoveNode,
   environment: Environment,
 ): AssignResult {
-  if (
-    !isSupportedExpression(
-      node.value,
-      environment.procedures,
-      environment.structs,
-    ) ||
-    !isSupportedExpression(
-      node.target,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
   const valueResult = evaluate(node.value, environment);
   if (!valueResult.ok) {
     return { ok: false, diagnostic: valueResult.diagnostic };
@@ -2011,25 +1805,6 @@ export function executeInsert(
   node: InsertNode,
   environment: Environment,
 ): AssignResult {
-  if (
-    !isSupportedExpression(
-      node.value,
-      environment.procedures,
-      environment.structs,
-    ) ||
-    !isSupportedExpression(
-      node.target,
-      environment.procedures,
-      environment.structs,
-    ) ||
-    !isSupportedExpression(
-      node.index,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
   const valueResult = evaluate(node.value, environment);
   if (!valueResult.ok) {
     return { ok: false, diagnostic: valueResult.diagnostic };
@@ -2114,15 +1889,6 @@ export function executeClear(
   node: ClearNode,
   environment: Environment,
 ): AssignResult {
-  if (
-    !isSupportedExpression(
-      node.target,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
   const target = evaluateCollectionTarget(node.target, environment);
   if (!target.ok) {
     return target;
@@ -2147,20 +1913,6 @@ export function executeRemoveKey(
   node: RemoveKeyNode,
   environment: Environment,
 ): AssignResult {
-  if (
-    !isSupportedExpression(
-      node.key,
-      environment.procedures,
-      environment.structs,
-    ) ||
-    !isSupportedExpression(
-      node.target,
-      environment.procedures,
-      environment.structs,
-    )
-  ) {
-    return { ok: true };
-  }
   const keyResult = evaluate(node.key, environment);
   if (!keyResult.ok) {
     return { ok: false, diagnostic: keyResult.diagnostic };
@@ -2206,7 +1958,7 @@ export function executeRemoveKey(
  * suite and Core behaviour is bit-for-bit unchanged.
  *
  * Because the resolved name is what every downstream `name === …` predicate sees — both
- * {@link evaluateCall}'s dispatch and {@link isSupportedExpression}'s known-callee guard — `bf
+ * {@link evaluateCall}'s dispatch — `bf
  * [1 2 3]` dispatches through the exact same `evaluateButfirst` path as `butfirst [1 2 3]` and is
  * recognised as a supported argument, so no alias spelling can ever reach a diagnostic or an event
  * payload.
@@ -2276,6 +2028,35 @@ function evaluateCall(
   environment: Environment,
 ): EvalResult {
   const name = resolveHeritageAliasName(node, environment.procedures);
+  // **Before dispatch, not after it.** This guard first sat with the terminal rule at the bottom of
+  // this function, which was wrong for every name that HAS an implemented branch above: `xcor`,
+  // `pos` and `distance` reached their evaluators and answered normally under a run claiming Core
+  // Language alone, so `print xcor` reported `ol-unknown-command` and still printed `0`. The
+  // statement-level counterpart (`inactiveProfileCallee`) was already placed before its dispatch
+  // chain; only the expression half was late, so the two halves disagreed about the same name
+  // depending on where it appeared. `spec/execution-model.md:680` — "One value MUST govern both the
+  // check and the run" — is not satisfied by a check that runs only where no evaluator exists.
+  // `isVisible` is `@openlogo/parser`'s own visibility answer, which already accounts for declared
+  // procedures and — when Data is active — `struct` constructor names, so no separate registry
+  // lookup is needed here. That also closes an asymmetry a reviewer flagged in the previous shape,
+  // which consulted `environment.procedures` but not `environment.structs`.
+  //
+  // `isBuiltInName` narrows this to names OpenLogo owns. A name that is neither a built-in nor
+  // visible is the learner's own — a typo or an undeclared procedure — and belongs to the terminal
+  // rule at the bottom of this function, which reports it with the same code.
+  if (
+    isBuiltInName(node.callee.name) &&
+    !environment.names.isVisible(node.callee.name)
+  ) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.unknownCommand(
+        node.callee.source_span,
+        node.callee.name,
+        environment.names.suggestionFor(node.callee.name),
+      ),
+    };
+  }
   if (isBinaryArithmeticOperator(name)) {
     return evaluateBinaryArithmetic(node, name, environment);
   }
@@ -2332,6 +2113,9 @@ function evaluateCall(
   }
   if (name === "word") {
     return evaluateWord(node, environment);
+  }
+  if (name === "uppercase" || name === "lowercase") {
+    return evaluateCaseTransform(node, environment, name);
   }
   if (name === "count") {
     return evaluateCount(node, environment);
@@ -2409,9 +2193,71 @@ function evaluateCall(
       environment,
     );
   }
-  throw new Error(
-    `evaluate: call to "${name}" is not implemented yet — it lands with its own evaluator slice`,
-  );
+  // The terminal rule (`spec/execution-model.md:717-720`, issue #815): "evaluating any statement or
+  // expression MUST end in exactly one of three outcomes — a value, a completed effect, or a
+  // diagnostic. Skipping the construct is not one of them, at any depth, in any argument position,
+  // and for any callable." This is the one place a callee can reach no evaluation, so it is where
+  // that rule is enforced.
+  //
+  // It used to `throw` a host `Error`, on the reasoning that the (now deleted) `isSupportedExpression` gates
+  // upstream made it unreachable. That reasoning is what the gates cost: every one of them turned
+  // an unevaluable construct into silence rather than a diagnostic, so the throw was unreachable
+  // precisely because the defect this slice fixes stood in front of it. The gates are gone, and
+  // this answers instead.
+  //
+  // The **code** turns on what OpenLogo knows about the name *under this run's claimed profile
+  // set*, and the three answers are genuinely different facts about three different faults
+  // (`spec/error-model.md:97,114,131`):
+  //
+  // - a registered **Command** reports no value, so asking one for a value is `ol-no-output` — the
+  //   runtime twin of `checker-command-in-value-position.ts`'s rule. Calling this
+  //   `ol-not-implemented` would be a lie in the learner's favour: `forward` IS implemented, it
+  //   simply has nothing to report.
+  // - a registered **reporter** with no evaluation behind it is `ol-not-implemented` — *the name is
+  //   known and this implementation cannot run it yet*, our gap and not the learner's.
+  // - anything else is the learner's typo, and stays `ol-unknown-command`.
+  //
+  // Each test is profile-aware, and that is load-bearing rather than tidy. `spec/error-model.md:131`
+  // makes the name resolving "under the run's active profile set" part of what `ol-not-implemented`
+  // MEANS, and adds that "a call under a profile the run does not claim is still
+  // `ol-unknown-command`, because there the name does not resolve". Judged profile-blind, a run
+  // claiming Core Language alone answered `ol-not-implemented` for `challenge` while the check
+  // answered `ol-unknown-command` for the same call — two contradictory claims about one name,
+  // which the de-duplication rule cannot collapse because they are different codes.
+  //
+  // A checked run reaches none of these: the gate refuses the program first.
+  // {@link ExecuteOptions.runUnchecked} is what makes them reachable, and there the check has
+  // already reported the same fault, so `runProgram` suppresses the second copy
+  // (`spec/execution-model.md:746-748`).
+  if (isActiveProfileCommandName(node.callee.name, environment.profiles)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.noOutputFromCommand(
+        // The **whole call**, matching `checker-command-in-value-position.ts`'s span rather than
+        // the callee word. `spec/error-model.md:114` puts this diagnostic at "the offending call
+        // site", and the two stages must agree byte-for-byte or the normative de-duplication rule
+        // (`spec/execution-model.md:741-748`) does not see them as one fault and delivers both.
+        node.source_span,
+        name,
+      ),
+    };
+  }
+  return {
+    ok: false,
+    diagnostic: environment.names.isVisible(node.callee.name)
+      ? runtimeDiag.notImplemented(node.callee.source_span, name)
+      : // Names what the learner WROTE. `name` has been through
+        // `resolveHeritageAliasName`, so for an alias under a run that does not claim Heritage it
+        // holds the Core name the alias spells — and telling a learner `forward` is unknown when
+        // they wrote `fd` describes a program they did not write. It also keeps this identical to
+        // the check's own report of the same fault, so the two collapse under the de-duplication
+        // rule instead of arriving as two.
+        runtimeDiag.unknownCommand(
+          node.callee.source_span,
+          node.callee.name,
+          environment.names.suggestionFor(node.callee.name),
+        ),
+  };
 }
 
 function evaluateBinaryArithmetic(
@@ -2656,7 +2502,7 @@ function evaluateNot(
  * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
  * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
  * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
- * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
+ * checking a single operand's type; a caller driving `evaluate()` directly runs no checker, so this is the sole guard there.
  */
 function evaluateLogical(
   node: ArithmeticCallNode,
@@ -3834,7 +3680,7 @@ function isWordOrList(value: OLValue): value is string | readonly OLValue[] {
  * primitive's under-supply (`max === min`); for these reporters the parenthesized form's true
  * ceiling is looser than the bare-call default arity (`sentence`) or the checker simply defers the
  * lower bound to the runtime, per its own documented convention ("the lower bound is left to the
- * runtime arity check (#97)"). Since `execute()` runs `parse()` only — never `check()` — the
+ * runtime arity check (#97)"). For a caller driving `evaluate()` directly, with no checker in front of it, the
  * runtime is the sole enforcement point for every one of these, not just the open-variadic ones.
  */
 function requireMinArgs(
@@ -3893,6 +3739,56 @@ function evaluateFirstOrLast(
   }
   const index = which === "first" ? 0 : value.length - 1;
   return ok(value[index] as OLValue);
+}
+
+/**
+ * `uppercase`/`lowercase` — a word with its letters case-mapped (`spec/commands.md:1156-1183`;
+ * "Unicode-aware casing", which is what JavaScript's own `toLocaleUpperCase`/`toLocaleLowerCase`
+ * perform). Both are Reporters taking exactly one **word**; anything else raises `ol-type`.
+ *
+ * Issue #815 is why these exist here rather than in a later slice: both were registered in the
+ * parser's Core arity table and reached no evaluator branch, so `print uppercase "logo"` — an
+ * example shipped in `spec/commands.md` itself — parsed clean, checked clean, ran, and printed
+ * nothing at all. The terminal rule turned that silence into `ol-not-implemented`, and
+ * `spec/error-model.md:131` is explicit about what that then means: "Emitting it for a primitive
+ * of a profile the implementation **claims** is a conformance failure of that profile", and Core
+ * Language is claimed. So the honest repair is the evaluation, not an expectation entry.
+ *
+ * The locale-aware variants are deliberate. `spec/commands.md` says "Unicode-aware", and the
+ * plain `toUpperCase`/`toLowerCase` are the ASCII-biased pair by reputation only — both are in
+ * fact fully Unicode — but the locale-aware ones additionally honour the host's locale for the
+ * handful of languages where the mapping differs (Turkish dotless ı being the standard example).
+ */
+function evaluateCaseTransform(
+  node: ArithmeticCallNode,
+  environment: Environment,
+  which: "uppercase" | "lowercase",
+): EvalResult {
+  const arityDiagnostic = requireExactArgs(node, which, 1);
+  if (arityDiagnostic) {
+    return fail(arityDiagnostic);
+  }
+  const inputNode = arg(node, 0);
+  const inputResult = evaluate(inputNode, environment);
+  if (!inputResult.ok) {
+    return inputResult;
+  }
+  const value = inputResult.value;
+  if (typeof value !== "string") {
+    return fail(
+      runtimeDiag.listReporterType(inputNode.source_span, {
+        expected: "word",
+        actual: typeNameOf(value),
+        value,
+        operation: which,
+      }),
+    );
+  }
+  return ok(
+    which === "uppercase"
+      ? value.toLocaleUpperCase()
+      : value.toLocaleLowerCase(),
+  );
 }
 
 function evaluateFirst(
@@ -4863,7 +4759,7 @@ function readInputAnswer(
  * arguments, reporting `[a, b]` inclusive) — so neither {@link requireMinArgs} alone (no upper
  * bound) nor {@link requireExactArgs} alone (only one valid count) fits; both bounds are guarded
  * directly here, the same way `checker-arity.ts`'s static arity rule cannot itself catch every gap
- * for a primitive with more than one valid arity (`execute()` never runs `check()`, so the runtime
+ * for a primitive with more than one valid arity (a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so the runtime
  * is the sole enforcement point regardless). Every bound is checked for whole-number TYPE before
  * either RANGE check, exactly matching the entry's documented order: "Inputs are checked in
  * order: a non-whole bound raises `ol-type`; then `n` below `1`, or `a` greater than `b`, raises
@@ -4955,44 +4851,75 @@ function evaluateRandom(
 // `execute-internal.ts`'s general statement dispatcher for a case with no current spec pressure —
 // a deliberate, narrower scope than a procedure body's. A body may have leading statements too
 // (an `Assign`, or an expression evaluated for effect and discarded, per the block-result rule);
-// any OTHER leading statement kind (`If`/`While`/`Repeat`/`For`/`Forever`) is left unevaluated,
-// mirroring {@link isSupportedExpression}'s own "defer to a future slice" convention, and in fact
-// never reached: {@link isSupportedComprehensionBody} keeps such a body from being "supported" in
-// the first place, so the whole comprehension is deferred rather than partially evaluated.
-
-/**
- * `ExpressionNode.kind`s a comprehension body statement may be while still counting as
- * "value-producing" for the block-result rule — the checker's `VALUE_PRODUCING_KINDS`
- * (issue #114) minus `PostfixExpression` and `IsPredicate`. A body ending in either is not
- * value-producing here, and {@link asExpressionStatement} returns `undefined` for it, so the
- * comprehension is left un-evaluated rather than partially run.
- */
-const VALUE_PRODUCING_STATEMENT_KINDS: ReadonlySet<string> = new Set([
-  "NumberLit",
-  "WordLit",
-  "BooleanLit",
-  "ListLit",
-  "VarRef",
-  "Place",
-  "ComparisonChain",
-  "Comprehension",
-]);
-
-/** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a statement
- * kind with no expression counterpart (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`). A
- * `Call`/`ParenCall` is always narrowed — whether it is value-producing (a reporter) or not (a
- * command) is a separate question {@link isValueProducingStatement} answers. */
+// any OTHER statement kind (`If`/`While`/`Repeat`/`For`/`Forever`/`define`, and the Data
+// collection mutators) has no evaluation here, and since issue #815 that is **reported**, not
+// skipped: `spec/execution-model.md:717-720` requires evaluation to end in a value, an effect, or a
+// diagnostic, "at any depth". Such a body raises `ol-not-implemented` naming the form it could not
+// run, so this evaluator's narrower scope is visible to the learner instead of silently discarding
+// the whole comprehension.
+/** Narrow `statement` to the `ExpressionNode` it also is, or `undefined` when it is a
+ * statement-only kind (`If`/`While`/`Repeat`/`For`/`Forever`/`ProcedureDef`/`Assign`/…).
+ *
+ * **Derived from the AST union, never listed.** This was a hand-written set that named eight
+ * expression kinds and omitted four the union has — so a leading `[10][1]` in a comprehension body
+ * halted with `ol-not-implemented{name:"[10][1]"}`, blaming a limitation on a form this evaluator
+ * runs perfectly well, and a `{a: 1}` or an `is` predicate in final position reported `ol-no-value`
+ * for a statement that plainly produces one. Both are the wrong diagnostic rather than a missing
+ * one, which is the failure mode a slice about honest diagnosis can least afford.
+ * {@link isExpressionKind} is exhaustiveness-checked against `ExpressionNode` itself, so a new kind
+ * cannot be added to the AST without this narrowing following it.
+ *
+ * Whether a `Call`/`ParenCall` narrowed here is *value-producing* (a reporter) or not (a command) is
+ * a separate question {@link isValueProducingStatement} answers. */
 function asExpressionStatement(
   statement: StatementNode,
 ): ExpressionNode | undefined {
-  if (
-    VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind) ||
-    statement.kind === "Call" ||
-    statement.kind === "ParenCall"
-  ) {
-    return statement as ExpressionNode;
-  }
-  return undefined;
+  return isExpressionKind(statement.kind)
+    ? (statement as ExpressionNode)
+    : undefined;
+}
+
+/**
+ * The surface head word of a statement this comprehension-body evaluator has no branch for, for
+ * `ol-not-implemented`'s `name` param — `if`, `repeat`, `add`, whatever the learner actually wrote.
+ *
+ * It is **read out of the source**, not looked up in a table of statement kinds. A table would be
+ * one more list to keep in step with the AST — the shape that produced this slice's defect in the
+ * first place — and it would print `forin` where the learner wrote `for`. Slicing the statement's
+ * own span and taking its first word is exact for every form and grows no arm when one is added.
+ *
+ * `Environment.source` is optional, because `createEnvironment()` is public API and a host can
+ * evaluate an AST it never had source text for. Without it the node kind is the only name left, so
+ * that is the fallback: a worse word, never a missing diagnostic.
+ *
+ * **Where that fallback strains the spec, recorded rather than hidden.** `spec/error-model.md:131`
+ * scopes `ol-not-implemented` to "a callable this specification defines, and this implementation
+ * registered", and prescribes the message `i know the word {name}, but i can't run it yet`. A node
+ * KIND is none of those, so the terminal rule's safety net — reached only by a statement form whose
+ * dispatch arm has not been written — would tell a learner OpenLogo knows a word it has never
+ * heard of. The net must still fire, because the alternative is the silent skip this slice exists
+ * to abolish, and no other `ol-*` code fits an undispatched statement. The gap is between the row's
+ * scope and this use, not in the choice to report.
+ *
+ * The result is **case-folded**, and that is a separate decision from reading it out of the source.
+ * OpenLogo names are case-insensitive — `FORWARD 100` is a clean program — so `IF` and `if` are one
+ * word, while `faultIdentity` keys on `params` and would make them two faults at one span. The
+ * sibling branch that reports a *command* has always folded; this one did not, so the two halves of
+ * one rule disagreed about the same question, and neither spelling was asserted. `spec/error-model.
+ * md:131` prescribes the message "i know the word {name}, but i can't run it yet" verbatim, and it
+ * should not shout the word back in whatever case the learner happened to use.
+ */
+export function statementHeadWord(
+  statement: StatementNode,
+  source: string | undefined,
+): string {
+  const lines = source === undefined ? [] : source.split("\n");
+  const line = lines[statement.source_span.start[0] - 1] ?? "";
+  const head = line
+    .slice(statement.source_span.start[1] - 1)
+    .trimStart()
+    .split(/\s/)[0];
+  return (head === "" ? statement.kind : (head as string)).toLowerCase();
 }
 
 /**
@@ -5000,102 +4927,27 @@ function asExpressionStatement(
  * classification the checker's `producesValue` uses (`checker-control-flow.ts`): a `Call`/
  * `ParenCall` produces a value unless its callee is a primitive the registry declares a **Command**
  * ({@link isPrimitiveCommandName} — `@openlogo/parser`'s profile-blind lookup over the
- * profile-keyed registry, issue #932); every other {@link VALUE_PRODUCING_STATEMENT_KINDS} kind
- * always does. `execute()` never runs `check()`, so this is what classifies a comprehension body's
- * final statement at runtime — reading the one registry both stages share rather than a second
- * copy of its names.
+ * profile-keyed registry, issue #932); every other expression kind always does. A caller driving
+ * `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of
+ * `execute()`), so this is what classifies a comprehension body's final statement at runtime —
+ * reading the one registry both stages share rather than a second copy of its names.
+ *
+ * The non-`Call` half is `isExpressionKind`, **not** an enumeration of the kinds that report. That
+ * is the direction that fails loudly: a value-producing kind wrongly omitted silently answered
+ * `ol-no-value` for a `{a: 1}` or a `[10][1]` that produces one, whereas a statement-only kind
+ * wrongly *admitted* here is caught at compile time by `ast.ts`'s `_NoExtraExpressionKinds`
+ * assertion, which is what makes `EXPRESSION_NODE_KINDS` exhaustive against the union.
+ *
+ * The guarantee is **not** {@link asExpressionStatement}'s narrowing, as an earlier version of this
+ * comment claimed: that uses an unchecked `statement as ExpressionNode` and compiles whatever it is
+ * given. Crediting the wrong mechanism is the class of comment this slice's review kept finding —
+ * prose that argues for a decision reads exactly like prose that reports a tested one.
  */
 function isValueProducingStatement(statement: StatementNode): boolean {
   if (statement.kind === "Call" || statement.kind === "ParenCall") {
     return !isPrimitiveCommandName(statement.callee.name);
   }
-  return VALUE_PRODUCING_STATEMENT_KINDS.has(statement.kind);
-}
-
-/**
- * Is `statement` a leading (non-final) comprehension body statement this evaluator can run?
- * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
- * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
- * supported (an unsupported assignment target/value is itself silently a no-op, per
- * {@link executeAssign}'s own convention); any expression-shaped statement is
- * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
- * `For`/`Forever`/`ProcedureDef`) is not.
- */
-function isSupportedLeadingBodyStatement(
-  statement: StatementNode,
-  procedures: ProcedureRegistry,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  if (
-    statement.kind === "Return" ||
-    statement.kind === "Stop" ||
-    statement.kind === "Assign"
-  ) {
-    return true;
-  }
-  const expression = asExpressionStatement(statement);
-  return (
-    expression !== undefined &&
-    isSupportedExpression(expression, procedures, structs)
-  );
-}
-
-/**
- * Is `statement` a final comprehension body statement this evaluator can run? `Return`/`Stop` are
- * structurally supported (as above). A **Command** call is also structurally supported even though
- * {@link evaluate} never gives it a value — {@link runComprehensionBody} correctly turns it into
- * `ol-no-value` (it is command-shaped, not a not-yet-implemented shape), reproducing the spec's own
- * worked example `map num in :nums [ print :num ]` → `ol-no-value`. Any other expression-shaped
- * statement is supported when {@link isSupportedExpression} says so.
- */
-function isSupportedFinalBodyStatement(
-  statement: StatementNode,
-  procedures: ProcedureRegistry,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  if (statement.kind === "Return" || statement.kind === "Stop") {
-    return true;
-  }
-  if (
-    (statement.kind === "Call" || statement.kind === "ParenCall") &&
-    isPrimitiveCommandName(statement.callee.name)
-  ) {
-    return statement.args.every((argument) =>
-      isSupportedExpression(argument, procedures, structs),
-    );
-  }
-  const expression = asExpressionStatement(statement);
-  return (
-    expression !== undefined &&
-    isSupportedExpression(expression, procedures, structs)
-  );
-}
-
-/**
- * Is every statement of a comprehension `body` one {@link runComprehensionBody} can actually run
- * — every leading statement per {@link isSupportedLeadingBodyStatement}, and the last (if any) per
- * {@link isSupportedFinalBodyStatement}? An empty body is vacuously supported: it always yields
- * `ol-no-value` once evaluated, never an internal invariant violation. Kept in exact lock-step
- * with {@link runComprehensionBody}'s own statement handling so `isSupportedExpression` never
- * reports a comprehension "supported" only for evaluation to then hit an unimplemented shape.
- */
-function isSupportedComprehensionBody(
-  body: BlockNode,
-  procedures: ProcedureRegistry,
-  structs: StructRegistry = EMPTY_STRUCTS,
-): boolean {
-  const statements = body.body;
-  if (statements.length === 0) {
-    return true;
-  }
-  const last = statements[statements.length - 1] as StatementNode;
-  return (
-    statements
-      .slice(0, -1)
-      .every((statement) =>
-        isSupportedLeadingBodyStatement(statement, procedures, structs),
-      ) && isSupportedFinalBodyStatement(last, procedures, structs)
-  );
+  return isExpressionKind(statement.kind);
 }
 
 /**
@@ -5120,10 +4972,9 @@ type ComprehensionBodyOutcome =
  * Run one comprehension body against the per-element/accumulator {@link Environment} its caller
  * already pushed a fresh frame onto ({@link pushLoopFrame}). Leading statements run for effect
  * only (their value, if any, is discarded); the final statement supplies the body's result, per
- * the block-result rule (`spec/execution-model.md:200-227`). The caller ({@link
- * evaluateComprehension}) only ever calls this once {@link isSupportedComprehensionBody} has
- * confirmed every statement is one of the shapes handled below, so there is no "unimplemented
- * shape" fallback here to keep in sync separately.
+ * the block-result rule (`spec/execution-model.md:200-227`). A statement kind this evaluator has no
+ * branch for halts with `ol-not-implemented` naming its head word (issue #815) rather than
+ * abandoning the comprehension silently.
  */
 function runComprehensionBody(
   body: BlockNode,
@@ -5176,7 +5027,35 @@ function runComprehensionBody(
       }
       continue;
     }
-    const expression = asExpressionStatement(statement) as ExpressionNode;
+    const expression = asExpressionStatement(statement);
+    if (expression === undefined) {
+      return {
+        kind: "halt",
+        diagnostic: runtimeDiag.notImplemented(
+          statement.source_span,
+          statementHeadWord(statement, environment.source),
+        ),
+      };
+    }
+    if (
+      (expression.kind === "Call" || expression.kind === "ParenCall") &&
+      isActiveProfileCommandName(expression.callee.name, environment.profiles)
+    ) {
+      // A LEADING body statement legitimately runs for effect — the block-result rule discards its
+      // value (`spec/execution-model.md:214-227`) — so a command is correct OpenLogo here, and
+      // `ol-no-output` (what evaluating it in value position would say) would blame the program for
+      // a limitation of this evaluator. This body runner is deliberately narrower than
+      // `executeStatements` and has no branch that can perform an effect, so the honest ending is
+      // `ol-not-implemented`: the name is known, and it is this implementation that cannot run it
+      // *here* yet.
+      return {
+        kind: "halt",
+        diagnostic: runtimeDiag.notImplemented(
+          expression.callee.source_span,
+          expression.callee.name.toLowerCase(),
+        ),
+      };
+    }
     const result = evaluate(expression, environment);
     if (!result.ok) {
       return { kind: "halt", diagnostic: result.diagnostic };

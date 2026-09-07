@@ -168,24 +168,31 @@ test("tell of a list containing a non-turtle raises ol-type on the offending ite
 });
 
 test("a tell argument that references an undefined variable surfaces that diagnostic (not a tell type error)", () => {
-  const result = execute("tell :missing", "main.logo");
+  const result = execute("tell :missing", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("a tell argument that is not yet evaluable (a call to an unregistered name) is left un-evaluated, changing nothing", () => {
-  // Mirrors the movement package's "unsupported forward argument" test: an argument that
-  // `isSupportedExpression` reports unsupported (here a call to an unregistered builtin) defers the
-  // whole statement — no addressing change, no diagnostic — exactly like every other command.
+  // Mirrors the movement package's unresolvable-argument test: under the spec's `runUnchecked`
+  // opt-out the run proceeds, the evaluator reaches the callee and raises, so the `tell` never
+  // makes addressing explicit and nothing after it runs.
   const result = execute(
     ":a = new_turtle\ntell (nonexistent_builtin 1)\nforward 50",
     "main.logo",
+    { runUnchecked: true },
   );
-  assert.deepEqual(result.diagnostics, []);
-  // The deferred `tell` never made addressing explicit, so the following `forward` runs on the
-  // still-default (unstamped) main turtle.
-  const move = result.events.find((event) => event.kind === "move");
-  assert.equal(move.turtle_id, undefined);
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  // The `tell` never completed, so the following `forward` never ran either.
+  assert.equal(
+    result.events.some((event) => event.kind === "move"),
+    false,
+  );
 });
 
 test("`each` is now run by SP4 (#676): at top level it runs its block once for the default turtle", () => {

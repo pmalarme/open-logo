@@ -1,0 +1,21 @@
+{
+  "description": "Issue #815, absorbing #716: a built-in **Command** used where a value is required is statically decidable, because a built-in's Kind is fixed by the C3 matrix — so it is reported at the semantic layer (`spec/tooling.md:193`) with the built-in's canonical spelling in `procedure`. Measured before this slice, `wait forward 5` ran, waited for nothing, and reported nothing, while the same fault in `wait p` (a user procedure) reported correctly — the inconsistency #716 recorded and asked NOT to be fixed one form at a time. The rule is positional, so `repeat forward 5 [ … ]`, `right forward 5`, `when`/`every`'s operands and `print forward 5` all report identically.",
+  "profiles": ["core-language", "turtle-rendering", "interaction-events"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-no-output",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/command-in-value-position-is-uniform",
+        "start": [1, 6],
+        "end": [1, 15]
+      },
+      "params": {
+        "procedure": "forward"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

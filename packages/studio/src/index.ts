@@ -63,8 +63,8 @@
  *   via `@openlogo/parser`'s `parse()` (Layer 1) whenever it changes, publishing the result
  *   through `state.setDiagnostics` so a bad line surfaces at its span without a Run. Semantic
  *   checking (`check()`, epic #108) is available via `semanticCheck: true` but defaults to
- *   `false` — see `diagnostics.ts`'s doc comment for why enabling it today would falsely flag
- *   ordinary turtle programs. Runtime-stage diagnostics (#126's run controller) flow into the
+ *   `false` — see `diagnostics.ts`'s doc comment for why: the Run path already reports these
+ *   findings, so enabling it would duplicate them rather than add anything. Runtime-stage diagnostics (#126's run controller) flow into the
  *   exact same `diagnostics` field, so this is the single surface for every stage.
  * - {@link toDiagnosticsView} is the pure projection from raw `Diagnostic[]` to a rendering
  *   model (`items`/`errorCount`/`warningCount`/`isEmpty`) — it keys off `code`/`severity`/

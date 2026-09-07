@@ -309,16 +309,19 @@ test("the documentation instruction budget is a fixed, deterministic ceiling", (
 test("analyzeBlock reports where execution stopped short of the block's end", () => {
   // The runtime halts at the first error, so line 2 is parsed and statically checked but never
   // run. That limit is surfaced, not hidden — see the module header.
-  const halted = analyzeBlock('forward :size\nset_shape "arrow"', "halted", {
+  // Issue #815: the fault has to be a RUNTIME one for the block to run at all — an unbound
+  // `:size` read is now decided by the check before execution, so a block using one never starts
+  // and there is no "stopped short" to report. `1 / 0` fails only when it is evaluated.
+  const halted = analyzeBlock('forward 1 / 0\nset_shape "arrow"', "halted", {
     startLine: 100,
   });
   assert.equal(halted.partialFrom, 101);
 
   // A block whose only error is on its last executable line ran to the end: not partial.
-  assert.equal(analyzeBlock("forward :size", "whole").partialFrom, null);
+  assert.equal(analyzeBlock("forward 1 / 0", "whole").partialFrom, null);
   // Trailing blank lines and comments are not executable, so they do not make a block partial.
   assert.equal(
-    analyzeBlock("forward :size\n\n# just a comment", "trailing").partialFrom,
+    analyzeBlock("forward 1 / 0\n\n# just a comment", "trailing").partialFrom,
     null,
   );
   // A clean block never halts at all.
@@ -337,10 +340,13 @@ test("analyzeBlock counts only a RUNTIME error as an execution halt", () => {
 
 test("analyzeBlock runs a block to completion when given a setup preamble", () => {
   const source = 'forward :size\nset_shape "bee"';
-  // Without context the runtime halts on line 1 and never sees the bad shape word.
+  // Without context the block does not run at all: since issue #815 an unbound `:size` read is a
+  // fault the check before execution decides, so the bad shape word on line 2 is still never
+  // observed — and `partialFrom` is `null` rather than 101, because nothing was interrupted
+  // part-way. The setup preamble is still what makes line 2 reachable, which is this test's point.
   const bare = analyzeBlock(source, "bare", { startLine: 100 });
   assert.deepEqual(bare.codes, ["ol-undefined-var"]);
-  assert.equal(bare.partialFrom, 101);
+  assert.equal(bare.partialFrom, null);
 
   // With it, the block executes to the end — and the real defect surfaces.
   const withSetup = analyzeBlock(source, "with-setup", {
@@ -1154,14 +1160,16 @@ test("a listed excerpt that stops the runtime early is announced as PARTIAL, not
   // The QA finding this exists for: `execute()` halts at the first error, so a runtime-only defect
   // BELOW that line is never observed. The block still passes — its declared codes match — but the
   // gate says out loud how far it actually got, so nobody reads green as "every line ran".
-  const source = 'forward :size\nset_shape "bee"';
+  // Issue #815: a block only gets to stop PART-WAY if it runs, so the halt has to be a runtime
+  // fault — an unbound `:size` is now refused before Phase 2 and would report no partial at all.
+  const source = 'forward 1 / 0\nset_shape "bee"';
   writeMarkdown("excerpt.md", logoBlock(source));
   const result = runOverTemp({
     [keyFor("excerpt.md")]: [
       expectationFor(source, {
         kind: "prose-fragment",
-        why: ":size is assigned in the surrounding prose",
-        codes: ["ol-undefined-var"],
+        why: "the divisor is deliberately zero, to halt the block part-way",
+        codes: ["ol-div-zero"],
       }),
     ],
   });

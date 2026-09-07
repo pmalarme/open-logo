@@ -1,5 +1,5 @@
 {
-  "description": "issue #685 (slice I6): `on_click` takes no argument (spec/interaction-events.md §Profile grammar: `on_click` takes none). A stray word where the block should be is not a block opener, so the reader reports a parse `ol-missing-end` pointed at the `on_click` head rather than silently accepting an argument. Because the parse fails, `execute()` bails before running anything, so no events are emitted and nothing is registered.",
+  "description": "issue #685 (slice I6): `on_click` takes no argument (spec/interaction-events.md §Profile grammar: `on_click` takes none). A stray word where the block should be is not a block opener, so the reader reports a parse `ol-missing-end` pointed at the `on_click` head rather than silently accepting an argument. Because the parse fails, `execute()` bails before running anything, so no events are emitted and nothing is registered — and since issue #815 the check that runs beside the parse reports over the reader's RECOVERY AST too, in which the stray word ends the statement and `[ print \"x\" ]` reads as a list literal whose one element is a Command in value position. That third finding is a cascade of the first, not a separate defect in the program; it is recorded rather than suppressed because the rule that would suppress it is the precedence rule, which is scoped to an unresolvable CALLEE (`spec/execution-model.md:768-777`), and `on_click` resolves.",
   "profiles": ["interaction-events"],
   "execute": true,
   "events": [],
@@ -29,6 +29,19 @@
         "text": "["
       },
       "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-no-output",
+      "source_span": {
+        "document": "interaction-events/on_click/on-click-stray-argument",
+        "start": [1, 20],
+        "end": [1, 29]
+      },
+      "params": {
+        "procedure": "print"
+      },
+      "stage": "semantic",
       "severity": "error"
     }
   ]

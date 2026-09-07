@@ -1,0 +1,21 @@
+{
+  "description": "Issue #815: the suppression above is bounded in BOTH directions (`spec/execution-model.md:768-777`). Here the callee resolves and its arity is known, so the extra argument is \"a genuine finding\" and still raises `ol-bad-token` — the no-regression wall that stops the precedence rule from swallowing a real fault.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-bad-token",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/resolvable-callee-keeps-its-bad-token",
+        "start": [1, 13],
+        "end": [1, 16]
+      },
+      "params": {
+        "text": "200"
+      },
+      "stage": "parse",
+      "severity": "error"
+    }
+  ]
+}

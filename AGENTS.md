@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run spec-citations # every spec/<file>.md:<line> citation RESOLVES to text — NOT that it supports the claim beside it (see below)
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 

@@ -167,6 +167,10 @@ test("a handler that RAISES still counts as handled (#975)", () => {
   const result = execute(`on_key "space" [ print :nope ]\nwait 1`, doc, {
     hostInput: { events: [{ tick: 1, kind: "key", key: "space" }] },
     handlerDeliveries,
+    // Issue #815: `:nope` is an unbound read the check now decides statically, so a checked run
+    // never reaches the handler. `runUnchecked` (`spec/execution-model.md:687-694`) keeps this the
+    // RUNTIME delivery-accounting test it was written to be.
+    runUnchecked: true,
   });
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   assert.deepEqual(printed(result), []);

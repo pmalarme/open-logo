@@ -1,7 +1,10 @@
 {
-  "description": "CHARACTERIZATION FIXTURE for saga #811 (issue #1087): this locks TODAY'S DEFECTIVE behaviour, not the correct behaviour, and must be FLIPPED now that the #814 `[spec]` ruling has merged and #815 implements it. The ruling makes today's behaviour an explicit violation rather than merely an unfortunate one: spec/error-model.md:131 says an implementation MUST NOT report `ol-unknown-command` for such a name, at ANY stage, \"including by withholding it from the visible vocabulary so that the call reads as unknown\" — verbatim the mechanism captured here. What the `ol-unknown-command` gives way to is `ol-not-implemented`, and note the modality carefully rather than reading a requirement into it: that code's stage MAY be `semantic` when the implementation knows before running that no evaluation exists — ours does, via `NAMES_AWAITING_AN_EVALUATOR` — and MUST be `runtime` otherwise. So a conformant #815 may report it at either stage, and this fixture must not be read as requiring the semantic one. The THIRD fault class — a name that IS registered but has no evaluator behind it. It is neither of the two shapes PR #1081 characterizes: shape A's name is not registered at all, and shape B's is registered *and* evaluable (its fault is positional). `challenge` is registered by `@openlogo/parser`'s Tutor primitive table, correctly kinded a Command, and `@openlogo/runtime` has no evaluator for it. This is the class the #814 ruling's new `ol-not-implemented` code exists for, and nothing in the corpus exercised it before this fixture. The `execute()` half. The statement's `instruction` marker is emitted and then nothing: no tutor output, no effect, and NO diagnostic — the same silent discard saga #811 is about, reached through a different cause. So both stages are wrong at once here, and wrong in different ways: `check()` says something false, `execute()` says nothing at all.",
+  "description": "REGRESSION WALL for saga #811, flipped by issue #815 from the characterization issue #1087 built against the broken build. The THIRD fault class — a name that IS registered but has no evaluator behind it. It is neither of the two shapes issue #816 characterizes: shape A's name is not registered at all, and shape B's is registered *and* evaluable (its fault is positional). `challenge` is registered by `@openlogo/parser`'s Tutor primitive table, correctly kinded a Command, and `@openlogo/runtime` has no evaluator for it. This is the class the #814 ruling's `ol-not-implemented` code exists for, and nothing in the corpus exercised it before these fixtures. The `execute()` half. It used to emit the statement's `instruction` marker and then nothing: no tutor output, no effect, and NO diagnostic — the same silent discard saga #811 is about, reached through a different cause. It now reports `ol-not-implemented`, whose sentence is the point of the code: *i know the word challenge, but i can't run it yet. that is my gap, not your mistake.* **Read the modality before reading this fixture as the contract.** `spec/error-model.md:131` makes `ol-not-implemented`'s stage a **MAY** at `semantic` — \"when the implementation knows before running that no evaluation exists\" — and a **MUST** at `runtime` otherwise. This implementation declines the MAY, and declining it is fully conformant: whether an evaluation exists is a fact about `@openlogo/runtime`, which `@openlogo/parser` — the package that owns the semantic stage — must not depend on. So an implementation reporting this at `semantic` is equally conformant, and a reader must not take the `runtime` recorded here for a requirement. `executeOptions.profiles` is load-bearing here rather than decorative, and is the field issue #815 added for exactly this: a run checks itself under the set it CLAIMS (`spec/execution-model.md:673-680`), and this implementation does not claim Tutor by default. Without naming the set, `challenge` would not resolve for this run at all and the correct answer would be `ol-unknown-command` — which `spec/error-model.md:131` explicitly still allows for \"a call under a profile the run does not claim\". The one `instruction` event is the statement being entered before the terminal rule halts it, so the trace shows where the program stopped.",
   "profiles": ["core-language", "educational", "tutor-ai"],
   "execute": true,
+  "executeOptions": {
+    "profiles": ["core-language", "educational", "tutor-ai"]
+  },
   "events": [
     {
       "seq": 0,
@@ -16,5 +19,19 @@
       }
     }
   ],
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "code": "ol-not-implemented",
+      "source_span": {
+        "document": "tutor-ai/registered-but-unevaluable/challenge-execute",
+        "start": [1, 1],
+        "end": [1, 10]
+      },
+      "params": {
+        "name": "challenge"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
 }

@@ -230,7 +230,18 @@ test("play validates elements left to right: the earliest error wins", () => {
 });
 
 test("play with no argument raises ol-not-enough-inputs", () => {
-  const result = execute("play", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("play", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -241,7 +252,20 @@ test("play with no argument raises ol-not-enough-inputs", () => {
 });
 
 test("parenthesized play with two arguments raises ol-too-many-inputs", () => {
-  const result = execute('(play ["c4" 1] ["e4" 1])', "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute('(play ["c4" 1] ["e4" 1])', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -259,7 +283,17 @@ test("play propagates a runtime error from evaluating the melody expression", ()
 });
 
 test("play leaves an unsupported argument expression un-evaluated (no event, no error)", () => {
-  const result = execute("play forward", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+  const result = execute("play forward", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
+  // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
+  // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
+  // `runUnchecked` opt-out the program runs anyway and the evaluator reaches the same call, which
+  // it judges in VALUE position and reports identically — so the two collapse to one.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-enough-inputs", "ol-no-output"],
+  );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });

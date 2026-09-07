@@ -267,13 +267,15 @@ test("ask inside a repeat restores its scope on every iteration", () => {
 });
 
 test("an ask argument that references an undefined variable surfaces that diagnostic (not an ask type error)", () => {
-  const result = execute("ask :missing [ forward 10 ]", "main.logo");
+  const result = execute("ask :missing [ forward 10 ]", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("an ask argument that is not yet evaluable (a call to an unregistered name) is left un-evaluated, changing nothing", () => {
-  // Mirrors `tell`'s deferral test: an argument `isSupportedArgument` reports unsupported (a call to
+  // Mirrors `tell`'s test: an unresolvable argument callee (a call to
   // an unregistered builtin) defers the whole `ask` — no addressing change, no block run, no
   // diagnostic — exactly like every other command. The block never runs, so no move is emitted, and
   // the following `forward 50` runs on the still-default (unstamped) main turtle.
@@ -281,7 +283,14 @@ test("an ask argument that is not yet evaluable (a call to an unregistered name)
     ":a = new_turtle\nask (nonexistent_builtin 1) [ forward 10 ]\nforward 50",
     "main.logo",
   );
-  assert.deepEqual(result.diagnostics, []);
-  const moveList = moves(result.events);
-  assert.deepEqual(moveList, [[null, [0, 50]]]);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  assert.deepEqual(moves(result.events), []);
 });

@@ -122,7 +122,9 @@ for (const { site, source } of emissionSites) {
 test("case-insensitive resolution control: a bound name read in another case is not undefined", () => {
   // `:fd = 5` then `print :FD` resolves cleanly: the whole program is diagnostic-free, so there is
   // certainly no `ol-undefined-var`. Asserting the empty array is a stronger claim than filtering.
-  const resolved = execute(":fd = 5\nprint :FD", "control.logo").diagnostics;
+  const resolved = execute(":fd = 5\nprint :FD", "control.logo", {
+    runUnchecked: true,
+  }).diagnostics;
   assert.deepEqual(resolved, []);
 
   // The non-zero arm on the SAME program shape proves the clean result above is genuine resolution,

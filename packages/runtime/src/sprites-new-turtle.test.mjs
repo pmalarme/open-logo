@@ -55,13 +55,17 @@ test("the first spawned turtle gets id 1 (one past the reserved main turtle) and
   assert.deepEqual(spawnIds, [1, 2, 3]);
 });
 
-test("a bare new_turtle statement spawns nothing — only using its value has the effect", () => {
+test("a bare new_turtle statement is evaluated for effect, and does spawn", () => {
+  // Issue #815 changed this. A bare expression statement runs for effect and its value is
+  // discarded (`spec/execution-model.md:214-227`'s block-result rule) — but no statement executor
+  // claimed a reporter call, so it used to fall off the end of the dispatcher and do *nothing*,
+  // the silent no-op this saga exists to remove. The terminal rule now evaluates it, which for a
+  // reporter that spawns means the spawn happens.
   const result = execute("new_turtle", "main.logo");
   assert.deepEqual(result.diagnostics, []);
-  // Just the statement's own `instruction` event; no spawn-turtle.
-  assert.equal(
-    result.events.some((event) => event.kind === "spawn-turtle"),
-    false,
+  assert.deepEqual(
+    result.events.map((event) => event.kind),
+    ["instruction", "spawn-turtle"],
   );
 });
 
@@ -135,6 +139,17 @@ test("is_a? reports true for a turtle obtained from new_turtle (C3 deferral: pos
 });
 
 test("each sprites reporter with an argument is an arity diagnostic, not a crash (covers every arity guard)", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   // Parenthesized calls so the extra argument reaches the runtime's arity check rather than being
   // rejected earlier; exercises the `requireExactArgs` guard in all of new_turtle/who/turtles.
   for (const source of [
@@ -142,7 +157,7 @@ test("each sprites reporter with an argument is an arity diagnostic, not a crash
     ":x = (who 1)",
     ":x = (turtles 1)",
   ]) {
-    const result = execute(source, "main.logo");
+    const result = execute(source, "main.logo", { runUnchecked: true });
     assert.equal(result.diagnostics.length >= 1, true, source);
     assert.equal(result.diagnostics[0].code, "ol-too-many-inputs", source);
   }

@@ -1,0 +1,66 @@
+{
+  "description": "Issue #815: the check before execution decides by SEVERITY, never by the presence of diagnostics (`spec/execution-model.md:666-671`). `FORWARD 100` is a CORRECT program whose only finding is the Layer-3 warning `ol-style-name-case`, and `spec/execution-model.md:682-685` is categorical that a warning never stops a run: \"A style opinion is not a reason to withhold a learner's drawing.\" So the turtle moves and draws, and the warning is delivered beside the events. A presence test — the shape that sat three lines above where the gate went in — would refuse this program instead.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "executeOptions": {
+    "styleChecks": true
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/check-before-execution/style-warning-still-runs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/check-before-execution/style-warning-still-runs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/check-before-execution/style-warning-still-runs",
+        "start": [1, 1],
+        "end": [1, 12]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 100],
+        "color": "black",
+        "width": 1
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-style-name-case",
+      "source_span": {
+        "document": "core-language/check-before-execution/style-warning-still-runs",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "params": {
+        "name": "FORWARD"
+      },
+      "stage": "semantic",
+      "severity": "warning"
+    }
+  ]
+}

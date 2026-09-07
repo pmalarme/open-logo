@@ -144,13 +144,21 @@ test("execute evaluates a parenthesized `(print value)` call the same as the pla
   });
 });
 
-test("execute leaves an unsupported print argument un-evaluated, emitting no print event", () => {
+test("execute reports the unresolvable unsupported print argument instead of skipping the call", () => {
   // A call to a name unknown to both the builtin whitelist and the procedure registry stays
   // unsupported (issue #322 made `.field` and dict literals themselves fully supported).
-  const result = execute("print (nonexistent_builtin 1)", "main.logo");
-  assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
+  const result = execute("print (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("execute evaluates the variadic `(print a b …)` form, carrying every value in order", () => {
@@ -168,15 +176,21 @@ test("execute carries a boolean and a list value on a print event", () => {
   assert.deepEqual(result.events[3].payload, { values: [[1, [2, 3]]] });
 });
 
-test("execute leaves a variadic print un-evaluated when any one operand is unsupported", () => {
+test("execute reports the unresolvable variadic print instead of skipping the call", () => {
   // Every operand must be an expression kind this issue's evaluator supports — a call to an
   // unknown name is not, so the whole `(print 1 (nonexistent_builtin 1))` statement stays
   // un-evaluated (only its `instruction` event fires), even though its first operand (`1`) would
   // evaluate cleanly on its own.
   const result = execute("(print 1 (nonexistent_builtin 1))", "main.logo");
-  assert.equal(result.diagnostics.length, 0);
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].kind, "instruction");
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
 });
 
 test("execute stops mid-variadic-print when a later operand fails to evaluate", () => {
@@ -190,10 +204,18 @@ test("execute stops mid-variadic-print when a later operand fails to evaluate", 
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () => {
-  // The static checker's arity rule (`ol-not-enough-inputs`) never runs inside `execute()` —
-  // it only calls `parse()` — so this is the sole runtime guard against silently treating a
-  // callee-only `print` as a no-op.
-  const result = execute("print", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec's own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic carries the checker's stage and prose.
+  //
+  // Reachable is not asserted: the surviving report is the CHECK's, so deleting the runtime guard
+  // leaves a diagnostic assertion green. The guard's own contribution is that the run STOPS, which
+  // is why the event-count assertion below is the load-bearing half — and why
+  // `runtime-guards-halt.test.mjs` pins that property across the guards systematically.
+  const result = execute("print", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -205,16 +227,21 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `print`", () 
       end: [1, 6],
     },
     params: { callable: "print", expected: 1, actual: 0 },
-    message: "print needs one input, but got 0.",
-    stage: "runtime",
+    message: "print needs one input.",
+    stage: "semantic",
     severity: "error",
   });
 });
 
 test("execute raises ol-not-enough-inputs for a parenthesized zero-argument `(print)`", () => {
-  // The checker's static arity rule cannot flag this either: `print`'s parenthesized ceiling is
-  // `Infinity` (an open variadic), so its lower bound is deliberately left to the runtime.
-  const result = execute("(print)", "main.logo");
+  // The checker's static arity rule cannot flag this one: `print`'s parenthesized ceiling is
+  // `Infinity` (an open variadic), so its lower bound is deliberately left to the runtime. It is
+  // therefore the case where the check before execution finds nothing, the program runs, and the
+  // runtime guard is the only thing standing between a learner and a silent no-op — reported at
+  // `stage: "runtime"`, unlike its bare sibling above.
+  const result = execute("(print)", "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -245,7 +272,18 @@ test("execute emits an instruction event, then a print event, per `show` stateme
 });
 
 test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () => {
-  const result = execute("show", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("show", "main.logo", { runUnchecked: true });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
   assert.equal(result.diagnostics.length, 1);
@@ -258,11 +296,22 @@ test("execute raises ol-not-enough-inputs for a bare zero-argument `show`", () =
 });
 
 test("execute raises ol-too-many-inputs for `show` given more than one argument", () => {
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
   // `show`'s bare form always groups exactly one argument (its fixed arity), so the only way to
   // reach the runtime with more than one is the parenthesized form — which `parse()` accepts
   // structurally as-is, deferring arity enforcement to `check()` (semantic stage) or, since a bare
-  // `execute()` call never runs `check()`, to this very guard in `executeShowCall`.
-  const result = execute('(show "a" "b")', "main.logo");
+  // caller driving `evaluate()` directly runs no checker, to this very guard in `executeShowCall`.
+  const result = execute('(show "a" "b")', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -272,14 +321,20 @@ test("execute raises ol-too-many-inputs for `show` given more than one argument"
   });
 });
 
-test("execute leaves an unsupported `show` argument un-evaluated, emitting no print event", () => {
+test("execute reports the unresolvable unsupported `show` argument instead of skipping the call", () => {
   // A call to a name unknown to both the builtin whitelist and the procedure registry is not
   // a supported expression — the same deferral `print` uses.
-  const result = execute("show (nonexistent_builtin 1)", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+  const result = execute("show (nonexistent_builtin 1)", "main.logo", {
+    runUnchecked: true,
+  });
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
   assert.deepEqual(
-    result.events.map((event) => event.kind),
-    ["instruction"],
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
   );
 });
 
@@ -309,14 +364,23 @@ test("execute dispatches an `Assign` statement, making its binding visible to a 
 });
 
 test("execute halts on an Assign failure, keeping only the events emitted so far", () => {
-  // `first :nums = 1` assigns to a reporter call, not a place — `ol-not-a-place` — so execution
-  // stops there: the failing statement's own `instruction` event is kept, but the `print`
-  // statement after it never runs.
-  const result = execute('first :nums = 1\nprint "unreached"', "main.logo");
+  // `first :nums = 1` assigns to a reporter call, not a place — `ol-not-a-place` — which since
+  // issue #815 the check before execution decides statically, so the program is refused outright
+  // and `print "unreached"` never runs. `runUnchecked` is the spec's opt-out
+  // (`spec/execution-model.md:687-694`), and keeps this the test of the RUNTIME halt it was
+  // written to be: the failing statement's own `instruction` event is kept, the one after it is
+  // not, and the two identical reports collapse to one (`spec/execution-model.md:746-748`).
+  const result = execute('first :nums = 1\nprint "unreached"', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].kind, "instruction");
-  assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-not-a-place");
+  // Two genuine, distinct faults: the target is not a place, and `:nums` is unbound. Both are the
+  // check's; the runtime's own `ol-not-a-place` collapsed into the first.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-a-place", "ol-undefined-var"],
+  );
   assert.deepEqual(result.diagnostics[0].params, { text: "first :nums" });
 });
 

@@ -1,6 +1,6 @@
 // Unit tests for the expression evaluator — Core literals and arithmetic (`+ - * / mod` plus
 // `abs sqrt int round power`) per spec/execution-model.md and spec/commands.md (issue #93).
-// `isSupportedExpression`'s gate is extended for `:name` reads and index-only places by issue
+// The since-deleted `isSupportedExpression` gate was extended for `:name` reads and index-only places by issue
 // #94; see variables-places.test.mjs for the dedicated variable/place/assignment test suite.
 // Most cases parse real source through @openlogo/parser and evaluate the resulting AST node,
 // exercising evaluate() exactly as @openlogo/runtime's execute() does. A handful of cases hand-
@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { makeSpan, OLDict, OLRecord } from "@openlogo/core";
 import * as Parser from "@openlogo/parser";
-import { evaluate, execute, isSupportedExpression } from "@openlogo/runtime";
+import { createEnvironment, evaluate, execute } from "@openlogo/runtime";
 
 const doc = "acceptance.logo";
 
@@ -194,7 +194,7 @@ test("raises ol-type when power's base or exponent is not a number", () => {
 // `sin`/`cos`/`tan`/`pi` (issue #323, `spec/commands.md`'s "Math" section): the Core Math
 // reporters this issue adds. Before this issue, `sin`/`cos`/`tan`/`pi` were already registered in
 // the parser's fixed-arity table and so parsed with zero diagnostics, but reached no evaluator
-// branch and no `isSupportedExpression` entry, so `print sin 90` silently emitted no `print`
+// branch and no entry in the since-deleted `isSupportedExpression` gate, so `print sin 90` silently emitted no `print`
 // event and no diagnostic at all — an uncontrolled silent failure this issue fixes.
 
 test("sin/cos report the sine/cosine of an angle in degrees", () => {
@@ -268,69 +268,70 @@ test("raises ol-type when sin/cos/tan's operand is not a number", () => {
 
 const span = makeSpan(doc, [1, 1], [1, 1]);
 
-test("isSupportedExpression accepts every literal, arithmetic, and place-read shape this issue implements", () => {
-  assert.equal(isSupportedExpression(parseExpr("42")), true);
-  assert.equal(isSupportedExpression(parseExpr('"red"')), true);
-  assert.equal(isSupportedExpression(parseExpr("true")), true);
-  assert.equal(isSupportedExpression(parseExpr("[1 2 3]")), true);
-  assert.equal(isSupportedExpression(parseExpr("2 + 3 * 4")), true);
-  assert.equal(isSupportedExpression(parseExpr("sqrt (power 2 3)")), true);
-  assert.equal(isSupportedExpression(parseExpr("sin 90")), true);
-  assert.equal(isSupportedExpression(parseExpr("cos 0")), true);
-  assert.equal(isSupportedExpression(parseExpr("tan 45")), true);
-  assert.equal(isSupportedExpression(parseExpr("pi")), true);
-  assert.equal(isSupportedExpression(parseExpr(":x")), true);
-  assert.equal(isSupportedExpression(parseExpr('thing "x"')), true);
-  assert.equal(isSupportedExpression(parseExpr(":nums[1]")), true);
-  assert.equal(isSupportedExpression(parseExpr(":nums[:i]")), true);
+test("every literal, arithmetic, and place-read shape this evaluator implements reports a value", () => {
+  const env = createEnvironment();
+  env.frames[0].set("x", 3);
+  env.frames[0].set("nums", [10, 20]);
+  env.frames[0].set("i", 1);
+  for (const source of [
+    "42",
+    '"red"',
+    "true",
+    "[1 2 3]",
+    "2 + 3 * 4",
+    "sqrt (power 2 3)",
+    "sin 90",
+    "cos 0",
+    "tan 45",
+    "pi",
+    ":x",
+    'thing "x"',
+    ":nums[1]",
+    ":nums[:i]",
+    "{ tom: 8 }.tom",
+    "{ a: 1 }",
+  ]) {
+    assert.equal(evaluate(parseExpr(source), env).ok, true, source);
+  }
 });
 
-test("isSupportedExpression rejects expression kinds and callees this issue does not implement", () => {
-  // A `.field` place segment's key is a parse-time literal, never evaluated, so it is always
-  // supported regardless of what the base variable holds at runtime (issue #322); a call to a
-  // name unknown to both the builtin whitelist and the procedure registry remains unsupported.
+test("an unresolvable callee raises ol-unknown-command at every depth it can nest", () => {
+  // Issue #815 replaced `isSupportedExpression`, whose "unsupported" answer made the enclosing
+  // statement a silent no-op, with the terminal rule: evaluation "MUST end in exactly one of three
+  // outcomes — a value, a completed effect, or a diagnostic … at any depth, in any argument
+  // position, and for any callable" (`spec/execution-model.md:717-720`). Every nesting the old
+  // predicate enumerated as `false` now has to produce the diagnostic instead.
   const unknownCall = "(nonexistent_builtin 1)";
-  assert.equal(isSupportedExpression(parseExpr(":ages.tom")), true);
-  assert.equal(isSupportedExpression(parseExpr(unknownCall)), false);
-  assert.equal(isSupportedExpression(parseExpr("(forward 100)")), false);
-  // A list containing an unsupported element is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr(`[1 ${unknownCall}]`)), false);
-  // An arithmetic call with an unsupported operand is itself unsupported.
-  assert.equal(isSupportedExpression(parseExpr(`1 + ${unknownCall}`)), false);
-  // An is-predicate whose operand is itself unsupported is unsupported (issue #99).
-  assert.equal(
-    isSupportedExpression(parseExpr(`(${unknownCall} is empty)`)),
-    false,
-  );
-  // An is-predicate whose form-specific sub-expression is unsupported is unsupported too.
-  assert.equal(
-    isSupportedExpression(parseExpr(`(2 is member of ${unknownCall})`)),
-    false,
-  );
-  assert.equal(
-    isSupportedExpression(parseExpr(`(5 is between ${unknownCall} and 5)`)),
-    false,
-  );
-  assert.equal(
-    isSupportedExpression(parseExpr(`(5 is between 1 and ${unknownCall})`)),
-    false,
-  );
-  // A dict literal is fully runtime-supported once every entry's value is (issue #322).
-  assert.equal(isSupportedExpression(parseExpr("{ a: 1 }")), true);
-  assert.equal(
-    isSupportedExpression(parseExpr(`{ a: ${unknownCall} }`)),
-    false,
-  );
+  for (const source of [
+    unknownCall,
+    `[1 ${unknownCall}]`,
+    `1 + ${unknownCall}`,
+    `(${unknownCall} is empty)`,
+    `(2 is member of ${unknownCall})`,
+    `(5 is between ${unknownCall} and 5)`,
+    `(5 is between 1 and ${unknownCall})`,
+    `{ a: ${unknownCall} }`,
+  ]) {
+    const result = evaluate(parseExpr(source));
+    assert.equal(result.ok, false, source);
+    assert.equal(result.diagnostic.code, "ol-unknown-command", source);
+    assert.deepEqual(result.diagnostic.params, {
+      name: "nonexistent_builtin",
+    });
+  }
 });
 
-test("throws for a call to a callee this issue does not implement yet", () => {
-  const call = {
-    kind: "Call",
-    source_span: span,
-    callee: { name: "forward", source_span: span },
-    args: [{ kind: "NumberLit", source_span: span, value: 100 }],
-  };
-  assert.throws(() => evaluate(call), /forward.*not implemented/);
+test("a registered Command asked for a value reports ol-no-output, never ol-not-implemented", () => {
+  // The runtime twin of `checker-command-in-value-position.ts`'s rule (`spec/tooling.md:193`).
+  // `forward` is a statement command with no expression-position evaluation, and the tempting
+  // answer — `ol-not-implemented` — would be a lie in the learner's favour: `forward` IS
+  // implemented, it simply reports no value. The code that says so is `ol-no-output`, and it is
+  // reached only when the check has been bypassed, since a checked run refuses the program first.
+  const result = evaluate(parseExpr("(forward 100)"));
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-no-output");
+  assert.deepEqual(result.diagnostic.params, { procedure: "forward" });
+  assert.equal(result.diagnostic.stage, "runtime");
 });
 
 test("throws when a call is missing an argument the operator requires", () => {

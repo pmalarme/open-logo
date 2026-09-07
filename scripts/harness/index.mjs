@@ -13,7 +13,7 @@ import {
   OLDict,
   OLRecord,
 } from "@openlogo/core";
-import { check, parse } from "@openlogo/parser";
+import { check, OL_CHECK_PROFILES, parse } from "@openlogo/parser";
 import { execute } from "@openlogo/runtime";
 import { detectUsedProfiles } from "../profile-detection.mjs";
 
@@ -536,6 +536,9 @@ export function validateExecuteOptions(executeOptions) {
     "learnerLevel",
     "hostInput",
     "randomSeed",
+    "profiles",
+    "styleChecks",
+    "runUnchecked",
   ]);
   for (const key of Object.keys(executeOptions)) {
     if (!KNOWN_EXECUTE_OPTION_KEYS.has(key)) {
@@ -549,6 +552,9 @@ export function validateExecuteOptions(executeOptions) {
     learnerLevel,
     hostInput,
     randomSeed,
+    profiles,
+    styleChecks,
+    runUnchecked,
   } = executeOptions;
   if (
     instructionBudget !== undefined &&
@@ -608,6 +614,40 @@ export function validateExecuteOptions(executeOptions) {
   if (randomSeed !== undefined && typeof randomSeed !== "number") {
     return `"executeOptions.randomSeed" must be a number`;
   }
+  // The three keys issue #815 added, all of them properties of the RUN rather than of the program
+  // (`spec/execution-model.md:632-694`):
+  //
+  // - "profiles" is the conformance profile set the run claims, and therefore the set its own check
+  //   uses — the spec requires one value to govern both. A fixture names it to express an answer
+  //   that DEPENDS on the claim, which is the only way to write `challenge` under Tutor or
+  //   `fowad 100`'s profile-dependent did-you-mean as a file.
+  // - "styleChecks" opts the run into the Layer-3 lints. It is what makes the severity test
+  //   observable: a program whose only finding is `ol-style-*` must still RUN.
+  // - "runUnchecked" is the spec's opt-out, and a fixture using it is asserting the runtime's own
+  //   copy of a rule the check also decides.
+  //
+  // Each is validated as strictly as the keys above, for the same reason: a misspelled or
+  // mistyped one must be rejected here rather than silently dropped, leaving a file that looks
+  // like proof of a profile-dependent answer while actually running under the default set.
+  if (profiles !== undefined) {
+    if (!Array.isArray(profiles)) {
+      return `"executeOptions.profiles" must be an array of profile identifiers`;
+    }
+    for (const [index, profile] of profiles.entries()) {
+      if (typeof profile !== "string") {
+        return `"executeOptions.profiles[${index}]" must be a string`;
+      }
+      if (!OL_CHECK_PROFILES.includes(profile)) {
+        return `"executeOptions.profiles[${index}]" is not a known profile identifier (known: ${OL_CHECK_PROFILES.join(", ")})`;
+      }
+    }
+  }
+  if (styleChecks !== undefined && typeof styleChecks !== "boolean") {
+    return `"executeOptions.styleChecks" must be a boolean`;
+  }
+  if (runUnchecked !== undefined && typeof runUnchecked !== "boolean") {
+    return `"executeOptions.runUnchecked" must be a boolean`;
+  }
   return null;
 }
 
@@ -616,10 +656,12 @@ export function validateExecuteOptions(executeOptions) {
  *
  * A fixture's `profiles` array used to *select* the fixture — {@link runHarness} intersects it with
  * the `--profile` closure to decide whether to run it — without ever *gating* it. For an
- * `"execute": true` fixture the array never reached `execute()` at all (`@openlogo/runtime` is
- * profile-blind by design, `spec/tooling.md:175-177` puts profile visibility in the Layer-2
- * checker), so a fixture whose source used Sprites forms passed with `"sprites"` deleted from its
- * array. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
+ * `"execute": true` fixture the array never reached `execute()` at all, so a fixture whose source
+ * used Sprites forms passed with `"sprites"` deleted from its array. It still does not: issue #815
+ * gave a RUN a profile set of its own (`ExecuteOptions.profiles`, defaulting to the profiles this
+ * implementation claims), and a fixture names that one through `executeOptions.profiles` — a
+ * different field from this one, because this one selects which DAG subsets the fixture RUNS IN
+ * rather than which profiles the run claims. The declaration was documentation, not enforcement — while `spec/conformance.md` makes
  * "this program requires exactly these profiles" a normative, independently-claimable property.
  *
  * This closes that hole statically, with `scripts/profile-detection.mjs`'s `detectUsedProfiles` —

@@ -51,11 +51,18 @@ import type {
   VisibilityChangePayload,
   WidthChangePayload,
 } from "@openlogo/core";
-import { OLTurtle, makeSpan, typeNameOf } from "@openlogo/core";
+import {
+  OLTurtle,
+  SUPPORTED_PROFILES,
+  dedupeDiagnostics,
+  makeSpan,
+  typeNameOf,
+} from "@openlogo/core";
 import { OL_TURTLE_SPECIFIC_EVENT_KINDS } from "@openlogo/core";
 import type {
   BlockNode,
   CallNode,
+  CheckProfile,
   ExpressionNode,
   ParenCallNode,
   ProcedureDefNode,
@@ -64,7 +71,13 @@ import type {
   StatementNode,
   StructDefNode,
 } from "@openlogo/parser";
-import { isBuiltInName, parse, walk } from "@openlogo/parser";
+import {
+  analyze,
+  isBuiltInName,
+  createNameResolver,
+  isPrimitiveCommandName,
+  walk,
+} from "@openlogo/parser";
 import { normalizeColor } from "./color.js";
 import { isRecognizedShape, normalizeShape } from "./shape.js";
 import { isValidPitch } from "./pitch.js";
@@ -76,6 +89,7 @@ import {
   createTurtleAddressing,
   currentTurtleState,
   evaluate,
+  statementHeadWord,
   executeAdd,
   executeAssign,
   executeClear,
@@ -83,7 +97,6 @@ import {
   executeRemove,
   executeRemoveKey,
   findDuplicateBinderName,
-  isSupportedArgument,
   printedForm,
   pushLoopFrame,
   snapshotValue,
@@ -151,12 +164,19 @@ import { emitAddressingPrimitive, snapshotAddressing } from "./addressing.js";
  * `Call` form (`print 1`) and the explicit-parentheses `ParenCall` form (`(print 1 2)`) — both
  * share the same callee/args shape (see `evaluate.ts`'s `ArithmeticCallNode`). Matches
  * regardless of argument count: a zero-argument `print`/`(print)` is handled separately in
- * {@link executeStatements}, since `execute()` runs `parse()` only (not the semantic checker), so
+ * {@link executeStatements}, since a caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so
  * the checker's static `ol-not-enough-inputs` rule never sees it here.
+ *
+ * Returns a plain `boolean`, not a `statement is CallNode | ParenCallNode` predicate, and the
+ * distinction is load-bearing rather than stylistic: this matches *one* callee name, so while the
+ * positive branch really does hold a call, the **negative** branch does not exclude one — a
+ * `forward 100` statement is not a `print` call and is still a `CallNode`. A type predicate makes
+ * the compiler believe otherwise, and it silently narrowed every later `statement.kind === "Call"`
+ * test in `executeStatements` to `never` (issue #815, found when the terminal rule needed exactly
+ * such a test). {@link isWaitCall}, {@link isShowCall}, and {@link isRandomizeCall} already had
+ * this shape; these two are now consistent with them, at the cost of one cast at each call site.
  */
-function isPrintCall(
-  statement: StatementNode,
-): statement is CallNode | ParenCallNode {
+function isPrintCall(statement: StatementNode): boolean {
   return (
     (statement.kind === "Call" || statement.kind === "ParenCall") &&
     statement.callee.name.toLowerCase() === "print"
@@ -327,9 +347,6 @@ function executeTurtleMoveCall(
     );
   }
   const [arg] = moveCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Fix the acting turtle BEFORE the argument runs. A turtle command applies to the turtle(s)
   // addressed when the statement began ({@link runPerTurtleCommand}'s `addressedIds` snapshot), so
   // a `tell` reached from the argument — necessarily via a procedure call — must change the
@@ -445,9 +462,6 @@ function executeTurtleTurnCall(
     );
   }
   const [arg] = turnCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -877,9 +891,6 @@ function executeTurtleColorCall(
     );
   }
   const [arg] = colorCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -962,9 +973,6 @@ function executeTurtleBackgroundCall(
     );
   }
   const [arg] = backgroundCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1043,9 +1051,6 @@ function executeTurtleWidthCall(
     );
   }
   const [arg] = widthCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1405,9 +1410,6 @@ function executeTurtleShapeCall(
     );
   }
   const [arg] = shapeCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1571,12 +1573,6 @@ function executeTurtlePositionCall(
     return undefined;
   }
   const [xArg, yArg] = positionCall.args as [ExpressionNode, ExpressionNode];
-  if (
-    !isSupportedArgument(xArg, environment) ||
-    !isSupportedArgument(yArg, environment)
-  ) {
-    return undefined;
-  }
   // Acting turtle pinned before the arguments run — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const xResult = evaluate(xArg, environment);
@@ -1673,9 +1669,6 @@ function executeTurtleHeadingCall(
     );
   }
   const [arg] = headingCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   // Acting turtle pinned before the argument runs — see {@link executeTurtleMoveCall}.
   const turtle = currentTurtleState(environment);
   const argResult = evaluate(arg, environment);
@@ -1763,9 +1756,6 @@ function executeSoundSetTempoCall(
     );
   }
   const [arg] = tempoCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -1906,9 +1896,6 @@ function executeSoundNoteCall(
   // first operand, so its diagnostic must win over anything about the duration. Preflighting both
   // args together would let an unsupported *duration* expression (e.g. `note "bad" forward`)
   // short-circuit to `undefined` and silently swallow the pitch's `ol-type` (rubber-duck, #690).
-  if (!isSupportedArgument(pitchArg, environment)) {
-    return undefined;
-  }
   const pitchResult = evaluate(pitchArg, environment);
   if (!pitchResult.ok) {
     return halt(pitchResult.diagnostic);
@@ -1930,9 +1917,6 @@ function executeSoundNoteCall(
         operation: "note",
       }),
     );
-  }
-  if (!isSupportedArgument(durationArg, environment)) {
-    return undefined;
   }
   const durationResult = evaluate(durationArg, environment);
   if (!durationResult.ok) {
@@ -2018,9 +2002,6 @@ function executeSoundRestCall(
     );
   }
   const [arg] = restCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2110,9 +2091,6 @@ function executeSoundPlayCall(
     );
   }
   const [melodyArg] = playCall.args as [ExpressionNode];
-  if (!isSupportedArgument(melodyArg, environment)) {
-    return undefined;
-  }
   const melodyResult = evaluate(melodyArg, environment);
   if (!melodyResult.ok) {
     return halt(melodyResult.diagnostic);
@@ -2307,9 +2285,6 @@ function executeWaitCall(
     );
   }
   const [arg] = waitCall.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2556,9 +2531,6 @@ function executeWhenStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [eventArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(eventArg, environment)) {
-    return undefined;
-  }
   const eventResult = evaluate(eventArg, environment);
   if (!eventResult.ok) {
     return halt(eventResult.diagnostic);
@@ -2732,9 +2704,6 @@ function executeTell(
   // `tell`'s single-argument arity is enforced at parse/check time (its `PROFILE_STATEMENT_FORMS`
   // entry is `argCount: 1`), so exactly one argument always reaches here.
   const [arg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -2853,9 +2822,6 @@ function executeAsk(
   // `PROFILE_STATEMENT_FORMS` entry is `argCount: 1, hasBlock: true`), so exactly one argument and a
   // block always reach here.
   const [arg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const argResult = evaluate(arg, environment);
   if (!argResult.ok) {
     return halt(argResult.diagnostic);
@@ -3222,9 +3188,6 @@ function executeEveryStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [countArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(countArg, environment)) {
-    return undefined;
-  }
   const countResult = evaluate(countArg, environment);
   if (!countResult.ok) {
     return halt(countResult.diagnostic);
@@ -3404,9 +3367,6 @@ function executeOnKeyStatement(
   environment: Environment,
 ): ExecSignal | undefined {
   const [keyArg] = statement.args as [ExpressionNode];
-  if (!isSupportedArgument(keyArg, environment)) {
-    return undefined;
-  }
   const keyResult = evaluate(keyArg, environment);
   if (!keyResult.ok) {
     return halt(keyResult.diagnostic);
@@ -3880,9 +3840,6 @@ function executePrintCall(
   // procedure calls). `(print 1 :ages.tom)` and similar still emit their `instruction`
   // event but are left un-evaluated for the slice that implements the unsupported
   // operand's expression kind.
-  if (!statement.args.every((arg) => isSupportedArgument(arg, environment))) {
-    return undefined;
-  }
   const rawValues: OLValue[] = [];
   let failure: Diagnostic | undefined;
   for (const arg of statement.args) {
@@ -3950,9 +3907,6 @@ function executeShowCall(
   // evaluate `show` when its one operand is an expression kind this issue's evaluator gives
   // meaning to.
   const arg = statement.args[0] as ExpressionNode;
-  if (!isSupportedArgument(arg, environment)) {
-    return undefined;
-  }
   const result = evaluate(arg, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
@@ -4023,9 +3977,6 @@ function executeRandomizeCall(
   // Same unsupported-operand deferral as `show`/`print` use: only evaluate the seed when it is
   // an expression kind this issue's evaluator gives meaning to.
   const seedNode = statement.args[0] as ExpressionNode;
-  if (!isSupportedArgument(seedNode, environment)) {
-    return undefined;
-  }
   const result = evaluate(seedNode, environment);
   if (!result.ok) {
     return halt(result.diagnostic);
@@ -4044,11 +3995,10 @@ function executeRandomizeCall(
  * (issue #331) parses all four as ordinary zero-arity `Call`/`ParenCall` nodes — no dedicated AST
  * node kind — matching the existing Turtle/Data precedent ({@link isShowCall}/
  * {@link isRandomizeCall} above), so this predicate has the identical shape: a plain `boolean`
- * checking `statement.callee.name` case-insensitively against the four command names.
+ * checking `statement.callee.name` case-insensitively against the four command names. See
+ * {@link isPrintCall} for why `boolean` rather than a type predicate is the correct signature here.
  */
-function isEducationalMetaCommandCall(
-  statement: StatementNode,
-): statement is CallNode | ParenCallNode {
+function isEducationalMetaCommandCall(statement: StatementNode): boolean {
   if (statement.kind !== "Call" && statement.kind !== "ParenCall") {
     return false;
   }
@@ -4099,7 +4049,9 @@ function findPrecedingSiblingStatement(
       candidate !== undefined &&
       !(
         isEducationalMetaCommandCall(candidate) &&
-        !procedures.has(candidate.callee.name.toLowerCase())
+        !procedures.has(
+          (candidate as CallNode | ParenCallNode).callee.name.toLowerCase(),
+        )
       )
     ) {
       return candidate;
@@ -4262,7 +4214,11 @@ function dispatchShowRandomizeOrEducationalCommand(
     );
   }
   if (isEducationalMetaCommandCall(statement)) {
-    return executeEducationalMetaCommand(statement, statements, environment);
+    return executeEducationalMetaCommand(
+      statement as CallNode | ParenCallNode,
+      statements,
+      environment,
+    );
   }
   return NOT_A_SHOW_RANDOMIZE_OR_EDUCATIONAL_COMMAND;
 }
@@ -4355,9 +4311,10 @@ function canonicalCalleeName(node: CallNode | ParenCallNode): string {
 
 /**
  * Phase-1 registration (`spec/execution-model.md:82-89`) for the whole program: every
- * `define`/`to` procedure and every `struct` declaration, collected in one pre-order walk before
- * any statement runs, so a callable may be used before its textual declaration and `type_of`/`is_a?`
- * see every struct type up front. Either the two registries, or the first collision in source order.
+ * `define`/`to` procedure and every `struct` declaration whose profile is active, collected in one
+ * pre-order walk before any statement runs, so a callable may be used before its textual
+ * declaration and `type_of`/`is_a?` see every struct type up front. Either the two registries, or
+ * the first collision in source order.
  */
 type DeclarationRegistration =
   | {
@@ -4399,11 +4356,14 @@ type DeclarationRegistration =
  * here claims otherwise. What *is* observable, and is pinned, is that a `define`/`struct` collision
  * is reported in **both** orders and that `original_span` names the earlier declaration.
  *
- * **Neither kind is profile-gated, and neither is depth-gated.** `spec/execution-model.md:82-88`
- * makes phase-1 registration unconditional, `execute()` has no active profile set to gate on in any
- * case, and the `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148`
- * makes a declaration an ordinary statement, so `define outer / define forward / end / end` is a
- * collision exactly as the top-level form is.
+ * **`define` is not profile-gated; `struct` is. Neither is depth-gated.**
+ * `spec/execution-model.md:82-88` makes phase-1 registration unconditional for procedures, and the
+ * `walk` visits declarations at any nesting depth — `spec/grammar.md:93-94,147-148` makes a
+ * declaration an ordinary statement, so `define outer / define forward / end / end` is a collision
+ * exactly as the top-level form is. Since issue #815 `execute()` DOES carry the run's profile set,
+ * and a `struct` declaration is refused when **Data** is inactive: a run claiming Core Language
+ * alone was measured registering a `struct` and then executing its constructor, which no arm
+ * downstream could catch because the constructor is a user-declared name rather than a built-in.
  *
  * **One half of `spec/execution-model.md:86-87` is out of scope here and NOT covered:** it also
  * makes a name "an imported module already registered" a duplicate. `import` has no runtime
@@ -4414,7 +4374,10 @@ type DeclarationRegistration =
  * The first collision found in source order halts the whole program — nothing runs, so the
  * `define foo` twice that used to print the *second* body prints nothing at all.
  */
-function registerDeclarations(program: ProgramNode): DeclarationRegistration {
+function registerDeclarations(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): DeclarationRegistration {
   const procedures = new Map<string, ProcedureDefNode>();
   const structs = new Map<string, StructDefNode>();
   const firstDeclaration = new Map<string, SourceSpan>();
@@ -4445,7 +4408,21 @@ function registerDeclarations(program: ProgramNode): DeclarationRegistration {
     firstDeclaration.set(key, declared.source_span);
     if (node.kind === "ProcedureDef") {
       procedures.set(key, node);
-    } else {
+    } else if (profiles.includes("data")) {
+      // A `struct` whose profile the run does not claim is not registered, so its constructor and
+      // its type word are unknown exactly as `collectVisibleNames` already reports them — that
+      // function adds struct names "only when `data` is active", and this is the run agreeing.
+      //
+      // Gating registration rather than each consumer is deliberate: the registry has three
+      // readers (the constructor, and `is a` / `is_a?`'s type lookup), and a dormant declaration
+      // reached none of the executed-statement guard. Measured under Core Language alone,
+      // `if false [ struct point [ x ] ]` then `print (point 1).x` printed `1`, and
+      // `print (is_a? 1 "point")` printed `false` with no diagnostic at all.
+      //
+      // The name still occupies `firstDeclaration` above, so it keeps colliding with a later
+      // declaration of the same name: whether a name may be DECLARED is fixed by the language
+      // version, never by the profile set (`spec/grammar.md:408`), and only the calling question
+      // consults profiles.
       structs.set(key, node);
     }
   });
@@ -4746,11 +4723,11 @@ function callProcedureAsValue(
  *
  * A `print` statement (`print value` or the parenthesized variadic `(print a b …)`) additionally
  * evaluates every operand, left to right, and — once all of them evaluate cleanly — emits a
- * `print` event carrying every value, but only when {@link isSupportedExpression} says this
+ * `print` event carrying every value. Until issue #815 this ran only when a since-deleted gate said this
  * issue's evaluator gives *each* operand a value; otherwise the whole statement is left
  * un-evaluated for a future slice (e.g. `print :ages.tom` — dotted-field reads land with the
  * Data profile). A zero-argument `print`/`(print)` raises `ol-not-enough-inputs` (issue #98):
- * `execute()` runs `parse()` only, so the semantic checker's static arity rule — which cannot
+ * A caller driving `evaluate()`/`createEnvironment()` directly runs no checker (issue #815 put one in front of `execute()`), so the semantic checker's static arity rule — which cannot
  * itself catch an open-variadic parenthesized under-supply, `packages/parser/src/checker-arity.ts`
  * — never runs here, and this is the only guard against silently treating a callee-only `print`
  * as a no-op. If evaluating an operand raises a runtime diagnostic (`ol-div-zero`, `ol-neg-sqrt`,
@@ -4768,7 +4745,7 @@ function callProcedureAsValue(
  *
  * A `Return`/`Stop`/`Throw` statement (issue #97) always returns its own {@link ExecSignal}
  * unconditionally, regardless of whether a procedure is actually running: `Return`'s value is
- * evaluated first — gated by {@link isSupportedExpression}, same "defer if unsupported"
+ * evaluated first. Until issue #815 a since-deleted gate applied the same "defer if unsupported"
  * convention as `print` — and pushes a `return` event before returning `{kind:"return", …}`;
  * `Stop` returns `{kind:"stop", …}` with no event of its own (the enclosing `procedure-exit`'s
  * `result:null` already conveys it); `Throw`'s value is likewise evaluated first (a word is used
@@ -4859,12 +4836,12 @@ function callProcedureAsValue(
  * {@link isProcedureCallStatement} has confirmed it. Extracted into its own function for the same
  * reason {@link executeShowCall}'s doc comment gives: `executeStatements` recurses once per
  * procedure call, so keeping this argument-gating logic out of its body keeps its own stack frame
- * size fixed — inlining an `isSupportedExpression` gate directly there pushed the deep-recursion
+ * size fixed — inlining the since-deleted `isSupportedExpression` gate directly there pushed the deep-recursion
  * budget test of the day over the native call-stack limit (see {@link executeTurtleMoveCall}'s
  * canonical frame-width note).
  *
  * Unlike an expression-position call (`print area :r`), which only ever reaches `runProcedure`
- * after `evaluate.ts`'s own `isSupportedExpression` gate already checked every argument, a
+ * after `evaluate.ts`'s own since-deleted gate had already checked every argument, a
  * statement-position call is dispatched straight from `executeStatements` — so this is the one
  * call site that must gate its own arguments. An argument this issue's evaluator cannot yet give
  * meaning to (e.g. a dict literal, `star { a: 1 }`) leaves the whole call un-evaluated, same as
@@ -4875,9 +4852,6 @@ function executeProcedureCallStatement(
   call: CallNode | ParenCallNode,
   environment: Environment,
 ): ExecSignal {
-  if (!call.args.every((arg) => isSupportedArgument(arg, environment))) {
-    return NORMAL_SIGNAL;
-  }
   const outcome = runProcedure(call, environment);
   if (!outcome.ok) {
     return halt(outcome.diagnostic);
@@ -4936,6 +4910,112 @@ function canonicalizeHeritageAliasCall(
   };
 }
 
+/**
+ * The `ol-unknown-command` a statement's callee earns when it names a built-in **no active profile
+ * of this run registers**, or `undefined` when the statement may proceed.
+ *
+ * Judged on `rawStatement` — the callee exactly as the learner spelled it — for the reason given at
+ * the call site: a Heritage alias is available only when Heritage is active, so canonicalising
+ * first would launder `fd` through `forward`'s visibility.
+ *
+ * A name no profile registers at all is left alone rather than reported here: it may be a user
+ * procedure, and if it is not, `evaluateCall`'s terminal rule reports it with the same code.
+ */
+/**
+ * Is `statement` an expression the block-result rule says to run for effect and discard
+ * (`spec/execution-model.md:214-227`)?
+ *
+ * Written by EXCLUSION. The grammar admits every `ExpressionNode` as a statement, so the expression
+ * side is open-ended and an allow-list silently skips whatever it forgets — which is what happened:
+ * naming only `Call`/`ParenCall` discarded an out-of-range `:x[2]` read with no diagnostic. The
+ * closed set is the other one. Every remaining `StatementNode` kind — control forms, `Assign`, the
+ * list mutators, `Return`, `Throw`, `ProfileStatement` — is dispatched before this point, so
+ * reaching here with one means a dispatch was missed, and the caller turns that into
+ * `ol-not-implemented` rather than a skip.
+ *
+ * `ProcedureDef` and `StructDef` are excluded because Phase 1 has already registered them
+ * (`registerDeclarations`), leaving the statement itself with nothing to perform.
+ *
+ * `Local` is excluded for a **different and weaker reason, and this is a known gap rather than a
+ * property of the form.** `local` is specified to introduce a binding in the enclosing procedure's
+ * frame (`spec/execution-model.md:340-349`); this evaluator never registers one, so — measured —
+ * `define f  local x  :x = 2  end` assigns the GLOBAL `x`, where the parameter-shadowing control
+ * `define g :x  :x = 2  end` correctly does not. That is a defect in `local`'s binding semantics,
+ * not in the terminal rule, and it predates issue #815: no run of any profile has ever created a
+ * local frame entry. **Issue #818** tracks it. Excluding `Local` here preserves that pre-existing
+ * behaviour exactly rather than converting corpus programs that use `local` into
+ * `ol-not-implemented` inside a slice scoped to the check gate, value-position commands, the
+ * terminal rule and de-duplication. (How many such programs there are is deliberately not written
+ * down: a derived count in prose is an assertion nothing re-checks, and a review measured a
+ * different number from the same tree. `git grep -c "\blocal\b" -- "*.logo"` is the enumerator.)
+ *
+ * The distinction matters to whoever removes this arm: the first two exclusions are permanent, the
+ * third is a placeholder. Fixing #818 deletes it; it is not something to preserve. The
+ * characterization tests in `check-before-execution.test.mjs` fail when it is fixed, so the two
+ * cannot drift apart.
+ */
+function isExpressionStatement(statement: StatementNode): boolean {
+  return (
+    statement.kind !== "ProcedureDef" &&
+    statement.kind !== "StructDef" &&
+    statement.kind !== "Local"
+  );
+}
+
+function inactiveProfileCallee(
+  rawStatement: StatementNode,
+  environment: Environment,
+): Diagnostic | undefined {
+  // A profile FORM — `when`, `every`, `on_key`, `on_click`, `tell`, `ask`, `each` — is not a `Call`,
+  // so it needs its own arm rather than falling through this one. What a profile decides is
+  // whether a name *works* (`spec/grammar.md:408`) — the same question the neighbouring `StructDef`
+  // arm asks — and measured before this arm, a run claiming Core Language alone registered a
+  // `when "start"` handler and ran its body. (`spec/tooling.md:30` puts these words in the
+  // `keyword` token class "while their profile is active", but that row is about how a highlighter
+  // PAINTS them, not about whether the form may act, so it is not the support for this arm.)
+  if (rawStatement.kind === "ProfileStatement") {
+    const head = rawStatement.keyword.name;
+    return environment.names.isVisible(head)
+      ? undefined
+      : runtimeDiag.unknownCommand(
+          rawStatement.keyword.source_span,
+          head,
+          environment.names.suggestionFor(head),
+        );
+  }
+  // A DECLARATION whose profile is inactive is refused for the same reason: without this, a run
+  // claiming Core Language alone declared a `struct` and then executed its constructor — and the
+  // constructor call cannot be caught by the arm below, because `point` is a user-declared name
+  // rather than a built-in.
+  //
+  // The Data profile is named directly rather than asked of `environment.isVisible`, because that
+  // function answers AVAILABILITY while `struct` is also a profile-independent RESERVED word: it is
+  // a keyword everywhere so that `define struct` is illegal for the language *version* rather than
+  // for a profile set (`spec/grammar.md:408`) — exactly the distinction `built-in-names.ts`
+  // documents, where only the calling question consults the active set. `struct` belongs to Data
+  // (`spec/data-structures.md`), so Data is the question to ask.
+  if (rawStatement.kind === "StructDef") {
+    return environment.profiles.includes("data")
+      ? undefined
+      : runtimeDiag.unknownCommand(rawStatement.source_span, "struct");
+  }
+  if (rawStatement.kind !== "Call" && rawStatement.kind !== "ParenCall") {
+    return undefined;
+  }
+  const spelled = rawStatement.callee.name;
+  if (!isBuiltInName(spelled)) {
+    return undefined;
+  }
+  if (environment.names.isVisible(spelled)) {
+    return undefined;
+  }
+  return runtimeDiag.unknownCommand(
+    rawStatement.callee.source_span,
+    spelled,
+    environment.names.suggestionFor(spelled),
+  );
+}
+
 function executeStatements(
   statements: readonly StatementNode[],
   environment: Environment,
@@ -4974,6 +5054,29 @@ function executeStatements(
       payload: { statement_kind: statement.kind } satisfies InstructionPayload,
     });
 
+    // **The run obeys the same profile set the check did** (`spec/execution-model.md:673-680`,
+    // issue #815). Every `is*Call` predicate below is profile-blind, so without this the run would
+    // execute primitives the run's claimed set does not contain — the check and the run governed by
+    // two different values, where the spec closes with "One value MUST govern both the check and
+    // the run". Measured before this guard, under `{ profiles: ["core-language"] }`: `forward 10`
+    // was reported `ol-unknown-command` and *still moved and drew*.
+    //
+    // It reads the RAW callee spelling, before `canonicalizeHeritageAliasCall` rewrote it, because
+    // an alias is only available when Heritage itself is active: canonicalising first would let
+    // `fd` inherit `forward`'s visibility from Turtle & Rendering alone and quietly re-admit a
+    // profile the run never claimed. A user procedure shadows nothing here — a built-in name cannot
+    // be redefined (`ol-reserved-word`) — so an unresolvable name is the learner's, and
+    // `spec/error-model.md:131` names the answer: "a call under a profile the run does not claim is
+    // still `ol-unknown-command`, because there the name does not resolve".
+    //
+    // The `instruction` event above is already emitted, deliberately: the statement was reached and
+    // the trace should show where the program stopped, which is the same shape the terminal rule
+    // produces for `challenge`.
+    const inactive = inactiveProfileCallee(rawStatement, environment);
+    if (inactive !== undefined) {
+      return halt(inactive);
+    }
+
     const writeResult = dispatchAssignOrListMutator(statement, environment);
     if (writeResult !== undefined) {
       if (!writeResult.ok) {
@@ -4994,7 +5097,10 @@ function executeStatements(
     }
 
     if (isPrintCall(statement)) {
-      const signal = executePrintCall(statement, environment);
+      const signal = executePrintCall(
+        statement as CallNode | ParenCallNode,
+        environment,
+      );
       if (signal !== undefined) {
         if (signal.kind === "halt") {
           return signal;
@@ -5093,9 +5199,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Return") {
-      if (!isSupportedArgument(statement.value, environment)) {
-        continue;
-      }
       const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
@@ -5125,9 +5228,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Throw") {
-      if (!isSupportedArgument(statement.value, environment)) {
-        continue;
-      }
       const result = evaluate(statement.value, environment);
       if (!result.ok) {
         return halt(result.diagnostic);
@@ -5140,9 +5240,6 @@ function executeStatements(
     }
 
     if (statement.kind === "If") {
-      if (!isSupportedArgument(statement.condition, environment)) {
-        continue;
-      }
       const condition = evaluateCondition(
         statement.condition,
         environment,
@@ -5162,9 +5259,6 @@ function executeStatements(
     }
 
     if (statement.kind === "While") {
-      if (!isSupportedArgument(statement.condition, environment)) {
-        continue;
-      }
       for (;;) {
         const limitDiagnostic = checkExecutionLimits(
           environment,
@@ -5205,9 +5299,6 @@ function executeStatements(
     }
 
     if (statement.kind === "Repeat") {
-      if (!isSupportedArgument(statement.count, environment)) {
-        continue;
-      }
       const countResult = evaluate(statement.count, environment);
       if (!countResult.ok) {
         return halt(countResult.diagnostic);
@@ -5301,9 +5392,6 @@ function executeStatements(
           );
         }
       }
-      if (!isSupportedArgument(statement.iterable, environment)) {
-        continue;
-      }
       const iterableResult = evaluate(statement.iterable, environment);
       if (!iterableResult.ok) {
         return halt(iterableResult.diagnostic);
@@ -5352,14 +5440,6 @@ function executeStatements(
     }
 
     if (statement.kind === "ForRange") {
-      if (
-        !isSupportedArgument(statement.from, environment) ||
-        !isSupportedArgument(statement.to, environment) ||
-        (statement.by !== undefined &&
-          !isSupportedArgument(statement.by, environment))
-      ) {
-        continue;
-      }
       const fromResult = evaluate(statement.from, environment);
       if (!fromResult.ok) {
         return halt(fromResult.diagnostic);
@@ -5451,6 +5531,66 @@ function executeStatements(
           return signal;
         }
       }
+      continue;
+    }
+
+    // The terminal rule at **statement** position (`spec/execution-model.md:717-720`, issue #815),
+    // the twin of `evaluate.ts`'s in `evaluateCall`. Every dispatch above declined this statement,
+    // so if it is a call there is no *executor* for its callee — and the right ending depends on
+    // what kind of callable it is:
+    //
+    // - a registered **Command** with no executor is this implementation's gap, and says so:
+    //   `ol-not-implemented`. It must NOT go through `evaluate()`, which would judge it in VALUE
+    //   position and answer `ol-no-output` — true of `print forward 5`, and nonsense about a
+    //   command standing alone as its own statement. Measured: `challenge` is exactly this case.
+    // - anything else is an expression statement, which the block-result rule says to run for
+    //   effect and discard (`spec/execution-model.md:214-227`) — `1 + 1`, or a reporter such as
+    //   `new_turtle` whose report is thrown away but whose effect is not. Evaluating it is the one
+    //   ending that cannot be wrong: it reports, or it raises where the fault actually is.
+    //
+    // Before this, such a statement emitted its `instruction` event and then did nothing at all.
+    // Three kinds fall past here, and only two do so legitimately: the **declarations** Phase 1
+    // already registered — `ProcedureDef` and `StructDef` — which have nothing left to run. The
+    // third, `Local`, falls past here **silently and wrongly**: `local` is specified to bind in the
+    // enclosing frame (`spec/execution-model.md:340-349`) and this evaluator never creates one, so
+    // the assignment after it reaches the global. That is issue #818, a defect in `local`'s binding
+    // semantics rather than in this rule; `isExpressionStatement`'s doc comment says which of the
+    // three exclusions are permanent and which is a placeholder to delete, and
+    // `check-before-execution.test.mjs` characterizes the behaviour so it cannot change unnoticed.
+    //
+    // The `isExpressionStatement` test is deliberately by exclusion rather than by an allow-list of
+    // expression kinds. An allow-list is the shape this rule had first, naming only `Call` and
+    // `ParenCall`, and it silently skipped every other expression form the grammar admits as a
+    // statement (`ast.ts`'s `ExpressionNode` is a valid `StatementNode`): measured, `:x = [1]` then
+    // `:x[2]` discarded the out-of-range read with no `ol-range` and ran on. A rule whose whole
+    // subject is "never silently skip" must not be written as a list of things it remembers to
+    // handle.
+    if (statement.kind === "Call" || statement.kind === "ParenCall") {
+      const callee = statement.callee.name.toLowerCase();
+      if (isPrimitiveCommandName(callee)) {
+        return halt(
+          runtimeDiag.notImplemented(statement.callee.source_span, callee),
+        );
+      }
+    }
+    if (isExpressionStatement(statement)) {
+      const outcome = evaluate(statement as ExpressionNode, environment);
+      // `evaluate` answers `undefined` for a node it does not recognise as an expression. That can
+      // only mean a statement kind reached here without being dispatched above, which is this
+      // implementation's gap — so it ends in a diagnostic, never a skip. The terminal rule admits
+      // no third outcome (`spec/execution-model.md:717-720`), and writing this branch is what stops
+      // a statement form added later from re-opening the defect this slice closes.
+      if (outcome === undefined) {
+        return halt(
+          runtimeDiag.notImplemented(
+            statement.source_span,
+            statementHeadWord(statement, environment.source),
+          ),
+        );
+      }
+      if (!outcome.ok) {
+        return halt(outcome.diagnostic);
+      }
     }
   }
 
@@ -5470,6 +5610,21 @@ function executeStatements(
  */
 export const DEFAULT_RECURSION_DEPTH_LIMIT = 500;
 export const DEFAULT_INSTRUCTION_BUDGET = 1_000_000;
+
+/**
+ * {@link ExecuteOptions.profiles}' default: the conformance profiles this implementation actually
+ * claims, read straight from `@openlogo/core`'s feature-detection metadata.
+ *
+ * `spec/execution-model.md:673-680` requires one value to govern both the check and the run, and
+ * singles out the wrong default by name: "a fixed **Core Language**-only set is specifically not
+ * conforming: under it `forward 100` is an unknown command, so an implementation that also claims
+ * Turtle & Rendering would refuse to run a correct program." `@openlogo/parser`'s
+ * `DEFAULT_CHECK_PROFILES` is exactly that set — correct for a *checker* whose caller has made no
+ * claim, and wrong for a *run*, which has already made one. Deriving from `SUPPORTED_PROFILES`
+ * rather than restating it means a profile this implementation starts (or stops) claiming reaches
+ * the run gate with no edit here, so the check can never be narrower than the run.
+ */
+const RUN_PROFILES: readonly CheckProfile[] = SUPPORTED_PROFILES;
 
 /**
  * The highest procedure-call recursion depth the interpreter will honor regardless of what a
@@ -5649,11 +5804,14 @@ function createExecutionEnvironment(
   foreverIterationLimit: number | undefined,
   options: ExecuteOptions | undefined,
   source: string,
+  profiles: readonly CheckProfile[],
 ): Environment {
   const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
     repeatTurns: [],
+    profiles,
+    names: createNameResolver(program, profiles),
     procedures,
     structs,
     // Issue #876: a caller-supplied sink when one was given, so a host suspended inside
@@ -5784,6 +5942,33 @@ function recoverFromNativeStackOverflow(
 }
 
 /**
+ * **Test-only.** Direct handle on `executeStatements` so the terminal rule's SAFETY NET —
+ * `evaluate()` answering `undefined` for a statement kind that reached the runner undispatched —
+ * can be exercised deterministically.
+ *
+ * A QA review measured that the net has **never executed**: zero hits across 5,115 tests, 1,004
+ * conformance fixtures, 13 examples and 312 markdown blocks, because every kind the AST currently
+ * has is either dispatched above it or is a real expression. Replacing its body with `continue` —
+ * the silent skip mechanism 3 exists to abolish — left the whole Definition of Done green, and the
+ * coverage gate reported the line covered either way.
+ *
+ * The net is kept rather than deleted, because unlike the unreachable `?? "Program"` fallback this
+ * slice removed, it guards a case that *becomes* reachable the moment someone adds a statement kind
+ * — precisely the defect #815 closes. What was missing was any way to reach it on purpose. Driving
+ * the runner with a synthetic node of an unknown kind is that way: it is exactly the shape a future
+ * statement form has before its dispatch arm is written.
+ *
+ * Never re-exported by `index.ts`; reachable only by this package's own tests importing this module
+ * by relative path (see {@link recoverFromNativeStackOverflowForTests}).
+ */
+export function executeStatementsForTests(
+  statements: readonly StatementNode[],
+  environment: Environment,
+): ExecSignal {
+  return executeStatements(statements, environment);
+}
+
+/**
  * **Test-only.** Direct handle on {@link recoverFromNativeStackOverflow} so both of its arms — the
  * `RangeError` → `ol-limit` rewrite and the rethrow of any other error — are covered
  * deterministically, without having to provoke a real, host-dependent native stack overflow inside
@@ -5878,6 +6063,39 @@ function executeMainLine(
 }
 
 /**
+ * The diagnostics one completed run reports: the check's findings first, then whatever the run
+ * itself raised, de-duplicated on **the spec's own fault identity and nothing wider**.
+ *
+ * `spec/execution-model.md:741-748` defines that identity exactly — the same `code`, the same
+ * `params`, the same `source_span`, with `stage` deliberately excluded — and requires such a fault
+ * to be reported once. `:663-664` requires the delivered set to be "otherwise unaltered", which is
+ * what forbids suppressing anything the identity rule does not match. So {@link dedupeDiagnostics},
+ * which implements exactly that identity, is the whole of the rule and this function is only the
+ * concatenation.
+ *
+ * **An earlier version of this widened the identity** — same `code`, *overlapping* spans, and
+ * `params` in a subset relation — to absorb three places where the two stages described one fault
+ * at different granularities. That was a non-normative alteration of the delivered set, and the
+ * repair was to remove the divergences rather than to tolerate them: `ol-no-output` now carries the
+ * whole call's span at both stages, and a runtime `ol-unknown-command` carries the same
+ * `suggestion` because both stages call `@openlogo/parser`'s one did-you-mean implementation. Two
+ * reports of one fault are now identical, so the normative rule collapses them; where they are not
+ * identical they are genuinely two findings, and both are owed to the learner.
+ *
+ * The suppression only ever has work to do under {@link ExecuteOptions.runUnchecked}: "A fault the
+ * check already reported cannot ordinarily recur at run time, because the program does not run;
+ * under the opt-out above it can, and the second report MUST be suppressed rather than delivered."
+ */
+export function mergeRunDiagnostics(
+  checked: readonly Diagnostic[],
+  raised: Diagnostic | undefined,
+): readonly Diagnostic[] {
+  return [
+    ...dedupeDiagnostics(raised === undefined ? checked : [...checked, raised]),
+  ];
+}
+
+/**
  * Parse `source` and run it, sharing {@link execute}'s and
  * {@link executeWithForeverIterationLimitForTests}'s logic. `foreverIterationLimit` is
  * `undefined` for every real `execute()` call — see `index.ts`'s `execute()` doc comment — so a
@@ -5889,8 +6107,9 @@ function executeMainLine(
  * never inside any procedure ({@link runProcedure} always consumes its own body's signal before
  * it reaches here) — this is `ol-return-outside-proc`/`ol-stop-outside-proc` (issue #97), the
  * runtime's own copy of the semantic checker's rule of the same name
- * (`packages/parser/src/checker-control-flow.ts`, issue #114), at `stage: "runtime"` since
- * `execute()` runs `parse()` only, never `check()`.
+ * (`packages/parser/src/checker-control-flow.ts`, issue #114). Since issue #815 wired the check
+ * below, a top-level `return` is normally caught statically and this path is reached only under
+ * {@link ExecuteOptions.runUnchecked}.
  */
 export function runProgram(
   source: string,
@@ -5906,15 +6125,68 @@ export function runProgram(
   // can point at the deepest procedure call reached; before it exists (an overflow during parsing)
   // the guard falls back to a whole-source span.
   let environment: Environment | undefined;
+  // Hoisted out of the `try` so the `catch` can still deliver them. `spec/execution-model.md:687-694`
+  // requires the unchecked-run opt-out to "still deliver the diagnostics it declined to act on", and
+  // Layer 3 style warnings are equally owed to the caller — but a native stack overflow escaping
+  // from deep inside execution used to land in a `catch` that could not see a `const` declared
+  // inside the `try`, so the recovery returned its own diagnostic alone and silently dropped
+  // everything the check had already found.
+  let checkDiagnostics: readonly Diagnostic[] = [];
   try {
-    const { ast: program, diagnostics } = parse(source, document);
-    if (diagnostics.length > 0) {
+    // The profile set is resolved ONCE, here, and the same value reaches both the check and the
+    // run. `spec/execution-model.md:673-680`: the set the semantic layer uses "MUST be the set the
+    // run itself uses", it "MUST be nameable by whoever starts the run", and "One value MUST govern
+    // both the check and the run" — so this must stay a single binding rather than the same
+    // expression written twice.
+    //
+    // **Copied, not aliased.** Holding the caller's array would let a host mutate the set after the
+    // check and before or during the run — a synchronous `hostInput.read` callback is enough, and
+    // measured: adding `turtle-rendering` during an `input` made the checker report `forward`
+    // unknown and the runtime then move and draw it. One value cannot govern both phases if either
+    // phase can be given a different one halfway through.
+    const runProfiles = [...(options?.profiles ?? RUN_PROFILES)];
+    // The check before execution (`spec/execution-model.md:632-694`, issue #815). `analyze` runs
+    // Layer 1 and Layer 2 over the whole program — never one and then the other conditionally, so
+    // the precedence rule can see both — under THIS run's profile set, which is the same value the
+    // run itself uses.
+    const { ast: program, diagnostics } = analyze(source, document, {
+      profiles: runProfiles,
+      style: options?.styleChecks === true,
+    });
+    checkDiagnostics = diagnostics;
+    // **Severity, never presence.** `spec/execution-model.md:666-671`: "An implementation MUST
+    // decide by severity and MUST NOT treat a non-empty diagnostic list as a refusal to run",
+    // because Layer-3 style lints are warnings returned in this same collection, so a presence test
+    // "silently converts a style opinion into a refusal to run a correct program". Measured: a
+    // correct `FORWARD 100` reports `ol-style-name-case` at `severity: "warning"`.
+    //
+    // The opt-out reaches Layer 2 only. `spec/execution-model.md:687-694` permits running a program
+    // "despite `error`-severity **semantic** diagnostics", and its motivating case — a teaching tool
+    // that runs an exercise up to its first mistake — presupposes a program that can be READ. A
+    // parse failure leaves a recovery AST, not the learner's program, so running it would execute
+    // something they never wrote; measured, `repeat 4` + `forward 10` executes 13 events' worth of a
+    // shape the reader invented.
+    const errors = diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error",
+    );
+    const unreadable = errors.some(
+      (diagnostic) => diagnostic.stage === "parse",
+    );
+    if (errors.length > 0 && (unreadable || options?.runUnchecked !== true)) {
       return { events: [], diagnostics };
     }
 
-    const registration = registerDeclarations(program);
+    const registration = registerDeclarations(program, runProfiles);
     if (!registration.ok) {
-      return { events: [], diagnostics: [registration.diagnostic] };
+      // Phase 1 declines too, and its finding joins the check's rather than replacing them: under
+      // `runUnchecked` the check has already reported, and dropping those would break the opt-out's
+      // own requirement that it "MUST still deliver the diagnostics it declined to act on"
+      // (`spec/execution-model.md:687-694`). Where phase 1 and the check found the same fault, the
+      // second report collapses into the first.
+      return {
+        events: [],
+        diagnostics: mergeRunDiagnostics(diagnostics, registration.diagnostic),
+      };
     }
 
     environment = createExecutionEnvironment(
@@ -5924,6 +6196,7 @@ export function runProgram(
       foreverIterationLimit,
       options,
       source,
+      runProfiles,
     );
     const signal = executeMainLine(program.body, environment);
     const diagnostic =
@@ -5936,15 +6209,28 @@ export function runProgram(
             : undefined;
     return {
       events: environment.events,
-      diagnostics: diagnostic ? [diagnostic] : [],
+      diagnostics: mergeRunDiagnostics(diagnostics, diagnostic),
     };
   } catch (error) {
-    return recoverFromNativeStackOverflow(
+    const recovered = recoverFromNativeStackOverflow(
       error,
       environment?.lastCallSpan.span ?? wholeSourceSpan(source, document),
       environment?.events ?? [],
       environment?.recursionDepthLimit ?? HOST_SAFE_RECURSION_DEPTH,
     );
+    // Whatever the check found still belongs to the caller. An overflow during PARSING leaves
+    // `checkDiagnostics` empty, so this is a no-op there; an overflow during execution is the case
+    // the opt-out's "MUST still deliver the diagnostics it declined to act on" covers, and style
+    // warnings are owed either way. Folded one at a time through the same merge the normal exit
+    // uses, so a recovery diagnostic that restates something the check already reported collapses
+    // by the same rule rather than a second one written here.
+    return {
+      events: recovered.events,
+      diagnostics: recovered.diagnostics.reduce<readonly Diagnostic[]>(
+        (merged, diagnostic) => mergeRunDiagnostics(merged, diagnostic),
+        checkDiagnostics,
+      ),
+    };
   }
 }
 

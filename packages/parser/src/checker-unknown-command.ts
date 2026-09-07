@@ -194,6 +194,87 @@ function messageFor(name: string, suggestion: string | undefined): string {
 }
 
 /**
+ * A **name resolver** bound to one program and one claimed profile set: the checker's answers to
+ * "is this name callable here" and "what did you mean", built once and reused.
+ *
+ * ## Why `@openlogo/runtime` uses this instead of its own
+ *
+ * The runtime used to compute both itself — visibility from `isKeyword` plus the primitive registry
+ * plus Heritage-alias resolution, and did-you-mean not at all. Two producers of a judgement this
+ * package owns; `spec/tooling.md:174-177` assigns visibility to the semantic layer. Measured over
+ * every name in `spec/built-in-names.json` against every profile closure — 1,776 pairs — the two
+ * visibility answers agreed everywhere, so it was a duplication that had not yet drifted rather
+ * than a live defect. It is consolidated anyway, because an agreement maintained by hand is a
+ * liability whether or not it has failed yet.
+ *
+ * The did-you-mean copy *had* already drifted, to the degenerate case of no suggestion at all,
+ * which made a runtime `ol-unknown-command` a different fault from the check's under
+ * `spec/execution-model.md:741-748`'s identity — so one fault was delivered to the learner twice.
+ *
+ * ## Why a bound resolver, and not a predicate or the raw set
+ *
+ * The visible set stays this module's representation — a caller receives answers, never the set —
+ * and the resolver is bound to one program, so it cannot be asked about a different one. But it
+ * must be built **once per run**, not once per call. The runtime asks `isVisible` on the SUCCESS
+ * path of every executing statement, so a per-call rebuild — two `walk()` passes over the whole AST
+ * each time — made execution **O(statements × program size)**: a learner's drawing getting slower
+ * with every `define` they add to the worksheet.
+ *
+ * The shape is stated rather than the milliseconds, which are hardware-dependent, unreproducible
+ * and ungated (two reviewers measured this same benchmark an order of magnitude apart). Binding
+ * once makes cost **flat in declaration count**; a simulated per-call rebuild is roughly 24× slower
+ * at eighty declarations than at none, and that ratio is what reproduces.
+ *
+ * ## The snapshot cannot go stale, and that is structural rather than lucky
+ *
+ * A bound resolver is a cache, so the question is what invalidates it. Three structural facts, and
+ * deliberately no supporting argument beyond them — this paragraph was rewritten four times and
+ * every error was in the justification rather than in these.
+ *
+ * 1. **The language has no dynamic evaluation.** No `run`, `eval`, `apply`, `call`, `parse` or
+ *    `load` appears anywhere in `spec/built-in-names.json` (measured: zero matches across all 148
+ *    entries), so no constructed code can be executed and the bound AST cannot grow.
+ * 2. **The registries are written once, before this exists.** `@openlogo/runtime`'s
+ *    `registerDeclarations` holds the only two writes to the procedure and struct registries in
+ *    that package (`execute-internal.ts:4402,4404`), and completes before the environment — and so
+ *    this resolver — is built.
+ * 3. **The falsifier is a STAGE, not a name.** `alias` is the one form whose first operand names a
+ *    callable (`spec/grammar.md:165,382`), but a spec-faithful `alias` cannot grow the visible set:
+ *    `spec/localization.md:21,44-50` resolve it in the C2 reader **pre-pass**, normalizing tokens to
+ *    their canonical spelling before parsing, and `:40` says "Aliases do not create new
+ *    procedures". `spec/localization.md:223` then requires that pre-pass to run "before syntax
+ *    checking, highlighting structural keywords, or reporting unknown commands" — this module being
+ *    the unknown-command reporter. **An implementation that resolved aliases inside the checker
+ *    instead would break that ordering, and the fixed-set assumption with it.** That is the edit to
+ *    watch for; the correct home is the pre-pass, upstream of here.
+ *
+ * One trap, because a maintainer checking fact 3 will hit it: `spec/built-in-names.json` tags
+ * `alias` `"profile": "core-language"`. That field records which registry reserves the name, not
+ * which profile owns the feature — the manifest's own `invariants.unconditional` says "nothing may
+ * branch on it". By the DAG `alias` is Localization (`spec/conformance.md:188`).
+ */
+export interface NameResolver {
+  /** Is `name` callable in the bound program under the bound profile set? */
+  readonly isVisible: (name: string) => boolean;
+  /** The did-you-mean suggestion for an unresolvable `name`, or `undefined` when none is close. */
+  readonly suggestionFor: (name: string) => string | undefined;
+}
+
+/** Build a {@link NameResolver}. The visible and declared sets are computed once, here. */
+export function createNameResolver(
+  program: ProgramNode,
+  profiles: readonly CheckProfile[],
+): NameResolver {
+  const visible = collectVisibleNames(program, profiles);
+  const declared = collectDeclaredNames(program);
+  return {
+    isVisible: (name) => visible.has(name.toLowerCase()),
+    suggestionFor: (name) =>
+      bestSuggestion(name.toLowerCase(), visible, declared),
+  };
+}
+
+/**
  * The `ol-unknown-command` rule: every call site whose callee is not visible (and is not a
  * grammar operator) raises one diagnostic, with a suggestion when a visible candidate is within
  * edit distance 2.
@@ -202,8 +283,10 @@ export function unknownCommandRule(
   program: ProgramNode,
   profiles: readonly CheckProfile[],
 ): readonly Diagnostic[] {
-  const visible = collectVisibleNames(program, profiles);
-  const declared = collectDeclaredNames(program);
+  // Through the same resolver `@openlogo/runtime` uses. The rule that establishes "one producer"
+  // should be the first thing consuming it — hand-composing the same three helpers here cannot
+  // drift today, but it is a second assembly of the judgement this file exists to centralise.
+  const names = createNameResolver(program, profiles);
   const diagnostics: Diagnostic[] = [];
 
   walk(program, (node) => {
@@ -219,11 +302,11 @@ export function unknownCommandRule(
       return;
     }
     const lower = raw.toLowerCase();
-    if (OPERATOR_CALLEES.has(lower) || visible.has(lower)) {
+    if (OPERATOR_CALLEES.has(lower) || names.isVisible(lower)) {
       return;
     }
 
-    const suggestion = bestSuggestion(lower, visible, declared);
+    const suggestion = names.suggestionFor(lower);
     // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be the
     // diagnostic's identity (`spec/error-model.md:255-260`): `Mystery`, `MYSTERY`, and `mystery`
     // are one absent callable and must report one `params.name`. Emit the case-folded resolution

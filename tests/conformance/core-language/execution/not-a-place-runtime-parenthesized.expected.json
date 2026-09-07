@@ -1,21 +1,8 @@
 {
-  "description": "`(:x) = 2` (issue #442/F3): assigning to a fully-parenthesized colon target raises the runtime's own `ol-not-a-place`, reached without `check()` (mirroring `not-a-place-runtime-postfix-expression.expected.json`'s postfix case). The parser re-wraps the grouping-stripped `(:x)` into a zero-segment `PostfixExpression`, so `executeAssign`'s non-`Place` guard fires and `not-a-place-text.ts`'s runtime-side `PostfixExpressionNode` renderer produces the same full target text `(:x)` the checker renders. The whole statement first emits an `instruction` event; `:x` is never read because the non-place target is rejected before the assignment's value or base is evaluated.",
+  "description": "`(:x) = 2` (issue #442/F3): assigning to a fully-parenthesized colon target raises the runtime's own `ol-not-a-place`, reached through `execute()`'s own check before Phase 2 (mirroring `not-a-place-runtime-postfix-expression.expected.json`'s postfix case). The parser re-wraps the grouping-stripped `(:x)` into a zero-segment `PostfixExpression`, so `executeAssign`'s non-`Place` guard fires and `not-a-place-text.ts`'s runtime-side `PostfixExpressionNode` renderer produces the same full target text `(:x)` the checker renders. `:x` is never read: the non-place target is rejected before the assignment's value or base is evaluated, and since issue #815 before the program runs at all. Issue #815: `execute()` now runs Layer 1 and Layer 2 before Phase 2 and refuses a program carrying an `error`-severity finding (`spec/execution-model.md:659-664`), so no event is emitted and the diagnostic delivered here is the CHECK's. The runtime's own copy of the rule still exists, but it runs only under the `runUnchecked` opt-out — NOT in this fixture, which is checked — and when it does run it is collapsed into the check's by the de-duplication rule (`spec/execution-model.md:741-748`), which is why the runtime's copy never appears beside the check's. So nothing here observes that copy, and reading this fixture as evidence for it would be a mistake: measured, a runtime guard can be deleted outright with the whole conformance corpus still green, because the surviving report is the check's either way. What the runtime copy uniquely contributes is that the run STOPS at the fault, which is written in the event stream rather than in the diagnostics and is pinned by `packages/runtime/src/runtime-guards-halt.test.mjs`. The other findings recorded here are independent faults in the same program, each reported once.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/not-a-place-runtime-parenthesized",
-        "start": [1, 1],
-        "end": [1, 9]
-      },
-      "payload": {
-        "statement_kind": "Assign"
-      }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-not-a-place",
@@ -24,8 +11,23 @@
         "start": [1, 1],
         "end": [1, 5]
       },
-      "params": { "text": "(:x)" },
-      "stage": "runtime",
+      "params": {
+        "text": "(:x)"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/execution/not-a-place-runtime-parenthesized",
+        "start": [1, 2],
+        "end": [1, 4]
+      },
+      "params": {
+        "name": "x"
+      },
+      "stage": "semantic",
       "severity": "error"
     }
   ]

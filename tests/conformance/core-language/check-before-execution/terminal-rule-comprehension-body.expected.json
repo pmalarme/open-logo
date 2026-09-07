@@ -1,0 +1,34 @@
+{
+  "description": "Issue #815: the TERMINAL rule, which the check before execution deliberately cannot decide. `spec/execution-model.md:717-720` requires that evaluating any statement or expression \"MUST end in exactly one of three outcomes — a value, a completed effect, or a diagnostic. Skipping the construct is not one of them, at any depth, in any argument position, and for any callable.\" This program is entirely VALID — every name known, every Kind and arity correct — so Layer 2 reports nothing and the run begins; the comprehension body evaluator is simply narrower than `executeStatements` and has no branch for a control form. Before this slice that gap discarded the whole comprehension in silence and left `:out` unbound. It now reports `ol-not-implemented`, whose meaning is precisely *the name is known and this implementation cannot run it yet* (`spec/error-model.md:131`) — our gap, named as ours rather than blamed on the learner. This is the one mechanism of the slice that the check-before-run fixtures cannot cover, because a gate that refuses invalid programs can say nothing about a valid one; a mutation turning the terminal halt back into a silent `continue` leaves every other fixture in this corpus green and reddens only this.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/check-before-execution/terminal-rule-comprehension-body",
+        "start": [1, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-implemented",
+      "source_span": {
+        "document": "core-language/check-before-execution/terminal-rule-comprehension-body",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "params": {
+        "name": "if"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -79,13 +79,17 @@ test("reverse on a word argument raises ol-type", () => {
 });
 
 test("reverse propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print reverse :missing", doc);
+  const result = execute("print reverse :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(reverse) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (reverse)", doc);
+  const result = execute("print (reverse)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -96,7 +100,9 @@ test("(reverse) with no input raises ol-not-enough-inputs", () => {
 });
 
 test("(reverse [1 2] [3]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
-  const result = execute("print (reverse [1 2] [3])", doc);
+  const result = execute("print (reverse [1 2] [3])", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -151,13 +157,17 @@ test("pick on a non-list argument raises ol-type naming 'list'", () => {
 });
 
 test("pick propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print pick :missing", doc);
+  const result = execute("print pick :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(pick) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (pick)", doc);
+  const result = execute("print (pick)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -168,7 +178,9 @@ test("(pick) with no input raises ol-not-enough-inputs", () => {
 });
 
 test("(pick [1] [2]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
-  const result = execute("print (pick [1] [2])", doc);
+  const result = execute("print (pick [1] [2])", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -289,13 +301,17 @@ test("sort on a non-list argument raises ol-type naming 'list'", () => {
 });
 
 test("sort propagates an operand evaluation failure instead of evaluating", () => {
-  const result = execute("print sort :missing", doc);
+  const result = execute("print sort :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(sort) with no input raises ol-not-enough-inputs", () => {
-  const result = execute("print (sort)", doc);
+  const result = execute("print (sort)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -306,7 +322,9 @@ test("(sort) with no input raises ol-not-enough-inputs", () => {
 });
 
 test("(sort [2 1] [3]) with an extra input raises ol-too-many-inputs, not a silent discard", () => {
-  const result = execute("print (sort [2 1] [3])", doc);
+  const result = execute("print (sort [2 1] [3])", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.deepEqual(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

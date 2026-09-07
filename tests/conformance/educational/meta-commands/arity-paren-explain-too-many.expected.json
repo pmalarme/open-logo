@@ -1,5 +1,5 @@
 {
-  "description": "issue #874 in the Educational profile: `spec/conformance.md:210-213` gives every baseline meta-command (`explain`/`why`/`hint`/`debug`) as Command, arity 0, so `(explain 1)` is one input too many and `check()` raises ol-too-many-inputs — where it was silent while `execute()` raised the same code at runtime. Lives under educational/ and declares the profile, so the finding is produced with `educational` actually active; a fixture elsewhere in the corpus could not exercise this gate at all.",
+  "description": "issue #874 in the Educational profile: `spec/conformance.md:210-213` gives every baseline meta-command (`explain`/`why`/`hint`/`debug`) as Command, arity 0, so `(explain 1)` is one input too many and `check()` raises ol-too-many-inputs — where it was silent while `execute()` raised the same code. Lives under educational/ and declares the profile, so the finding is produced with `educational` actually active; a fixture elsewhere in the corpus could not exercise this gate at all.",
   "profiles": ["core-language", "educational"],
   "check": true,
   "events": [],

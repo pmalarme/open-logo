@@ -1,0 +1,35 @@
+{
+  "description": "Issue #815: the same boundary from the other side. The stray `]` \"is wrong whatever the callee turns out to be\" (`spec/execution-model.md:770-773`), so it keeps `ol-unmatched-bracket` while `100` — whose only fault is following an unresolvable name — carries no diagnostic of its own.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-unmatched-bracket",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/independent-fault-beside-an-unresolvable-callee",
+        "start": [1, 11],
+        "end": [1, 12]
+      },
+      "params": {
+        "delimiter": "]"
+      },
+      "stage": "parse",
+      "severity": "error"
+    },
+    {
+      "code": "ol-unknown-command",
+      "source_span": {
+        "document": "turtle-rendering/check-before-execution/independent-fault-beside-an-unresolvable-callee",
+        "start": [1, 1],
+        "end": [1, 6]
+      },
+      "params": {
+        "name": "fowad",
+        "suggestion": "forward"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

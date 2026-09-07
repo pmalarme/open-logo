@@ -137,7 +137,9 @@ test("a non-word event argument (list) raises ol-type", () => {
 test("an event argument that fails to evaluate surfaces its own diagnostic, not ol-type", () => {
   // `:missing` is a supported argument shape (a variable reference) but evaluating it fails with
   // `ol-undefined-var`; `when` halts on that and never reaches the word-type check or registration.
-  const result = execute('when :missing [ print "x" ]', doc);
+  const result = execute('when :missing [ print "x" ]', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
   assert.deepEqual(effectEvents(result), []);
@@ -148,8 +150,18 @@ test("an unsupported event argument leaves the statement un-evaluated (no crash,
   // evaluator; the statement is left un-evaluated (its instruction event still emits) rather than
   // throwing or diagnosing — the same "defer if unsupported" convention `wait` and the turtle
   // commands use, so a later slice can widen the evaluator without this slice pre-judging the arg.
-  const result = execute('when forward 5 [ print "x" ]', doc);
-  assert.deepEqual(result.diagnostics, []);
+  const result = execute('when forward 5 [ print "x" ]', doc, {
+    runUnchecked: true,
+  });
+  // Issue #815 / #716: a built-in **Command** in value position is now the statically decidable
+  // `ol-no-output` of `spec/tooling.md:193`, reported uniformly across every form rather than as a
+  // per-form special case — which is precisely the inconsistency #716 recorded. Under the spec's
+  // `runUnchecked` opt-out the program runs anyway and the evaluator reaches the same call, which
+  // it judges in VALUE position and reports identically — so the two collapse to one.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-no-output"],
+  );
   assert.deepEqual(effectEvents(result), []);
 });
 
@@ -182,7 +194,9 @@ test("a mismatched closing label (`end every` for a `when` block) raises ol-mism
 // --- Errors and cancellation propagate out of a handler body ----------------------------------
 
 test('a runtime error inside a "start" handler body halts the whole run', () => {
-  const result = execute('when "start" [ forward :missing ]', doc);
+  const result = execute('when "start" [ forward :missing ]', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -224,13 +238,17 @@ test("a `return` escaping a handler registered inside a procedure is still ol-re
 });
 
 test("a `return` escaping a handler body is ol-return-outside-proc (a handler block is not a procedure)", () => {
-  const result = execute('when "start" [ return 5 ]', doc);
+  const result = execute('when "start" [ return 5 ]', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-return-outside-proc");
 });
 
 test("a `stop` escaping a handler body is ol-stop-outside-proc", () => {
-  const result = execute('when "start" [ stop ]', doc);
+  const result = execute('when "start" [ stop ]', doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-stop-outside-proc");
 });

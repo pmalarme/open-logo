@@ -138,8 +138,11 @@ The rules above make the **tree** trustworthy. This one makes your **measurement
 — a different question, and the one that fails silently.
 
 The principle: **an instrument inherits the blind spots of whatever it is built on, and reports
-success from inside them.** Two mechanisms recur — they are not the only two, but they are the ones
-that keep costing work here — and both return plausible output rather than an error.
+success from inside them.** Several mechanisms recur — not the only ones, but the ones that keep
+costing work here — and all of them return plausible output rather than an error. (This sentence
+used to carry a count. It was wrong in three consecutive review rounds, twice falsified by the very
+edit that corrected it, because every new instance has to remember to increment a number nothing
+re-derives. The number is the defect, not its value; the list below is the enumeration.)
 
 **1. The instrument enumerates a narrower set than the truth.** A tool that enumerates the repository
 through git cannot see an untracked file, so a green run over unstaged work certifies a tree that
@@ -157,6 +160,39 @@ range after a comma had its head moved and its tail left stranded on unrelated p
 used the same regex, so it confirmed the move it had itself mis-parsed. **A verifier built from the
 subject's own parser is a second opinion in name only.** (Commit `499da987` records the 48; its diff
 carries the two comma-tailed citations whose head moved while the tail did not.)
+
+**3. The reporter suppresses the signal you are filtering for.** The instrument runs, the subject
+really does fail, and your filter reports success — because it is matching a string the reporter
+never emits. `node --test`'s default reporter does **not** print TAP `not ok`, so a perturbation
+harness grepping for `not ok` concludes "my test is not load-bearing" no matter what happened; pass
+`--test-reporter=tap`. The same shape caught a reviewer from the other direction: `[System.IO.File]::WriteAllText`
+resolves relative paths against **.NET's** working directory, which PowerShell's `cd` does not
+change, so three perturbations were written into a different checkout than the one being built and
+tested (set `[System.Environment]::CurrentDirectory = $pwd`). Both cost multiple false conclusions
+in one slice. **Attribute a failure to a test by NAME, and make every perturbation carry a
+behavioural control proving the mutation reached the artifact you are measuring** — a fail *count*
+tells you something changed, not that the thing you meant to break is what broke.
+
+**And the authoring counterpart, which writes the wrong artifact rather than measuring one.** A
+shell escape can silently put a *control character* into source: PowerShell's backtick turns
+`` `value` `` into `<VT>alue`, `` `false` `` into `<FF>alse`, and `` `events` `` into `<ESC>vents`,
+destroying the code span around it. Four instances were found by hand in one slice and **one had
+already reached `main`**, because build, typecheck, lint, format, the full test suite, conformance
+and 100% coverage are all blind to it — reading a file as text hides the byte. There is no gate;
+`#1130` specifies one. Until it lands, sweep raw bytes yourself after any here-string edit.
+
+**Another door onto the same room, which that remedy does *not* close: the whole module graph
+resolving into a different checkout.** In an npm workspace, `node_modules/@scope/*` are links into
+`packages/*`, and `npm` repoints them at whatever directory it last ran in. A disposable clone that
+reuses the implementing worktree's `node_modules` therefore **steals** those links, and deleting the
+clone leaves them dangling — so a perturbation is edited and built in one tree and *measured* in
+another. Both reviewers on one slice hit it independently: one drew a confident false performance
+conclusion, the other a false `95.19%` coverage reading it nearly reported as contradicting the
+author's claim, and the author's own build then failed with `Cannot find module '@openlogo/core'`
+because the links were gone. Per-test behavioural controls all pass throughout, because each test
+really did run — against the wrong artifacts. **Give a disposable checkout its own `npm ci`, and
+assert the resolved module URL lives under the tree you are measuring** (`import.meta.resolve`, or
+just print the realpath). Recovery in the implementing worktree is `npm install`.
 
 **The operational form — and the only reliable check.** An instrument cannot detect its own blind
 spot, so the remedy is never a more careful pass with the same one: it is **a second,

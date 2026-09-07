@@ -160,7 +160,9 @@ test("a word seed is deterministic: the same word seed reproduces the same draw"
 // --- randomize arity: ol-too-many-inputs --------------------------------------------------------
 
 test("(randomize 1 2) raises ol-too-many-inputs", () => {
-  const result = execute("(randomize 1 2)", doc);
+  const result = execute("(randomize 1 2)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -173,7 +175,9 @@ test("(randomize 1 2) raises ol-too-many-inputs", () => {
 // --- randomize propagates an argument evaluation failure --------------------------------------
 
 test("(randomize :missing) propagates the undefined-variable failure", () => {
-  const result = execute("(randomize :missing)", doc);
+  const result = execute("(randomize :missing)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -185,11 +189,18 @@ test("randomize with an unsupported argument is left un-executed", () => {
     "(randomize (nonexistent_builtin 1))\nprint random 10",
     doc,
   );
-  assert.deepEqual(result.diagnostics, []);
-  // The seed argument is deferred (not evaluated), but `randomize` itself is still skipped as a
-  // whole statement, and the following `print random 10` still runs fine off the default random
-  // number generator.
-  assert.equal(printedValues(result).length, 1);
+  // Issue #815: the unresolvable callee is now REPORTED, not silently skipped. It is reported by
+  // the check before execution (`spec/execution-model.md:659-664`); `runUnchecked` — the spec's own
+  // opt-out — makes the program run anyway, so the evaluator ALSO reaches the callee and raises,
+  // and the two identical reports collapse to one (`spec/execution-model.md:741-748`). The effect
+  // below still never happens, but now for a reason the learner is told.
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-unknown-command"],
+  );
+  // Nothing runs at all now, so the following `print random 10` never reports either — the
+  // program is refused as a whole rather than partly executed around an unreadable statement.
+  assert.deepEqual(printedValues(result), []);
 });
 
 // --- random: ol-type for a non-whole bound (checked before ol-range) ---------------------------
@@ -278,19 +289,25 @@ test("(random 5 2) raises ol-range for a reversed range", () => {
 // --- random argument-evaluation failure propagation --------------------------------------------
 
 test("random :missing propagates the undefined-variable failure", () => {
-  const result = execute("print random :missing", doc);
+  const result = execute("print random :missing", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(random :missing 6) propagates the first argument's failure instead of evaluating the second", () => {
-  const result = execute("print (random :missing 6)", doc);
+  const result = execute("print (random :missing 6)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
 
 test("(random 1 :missing) propagates the second argument's failure", () => {
-  const result = execute("print (random 1 :missing)", doc);
+  const result = execute("print (random 1 :missing)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-undefined-var");
 });
@@ -298,7 +315,9 @@ test("(random 1 :missing) propagates the second argument's failure", () => {
 // --- random arity: ol-not-enough-inputs / ol-too-many-inputs -----------------------------------
 
 test("(random) with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("print (random)", doc);
+  const result = execute("print (random)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.deepEqual(result.diagnostics[0].params, {
@@ -309,7 +328,9 @@ test("(random) with no arguments raises ol-not-enough-inputs", () => {
 });
 
 test("(random 1 2 3) with three arguments raises ol-too-many-inputs", () => {
-  const result = execute("print (random 1 2 3)", doc);
+  const result = execute("print (random 1 2 3)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.deepEqual(result.diagnostics[0].params, {

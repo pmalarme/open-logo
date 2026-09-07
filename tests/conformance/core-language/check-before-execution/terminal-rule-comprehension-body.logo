@@ -1,0 +1,4 @@
+:out = map n in [1] [
+  if true [ print 1 ]
+  :n
+]

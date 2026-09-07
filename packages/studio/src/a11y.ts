@@ -124,6 +124,7 @@
  */
 
 import type { SourceSpan } from "@openlogo/core";
+import { diagnosticIdentity } from "@openlogo/core";
 import type { TurtleWorldState } from "@openlogo/turtle";
 import {
   describeTurtleWorldState,
@@ -358,17 +359,38 @@ function describeDiagnostics(diagnostics: StudioState["diagnostics"]): string {
  * diagnostics are unchanged (e.g. re-running clean source stays empty), and announcing that as
  * "new" would spam an assistive-technology user with a redundant interruption on every keystroke
  * or Run.
+ *
+ * `params` are compared through `@openlogo/core`'s own {@link diagnosticIdentity} rather than by
+ * serializing them here. `JSON.stringify` only sees enumerable own properties, so it reported two
+ * records of different shapes as the same `{"type":"p"}` and **silently stopped announcing a
+ * diagnostic that had genuinely changed** (issue #815). A second, approximate copy of an identity
+ * rule is a rule two packages can drift on, and this is the drift.
+ *
+ * `severity` and `stage` are compared beside it on purpose: core's fault identity deliberately
+ * excludes both (`spec/execution-model.md:741-743` defines identity as `code` + `params` +
+ * `source_span`), but for an announcer a diagnostic moving from `semantic` to `runtime`, or an
+ * error becoming a warning, is a change worth hearing about.
+ *
+ * The three parts are **length-prefixed** rather than joined by a separator. To be precise about
+ * what that did and did not fix: a review claimed the old `\u0000`/`\u0001`-joined key could
+ * collide, then **retracted it and proved the opposite**, and a second review independently fuzzed
+ * 200,000 adversarial lists — params containing `\u0000`, `\u0001`, `arr3(`, `error`, `semantic`,
+ * `)` and `:` — and found **zero collisions under either encoding**. `canonicalize` emits a single
+ * balanced `arr3(…)` term with length-prefixed leaves, so identity output is prefix-free and the
+ * separator-joined form was uniquely decodable too.
+ *
+ * So this is **defence in depth, not the repair of a measured fault**: the encoding is injective
+ * self-evidently, without resting on an argument about a helper one package away. The test below
+ * pins that property; it passes against the old key as well, and its comment says so.
  */
 function diagnosticsKey(diagnostics: StudioState["diagnostics"]): string {
-  return JSON.stringify(
-    diagnostics.map((diagnostic) => ({
-      code: diagnostic.code,
-      severity: diagnostic.severity,
-      stage: diagnostic.stage,
-      source_span: diagnostic.source_span,
-      params: diagnostic.params,
-    })),
-  );
+  return diagnostics
+    .map((diagnostic) =>
+      [diagnostic.severity, diagnostic.stage, diagnosticIdentity(diagnostic)]
+        .map((part) => `${part.length}:${part}`)
+        .join(""),
+    )
+    .join("");
 }
 
 /**

@@ -1,5 +1,5 @@
 {
-  "description": "`between` requires the value and both bounds to be all-number or all-word; mixing a number value with a word low-bound raises `ol-type` naming the mismatched bound's concept \"number\" (spec/execution-model.md:146-166, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`between` requires the value and both bounds to be all-number or all-word; mixing a number value with a word low-bound raises `ol-type` naming the mismatched bound's concept \"number\" (spec/execution-model.md:146-166, error-model.md `ol-type`). The program does not run, so no event is emitted at all; under the `runUnchecked` opt-out execution halts at the failing statement and only its `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -11,7 +11,9 @@
         "start": [1, 1],
         "end": [1, 30]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     }
   ],
   "diagnostics": [

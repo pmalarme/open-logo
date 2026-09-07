@@ -39,7 +39,9 @@ test("`dict` yields a fresh, independent instance on every call", () => {
 });
 
 test("`(dict 1)` with an argument raises ol-too-many-inputs", () => {
-  const result = execute("print (dict 1)", doc);
+  const result = execute("print (dict 1)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
   assert.equal(result.diagnostics[0].params.callable, "dict");
@@ -54,7 +56,9 @@ test("`keys` reports a fresh list of a dict's keys, in insertion order", () => {
 });
 
 test("`(keys)` with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("print (keys)", doc);
+  const result = execute("print (keys)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.equal(result.diagnostics[0].params.callable, "keys");
@@ -87,7 +91,9 @@ test("`values` reports a fresh list of a dict's values, in the same order as `ke
 });
 
 test("`(values)` with no arguments raises ol-not-enough-inputs", () => {
-  const result = execute("print (values)", doc);
+  const result = execute("print (values)", doc, {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
   assert.equal(result.diagnostics[0].params.callable, "values");

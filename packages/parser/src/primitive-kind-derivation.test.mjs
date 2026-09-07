@@ -426,21 +426,28 @@ test("the Data, Interaction & Events and Educational profiles are classified too
   }
 });
 
-test("challenge is classified a command even though it has no checker visibility yet (issue #932)", () => {
-  // `challenge` is the one registered primitive `checker-names.ts` deliberately withholds
-  // visibility from — it has no runtime, so a program using it must still be told
-  // `ol-unknown-command`. Its Kind is registered nonetheless, so a comprehension body ending in it
-  // now reports BOTH codes where before issue #932 it reported only the first. Pinned as measured
-  // rather than left to be discovered: the two rules answer different questions (is this name
-  // visible? does this statement produce a value?), and `spec/tooling.md:179-192` gives them
-  // separate rows.
+test("challenge is classified a command, and is visible when Tutor is active (issues #932, #815)", () => {
+  // `challenge` used to be withheld from the visible-name set because no evaluator could run it,
+  // so this same program reported `ol-unknown-command` first. Issue #815 retired that: withholding
+  // a registered name to make its call read as unknown is what `spec/error-model.md:131` forbids,
+  // and it misattributed this implementation's gap to the learner. The name now resolves, and only
+  // its Kind is left to report — a Command supplies no value, so the comprehension body has none.
   assert.deepEqual(
     checkCodes(":x = map n in [1 2 3] [ challenge ]", [
       "core-language",
       "tutor-ai",
     ]),
-    ["ol-unknown-command", "ol-no-value"],
+    ["ol-no-value"],
   );
+});
+
+test("challenge is still ol-unknown-command when Tutor is NOT active (issue #815)", () => {
+  // The other half of the same rule: `spec/error-model.md:131` keeps `ol-unknown-command` correct
+  // for "a call under a profile the run does not claim … because there the name does not resolve".
+  // Visibility follows the active profile set; it is not a property of the implementation's gaps.
+  assert.deepEqual(checkCodes("challenge", ["core-language"]), [
+    "ol-unknown-command",
+  ]);
 });
 
 test("the spec's own instruction-block example is style-clean (issue #932)", () => {

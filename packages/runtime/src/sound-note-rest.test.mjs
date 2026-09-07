@@ -146,20 +146,31 @@ test("note raises ol-type when the duration is a list", () => {
   assert.equal(result.diagnostics[0].params.operation, "note");
 });
 
-test("note leaves an unsupported argument expression un-evaluated (no event, no error)", () => {
-  // `forward` is a command, not a reporter, so it is not a supported argument expression — the
-  // handler returns without scheduling, mirroring every other primitive's argument-gating.
-  const result = execute('note "c4" forward', "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+test("note reports a command used as its duration, never a silent no-op", () => {
+  // Issue #815: `forward` is a Command, so using it where a value is required is the statically
+  // decidable `ol-no-output` of `spec/tooling.md:193` — reported, rather than quietly turning the
+  // whole `note` into nothing. The arity finding beside it is the same call's other fault.
+  const result = execute('note "c4" forward', "main.logo", {
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-enough-inputs", "ol-no-output"],
+  );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
-test("note leaves an unsupported pitch expression un-evaluated (no event, no error)", () => {
-  // The pitch operand is gated first (issue #690 review): an unsupported *pitch* expression
-  // (a parenthesized command, not a reporter) returns before the duration is ever inspected —
-  // no event, no diagnostic.
-  const result = execute("note (forward) 1", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+test("note reports a command used as its pitch, never a silent no-op", () => {
+  // Issue #815: `(forward)` is a Command in value position, which `spec/tooling.md:193` makes a
+  // statically decidable `ol-no-output` — so the run is refused with a reason instead of being
+  // abandoned. The arity finding beside it is the same call's other, independent fault.
+  const result = execute("note (forward) 1", "main.logo", {
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-enough-inputs", "ol-no-output"],
+  );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
@@ -167,20 +178,52 @@ test("note reports the invalid-pitch error before inspecting the duration argume
   // Pitch is validated fully before the duration is preflighted, so a bad pitch wins even when
   // the duration expression is itself unsupported (`forward`) — otherwise the pitch error would
   // be silently swallowed (rubber-duck finding, issue #690).
-  const result = execute('note "bad" forward', "main.logo");
-  assert.equal(result.diagnostics.length, 1);
-  assert.equal(result.diagnostics[0].code, "ol-type");
+  // Issue #815: the check now refuses this program outright (`forward` is a Command in value
+  // position), so `runUnchecked` — the spec's own opt-out, `spec/execution-model.md:687-694` — is
+  // what keeps this the RUNTIME ordering test it was written to be.
+  const result = execute('note "bad" forward', "main.logo", {
+    runUnchecked: true,
+  });
+  const runtimeFindings = result.diagnostics.filter(
+    (diagnostic) => diagnostic.stage === "runtime",
+  );
+  assert.equal(runtimeFindings.length, 1);
+  assert.equal(runtimeFindings[0].code, "ol-type");
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
 test("note raises ol-not-enough-inputs when given one argument", () => {
-  const result = execute('note "c4"', "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute('note "c4"', "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
 });
 
 test("note raises ol-too-many-inputs when given three arguments", () => {
-  const result = execute('(note "c4" 1 2)', "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute('(note "c4" 1 2)', "main.logo", {
+    runUnchecked: true,
+  });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
 });
@@ -230,20 +273,47 @@ test("rest propagates a runtime error from evaluating the duration expression", 
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
-test("rest leaves an unsupported argument expression un-evaluated (no event, no error)", () => {
-  const result = execute("rest forward", "main.logo");
-  assert.deepEqual(result.diagnostics, []);
+test("rest reports a command used as its duration, never a silent no-op", () => {
+  const result = execute("rest forward", "main.logo", {
+    runUnchecked: true,
+  });
+  assert.deepEqual(
+    result.diagnostics.map((diagnostic) => diagnostic.code),
+    ["ol-not-enough-inputs", "ol-no-output"],
+  );
   assert.ok(!result.events.some((event) => event.kind === "sound"));
 });
 
 test("rest raises ol-not-enough-inputs when given no argument", () => {
-  const result = execute("rest", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("rest", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-not-enough-inputs");
 });
 
 test("rest raises ol-too-many-inputs when given two arguments", () => {
-  const result = execute("(rest 1 2)", "main.logo");
+  // Issue #815: `execute()` now runs the semantic check first, and this arity fault is one the
+  // checker decides statically — so the program is refused before Phase 2 and the runtime guard
+  // below would never be reached. `runUnchecked` is the spec’s own opt-out
+  // (`spec/execution-model.md:687-694`), and is what makes the runtime guard REACHABLE: it runs,
+  // raises the identical fault, and `spec/execution-model.md:746-748` collapses the second report
+  // into the first — which is why the surviving diagnostic reads `stage: "semantic"`.
+  //
+  // Reachable is not asserted, and the difference here is measured rather than argued: because the
+  // surviving report is the CHECK's, deleting this runtime guard outright leaves the assertion below
+  // green. What the guard uniquely does — stop the run AT the fault — is written in the event
+  // stream instead, and is pinned by `runtime-guards-halt.test.mjs`.
+  const result = execute("(rest 1 2)", "main.logo", { runUnchecked: true });
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-too-many-inputs");
 });

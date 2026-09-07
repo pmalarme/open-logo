@@ -1,5 +1,5 @@
 {
-  "description": "`false and :missing` short-circuits (spec/execution-model.md:141): `and` never evaluates its right operand once the left is `false`, so the `ol-undefined-var` reading `:missing` would raise is never reached. Result is `false`. Issue #95.",
+  "description": "`false and (1 / 0)` short-circuits (spec/execution-model.md:141): `and` never evaluates its right operand once the left is `false`, so the `ol-div-zero` that operand would raise is never reached. Result is `false`. Issue #95. Issue #815: the operand was `:missing` until the check before execution landed, at which point an unbound read became a *statically* decided fault and this correct program stopped running at all. `1 / 0` keeps the subject and strengthens it — the skipped operand is one that would genuinely raise (`ol-div-zero`) if it were evaluated, and its absence from the diagnostics is the proof.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [
@@ -9,9 +9,11 @@
       "source_span": {
         "document": "core-language/execution/logical-and-short-circuit",
         "start": [1, 1],
-        "end": [1, 25]
+        "end": [1, 23]
       },
-      "payload": { "statement_kind": "Call" }
+      "payload": {
+        "statement_kind": "Call"
+      }
     },
     {
       "seq": 1,
@@ -19,9 +21,11 @@
       "source_span": {
         "document": "core-language/execution/logical-and-short-circuit",
         "start": [1, 1],
-        "end": [1, 25]
+        "end": [1, 23]
       },
-      "payload": { "values": [false] }
+      "payload": {
+        "values": [false]
+      }
     }
   ],
   "diagnostics": []
