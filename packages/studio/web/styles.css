@@ -420,9 +420,11 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
  * degradation `spec/tooling.md:83-84` contemplates for the bracket roles.
  *
  * The `title` attribute `editor-cm6.ts` puts on the same mark
- * (`highlighter.ts`'s `OL_GLOBAL_VARIABLE_DESCRIPTION`) is the third, textual channel: a hover
- * tooltip and the span's accessible description, so the meaning is not carried by pixels alone.
- * Like every other highlight decoration it is a `class`/`title` pair on a CM6 `mark` — it never
+ * (`highlighter.ts`'s `OL_GLOBAL_VARIABLE_DESCRIPTION`) is a third, *supplementary* channel: a hover
+ * tooltip and a best-effort accessible description. It is deliberately not load-bearing — `title` on
+ * a non-interactive span is inconsistently surfaced by assistive technology and is not
+ * keyboard-reachable — which is exactly why the two channels above avoid color instead of leaning on
+ * it. Like every other highlight decoration it is a `class`/`title` pair on a CM6 `mark` — it never
  * wraps, replaces, hides, or reorders text, so the accessible text, DOM reading order, and focus
  * model are unchanged.
  */

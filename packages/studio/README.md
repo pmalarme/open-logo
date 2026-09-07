@@ -107,9 +107,14 @@ the half a learner can see.
   theme that styles no `ol-mod-*` rule renders it exactly like an ordinary variable — the same
   graceful degradation `spec/tooling.md:83-84` contemplates for the bracket roles. The mapping table
   is deliberately partial: the modifier vocabulary is open, and an unmapped modifier is dropped
-  rather than leaking a class. Today only `global` earns paint; `declaration`/`reference`/
-  `readonly`/`defaultLibrary` and the bracket roles are true of nearly every token, so painting them
-  would be noise.
+  rather than leaking a class. The cost, stated rather than glossed: unlike the class axis — whose
+  total `Record<TokenClass, string>` would not compile until a new class was mapped — the modifier
+  axis has **no forcing function**, so a future paintable modifier is a silent no-op until someone
+  adds a row and a CSS rule. That is the accepted price of an open vocabulary. Today only `global`
+  earns paint; `declaration`/`reference`/`readonly`/`defaultLibrary` and the bracket roles are true
+  of nearly every token, so painting them would be noise — and dropping `defaultLibrary` also avoids
+  propagating #831's known deviation, which would otherwise render a learner's typo as a
+  standard-library call.
 - **All three assignment spellings are painted**, each keeping its own class: `:score` (`:variable`),
   `set score to …`'s place head (`primitive`), and `make "score" …`/`thing "score"`'s word literal
   (`word/string`). A *declaration* is not painted — `global score = 0` introduces the name rather
@@ -119,8 +124,11 @@ the half a learner can see.
   the distinction is carried by two channels that survive greyscale, a recoloured theme, and
   forced-colors mode — **font weight**, and a **dotted underline** in `currentColor` (dotted, never
   the `wavy` of #317's error squiggles, so a shared variable can never read as an error). A third,
-  textual channel rides along: `OL_GLOBAL_VARIABLE_DESCRIPTION` becomes the mark's `title`, i.e. a
-  hover tooltip and the span's accessible description. Like every other highlight decoration it is a
+  **supplementary** channel rides along: `OL_GLOBAL_VARIABLE_DESCRIPTION` becomes the mark's `title`,
+  i.e. a hover tooltip and a best-effort accessible description. It is deliberately not load-bearing
+  — `title` on a non-interactive span is inconsistently surfaced by assistive technology and is not
+  keyboard-reachable — which is precisely why the visual channels avoid colour rather than leaning on
+  it. Like every other highlight decoration it is a
   `class`/`title` pair on a CM6 `mark`, so the accessible text, DOM reading order and focus model are
   unchanged.
 - **Proven in a real browser, not asserted.** `e2e/global-variable-highlight.spec.ts` renders the

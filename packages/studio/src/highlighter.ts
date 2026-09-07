@@ -18,15 +18,25 @@
  * renders a modified token exactly like an unmodified one, which is the degradation
  * `spec/tooling.md:83-84` explicitly contemplates for the bracket roles.
  *
- * That table is deliberately **partial**. The modifier vocabulary is open — `spec/tooling.md:281-283`
- * lists "optional modifiers **such as** …" — so a total record would turn every parser-side
- * addition into a compile error here, which is precisely what ADR-0032 chose the modifier channel
- * to avoid. Today one modifier earns paint: `global`, the answer to "does this `:name` reach state
+ * That table is deliberately **partial**, and the trade is worth stating rather than only its upside.
+ * The modifier vocabulary is open — `spec/tooling.md:281-283` lists "optional modifiers **such as**
+ * …" — so a total record would turn every parser-side addition into a compile error here, which is
+ * precisely what ADR-0032 chose the modifier channel to avoid. But ADR-0032 also counted the
+ * *forcing function* of `OL_HIGHLIGHT_CSS_CLASS`'s total `Record<TokenClass, string>` as a virtue on
+ * the class axis: a sixteenth class "would at least have *forced* the question". The modifier axis
+ * has **no analog**. A future paintable modifier (ADR-0032 names `parameter`/`local` as the growth
+ * path) is a silent no-op here until someone adds a row and a CSS rule, and no test fails to say so.
+ * That is the accepted cost of an open vocabulary, not an oversight.
+ *
+ * Today one modifier earns paint: `global`, the answer to "does this `:name` reach state
  * the whole program shares, or does it create a private binding?" — the one question
  * `spec/execution-model.md:441-446` rules is *correct* and therefore never diagnoses, so paint is
  * the only reader-facing guard for it. `declaration`/`reference`/`readonly`/`defaultLibrary` and the
  * three bracket roles are consumed and dropped: they are true of nearly every token, so painting
- * them would be noise, not information.
+ * them would be noise, not information. Dropping `defaultLibrary` also avoids propagating
+ * `semantic-tokens.ts`'s KNOWN DEVIATION (#831), under which an unresolved name (`fowad`) carries it
+ * despite being in no C3 table — painting that would render a learner's typo as a standard-library
+ * call.
  *
  * Marking follows the parser's **resolution**, never spelling: a `local` that shadows a global is
  * not painted, and `packages/parser/src/global-variable-resolution.ts` is the single source of that
@@ -124,21 +134,33 @@ export const OL_HIGHLIGHT_MODIFIER_CSS_CLASS: Readonly<
 export const OL_GLOBAL_VARIABLE_DESCRIPTION =
   "Shared variable: it was declared with global, so the whole program sees this same value.";
 
+/**
+ * The plain-language description a painted modifier contributes, keyed by the **CSS class** the
+ * modifier maps to rather than by the modifier name — so the textual channel and the visual one are
+ * derived from one lookup and cannot diverge. Removing a row from
+ * {@link OL_HIGHLIGHT_MODIFIER_CSS_CLASS} silently stops both, instead of leaving a `title` on a
+ * span with no visible treatment.
+ */
+const OL_HIGHLIGHT_MODIFIER_DESCRIPTION: Readonly<Record<string, string>> = {
+  [OL_HIGHLIGHT_MODIFIER_CSS_CLASS.global as string]:
+    OL_GLOBAL_VARIABLE_DESCRIPTION,
+};
+
 /** Map one parser {@link SemanticToken} onto the {@link HighlightToken} shape `editor.ts` defines. */
 function toHighlightToken(token: SemanticToken): HighlightToken {
   const modifiers = token.modifiers
     .map((modifier) => OL_HIGHLIGHT_MODIFIER_CSS_CLASS[modifier])
     .filter((cssClass): cssClass is string => cssClass !== undefined);
-  const description = token.modifiers.includes("global")
-    ? OL_GLOBAL_VARIABLE_DESCRIPTION
-    : undefined;
+  const descriptions = modifiers
+    .map((cssClass) => OL_HIGHLIGHT_MODIFIER_DESCRIPTION[cssClass])
+    .filter((description): description is string => description !== undefined);
   return {
     text: token.text,
     class: OL_HIGHLIGHT_CSS_CLASS[token.class],
     start: token.source_span.start,
     end: token.source_span.end,
     ...(modifiers.length > 0 ? { modifiers } : {}),
-    ...(description === undefined ? {} : { description }),
+    ...(descriptions.length > 0 ? { description: descriptions.join(" ") } : {}),
   };
 }
 

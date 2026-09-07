@@ -602,6 +602,24 @@ test("only a painted token carries the learner-facing description", () => {
   assert.match(OL_GLOBAL_VARIABLE_DESCRIPTION, /whole program/i);
 });
 
+test("the description is keyed off the painted CSS class, so text and paint cannot diverge", () => {
+  // Review finding (rubber-duck r1, #3): deriving the description from the raw modifier name while
+  // deriving the paint from the mapped CSS class would let a token carry a `title` with no visible
+  // treatment if the map entry were ever removed. Both now come from one lookup — asserted by
+  // observing that a described token is always a painted one and vice versa, over a fixture that
+  // contains both kinds.
+  const tokens = createParserHighlighter()(UNSHADOWED_PROGRAM);
+  assert.ok(tokens.length > 0);
+  const painted = tokens.filter(isPaintedGlobal);
+  const described = tokens.filter((token) => token.description !== undefined);
+  assert.ok(painted.length > 0);
+  assert.ok(described.length < tokens.length);
+  assert.deepEqual(
+    described.map((token) => token.start),
+    painted.map((token) => token.start),
+  );
+});
+
 // #1106 a11y hard gate: the distinction must not rely on color alone (`spec/rendering.md`), so the
 // shipped `.ol-mod-global` rule is read from the same stylesheet the contrast gate above parses.
 test("the .ol-mod-global rule conveys the distinction without color", () => {

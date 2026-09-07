@@ -62,8 +62,11 @@ export interface HighlightToken {
   readonly modifiers?: readonly string[];
   /**
    * A plain-language description of what this token's modifiers mean, for a renderer to surface as
-   * the span's `title` (hover tooltip and accessible description) — the textual channel that keeps
-   * the distinction from being carried by visual treatment alone.
+   * the span's `title` — a hover tooltip, and a **best-effort** accessible description. Be honest
+   * about its reach: `title` on a non-interactive `<span>` is inconsistently surfaced by assistive
+   * technology and is not keyboard-reachable, so it is a supplementary channel, never the one a
+   * distinction rests on. The channels that must carry the meaning are the visual ones a
+   * `.ol-mod-*` rule provides (see `web/styles.css`), which is why those deliberately avoid color.
    */
   readonly description?: string;
   readonly start: Position;
