@@ -891,6 +891,9 @@ export function createRunController(
   // finding about the text the learner has since typed". Used at chain start to clear a stale run
   // result without clearing a live finding. Never dereferenced — only compared.
   let lastRunDiagnostics: readonly Diagnostic[] | null = null;
+  // The source `lastRunDiagnostics` describes. Needed because "is this still true?" is a different
+  // question from "is this mine?", and the chain-start clear has to ask both — see its comment.
+  let lastRunDiagnosticsSource: string | null = null;
   let shownEventCount = 0;
   let promptOutstanding = false;
   let promptGeneration = 0;
@@ -1145,6 +1148,7 @@ export function createRunController(
     if (state.getState().source === preparedSource) {
       state.setDiagnostics(attemptDiagnostics);
       lastRunDiagnostics = attemptDiagnostics;
+      lastRunDiagnosticsSource = preparedSource;
     }
     state.setLastRunResult({
       source: preparedSource,
@@ -1328,6 +1332,7 @@ export function createRunController(
     if (state.getState().source === preparedSource) {
       state.setDiagnostics(diagnostics);
       lastRunDiagnostics = diagnostics;
+      lastRunDiagnosticsSource = preparedSource;
     }
     // #432 finding 2 — snapshot this run's output/diagnostics immutably, separate from the live
     // `output`/`diagnostics` fields above. Those live fields get overwritten by
@@ -1962,15 +1967,38 @@ export function createRunController(
     // settlement's republication becomes structurally identical, so `a11y.ts`'s anti-spam key
     // suppresses it and the learner is told once.
     if (state.getState().diagnostics === lastRunDiagnostics) {
-      const cleared: readonly Diagnostic[] = [];
-      state.setDiagnostics(cleared);
-      // Keep the tracker pointing at what we just wrote. Without this assignment the comment above
-      // would be false the instant it ran — the field would hold an array this controller published
-      // while `lastRunDiagnostics` pointed at the previous one. Nothing currently depends on the
-      // difference (every path that publishes a non-empty result syncs the tracker, and an
-      // already-empty field needs no clearing), but an invariant that is only accidentally true is
-      // one refactor from being a bug.
-      lastRunDiagnostics = cleared;
+      // Two questions, not one. Round 2 asked only "is this mine?", which fixed the FIRST Run —
+      // where the field holds the live checker's array, so the identity test fails and nothing is
+      // cleared. From the second Run onward the field holds the previous run's array, the identity
+      // test passes, and the wholesale clear brought the defect straight back: measured on an
+      // unedited `flibbertigibbet`, Run #2 announced `No diagnostics.` then `1 error found.` again.
+      // Pressing Run twice without editing is an ordinary thing to do after not understanding a
+      // message.
+      //
+      // What separates the two cases is what a diagnostic is ABOUT. A parse- or semantic-stage
+      // finding is a fact about the program TEXT, so it survives while that text is unchanged — it
+      // is exactly what the live checker would republish. A runtime-stage finding is a fact about
+      // an EXECUTION, and this chain has not executed yet, so carrying one would attribute the
+      // previous run's failure to this one. Clearing by stage satisfies both #876 (a chain start
+      // leaves nothing of the previous run behind, so an early Stop cannot show its predecessor's
+      // outcome) and #817 (a finding that still describes the text on screen is not cleared and
+      // re-announced).
+      //
+      // The source test is not redundant with the identity test. Identity implies "no live re-check
+      // has replaced this", which implies an unchanged source *only when a diagnostics controller
+      // is mounted*. A host running the controller alone — as several tests do — can edit freely
+      // without anything republishing, so the source is compared explicitly.
+      const carried =
+        lastRunDiagnosticsSource === chainSource
+          ? lastRunDiagnostics.filter(
+              (diagnostic) => diagnostic.stage !== "runtime",
+            )
+          : [];
+      state.setDiagnostics(carried);
+      // Keep the tracker pointing at what we just wrote, so the invariant it documents is
+      // maintained rather than accidentally true.
+      lastRunDiagnostics = carried;
+      lastRunDiagnosticsSource = chainSource;
     }
     state.setTutorOutput([]);
     state.setLastRunResult({
@@ -2070,6 +2098,7 @@ export function createRunController(
     // match a run result that no longer exists.
     state.setDiagnostics([]);
     lastRunDiagnostics = null;
+    lastRunDiagnosticsSource = null;
     state.setTutorOutput([]);
     state.setLastRunResult(null);
     animation?.reset();

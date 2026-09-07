@@ -710,7 +710,7 @@ test("#817: a notice this controller did not set is never cleared", () => {
 });
 
 test("#817: a foreign notice that REPLACES ours is still not cleared", () => {
-  // The ordering the test above cannot reach, and the one that actually bit. With ownership tracked
+  // The ordering the first test cannot reach, and the one that actually bit. With ownership tracked
   // by a boolean, this sequence erased persistence's warning: the flag recorded that we had once
   // written a notice, not whether ours was still the one on screen. A `setNotice` alone does not
   // change `source`, so `refresh()` early-returns and the flag stayed latched.
@@ -738,4 +738,50 @@ test("#817: a foreign notice that REPLACES ours is still not cleared", () => {
   // The foreign notice survives, and the successful check really did happen.
   assert.deepEqual(state.getState().notice, foreign);
   assert.deepEqual(state.getState().diagnostics, []);
+});
+
+test("#817: a foreign notice is not OVERWRITTEN by a checker failure either", () => {
+  // Ownership is symmetric. Round 2 guarded only the clearing half, which left the identical harm
+  // reachable from the other direction: a checker failure publishing over persistence's "your work
+  // could not be saved" hides the learner's only warning that their work is gone.
+  //
+  // Losing our own notice to that rule is the right trade — ours reports that a convenience
+  // degraded and the Run path still works; theirs reports lost work.
+  const state = createStudioState();
+  const { profiles } = explodingProfiles();
+  const foreign = { level: "warning", message: "your work could not be saved" };
+
+  createDiagnosticsController(state, { profiles, onCheckFailure: () => {} });
+  state.setNotice(foreign);
+
+  state.setSource("forward 100");
+
+  assert.equal(state.getState().notice, foreign);
+});
+
+test("#817: with the notice field free, a checker failure DOES publish ours", () => {
+  // The falsifying control for the test above: a guard that simply never published would satisfy it
+  // trivially, and the learner would then be told nothing at all when live checking degrades.
+  const state = createStudioState();
+  const { profiles } = explodingProfiles();
+  createDiagnosticsController(state, { profiles, onCheckFailure: () => {} });
+
+  state.setSource("forward 100");
+
+  assert.deepEqual(state.getState().notice, {
+    level: "warning",
+    message: CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+  });
+});
+
+test("#817: the failure notice does not blame the learner's program", () => {
+  // It is reached by ANY throw from the checker, so it must not name a cause it has not
+  // established. The deterministic seam these tests use throws a plain Error, which is nothing to
+  // do with nesting — an earlier revision told that learner their program was "too deeply nested".
+  assert.ok(
+    !/nest|deep/i.test(CHECKER_INCOMPLETE_NOTICE_MESSAGE),
+    `the notice names a cause it cannot establish: ${CHECKER_INCOMPLETE_NOTICE_MESSAGE}`,
+  );
+  // It must still say the Run path works, which is the actionable half.
+  assert.match(CHECKER_INCOMPLETE_NOTICE_MESSAGE, /Run/);
 });

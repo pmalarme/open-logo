@@ -227,9 +227,17 @@ interface ChecksOutcome {
  * The message shown when the checker cannot finish. It describes the **tool**, promises the Run
  * path still works, and makes no claim about the program's correctness — because the checker did
  * not get far enough to have one.
+ *
+ * **Deliberately cause-neutral.** An earlier revision said "This program is too deeply nested to
+ * check as you type", which named the cause this guard was built for and then asserted it for
+ * every failure the `catch` sees. Deep nesting is only the failure we know about (#1146); an
+ * ordinary defect in `check()` reaches the same branch, and blaming the learner's program for the
+ * tool's bug is the same class of false statement the whole guard exists to avoid. Establishing the
+ * cause would mean branching on the error, which for a native overflow means matching engine-
+ * specific message prose — knowledge that belongs to `@openlogo/runtime`, not here.
  */
 export const CHECKER_INCOMPLETE_NOTICE_MESSAGE =
-  "This program is too deeply nested to check as you type. Press Run for the full answer.";
+  "Live checking could not finish. Press Run for the full answer.";
 
 /**
  * Run the checker layers over `source`.
@@ -404,10 +412,26 @@ export function createDiagnosticsController(
       onFailure,
     );
     state.setDiagnostics(outcome.diagnostics);
+    // Notice ownership is symmetric: this controller may neither CLEAR nor OVERWRITE a notice that
+    // belongs to another subsystem. Round 2 fixed only the clearing half, which left the same harm
+    // reachable from the other direction — a checker failure hiding persistence's "your work could
+    // not be saved", which is the learner's only warning that their work is gone.
+    //
+    // Losing our own notice to that rule is the right trade. Ours reports that a convenience
+    // degraded and the Run path still works; theirs reports lost work. The degradation stays
+    // visible either way, because the pane still shows Layer-1 findings only.
+    const current = state.getState().notice;
+    const displayedIsOurs = current === null || current === ourNotice;
     if (outcome.notice !== null) {
-      ourNotice = outcome.notice;
-      state.setNotice(outcome.notice);
-    } else if (ourNotice !== null && state.getState().notice === ourNotice) {
+      if (displayedIsOurs) {
+        ourNotice = outcome.notice;
+        state.setNotice(outcome.notice);
+      } else {
+        // A foreign notice is on screen, so ours is definitively not displayed. Recording that
+        // keeps the identity test below honest rather than pointing at an object nobody can see.
+        ourNotice = null;
+      }
+    } else if (ourNotice !== null && current === ourNotice) {
       ourNotice = null;
       state.setNotice(null);
     }

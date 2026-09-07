@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import * as OLRuntime from "@openlogo/runtime";
 import * as OL from "@openlogo/studio";
 import * as Turtle from "@openlogo/turtle";
 
@@ -856,4 +857,117 @@ test("#817: run() tells the host which profile set the run claims", () => {
   // this double as a test of a host the controller never actually drives.
   controller.stop();
   assert.equal(cancelCount, 1);
+});
+
+/**
+ * A host that delegates to the real `execute()` and records what was in the shared `diagnostics`
+ * field at each chain start — the instant the controller has finished clearing and before this run
+ * has published anything. One controller throughout, which is the point: the chain-start rule is
+ * about what THIS controller published last time, so two controllers would each start with an empty
+ * tracker and clear nothing, and the test would pass while measuring nothing.
+ */
+function createObservingHost(store) {
+  const observedAtChainStart = [];
+  const cancels = { count: 0 };
+  return {
+    observedAtChainStart,
+    cancels,
+    host: {
+      execute(request, settle) {
+        observedAtChainStart.push(
+          store
+            .getState()
+            .diagnostics.map((each) => `${each.stage}/${each.code}`),
+        );
+        const result = OLRuntime.execute(request.source, request.document, {
+          profiles: request.profiles,
+        });
+        settle({
+          events: result.events,
+          output: [],
+          tutorOutput: [],
+          diagnostics: result.diagnostics,
+          pendingPrompt: null,
+          retainedAnswers: [],
+          tickTimeline: [],
+        });
+      },
+      cancel() {
+        cancels.count += 1;
+      },
+    },
+  };
+}
+
+test("#817: a chain start drops the previous run's RUNTIME finding but keeps a static one", () => {
+  // The two halves of the stage rule on one test, because they are the tension it resolves.
+  //
+  // A runtime finding is a fact about an EXECUTION. A new chain has not executed, so carrying one
+  // would attribute the previous run's failure to this one — that is #876's "a new Run leaves
+  // nothing of the previous run behind", and an early Stop must not show its predecessor's outcome.
+  //
+  // A parse or semantic finding is a fact about the program TEXT. While that text is unchanged it
+  // is exactly what the live checker would republish, so clearing it produces a false
+  // "No diagnostics." and re-announces something that never changed (#817).
+  function chainStarts(source) {
+    const store = OL.createStudioState({ source });
+    OL.createDiagnosticsController(store);
+    const observing = createObservingHost(store);
+    const controller = OL.createRunController(store, {
+      executionHost: observing.host,
+    });
+    controller.run();
+    controller.run();
+    return observing.observedAtChainStart;
+  }
+
+  const runtime = chainStarts("print 1 / 0");
+  assert.deepEqual(runtime[0], [], "nothing is published before the first run");
+  assert.deepEqual(
+    runtime[1],
+    [],
+    "a runtime finding must not survive into a chain that has not executed",
+  );
+
+  const semantic = chainStarts("flibbertigibbet");
+  assert.deepEqual(
+    semantic[0],
+    ["semantic/ol-unknown-command"],
+    "precondition: the live checker reports it before any run",
+  );
+  assert.deepEqual(
+    semantic[1],
+    ["semantic/ol-unknown-command"],
+    "a static finding still describing the text on screen must not be cleared",
+  );
+});
+
+test("#817: a chain start drops even a STATIC finding once the source has changed", () => {
+  // Why the source is compared explicitly rather than inferred from array identity. Identity means
+  // "no live re-check has replaced this", which implies an unchanged source only while a diagnostics
+  // controller is mounted. With none, nothing republishes however much the learner types, so the
+  // previous run's array stays in the field and its finding would describe text that is gone.
+  const store = OL.createStudioState({ source: "flibbertigibbet" });
+  const observing = createObservingHost(store);
+  const controller = OL.createRunController(store, {
+    executionHost: observing.host,
+  });
+
+  controller.run();
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.code),
+    ["ol-unknown-command"],
+    "precondition: the run published a static finding",
+  );
+
+  store.setSource("forward 100");
+  controller.run();
+
+  assert.deepEqual(observing.observedAtChainStart[1], []);
+
+  // Reset clears unconditionally — it is the learner asking for a blank slate — and it must reach
+  // the host, which also keeps this stub from being a function nothing ever calls.
+  controller.reset();
+  assert.equal(observing.cancels.count, 1);
+  assert.deepEqual(store.getState().diagnostics, []);
 });

@@ -1257,4 +1257,23 @@ test("#817: a live semantic finding is announced ONCE, not re-announced by the R
     state.getState().diagnostics.map((each) => each.code),
     ["ol-unknown-command"],
   );
+
+  // And it stays quiet on EVERY subsequent Run, not just the first. The round-2 fix asked only
+  // "is this mine?", which is false on Run #1 (the field holds the live checker's array) and true
+  // from Run #2 (it holds the previous run's), so the defect returned on the second press —
+  // measured as `No diagnostics.` then `1 error found.` again, for an unchanged program. Pressing
+  // Run twice without editing is an ordinary thing to do after not understanding a message.
+  for (const attempt of [2, 3]) {
+    const before = announcer.getAnnouncements().length;
+    controller.run();
+    const said = announcer
+      .getAnnouncements()
+      .slice(before)
+      .map((each) => each.message);
+    assert.deepEqual(
+      said,
+      ["Run started.", "Run complete."],
+      `Run #${attempt} re-announced a finding that never changed: ${JSON.stringify(said)}`,
+    );
+  }
 });
