@@ -354,6 +354,7 @@ export {
   editorFocusStop,
   externalSync,
   handleViewUpdate,
+  highlightTokenClass,
   isExternalSyncTransaction,
   needsExternalSync,
   openLogoFoldService,
@@ -364,8 +365,11 @@ export {
 
 export type { ParserHighlighterOptions } from "./highlighter.js";
 export {
+  OL_GLOBAL_VARIABLE_DESCRIPTION,
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS_PREFIX,
   createParserHighlighter,
 } from "./highlighter.js";
 

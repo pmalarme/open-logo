@@ -89,6 +89,55 @@ slice may swap in a real renderer without changing this contract.
   46.11 KB to 141.01 KB gzip (~+95 KB gzip) — see the ADR's KISS section for the full before/after
   table and why the real number landed above the ADR's original 50-80 KB estimate.
 
+## Shared (`global`) variables look different from private ones (#1106)
+
+A learner reading `:score = :score + 1` inside a procedure cannot tell whether it changes state the
+whole program shares or a private binding that vanishes when the procedure returns — the line is
+byte-identical either way, and `spec/execution-model.md:441-446` deliberately rules the private case
+**correct**, so no diagnostic will ever mention it. `@openlogo/parser` already answers the question
+(the `global` semantic-token modifier from #826, resolved by a scope-aware AST walk); this slice is
+the half a learner can see.
+
+- **`src/highlighter.ts` consumes `semanticTokens()`**, not `highlight()`, and maps painted
+  modifiers onto a stable `ol-mod-*` CSS namespace (`OL_HIGHLIGHT_MODIFIER_CSS_CLASS`), kept
+  separate from the 15 normative `ol-tok-*` classes because class and modifier are two independent
+  axes (ADR-0032). It **never re-derives the resolution** — a second scope model in the studio is
+  exactly the divergence saga #819 exists to prevent.
+- **Additive, never substitutive.** A painted token still carries its own `ol-tok-*` class, so a
+  theme that styles no `ol-mod-*` rule renders it exactly like an ordinary variable — the same
+  graceful degradation `spec/tooling.md:83-84` contemplates for the bracket roles. The mapping table
+  is deliberately partial: the modifier vocabulary is open, and an unmapped modifier is dropped
+  rather than leaking a class. The cost, stated rather than glossed: unlike the class axis — whose
+  total `Record<TokenClass, string>` would not compile until a new class was mapped — the modifier
+  axis has **no forcing function**, so a future paintable modifier is a silent no-op until someone
+  adds a row and a CSS rule. That is the accepted price of an open vocabulary. Today only `global`
+  earns paint; `declaration`/`reference`/`readonly`/`defaultLibrary` and the bracket roles are true
+  of nearly every token, so painting them would be noise — and dropping `defaultLibrary` also avoids
+  propagating #831's known deviation, which would otherwise render a learner's typo as a
+  standard-library call.
+- **All three assignment spellings are painted**, each keeping its own class: `:score` (`:variable`),
+  `set score to …`'s place head (`primitive`), and `make "score" …`/`thing "score"`'s word literal
+  (`word/string`). A *declaration* is not painted — `global score = 0` introduces the name rather
+  than resolving one, and the `global` keyword stays a `keyword`.
+- **Accessibility: the treatment uses no colour at all.** `.ol-mod-global` (`web/styles.css`) sets
+  no `color` and no `background`; the token keeps its class's already-contrast-checked colour, and
+  the distinction is carried by two channels that survive greyscale, a recoloured theme, and
+  forced-colors mode — **font weight**, and a **dotted underline** in `currentColor` (dotted, never
+  the `wavy` of #317's error squiggles, so a shared variable can never read as an error). A third,
+  **supplementary** channel rides along: `OL_GLOBAL_VARIABLE_DESCRIPTION` becomes the mark's `title`,
+  i.e. a hover tooltip and a best-effort accessible description. It is deliberately not load-bearing
+  — `title` on a non-interactive span is inconsistently surfaced by assistive technology and is not
+  keyboard-reachable — which is precisely why the visual channels avoid colour rather than leaning on
+  it. Like every other highlight decoration it is a
+  `class`/`title` pair on a CM6 `mark`, so the accessible text, DOM reading order and focus model are
+  unchanged.
+- **Proven in a real browser, not asserted.** `e2e/global-variable-highlight.spec.ts` renders the
+  maintainer's own program in headless Chromium and reads `getComputedStyle` off the painted spans:
+  the shadowed and shared `:score` come back with the **same colour** and different weight/underline,
+  which is what makes "not conveyed by colour alone" a measurement rather than a claim. It commits
+  two **unmasked** editor-pane snapshots — `layout.spec.ts` masks `.pane-editor`, so that suite is
+  structurally blind to everything this slice changes.
+
 ## Persistence (#128)
 
 - `attachPersistence(state, options?)` (`src/persistence.ts`) — the smallest mechanism that
