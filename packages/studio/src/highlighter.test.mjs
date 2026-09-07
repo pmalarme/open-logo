@@ -1,7 +1,8 @@
 // Unit tests for #285's real syntax-highlighting `HighlightProvider`
 // (packages/studio/src/highlighter.ts): the `@openlogo/parser`-backed classifier that maps every
-// normative token class onto a stable `ol-tok-*` CSS class, plus the a11y color-contrast
-// assertion the #285 hard gate requires.
+// normative token class onto a stable `ol-tok-*` CSS class and every painted semantic-token
+// modifier onto a stable `ol-mod-*` one (#1106), plus the a11y assertions the #285 and #1106 hard
+// gates require.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -12,15 +13,24 @@ import {
   highlight,
   OL_PROFILE_KEYWORDS,
   OL_TOKEN_CLASSES,
+  semanticTokens,
 } from "@openlogo/parser";
 import * as OL from "@openlogo/studio";
 
 const {
+  OL_GLOBAL_VARIABLE_DESCRIPTION,
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS_PREFIX,
   STUDIO_PROFILES,
   createParserHighlighter,
 } = OL;
+
+/** The one shipped stylesheet both a11y gates in this file read (never a duplicated color table). */
+const STYLES_PATH = fileURLToPath(
+  new URL("../web/styles.css", import.meta.url),
+);
 
 test("OL_HIGHLIGHT_CSS_CLASS maps every one of the 15 normative token classes", () => {
   assert.equal(
@@ -358,10 +368,7 @@ function contrastAgainstWhite(hex) {
 }
 
 test("every .ol-tok-* rule in web/styles.css meets 4.5:1 contrast against white", () => {
-  const stylesPath = fileURLToPath(
-    new URL("../web/styles.css", import.meta.url),
-  );
-  const css = readFileSync(stylesPath, "utf8");
+  const css = readFileSync(STYLES_PATH, "utf8");
   const ruleRe = /\.ol-tok-([a-z-]+)\s*\{([^}]*)\}/g;
   const found = new Map();
   for (const match of css.matchAll(ruleRe)) {
@@ -386,4 +393,240 @@ test("every .ol-tok-* rule in web/styles.css meets 4.5:1 contrast against white"
       `.ol-tok-${name} (${found.get(name)}) only has ${ratio.toFixed(2)}:1 contrast against white`,
     );
   }
+});
+
+// #1106 — the `global` semantic-token modifier reaches the rendered output.
+//
+// The defect these tests close is the one the maintainer hit while reviewing #826: `packages/parser`
+// already resolves which `:name` occurrences reach a `global` binding, but `packages/studio` mapped
+// token *class* onto a CSS class and dropped every other field, so a learner saw NO difference
+// whatsoever. Everything below is asserted in both directions — a modifier that is always present,
+// or always absent, fails as loudly as one that is never emitted.
+
+/**
+ * The maintainer's own program (issue #1106). Measured on `saga/819-variable-scoping`, it prints
+ * `6` then `0`: the `local` shadows the global, so the increment touches the private binding and
+ * the shared `score` stays `0`. Delete only the `local` line ({@link UNSHADOWED_PROGRAM}) and the
+ * byte-identical `:score = :score + 1` prints `1` then `1`, because now it is the shared variable
+ * being changed. That line is what a learner cannot tell apart without scanning upward, and it is
+ * what this modifier paints.
+ */
+const SHADOWED_PROGRAM = [
+  "global score = 0",
+  "define f",
+  "  local score = 5",
+  "  :score = :score + 1",
+  "  print :score",
+  "end",
+  "f",
+  "print :score",
+].join("\n");
+
+/** {@link SHADOWED_PROGRAM} with only the `local score = 5` line removed. */
+const UNSHADOWED_PROGRAM = SHADOWED_PROGRAM.split("\n")
+  .filter((line) => line.trim() !== "local score = 5")
+  .join("\n");
+
+/** The `ol-mod-*` class the `global` modifier paints, read from the module rather than restated. */
+const GLOBAL_MODIFIER_CLASS = OL_HIGHLIGHT_MODIFIER_CSS_CLASS.global;
+
+/** Every token of `source` spelled `text`, in source order, with its 1-based start line. */
+function tokensSpelled(source, text) {
+  return createParserHighlighter()(source).filter(
+    (token) => token.text === text,
+  );
+}
+
+/** `true` when `token` carries the `global` modifier's CSS class. */
+function isPaintedGlobal(token) {
+  return (token.modifiers ?? []).includes(GLOBAL_MODIFIER_CLASS);
+}
+
+test("the global modifier maps onto a distinct, valid ol-mod-* CSS class namespace", () => {
+  assert.notEqual(
+    OL_HIGHLIGHT_MODIFIER_CSS_CLASS_PREFIX,
+    OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  );
+  const values = Object.values(OL_HIGHLIGHT_MODIFIER_CSS_CLASS);
+  assert.ok(values.length > 0);
+  for (const cssClass of values) {
+    assert.ok(cssClass.startsWith(OL_HIGHLIGHT_MODIFIER_CSS_CLASS_PREFIX));
+    assert.match(cssClass, /^[a-z][a-z-]*$/);
+    // The two namespaces must not overlap, or a `.ol-tok-*` theme rule would style a modifier.
+    assert.ok(!cssClass.startsWith(OL_HIGHLIGHT_CSS_CLASS_PREFIX));
+  }
+  assert.equal(GLOBAL_MODIFIER_CLASS, "ol-mod-global");
+});
+
+test("a shared variable is painted, and a local shadowing it is not — the same byte-identical line", () => {
+  // The whole point of the slice: `:score = :score + 1` is spelled identically in both programs.
+  const shadowedLine = SHADOWED_PROGRAM.split("\n")[3];
+  const unshadowedLine = UNSHADOWED_PROGRAM.split("\n")[2];
+  assert.equal(shadowedLine, unshadowedLine);
+
+  const shadowed = tokensSpelled(SHADOWED_PROGRAM, ":score");
+  const unshadowed = tokensSpelled(UNSHADOWED_PROGRAM, ":score");
+
+  // Four `:score` uses in each program: two on the assignment line, one in the procedure's
+  // `print`, one at the root. Counted first, so neither `every` below can pass vacuously.
+  assert.equal(shadowed.length, 4);
+  assert.equal(unshadowed.length, 4);
+
+  // Shadowed: the three uses inside `f` reach the `local`, so they are NOT painted; only the
+  // root-scope `print :score` reaches the shared binding.
+  assert.deepEqual(
+    shadowed.map(isPaintedGlobal),
+    [false, false, false, true],
+    "only the root-scope use reaches the shared variable when a local shadows it",
+  );
+
+  // Unshadowed: every use reaches the shared binding, including the two on that identical line.
+  assert.deepEqual(unshadowed.map(isPaintedGlobal), [true, true, true, true]);
+});
+
+test("a painted token keeps its own normative token class — the modifier is additive, never a substitute", () => {
+  const painted = tokensSpelled(UNSHADOWED_PROGRAM, ":score");
+  assert.equal(painted.length, 4);
+  for (const token of painted) {
+    assert.equal(token.class, OL_HIGHLIGHT_CSS_CLASS[":variable"]);
+    assert.deepEqual(token.modifiers, [GLOBAL_MODIFIER_CLASS]);
+  }
+});
+
+test("all three assignment spellings are painted, each keeping its own class", () => {
+  // `spec/execution-model.md:478-481` makes `:x = …`, `set x to …` and `make "x" …` resolve
+  // identically, and a modifier decorates whatever class a token already has — so the studio must
+  // paint a `primitive` place head and a `word/string` literal too, not only `:variable`.
+  const source = [
+    "global count = 0",
+    ":count = 1",
+    "set count to 2",
+    'make "count" 3',
+    'print thing "count"',
+  ].join("\n");
+  const tokens = createParserHighlighter()(source);
+  const at = (line, text) =>
+    tokens.find((token) => token.start[0] === line && token.text === text);
+
+  assert.equal(at(2, ":count").class, OL_HIGHLIGHT_CSS_CLASS[":variable"]);
+  assert.ok(isPaintedGlobal(at(2, ":count")));
+  assert.equal(at(3, "count").class, OL_HIGHLIGHT_CSS_CLASS.primitive);
+  assert.ok(isPaintedGlobal(at(3, "count")));
+  assert.equal(at(4, '"count"').class, OL_HIGHLIGHT_CSS_CLASS["word/string"]);
+  assert.ok(isPaintedGlobal(at(4, '"count"')));
+  assert.equal(at(5, '"count"').class, OL_HIGHLIGHT_CSS_CLASS["word/string"]);
+  assert.ok(isPaintedGlobal(at(5, '"count"')));
+});
+
+test("a declaration site is not painted — `global` stays a keyword and its name introduces a binding", () => {
+  const tokens = createParserHighlighter()(UNSHADOWED_PROGRAM);
+  const keyword = tokens.find((token) => token.text === "global");
+  const declaredName = tokens.find(
+    (token) => token.start[0] === 1 && token.text === "score",
+  );
+
+  assert.equal(keyword.class, OL_HIGHLIGHT_CSS_CLASS.keyword);
+  assert.ok(!isPaintedGlobal(keyword));
+  assert.ok(
+    declaredName,
+    "the fixture produced no declared `score` name token",
+  );
+  assert.ok(!isPaintedGlobal(declaredName));
+});
+
+test("a program with no global declares no modifiers at all — the field stays absent", () => {
+  const tokens = createParserHighlighter()(
+    "define go :n\n  forward :n\nend\ngo 10",
+  );
+
+  assert.ok(tokens.length > 0);
+  for (const token of tokens) {
+    assert.equal(
+      token.modifiers,
+      undefined,
+      `${token.text} carries modifiers it should not`,
+    );
+    assert.equal(token.description, undefined);
+  }
+});
+
+test("unmapped parser modifiers are dropped rather than leaking a CSS class", () => {
+  // `semanticTokens()` puts `reference`/`declaration`/`defaultLibrary`/`readonly` and the three
+  // bracket roles on nearly every token; only the modifiers with a `ol-mod-*` mapping may reach the
+  // DOM. Asserted against the parser's own output so a future parser-side modifier cannot silently
+  // start painting.
+  const parserTokens = semanticTokens(UNSHADOWED_PROGRAM, "<input>", {
+    profiles: STUDIO_PROFILES,
+  });
+  const studioTokens = createParserHighlighter()(UNSHADOWED_PROGRAM);
+
+  const dropped = new Set();
+  assert.equal(studioTokens.length, parserTokens.length);
+  for (const [index, parserToken] of parserTokens.entries()) {
+    const expected = parserToken.modifiers
+      .map((modifier) => {
+        const mapped = OL_HIGHLIGHT_MODIFIER_CSS_CLASS[modifier];
+        if (mapped === undefined) {
+          dropped.add(modifier);
+        }
+        return mapped;
+      })
+      .filter((cssClass) => cssClass !== undefined);
+    assert.deepEqual(
+      studioTokens[index].modifiers ?? [],
+      expected,
+      `${parserToken.text} (${parserToken.modifiers.join(",")})`,
+    );
+  }
+  // The fixture really does exercise unmapped modifiers, so the loop above is not vacuous.
+  assert.ok(dropped.size > 0);
+  assert.ok(!dropped.has("global"));
+});
+
+test("only a painted token carries the learner-facing description", () => {
+  const tokens = createParserHighlighter()(SHADOWED_PROGRAM);
+  assert.ok(tokens.length > 0);
+  let described = 0;
+  for (const token of tokens) {
+    if (isPaintedGlobal(token)) {
+      assert.equal(token.description, OL_GLOBAL_VARIABLE_DESCRIPTION);
+      described += 1;
+    } else {
+      assert.equal(token.description, undefined);
+    }
+  }
+  // Exactly the one root-scope `:score` in the shadowed program.
+  assert.equal(described, 1);
+  // The text is for a learner, not a compiler writer: it must explain the consequence, not just
+  // restate the keyword the learner can already read on screen.
+  assert.match(OL_GLOBAL_VARIABLE_DESCRIPTION, /whole program/i);
+});
+
+// #1106 a11y hard gate: the distinction must not rely on color alone (`spec/rendering.md`), so the
+// shipped `.ol-mod-global` rule is read from the same stylesheet the contrast gate above parses.
+test("the .ol-mod-global rule conveys the distinction without color", () => {
+  const css = readFileSync(STYLES_PATH, "utf8");
+  const rule = new RegExp(`\\.${GLOBAL_MODIFIER_CLASS}\\s*\\{([^}]*)\\}`).exec(
+    css,
+  );
+  assert.ok(rule, `web/styles.css is missing .${GLOBAL_MODIFIER_CLASS}`);
+  const body = rule[1];
+
+  // No color of its own: it inherits the token class's already-contrast-checked color, so the
+  // modifier can never be the thing a color-blind or greyscale reader has to distinguish, and can
+  // never override — or fail the contrast of — the class it decorates.
+  assert.ok(
+    !/(^|[\s;])color:/.test(body),
+    ".ol-mod-global must not set a text color",
+  );
+  assert.ok(
+    !/background/.test(body),
+    ".ol-mod-global must not set a background",
+  );
+
+  // Two channels that survive greyscale and a forced-colors theme: weight, and an underline shape.
+  assert.match(body, /font-weight:\s*700/);
+  assert.match(body, /text-decoration-style:\s*dotted/);
+  // Dotted, never wavy: #317's diagnostic squiggles are wavy, and a shared variable is not an error.
+  assert.ok(!/wavy/.test(body));
 });

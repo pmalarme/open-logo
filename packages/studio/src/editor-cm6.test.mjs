@@ -28,12 +28,15 @@ const {
   editorFocusStop,
   externalSync,
   handleViewUpdate,
+  highlightTokenClass,
   isExternalSyncTransaction,
   needsExternalSync,
   openLogoFoldService,
   reconcileExternalSyncQueue,
   selectionFromEditorState,
   setDiagnosticsEffect,
+  OL_GLOBAL_VARIABLE_DESCRIPTION,
+  createParserHighlighter,
 } = OL;
 
 /** A `fakeDiagnostic` matching `diagnostics.test.mjs`'s fixture shape, for the #317 inline
@@ -558,6 +561,106 @@ test("createHighlightExtension skips a token whose column overruns its own line,
     collectDecorations(state.field(field), state.doc.length),
     [],
   );
+});
+
+// #1106 — semantic-token modifiers reach the painted DOM class, additively.
+
+test("highlightTokenClass appends modifier classes to the token's own class, and changes nothing without them", () => {
+  const base = {
+    text: ":x",
+    class: "ol-tok-variable",
+    start: [1, 1],
+    end: [1, 3],
+  };
+
+  assert.equal(highlightTokenClass(base), "ol-tok-variable");
+  assert.equal(
+    highlightTokenClass({ ...base, modifiers: [] }),
+    "ol-tok-variable",
+  );
+  assert.equal(
+    highlightTokenClass({ ...base, modifiers: ["ol-mod-global"] }),
+    "ol-tok-variable ol-mod-global",
+  );
+  assert.equal(
+    highlightTokenClass({ ...base, modifiers: ["ol-mod-global", "ol-mod-x"] }),
+    "ol-tok-variable ol-mod-global ol-mod-x",
+  );
+});
+
+test("a token's description becomes the mark's title attribute; a token without one carries no attributes", () => {
+  const describedHighlighter = () => [
+    {
+      text: "ab",
+      class: "ol-tok-variable",
+      modifiers: ["ol-mod-global"],
+      description: "shared",
+      start: [1, 1],
+      end: [1, 3],
+    },
+    { text: "cd", class: "ol-tok-variable", start: [1, 4], end: [1, 6] },
+  ];
+  const field = createHighlightExtension(describedHighlighter);
+  const state = EditorState.create({ doc: "ab cd", extensions: [field] });
+
+  const specs = [];
+  state.field(field).between(0, state.doc.length, (from, to, value) =>
+    specs.push({
+      from,
+      to,
+      class: value.spec.class,
+      attributes: value.spec.attributes,
+    }),
+  );
+
+  assert.deepEqual(specs, [
+    {
+      from: 0,
+      to: 2,
+      class: "ol-tok-variable ol-mod-global",
+      attributes: { title: "shared" },
+    },
+    { from: 3, to: 5, class: "ol-tok-variable", attributes: undefined },
+  ]);
+});
+
+test("the real parser-backed highlighter paints a shared variable in the editor, but not a local shadowing it (#1106)", () => {
+  // End-to-end through the actual studio seam — parser resolution → `ol-mod-global` → the CM6
+  // decoration a learner's editor really renders. The maintainer's own program from issue #1106:
+  // the three `:score` uses inside `f` reach the `local`, the root-scope one reaches the global.
+  const doc = [
+    "global score = 0",
+    "define f",
+    "  local score = 5",
+    "  :score = :score + 1",
+    "  print :score",
+    "end",
+    "f",
+    "print :score",
+  ].join("\n");
+  const field = createHighlightExtension(createParserHighlighter());
+  const state = EditorState.create({ doc, extensions: [field] });
+
+  const scoreUses = [];
+  state.field(field).between(0, state.doc.length, (from, to, value) => {
+    if (state.doc.sliceString(from, to) === ":score") {
+      scoreUses.push({
+        line: state.doc.lineAt(from).number,
+        class: value.spec.class,
+        title: value.spec.attributes?.title,
+      });
+    }
+  });
+
+  assert.equal(scoreUses.length, 4);
+  for (const use of scoreUses.slice(0, 3)) {
+    assert.equal(use.class, "ol-tok-variable", `line ${use.line}`);
+    assert.equal(use.title, undefined, `line ${use.line}`);
+  }
+  const rootUse = scoreUses[3];
+  assert.equal(rootUse.line, 8);
+  assert.equal(rootUse.class, "ol-tok-variable ol-mod-global");
+  assert.equal(rootUse.title, OL_GLOBAL_VARIABLE_DESCRIPTION);
 });
 
 test("createEditorExtensions adds the #285 highlight extension only when a highlighter is configured", () => {
