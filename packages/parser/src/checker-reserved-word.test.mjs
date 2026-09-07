@@ -382,7 +382,7 @@ test("#838 AC5: built-in beats duplicate — a doubly-taken name is reported onc
 test("#838 AC3: the Geometry stdlib is a library — defining it is legal, redefining is a duplicate", () => {
   // Maintainer ruling in #838: `polygon`/`circle`/`arc`/`star`/`area`/`perimeter` have `.logo`
   // files under `stdlib/geometry/`, so they are OpenLogo SOURCE, not names OpenLogo implements.
-  // `spec/educational-model.md:169` — "Learners build `polygon` from `repeat`" — depends on the
+  // `spec/educational-model.md:171` — "Learners build `polygon` from `repeat`" — depends on the
   // first `define polygon` staying clean, and `spec/grammar.md:416` makes a SECOND one
   // `ol-duplicate-definition`, never `ol-reserved-word`. The overlays `grid`/`axes`/`measure` are
   // renderer-backed primitives and stay blocked (pinned by the geometry conformance fixtures).

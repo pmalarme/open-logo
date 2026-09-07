@@ -4145,7 +4145,7 @@ function findPrecedingSiblingStatement(
 
 /**
  * {@link TutorCommandMetadata} for `target`, when the runtime can identify one:  only when
- * `target` is itself a call (`Call`/`ParenCall`) — `spec/educational-model.md:420-434`'s "known
+ * `target` is itself a call (`Call`/`ParenCall`) — `spec/educational-model.md:454`'s "known
  * command metadata" input. `kind` is `"procedure"` when the callee names a learner-defined
  * procedure in scope (`environment.procedures`), otherwise `"primitive"` — a call-position node
  * is never itself a control/binding special form (`if`/`repeat`/`define`/… each parse as their
