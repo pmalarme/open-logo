@@ -159,9 +159,13 @@ Match the merged spec exactly. Common mistakes to avoid:
   `@openlogo/runtime`, consumed by `@openlogo/turtle` and `@openlogo/studio`). Keep turtle
   **state/events deterministic and headless**, with animation layered on top — so
   `repeat 10000 [ forward 1 ]` tests semantics, not frames.
-- Feature-detection metadata exposes `openlogo.version` = `0.1.0`, supported profiles, extension
+- Feature-detection metadata exposes `openlogo.version` = `0.2.0`, supported profiles, extension
   names, and rendering targets. Extensions use the `<vendor>.<feature>` namespace and must not
-  redefine profile behavior.
+  redefine profile behavior. **That version is a contract identifier, not a release artifact: it
+  moves in the PR that changes the normative contract, atomically across all four coupled constants
+  and the `spec/` prose stamps — never at release time, and never "aligned" to the independent
+  `package.json` line.** See `docs/delivery.md` §1.1 and
+  [ADR-0033](../../docs/adr/0033-contract-version-moves-with-the-contract.md).
 
 ## 8. Determinism, safety, and rendering
 

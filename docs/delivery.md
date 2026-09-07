@@ -13,10 +13,10 @@
 
 ## 1. Versioning model
 
-- **The language spec is the pace-setter.** `spec/` has its own version (currently `0.1.0`).
+- **The language spec is the pace-setter.** `spec/` has its own version (currently `0.2.0`).
   Everything downstream targets a spec version.
 - **Every package advertises what it implements** via feature-detection metadata
-  (`spec/conformance.md`): `openlogo.version` (e.g. `0.1.0`) + the list of **profiles** it supports.
+  (`spec/conformance.md`): `openlogo.version` (e.g. `0.2.0`) + the list of **profiles** it supports.
   This is the contract between packages, not their npm version numbers.
 - **Package versions:** all `@openlogo/*` packages release **in lockstep** (one monorepo version) to
   start — simplest thing that works (KISS). We split a package onto its own line only when a real
@@ -24,6 +24,40 @@
   spec version**, not divergent version numbers.
 - A **release of OpenLogo** = a validated tuple: a set of package versions that all target the same
   `spec` version and agree on a declared **profile set**, with the conformance suite green.
+
+### 1.1 When the contract version moves
+
+**The spec version is a contract identifier, not a release artifact. It moves in the PR that changes
+the normative contract — on the branch, not at release time.** Formalized in
+[`adr/0033-contract-version-moves-with-the-contract.md`](adr/0033-contract-version-moves-with-the-contract.md).
+
+This rule exists because the version *didn't* move: tags went `v0.1.0` → `v0.2.0` → `v0.3.0` while
+`openlogo.version` stayed `0.1.0` throughout, because everyone treated it as a release artifact and
+waited for a "release time" that only ever bumped `package.json`. The result is
+[#1100](https://github.com/pmalarme/open-logo/issues/1100): three tags claiming spec `0.1.0` that do
+**not** implement the same language (`:end = 1` is rejected at `v0.1.0` and conforming today).
+
+| | |
+|---|---|
+| **Moves it** — a change to a conformance verdict | a normative behaviour change in any profile (incl. scoping/lifetime); a new/removed/re-spelled **reserved word or built-in name**; a new/removed/re-specified **`ol-*` code**; a grammar change that accepts or rejects a program it previously didn't; a profile-membership change |
+| **Does not move it** — editorial only | typo and link fixes; clarifications and rewordings that add no requirement; formatting; examples restating settled behaviour; non-normative rationale |
+
+The reviewer's test: **name a program whose verdict changes.** If you can't, the version doesn't move.
+
+**The bump is atomic across four coupled constants** — `spec/conformance.md`'s `openlogo.version`,
+`spec/built-in-names.json`'s `specVersion`, `@openlogo/core`'s `OPENLOGO_VERSION`, and
+`@openlogo/parser`'s `OL_GRAMMAR_VERSION`. Move all four together or the tree does not import:
+`assertGrammarVersionInSync()` throws at module import and `npm run built-in-names` fails on the
+mismatch. **Also update every prose statement of the version in `spec/`** — the per-file
+`> OpenLogo Specification vX — Draft` stamps and the sentences in `README.md`, `conformance.md` and
+`commands.md`. Those are **not** gated: the four constants can agree on a stale value and go green,
+so the prose is a manual step that must be done in the same PR.
+
+**The two version lines are independent.** The contract line and the `package.json` line are
+different numbers that may coincide — both read `0.2.0` today. **Do not align them.** A release with
+no normative change bumps only the package line; a contract change on a branch bumps only the
+contract line. Past tags are never renumbered (#1100 rejected that; released artifacts are
+immutable).
 
 ## 2. Per-domain release trains and how they interlock
 

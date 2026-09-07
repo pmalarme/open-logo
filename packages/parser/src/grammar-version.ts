@@ -17,7 +17,7 @@ import { OPENLOGO_VERSION } from "@openlogo/core";
  * Bump this in the same PR that bumps `@openlogo/core`'s `OPENLOGO_VERSION` for a grammar or
  * reserved-word change — never independently.
  */
-export const OL_GRAMMAR_VERSION = "0.1.0";
+export const OL_GRAMMAR_VERSION = "0.2.0";
 
 /**
  * Throws when `grammarVersion` and `coreVersion` disagree. Defaults to the real

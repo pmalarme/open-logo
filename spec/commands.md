@@ -1,10 +1,10 @@
-> OpenLogo Specification v0.1.0 — Draft (Status: Normative)
+> OpenLogo Specification v0.2.0 — Draft (Status: Normative)
 
 # Command and Primitive Reference
 
 [Back to the specification index.](README.md)
 
-This document is the normative reference for the OpenLogo (OL) Core Language primitives and the Turtle & Rendering primitives. It follows the canonical primitive matrix in the v0.1.0 language contract. Geometry helpers are a derived standard library in [geometry-module.md](geometry-module.md). Mutable dictionaries and records are in [data-structures.md](data-structures.md). Multiple turtles and sprites are in [turtles-and-sprites.md](turtles-and-sprites.md). Input events and sound are in [interaction-events.md](interaction-events.md). Tutor and meta-command behavior is in [educational-model.md](educational-model.md) and [ai-tutor.md](ai-tutor.md).
+This document is the normative reference for the OpenLogo (OL) Core Language primitives and the Turtle & Rendering primitives. It follows the canonical primitive matrix in the v0.2.0 language contract. Geometry helpers are a derived standard library in [geometry-module.md](geometry-module.md). Mutable dictionaries and records are in [data-structures.md](data-structures.md). Multiple turtles and sprites are in [turtles-and-sprites.md](turtles-and-sprites.md). Input events and sound are in [interaction-events.md](interaction-events.md). Tutor and meta-command behavior is in [educational-model.md](educational-model.md) and [ai-tutor.md](ai-tutor.md).
 
 ## Notation and language surface
 

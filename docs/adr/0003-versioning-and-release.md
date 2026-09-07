@@ -4,8 +4,10 @@
 - Date: 2026-07-17
 - Deciders: OpenLogo maintainer (@pmalarme)
 - Related: [ADR-0001](0001-tech-stack.md); refined by
-  [ADR-0015](0015-sagas-branching-governance.md) (sagas, branching, governance gates) and
-  [ADR-0018](0018-packages-are-private-not-published.md) (packages are private, never published);
+  [ADR-0015](0015-sagas-branching-governance.md) (sagas, branching, governance gates),
+  [ADR-0018](0018-packages-are-private-not-published.md) (packages are private, never published) and
+  [ADR-0033](0033-contract-version-moves-with-the-contract.md) (the contract version moves with the
+  contract, not with the release);
   details in
   [`../delivery.md`](../delivery.md) and [`../architecture.md`](../architecture.md)
 

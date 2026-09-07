@@ -2270,12 +2270,18 @@ test("one registry's two alias accessors disagreeing is reported exactly once", 
 
 test("INJECTED DRIFT: a specVersion that no longer matches openlogo.version is caught", () => {
   const manifest = manifestCopy();
-  manifest.specVersion = "0.2.0";
+  // Derived from the real version, never a literal. A hardcoded string here stops being drift the
+  // moment the contract version moves onto it — which is exactly what happened when `0.1.0` became
+  // `0.2.0` (docs/adr/0033-contract-version-moves-with-the-contract.md), silently turning this
+  // injection into a no-op that would have asserted the gate catches a manifest that agrees.
+  const drifted = `${realParserApi.OPENLOGO_VERSION}-drifted`;
+  assert.notEqual(drifted, realParserApi.OPENLOGO_VERSION);
+  manifest.specVersion = drifted;
   const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'specVersion "0.2.0" does not match openlogo.version "0.1.0" — the list is versioned WITH the specification',
+      `specVersion "${drifted}" does not match openlogo.version "${realParserApi.OPENLOGO_VERSION}" — the list is versioned WITH the specification`,
     ),
     true,
     result.findings.join("\n"),

@@ -1,4 +1,4 @@
-> OpenLogo Specification v0.1.0 — Draft (Status: Informative)
+> OpenLogo Specification v0.2.0 — Draft (Status: Informative)
 
 # OpenLogo Specification
 
@@ -54,7 +54,7 @@ end
 
 ## Status and versioning
 
-This is **OpenLogo Specification v0.1.0 — Draft**. The status line at the top of each file identifies whether that file is Normative or Informative. Versioning, profiles, feature detection, and the boundary between required and optional behavior are defined in [conformance.md](conformance.md).
+This is **OpenLogo Specification v0.2.0 — Draft**. The status line at the top of each file identifies whether that file is Normative or Informative. Versioning, profiles, feature detection, and the boundary between required and optional behavior are defined in [conformance.md](conformance.md).
 
 ## Glossary
 
@@ -92,5 +92,5 @@ OpenLogo is licensed under the **MIT License**. See [../LICENSE](../LICENSE).
 
 ## Contributing
 
-Contributions should preserve the v0.1.0 language contract, update cross-links when adding or moving spec content, and follow [style-guide.md](style-guide.md) and [tooling.md](tooling.md). Until a dedicated contributing guide exists, use repository issues or pull requests and cite the relevant spec file.
+Contributions should preserve the v0.2.0 language contract, update cross-links when adding or moving spec content, and follow [style-guide.md](style-guide.md) and [tooling.md](tooling.md). Until a dedicated contributing guide exists, use repository issues or pull requests and cite the relevant spec file.
 
