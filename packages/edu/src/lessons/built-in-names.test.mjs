@@ -243,9 +243,9 @@ test("the alias declaration slot is unreachable, so the corpus gate covers it", 
   assert.deepEqual(declaredNames("alias fd forward"), []);
 });
 
-// AC2: `spec/grammar.md:416` protects `spec/educational-model.md:169` ("Learners build `polygon`
+// AC2: `spec/grammar.md:416` protects `spec/educational-model.md:171` ("Learners build `polygon`
 // from `repeat`") by making the derived Geometry standard library OpenLogo *source* rather than
-// primitives — while the renderer-backed overlays of `spec/educational-model.md:219` stay built in.
+// primitives — while the renderer-backed overlays of `spec/educational-model.md:235` stay built in.
 test("the Geometry standard library stays learner-buildable and the overlays stay built in", () => {
   for (const name of [
     "polygon",
