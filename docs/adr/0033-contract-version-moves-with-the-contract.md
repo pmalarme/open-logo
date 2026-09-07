@@ -94,9 +94,10 @@ independent and are set at release.**
 
 Three parts, each testable by a human reviewer:
 
-**1. What moves it.** A change to the normative contract — anything that changes a **conformance
-obligation or an observable result**, whether or not any program's accept/reject status moves.
-Concretely:
+**1. What moves it.** A change to the normative contract — anything that changes a **normative
+conformance obligation**, whether that obligation is observed through a program's verdict or through
+another normative surface. Note the qualifier: what must change is the obligation `spec/` states, not
+merely something you can observe (rule 2's second category is the difference). Concretely:
 
 - a normative Core (or any profile) **behaviour change**, including scoping and lifetime rules;
 - a **new or removed reserved word / built-in name**, or a change to an existing one's spelling,
@@ -151,7 +152,9 @@ already there, so nothing conflicts — leaving **two different normative contra
 `0.2.0`**. That is the very ambiguity this ADR exists to remove, reintroduced by following its own
 procedure in a repository that deliberately fans work out in parallel. It is the same hazard the
 `adr-numbering` gate warns about in its own output ("it reads ONE tree, so two branches can each take
-the same next-free number"), and ADR-0025 records an instance of exactly that. So: before merging,
+the same next-free number"), and this repository has hit it **twice**: #1036 records two Accepted ADRs
+that both took `0025`, and [ADR-0030](0030-adr-numbering-is-gated.md) records itself being drafted as
+`0029` and renumbered when a concurrently-authored ADR took that number first. So: before merging,
 re-check the version against the **current tip of the target**; if the target already carries the
 version you claimed, rebase and take the next one. Contract-changing PRs serialize at merge.
 
