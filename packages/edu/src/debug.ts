@@ -1,11 +1,11 @@
 /**
  * The deterministic, offline, template-based `debug` baseline meta-command
- * (`spec/educational-model.md#debug`, `:513-532`). Given a {@link TutorContext} it produces a
+ * (`spec/educational-model.md#debug`, `:531-550`). Given a {@link TutorContext} it produces a
  * {@link TutorOutput} that helps a learner inspect what happened **without exposing
  * implementation stack traces or a complete, ready-to-run solution** — the Educational profile's
  * normative guardrail (`spec/conformance.md#educational`).
  *
- * The spec's baseline behavior for `debug` (`spec/educational-model.md:517-524`) is:
+ * The spec's baseline behavior for `debug` (`spec/educational-model.md:535-542`) is:
  *
  * - Show the current instruction.
  * - Show relevant variable values.
@@ -139,7 +139,7 @@ function findRelevantErrorDiagnostic(
 }
 
 /**
- * Names the current instruction (`spec/educational-model.md:519`'s "Show the current
+ * Names the current instruction (`spec/educational-model.md:537`'s "Show the current
  * instruction"): the callee name when `target` is a call `commandMetadata` identifies, a
  * template phrase for other statement kinds, or a whole-program fallback when nothing is
  * selected.
@@ -166,10 +166,10 @@ function describeCurrentInstruction(context: TutorContext): string {
 }
 
 /**
- * Collects the `:name`s of variables read directly by `target` (`spec/educational-model.md:520`'s
+ * Collects the `:name`s of variables read directly by `target` (`spec/educational-model.md:538`'s
  * "Show relevant variable values"): the name itself when `target` is a bare `:name` read, or
  * every `:name` argument of a call. `debug` has no runtime variable snapshot to read from — only
- * the parsed program, spans, trace events, and diagnostics (`spec/educational-model.md:436`) — so
+ * the parsed program, spans, trace events, and diagnostics (`spec/educational-model.md:454`) — so
  * it names the variables in play rather than inventing a value it was never given.
  */
 function collectVariableNames(target: AnyNode | undefined): readonly string[] {
@@ -198,7 +198,7 @@ function stringParam(diagnostic: Diagnostic, key: string): string | undefined {
 }
 
 /**
- * Describes the variables `target` reads, when any (`spec/educational-model.md:520`). When the
+ * Describes the variables `target` reads, when any (`spec/educational-model.md:538`). When the
  * relevant diagnostic carries `expected`/`actual` type params (as `ol-type` diagnostics do), the
  * segment names the mismatch directly; otherwise it just lists the variables in play so a
  * learner knows where to look next.
@@ -224,7 +224,7 @@ function variableValuesSegment(
 
 /**
  * The turtle-state fields `debug` reports for one turtle
- * (`spec/educational-model.md:521`'s "Show turtle state when useful: position, heading, pen,
+ * (`spec/educational-model.md:539`'s "Show turtle state when useful: position, heading, pen,
  * color, width"). Mutable while {@link foldTurtleStatesByIdentity} accumulates into it; each
  * field stays absent until an event sets it, so `debug` only ever reports what the trace
  * actually says about that turtle.
@@ -374,7 +374,7 @@ function foldTurtleStatesByIdentity(
 
 /**
  * Renders one turtle's folded state as the comma-separated field list `debug` reports, in the
- * fixed order `spec/educational-model.md:521` lists them ("position, heading, pen, color,
+ * fixed order `spec/educational-model.md:539` lists them ("position, heading, pen, color,
  * width"). Empty when the bucket describes nothing — see {@link turtleStateSegment}, which drops
  * such a turtle rather than emitting a clause with no fields in it.
  */
@@ -439,7 +439,7 @@ function countLiveTurtles(events: readonly TraceEvent[]): number {
 }
 
 /**
- * The turtle-state segment `debug` reports (`spec/educational-model.md:521`), naming **which**
+ * The turtle-state segment `debug` reports (`spec/educational-model.md:539`), naming **which**
  * turtle each state belongs to as soon as there is more than one turtle it could be.
  *
  * Three shapes, all sharing the `Turtle state so far:` opening so a consumer can still find the
@@ -514,7 +514,7 @@ function turtleStateSegment(events: readonly TraceEvent[]): string | undefined {
 
 /**
  * Reconstructs which procedures are still open at the end of the trace
- * (`spec/educational-model.md:522`'s "For procedures, show a friendly call path"): every
+ * (`spec/educational-model.md:540`'s "For procedures, show a friendly call path"): every
  * `procedure-enter` pushes its callee's name, every `procedure-exit` pops one — the same
  * enter/exit pairing the trace/event contract registers and illustrates
  * (`spec/execution-model.md:998-1064,1142-1180`) — leaving only the frames still active. When the
@@ -541,7 +541,7 @@ function callPathSegment(context: TutorContext): string | undefined {
 }
 
 /**
- * The one next investigation step `debug` suggests (`spec/educational-model.md:524`'s "Suggest
+ * The one next investigation step `debug` suggests (`spec/educational-model.md:542`'s "Suggest
  * one next investigation step, not a full fix"). Never a corrected program — only where to look
  * next — so it can never violate the Educational profile's no-full-solution guardrail.
  */

@@ -170,7 +170,7 @@ const KNOWN_COMMAND_DESCRIPTIONS: Readonly<Record<string, CommandDescription>> =
 /**
  * Maps an AST node kind that is a control/binding special form (rather than a `Call`) to its
  * canonical name, for {@link resolveCommandName} when the caller's {@link TutorContext} does not
- * supply {@link TutorCommandMetadata} (`spec/educational-model.md:452`'s "Name the command or
+ * supply {@link TutorCommandMetadata} (`spec/educational-model.md:470`'s "Name the command or
  * special form" requirement covers these forms too).
  */
 const SPECIAL_FORM_NAMES: Readonly<Partial<Record<AnyNode["kind"], string>>> = {
@@ -233,7 +233,7 @@ function describeCommand(resolved: ResolvedCommand): CommandDescription {
 /**
  * Short curriculum-level concept phrases, one per {@link TutorLearnerLevel}, drawn verbatim from
  * `spec/educational-model.md`'s "Concept to command map" table so `explain`'s level-link bullet
- * (`spec/educational-model.md:455`) stays grounded in the normative level table rather than
+ * (`spec/educational-model.md:473`) stays grounded in the normative level table rather than
  * inventing new wording per command.
  */
 const LEVEL_CONCEPTS: Readonly<Record<TutorLearnerLevel, string>> = {

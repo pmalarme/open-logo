@@ -53,7 +53,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
   would mean retyping every tier.
 - `lessons/level-3.ts` — the Level 3 lessons + graded exercises. "One name, many places" covers
   the `:name` variable idiom, `=` and worded `set ... to` assignment, and `==` comparison
-  (`spec/educational-model.md:89-121`); its worked examples reproduce the spec's `:size` square
+  (`spec/educational-model.md:89-122`); its worked examples reproduce the spec's `:size` square
   verbatim, and its exercises introduce `:size` into a fixed square, resize it once with the
   worded form, then reuse the single `:size` name across a resizable house's walls and roof
   together, so one change resizes the whole shape. "Where a name is born decides how long it
@@ -67,7 +67,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/level-4.ts` — the Level 4 lesson ("A condition must already be true or false") +
   graded exercises, covering `if … else`, the comparisons `==`/`!=`/`<`/`>`/`<=`/`>=`, the boolean
   combinators `and`/`or`/`not`, and a worded predicate such as `is between`
-  (`spec/educational-model.md:123-154`). The first worked example reproduces the spec's
+  (`spec/educational-model.md:124-155`). The first worked example reproduces the spec's
   `:sides == 4` color-choice program verbatim; the graded exercises follow the same
   compose-a-recognizable-object rule: a guided single-operator change (`==` to `!=`), a practice
   single-operator change (`!=` to `>=`) on the same shape and value, then a challenge that
@@ -75,7 +75,7 @@ lesson-content shape elsewhere in the codebase — extend this contract instead.
 - `lessons/level-5.ts` — the Level 5 lessons + graded exercises. "`define` names a reusable idea;
   `return` hands back its answer" covers `define … end` procedures, parameters as variables that belong
   to the procedure, `return` for reporters, and the procedure boundary
-  (`spec/educational-model.md:156-203`). The first two worked examples reproduce the spec's
+  (`spec/educational-model.md:157-219`). The first two worked examples reproduce the spec's
   `polygon` and `double` examples verbatim — `polygon` is always built up from `repeat`, never
   handed over as an opaque primitive — and two more show the boundary itself: the names a
   procedure sets are its own automatically, and an input is the procedure's to change without the

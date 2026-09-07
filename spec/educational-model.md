@@ -97,6 +97,7 @@ Core ideas:
 - `:size = 80` stores a value in `:size`.
 - `forward :size` reads the value.
 - `:size = :size + 10` changes the value.
+- A name is born where it is first given a value: a name born inside a `repeat` block starts fresh on every turn, while a name born before the block carries its value across the turns.
 - `set size to 80` is the worded assignment form.
 - `==` compares; `=` assigns.
 - `random 100` reports a whole number for variety, and arithmetic such as `+`, `-`, `*`, and `/` combines values.
@@ -162,10 +163,11 @@ Level 5 introduces `define … end` for procedures and `return` for procedures t
 Core ideas:
 
 - A procedure names a reusable idea.
-- Parameters are variables such as `:sides` and `:size`.
+- Parameters are variables such as `:sides` and `:size`; an input belongs to the procedure, so re-assigning one never changes the caller's variable.
 - `return` hands a value back from a reporter.
 - A command procedure may draw without returning a value.
-- A procedure's names are private automatically: `define … end` is a boundary, so a procedure sees only its inputs, the names its body sets itself, and names declared `global`, and `global name = value` is how a value is deliberately shared across that boundary ([execution-model.md](execution-model.md#variables-scoping-and-procedures)).
+- A procedure's variables are private automatically: `define … end` is a boundary, so its body sees exactly three things — its own parameters, the bindings its body has already created, and names declared `global`. Procedure and command names are not hidden by it.
+- `global name = value`, written at the top level of the program, shares one value across that boundary on purpose, so several calls can build up the same count or total.
 - Learners build `polygon` from `repeat`; it is never introduced as a black-box drawing trick.
 
 ```logo
@@ -189,6 +191,20 @@ end
 
 forward double 40
 ```
+
+```logo
+# why: one shared name lets every call add to the same count
+global count = 0
+define bump
+  :count = :count + 1
+end
+
+bump
+bump
+print :count
+```
+
+Error messages should help here. If a procedure reads a name its boundary hides, the response should name the procedure, say which names a procedure can see, and point at the fix, rather than only reporting an undefined name. See [error-model.md](error-model.md) and [execution-model.md](execution-model.md#variables-scoping-and-procedures).
 
 The heritage form may appear as a comparison exercise after learners are comfortable:
 
@@ -409,7 +425,7 @@ end for
 | Comparison and choice | `if … else`, `==`, `!=`, `<`, `>`, `<=`, `>=`, worded `is` predicates, `true`, `false`, `and`, `or`, `not` | 4 | Programs can choose only from explicit booleans. |
 | Procedures | `define … end`, procedure calls | 5 | Learners teach OpenLogo a discovered pattern. |
 | Reporters | `return`, heritage `output` and `op` | 5 | A procedure can answer a question with a value. |
-| Deliberate sharing | `global name = value` | 5 | A procedure's names are private, so sharing must be stated. |
+| Shared values | `global name = value` | 5 | A procedure's variables are private, so sharing must be stated. |
 | Derived geometry | learner-built `polygon`, then `star`, `circle`, `arc`, plus the renderer-backed `grid`, `axes`, and `measure` overlays | 6 | Shapes are visible math, not hidden primitives; the three overlays are renderer-backed aids. |
 | Turtle placement and marking | `set_xy`, `stamp` | 6 | Coordinates and stamps support diagrams and games. |
 | Number tools | `mod`, `abs`, `int`, `round` | 6 | Arithmetic helpers measure and adjust motion. |
@@ -419,6 +435,8 @@ end for
 | Recursion | `define`, `if`, self-call, `stop` | 8a | A rule can solve a smaller version of itself. |
 | Comprehensions | `map`, `filter`, `reduce` | 8b | Data can be transformed without lambdas. |
 | Destructuring | `for [:x :y] in :points` | 8b | Learners can name the parts of each item directly. |
+
+`local` is deliberately absent from this ramp. A procedure's variables are already private, so `local` is not what makes them so; it explicitly makes a name private where one would otherwise be visible, which is a narrower idea than any level's headline. Learners nonetheless meet it in the standard-library source they are invited to read (see [geometry-module.md](geometry-module.md)), and a diagnostic may suggest it, so teaching material should be able to explain it as an aside without owing it a level.
 
 ## Baseline meta-commands
 
@@ -543,5 +561,6 @@ To protect discovery:
 - Do not use truthiness; explain booleans directly.
 - Do not use arrays or lambdas; lists and comprehensions are the OpenLogo path.
 - Prefer full command names in teaching material, with short aliases saved for heritage notes.
+- Prefer handing a value to a procedure as an input and using `return` to hand one back; reach for `global` only when several calls must build up one shared value.
 
 Good educational tools make the learner feel: “I can see what happened, I can name why it happened, and I know one next thing to try.”
