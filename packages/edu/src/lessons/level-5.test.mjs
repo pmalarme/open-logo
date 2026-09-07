@@ -349,15 +349,18 @@ test("no Level 5 string claims a global is shared with every procedure everywher
   }
 });
 
-// Round 4 (@ai-tutor's suggestion). The visibility rule is stated in learner prose on two
-// surfaces — `level-5.ts`'s worked example 3 and `docs/curriculum-overview.md`'s matching
-// paragraph — and the duplication has now needed the same correction twice: once when "always
+// Round 4 (@ai-tutor's suggestion). The visibility rule is stated in learner prose on three
+// surfaces — `level-5.ts`'s worked example 3, `docs/curriculum-overview.md`'s matching
+// paragraph, and (since issue #1124) `spec/educational-model.md`'s own Level 5 core-ideas bullet
+// — and the duplication has now needed the same correction twice: once when "always
 // makes a new one" was false for a parameter or global, and again when the doc kept the stale
 // wording after the lesson was fixed. Deriving learner prose from data would be worse than
 // duplicating it, so this does not test the wording. It tests the *claim*: each surface must name
 // all three categories the runtime names. That would have failed on both earlier defects, and it
-// constrains nothing about how the sentence is phrased.
-test("both surfaces state the visibility rule with all three categories the runtime names", () => {
+// constrains nothing about how the sentence is phrased. The spec surface is READ, never written:
+// `spec/` is maintainer-owned, and this only asserts that the normative bullet still says the
+// same thing the curriculum does.
+test("all three surfaces state the visibility rule with the categories the runtime names", () => {
   const lesson = level5Lessons.find(
     (item) => item.id === "l5-polygon-procedure",
   );
@@ -367,7 +370,6 @@ test("both surfaces state the visibility rule with all three categories the runt
     join(repoRoot, "docs/curriculum-overview.md"),
     "utf8",
   ).replace(/\r\n/g, "\n");
-
   // Locate the doc's rule paragraph STRUCTURALLY — the first paragraph after the block that is
   // byte-identical to this worked example's source — rather than by searching for the wording
   // under test, which would be circular, or by scanning the whole file, which is too coarse:
@@ -385,22 +387,87 @@ test("both surfaces state the visibility rule with all three categories the runt
   );
   const ruleParagraph = parts[blockIndex + 1].trim().split(/\n\s*\n/)[0];
 
+  // The spec's own statement of the rule (issue #1124). Located STRUCTURALLY for the same reason
+  // as the doc paragraph: the Level 5 core-ideas bullet about privacy, taken from the bullet run
+  // between the `## Level 5` heading and the section's first fence. Selected by `private` ALONE,
+  // never by `global`: selecting on `global` too would pull in the adjacent `global name = value`
+  // bullet, and the third category below (`/\bshared\b|\bglobal\b/`) would then be satisfied by
+  // the *sharing* bullet no matter what the *privacy* bullet said — a category that cannot fail.
+  // Both round-2 reviewers found that independently; the regression it misses (the privacy bullet
+  // silently stops naming `global`) is the one that has actually happened twice in this saga.
+  const specText = readFileSync(
+    join(repoRoot, "spec/educational-model.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  // Fail on the real cause rather than reporting a missing bullet: see the matching note in
+  // level-3.test.mjs (@ai-tutor, round 7).
+  const level5HeadingIndex = specText.indexOf(
+    "## Level 5 — functions and procedures",
+  );
+  assert.notEqual(
+    level5HeadingIndex,
+    -1,
+    "spec/educational-model.md no longer has a '## Level 5 — functions and procedures' heading; this gate locates the bullet by that heading",
+  );
+  const level5Section = specText.slice(level5HeadingIndex);
+  // Bound the section by its own heading run before looking for the fence — see the matching note
+  // in level-3.test.mjs. Level 5 survives the unbounded form only by accident (it has a second
+  // fenced example that happens to re-bound the scan), which is exactly why it should not rely on
+  // it (@curriculum, round 9).
+  const level5SectionEnd = level5Section.indexOf("\n## ", 1);
+  assert.notEqual(
+    level5SectionEnd,
+    -1,
+    "spec/educational-model.md's Level 5 section is no longer followed by another '## ' heading; this gate bounds the section by it",
+  );
+  const level5Body = level5Section.slice(0, level5SectionEnd);
+  const level5FenceIndex = level5Body.indexOf("```");
+  assert.notEqual(
+    level5FenceIndex,
+    -1,
+    "spec/educational-model.md's Level 5 section no longer has a code fence; this gate reads the bullet run that ends at it",
+  );
+  const level5Bullets = level5Body
+    .slice(0, level5FenceIndex)
+    .split("\n")
+    .filter((line) => line.startsWith("- "));
+  assert.ok(
+    level5Bullets.length > 0,
+    "spec/educational-model.md's Level 5 section no longer has a core-ideas bullet list",
+  );
+  const privacyBullets = level5Bullets.filter((line) =>
+    /\bprivate\b/.test(line),
+  );
+  assert.equal(
+    privacyBullets.length,
+    1,
+    `expected exactly one Level 5 privacy bullet in spec/educational-model.md, found ${privacyBullets.length}`,
+  );
+  const specRule = privacyBullets[0];
+
   // The three things a procedure can see (`spec/execution-model.md:389-394`), each with the
   // spellings a learner-facing sentence may reasonably use. This constrains the claim, never the
   // wording — which is the point: the prose is duplicated on purpose, but the duplication was
-  // undetectable, and it needed the same correction twice (round 2 and round 3).
+  // undetectable, and it needed the same correction twice (round 2 and round 3). The `parameters`
+  // and `already created` spellings were added for the spec surface (issue #1124), which states
+  // the same three categories in the normative document's own vocabulary rather than the
+  // learner-facing one; each alternative is still specific enough that dropping a category fails.
   const categories = [
     {
       name: "the names it was handed (its inputs)",
-      pattern: /\bhanded\b|\binputs?\b/i,
+      pattern: /\bhanded\b|\binputs?\b|\bparameters?\b/i,
     },
-    { name: "the names it set itself", pattern: /\bsets? itself\b/i },
+    {
+      name: "the names it set itself",
+      pattern: /\bsets? itself\b|\balready created\b/i,
+    },
     { name: "names shared with it", pattern: /\bshared\b|\bglobal\b/i },
   ];
 
   for (const [label, text] of [
     ["level-5.ts worked example 3", workedExample.explanation],
     ["docs/curriculum-overview.md's rule paragraph", ruleParagraph],
+    ["spec/educational-model.md's Level 5 core ideas", specRule],
   ]) {
     for (const { name, pattern } of categories) {
       assert.ok(

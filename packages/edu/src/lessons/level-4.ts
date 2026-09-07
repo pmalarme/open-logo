@@ -1,5 +1,5 @@
 /**
- * Level 4 — conditions (`spec/educational-model.md:123-154`, issue #326). The learner question
+ * Level 4 — conditions (`spec/educational-model.md:124-155`, issue #326). The learner question
  * is "How can the program choose?": a condition must already be `true` or `false` — OpenLogo
  * never guesses a boolean from a number, word, or list. `if … else` chooses between blocks;
  * `==`/`!=`/`<`/`>`/`<=`/`>=` are the comparisons that build a boolean; `and`/`or`/`not` combine
@@ -13,7 +13,7 @@ import type { Exercise } from "./exercise.js";
 
 /**
  * The single Level 4 lesson: a condition must already be a strict boolean before `if … else` can
- * choose between two blocks. The first worked example reproduces `spec/educational-model.md:139-152`'s
+ * choose between two blocks. The first worked example reproduces `spec/educational-model.md:140-153`'s
  * `:sides == 4` color-choice program verbatim, so the lesson never drifts from the normative
  * sample. The remaining worked examples stay on the same `:sides`/`:size` vocabulary while
  * introducing the rest of Level 4's comparisons, `and`/`or`/`not`, and a worded predicate.

@@ -1669,37 +1669,37 @@
       "name": "arc",
       "reason": "library",
       "source": "stdlib/geometry/arc.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "area",
       "reason": "library",
       "source": "stdlib/geometry/area.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "circle",
       "reason": "library",
       "source": "stdlib/geometry/circle.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "perimeter",
       "reason": "library",
       "source": "stdlib/geometry/perimeter.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "polygon",
       "reason": "library",
       "source": "stdlib/geometry/polygon.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "star",
       "reason": "library",
       "source": "stdlib/geometry/star.logo",
-      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:169), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
+      "rationale": "Written in OpenLogo source (spec/geometry-module.md), so it is a library procedure rather than a primitive. A learner must stay free to build it from `repeat` and turns (spec/educational-model.md:171), and redefining a loaded one raises ol-duplicate-definition, never ol-reserved-word (spec/grammar.md:416)."
     },
     {
       "name": "a",
