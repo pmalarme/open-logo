@@ -167,8 +167,12 @@ export interface ExecutionRequest {
    * `spec/execution-model.md:673-680` calls out as non-conforming — with nothing in this package
    * changed to explain it.
    *
-   * Plain data (a string union), so it crosses a Worker boundary by structured clone unchanged, and
-   * both hosts install it through the same {@link toExecuteOptions}.
+   * Plain data (a string union), so its **value** crosses a Worker boundary by structured clone
+   * unchanged, and both hosts install it through the same {@link toExecuteOptions}. The `freeze` on
+   * `STUDIO_PROFILES` does **not** survive that crossing — `structuredClone` returns an unfrozen,
+   * push-able array — so on the Worker path `execute()` receives a mutable copy. That is harmless
+   * rather than overlooked: the runtime copies the set with `[...]` before using it, and that copy,
+   * not this freeze, is what guarantees one value governs both the check and the run.
    */
   readonly profiles: readonly CheckProfile[];
   /**

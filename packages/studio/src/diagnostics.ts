@@ -15,12 +15,14 @@
  *
  * ## Live parse-stage and semantic-stage wiring
  * {@link createDiagnosticsController} subscribes to the shared store and, whenever `source`
- * changes, re-parses it via `@openlogo/parser`'s `parse()` (Layer 1 — issue #9) and re-checks it
- * via `check()` (Layer 2 — see below), republishing the result through `state.setDiagnostics`, so
- * both a bad line (e.g. `ol-bad-token`) and an unknown name (`ol-unknown-command`) surface at their
- * `source_span` as the learner types, without a Run. Neither `parse()` nor `check()` throws on
- * malformed input — they report diagnostics instead — so an erroneous line can never crash the
- * session.
+ * changes, re-analyzes it via `@openlogo/parser`'s `analyze()` — Layer 1 (`parse()`, issue #9) and
+ * Layer 2 (`check()`) merged through `applyOneFaultRules`, the identical composition `execute()`
+ * runs — republishing the result through `state.setDiagnostics`, so both a bad line (e.g.
+ * `ol-bad-token`) and an unknown name (`ol-unknown-command`) surface at their `source_span` as the
+ * learner types, without a Run. Neither layer *reports* by throwing — a malformed line yields
+ * diagnostics, not an exception — but both can exhaust the native stack on a deeply nested program,
+ * so the call is wrapped in a guard that degrades rather than letting a throw wedge the session.
+ * See {@link guardedRunChecks}; the underlying unbounded walk is tracked as #1146.
  *
  * ## Semantic checking (`check()`) runs by default (#817)
  * `@openlogo/parser`'s `check()` (epic #108) is the Layer-2/3 entry point this controller runs on
@@ -40,20 +42,39 @@
  *
  * The **later** reason was duplication: issue #815 made `execute()` check itself under the profile
  * set the run CLAIMS (`spec/execution-model.md:673-680`) before Phase 2, so the Run path already
- * surfaces these findings. That is true and it is why nothing here reports them a second time —
- * but it is not a reason to withhold them *before* a Run. Both paths write the same unified
- * `diagnostics` field through `setDiagnostics`, which **replaces** rather than appends, and
- * {@link DiagnosticsController.refresh}'s unchanged-`source` guard keeps a Run's own diagnostics
- * from being clobbered — so a finding is never listed twice. What flipping this default changes is
- * exclusively **when** the learner is told: at the keystroke instead of at the Run. A learner who
- * has typed an unknown name otherwise sees nothing at all until they press Run, which is the blank
- * canvas issue #817 is about.
+ * surfaces these findings. That is true, and it is why this module goes through the same
+ * `analyze()` the runtime does rather than composing the layers itself — the two paths report the
+ * same finding for the same source because they are the same function. But it is not a reason to
+ * withhold a finding *before* a Run. What flipping this default changes is exclusively **when** the
+ * learner is told: at the keystroke instead of at the Run. A learner who has typed an unknown name
+ * otherwise sees nothing at all until they press Run, which is the blank canvas issue #817 is
+ * about.
+ *
+ * **The two writers are arbitrated, and the arbitration is narrower than it looks.** Both this
+ * module and the run controller write the one `diagnostics` field through `setDiagnostics`, which
+ * **replaces** rather than appends, and {@link DiagnosticsController.refresh} returns early when
+ * `source` is unchanged — so a Run's own diagnostics are not clobbered by a re-check the Run itself
+ * triggered, and a live finding and a Run finding are never listed side by side. That is a claim
+ * about **one list at one instant**, and nothing more: it does not by itself stop the same fault
+ * being *reported* twice over time, which is why a Run no longer clears a still-applicable live
+ * finding (see `run-controller.ts`, "#817") — an earlier revision of this slice announced
+ * "1 error found", then "No diagnostics", then "1 error found" again to a screen-reader user for a
+ * single unchanged typo.
  *
  * Pass `semanticCheck: false` to switch this back off (a host that runs its own checker, say).
  * Layer-3 style lints stay **opt-in** beside it — see {@link DiagnosticsControllerOptions.styleCheck}
  * for the measurement that decided that. No rendering-side change was needed when this default
  * flipped, because {@link toDiagnosticsView} already renders every stage identically — which is the
  * claim #817 asked this slice to prove rather than restate.
+ *
+ * ## Cost, since this now runs on every keystroke
+ * There is deliberately no debounce: the cost is linear in program size and small in absolute terms
+ * — measured at 0.26–2.11 ms for realistic programs and 9.3 ms for 800 flat lines. The constant
+ * scales with the number of **diagnostics** rather than lines, because the did-you-mean suggestion
+ * runs an edit-distance sweep per unknown name: 800 unknown names cost 239 ms, and a transiently
+ * broken large program (a mistyped `define` across 60 procedures, 480 findings) costs 34 ms per
+ * keystroke. Nothing accumulates across calls — `check()` holds no cache — so this is a per-edit
+ * cost, not a leak. Revisit debouncing if the editor grows past a few hundred lines.
  *
  * ## One profile set, shared with the highlighter (#740)
  * When `check()` does run, its active profile set defaults to `profiles.ts`'s
@@ -65,7 +86,7 @@
  * the two aligned.
  */
 
-import { check, parse } from "@openlogo/parser";
+import { analyze, parse } from "@openlogo/parser";
 import type { CheckProfile } from "@openlogo/parser";
 import type {
   Diagnostic,
@@ -75,7 +96,7 @@ import type {
 } from "@openlogo/core";
 import type { AppShell } from "./app-shell.js";
 import { STUDIO_PROFILES } from "./profiles.js";
-import type { StudioStateStore } from "./state-model.js";
+import type { Notice, StudioStateStore } from "./state-model.js";
 
 /** The document identifier passed to `parse()`/`check()` when the caller doesn't supply one. */
 export const DEFAULT_DIAGNOSTICS_DOCUMENT = "studio-session";
@@ -165,6 +186,16 @@ export interface DiagnosticsControllerOptions {
    * Core-Language-only default, which is not the environment the studio actually runs.
    */
   readonly profiles?: readonly CheckProfile[];
+  /**
+   * Where a throw from the checker goes. Defaults to
+   * {@link rethrowCheckFailureAsynchronously}, so the synchronous listener loop completes — no
+   * wedged session — while the error still reaches the host's failure channel and fails CI.
+   *
+   * Inject it to assert on a failure without an uncaught error. A test that provokes a real throw
+   * **must** supply this: under `node --test` the default surfaces as an unhandled rejection that
+   * reddens the whole file even when every assertion in the test passed.
+   */
+  readonly onCheckFailure?: (error: unknown) => void;
 }
 
 /** The headless diagnostics pane controller. */
@@ -182,21 +213,161 @@ export interface DiagnosticsController {
   getView(): DiagnosticsView;
 }
 
+/**
+ * The result of one diagnostics pass: the findings to publish, plus whether the checker gave up.
+ * A pass that gave up carries a {@link Notice} for the *tool*, never a `Diagnostic` about the
+ * *program* — see {@link guardedRunChecks}.
+ */
+interface ChecksOutcome {
+  readonly diagnostics: readonly Diagnostic[];
+  readonly notice: Notice | null;
+}
+
+/**
+ * The message shown when the checker cannot finish. It describes the **tool**, promises the Run
+ * path still works, and makes no claim about the program's correctness — because the checker did
+ * not get far enough to have one.
+ */
+export const CHECKER_INCOMPLETE_NOTICE_MESSAGE =
+  "This program is too deeply nested to check as you type. Press Run for the full answer.";
+
+/**
+ * Run the checker layers over `source`.
+ *
+ * Uses `@openlogo/parser`'s {@link analyze} — the *same* composition `@openlogo/runtime`'s
+ * `execute()` runs — rather than calling `parse()` and `check()` and concatenating the two lists.
+ * That is not a tidiness preference, it is the fix for a real defect (#817 review, `@interpreter`):
+ * `analyze()` ends in `applyOneFaultRules`, and hand-composing skipped it, so **one** typo produced
+ * **two** messages. Measured on `fowad 100`: the pane showed `ol-bad-token` ("i didn't expect `100`
+ * to keep going on this line" — wrong advice about a perfectly good `100`) stacked above the true
+ * `ol-unknown-command`, while pressing Run showed only the latter. `@openlogo/parser`'s own
+ * `index.ts` exports `applyOneFaultRules` with a comment naming "the studio's diagnostics pane" as
+ * the caller that owes the learner one message per fault. Going through `analyze()` means the two
+ * paths cannot drift again, because they are the same function rather than two call sites that
+ * happen to agree.
+ *
+ * `semanticCheck: false` returns Layer 1 alone, which is what that opt-out means.
+ */
 function runChecks(
   source: string,
   options: DiagnosticsControllerOptions,
 ): readonly Diagnostic[] {
   const document = options.document ?? DEFAULT_DIAGNOSTICS_DOCUMENT;
-  const parsed = parse(source, document);
   if (options.semanticCheck === false) {
-    return parsed.diagnostics;
+    return parse(source, document).diagnostics;
   }
-  const checked = check(parsed.ast, {
+  return analyze(source, document, {
     profiles: options.profiles ?? STUDIO_PROFILES,
-    source,
     style: options.styleCheck === true,
-  });
-  return [...parsed.diagnostics, ...checked.diagnostics];
+  }).diagnostics;
+}
+
+/**
+ * Run `check` and, if it throws, degrade instead of letting the throw escape.
+ *
+ * ## Why the keystroke path must not throw
+ * This runs inside the state model's `commit()` listener loop, which iterates listeners with no
+ * isolation. A throw here therefore aborts the **whole loop**, so every listener registered after
+ * this one — the editor, the highlighter, the turtle pane, the screen-reader announcer — never sees
+ * the update, while `source` has already been committed. Measured before this guard: one
+ * sufficiently nested program wedged the session permanently, because the source stayed large and
+ * every subsequent keystroke threw again.
+ *
+ * It is reachable: `check()` walks expressions recursively without bounding the walk, so deep
+ * nesting exhausts the native stack (`@openlogo/parser`, tracked as **#1146** — bound the walk in
+ * `checker-undefined-var.ts` and audit the sibling rules). `parse()` can overflow the same way on
+ * deeply nested `[`, which predates this slice. This guard is a **host-level backstop, not the fix
+ * for either**, and it keeps earning its place after #1146 lands: a browser tab's stack is smaller
+ * than Node's, which is the same reason `@openlogo/runtime` keeps its issue-#726 guard despite
+ * clamping its own recursion depth.
+ *
+ * ## Why a `Notice` and not a `Diagnostic`
+ * The tempting answer — report `ol-limit`, matching what `execute()` returns for the same source —
+ * is wrong twice over. `spec/error-model.md:59-71` makes all three stages classifications of *when
+ * a fact about the program was found*, and "the checker ran out of stack" is not a fact about the
+ * program, so it has no true stage. And `spec/error-model.md:121` defines `ol-limit` as a
+ * **configurable** safety limit; the runtime's is (`recursionDepthLimit`, and its reported `value`
+ * is the depth actually enforced), while a native stack nobody chose is not. `execute()` owes a
+ * diagnostic because `spec/execution-model.md:696` requires evaluation to terminate in a value, an
+ * effect, or a diagnostic — it promised to run the program. This pane promised nothing: it runs
+ * unbidden on every keystroke. The falsifying detail is that `parse()` returns **zero** diagnostics
+ * on the program that overflows the checker, so a pane answering `ol-limit` would contradict a
+ * clean Layer 1 and flash-and-clear as the learner keeps typing.
+ *
+ * So the diagnostics list stays a statement about the **program** and the notice is a statement
+ * about the **tool**. The live pane already reports only a subset of what a Run does (it can never
+ * see runtime findings), and degrading here keeps it a subset rather than making it contradict.
+ *
+ * ## Why the error is still rethrown
+ * Swallowing it would turn a genuine bug in `check()` into a silent notice. Rethrowing it
+ * synchronously would wedge the session, which is the thing this exists to prevent. Deferring the
+ * rethrow to a microtask gives both: the synchronous listener loop completes, and the error still
+ * reaches the host's failure channel, so a real defect still fails CI. Same policy as
+ * `@openlogo/runtime`'s rethrow of an unrelated error, different mechanism, because a keystroke
+ * listener cannot afford to fail where a `run()` boundary can. See
+ * {@link rethrowCheckFailureAsynchronously}.
+ */
+function guardedRunChecks(
+  run: () => readonly Diagnostic[],
+  parseOnly: () => readonly Diagnostic[],
+  onFailure: (error: unknown) => void,
+): ChecksOutcome {
+  try {
+    return { diagnostics: run(), notice: null };
+  } catch (error) {
+    onFailure(error);
+    // Degrade to Layer 1 alone. `analyze()` is parse → check → merge with no internal guard, so it
+    // throws as a UNIT: the `catch` above holds neither the AST nor the parse diagnostics, and
+    // without re-parsing the pane would empty out — including on a program whose Layer 1 had real
+    // findings the learner needs. Its own `try` because `parse()` can overflow too.
+    try {
+      return {
+        diagnostics: parseOnly(),
+        notice: {
+          level: "warning",
+          message: CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+        },
+      };
+    } catch (parseError) {
+      onFailure(parseError);
+      return {
+        diagnostics: [],
+        notice: {
+          level: "warning",
+          message: CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+        },
+      };
+    }
+  }
+}
+
+/**
+ * The default {@link DiagnosticsControllerOptions.onCheckFailure}: reject a promise carrying
+ * `error`, so the failure escapes *after* the synchronous listener loop has finished. See
+ * {@link guardedRunChecks} for why it must not escape synchronously.
+ *
+ * A rejected promise rather than `queueMicrotask`, for two reasons that are both about this package
+ * rather than about the mechanism. `tsconfig.base.json` sets `lib: ["es2023"]` with no DOM or Node
+ * types, so `queueMicrotask` is not a typed global here; and `web-bootstrap.ts:93-96` records the
+ * convention that this package takes host capabilities as injected seams instead of reaching for
+ * ambient globals. `Promise` is in the language, so this needs neither.
+ *
+ * The channel differs from a synchronous `throw` and the difference is worth stating rather than
+ * glossing: this surfaces as an **unhandled rejection**. Both are fatal where it matters — Node has
+ * thrown on unhandled rejections by default since v15, so `node --test` still fails the run, and
+ * browsers fire `unhandledrejection`, which error reporters capture alongside `onerror`. What is
+ * preserved is the property the guard needs: loud for a developer, invisible to the learner's
+ * session, which keeps running.
+ *
+ * **It returns the promise, and the controller discards it — deliberately.** Discarding is what
+ * leaves the rejection unhandled, and therefore loud. Returning it is what lets a test attach a
+ * `.catch()` and assert the error is carried without that assertion reddening the run: a rejection
+ * nobody handles is precisely what this function is for, so it cannot be observed passively.
+ */
+export function rethrowCheckFailureAsynchronously(
+  error: unknown,
+): Promise<never> {
+  return Promise.reject(error);
 }
 
 /** Construct the diagnostics pane controller bound to the shared studio state model. */
@@ -205,6 +376,11 @@ export function createDiagnosticsController(
   options: DiagnosticsControllerOptions = {},
 ): DiagnosticsController {
   let lastCheckedSource: string | null = null;
+  // Whether the notice currently on screen is OURS. `setNotice(null)` is a global stomp and the
+  // field is shared (persistence uses it for "your work could not be saved"), so clearing
+  // unconditionally would silently erase somebody else's warning.
+  let noticeIsOurs = false;
+  const onFailure = options.onCheckFailure ?? rethrowCheckFailureAsynchronously;
 
   function refresh(): void {
     const source = state.getState().source;
@@ -212,7 +388,20 @@ export function createDiagnosticsController(
       return;
     }
     lastCheckedSource = source;
-    state.setDiagnostics(runChecks(source, options));
+    const document = options.document ?? DEFAULT_DIAGNOSTICS_DOCUMENT;
+    const outcome = guardedRunChecks(
+      () => runChecks(source, options),
+      () => parse(source, document).diagnostics,
+      onFailure,
+    );
+    state.setDiagnostics(outcome.diagnostics);
+    if (outcome.notice !== null) {
+      noticeIsOurs = true;
+      state.setNotice(outcome.notice);
+    } else if (noticeIsOurs) {
+      noticeIsOurs = false;
+      state.setNotice(null);
+    }
   }
 
   state.subscribe(refresh);

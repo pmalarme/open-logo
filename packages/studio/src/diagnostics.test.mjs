@@ -3,17 +3,23 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { execute } from "@openlogo/runtime";
 import * as OL from "@openlogo/studio";
 
 const {
+  CHECKER_INCOMPLETE_NOTICE_MESSAGE,
   createDiagnosticsController,
   createParserHighlighter,
   DEFAULT_DIAGNOSTICS_DOCUMENT,
   mountDiagnosticsPane,
+  STUDIO_PROFILES,
   toDiagnosticsView,
   createAppShell,
   createStudioState,
 } = OL;
+
+/** The document the differential test runs both paths under, so spans are comparable. */
+const RUN_DOCUMENT = DEFAULT_DIAGNOSTICS_DOCUMENT;
 
 /** A minimal, arbitrary Diagnostic-shaped fixture for testing the pure projection in isolation. */
 function fakeDiagnostic(overrides = {}) {
@@ -474,4 +480,221 @@ test("mountDiagnosticsPane() composes the controller into the shell's diagnostic
   mountDiagnosticsPane(shell, controller);
 
   assert.equal(shell.getRegion("diagnostics").content, controller);
+});
+
+// ---------------------------------------------------------------------------------------------
+// #817 review round 1 — the one-fault merge and the checker guard.
+// ---------------------------------------------------------------------------------------------
+
+test("#817: one fault produces one message — the live pane matches execute() exactly", () => {
+  // The differential test. `runChecks` used to concatenate `parse()` and `check()` by hand and skip
+  // `applyOneFaultRules`, which `analyze()` (and therefore `execute()`) applies. `fowad 100` then
+  // showed the learner a bogus `ol-bad-token` — "i didn't expect 100 to keep going on this line",
+  // wrong advice about a perfectly good `100` — stacked above the true `ol-unknown-command`, and
+  // that extra message vanished the moment they pressed Run.
+  //
+  // Asserting the two lists are EQUAL rather than asserting a count is what stops the two paths
+  // drifting again: any future divergence in either direction fails here.
+  const shape = (list) =>
+    list.map(
+      (each) =>
+        `${each.stage}/${each.code}${JSON.stringify(each.params)}@${JSON.stringify(each.source_span.start)}`,
+    );
+
+  for (const source of [
+    "fowad 100",
+    "fowad 100 200",
+    "forward 100\nfowad 50\nright 90",
+    "print (difference 10 5)",
+    "flibbertigibbet",
+    "forward 100",
+  ]) {
+    const state = createStudioState();
+    createDiagnosticsController(state, { document: RUN_DOCUMENT });
+    state.setSource(source);
+
+    const live = shape(state.getState().diagnostics);
+    const run = shape(
+      execute(source, RUN_DOCUMENT, { profiles: STUDIO_PROFILES }).diagnostics,
+    );
+
+    assert.deepEqual(
+      live,
+      run,
+      `live and Run disagree for ${JSON.stringify(source)}`,
+    );
+  }
+});
+
+test("#817: the bare-typo form reports exactly one diagnostic, not two", () => {
+  // Stated directly as well as differentially, because the differential test above would also pass
+  // if BOTH paths regressed together. This is the shape every #817 acceptance test missed: they all
+  // used a parenthesised call (`print (difference 10 5)`), which is the one form that produces no
+  // trailing `ol-bad-token` and therefore cannot show the defect.
+  const state = createStudioState();
+  createDiagnosticsController(state);
+
+  state.setSource("fowad 100");
+
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.equal(view.items.length, 1);
+  assert.equal(view.items[0].code, "ol-unknown-command");
+  assert.equal(view.items[0].stage, "semantic");
+  assert.deepEqual(view.items[0].params, {
+    name: "fowad",
+    suggestion: "forward",
+  });
+  assert.ok(
+    !view.items.some((item) => item.code === "ol-bad-token"),
+    "the suppressed Layer-1 finding came back",
+  );
+});
+
+/**
+ * A profile set that is a faithful stand-in for {@link STUDIO_PROFILES} but throws from inside the
+ * checker while `exploding` is set. Test-only, and the point is determinism: it makes the guard's
+ * behaviour reproducible in every environment and every Node version, where provoking a real native
+ * stack overflow depends on the runner, the flags, and how many frames are already below the call.
+ * The depth-driven route is real and is what motivated the guard (#1146) — it is simply the wrong
+ * instrument to assert with, because `assert.doesNotThrow` on a too-shallow program passes while
+ * proving nothing.
+ */
+function explodingProfiles() {
+  const state = { exploding: true };
+  const error = new Error("checker exploded");
+  const profiles = new Proxy([...STUDIO_PROFILES], {
+    get(target, property, receiver) {
+      if (state.exploding) {
+        throw error;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  return { profiles, state, error };
+}
+
+test("#817: a throw from the checker degrades instead of escaping into setSource", () => {
+  // The guard, driven through a deterministic seam rather than a real stack overflow.
+  // `onCheckFailure` is injected — the default rethrows asynchronously, which under `node --test`
+  // would redden this file as an unhandled rejection even though every assertion here passes.
+  const failures = [];
+  const state = createStudioState();
+  const { profiles, error: boom } = explodingProfiles();
+
+  let laterListenerSawSource = null;
+  createDiagnosticsController(state, {
+    profiles,
+    onCheckFailure: (failure) => failures.push(failure),
+  });
+  // The controller checks once at construction (over the empty initial source), which this set also
+  // fails. Measure the DELTA across the edit, so the assertion is about the keystroke.
+  const failuresBeforeEdit = failures.length;
+  state.subscribe((next) => {
+    laterListenerSawSource = next.source;
+  });
+
+  assert.doesNotThrow(() => {
+    state.setSource("forward 100");
+  });
+
+  // The failure reached the developer channel, exactly once for this edit.
+  assert.equal(failures.length - failuresBeforeEdit, 1);
+  assert.equal(failures.at(-1), boom);
+  // The listener loop completed — this is the thing that actually broke a session. A throw here
+  // aborted `commit()`'s loop, so the editor, highlighter, turtle pane and announcer never saw the
+  // update while `source` had already been committed.
+  assert.equal(laterListenerSawSource, "forward 100");
+  // The pane degraded to Layer 1 rather than emptying: `analyze()` throws as a unit, so without the
+  // nested re-parse there would be nothing left to show, including for a program with real findings.
+  assert.deepEqual(state.getState().diagnostics, []);
+  // And the learner is told about the TOOL, not given a verdict about their PROGRAM.
+  assert.deepEqual(state.getState().notice, {
+    level: "warning",
+    message: CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+  });
+});
+
+test("#817: the DEFAULT failure handler carries the error asynchronously, never synchronously", async () => {
+  // Covers the default `onCheckFailure`, which every other guard test deliberately replaces.
+  //
+  // It is asserted directly rather than by provoking it through the controller, because a rejection
+  // *nobody handles* is exactly what this function is for: under `node --test` that is a test
+  // failure by construction, so the default cannot be observed passively. Calling it and attaching
+  // a `.catch()` to the promise it returns is the seam — the controller discards that return value,
+  // which is what leaves the rejection unhandled and therefore loud in production.
+  const boom = new Error("checker exploded");
+
+  // Half one: it does not throw synchronously. A synchronous throw is what aborts `commit()`'s
+  // listener loop and wedges the session.
+  let returned;
+  assert.doesNotThrow(() => {
+    returned = OL.rethrowCheckFailureAsynchronously(boom);
+  });
+
+  // Half two: the error is genuinely carried, so a real bug still reaches a developer.
+  await assert.rejects(returned, (reason) => reason === boom);
+});
+
+test("#817: a degraded check still surfaces the Layer-1 findings it could compute", () => {
+  const failures = [];
+  const state = createStudioState();
+  const { profiles } = explodingProfiles();
+  createDiagnosticsController(state, {
+    profiles,
+    onCheckFailure: (failure) => failures.push(failure),
+  });
+  const failuresBeforeEdit = failures.length;
+
+  state.setSource("%");
+
+  assert.equal(failures.length - failuresBeforeEdit, 1);
+  // The falsifying half of the test above: degrading is not the same as going silent.
+  const view = toDiagnosticsView(state.getState().diagnostics);
+  assert.equal(view.items.length, 1);
+  assert.equal(view.items[0].code, "ol-bad-token");
+});
+
+test("#817: the notice clears when the next check succeeds", () => {
+  const state = createStudioState();
+  const { profiles, state: explosion } = explodingProfiles();
+  createDiagnosticsController(state, {
+    profiles,
+    onCheckFailure: () => {},
+  });
+
+  state.setSource("forward 100");
+  assert.equal(
+    state.getState().notice?.message,
+    CHECKER_INCOMPLETE_NOTICE_MESSAGE,
+  );
+
+  explosion.exploding = false;
+  state.setSource("forward 200");
+
+  assert.equal(state.getState().notice, null);
+  // And the recovered check is a real one, not merely a cleared notice.
+  assert.deepEqual(state.getState().diagnostics, []);
+  state.setSource("fowad 200");
+  assert.deepEqual(
+    state.getState().diagnostics.map((each) => each.code),
+    ["ol-unknown-command"],
+  );
+});
+
+test("#817: a notice this controller did not set is never cleared", () => {
+  // `setNotice(null)` is a global stomp and the field is shared — persistence uses it for "your
+  // work could not be saved". A controller that cleared unconditionally would silently erase it.
+  const state = createStudioState();
+  createDiagnosticsController(state);
+
+  state.setNotice({
+    level: "warning",
+    message: "your work could not be saved",
+  });
+  state.setSource("forward 100");
+
+  assert.deepEqual(state.getState().notice, {
+    level: "warning",
+    message: "your work could not be saved",
+  });
 });

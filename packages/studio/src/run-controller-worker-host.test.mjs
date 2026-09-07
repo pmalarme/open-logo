@@ -1107,7 +1107,7 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   // retained answer and the scheduled key, and the handler's output arriving after the line the
   // learner had already read.
   // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
-  // actually registers — a scripted report carrying vents: [] would be refused before scheduling,
+  // actually registers — a scripted report carrying `events: []` would be refused before scheduling,
   // and the test would pass for the wrong reason.
   // Real events, so the registration gate (hasRegisteredHandler) sees the on_key the program
   // actually registers — a scripted report carrying events: [] would be refused before scheduling,
@@ -1182,4 +1182,88 @@ test("#976: a delivery racing resolveRead is EVENTUALLY replayed, with the answe
   assert.deepEqual(after, ["BEFORE", "Ada", "HANDLER"]);
   assert.deepEqual(prompt.prompts, ["who?"], "asked exactly once, ever");
   assert.equal(store.getState().runStatus, "done");
+});
+
+test("#817: a settlement that arrives after the learner has edited on does not overwrite the live pane", () => {
+  // A host that settles across event-loop turns can deliver a result for source the learner has
+  // already replaced. Measured before the fix: run `flibbertigibbet`, edit to `wibble`, watch the
+  // live pane correctly re-check to `wibble` — and then the older settlement put `flibbertigibbet`
+  // back, describing text no longer on screen. `diagnostics.ts`'s unchanged-`source` guard then
+  // declined to repair it, because from the live controller's point of view `wibble` had already
+  // been checked, so the wrong finding stayed up until the learner typed again.
+  const store = OL.createStudioState({ source: "flibbertigibbet" });
+  OL.createDiagnosticsController(store);
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+
+  // The live pane already describes the program about to run.
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["flibbertigibbet"],
+  );
+
+  controller.run();
+
+  // The learner edits while the run is still in flight.
+  store.setSource("wibble");
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+    "precondition: the live pane re-checked the new text",
+  );
+
+  // The stale settlement lands.
+  const stale = OL.createStudioState({ source: "flibbertigibbet" });
+  OL.createDiagnosticsController(stale);
+  const staleDiagnostics = stale.getState().diagnostics;
+  assert.equal(staleDiagnostics.length, 1, "fixture must carry a diagnostic");
+  deferred.report({ diagnostics: staleDiagnostics });
+
+  // The live field still describes the text on screen.
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.params.name),
+    ["wibble"],
+  );
+  // But the run's own immutable record is still written, with the source it actually ran.
+  assert.equal(store.getState().lastRunResult.source, "flibbertigibbet");
+  assert.deepEqual(
+    store.getState().lastRunResult.diagnostics.map((each) => each.params.name),
+    ["flibbertigibbet"],
+  );
+});
+
+test("#817: a settlement for the UNEDITED source still reaches the live pane", () => {
+  // The falsifying control for the test above: the guard must not simply stop publishing. Without
+  // this, deleting the `setDiagnostics` call entirely would leave that test green.
+  const store = OL.createStudioState({ source: "print 1 / 0" });
+  OL.createDiagnosticsController(store);
+  const deferred = createDeferredHost();
+  const controller = OL.createRunController(store, {
+    executionHost: deferred.host,
+  });
+
+  assert.deepEqual(
+    store.getState().diagnostics,
+    [],
+    "precondition: clean statically",
+  );
+
+  controller.run();
+  const settled = settlementFor("print 1 / 0");
+  assert.ok(
+    settled.diagnostics.length > 0,
+    "fixture must produce a runtime diagnostic",
+  );
+  deferred.report({
+    events: settled.events,
+    output: settled.output,
+    diagnostics: settled.diagnostics,
+  });
+
+  assert.deepEqual(
+    store.getState().diagnostics.map((each) => each.code),
+    settled.diagnostics.map((each) => each.code),
+  );
 });
