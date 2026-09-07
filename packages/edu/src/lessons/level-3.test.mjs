@@ -2,9 +2,21 @@
 // `Lesson`/`Exercise` type guards, plus running every embedded OpenLogo source through
 // `@openlogo/runtime` so a lesson can never drift from real execution behavior.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import * as OL from "@openlogo/edu";
 import { execute } from "@openlogo/runtime";
+
+// This test lives at packages/edu/src/lessons/, so the repo root is four levels up.
+const repoRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "..",
+);
 
 const level3Lessons = OL.getLessonsByLevel("3");
 const level3Exercises = OL.getExercisesByLevel("3");
@@ -252,6 +264,81 @@ test("the born-inside/born-outside worked examples really print 1 1 1 1 and 1 2 
   assert.deepEqual(
     measure(bornLesson.workedExamples[1].source, "born-outside.logo").printed,
     [1, 2, 3, 4],
+  );
+});
+
+// Issue #1124 stated the same contrast normatively, as a Level 3 core idea in
+// `spec/educational-model.md`. That sentence is prose in a maintainer-owned document, so nothing
+// read it — the same duplication-drift exposure that justified the Level 5 spec-surface gate in
+// `level-5.test.mjs`, raised by @ai-tutor in round 2 as asymmetric protection for symmetric
+// prose. This binds the document's claim to measured behavior: the bullet must name both sides of
+// the contrast, and the runtime must actually produce it. The spec is READ, never written.
+test("spec/educational-model.md's Level 3 lifetime bullet names both sides, and the runtime produces them", () => {
+  const specText = readFileSync(
+    join(repoRoot, "spec/educational-model.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  const level3Section = specText.slice(
+    specText.indexOf("## Level 3 — variables"),
+  );
+  const bullets = level3Section
+    .slice(0, level3Section.indexOf("```"))
+    .split("\n")
+    .filter((line) => line.startsWith("- "));
+  const lifetimeBullets = bullets.filter((line) => /\bborn\b/.test(line));
+  assert.equal(
+    lifetimeBullets.length,
+    1,
+    `expected exactly one Level 3 name-lifetime bullet in spec/educational-model.md, found ${lifetimeBullets.length}`,
+  );
+  const bullet = lifetimeBullets[0];
+
+  // Both sides of the contrast, each with the spellings the sentence may reasonably use. As in
+  // level-5.test.mjs this constrains the CLAIM, not the wording.
+  for (const { side, pattern } of [
+    { side: "born inside the block", pattern: /\binside\b/i },
+    {
+      side: "born before/outside the block",
+      pattern: /\bbefore\b|\boutside\b/i,
+    },
+    {
+      side: "the restart",
+      pattern: /\bfresh\b|\brestarts?\b|\bstarts? over\b/i,
+    },
+    { side: "the carry-over", pattern: /\bcarries\b|\bkeeps\b|\bacross\b/i },
+  ]) {
+    assert.ok(
+      pattern.test(bullet),
+      `the Level 3 lifetime bullet does not name ${side}: ${bullet}`,
+    );
+  }
+
+  // …and the behavior the bullet describes, measured rather than asserted. These are the shapes
+  // the bullet talks about (a name given its first value inside vs. before the `repeat`), not the
+  // lesson's programs — the lesson's own copies are pinned separately above.
+  const insideFirst = [
+    "repeat 4",
+    "  :x = 1",
+    "  :x = :x + 1",
+    "  print :x",
+    "end repeat",
+  ].join("\n");
+  const beforeFirst = [
+    ":x = 1",
+    "repeat 4",
+    "  :x = :x + 1",
+    "  print :x",
+    "end repeat",
+  ].join("\n");
+  assert.deepEqual(
+    measure(insideFirst, "spec-l3-born-inside.logo").printed,
+    [2, 2, 2, 2],
+    "a name born inside the block must start fresh on every turn",
+  );
+  assert.deepEqual(
+    measure(beforeFirst, "spec-l3-born-before.logo").printed,
+    [2, 3, 4, 5],
+    "a name born before the block must carry its value across the turns",
   );
 });
 
