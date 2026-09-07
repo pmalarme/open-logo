@@ -2,9 +2,21 @@
 // `Lesson`/`Exercise` type guards, plus running every embedded OpenLogo source through
 // `@openlogo/runtime` so a lesson can never drift from real execution behavior.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import * as OL from "@openlogo/edu";
 import { execute } from "@openlogo/runtime";
+
+// This test lives at packages/edu/src/lessons/, so the repo root is four levels up.
+const repoRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "..",
+);
 
 const level3Lessons = OL.getLessonsByLevel("3");
 const level3Exercises = OL.getExercisesByLevel("3");
@@ -252,6 +264,170 @@ test("the born-inside/born-outside worked examples really print 1 1 1 1 and 1 2 
   assert.deepEqual(
     measure(bornLesson.workedExamples[1].source, "born-outside.logo").printed,
     [1, 2, 3, 4],
+  );
+});
+
+// Issue #1124 stated the same contrast normatively, as a Level 3 core idea in
+// `spec/educational-model.md`. That sentence is prose in a maintainer-owned document, so nothing
+// read it — the same duplication-drift exposure that justified the Level 5 spec-surface gate in
+// `level-5.test.mjs`, raised by @ai-tutor in round 2 as asymmetric protection for symmetric
+// prose. This binds the document's claim to measured behavior: the bullet must name both sides of
+// the contrast, and the runtime must actually produce it. The spec is READ, never written.
+test("spec/educational-model.md's Level 3 lifetime bullet names both sides, and the runtime produces them", () => {
+  const specText = readFileSync(
+    join(repoRoot, "spec/educational-model.md"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  const level3Section = specText.slice(
+    specText.indexOf("## Level 3 — variables"),
+  );
+  const bullets = level3Section
+    .slice(0, level3Section.indexOf("```"))
+    .split("\n")
+    .filter((line) => line.startsWith("- "));
+  const lifetimeBullets = bullets.filter((line) => /\bborn\b/.test(line));
+  assert.equal(
+    lifetimeBullets.length,
+    1,
+    `expected exactly one Level 3 name-lifetime bullet in spec/educational-model.md, found ${lifetimeBullets.length}`,
+  );
+  const bullet = lifetimeBullets[0];
+
+  // Both sides of the contrast, each BOUND to its own claim. Presence-checking the four words
+  // somewhere in the bullet is not enough: a contrast has an orientation, and all three round-3
+  // reviewers independently showed that four independent existence checks pass on a bullet that
+  // states the contrast BACKWARDS — the natural failure mode when someone later "tightens" a
+  // sentence they misread. So the bullet is split at its contrast conjunction and each clause
+  // must carry its own outcome, must NOT carry the other's, and must not be negated. The
+  // mutual-exclusion and negation checks close the round-4 holes: clause-binding fixed *which
+  // clause*, but "does not start fresh"/"never carries" and an inside clause claiming BOTH
+  // outcomes both still asserted the opposite of the measured behavior below.
+  //
+  // What this DOES constrain about the wording, stated plainly because it is maintainer-owned
+  // prose and a red CI message should not be a puzzle: the bullet must be a single two-clause
+  // contrast joined by `while`, `whereas`, `but`, or `;`, and must not use those words in any
+  // other sense. An em-dash contrast or a two-sentence phrasing will fail. That tightness is
+  // deliberate — it is what stops the gate degrading back to presence-checking — but it is a
+  // wording constraint, not purely a claim constraint, and the next author should know it.
+  //
+  // What it enforces, in addition to the two structural constraints above (exactly one Level 3
+  // bullet may say "born", and it must be a single two-clause contrast): the measured construct,
+  // outcome-to-side, and mutual exclusion of the two outcomes.
+  //
+  // What it does NOT enforce is the meaning of the sentence. **Any paraphrase that keeps the
+  // keywords in their clauses passes.** Polarity is the clearest case — the negation check
+  // rejects three spellings (`not`, `never`, `-n't`), but English negation is open-class, so
+  // "fails to start fresh", "no longer carries" or "rarely carries" invert the meaning and pass.
+  // The same holds well beyond polarity: a changed quantity ("on the first turn only"), a changed
+  // scope, an added condition ("only when the loop count is even"), the outcome attributed to the
+  // block rather than to the name, or an outcome word belonging to a decoy noun in a parenthetical
+  // ("…while a name born before the block — like the turtle's heading, which carries across — is
+  // reset") all pass while stating something false. Extending the checks to chase these is a
+  // regress that never completes and widens the false-failure surface on maintainer-owned prose,
+  // so this is deliberately a tripwire for the commonest structural drift, not a proof. Green
+  // means the shape is intact, never that the sentence is right; a red result is a prompt to
+  // re-read the sentence, not proof that the sentence is wrong.
+  const clauses = bullet.split(/\bwhile\b|\bwhereas\b|\bbut\b|;/i);
+  assert.equal(
+    clauses.length,
+    2,
+    `the Level 3 lifetime bullet must be a single two-clause contrast joined by "while", "whereas", "but" or ";" — found ${clauses.length} clause(s) in: ${bullet}`,
+  );
+  const insideClause = clauses.find((clause) => /\binside\b/i.test(clause));
+  const outerClause = clauses.find((clause) =>
+    /\bbefore\b|\boutside\b/i.test(clause),
+  );
+  assert.ok(
+    insideClause !== undefined && outerClause !== undefined,
+    `the Level 3 lifetime bullet no longer contrasts a name born inside the block with one born before it: ${bullet}`,
+  );
+  assert.notEqual(
+    insideClause,
+    outerClause,
+    `the Level 3 lifetime bullet puts both sides of the contrast in one clause: ${bullet}`,
+  );
+
+  const RESTART = /\bfresh\b|\brestarts?\b|\bstarts? over\b/i;
+  const CARRY = /\bcarries\b|\bkeeps\b|\bacross\b/i;
+  assert.match(
+    insideClause,
+    RESTART,
+    `the born-inside clause does not claim the restart: ${insideClause}`,
+  );
+  assert.match(
+    outerClause,
+    CARRY,
+    `the born-before clause does not claim the carry-over: ${outerClause}`,
+  );
+  assert.doesNotMatch(
+    insideClause,
+    CARRY,
+    `the born-inside clause also claims the carry-over, so it states both outcomes: ${insideClause}`,
+  );
+  assert.doesNotMatch(
+    outerClause,
+    RESTART,
+    `the born-before clause also claims the restart, so it states both outcomes: ${outerClause}`,
+  );
+  for (const clause of [insideClause, outerClause]) {
+    assert.doesNotMatch(
+      clause,
+      /\bnot\b|\bnever\b|n't\b/i,
+      `this gate cannot read polarity inside a negated clause, so both sides must be phrased positively: ${clause}`,
+    );
+  }
+
+  // The construct the measured programs below exercise, asserted on the BORN-INSIDE clause rather
+  // than anywhere in the bullet: a bullet naming `for` on the inside and `repeat` on the outside
+  // satisfies a whole-bullet check while the evidence still runs `repeat` (rubber-duck, round 5).
+  assert.match(
+    insideClause,
+    /`repeat`/,
+    `the born-inside clause no longer names the construct these programs measure: ${insideClause}`,
+  );
+
+  // …and no OTHER construct anywhere in the bullet. The assertion above binds the construct to the
+  // measured side; this forbids the born-before clause naming a different one ("before the `for`
+  // block"), which is the same defect on the unconstrained side (rubber-duck and @curriculum,
+  // round 6). Unlike the open-class families disclosed above, the set of backticked names in one
+  // sentence is finite and closed, so a single deep-equal settles it rather than starting a
+  // denylist regress. The shipped born-before clause says "before the block" and names none,
+  // which this allows; naming `repeat` again would also be allowed.
+  const constructs = [
+    ...new Set([...bullet.matchAll(/`\w+`/g)].map((match) => match[0])),
+  ];
+  assert.deepEqual(
+    constructs,
+    ["`repeat`"],
+    `the lifetime bullet names a construct other than the one these programs measure: ${constructs.join(", ")}`,
+  );
+
+  // …and the behavior the bullet describes, measured rather than asserted. These are the shapes
+  // the bullet talks about (a name given its first value inside vs. before the `repeat`), not the
+  // lesson's programs — the lesson's own copies are pinned separately above.
+  const insideFirst = [
+    "repeat 4",
+    "  :x = 1",
+    "  :x = :x + 1",
+    "  print :x",
+    "end repeat",
+  ].join("\n");
+  const beforeFirst = [
+    ":x = 1",
+    "repeat 4",
+    "  :x = :x + 1",
+    "  print :x",
+    "end repeat",
+  ].join("\n");
+  assert.deepEqual(
+    measure(insideFirst, "spec-l3-born-inside.logo").printed,
+    [2, 2, 2, 2],
+    "a name born inside the block must start fresh on every turn",
+  );
+  assert.deepEqual(
+    measure(beforeFirst, "spec-l3-born-before.logo").printed,
+    [2, 3, 4, 5],
+    "a name born before the block must carry its value across the turns",
   );
 });
 
