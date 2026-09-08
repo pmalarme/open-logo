@@ -12,11 +12,20 @@
 // implementation, and `repeat 3 [ every 5 [ print repcount ] ]` — where a `Repeat` genuinely is
 // above the read — is the case that discriminates.
 //
-// MEASURED BEFORE-STATE (at saga tip 904b71ac, before this slice): `check()` reported **nothing**
-// for any of these programs. The whole row was unimplemented at Layer 2, both halves. The runtime
-// already decided every one of them correctly, so every expectation below is the checker being
-// brought into agreement with the evaluator — except the last two tests, which are programs the
-// runtime can never reach and which are the reason this row is worth having at all.
+// MEASURED BEFORE-STATE (at saga tip 904b71ac, before this slice): `check()` emitted **no
+// `ol-repcount-outside-repeat`** for any program in this file — the whole row was unimplemented at
+// Layer 2, both halves — while the runtime already decided every one of them correctly. So most
+// expectations below are the checker being brought into agreement with the evaluator. Two kinds of
+// exception, both stated because "reported nothing at the base" would be false of the file as a
+// whole:
+//
+//   - The two "…is still reported" tests near the end are programs the runtime can NEVER reach — an
+//     uncalled procedure and a handler that never fires — and are the reason this row is worth
+//     having at all. (Named, not positioned: they are no longer the last two tests.)
+//   - A few programs are deliberately malformed in some OTHER way, to pin what this rule must not
+//     claim. Those already carried `ol-too-many-inputs` / `ol-reserved-word` / `ol-not-a-place` at
+//     the base, from rules this slice does not touch, so read their assertions as "…and nothing
+//     from this rule" rather than as a before/after.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only `check()`.
 
@@ -100,11 +109,16 @@ test("a `repeat` written inside the procedure encloses normally", () => {
 
 test("a `define` written INSIDE a `repeat` body is still a boundary", () => {
   // The shape that actually discriminates the procedure seal. A `define` at the top level is not on
-  // a turn of anything to begin with, so removing the seal changes nothing there — measured, a
-  // mutant that made a procedure body inherit its surrounding answer survived every other test in
-  // this file. A `define` nested in a loop body is legal (it is registered globally in phase 1,
-  // `spec/execution-model.md`'s Reader pipeline), and the runtime agrees: measured, this program
-  // raises `ol-repcount-outside-repeat` at run time.
+  // a turn of anything to begin with, so removing the seal changes nothing there. A `define` nested
+  // in a loop body is legal (it is registered globally in phase 1, `spec/execution-model.md`'s
+  // Reader pipeline), and the runtime agrees: measured, this program raises
+  // `ol-repcount-outside-repeat` at run time.
+  //
+  // Measured rather than asserted: mutating the seal (`visit(child, false)` → `onARepeatTurn`,
+  // confirmed present in `dist`) fails exactly TWO tests in this file — this one and the parameter
+  // default below — and exactly ONE fixture in the whole 1049-fixture corpus, the one added for
+  // this shape (`core-language/check/repcount-in-a-procedure-defined-inside-a-repeat`). Every other
+  // `repcount` fixture, including the top-level-`define` one, stays green under that mutant.
   assertReported("repeat 2 [\n  define f\n    print repcount\n  end\n  f\n]");
 });
 
