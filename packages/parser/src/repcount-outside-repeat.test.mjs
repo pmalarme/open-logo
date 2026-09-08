@@ -19,9 +19,10 @@ const REGISTERED_BLOCK_HEADS = interactionEventsBlockHeadNames();
  * positively permits a template author to reword, so pinning prose here would make this suite
  * resist a change the spec allows.
  *
- * These cover the rule's decision points; the cross-package claim that each verdict AGREES with
- * `@openlogo/runtime`'s evaluator is asserted by the conformance fixtures under
- * `tests/conformance/core-language/{check,execution}/repcount-*`, which run both sides.
+ * These cover the rule's decision points. Agreement with `@openlogo/runtime`'s evaluator is
+ * asserted only by the fixtures that actually run it — the five `execute: true` ones under
+ * `tests/conformance/core-language/execution/`; the 13 `check: true` fixtures call the checker
+ * alone and return before `execute()` (`scripts/harness/index.mjs`).
  */
 
 const CODE = "ol-repcount-outside-repeat";
@@ -126,6 +127,29 @@ test("a procedure body is `outside` from every state, wherever the `define` is w
     repcountFindings("define f\n  repeat 2 [ print repcount ]\nend\nf"),
     [],
   );
+});
+
+test("an optional parameter's DEFAULT expression is judged in the procedure's context", () => {
+  // `childrenOf(ProcedureDef)` yields default expressions as well as the body, and both reset to
+  // `outside`. Without these cases, a mutation resetting only `node.body` — letting defaults
+  // inherit the surrounding `inside`/`dispatch-dependent` state — passes the whole suite.
+  assert.equal(
+    repcountFindings("define f (:x repcount)\n  print :x\nend").length,
+    1,
+  );
+  assert.equal(
+    repcountFindings("repeat 2 [ define f (:x repcount)\n  print :x\nend ]")
+      .length,
+    1,
+  );
+  assert.equal(
+    repcountFindings(
+      'on_key "a" [ define f (:x repcount)\n  print :x\nend ]',
+      HANDLER_PROFILES,
+    ).length,
+    1,
+  );
+  assert.deepEqual(repcountFindings("define f (:x 1)\n  print :x\nend"), []);
 });
 
 test("a comprehension body is transparent in both directions", () => {
@@ -252,9 +276,10 @@ test("both axes of the start discriminator are load-bearing", () => {
   );
   // Block-head lookup lowercases before matching. This assertion pins the BEHAVIOUR — an uppercase
   // head is still a handler and its body is still deferred — but note, measured, that it cannot
-  // bite: the reader normalises `ON_KEY` to `on_key` in the AST, so removing either `.toLowerCase()`
-  // is an equivalent mutant. A review finding claimed such a mutation would make this program
-  // report; it was built and nothing changed.
+  // bite: the reader normalises `ON_KEY` to `on_key` in the AST, so removing either of the
+  // block-head lookup's two lowercasing calls is an equivalent mutant — both were built and
+  // measured. A review finding claimed such a mutation would make this program
+  // report; it was built and nothing changed, and the finding was withdrawn.
   assert.deepEqual(
     repcountFindings('ON_KEY "a" [ print repcount ]', HANDLER_PROFILES),
     [],
@@ -371,9 +396,8 @@ test("a bare `repcount` assignment target raises ol-not-a-place ALONE", () => {
 });
 
 test("`set repcount to 100` is not a read either", () => {
-  // NOTE, measured: this assertion survived every mutation run against the rule so far, and both
-  // reviewers independently confirmed it is non-biting. The mechanism is that `set repcount to
-  // 100` parses to `Assign{ place: Place{ base: {name:"repcount"} } }`; the `Place` root carries
+  // NOTE, measured: this assertion survived every mutation run against the rule so far. The
+  // mechanism is that `set repcount to 100` parses to `Assign{ place: Place{ base: {name:"repcount"} } }`; the `Place` root carries
   // `rootIsRead: false`, and `childrenOf` a `Place` yields only its segment children (`ast.ts`),
   // never `base` — so a mutation of the MATCHING strategy cannot reach it. An earlier comment
   // named "a rule matching the WORD repcount anywhere" as its falsifier; that mutation was built

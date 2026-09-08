@@ -6,10 +6,12 @@
  * `repcount` "reports the current 1-based iteration count of the innermost enclosing `repeat`"
  * and, "when several `repeat` loops are nested, refers to the nearest one"
  * (`spec/commands.md:783`); using it outside any `repeat` is `ol-repcount-outside-repeat`
- * (`spec/commands.md:793`). *Enclosing* is a lexical property of the program text, so whether a
- * `repcount` has one is knowable by reading the source — and `spec/error-model.md:76-78` says a
- * condition an implementation can detect earlier without changing behavior SHOULD be reported at
- * the earlier stage, keeping the same `code`. Reporting it here means the check-before-execution
+ * (`spec/commands.md:793`). Many occurrences can be placed by reading the source, and
+ * `spec/error-model.md:76-78` says a condition an implementation can detect earlier without
+ * changing behavior SHOULD be reported at the earlier stage, keeping the same `code`. The ones
+ * that cannot be placed statically are enumerated under "The scoping rule" below.
+ *
+ * Reporting it here means the check-before-execution
  * gate (`spec/execution-model.md:632`) refuses the program instead of letting it half-execute:
  * before this rule, `print "start" / print repcount / print "done"` printed `start` and three
  * events' worth of effects before stopping, while the two sibling codes the registry gives the same
@@ -143,16 +145,17 @@ import type { CheckProfile } from "./check.js";
 import { interactionEventsBlockHeadNames } from "./signatures.js";
 
 /**
- * Where a `repcount` sits, as the walk descends. Deliberately three-valued rather than a boolean:
- * the question "is this inside a `repeat`?" has a third answer, and collapsing it either way is
- * wrong. `outside` and `inside` are the two static answers. `dispatch-dependent` is an
- * event-handler body, whose turn is whatever is on the evaluator's stack when the handler *fires*.
+ * Where a `repcount` sits, as the walk descends. `outside` and `inside` are the two static
+ * answers; `dispatch-dependent` names an event-handler body, whose turn is whatever is on the
+ * evaluator's stack when the handler fires.
  *
- * Only `outside` reports. `dispatch-dependent` stays silent — but it is a distinct state, not a
- * synonym for `inside`, because a construct nested inside a handler body can still *restore*
- * certainty: a `define … end` body always begins with an empty repeat-turn stack no matter when
- * its caller ran, so a `repcount` there is `outside` again and knowable. A boolean cannot express
- * that, which is exactly the defect this type replaced.
+ * Only `outside` reports. The third name records the *epistemic* answer — "unknowable" rather than
+ * "inside" — but that distinction is not behavioural today, measured: collapsing
+ * `dispatch-dependent` into `inside` survives the whole unit suite and the full fixture corpus,
+ * while collapsing it into `outside` is caught by two fixtures. It is produced at one site and
+ * consumed only by the `context === "outside"` test, so a boolean would reproduce current
+ * behaviour. It is kept because `ProcedureDef` resetting to `outside` and a future rule that
+ * distinguished the two silences would both need the name.
  */
 type RepeatContext = "outside" | "inside" | "dispatch-dependent";
 
@@ -280,9 +283,10 @@ export function repcountRule(
         return;
       }
       case "ProcedureDef": {
-        // A callee's repeat-turn stack always starts empty, whenever and however it is called, so
-        // a procedure body is `outside` from EVERY state — including `dispatch-dependent`. That is
-        // what keeps a `define` nested in a handler body statically knowable.
+        // `execute-internal.ts` creates each callee frame with `repeatTurns: []`, so a procedure
+        // body is `outside` from EVERY state — including `dispatch-dependent`. That is what keeps
+        // a `define` nested in a handler body statically knowable. Defaults reset too: they are
+        // yielded by `childrenOf(ProcedureDef)` alongside the body.
         for (const child of childrenOf(node)) {
           visit(child, "outside");
         }
