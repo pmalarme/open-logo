@@ -70,6 +70,7 @@ test("every registered primitive of every profile is arity-checked when its prof
   // on, so retiring the entry is a human step.
   const notYetVisible = [];
   const openVariadics = [];
+  const positionallyConstrained = [];
   let registered = 0;
   let checked = 0;
 
@@ -102,12 +103,28 @@ test("every registered primitive of every profile is arity-checked when its prof
         );
       }
       const source = parenCall(name, range.max + 1);
-      const diagnostics = checkCodes(source, profiles);
+      const everyFinding = checkCodes(source, profiles);
+      // `repcount` is the one registered primitive whose legality depends on WHERE it is written:
+      // a read with no lexically enclosing `repeat` raises `ol-repcount-outside-repeat` (issue
+      // #1097, `spec/tooling.md:195`), and this sweep's probe is necessarily at the top level. That
+      // is a SECOND, independent defect of the probe — fix the arity and the read is still outside
+      // every `repeat` — not a competing account of the arity one, so it is separated out here and
+      // asserted as an exact set below. Separated rather than skipped, for the same reason
+      // `notYetVisible` is: a second positionally-constrained name must not appear unremarked.
+      const positional = everyFinding.filter(
+        (finding) => finding.code === "ol-repcount-outside-repeat",
+      );
+      if (positional.length > 0) {
+        positionallyConstrained.push(name);
+      }
+      const diagnostics = everyFinding.filter(
+        (finding) => finding.code !== "ol-repcount-outside-repeat",
+      );
       assert.equal(
         diagnostics.length,
         1,
         `${source} under ${profiles.join("+")} must raise exactly one diagnostic, got ${JSON.stringify(
-          diagnostics.map((finding) => finding.code),
+          everyFinding.map((finding) => finding.code),
         )}`,
       );
       const [finding] = diagnostics;
@@ -131,6 +148,8 @@ test("every registered primitive of every profile is arity-checked when its prof
   }
 
   assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
+  // Exactly one registered primitive is judged by where it is written as well as by its arity.
+  assert.deepEqual([...new Set(positionallyConstrained)].sort(), ["repcount"]);
   // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
   // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
   // reading this because it failed, the question to answer is "was a primitive meant to disappear?"

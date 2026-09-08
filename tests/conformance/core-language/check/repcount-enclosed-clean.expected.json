@@ -1,0 +1,7 @@
+{
+  "description": "The false-positive guard for the row. Every read here is legitimately enclosed and MUST check clean: directly in the `repeat` body, in a nested `repeat` (which reports the innermost turn, spec/commands.md:804), in a nested `repeat`'s COUNT (which is evaluated where the inner `repeat` is written, so it reads the OUTER turn — measured, that line runs 1+2+3 times across the three outer turns), and inside an `if`, a `for … in` and a comprehension body — because \"every block other than a handler block or a comprehension body ... runs as part of the statement that contains it\" (spec/execution-model.md:664-667). A false positive that teaches learners to ignore diagnostics is worse than a missing one, and `spec/tooling.md:199-200` forbids speculative reports, so an implementation that resets enclosure at any block boundary rather than only at the two the spec names (a procedure body and a handler block) goes red here. It also pins the long `repeat ... end repeat` form, which is the spelling `spec/commands.md:808-812`'s own `repcount` example uses. Measured: `execute()` runs this program clean, printing 26 values — so the two stages agree on every read.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

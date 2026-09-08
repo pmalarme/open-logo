@@ -23,6 +23,10 @@
  * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive. #823's
  * `ol-global-outside-root` (`checker-global-placement.ts`) registers after them: it judges *where*
  * a `global` declaration stands, which is meaningful only once the declaration itself parsed.
+ * #1097's `ol-repcount-outside-repeat` (`checker-repcount.ts`) registers last, for the same reason
+ * and about the other Core word whose legality is a question of *where it is written*: whether a
+ * `repcount` read sits on a turn of a `repeat` whose body it runs as part of
+ * (`spec/tooling.md:195`).
  *
  * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
  * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
@@ -40,6 +44,7 @@ import { globalPlacementRule } from "./checker-global-placement.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { profileWordPositionRule } from "./checker-profile-word-position.js";
+import { repcountRule } from "./checker-repcount.js";
 import { declarationSlotRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
@@ -151,6 +156,7 @@ const RULES: readonly CheckRule[] = [
   declarationSlotRule,
   controlFlowRule,
   globalPlacementRule,
+  repcountRule,
 ];
 
 /** Dispatches `program`/`profiles`/`source` to every registered rule and concatenates their findings. */
