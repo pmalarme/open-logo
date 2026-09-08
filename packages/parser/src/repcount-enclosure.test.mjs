@@ -198,9 +198,12 @@ test("a comprehension body inside a `repeat` stays enclosed", () => {
   assertClean("repeat 2 [ print map n in [1] [ repcount ] ]");
 });
 
-test("a Sprites `ask`/`tell`/`each` block inside a `repeat` stays enclosed", () => {
+test("Sprites `ask`/`tell`/`each` inside a `repeat` stay enclosed", () => {
   // `spec/execution-model.md:678-680` — the Sprites addressing model "carries dynamic *turtle
-  // state*, not a name binding, so they are unaffected by this rule".
+  // state*, not a name binding, so they are unaffected by this rule". Note `ask` and `each` take a
+  // block and `tell` does not — measured on the parsed AST, `tell`'s ProfileStatement has no body —
+  // so the third line is a `repcount` in the `repeat` body after a `tell`, not inside a `tell`
+  // block. All three are named because the spec names all three.
   const profiles = [...PROFILES, "sprites"];
   assertClean("repeat 2 [ each [ print repcount ] ]", profiles);
   assertClean("repeat 2 [ ask 1 [ print repcount ] ]", profiles);
@@ -239,7 +242,7 @@ test("every offending read is reported, not just the first", () => {
   ]);
 });
 
-// --- the two programs the runtime can never reach ---
+// --- two offending reads the runtime does not reach ---
 
 test("a `repcount` in a procedure that is never called is still reported", () => {
   // The runtime prints `1` and reports nothing here: it never enters an uncalled body. Enclosure is
@@ -269,9 +272,10 @@ test("a program that declares its own `repcount` is left to `ol-reserved-word` a
 
 test("a `repcount` assignment TARGET is left to `ol-not-a-place` alone", () => {
   // `repcount = 100` is a write position, not a read: `ol-not-a-place` already rules it and the
-  // evaluator never runs the reporter there. Regression guard for
-  // `tests/conformance/core-language/assignment/bare-place-invalid`, which this rule
-  // double-reported before the exemption existed.
+  // evaluator never runs the reporter there. Measured, so the exemption is not merely asserted to
+  // matter: removing it reddens exactly one fixture in the corpus,
+  // `tests/conformance/core-language/assignment/bare-place-invalid` (1048 passed, 1 failed), whose
+  // program is exactly this one.
   assert.deepEqual(codes("repcount = 100"), ["ol-not-a-place"]);
   // `set <name> to` takes a bare NAME, so this one parses as an ordinary `Place` — the variable
   // `repcount`, not the reporter — and is no business of this rule at either stage.
