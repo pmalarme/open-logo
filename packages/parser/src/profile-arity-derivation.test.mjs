@@ -52,6 +52,22 @@ function parenCall(name, count) {
   return `(${[name, ...args].join(" ")})`;
 }
 
+/**
+ * The probe, in a **generic valid context**: one turn of a `repeat`. Wrapping costs nothing for a
+ * name whose legality does not depend on where it is written, and it keeps the sweep free of
+ * command-specific exceptions for the ones whose does. `repcount` is the first: since issue #1097 a
+ * read with no lexically enclosing `repeat` raises `ol-repcount-outside-repeat` (`spec/tooling.md:195`),
+ * so a bare top-level `(repcount 1)` really has TWO independent defects and the exact-one assertion
+ * below could not survive it. An earlier revision filtered the positional finding out and asserted
+ * the exceptional name as an exact set; the logic/spec reviewer's alternative is better, because a
+ * *second* such primitive then needs no edit here at all — which is the property this file exists
+ * to have. Verified across all 81 finite-arity primitives the DAG registers: wrapping changes no
+ * other name's answer, and `challenge` stays `ol-unknown-command` alone.
+ */
+function probe(name, count) {
+  return `repeat 1 [ ${parenCall(name, count)} ]`;
+}
+
 // --- the derived sweeps -------------------------------------------------------
 //
 // These name no command. Their subject is "every primitive of every profile in the DAG".
@@ -70,7 +86,6 @@ test("every registered primitive of every profile is arity-checked when its prof
   // on, so retiring the entry is a human step.
   const notYetVisible = [];
   const openVariadics = [];
-  const positionallyConstrained = [];
   let registered = 0;
   let checked = 0;
 
@@ -97,34 +112,18 @@ test("every registered primitive of every profile is arity-checked when its prof
         // A BOUNDED alternate (`(random a b)`, `(randomize seed)`): supplying exactly the ceiling
         // is legal and must stay clean, which is the half a too-many-only sweep never exercises.
         assert.deepEqual(
-          checkCodes(parenCall(name, range.max), profiles),
+          checkCodes(probe(name, range.max), profiles),
           [],
           `${name} must accept its ceiling of ${range.max} inputs`,
         );
       }
-      const source = parenCall(name, range.max + 1);
-      const everyFinding = checkCodes(source, profiles);
-      // `repcount` is the one registered primitive whose legality depends on WHERE it is written:
-      // a read with no lexically enclosing `repeat` raises `ol-repcount-outside-repeat` (issue
-      // #1097, `spec/tooling.md:195`), and this sweep's probe is necessarily at the top level. That
-      // is a SECOND, independent defect of the probe — fix the arity and the read is still outside
-      // every `repeat` — not a competing account of the arity one, so it is separated out here and
-      // asserted as an exact set below. Separated rather than skipped, for the same reason
-      // `notYetVisible` is: a second positionally-constrained name must not appear unremarked.
-      const positional = everyFinding.filter(
-        (finding) => finding.code === "ol-repcount-outside-repeat",
-      );
-      if (positional.length > 0) {
-        positionallyConstrained.push(name);
-      }
-      const diagnostics = everyFinding.filter(
-        (finding) => finding.code !== "ol-repcount-outside-repeat",
-      );
+      const source = probe(name, range.max + 1);
+      const diagnostics = checkCodes(source, profiles);
       assert.equal(
         diagnostics.length,
         1,
         `${source} under ${profiles.join("+")} must raise exactly one diagnostic, got ${JSON.stringify(
-          everyFinding.map((finding) => finding.code),
+          diagnostics.map((finding) => finding.code),
         )}`,
       );
       const [finding] = diagnostics;
@@ -148,8 +147,6 @@ test("every registered primitive of every profile is arity-checked when its prof
   }
 
   assert.deepEqual([...new Set(notYetVisible)].sort(), ["challenge"]);
-  // Exactly one registered primitive is judged by where it is written as well as by its arity.
-  assert.deepEqual([...new Set(positionallyConstrained)].sort(), ["repcount"]);
   // The anti-vacuity guard, and the whole of it: 85 is the DAG's exact registered count today, not
   // a conservative bound, so removing or emptying any entry trips this deliberately. If you are
   // reading this because it failed, the question to answer is "was a primitive meant to disappear?"

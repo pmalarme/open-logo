@@ -169,6 +169,11 @@ test("an `if`, `while`, `for … in` or `forever` body inside a `repeat` stays e
 });
 
 test("a comprehension body inside a `repeat` stays enclosed", () => {
+  // Deliberately NOT justified by `spec/execution-model.md:664-667`, which expressly excludes a
+  // comprehension body from that list — it excludes it for `return` (answered by
+  // `ol-return-in-comprehension`), which says nothing about `repcount`. This rests on
+  // `spec/execution-model.md:671-690` naming exactly two boundaries, so a block it does not name
+  // inherits — and on the runtime, measured: this program prints [1] then [2].
   assertClean("repeat 2 [ print map n in [1] [ repcount ] ]");
 });
 
@@ -232,9 +237,10 @@ test("a `repcount` in a handler that never fires is still reported", () => {
 
 test("a program that declares its own `repcount` is left to `ol-reserved-word` alone", () => {
   // `repcount` is a built-in name, so `define repcount … end` is already rejected
-  // (`ol-reserved-word`), and `@openlogo/runtime`'s dispatch lets a same-named user procedure
-  // shadow the primitive. Cascading a second, unrelated code across every call site of an
-  // already-diagnosed name is exactly the noise `spec/tooling.md:199-200` warns against.
+  // (`ol-reserved-word`), and `@openlogo/runtime`'s dispatch resolves a call to a same-named user
+  // procedure ahead of the primitive — so these call sites are not reads of the reporter at all.
+  // The reason is structural, not a general "no cascades" policy: `spec/tooling.md:199-200`'s
+  // MUST NOT is narrower, covering speculative *type* errors when dynamic values are unknown.
   assert.deepEqual(codes("define repcount\n  return 7\nend\nprint repcount"), [
     "ol-reserved-word",
   ]);

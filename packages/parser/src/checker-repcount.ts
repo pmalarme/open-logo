@@ -21,13 +21,20 @@
  *   deferred instruction rather than part of the loop that registered it", so the enclosing
  *   `repeat` does not reach into it "however the loop is placed and whether or not it has finished".
  *
- * Everything else inherits the enclosing answer, which is what makes the two clean cases clean
- * without enumerating them: `if`, `while`, `for`, `forever`, a comprehension body, and a Sprites
- * `ask`/`tell`/`each` block all "run as part of the statement that contains it"
- * (`spec/execution-model.md:664-667`), and the Sprites forms are called out again at
- * `spec/execution-model.md:678-680` as carrying dynamic *turtle* state rather than a name binding,
- * so they are "unaffected by this rule". A node kind added later therefore inherits the right
- * answer instead of needing an entry here.
+ * Everything else inherits the enclosing answer, which is what makes the clean cases clean without
+ * enumerating them, and it rests on the closing sentence above rather than on a list: the ruling
+ * names **two** boundaries, so a block it does not name is not one. Two groups are additionally
+ * confirmed by their own spec text. `if`, `while`, `for`, `forever`, and a Sprites `ask`/`each`
+ * block "run as part of the statement that contains it" (`spec/execution-model.md:664-667`), and
+ * the Sprites forms are called out again at `spec/execution-model.md:678-680` as carrying dynamic
+ * *turtle* state rather than a name binding, so they are "unaffected by this rule". A
+ * **comprehension body** is deliberately *not* in that list — `spec/execution-model.md:664-667`
+ * expressly excludes it, but it is excluded there for `return`, which a comprehension body answers
+ * with `ol-return-in-comprehension`, and that says nothing about `repcount`. Nothing in the
+ * `repcount` ruling makes a comprehension body a boundary, and the runtime agrees: measured,
+ * `repeat 2 [ print map n in [1] [ repcount ] ]` runs clean and reads the enclosing turn. So it
+ * inherits, like every other unnamed block. A node kind added later inherits the right answer
+ * instead of needing an entry here — which is the point of resting on the two-boundary closure.
  *
  * **Only `repeat` encloses.** `forever` runs a block without a turn number, and
  * `spec/commands.md:804` ties `repcount` to "the innermost `repeat`". Measured against the runtime
@@ -41,8 +48,11 @@
  *
  * ## What it does NOT report, and why
  *
- * `spec/tooling.md:199-200` forbids speculative reports, and a checker that cries wolf teaches
- * learners to ignore it. Two deliberate silences:
+ * A checker that cries wolf teaches learners to ignore it, so this rule stays silent in two places
+ * where another code already owns the defect. Note the reason is **structural**, not a general
+ * "no cascades" policy: `spec/tooling.md:199-200`'s MUST NOT is narrower than that — it forbids
+ * speculative **type** errors when dynamic values are unknown — so it is not cited as licensing
+ * either silence. Each stands on what the construct actually is:
  *
  * - A `repcount` written inside a procedure that is **never called** is still reported. That is not
  *   speculative: enclosure is a purely lexical property of where the word is written, decidable
@@ -50,13 +60,14 @@
  *   precisely the ruling. This is the case the static stage adds most value on, since the runtime
  *   never reaches an uncalled body at all.
  * - A program that **declares its own `repcount`** is left alone ({@link collectDeclaredNames}).
- *   Such a declaration is already rejected — `repcount` is a built-in name, so `define repcount …`
- *   raises `ol-reserved-word` — and the runtime's own dispatch lets a same-named user procedure
- *   shadow the primitive, so the call sites are not reads of the reporter at all. Reporting them
- *   here would cascade a second, unrelated code across every call of an already-diagnosed name.
+ *   `repcount` is a built-in name, so `define repcount …` is already rejected with
+ *   `ol-reserved-word`; and `@openlogo/runtime`'s own dispatch resolves a call to a same-named user
+ *   procedure ahead of the primitive, so those call sites are not reads of the reporter at all.
+ *   Reporting them would attach a second, unrelated code to every call of one already-diagnosed
+ *   name.
  * - A `repcount` in the **target** of an `=`/`set`/`make` (`repcount = 100`) is a write position,
  *   not a read; `checker-not-a-place.ts` already reports `ol-not-a-place` there, and the evaluator
- *   never runs the reporter. Same cascade, same silence — found by
+ *   never runs the reporter. Same reason, same silence — found by
  *   `tests/conformance/core-language/assignment/bare-place-invalid`, which uses exactly that program
  *   to pin `ol-not-a-place` and went red when this rule first double-reported it.
  */
@@ -160,9 +171,9 @@ export function repcountRule(program: ProgramNode): readonly Diagnostic[] {
     if (node.kind === "Assign") {
       // `repcount = 100` is a WRITE position, not a read: `checker-not-a-place.ts` already rules an
       // `=`/`set`/`make` target that is not a place, and the runtime never evaluates the reporter
-      // there at all. Judging it again as an unenclosed read would cascade a second, misleading
-      // code onto one defect — the same conservatism `spec/tooling.md:199-200` asks for, and the
-      // same reason a program declaring its own `repcount` is left to `ol-reserved-word` above.
+      // there at all. Attaching a second, misleading code to one defect helps nobody — the same
+      // structural reason a program declaring its own `repcount` is left to `ol-reserved-word`
+      // above.
       // Only the target's own head is exempt: its subtree is still walked, because a target can
       // genuinely *read* the reporter — measured, `:cells[(repcount)] = 9` and
       // `(item repcount [1 2]) = 5` both do, and both still report. (A bare `:cells[repcount]` does
