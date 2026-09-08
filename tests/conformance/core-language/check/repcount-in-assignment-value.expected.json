@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: an assignment's VALUE is a read and is judged like any other (issue #1155). Measured: suppressing the check of assignment values survives the whole unit suite and the full fixture corpus, yet is behaviour-changing — on the pre-#1155 evaluator `set n to repcount` raises `ol-repcount-outside-repeat` at `runtime` after 1 event, so the mutant restores partial execution in place of semantic refusal. Nothing walled it, because the corpus asserted only the CLEAN direction (`repeat 2 [ set n to repcount ]`, which stays silent under the mutant too). A clean-direction assertion covers a rule's silence, not the rule. Note `:n = repcount` is the SAME mechanism, not a second one: both parse to `Assign` with a `Place` target and a `Call` value, differing only in `form` (`\"set\"` versus `\"equals\"`), so a twin fixture would count one mechanism twice. Its pair is the assignment TARGET, which is not a read — `core-language/assignment/bare-place-invalid`.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-assignment-value",
+        "start": [1, 10],
+        "end": [1, 18]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

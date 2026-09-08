@@ -466,6 +466,68 @@ test("an ordinary assignment to a valid place stays clean", () => {
   assert.deepEqual(repcountFindings("repeat 2 [ set n to repcount ]"), []);
 });
 
+test("an assignment's VALUE is a read, in both spellings", () => {
+  // The fault direction, which the clean control above does not cover: suppressing the check of
+  // assignment values leaves the whole unit suite and the full corpus green while restoring
+  // partial execution. `set n to` and `:n =` parse to the same `Assign` node, differing only in
+  // `form`, so this is one mechanism in two spellings rather than two mechanisms.
+  assert.equal(repcountFindings("set n to repcount").length, 1);
+  assert.equal(repcountFindings(":n = repcount").length, 1);
+  assert.equal(repcountFindings("set n to repcount + 1").length, 1);
+});
+
+test("the mutation statements' value expressions are reads too", () => {
+  // `add`/`insert`/`remove` are distinct node kinds from `Assign` and reach the walk through its
+  // default case. Measured on the pre-#1155 evaluator, each raises `ol-repcount-outside-repeat`
+  // at `runtime` after 2 events.
+  const dataProfiles = ["core-language", "data"];
+  assert.equal(
+    repcountFindings("set xs to [ 1 ]\nadd repcount to :xs", dataProfiles)
+      .length,
+    1,
+  );
+  assert.equal(
+    repcountFindings(
+      "set xs to [ 1 ]\ninsert repcount in :xs at 1",
+      dataProfiles,
+    ).length,
+    1,
+  );
+  assert.equal(
+    repcountFindings("set xs to [ 1 ]\nremove repcount from :xs", dataProfiles)
+      .length,
+    1,
+  );
+  assert.deepEqual(
+    repcountFindings(
+      "set xs to [ 1 ]\nrepeat 2 [ add repcount to :xs ]",
+      dataProfiles,
+    ),
+    [],
+  );
+});
+
+test("a bare word in KEY position is a key, not a read", () => {
+  // The same shape as a `[ … ]` index key: `remove key repcount from :d` parses the word as a
+  // `WordLit`, so there is no read to miss and the silence is correct. The parenthesized form is
+  // a `ParenCall` and IS reported. A silence is only a miss if there is a read to miss.
+  const dataProfiles = ["core-language", "data"];
+  assert.deepEqual(
+    repcountFindings(
+      "set d to { a: 1 }\nremove key repcount from :d",
+      dataProfiles,
+    ),
+    [],
+  );
+  assert.equal(
+    repcountFindings(
+      "set d to { a: 1 }\nremove key (repcount) from :d",
+      dataProfiles,
+    ).length,
+    1,
+  );
+});
+
 // --- profile gating ---------------------------------------------------------
 
 test("stays silent when core-language is inactive, leaving ol-unknown-command", () => {
