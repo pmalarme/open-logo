@@ -19,9 +19,11 @@
 // kinds of exception, both stated because neither "reported nothing at the base" nor "the runtime
 // already decided every one" would be true of the file as a whole:
 //
-//   - The two "…is still reported" tests near the end are programs the runtime can NEVER reach — an
-//     uncalled procedure and a handler that never fires — and are the reason this row is worth
-//     having at all. (Named, not positioned: they are no longer the last two tests.)
+//   - Six programs here are ones the runtime can NEVER reach: five handler blocks with no `wait` to
+//     let them fire, and one uncalled procedure. The two "…is still reported" tests near the end
+//     exist to make that explicit — an uncalled procedure and a handler that never fires — and are
+//     the reason this row is worth having at all. (Named, not positioned: they are no longer the
+//     last two tests, and they are examples of the kind, not the whole of it.)
 //   - A few programs are deliberately malformed in some OTHER way, to pin what this rule must not
 //     claim. Those already carried unrelated codes at the base, from rules this slice does not
 //     touch — measured, four distinct ones: `ol-not-a-place`, `ol-too-many-inputs`,
@@ -140,8 +142,11 @@ test("a `repcount` in a handler block with no `repeat` at all raises", () => {
 });
 
 test("a `repcount` in a handler block nested INSIDE a `repeat` still raises", () => {
-  // The discriminating case. A `Repeat` is lexically above this read, so an implementation that
-  // asks only "is there a `repeat` above me" passes every other test in this file and fails here.
+  // The case that discriminates the handler seal from the naive reading. A `Repeat` is lexically
+  // above this read, so an implementation that asks only "is there a `repeat` above me" reports
+  // nothing here. Measured, that naive implementation — both seals removed, confirmed in `dist` —
+  // fails 6 tests in this file and 2 fixtures, so this test is one of several that catch it rather
+  // than the only one; what it catches specifically is the failure to reset at a HANDLER boundary.
   assertReported("repeat 3 [ every 5 [ print repcount ] ]");
 });
 

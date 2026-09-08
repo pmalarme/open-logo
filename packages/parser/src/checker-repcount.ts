@@ -66,9 +66,11 @@
  *   is a courtesy, not a correctness requirement: no legal program reaches it.)
  * - A `repcount` in the **target** of an `=`/`set`/`make` (`repcount = 100`) is a write position,
  *   not a read; `checker-not-a-place.ts` already reports `ol-not-a-place` there, and the evaluator
- *   never runs the reporter. Same reason, same silence — found by
- *   `tests/conformance/core-language/assignment/bare-place-invalid`, which uses exactly that program
- *   to pin `ol-not-a-place` and went red when this rule first double-reported it.
+ *   never runs the reporter. Same reason, same silence. Measured, so the exemption is not merely
+ *   asserted to matter: removing it reddens exactly one fixture in the corpus,
+ *   `tests/conformance/core-language/assignment/bare-place-invalid` (1048 passed, 1 failed), whose
+ *   program is exactly `repcount = 100` — the extra finding being this rule double-reporting the
+ *   target at `[4,1]-[4,9]`.
  */
 
 import type { Diagnostic } from "@openlogo/core";
