@@ -55,14 +55,15 @@ function parenCall(name, count) {
 /**
  * The probe, in a **generic valid context**: one turn of a `repeat`. Wrapping costs nothing for a
  * name whose legality does not depend on where it is written, and it keeps the sweep free of
- * command-specific exceptions for the ones whose does. `repcount` is the first: since issue #1097 a
- * read with no lexically enclosing `repeat` raises `ol-repcount-outside-repeat` (`spec/tooling.md:195`),
- * so a bare top-level `(repcount 1)` really has TWO independent defects and the exact-one assertion
- * below could not survive it. An earlier revision filtered the positional finding out and asserted
- * the exceptional name as an exact set; the logic/spec reviewer's alternative is better, because a
- * *second* such primitive then needs no edit here at all — which is the property this file exists
- * to have. Verified across all 81 finite-arity primitives the DAG registers: wrapping changes no
- * other name's answer, and `challenge` stays `ol-unknown-command` alone.
+ * command-specific exceptions for the ones whose positional constraint this `repeat` context
+ * satisfies. `repcount` is the first: since issue #1097 a read with no lexically enclosing `repeat`
+ * raises `ol-repcount-outside-repeat` (`spec/tooling.md:195`), so a bare top-level `(repcount 1)`
+ * really has TWO independent defects and the exact-one assertion below could not survive it. An
+ * earlier revision filtered the positional finding out and asserted the exceptional name as an
+ * exact set; the logic/spec reviewer's alternative is better, because a second primitive with a
+ * `repeat`-satisfiable positional constraint then needs no edit here at all — which is the property
+ * this file exists to have. Verified across all 81 finite-arity primitives the DAG registers:
+ * wrapping changes no other name's answer, and `challenge` stays `ol-unknown-command` alone.
  *
  * **What this trades away, stated rather than left implicit — and stated narrowly.** The deleted
  * exact-set assertion *surfaced* the exceptional name; its own comment said a second one "must not
