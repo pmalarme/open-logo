@@ -1591,10 +1591,11 @@ function evaluateThing(
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
  * (no enclosing `repeat`). Since issue #1155 `check()` decides this statically at `stage:
- * "semantic"` and the check-before-execution gate refuses such a program, so this path is the
- * evaluator's own copy of the rule — reached by a caller driving `evaluate()` directly, which runs
- * no checker, and by the one genuinely dynamic shape a static walk cannot judge (a handler
- * registered inside a `repeat` but dispatched after it has finished).
+ * "semantic"` wherever it is statically knowable, and the check-before-execution gate refuses such
+ * a program. This path remains the evaluator's own copy of the rule, reached by a caller driving
+ * `evaluate()` directly — which runs no checker — and by any `repcount` the checker leaves
+ * **dispatch-dependent**: a read directly inside an event-handler body, whose turn depends on what
+ * is running when the handler fires, wherever that handler was registered.
  */
 function evaluateRepcount(
   node: ArithmeticCallNode,

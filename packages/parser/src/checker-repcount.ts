@@ -29,35 +29,40 @@
  *   them and only `Repeat` pushes onto it. `forever [ print repcount ]`
  *   is therefore a fault (`forever` is not `repeat`), while
  *   `repeat 2 [ print map i in [ 1 2 ] [ repcount ] ]` is not.
- * - **An event-handler BODY is opaque — this rule says nothing about it.** A handler body is the
- *   one place where the question is not lexical at all: its `repcount` reads whatever turn is on
- *   the stack when the handler is *dispatched*, which no static walk can know. Measured on the
- *   evaluator, one handler in one lexical position, two outcomes:
- *   `repeat 1 [ on_key "a" [ print repcount ] ]` followed by `repeat 3 [ wait 1 ]` **prints 1** —
- *   the *dispatching* loop's turn, not the enclosing one — while the same program followed by a
- *   bare `wait 1` raises `ol-repcount-outside-repeat` at `runtime`. Judging a handler body
- *   lexically therefore errs in both directions, and the over-report direction is the damaging
- *   one: it would refuse `on_key "a" [ print repcount ]` at top level, a program that prints
- *   correctly whenever the key arrives during a `repeat`. So the body is skipped entirely and left
- *   to the evaluator, which is the only party that can see the answer. Handler *head* arguments
- *   are ordinary expressions and are still checked in the enclosing context.
+ * - **An event-handler BODY is `dispatch-dependent`, and is traversed rather than skipped.** A
+ *   handler body is the one place where the question is not static: its `repcount` reads whatever
+ *   turn is on the stack when the handler *fires*. The discriminating measurement is a handler
+ *   with **no `repeat` anywhere around it**, so no enclosing construct could supply a turn —
+ *   `on_key "a" [ print repcount ]` followed by `repeat 3 [ wait 1 ]`, with the key delivered at
+ *   **tick 2**, **prints 2**: the dispatching loop's second turn. The same program followed by a
+ *   bare `wait 3` raises `ol-repcount-outside-repeat` at `runtime`. Same source, two outcomes,
+ *   decided only by what is running when the key arrives. Judging a handler body lexically
+ *   therefore errs in both directions, and the over-report direction is the damaging one: it
+ *   refuses a program that prints correctly.
+ *
+ *   But `dispatch-dependent` is **not** "unknowable", which is why the body is still walked. A
+ *   `define … end` inside a handler body restores certainty — a callee's repeat-turn stack starts
+ *   empty however the handler was dispatched — so
+ *   `on_key "a" [ define f  print repcount  end  f ]` is a fault even though the handler itself is
+ *   dispatch-dependent, and the evaluator agrees (`runtime`). Treating the body as wholly opaque
+ *   missed exactly that.
  * - **A `repeat`'s own count expression sits OUTSIDE its body.** `repeat repcount [ … ]` at top
  *   level is a fault; `repeat 2 [ repeat repcount [ … ] ]` is not. The count is evaluated before
  *   the turn is pushed, the same shape as {@link controlFlowRule} visiting a comprehension's
  *   `iterable` in the enclosing context and only its `body` in the inner one.
- * - **A `define … end` body is a boundary, wherever the `define` is written.** `repcount` in a
- *   procedure body is a fault even when the procedure is *called* from inside a `repeat`, and even
- *   when the `define` itself is nested in one. Both were measured on the evaluator; a purely
- *   lexical walk without this boundary would miss both. The spec does **not** settle `repcount`
+ * - **A `define … end` body is `outside` from every state, wherever the `define` is written.**
+ *   `repcount` in a procedure body is a fault even when the procedure is *called* from inside a
+ *   `repeat`, when the `define` itself is nested in one, and when it is nested in a handler body.
+ *   All three were measured on the evaluator. The spec does **not** settle `repcount`
  *   across a call boundary — `spec/execution-model.md:340-342` fixes lexical frame scoping for
  *   *bindings* ("invisible to callees unless explicitly passed as values"), and the evaluator
  *   extends the same reasoning to the repeat-turn stack by starting each callee frame's empty
  *   (`execute-internal.ts`, which flags it as an assumption). This rule follows the evaluator
  *   rather than deciding the open question.
  *
- * The one shape this rule deliberately does not reach is any `repcount` inside an event-handler
- * body, for the reason given above. It stays exactly as it is today: a `runtime` finding if the
- * handler ever fires.
+ * The shapes this rule deliberately does not reach are those left `dispatch-dependent`: a
+ * `repcount` read directly in an event-handler body, with no intervening construct that restores
+ * certainty. Those stay exactly as they are today — a `runtime` finding if the handler fires.
  *
  * ## Read position versus place position
  *
@@ -97,6 +102,20 @@ import type {
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { interactionEventsBlockHeadNames } from "./signatures.js";
+
+/**
+ * Where a `repcount` sits, as the walk descends. Deliberately three-valued rather than a boolean:
+ * the question "is this inside a `repeat`?" has a third answer, and collapsing it either way is
+ * wrong. `outside` and `inside` are the two static answers. `dispatch-dependent` is an
+ * event-handler body, whose turn is whatever is on the evaluator's stack when the handler *fires*.
+ *
+ * Only `outside` reports. `dispatch-dependent` stays silent — but it is a distinct state, not a
+ * synonym for `inside`, because a construct nested inside a handler body can still *restore*
+ * certainty: a `define … end` body always begins with an empty repeat-turn stack no matter when
+ * its caller ran, so a `repcount` there is `outside` again and knowable. A boolean cannot express
+ * that, which is exactly the defect this type replaced.
+ */
+type RepeatContext = "outside" | "inside" | "dispatch-dependent";
 
 /** The Core reporter this rule judges. Compared case-insensitively, as name lookup is. */
 const REPCOUNT = "repcount";
@@ -174,58 +193,63 @@ export function repcountRule(
    */
   const visit = (
     node: AnyNode,
-    insideRepeatBody: boolean,
+    context: RepeatContext,
     rootIsRead = true,
   ): void => {
-    if (rootIsRead && isRepcountRead(node) && !insideRepeatBody) {
+    if (rootIsRead && isRepcountRead(node) && context === "outside") {
       diagnostics.push(repcountOutsideRepeatDiagnostic(node));
       return;
     }
     switch (node.kind) {
       case "Repeat": {
-        visit(node.count, insideRepeatBody);
-        visit(node.body, true);
+        visit(node.count, context);
+        visit(node.body, "inside");
         return;
       }
       case "ProcedureDef": {
+        // A callee's repeat-turn stack always starts empty, whenever and however it is called, so
+        // a procedure body is `outside` from EVERY state — including `dispatch-dependent`. That is
+        // what keeps a `define` nested in a handler body statically knowable.
         for (const child of childrenOf(node)) {
-          visit(child, false);
+          visit(child, "outside");
         }
         return;
       }
       case "Assign": {
         for (const child of assignChildren(node)) {
-          visit(child.node, insideRepeatBody, child.rootIsRead);
+          visit(child.node, context, child.rootIsRead);
         }
         return;
       }
       case "ProfileStatement": {
-        // An event-handler body is OPAQUE to this rule: its `repcount` resolves against the repeat
-        // stack at DISPATCH time, which no static walk can know (module doc comment). The head
-        // arguments are ordinary expressions and are still checked in the enclosing context. A
-        // non-handler ProfileStatement, or one with no block, walks its children unchanged.
+        // An event-handler body is `dispatch-dependent`: its `repcount` resolves against the
+        // repeat stack at DISPATCH time, which no static walk can know. It is still TRAVERSED, so
+        // a construct inside it that restores certainty (a `define … end` body) is judged. The
+        // head arguments are ordinary expressions in the enclosing context. A non-handler
+        // ProfileStatement, or one with no block, walks its children unchanged.
         if (
           node.body !== undefined &&
           HANDLER_BLOCK_HEADS.has(node.keyword.name.toLowerCase())
         ) {
           for (const arg of node.args) {
-            visit(arg, insideRepeatBody);
+            visit(arg, context);
           }
+          visit(node.body, "dispatch-dependent");
           return;
         }
         for (const child of childrenOf(node)) {
-          visit(child, insideRepeatBody);
+          visit(child, context);
         }
         return;
       }
       default: {
         for (const child of childrenOf(node)) {
-          visit(child, insideRepeatBody);
+          visit(child, context);
         }
       }
     }
   };
 
-  visit(program, false);
+  visit(program, "outside");
   return diagnostics;
 }

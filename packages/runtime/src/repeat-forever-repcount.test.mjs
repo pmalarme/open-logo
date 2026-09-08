@@ -118,8 +118,9 @@ test("execute() now REFUSES `print repcount` at stage semantic, with no events",
 
 test("the evaluator keeps its OWN copy of the rule, at stage runtime", () => {
   // `evaluate()` is the seam a caller can drive without a checker in front of it, and it is also
-  // how the one genuinely dynamic shape is reached (a handler registered inside a `repeat` but
-  // dispatched after it finished). The static rule does not replace this check; it precedes it.
+  // how a `repcount` the checker leaves dispatch-dependent is reached — a read directly inside an
+  // event-handler body, wherever that handler was registered. The static rule does not replace
+  // this check; it precedes it.
   const { ast } = parse("print repcount", doc);
   const [statement] = ast.body;
   const [repcountCall] = statement.args;

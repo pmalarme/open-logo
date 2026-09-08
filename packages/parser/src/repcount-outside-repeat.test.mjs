@@ -18,6 +18,7 @@ import * as OL from "@openlogo/parser";
  */
 
 const CODE = "ol-repcount-outside-repeat";
+const HANDLER_PROFILES = ["core-language", "interaction-events"];
 
 function repcountFindings(source, profiles = ["core-language"]) {
   const { ast, diagnostics: parseDiagnostics } = OL.parse(source, "unit.logo");
@@ -99,13 +100,19 @@ test("a repeat's own count expression sits outside its body", () => {
   );
 });
 
-test("a procedure body is a boundary, even when called from a repeat", () => {
+test("a procedure body is `outside` from every state, wherever the `define` is written", () => {
   assert.equal(
     repcountFindings("define f\n  print repcount\nend\nrepeat 2 [ f ]").length,
     1,
   );
   assert.equal(
     repcountFindings("repeat 2 [ define f\n print repcount\nend\n f ]").length,
+    1,
+  );
+  // Calling is NOT the axis — lexical nesting of the definition is. Asserted here so the claim in
+  // `check/repcount-in-procedure-called-from-repeat`'s description is falsifiable rather than prose.
+  assert.equal(
+    repcountFindings("repeat 2 [ define f\n print repcount\nend ]").length,
     1,
   );
   assert.deepEqual(
@@ -125,47 +132,74 @@ test("a comprehension body is transparent in both directions", () => {
   );
 });
 
-test("an event-handler body is OPAQUE — dispatch-time, so the static rule says nothing", () => {
-  // Measured on the evaluator: one handler, one lexical position, two outcomes.
-  //   repeat 1 [ on_key "a" [ print repcount ] ] + repeat 3 [ wait 1 ]  -> prints 1
-  //   repeat 1 [ on_key "a" [ print repcount ] ] + wait 1               -> runtime fault
-  // A handler body resolves against the repeat stack at DISPATCH time, so judging it lexically
-  // errs in both directions; reporting here would refuse a program that runs correctly.
-  const handlerProfiles = ["core-language", "interaction-events"];
-  assert.deepEqual(
-    repcountFindings('on_key "a" [ print repcount ]', handlerProfiles),
-    [],
+/**
+ * Every block head whose body is dispatch-dependent, paired with a source putting a bare
+ * `repcount` directly in that body. Table-driven over the WHOLE derived set:
+ * `interactionEventsBlockHeadNames()` returns four heads, and covering only three let a mutation
+ * that drops one member pass unnoticed.
+ */
+const HANDLER_BODY_SOURCES = [
+  ["when", 'when "start" [ print repcount ]'],
+  ["every", "every 10 [ print repcount ]"],
+  ["on_key", 'on_key "a" [ print repcount ]'],
+  ["on_click", "on_click [ print repcount ]"],
+];
+
+test("a repcount read DIRECTLY in a handler body is dispatch-dependent, so silent", () => {
+  // Measured on the evaluator with NO repeat around the handler, so nothing lexical could supply a
+  // turn: `on_key "a" [ print repcount ]` + `repeat 3 [ wait 1 ]`, key delivered at tick 2, PRINTS
+  // 2 — the dispatching loop's second turn. The same program + a bare `wait 3` faults at runtime.
+  // Same source, two outcomes, and the value 2 is not explicable by any lexical reading.
+  for (const [head, source] of HANDLER_BODY_SOURCES) {
+    assert.deepEqual(
+      repcountFindings(source, HANDLER_PROFILES),
+      [],
+      `expected ${head} body to be dispatch-dependent`,
+    );
+    assert.deepEqual(
+      repcountFindings(`repeat 2 [ ${source} ]`, HANDLER_PROFILES),
+      [],
+      `expected ${head} body to stay dispatch-dependent inside a repeat`,
+    );
+  }
+});
+
+test("but a `define` inside a handler body RESTORES certainty and IS reported", () => {
+  // dispatch-dependent is not unknowable. A callee's repeat-turn stack starts empty however the
+  // handler fired, so this is statically outside any repeat and the evaluator agrees (runtime
+  // fault). The control — the same procedure carrying its OWN repeat — runs clean, which is what
+  // isolates the procedure boundary as the cause rather than the handler nesting.
+  assert.equal(
+    repcountFindings(
+      'on_key "a" [ define f\n print repcount\nend\n f ]',
+      HANDLER_PROFILES,
+    ).length,
+    1,
   );
   assert.deepEqual(
     repcountFindings(
-      'repeat 2 [ on_key "a" [ print repcount ] ]',
-      handlerProfiles,
+      'on_key "a" [ define f\n repeat 2 [ print repcount ]\nend\n f ]',
+      HANDLER_PROFILES,
     ),
-    [],
-  );
-  assert.deepEqual(
-    repcountFindings('when "start" [ print repcount ]', handlerProfiles),
     [],
   );
 });
 
 test("a handler's HEAD arguments are still checked in the enclosing context", () => {
-  // Only the body is opaque. The head is an ordinary expression position, evaluated where the
-  // handler is registered, so a repcount there is judged normally.
-  const handlerProfiles = ["core-language", "interaction-events"];
+  // Only the body is dispatch-dependent. A head argument is an ordinary expression, evaluated
+  // where the handler is registered, so a repcount there is judged normally.
   assert.equal(
-    repcountFindings("every repcount [ print 1 ]", handlerProfiles).length,
+    repcountFindings("every repcount [ print 1 ]", HANDLER_PROFILES).length,
     1,
   );
   assert.deepEqual(
     repcountFindings(
       "repeat 2 [ every repcount [ print 1 ] ]",
-      handlerProfiles,
+      HANDLER_PROFILES,
     ),
     [],
   );
 });
-
 // --- read position versus place position ------------------------------------
 
 test("a bare `repcount` assignment target raises ol-not-a-place ALONE", () => {

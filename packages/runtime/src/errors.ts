@@ -1078,11 +1078,17 @@ export const runtimeDiag = {
   /**
    * `ol-repcount-outside-repeat`: `repcount` was used outside any enclosing `repeat`
    * (`spec/commands.md:793`). Since issue #1155 `check()` reports this statically at the
-   * registry's usual stage `semantic` (`spec/error-model.md:120`), and the check-before-execution
-   * gate refuses such a program, so `execute()` never reaches this factory. It remains the
-   * evaluator's own copy of the rule for a caller driving `evaluate()` directly — which runs no
-   * checker — and for the one shape that is genuinely not static: an event handler registered
-   * inside a `repeat` but dispatched after it has finished. Params are `none` per the registry.
+   * registry's usual stage `semantic` (`spec/error-model.md:120`) wherever it is statically
+   * knowable, and the check-before-execution gate refuses such a program.
+   *
+   * This factory is still reached, for two kinds of caller. One is a caller driving `evaluate()`
+   * directly, which runs no checker. The other is any `repcount` the checker leaves
+   * **dispatch-dependent** — a read directly inside an event-handler body, whose turn is whatever
+   * is on the stack when the handler fires. That is not only the "registered inside a `repeat`"
+   * shape: measured on the current build, a top-level `when "start" [ print repcount ]` raises this
+   * code at `runtime` after 4 events, and `on_key "a" [ print repcount ]` with the key delivered
+   * during a bare `wait 3` raises it at `runtime` after 5 — neither registered inside any `repeat`.
+   * Params are `none` per the registry.
    */
   repcountOutsideRepeat(source_span: SourceSpan): Diagnostic {
     return runtimeError(

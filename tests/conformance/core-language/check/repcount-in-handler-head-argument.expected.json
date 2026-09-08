@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: only a handler's BODY is dispatch-dependent — its HEAD arguments are ordinary expressions, evaluated where the handler is registered, and are judged in the enclosing context (issue #1155). `every repcount [ … ]` at top level reads a turn that does not exist at registration time, so it is a fault; `repeat 2 [ every repcount [ … ] ]` is clean, which the unit suite pins. Without this fixture the head/body split is asserted by nothing in the corpus: a rule that skipped the entire `ProfileStatement` — head arguments included — leaves all 1013 other fixtures green.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-handler-head-argument",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
