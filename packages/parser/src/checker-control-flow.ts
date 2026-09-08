@@ -75,7 +75,21 @@ type ComprehensionForm = ComprehensionNode["form"];
  * source of truth ({@link interactionEventsBlockHeadNames}) so it grows with `every`/`on_key`/
  * `on_click` (#683–#685) without this rule hardcoding a second copy. Case-insensitive lookup.
  */
-const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
+/**
+ * The event-handler block-head keywords whose block body is a **fresh control-flow boundary** — a
+ * handler block is not a procedure body and not a comprehension body, so a `return`/`stop` inside it
+ * is outside any procedure (`ol-return-outside-proc`/`ol-stop-outside-proc`) exactly as the runtime
+ * reclassifies it at the handler boundary (issue #682, slice I3). Derived from the parser's single
+ * source of truth ({@link interactionEventsBlockHeadNames}) so it grows with `every`/`on_key`/
+ * `on_click` (#683–#685) without this rule hardcoding a second copy. Case-insensitive lookup.
+ *
+ * Exported because a **second** Layer-2 rule judges the same boundary for a different reason:
+ * `checker-repcount.ts` (issue #1097) needs it because a handler invocation "is never on a turn of a
+ * `repeat` outside the handler block" (`spec/execution-model.md:682-688`). Sharing this set rather
+ * than deriving a second one keeps one definition of "handler block" in the checker, so a head added
+ * to the Interaction & Events registry reaches both rules at once.
+ */
+export const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
   interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
 );
 

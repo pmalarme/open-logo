@@ -52,6 +52,36 @@ function parenCall(name, count) {
   return `(${[name, ...args].join(" ")})`;
 }
 
+/**
+ * The probe, in a **generic valid context**: one turn of a `repeat`. Wrapping costs nothing for a
+ * name whose legality does not depend on where it is written, and it keeps the sweep free of
+ * command-specific exceptions for the ones whose positional constraint this `repeat` context
+ * satisfies. `repcount` is the first: since issue #1097 a read with no lexically enclosing `repeat`
+ * raises `ol-repcount-outside-repeat` (`spec/tooling.md:195`), so a bare top-level `(repcount 1)`
+ * really has TWO independent defects and the exact-one assertion below could not survive it. An
+ * earlier revision filtered the positional finding out and asserted the exceptional name as an
+ * exact set; the logic/spec reviewer's alternative is better, because a second primitive with a
+ * `repeat`-satisfiable positional constraint then needs no edit here at all — which is the property
+ * this file exists to have. Verified across all 81 finite-arity primitives the DAG registers:
+ * wrapping changes no other name's answer, and `challenge` stays `ol-unknown-command` alone.
+ *
+ * **What this trades away, stated rather than left implicit — and stated narrowly.** The deleted
+ * exact-set assertion *surfaced* the exceptional name; its own comment said a second one "must not
+ * appear unremarked". The wrap gives that up, but only for one half of the space, and the halves
+ * behave oppositely. A future primitive whose positional constraint `repeat 1 [ … ]` happens to
+ * **satisfy** — as it satisfies `repcount`'s — is **absorbed here without comment**: that is the
+ * real blind spot. A constraint the wrap **violates** is not absorbed at all; it is surfaced
+ * loudly, because it adds a second finding and fails the exact-one assertion below. (Measured with
+ * a root-scope constraint as the demonstration: `global x = 1` is clean bare and raises
+ * `ol-global-outside-root` inside `repeat 1 [ … ]`. `global` is a keyword rather than a registered
+ * primitive, so it is outside this sweep — it only shows the mechanism.) The trade is right for a
+ * file whose subject is arity rather than placement, but it is a trade: a `repeat`-satisfiable
+ * positional constraint that ought to be noticed will not be noticed here.
+ */
+function probe(name, count) {
+  return `repeat 1 [ ${parenCall(name, count)} ]`;
+}
+
 // --- the derived sweeps -------------------------------------------------------
 //
 // These name no command. Their subject is "every primitive of every profile in the DAG".
@@ -96,12 +126,12 @@ test("every registered primitive of every profile is arity-checked when its prof
         // A BOUNDED alternate (`(random a b)`, `(randomize seed)`): supplying exactly the ceiling
         // is legal and must stay clean, which is the half a too-many-only sweep never exercises.
         assert.deepEqual(
-          checkCodes(parenCall(name, range.max), profiles),
+          checkCodes(probe(name, range.max), profiles),
           [],
           `${name} must accept its ceiling of ${range.max} inputs`,
         );
       }
-      const source = parenCall(name, range.max + 1);
+      const source = probe(name, range.max + 1);
       const diagnostics = checkCodes(source, profiles);
       assert.equal(
         diagnostics.length,
