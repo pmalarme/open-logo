@@ -17,3 +17,4 @@ first — it defines the LDR format, numbering convention, and citation requirem
 | [0005](0005-profiles-and-the-conformance-dag.md) | Profiles and the conformance DAG | Accepted | `spec/conformance.md` |
 | [0006](0006-effect-event-snapshot-timing.md) | Effect-event snapshot timing is emission-time, not evaluation-time | Accepted | `spec/execution-model.md` |
 | [0007](0007-binding-vs-registration.md) | Binding versus registration — you cannot register a built-in name, you can bind data to any name | Accepted | `spec/grammar.md`, `spec/tooling.md`, `spec/error-model.md`, `spec/execution-model.md`, `spec/localization.md`, `spec/educational-model.md` |
+| [0008](0008-statement-delimitation-and-continuation.md) | Statement delimitation and continuation — why a newline ends a statement, and why `- 5` and `-5` differ | Accepted | `spec/grammar.md`, `spec/tooling.md` |

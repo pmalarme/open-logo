@@ -1,0 +1,44 @@
+{
+  "description": "Measured on this tree: `.a` on a new line continues the previous line, reading the field from `:d`. 2 statements (Assign + Call); Call span [2,1]-[3,3] — extends to line 3, proving the field survived the newline. Prints 7, identical to the one-line form. Before issue #980 this raised `ol-bad-token` and dropped the field.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-split",
+        "start": [1, 1],
+        "end": [1, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-split",
+        "start": [2, 1],
+        "end": [3, 3]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-dot-split",
+        "start": [2, 1],
+        "end": [3, 3]
+      },
+      "payload": {
+        "values": [7]
+      }
+    }
+  ],
+  "diagnostics": []
+}

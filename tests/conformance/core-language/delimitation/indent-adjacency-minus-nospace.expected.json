@@ -1,0 +1,44 @@
+{
+  "description": "Measured on this tree: indented `-5` still lexes as a negative literal and opens a new statement, identically to the non-indented variant. 2 statements (print 10, then orphan -5), no diagnostics.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/indent-adjacency-minus-nospace",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/indent-adjacency-minus-nospace",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/indent-adjacency-minus-nospace",
+        "start": [2, 3],
+        "end": [2, 5]
+      },
+      "payload": {
+        "statement_kind": "NumberLit"
+      }
+    }
+  ],
+  "diagnostics": []
+}

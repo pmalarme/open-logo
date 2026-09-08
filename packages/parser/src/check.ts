@@ -112,11 +112,27 @@ export function check(
   if (options.style !== true) {
     return { diagnostics };
   }
+  const styleDiagnostics = STYLE_RULES.flatMap((rule) =>
+    rule(program, profiles, options.source),
+  );
+  // Suppress `ol-style-useless-value` on spans already covered by a more specific semantic
+  // diagnostic (e.g. a VarRef that already has `ol-undefined-var`).  Only this one code is
+  // suppressed — other style lints (name-case, equality-confusion, …) are independent.
+  const semanticSpanKeys = new Set(
+    diagnostics.map(
+      (d) =>
+        `${d.source_span.start[0]}:${d.source_span.start[1]}:${d.source_span.end[0]}:${d.source_span.end[1]}`,
+    ),
+  );
+  const deduped = styleDiagnostics.filter(
+    (d) =>
+      d.code !== "ol-style-useless-value" ||
+      !semanticSpanKeys.has(
+        `${d.source_span.start[0]}:${d.source_span.start[1]}:${d.source_span.end[0]}:${d.source_span.end[1]}`,
+      ),
+  );
   return {
-    diagnostics: [
-      ...diagnostics,
-      ...STYLE_RULES.flatMap((rule) => rule(program, profiles, options.source)),
-    ],
+    diagnostics: [...diagnostics, ...deduped],
   };
 }
 

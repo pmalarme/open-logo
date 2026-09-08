@@ -1,0 +1,32 @@
+{
+  "description": "Measured on this tree: indented `+ 2` continues the previous line identically to the non-indented variant. 1 statement printing 3, no diagnostics.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/indent-continuation-leading-plus",
+        "start": [1, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/indent-continuation-leading-plus",
+        "start": [1, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}

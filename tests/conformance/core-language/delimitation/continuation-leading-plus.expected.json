@@ -1,0 +1,32 @@
+{
+  "description": "Measured on this tree: a leading `+` with a space before its operand continues the previous line. 1 statement printing 3, no diagnostics. This rule is stated nowhere in the spec as of this measurement (finding F3 in epic #1070).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-plus",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/continuation-leading-plus",
+        "start": [1, 1],
+        "end": [2, 4]
+      },
+      "payload": {
+        "values": [3]
+      }
+    }
+  ],
+  "diagnostics": []
+}

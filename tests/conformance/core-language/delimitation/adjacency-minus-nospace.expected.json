@@ -1,0 +1,44 @@
+{
+  "description": "Measured on this tree: `-5` without a space lexes as a negative number literal (`spec/grammar.md:60`) and opens a new statement. 2 statements (print 10, then orphan -5), no diagnostics. Compare with `adjacency-minus-space`: the two programs differ by one space and produce different statement counts, both silently (finding F4 in epic #1070).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/adjacency-minus-nospace",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/delimitation/adjacency-minus-nospace",
+        "start": [1, 1],
+        "end": [1, 9]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/adjacency-minus-nospace",
+        "start": [2, 1],
+        "end": [2, 3]
+      },
+      "payload": {
+        "statement_kind": "NumberLit"
+      }
+    }
+  ],
+  "diagnostics": []
+}

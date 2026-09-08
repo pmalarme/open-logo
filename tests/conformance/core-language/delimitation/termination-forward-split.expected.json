@@ -1,0 +1,36 @@
+{
+  "description": "Measured on this tree (turtle-rendering profile active): `forward` on one line and `100` on the next. 2 statements; `forward` with 0 inputs raises `ol-not-enough-inputs` at runtime. The newline terminates the `forward` call before its operand.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/delimitation/termination-forward-split",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-not-enough-inputs",
+      "source_span": {
+        "document": "core-language/delimitation/termination-forward-split",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "params": {
+        "callable": "forward",
+        "expected": 1,
+        "actual": 0
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}
