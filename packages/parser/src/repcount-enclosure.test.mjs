@@ -14,18 +14,20 @@
 //
 // MEASURED BEFORE-STATE (at saga tip 904b71ac, before this slice): `check()` emitted **no
 // `ol-repcount-outside-repeat`** for any program in this file — the whole row was unimplemented at
-// Layer 2, both halves — while the runtime already decided every one of them correctly. So most
-// expectations below are the checker being brought into agreement with the evaluator. Two kinds of
-// exception, both stated because "reported nothing at the base" would be false of the file as a
-// whole:
+// Layer 2, both halves — while the runtime already agreed for the reachable, well-formed cases. So
+// most expectations below are the checker being brought into agreement with the evaluator. Two
+// kinds of exception, both stated because neither "reported nothing at the base" nor "the runtime
+// already decided every one" would be true of the file as a whole:
 //
 //   - The two "…is still reported" tests near the end are programs the runtime can NEVER reach — an
 //     uncalled procedure and a handler that never fires — and are the reason this row is worth
 //     having at all. (Named, not positioned: they are no longer the last two tests.)
 //   - A few programs are deliberately malformed in some OTHER way, to pin what this rule must not
-//     claim. Those already carried `ol-too-many-inputs` / `ol-reserved-word` / `ol-not-a-place` at
-//     the base, from rules this slice does not touch, so read their assertions as "…and nothing
-//     from this rule" rather than as a before/after.
+//     claim. Those already carried unrelated codes at the base, from rules this slice does not
+//     touch — measured, four distinct ones: `ol-not-a-place`, `ol-too-many-inputs`,
+//     `ol-reserved-word`, and `ol-undefined-var` (the last from `:cells[(repcount)] = 9`, whose
+//     assertion filters to this rule's code and so hides it). Read those assertions as "…and
+//     nothing from this rule" rather than as a before/after.
 //
 // Runs under `node --test` against the built `@openlogo/parser` package, exercising only `check()`.
 
@@ -284,8 +286,9 @@ test("only the target's own head is exempt — its subtree is still read", () =>
   // never reads the reporter at all — measured on the parsed AST, whose segment key is a `WordLit`.
   assertClean(":cells = [1 2]\n:cells[repcount] = 9", profiles);
   // The exempt head's OWN arguments are still read. `repcount` takes none, so this only arises for
-  // a malformed call — but it is reachable, and a mutant that skipped the whole target subtree
-  // survived until this case was written.
+  // a malformed call — but it is reachable, and it is what makes the exemption narrow rather than a
+  // blanket skip. Measured: mutating the exemption to skip the whole target subtree (`void target`,
+  // confirmed present in `dist`) fails exactly this test and no other in the file.
   const nested = checkSource("(repcount (repcount)) = 5").filter(
     (diagnostic) => diagnostic.code === "ol-repcount-outside-repeat",
   );
