@@ -1083,12 +1083,18 @@ export const runtimeDiag = {
    *
    * This factory is still reached, for two kinds of caller. One is a caller driving `evaluate()`
    * directly, which runs no checker. The other is any `repcount` the checker leaves
-   * **dispatch-dependent** — a read directly inside an event-handler body, whose turn is whatever
-   * is on the stack when the handler fires. That is not only the "registered inside a `repeat`"
-   * shape: measured on the current build, a top-level `when "start" [ print repcount ]` raises this
-   * code at `runtime` after 4 events, and `on_key "a" [ print repcount ]` with the key delivered
-   * during a bare `wait 3` raises it at `runtime` after 5 — neither registered inside any `repeat`.
-   * Params are `none` per the registry.
+   * **dispatch-dependent** — a read directly inside an event-handler body whose turn is whatever
+   * is on the stack when the handler fires. Measured on this build:
+   * `on_key "a" [ print repcount ]` with the key delivered during a bare `wait 3` raises this code
+   * at `runtime` after 5 events, while the same handler dispatched from inside
+   * `repeat 3 [ wait 1 ]` prints the active turn and raises nothing — which is why the checker
+   * cannot decide it and this factory must stay.
+   *
+   * A literal `when "start"` is NOT an example of that class: issue #1155 made it statically known,
+   * because the evaluator runs it synchronously at registration, so `check()` now reports it at
+   * `semantic` and the program never reaches here. An earlier draft of this comment used it as the
+   * lead example, which the same slice's own change had already falsified. Params are `none` per
+   * the registry.
    */
   repcountOutsideRepeat(source_span: SourceSpan): Diagnostic {
     return runtimeError(

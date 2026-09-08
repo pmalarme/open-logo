@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
+// Not re-exported by `index.ts`, so this deep relative import into the package's own build output
+// is the only way to reach the block-head registry the checker derives its handler set from — the
+// same convention `packages/runtime/src/repeat-forever-repcount.test.mjs` uses for its own
+// test-only reach into `execute-internal.js`.
+import { interactionEventsBlockHeadNames } from "../dist/signatures.js";
+
+const REGISTERED_BLOCK_HEADS = interactionEventsBlockHeadNames();
 
 /**
  * Unit tests for issue #1155 — `ol-repcount-outside-repeat` reported at `stage: "semantic"`.
@@ -171,11 +178,9 @@ test("a repcount read DIRECTLY in a handler body is dispatch-dependent, so silen
 });
 
 test('a literal `when "start"` runs SYNCHRONOUSLY, so its body IS judged statically', () => {
-  // The one head whose body is not dispatch-dependent. Measured on the evaluator: top level
-  // faults after 4 events; `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and
-  // completes; inside a procedure called from a repeat it faults after 8. Meanwhile `when "stop"`,
-  // `when "START"` (event words are case-sensitive), `every`, `on_key` and `on_click` never fire
-  // in those runs, which is why they stay deferred.
+  // The one head the checker places statically. Measured on the evaluator: top level faults after
+  // 4 events; `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and completes; inside
+  // a procedure called from a repeat it faults after 8.
   assert.equal(
     repcountFindings('when "start" [ print repcount ]', HANDLER_PROFILES)
       .length,
@@ -195,6 +200,97 @@ test('a literal `when "start"` runs SYNCHRONOUSLY, so its body IS judged statica
     ).length,
     1,
   );
+});
+
+test("the start discriminator recognizes a SUBSET of the synchronous cases", () => {
+  // The evaluator does not require a literal — it fires whenever the event expression EVALUATES to
+  // "start". Measured: `set e to "start"` / `when :e [ print repcount ]` faults synchronously
+  // (5 events), and so does `when word "st" "art" [ print repcount ]` (4 events). The checker
+  // cannot see either, so it defers them — an under-report, which is the safe direction.
+  //
+  // This is the assertion that pins it. Without it, a mutation treating every non-literal `when`
+  // as synchronous survives the whole unit suite AND the full conformance corpus, while reporting
+  // on `set e to "stop"` / `when :e [ print repcount ]` — a program the evaluator runs clean.
+  assert.deepEqual(
+    repcountFindings(
+      'set e to "start"\nwhen :e [ print repcount ]',
+      HANDLER_PROFILES,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    repcountFindings(
+      'set e to "stop"\nwhen :e [ print repcount ]',
+      HANDLER_PROFILES,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    repcountFindings(
+      'when word "st" "art" [ print repcount ]',
+      HANDLER_PROFILES,
+    ),
+    [],
+  );
+});
+
+test("both axes of the start discriminator are load-bearing", () => {
+  // The `when` keyword guard: without it `on_key "start" [ print repcount ]` — a legal program the
+  // evaluator accepts — would be reported, a false positive in the direction the design calls the
+  // damaging one. Measured: it parses, checks clean, and runs to completion.
+  assert.deepEqual(
+    repcountFindings('on_key "start" [ print repcount ]', HANDLER_PROFILES),
+    [],
+  );
+  // The exact-case value test: event words compare case-sensitively, and `when "START"` never
+  // fires, so its body must stay deferred like any other unrecognized event.
+  assert.deepEqual(
+    repcountFindings('when "START" [ print repcount ]', HANDLER_PROFILES),
+    [],
+  );
+  // Block-head lookup lowercases before matching. This assertion pins the BEHAVIOUR — an uppercase
+  // head is still a handler and its body is still deferred — but note, measured, that it cannot
+  // bite: the reader normalises `ON_KEY` to `on_key` in the AST, so removing either `.toLowerCase()`
+  // is an equivalent mutant. A review finding claimed such a mutation would make this program
+  // report; it was built and nothing changed.
+  assert.deepEqual(
+    repcountFindings('ON_KEY "a" [ print repcount ]', HANDLER_PROFILES),
+    [],
+  );
+});
+
+test("only a ZERO-argument call is the reporter", () => {
+  // `repcount` takes no arguments, so `(repcount 5)` is an arity fault and not a reader of a turn.
+  // Dropping the zero-argument guard would stack a spurious ol-repcount-outside-repeat beside the
+  // ol-too-many-inputs that already describes it — two findings for one mistake. Measured: the
+  // complete finding set is the arity code alone.
+  assert.deepEqual(
+    allFindings("print (repcount 5)").map((finding) => finding.code),
+    ["ol-too-many-inputs"],
+  );
+  assert.deepEqual(
+    allFindings("repeat 2 [ print (repcount 5) ]").map(
+      (finding) => finding.code,
+    ),
+    ["ol-too-many-inputs"],
+  );
+});
+
+test("the deferred-head table covers every registered block head", () => {
+  // Derived rather than asserted in prose. The table is hand-written, so this pins that it stays
+  // in step with the registry it is meant to cover — a hardcoded list plus a prose count is
+  // exactly how the `on_click` gap opened. `interactionEventsBlockHeadNames()` is not part of the
+  // package's public surface, so it is reached through the build output, the same way
+  // `repeat-forever-repcount.test.mjs` reaches `execute-internal.js`.
+  const covered = new Set(
+    HANDLER_BODY_SOURCES.map(([head]) => head.split(" ")[0]),
+  );
+  for (const head of REGISTERED_BLOCK_HEADS) {
+    assert.ok(
+      covered.has(head),
+      `block head ${head} is registered but absent from HANDLER_BODY_SOURCES`,
+    );
+  }
 });
 
 test("but a `define` inside a handler body RESTORES certainty and IS reported", () => {

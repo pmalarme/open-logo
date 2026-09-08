@@ -51,7 +51,7 @@
  *
  *   The **one exception among the heads** is a literal `when "start"`, which the evaluator runs
  *   *synchronously at registration* — so its body really is in the registering context and is
- *   judged there ({@link isSynchronousStartHandler}). A four-head table written to close an
+ *   judged there ({@link isStaticallyKnownStartHandler}). A four-head table written to close an
  *   `on_click` coverage gap asserted that the heads were uniform; they are not, and measurement
  *   is what recovered the case.
  * - **A `repeat`'s own count expression sits OUTSIDE its body.** `repeat repcount [ … ]` at top
@@ -69,9 +69,12 @@
  *   rather than deciding the open question.
  *
  * The shapes this rule deliberately does not reach are those left `dispatch-dependent`: a
- * `repcount` read directly in an event-handler body other than a literal `when "start"`, with no
- * intervening construct that restores certainty. Those stay exactly as they are today — a
- * `runtime` finding if the handler fires.
+ * `repcount` read directly in an event-handler body that {@link isStaticallyKnownStartHandler}
+ * does not recognize, with no intervening construct that restores certainty. Those are left to
+ * runtime, which reports when such a handler fires **without an active repeat turn** — firing
+ * alone is not a fault. Measured: `on_key "a" [ print repcount ]` dispatched from inside
+ * `repeat 3 [ wait 1 ]` prints the active turn and raises nothing, while the same handler
+ * dispatched during a bare `wait 3` raises `ol-repcount-outside-repeat` at `runtime`.
  *
  * ## Unreached is not unknowable — the one deliberate over-report
  *
@@ -164,31 +167,36 @@ const REPCOUNT = "repcount";
  * uses, for the same reason. Case-insensitive lookup.
  *
  * `when "start"` is the documented exception and is NOT judged by this set alone — see
- * {@link isSynchronousStartHandler}.
+ * {@link isStaticallyKnownStartHandler}.
  */
 const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
   interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
 );
 
 /**
- * Is this the one handler form the evaluator runs **synchronously, at registration** — a `when`
- * whose event word is the literal `"start"`?
+ * Is this a handler whose body the checker can place **statically** — a `when` whose event word is
+ * the literal `"start"`?
  *
- * Every other handler body is `dispatch-dependent`, but a literal `when "start"` body runs then
- * and there, in the registering context, so its turn IS statically knowable. Measured, which is
- * how this exception was found at all (a four-head table had asserted the heads were uniform):
- * `when "start" [ print repcount ]` at top level faults after 4 events;
- * `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and completes; and the same
- * handler inside a procedure called from a `repeat` faults after 8. By contrast
- * `when "stop"`, `when "START"` (the spec's event words are case-sensitive), `every`, `on_key`
- * and `on_click` never fire during those runs.
+ * The evaluator runs a `"start"` handler synchronously, in the registering context, so its turn is
+ * knowable. What it does **not** require is a literal: it evaluates the event expression and fires
+ * immediately whenever the value equals `"start"`. Measured — `set e to "start"` then
+ * `when :e [ print repcount ]` faults synchronously (5 events), and so does
+ * `when word "st" "art" [ print repcount ]` (4 events). So this predicate recognizes a
+ * *subset* of the synchronous cases, not all of them, and the rest fall through to
+ * `dispatch-dependent`. That is deliberate: a computed event word is not known until it is
+ * evaluated, and deferring it under-reports rather than over-reports.
  *
- * The match is deliberately narrow — a `WordLit` argument spelled exactly `start` — because a
- * non-literal event word is not statically known, and a wrong case is a different event. Anything
- * this does not recognize falls through to `dispatch-dependent`, which under-reports rather than
- * over-reports.
+ * The match is narrow on both axes, and both are load-bearing rather than incidental. The keyword
+ * must be `when`: without that guard `on_key "start" [ print repcount ]` — a legal program the
+ * evaluator accepts — would be reported. And the word must be spelled exactly `start`, because
+ * event words compare case-sensitively; measured, `when "START" [ print repcount ]` never fires.
+ *
+ * Naming note: an earlier draft called this `isSynchronousStartHandler` and its prose called a
+ * literal "the one handler form the evaluator runs synchronously". That described the *checker's
+ * discriminator* as if it were the *evaluator's behaviour* — false in exactly the gap that makes
+ * the approximation safe.
  */
-function isSynchronousStartHandler(node: ProfileStatementNode): boolean {
+function isStaticallyKnownStartHandler(node: ProfileStatementNode): boolean {
   if (node.keyword.name.toLowerCase() !== "when") {
     return false;
   }
@@ -301,7 +309,9 @@ export function repcountRule(
           }
           visit(
             node.body,
-            isSynchronousStartHandler(node) ? context : "dispatch-dependent",
+            isStaticallyKnownStartHandler(node)
+              ? context
+              : "dispatch-dependent",
           );
           return;
         }

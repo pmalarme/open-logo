@@ -1,0 +1,7 @@
+{
+  "description": "REGRESSION WALL for the exact-case half of the `when \"start\"` discriminator (issue #1155). Event words compare case-sensitively, so `when \"START\"` is a different event that never fires — measured: this program runs to completion with no print and no diagnostic. Its body therefore stays dispatch-dependent like any other unrecognized event, and `check()` must say nothing. This fixture exists because the corpus could not otherwise tell a case-SENSITIVE match from a case-INSENSITIVE one: a mutation lower-casing the comparison leaves every conformance fixture green and is caught only by the unit suite, and a stack-neutral fixture is what an independent implementation is validated against. Its positive twin is `check/repcount-in-synchronous-start-handler`; together they pin that the discriminator turns on the exact spelling rather than on the word `when` alone.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}
