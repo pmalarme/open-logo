@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a `define … end` body is a `repcount` boundary EVEN WHEN the procedure is called from inside a `repeat` (issue #1155). `show_turn` is only ever called from `repeat 2 [ … ]`, yet its `repcount` is still a fault. Measured against the evaluator before the rule was written: this exact program raised `ol-repcount-outside-repeat` at `runtime` after 5 events; it now raises the same code at `semantic`, before any of them. Note what settles this and what does not: `spec/commands.md:783` ties `repcount` to the ENCLOSING `repeat`, and `spec/execution-model.md:340-342` fixes lexical frame scoping for BINDINGS — but neither spells out `repcount` across a call boundary, and `execute-internal.ts` flags its empty-per-callee repeat-turn stack as an assumption. This fixture therefore characterizes the evaluator's existing behaviour rather than deciding the open question; it was reported to `@orchestrator` at implementation time. A walk without the procedure boundary would call this program clean, so this fixture is what fails if the boundary is removed.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-procedure-called-from-repeat",
+        "start": [2, 9],
+        "end": [2, 17]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

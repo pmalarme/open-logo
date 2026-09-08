@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: the explicitly parenthesized call form reaches the same reporter (issue #1155). `(repcount)` parses as a `ParenCall`, a different AST node from the bare `repcount` `Call` the other fixtures use, and the evaluator raises the same code for both. A rule matching only `Call` would call this program clean while the evaluator still failed it, so this fixture is what fails if `ParenCall` is dropped from the match. The span covers the parentheses too, exactly as the node's own span does.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-parenthesized-outside-repeat",
+        "start": [1, 7],
+        "end": [1, 17]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

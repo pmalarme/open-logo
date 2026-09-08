@@ -1,0 +1,58 @@
+{
+  "description": "MECHANISM (mirror of `core-language/check/repcount-in-comprehension-outside-repeat`): a `map` body is TRANSPARENT to `repcount`, so the same body nested inside a `repeat` is clean and reads the ENCLOSING turn (issue #1155). The two `print` payloads are `[1]` then `[2]` — the map's single element is the outer `repeat`'s turn number, which is what proves transparency rather than mere silence: a rule that treated a comprehension body as a `repcount` boundary would make `check()` refuse this program, and the check-before-execution gate (`spec/execution-model.md:632`) would leave zero events instead of these five. `execute: true` deliberately, so `check()` and the evaluator are asserted to agree in the CLEAN direction; the fault direction is asserted by the check-side mirror.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-comprehension-inside-repeat",
+        "start": [1, 1],
+        "end": [1, 47]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-comprehension-inside-repeat",
+        "start": [1, 12],
+        "end": [1, 45]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 2,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-comprehension-inside-repeat",
+        "start": [1, 12],
+        "end": [1, 45]
+      },
+      "payload": { "values": [[1]] }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-comprehension-inside-repeat",
+        "start": [1, 12],
+        "end": [1, 45]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-comprehension-inside-repeat",
+        "start": [1, 12],
+        "end": [1, 45]
+      },
+      "payload": { "values": [[2]] }
+    }
+  ],
+  "diagnostics": []
+}

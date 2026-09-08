@@ -1,0 +1,68 @@
+{
+  "description": "MECHANISM (mirror of `core-language/check/repcount-in-place-index-key`): a `repcount` inside a well-formed place's `[ … ]` index key is a REAL read that the evaluator really evaluates, so it must be judged like any other read (issue #1155). The proof is the printed value: `:xs` starts `[ 1 2 ]` and ends `[ 5 5 ]`, which only happens if turn 1 resolved the key to index 1 and turn 2 to index 2 — the enclosing `repeat`'s turn, read from inside an assignment TARGET. Silence alone would not show that; the list contents do. This is why the rule skips only a target that is not a well-formed place (where `ol-not-a-place` already describes the whole fault) instead of skipping every assignment target, which would blind it to this read.",
+  "profiles": ["core-language", "data"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [1, 1],
+        "end": [1, 18]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": { "statement_kind": "Repeat" }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": { "statement_kind": "Assign" }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": { "statement_kind": "Call" }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/execution/repcount-in-place-index-key-inside-repeat",
+        "start": [3, 1],
+        "end": [3, 10]
+      },
+      "payload": { "values": [[5, 5]] }
+    }
+  ],
+  "diagnostics": []
+}

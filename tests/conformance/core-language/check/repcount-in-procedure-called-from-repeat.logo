@@ -1,0 +1,4 @@
+define show_turn
+  print repcount
+end
+repeat 2 [ show_turn ]

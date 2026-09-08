@@ -1077,9 +1077,12 @@ export const runtimeDiag = {
 
   /**
    * `ol-repcount-outside-repeat`: `repcount` was used outside any enclosing `repeat`
-   * (`spec/commands.md:792`). Registry stage is `semantic`, but raised here at `stage: "runtime"`
-   * — same convention as `ol-not-a-place`/`ol-undefined-var` — since `execute()` never runs
-   * `check()`. Params are `none` per the registry.
+   * (`spec/commands.md:793`). Since issue #1155 `check()` reports this statically at the
+   * registry's usual stage `semantic` (`spec/error-model.md:120`), and the check-before-execution
+   * gate refuses such a program, so `execute()` never reaches this factory. It remains the
+   * evaluator's own copy of the rule for a caller driving `evaluate()` directly — which runs no
+   * checker — and for the one shape that is genuinely not static: an event handler registered
+   * inside a `repeat` but dispatched after it has finished. Params are `none` per the registry.
    */
   repcountOutsideRepeat(source_span: SourceSpan): Diagnostic {
     return runtimeError(

@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: the rule reports a `repcount` READ nested inside a WELL-FORMED place, and is therefore narrower than \"skip every assignment target\" (issue #1155). The target `:xs[(repcount)]` is a valid place, so `ol-not-a-place` does not fire and the evaluator really does evaluate that index key — measured by the execution mirror `core-language/execution/repcount-in-place-index-key-inside-repeat`, where the same read inside a `repeat` turns `[ 1 2 ]` into `[ 5 5 ]`. Here there is no enclosing `repeat`, so it is a fault. Contrast `core-language/assignment/bare-place-invalid` (`repcount = 100`), where the word is the target ITSELF: there `ol-not-a-place` describes the fault completely, the program never runs, and a second finding would break one-fault-one-diagnostic (`spec/execution-model.md:737`). The three fixtures together pin that the read/place distinction is drawn at the target, not at the whole statement. `(repcount)` is spelled parenthesized because a bare word inside `[ … ]` parses as a `WordLit` key, not a reporter call, so the parenthesized form is the shortest source that puts a real read there.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-place-index-key",
+        "start": [2, 5],
+        "end": [2, 15]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}
