@@ -1,5 +1,5 @@
 {
-  "description": "`value of :ages for key \"tom\"` is the Heritage dict reader (issue #322, `spec/grammar.md:213`, `spec/conformance.md:273`), equivalent to `:ages.tom`. It operates on a dict, so Heritage also needs Data (`spec/conformance.md:301`). Proves the ValueOfKey node reaches runtime dispatch, not just the parser.",
+  "description": "`value of :ages for key \"tom\"` is the Heritage dict reader (issue #322, `spec/grammar.md:215`, `spec/conformance.md:273`), equivalent to `:ages.tom`. It operates on a dict, so Heritage also needs Data (`spec/conformance.md:301`). Proves the ValueOfKey node reaches runtime dispatch, not just the parser.",
   "profiles": ["core-language", "data", "heritage"],
   "execute": true,
   "events": [

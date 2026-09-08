@@ -396,6 +396,47 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
 }
 
 /*
+ * #1106 — the `global` semantic-token modifier: what tells a learner that `:score` reaches state
+ * the whole program shares, rather than creating a private binding inside a procedure. It is
+ * `highlighter.ts`'s `ol-mod-global`, computed by the parser's scope-aware resolution
+ * (`packages/parser/src/global-variable-resolution.ts`), so a `local` that shadows a global is
+ * deliberately NOT painted — the paint follows resolution, never spelling.
+ *
+ * ## Why it uses no color at all
+ * `spec/rendering.md`'s a11y rule is that nothing may be conveyed by color alone, and roughly 1 in
+ * 12 men has a color-vision deficiency. Rather than pick a color and pair it with a fallback, this
+ * rule sets **no color**: the token keeps whatever color its own `.ol-tok-*` class gives it (which
+ * is already contrast-checked above) and the modifier is carried entirely by two channels that
+ * survive greyscale, a forced-colors/high-contrast theme, and any recolored theme:
+ *
+ *  1. **weight** — bolder than the surrounding code, legible at a glance while scanning;
+ *  2. **shape** — a dotted underline, in `currentColor`, so it inherits the class color instead of
+ *     asserting one. Dotted is a distinct shape from #317's `wavy` diagnostic squiggle, so a shared
+ *     variable can never be mistaken for an error, and from every other `.ol-tok-*` rule, none of
+ *     which underlines.
+ *
+ * Additive, never substitutive: the span still carries its own `.ol-tok-*` class, so a theme that
+ * drops this rule renders a shared variable exactly like an ordinary one — the same graceful
+ * degradation `spec/tooling.md:83-84` contemplates for the bracket roles.
+ *
+ * The `title` attribute `editor-cm6.ts` puts on the same mark
+ * (`highlighter.ts`'s `OL_GLOBAL_VARIABLE_DESCRIPTION`) is a third, *supplementary* channel: a hover
+ * tooltip and a best-effort accessible description. It is deliberately not load-bearing — `title` on
+ * a non-interactive span is inconsistently surfaced by assistive technology and is not
+ * keyboard-reachable — which is exactly why the two channels above avoid color instead of leaning on
+ * it. Like every other highlight decoration it is a `class`/`title` pair on a CM6 `mark` — it never
+ * wraps, replaces, hides, or reorders text, so the accessible text, DOM reading order, and focus
+ * model are unchanged.
+ */
+.ol-mod-global {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/*
  * #317 — inline error markers. Two independent, additive cues per severity so nothing is
  * conveyed by color alone (spec/rendering.md's a11y requirement): the squiggle mark uses a
  * `text-decoration-style: wavy` underline (a shape distinct from `#285`'s syntax-coloring marks,
@@ -500,7 +541,7 @@ main:has(.pane-lesson:not([hidden])):has(.pane-tutor:not([hidden])) {
   background: var(--ol-button-reset);
 }
 
-/* #952 — `on_click`'s "equivalent accessible action" (spec/interaction-events.md:241-242): a real
+/* #952 — `on_click`'s "equivalent accessible action" (spec/interaction-events.md:302-303): a real
    button beside the canvas it activates, so the drawing surface is reachable without a pointer.
    Styled like the run controls but outside their toolbar, since it belongs to the turtle pane. */
 #canvas-activate-button {

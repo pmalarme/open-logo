@@ -1,0 +1,160 @@
+{
+  "description": "E-E end to end: a `global` is visible for reading and for writing to every scope, including a deferred handler block, and each firing updates the one shared binding rather than a fresh per-invocation one — two delivered clicks leave `:score` at `2`. Each handler invocation gets a fresh block scope (spec/execution-model.md:377-379), so what makes the count accumulate is that `:score` is NOT born in that scope: the write reaches the visible root binding (spec/execution-model.md:483-486). The clicks are delivered by the harness's tick-scheduled `hostInput.events`, so the run is deterministic; measured, the same source under an empty host prints `0`, so the fixture would detect a delivery that never happens.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "click"
+        },
+        {
+          "tick": 2,
+          "kind": "click"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [3, 1],
+        "end": [3, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-global-counts-clicks-across-handler-firings",
+        "start": [4, 1],
+        "end": [4, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

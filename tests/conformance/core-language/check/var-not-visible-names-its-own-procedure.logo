@@ -1,0 +1,7 @@
+:count = 0
+define alpha
+  print :count
+end
+define beta
+  print :count
+end

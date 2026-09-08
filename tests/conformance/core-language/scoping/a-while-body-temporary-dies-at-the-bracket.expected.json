@@ -1,0 +1,106 @@
+{
+  "description": "The `while` half of the same rule (spec/execution-model.md:367-369,603-605), and the two halves in one program: `:n` is born OUTSIDE the loop so the body updates it and `print :n` reports `2` — which is what proves the body ran — while `:seen`, born INSIDE it, is gone at the `]` and its read raises `ol-undefined-var` (spec/error-model.md:102).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [2, 1],
+        "end": [2, 41]
+      },
+      "payload": {
+        "statement_kind": "While"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [2, 16],
+        "end": [2, 27]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [2, 30],
+        "end": [2, 39]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [3, 1],
+        "end": [3, 9]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [4, 1],
+        "end": [4, 12]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-while-body-temporary-dies-at-the-bracket",
+        "start": [4, 7],
+        "end": [4, 12]
+      },
+      "params": {
+        "name": "seen"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

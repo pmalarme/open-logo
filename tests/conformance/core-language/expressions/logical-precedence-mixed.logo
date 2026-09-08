@@ -1,4 +1,4 @@
-# Precedence ladder mixes comparison, prefix `not`, and infix `and`/`or`, per spec/grammar.md:218-226:
+# Precedence ladder mixes comparison, prefix `not`, and infix `and`/`or`, per spec/grammar.md:220-228:
 # `not` binds tighter than comparison, comparison binds tighter than `and`, and `and` binds tighter
 # than `or`, so no extra parentheses are needed to read these the way they group.
 :a = 1

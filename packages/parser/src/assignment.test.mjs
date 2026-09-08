@@ -3,7 +3,7 @@
 // places on both forms, issue #48) or postfix-selectors.test.mjs (selector-only places on both
 // forms, issue #79):
 //   * every Core value kind on the right-hand side of both forms — number, word, list, boolean,
-//     and a reporter-call expression — per spec/grammar.md:103-104 (assignment ::= colon-place "="
+//     and a reporter-call expression — per spec/grammar.md:104-105 (assignment ::= colon-place "="
 //     expression; set-assignment ::= "set" bare-place "to" expression);
 //   * a place chain that MIXES a dotted field, a bracketed selector, and another dotted field
 //     (`:a.b[1].c`) as an assignment target on both forms;
@@ -153,7 +153,7 @@ test("a mixed field/selector/field bare place set a.b[1].c to 9 shares the same 
   assert.equal(assign.value.value, 9);
 });
 
-// ── The CRITICAL form/place asymmetry (spec/grammar.md:103-104) ────────────────────────────────
+// ── The CRITICAL form/place asymmetry (spec/grammar.md:104-105) ────────────────────────────────
 
 // Named predicate reused below so the negative assertion (empty diagnostics array) stays
 // callback-free at its call site while this predicate is still invoked at least once elsewhere,

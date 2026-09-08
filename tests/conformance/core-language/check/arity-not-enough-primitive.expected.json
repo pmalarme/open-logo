@@ -1,5 +1,5 @@
 {
-  "description": "ol-not-enough-inputs (issue #111): the spec's worked example (spec/tooling.md:207-212). `first` is a fixed-arity-1 Core primitive; in `print first` the reader gathers zero arguments for it before the line ends, so the static arity check reports too-few with params callable/expected/actual — the exact shape shared with the runtime call-time check (#97), at stage semantic.",
+  "description": "ol-not-enough-inputs (issue #111): the spec's worked example (spec/tooling.md:210-215). `first` is a fixed-arity-1 Core primitive; in `print first` the reader gathers zero arguments for it before the line ends, so the static arity check reports too-few with params callable/expected/actual — the exact shape shared with the runtime call-time check (#97), at stage semantic.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

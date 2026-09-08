@@ -1,5 +1,5 @@
 {
-  "description": "issue #782: the `who`/position AGREEMENT INVARIANT itself, stated with no hard-coded coordinate. `spec/turtles-and-sprites.md:26` defines `who` as \"the turtle currently running turtle commands\" and `:105` evaluates the movement reporters \"for the current turtle\" — ONE current turtle — so any pair `who` and `ycor` can produce must be a state some single turtle really has. After a callee's `tell :b`, `:reported` is what the caller's own `ycor` says, `:current` is the turtle `who` names, and `:actual` is that turtle's real y, read by addressing it; `print :actual == :reported` is `true` only when both name the same turtle. Both reads are taken BEFORE the `ask`, which is what makes this fixture able to fail: re-establishing the addressed set — the `ask` entry primitive at seq 26, or any turtle command — re-derived the stale per-`Environment` cache and healed the divergence, so an invariant written as `ask who [ ... ]` would have passed on the broken runtime. `ask` restores the previous set on exit (`:58`, the second `ask` primitive at seq 28), leaving the addressed set unchanged by the measurement.",
+  "description": "issue #782: the `who`/position AGREEMENT INVARIANT itself, stated with no hard-coded coordinate. `spec/turtles-and-sprites.md:26` defines `who` as \"the turtle currently running turtle commands\" and `:105` evaluates the movement reporters \"for the current turtle\" — ONE current turtle — so any pair `who` and `ycor` can produce must be a state some single turtle really has. After a callee's `tell :t` on the `:b` it was handed, `:reported` is what the caller's own `ycor` says, `:current` is the turtle `who` names, and `:actual` is that turtle's real y, read by addressing it; `print :actual == :reported` is `true` only when both name the same turtle. Both reads are taken BEFORE the `ask`, which is what makes this fixture able to fail: re-establishing the addressed set — the `ask` entry primitive at seq 26, or any turtle command — re-derived the stale per-`Environment` cache and healed the divergence, so an invariant written as `ask who [ ... ]` would have passed on the broken runtime. `ask` restores the previous set on exit (`:58`, the second `ask` primitive at seq 28), leaving the addressed set unchanged by the measurement. Issue #1099/#824: the turtle handle reaches the procedure as a PARAMETER rather than as a top-level name its body reads, because the sealed procedure boundary (spec/execution-model.md:389-394) makes that read `ol-var-not-visible`. This is an ADDRESSING fixture, not a scoping one, and the migration was measured field-by-field against the pre-migration stream to keep it so: the event count, the kind sequence, and every payload are unchanged EXCEPT `procedure-enter`'s `args`, which now carries the handle — no addressing, movement, print, or restore payload differs at all. Some `source_span` end columns did move, because the argument text lengthened the call line; spans are the only other difference.",
   "profiles": ["sprites"],
   "execute": true,
   "events": [
@@ -255,7 +255,7 @@
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "statement_kind": "Call"
@@ -267,11 +267,15 @@
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "name": "go",
-        "args": []
+        "args": [
+          {
+            "id": 2
+          }
+        ]
       }
     },
     {
@@ -308,7 +312,7 @@
       "source_span": {
         "document": "sprites/who-position-agreement-invariant/who-position-agreement-invariant",
         "start": [11, 1],
-        "end": [11, 3]
+        "end": [11, 6]
       },
       "payload": {
         "name": "go",

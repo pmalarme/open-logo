@@ -242,14 +242,14 @@ test("a nested tell run during a command's argument evaluation keeps who and the
   // `addressing.currentId`. Neither can be left describing `:a` while the other says `:b`.
   const result = execute(
     [
-      "define retarget",
-      "  tell :b",
+      "define retarget :t",
+      "  tell :t",
       "  return 10",
       "end",
       ":a = new_turtle",
       ":b = new_turtle",
       "tell :a",
-      "forward retarget",
+      "forward retarget :b",
       "print who == :b",
       "print xcor",
       "print ycor",
@@ -297,7 +297,7 @@ test("who inside a per-turtle command's argument reports the turtle currently ru
   // The two in-argument `who` prints report the acting turtle (1 then 2); the final top-level `who`
   // reports the first addressed turtle again (1). None of the three `print` events carries a
   // `turtle_id`: `print` is not turtle-specific, so its envelope must not claim an identity
-  // (`spec/execution-model.md:638`, issue #764) — before that filter landed these events tracked
+  // (`spec/execution-model.md:1005`, issue #764) — before that filter landed these events tracked
   // *addressing context* rather than turtle-specificity, and the same program without the `tell`
   // emitted them unstamped.
   assert.deepEqual(printed, [
@@ -313,15 +313,15 @@ test("a nested tell run in an early iteration of a multi-turtle command persists
   // command the addressed set — and the current turtle — is `:c`, not the last-iterated `:b`.
   const result = execute(
     [
-      "define retarget",
-      "  if who == :a [ tell :c ]",
+      "define retarget :first :next",
+      "  if who == :first [ tell :next ]",
       "  return 10",
       "end",
       ":a = new_turtle",
       ":b = new_turtle",
       ":c = new_turtle",
       "tell [ :a :b ]",
-      "forward retarget",
+      "forward retarget :a :c",
       "print who == :c",
       "print who == :b",
     ].join("\n"),
@@ -357,10 +357,10 @@ test("#782: a tell inside a procedure persists after the call — who and ycor d
       "tell :b",
       "forward 20",
       "tell :a",
-      "define go",
-      "  tell :b",
+      "define go :t",
+      "  tell :t",
       "end",
-      "go",
+      "go :b",
       "print who",
       "print ycor",
     ].join("\n"),
@@ -385,13 +385,13 @@ test("#782: a tell two call frames deep persists too — nesting does not re-sco
       "forward 20",
       "tell :a",
       "forward 10",
-      "define inner",
-      "  tell :b",
+      "define inner :t",
+      "  tell :t",
       "end",
-      "define outer",
-      "  inner",
+      "define outer :t",
+      "  inner :t",
       "end",
-      "outer",
+      "outer :b",
       "print who",
       "print ycor",
     ].join("\n"),
@@ -424,10 +424,10 @@ test("#782: the who/position agreement invariant holds after a callee's tell, wi
       "tell :b",
       "forward 20",
       "tell :a",
-      "define go",
-      "  tell :b",
+      "define go :t",
+      "  tell :t",
       "end",
-      "go",
+      "go :b",
       ":reported = ycor",
       ":current = who",
       ":actual = 0",
@@ -454,10 +454,10 @@ test("#782: heading and pos agree with who after a callee's tell too, not just y
       "forward 20",
       "right 90",
       "tell :a",
-      "define go",
-      "  tell :b",
+      "define go :t",
+      "  tell :t",
       "end",
-      "go",
+      "go :b",
       "print who",
       "print heading",
       "print pos",
@@ -492,10 +492,10 @@ test("#782: a turtle command after a callee's tell applies to the newly addresse
       "tell :b",
       "forward 20",
       "tell :a",
-      "define go",
-      "  tell :b",
+      "define go :t",
+      "  tell :t",
       "end",
-      "go",
+      "go :b",
       "print ycor",
       "forward 40",
       "print who",
@@ -529,8 +529,8 @@ test("#782: a tell in an argument does not re-aim the non-movement command it is
   // turtle actually changed rather than only which id the event claims.
   const result = execute(
     [
-      "define choose_color",
-      "  tell :b",
+      "define choose_color :t",
+      "  tell :t",
       '  return "red"',
       "end",
       ":a = new_turtle",
@@ -538,7 +538,7 @@ test("#782: a tell in an argument does not re-aim the non-movement command it is
       "tell :b",
       'set_color "blue"',
       "tell :a",
-      "set_color choose_color",
+      "set_color choose_color :b",
       "print who",
       "tell :a",
       "forward 5",
@@ -572,10 +572,10 @@ test("#782: an ask inside a procedure still restores the caller's addressed set 
       ":a = new_turtle",
       ":b = new_turtle",
       "tell :a",
-      "define nudge",
-      "  ask :b [ forward 5 ]",
+      "define nudge :t",
+      "  ask :t [ forward 5 ]",
       "end",
-      "nudge",
+      "nudge :b",
       "print who",
       "forward 7",
     ].join("\n"),
@@ -592,7 +592,7 @@ test("#782: an ask inside a procedure still restores the caller's addressed set 
 
 test("#748: a turtle listed twice is ONE member of the addressed set — a direct turtle command applies once (dedup by id)", () => {
   // The addressed set is a SET (spec/turtles-and-sprites.md:44) whose members compare by "Same
-  // turtle identity" (spec/execution-model.md:540), and a turtle command "applies once for each
+  // turtle identity" (spec/execution-model.md:907), and a turtle command "applies once for each
   // addressed turtle" (:113). `tell [ :a :a ]` therefore addresses :a ONCE: one move to [0, 10],
   // ending there — not two moves ending at [0, 20], which is what the direct path did before #748
   // while `each` (same epic) already ran once.

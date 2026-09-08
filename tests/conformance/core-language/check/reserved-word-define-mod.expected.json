@@ -1,5 +1,5 @@
 {
-  "description": "ol-reserved-word (issue #837, maintainer ruling #833): DECLARING `mod` collides. `mod` is a word-spelled operator of the expression grammar rather than a callable primitive (spec/grammar.md:378). Its token class is a separate, independent axis and does NOT change -- `mod` stays `operator`, exactly as `and` does, because spec/grammar.md:378 makes the `keyword` token class and the keyword list \"different sets on purpose\". Binding and calling `mod` are unaffected: keyword-mod-binds-and-calls-freely pins those. `\"check\": true` (semantic-checker only) -- nothing is executed and no events are produced.",
+  "description": "ol-reserved-word (issue #837, maintainer ruling #833): DECLARING `mod` collides. `mod` is a word-spelled operator of the expression grammar rather than a callable primitive (spec/grammar.md:380). Its token class is a separate, independent axis and does NOT change -- `mod` stays `operator`, exactly as `and` does, because spec/grammar.md:380 makes the `keyword` token class and the keyword list \"different sets on purpose\". Binding and calling `mod` are unaffected: keyword-mod-binds-and-calls-freely pins those. `\"check\": true` (semantic-checker only) -- nothing is executed and no events are produced.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],

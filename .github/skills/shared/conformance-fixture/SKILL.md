@@ -95,8 +95,8 @@ It is not the only unchecked thing in an `.expected.json`, and knowing the other
 writing an assertion that quietly asserts nothing:
 
 - A **diagnostic `message`** is compared **only when the fixture sets `"compareMessages": true`**
-  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:254-259`) — and
-  `:261-263` positively permits a template author to reword prose, so most learner wording is
+  (issue #1025). The default is identity — `code` + `params` (`spec/error-model.md:256-261`) — and
+  `:263-265` positively permits a template author to reword prose, so most learner wording is
   presentation a conforming implementation may change. Opt in only where the spec fixes the words
   themselves: `ol-reserved-word`'s `spec/error-model.md:125` both prescribes the sentence and makes
   *keyword*/*primitive*/*alias* a MUST NOT in it. **Three** ways of holding a message that is not
@@ -174,5 +174,21 @@ down as fact:
 - [ ] Correct `profiles` tag so profile-scoped runs pick it up — and, for an `execute: true` fixture,
       one that covers every optional profile the source actually uses (the harness enforces this).
 - [ ] `ol-*` codes/spans asserted for every error case.
+- [ ] A scope rule for a construct that can be **entered more than once** is pinned in **both** halves —
+      that a name born in the scope **dies** when it ends, **and** that each *entry* binds fresh
+      (`spec/execution-model.md:377-379`). A death-only fixture passes an implementation that creates
+      the scope once and reuses it, so it needs a sibling whose body observes a **second entry** failing
+      to see what the first bound. **Work out how the construct actually re-enters** rather than reusing
+      a sibling's recipe: a second loop turn for `repeat`/`while`, a second firing for a handler, a
+      second addressed turtle for `each` — but **not** for `ask`, which runs its body once for the whole
+      addressed set, so its second entry is a second execution of the statement.
+- [ ] Where an `execute: true` fixture asserts a diagnostic that `check()` also decides **by the same
+      rule**, add the `check: true` **twin**. The two settings are mutually exclusive in effect —
+      `check` takes precedence and the program is never executed — so one fixture can never cover both
+      stages, and the missing twin is how a checker path goes unpinned (issue #1120). Where `check()`
+      reports on the same program by a **different** rule, say so in the description instead: a
+      freshness fixture, for instance, is flagged by the checker positionally (the read precedes the
+      write in source order) and never by freshness, so a twin there pins an already-pinned rule while
+      reading as though it pinned this one.
 - [ ] Every factual claim in each `description` was **measured, not inferred** — especially one that
       justifies why a fixture is absent — and each probe behind it was sanity-asserted.

@@ -1,5 +1,5 @@
 {
-  "description": "List `==` is structural: same length and pairwise `==` (spec/execution-model.md:493), so `[1 2] == [1 2]` is `true`. Issue #96.",
+  "description": "List `==` is structural: same length and pairwise `==` (spec/execution-model.md:860), so `[1 2] == [1 2]` is `true`. Issue #96.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

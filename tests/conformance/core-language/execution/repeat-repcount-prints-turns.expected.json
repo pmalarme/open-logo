@@ -1,5 +1,5 @@
 {
-  "description": "`repeat 3 [ print repcount ]` runs the body three times, and `repcount` reports each pass's 1-based turn (`spec/commands.md:775-792`): the body's own `repcount` call re-evaluates each pass, so its `instruction` event repeats once per turn, printing 1, then 2, then 3. Issue #104.",
+  "description": "`repeat 3 [ print repcount ]` runs the body three times, and `repcount` reports each pass's 1-based turn (`spec/commands.md:796-813`): the body's own `repcount` call re-evaluates each pass, so its `instruction` event repeats once per turn, printing 1, then 2, then 3. Issue #104.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

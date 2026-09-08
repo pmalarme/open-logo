@@ -1,0 +1,268 @@
+{
+  "description": "The positive baseline of spec/execution-model.md:431-447's worked example: the identical loop body, written at the top level instead of inside a `define`, is a conforming program. The block may update the binding it can see (spec/execution-model.md:597-601), so the turtle moves `0`, `10`, `20`, `30` — four `move`/`draw-segment` pairs whose distances are the whole point — and the counter reaches `4`. `procedure-boundary-hides-a-top-level-read` is the same source inside a procedure, where it is a diagnostic; the pair is what shows the boundary, not the loop, is what changed.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [2, 1],
+        "end": [5, 2]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [4, 3],
+        "end": [4, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [4, 3],
+        "end": [4, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 30],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 30],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [4, 3],
+        "end": [4, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 30],
+        "to": [0, 60],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "from": [0, 30],
+        "to": [0, 60],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [4, 3],
+        "end": [4, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-top-level-accumulator-drives-the-turtle",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}

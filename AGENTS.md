@@ -182,7 +182,7 @@ keyword block in `spec/grammar.md` and the C19 mirror in `spec/tooling.md`, both
 **derivedly** — the expected words are computed from the manifest, and the mirror must carry the same
 words in the same order as the block (the extracted words, not the bytes) — plus `spec/tooling.md`'s
 `keyword` **token-class** declaration. That class is a different set from the keyword list on purpose
-(`spec/grammar.md:378`), and until issue #959 the row enumerated it in 2,055 characters of English
+(`spec/grammar.md:380`), and until issue #959 the row enumerated it in 2,055 characters of English
 that the gate could only **change-detect** — inverting the row's meaning and recomputing the digest
 passed every check. What issue #855 had refuted was *deriving* the class from the lists that already
 existed; *declaring* it was never tried. So each name now carries a `tokenClass` beside its

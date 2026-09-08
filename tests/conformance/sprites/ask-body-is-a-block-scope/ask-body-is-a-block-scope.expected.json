@@ -1,0 +1,146 @@
+{
+  "description": "An `ask` body is \"a profile block\" that runs as part of the statement containing it (spec/execution-model.md:664-666), and it is a block, so it is a scope: `:tmp` is readable inside — the inner `print` reports `7`, which is what proves the body ran and the binding existed — and gone at the `]`, so the outer read raises `ol-undefined-var` (spec/execution-model.md:603-605, spec/error-model.md:102). Added because mutation testing measured that making ONLY the `ask`/`each` bodies reuse their enclosing frame, leaving every other block scoped correctly, left all 1025 fixtures green: the Sprites bodies were the one block form no fixture scoped. `ask`'s ADDRESSING scope is pinned separately by `sprites/ask-scope-restore`; this is its variable scope, which is a different rule.",
+  "profiles": ["core-language", "turtle-rendering", "sprites"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [1, 1],
+        "end": [1, 16]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "spawn-turtle",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [1, 6],
+        "end": [1, 16]
+      },
+      "turtle_id": 1,
+      "payload": {
+        "turtle_id": 1,
+        "position": [0, 0],
+        "heading": 0,
+        "pen": "down",
+        "color": "black",
+        "width": 1,
+        "visible": true,
+        "shape": "turtle"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [1],
+          "current_turtle_id": 1
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 10],
+        "end": [2, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 21],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "print",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 21],
+        "end": [2, 31]
+      },
+      "payload": {
+        "values": [7]
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "primitive",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "name": "ask",
+        "addressing": {
+          "addressed_turtle_ids": [0],
+          "current_turtle_id": 0
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [3, 1],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "sprites/ask-body-is-a-block-scope/ask-body-is-a-block-scope",
+        "start": [3, 7],
+        "end": [3, 11]
+      },
+      "params": {
+        "name": "tmp"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

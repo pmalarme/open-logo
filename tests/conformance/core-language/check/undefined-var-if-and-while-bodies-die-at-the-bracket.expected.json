@@ -1,0 +1,34 @@
+{
+  "description": "Block lifetime at the semantic stage for the two control forms the existing `undefined-var-block-local-dies-at-the-bracket` does not cover (spec/execution-model.md:367-369,603-605). Both reads are reported in ONE program, which a runtime fixture cannot do — execution stops at the first error — so this is the only place the `if` and `while` claims are asserted together. `:n` is written inside the `while` body and read after it with no diagnostic, which is the negative that keeps the rule from being read as \"a block hides everything\".",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-if-and-while-bodies-die-at-the-bracket",
+        "start": [2, 7],
+        "end": [2, 14]
+      },
+      "params": {
+        "name": "inside"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-if-and-while-bodies-die-at-the-bracket",
+        "start": [5, 7],
+        "end": [5, 12]
+      },
+      "params": {
+        "name": "seen"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+global count = 0
+define bump
+  :count = :count + 1
+end
+define reset
+  :count = 0
+end
+bump
+bump
+print :count
+reset
+print :count
+bump
+print :count

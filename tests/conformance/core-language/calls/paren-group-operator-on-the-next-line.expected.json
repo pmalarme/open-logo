@@ -1,5 +1,5 @@
 {
-  "description": "Parenthesized grouping (issue #1021): `spec/grammar.md:34` makes newlines insignificant inside a parenthesized group, so the branch decision that picks `parenthesized-expression` (grammar.md:213) over `parenthesized-call` (:215) looks PAST any newlines between the head and the operator — a group written across lines reads exactly as its one-line form. Added because the newline-skipping was otherwise proven only in the TypeScript unit suite: deleting the skip left all 931 stack-neutral fixtures passing, and the conformance corpus is the proof meant to outlive this implementation.",
+  "description": "Parenthesized grouping (issue #1021): `spec/grammar.md:34` makes newlines insignificant inside a parenthesized group, so the branch decision that picks `parenthesized-expression` (grammar.md:213) over `parenthesized-call` (:217) looks PAST any newlines between the head and the operator — a group written across lines reads exactly as its one-line form. Added because the newline-skipping was otherwise proven only in the TypeScript unit suite: deleting the skip left all 931 stack-neutral fixtures passing, and the conformance corpus is the proof meant to outlive this implementation.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

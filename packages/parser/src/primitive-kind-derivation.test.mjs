@@ -10,7 +10,7 @@ import * as OL from "@openlogo/parser";
  * "the commands", and `@openlogo/runtime`'s `evaluate.ts` carried a verbatim second copy. Both
  * halves were wrong in both directions at once — `:x = map n in [1 2 3] [ forward :n ]` was silent
  * in `check()` AND in `execute()` where `print` raised `ol-no-value`, while
- * `repeat 4 [ forward 100 right 90 ]` — `spec/grammar.md:271` and `:294`, the specification's own
+ * `repeat 4 [ forward 100 right 90 ]` — `spec/grammar.md:273` and `:296`, the specification's own
  * instruction-block example — earned `ol-style-useless-value` with the style layer on.
  *
  * The fix makes each primitive's **Kind** a mandatory column of its registration row in
@@ -31,7 +31,7 @@ const document = "primitive-kind.logo";
  * **The oracle.** Every registered primitive's Kind, read off the spec BY HAND — not from the
  * registry under test — so a wrong Kind fails here instead of being agreed with by every sweep
  * that derives its expectation from the lookup it is testing. QA's mutation probe on issue #932
- * measured exactly that gap: flipping `stamp` to `reporter`, contradicting `spec/commands.md:1593`,
+ * measured exactly that gap: flipping `stamp` to `reporter`, contradicting `spec/commands.md:1614`,
  * passed 4203 tests and 898 fixtures. This table is what closes it.
  *
  * Sources, one per profile: `spec/commands.md`'s per-primitive `- **Kind:**` lines (Core and
@@ -432,7 +432,7 @@ test("challenge is classified a command even though it has no checker visibility
   // `ol-unknown-command`. Its Kind is registered nonetheless, so a comprehension body ending in it
   // now reports BOTH codes where before issue #932 it reported only the first. Pinned as measured
   // rather than left to be discovered: the two rules answer different questions (is this name
-  // visible? does this statement produce a value?), and `spec/tooling.md:179-192` gives them
+  // visible? does this statement produce a value?), and `spec/tooling.md:179-193` gives them
   // separate rows.
   assert.deepEqual(
     checkCodes(":x = map n in [1 2 3] [ challenge ]", [
@@ -444,7 +444,7 @@ test("challenge is classified a command even though it has no checker visibility
 });
 
 test("the spec's own instruction-block example is style-clean (issue #932)", () => {
-  // `repeat 4 [ forward 100 right 90 ]` is `spec/grammar.md:271` and `:294`.
+  // `repeat 4 [ forward 100 right 90 ]` is `spec/grammar.md:273` and `:296`.
   const profiles = ["core-language", "turtle-rendering", "heritage"];
   assert.deepEqual(
     checkCodes("repeat 4 [ forward 100 right 90 ]", profiles, true),

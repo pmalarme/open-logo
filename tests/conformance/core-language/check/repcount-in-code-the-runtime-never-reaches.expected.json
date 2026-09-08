@@ -1,0 +1,30 @@
+{
+  "description": "Why the row is worth having at Layer 2 at all, rather than leaving `ol-repcount-outside-repeat` to the runtime. MEASURED at saga tip 904b71ac: `execute()` on this exact program reports NO diagnostic and prints `1` — it never enters a procedure nobody calls, and with no host input the `on_key` block never fires, so both defects are invisible until some later run happens to reach them. Enclosure is a purely lexical property of where the word is written (spec/execution-model.md:673-676, spec/tooling.md:195), so no execution order could make either read valid and the semantic stage is free to say so before the program runs. Deliberately NOT a check:true twin of an executing fixture: there is no executing fixture this could twin, which is the point.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-code-the-runtime-never-reaches",
+        "start": [2, 9],
+        "end": [2, 17]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-code-the-runtime-never-reaches",
+        "start": [4, 20],
+        "end": [4, 28]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

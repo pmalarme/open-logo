@@ -24,7 +24,7 @@
  * the next profile as well as this one.
  *
  * {@link isOptionalProfileName} is this module's companion export for `ol-unknown-command`'s
- * did-you-mean tie-break (`spec/error-model.md:210-211`: on a distance tie, "prefer Core words over
+ * did-you-mean tie-break (`spec/error-model.md:212-213`: on a distance tie, "prefer Core words over
  * optional-profile words, then full canonical names over short aliases, then lexicographic order")
  * — a tie between a Core name and an optional-profile name is reachable and MUST resolve in Core's
  * favor, not by lexicographic order alone. Program-declared names (procedures, struct constructors)
@@ -56,7 +56,7 @@ import {
  *   `OL_PROFILE_KEYWORDS` (`ask`/`each`/`tell`, the four event heads).
  * - {@link OL_KEYWORDS} for Core alone. This is the one arm that names a profile, and it is not a
  *   ladder rung: Core's keyword list is *defined* as the profile-independent one
- *   (`keywords.ts`, `spec/grammar.md:408`), so it cannot be reached through a profile-keyed table,
+ *   (`keywords.ts`, `spec/grammar.md:412`), so it cannot be reached through a profile-keyed table,
  *   and a keyword added to it is still picked up here with no edit.
  *
  * **Why one function rather than two similar loops.** Before this, an `OPTIONAL_PROFILE_NAMES`
@@ -111,7 +111,7 @@ export function isOptionalProfileName(name: string): boolean {
  * {@link collectVisibleNames}'s unconditional procedure/struct walk). The did-you-mean tie-break
  * uses this to tell a user's `define fd … end` apart from the Heritage alias `fd` that happens to
  * share its spelling — a declared name must never be demoted as if it were the short alias
- * (`spec/error-model.md:210-211` orders full canonical names over *Heritage aliases*, not over a
+ * (`spec/error-model.md:212-213` orders full canonical names over *Heritage aliases*, not over a
  * learner's own procedures).
  */
 export function collectDeclaredNames(

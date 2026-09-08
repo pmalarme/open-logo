@@ -1,5 +1,5 @@
 {
-  "description": "A step pointing away from end runs the body zero times with no diagnostic (spec/execution-model.md:396-397). Issue #103.",
+  "description": "A step pointing away from end runs the body zero times with no diagnostic (spec/execution-model.md:763-764). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

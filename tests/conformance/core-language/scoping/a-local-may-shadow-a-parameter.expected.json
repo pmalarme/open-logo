@@ -1,0 +1,181 @@
+{
+  "description": "Two halves of one claim, because the legal half alone cannot detect the defect. `local name` \"declares one or more names in the current scope ... shadowing anything of that name that was visible\" (spec/commands.md:110, spec/execution-model.md:503-506), and a procedure's parameter is one of the three things its body can see (spec/execution-model.md:389-391), so `local a` beside a parameter `:a` is legal and creates a NEW binding. `f` assigns that binding and prints `99` — the positive. `g` reads it without assigning and raises `ol-undefined-var` — the proof that the declaration really did create a second, unbound binding rather than quietly reusing the parameter, which is the one observation that distinguishes the two implementations: with the parameter reused, `g` would print `1` and `f` would still print `99`.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [1, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [6, 1],
+        "end": [9, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [10, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [10, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "name": "f",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [2, 3],
+        "end": [2, 10]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [3, 3],
+        "end": [3, 10]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [4, 3],
+        "end": [4, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [4, 3],
+        "end": [4, 11]
+      },
+      "payload": {
+        "values": [99]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [10, 1],
+        "end": [10, 4]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [11, 1],
+        "end": [11, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [11, 1],
+        "end": [11, 4]
+      },
+      "payload": {
+        "name": "g",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [7, 3],
+        "end": [7, 10]
+      },
+      "payload": {
+        "statement_kind": "Local"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [8, 3],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-local-may-shadow-a-parameter",
+        "start": [8, 9],
+        "end": [8, 11]
+      },
+      "params": {
+        "name": "a"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

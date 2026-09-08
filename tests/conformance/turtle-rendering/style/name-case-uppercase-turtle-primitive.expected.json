@@ -1,5 +1,5 @@
 {
-  "description": "ol-style-name-case (issue #854): a Turtle & Rendering primitive callee written non-lowercase is flagged exactly as a Core one is. `spec/tooling.md:241` registers the rule as \"built-ins should be shown lowercase\" and `spec/style-guide.md` as \"warns when canonical keywords or primitive names are written with other casing\" — neither says \"Core primitives only\". This was the widest-impact silence the lint had: `PRINT` was flagged while `FORWARD`, the first command a learner ever types, was not, because the rule matched a hand-written Core-only name set instead of consulting the shared primitive registry.",
+  "description": "ol-style-name-case (issue #854): a Turtle & Rendering primitive callee written non-lowercase is flagged exactly as a Core one is. `spec/tooling.md:244` registers the rule as \"built-ins should be shown lowercase\" and `spec/style-guide.md` as \"warns when canonical keywords or primitive names are written with other casing\" — neither says \"Core primitives only\". This was the widest-impact silence the lint had: `PRINT` was flagged while `FORWARD`, the first command a learner ever types, was not, because the rule matched a hand-written Core-only name set instead of consulting the shared primitive registry.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "style": true,

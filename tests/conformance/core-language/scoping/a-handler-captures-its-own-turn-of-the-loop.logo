@@ -1,0 +1,2 @@
+repeat 3 [ :n = repcount * 10   every 5 [ print :n ] ]
+wait 8

@@ -1,5 +1,5 @@
 {
-  "description": "Unlike the worded `is a <type-word>` (whose type word is grammar-checked at parse time), the prefix `is_a?` evaluates its second argument dynamically: a non-word type argument raises `ol-type` naming the expected concept \"word\" (spec/commands.md:691-705, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "Unlike the worded `is a <type-word>` (whose type word is grammar-checked at parse time), the prefix `is_a?` evaluates its second argument dynamically: a non-word type argument raises `ol-type` naming the expected concept \"word\" (spec/commands.md:712-726, error-model.md `ol-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

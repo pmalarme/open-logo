@@ -1,0 +1,7 @@
+global fired = 0
+every 3 [
+  :fired = :fired + 1
+  if :fired > 1 [ print :carried ]
+  :carried = 7
+]
+wait 10

@@ -69,7 +69,7 @@
  *
  * ## `params.callable` is the name as its definition declares it
  * Diagnostic identity is `code` plus `params`, and the same condition MUST carry the same
- * structured params (`spec/error-model.md:254-259`). OpenLogo identifiers are case-insensitive, so
+ * structured params (`spec/error-model.md:256-261`). OpenLogo identifiers are case-insensitive, so
  * the *call site's* spelling can never be the identity: `(SQ 1 2)` and `(sq 1 2)` are one condition
  * and must report one `callable`. The rule is therefore **the spelling the name's definition
  * declares**, which resolves both kinds of callee without special-casing either:

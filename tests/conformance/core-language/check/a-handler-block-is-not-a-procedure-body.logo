@@ -1,0 +1,8 @@
+define registrar
+  every 3 [ return 5 ]
+end
+define halter
+  on_click [ stop ]
+end
+registrar
+halter

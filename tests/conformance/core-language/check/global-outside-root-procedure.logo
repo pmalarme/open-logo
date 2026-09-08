@@ -1,0 +1,3 @@
+define bump
+  global count = 0
+end

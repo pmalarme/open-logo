@@ -23,7 +23,7 @@
  * index places (`Place` with `index` segments only — `.field` is Data-profile and deferred).
  *
  * `-3` is a negative *literal* (the reader already folds the sign into `NumberLitNode.value`,
- * per `spec/grammar.md:17,226`), never unary minus, so there is no negation case here — only
+ * per `spec/grammar.md:17,228`), never unary minus, so there is no negation case here — only
  * the binary `-` Call.
  *
  * Every operator/builtin does its own operand type-checking (`ol-type`) rather than sharing a
@@ -31,7 +31,7 @@
  * `ol-neg-sqrt`, only `/`/`mod` raise `ol-div-zero`).
  *
  * Issue #104 adds {@link requireWholeNumber} and the `repcount` reporter
- * (`spec/commands.md:776-793`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
+ * (`spec/commands.md:797-814`): a 0-arg call that reports the nearest-enclosing `repeat`'s current
  * 1-based turn, or raises `ol-repcount-outside-repeat` when there is none. The active turn stack
  * lives on {@link Environment} (`repeatTurns`, nearest loop last) so nested `repeat`s and the
  * statements they run both see the same mutable stack that `executeStatements` pushes/pops around
@@ -65,8 +65,10 @@ import type {
   ComprehensionNode,
   DictLitNode,
   ExpressionNode,
+  GlobalNode,
   InsertNode,
   IsPredicateNode,
+  LocalNode,
   ParenCallNode,
   PlaceNode,
   PlaceSegment,
@@ -83,6 +85,16 @@ import type {
 } from "@openlogo/parser";
 import { isPrimitiveCommandName } from "@openlogo/parser";
 import { runtimeDiag } from "./errors.js";
+import type { Frame } from "./scope.js";
+import {
+  assignVariable,
+  declareGlobal,
+  declareLocalNames,
+  declareLocalWithValue,
+  isRootScope,
+  pushLoopFrame,
+  readVariable,
+} from "./scope.js";
 import type { ExecSignal } from "./execute-internal.js";
 import { notAPlaceTargetText } from "./not-a-place-text.js";
 import type { RenderableNode } from "./not-a-place-text.js";
@@ -124,17 +136,19 @@ function fail(diagnostic: Diagnostic): EvalResult {
   return { ok: false, diagnostic };
 }
 
-// --- Environment: the variable binding model (spec/execution-model.md:316-327) --------------
+// --- Environment: the variable binding model (spec/execution-model.md:338-379) --------------
 //
-// A frame is one lexical scope's name→value table. `Environment.frames` is nearest-first, and
-// the last frame is always the root/global frame — the top-level program runs directly in it.
-// Issue #94 only ever has the root frame; procedure call frames (issue #97) push additional
-// entries onto the front of `frames` without otherwise changing this shape. Keys are always the
-// case-folded (lowercased) identifier: identifiers are case-insensitive (`spec/grammar.md:13`),
-// so every binder and every `lookupVar`/`assignVar` folds the name before it touches a frame.
+// A frame is one scope's name→binding table. `Environment.frames` is nearest-first, and the last
+// frame is always the root frame — the top-level program runs directly in it. Procedure calls and
+// block entries push additional entries onto the front without otherwise changing this shape.
+// Keys are always the case-folded (lowercased) identifier: identifiers are case-insensitive
+// (`spec/grammar.md:13`), so every binder folds the name before it touches a frame.
+//
+// The *rules* that read this shape — what a scope can see, what an assignment targets, where a
+// `local`/`global` declaration lands — all live in `scope.ts`, which is the single statement of
+// `spec/execution-model.md`'s § Variables, scoping, and procedures. Nothing here re-derives them.
 
-/** One lexical scope: a mutable name→value binding table, keyed by case-folded identifier. */
-export type Frame = Map<string, OLValue>;
+export type { Binding, Frame } from "./scope.js";
 
 /**
  * The whole-program name→definition table issue #97's `execute-internal.ts` builds once, up
@@ -227,7 +241,7 @@ export interface CancellationSignal {
  * `target-source-span` value `hint` MUST carry
  * (`spec/execution-model.md#tutor-output-educational-profile`) when no narrower target is
  * selected. `hintProgress` is the host-implementation-defined progression state
- * `spec/execution-model.md:641-652` calls for: a mutable map (like `instructionCount`/`addressing`,
+ * `spec/execution-model.md:1008-1019` calls for: a mutable map (like `instructionCount`/`addressing`,
  * shared unchanged across every recursive `executeStatements`/`evaluate` call in one `execute()`
  * run) from a serialized `target-source-span` key to the last {@link TutorHintStage} emitted for
  * it, so a repeated `hint` for the same target escalates one stage per call within a single run.
@@ -239,6 +253,42 @@ export interface CancellationSignal {
  */
 export interface Environment {
   readonly frames: readonly Frame[];
+  /**
+   * The **declared spelling of the procedure whose body is executing**, or `undefined` at the root
+   * scope — the one bit `scope.ts` needs to apply the sealed procedure boundary
+   * (`spec/execution-model.md:389-394`), and the `procedure` param `ol-var-not-visible` carries
+   * (`spec/error-model.md:132`).
+   *
+   * A plain field rather than a shared mutable box, because unlike `instructionCount` it is a
+   * property of *where code is written*, not of the run: it is set once when a call builds its
+   * callee environment and then inherited unchanged by every block scope inside that body, so a
+   * handler block registered in a procedure body still reports that procedure when it fires long
+   * after the call returned.
+   */
+  readonly procedure: string | undefined;
+  /**
+   * The case-folded names a `global name = value` declaration has marked **shared**
+   * (`spec/execution-model.md:545-583`) — the only root-scope bindings a procedure body can see.
+   *
+   * A shared mutable set (like `instructionCount`/`addressing`) rather than a plain field, so a
+   * declaration that runs at the top level is observed by every environment already derived from
+   * the run's root one — including the captured environment of a handler registered before the
+   * declaration line ran.
+   */
+  readonly globals: Set<string>;
+  /**
+   * The names the **root scope** binds anywhere in the document, computed once before the run by
+   * `scope.ts`'s `collectRootScopeNames` — the **lexical** set that decides `ol-var-not-visible`
+   * versus `ol-undefined-var` for a read a procedure boundary hid.
+   *
+   * A plain readonly field rather than a mutable box, because it is a property of the parsed
+   * document and cannot change while that document runs. It is what keeps the code choice lexical
+   * rather than temporal (`spec/execution-model.md:405-414`, `spec/error-model.md:132`): a read that
+   * merely runs before its top-level assignment line is still boundary-hidden, which is what makes
+   * this code decidable at the `semantic` stage and lets issue #825's checker agree with the runtime
+   * instead of contradicting it.
+   */
+  readonly rootScopeNames: ReadonlySet<string>;
   readonly repeatTurns: number[];
   readonly procedures: ProcedureRegistry;
   readonly structs: StructRegistry;
@@ -264,7 +314,7 @@ export interface Environment {
   readonly instructionCount: { count: number };
   /**
    * The main line's statement-boundary hook (maintainer ruling #984,
-   * `spec/interaction-events.md:189-204`). While set, {@link executeStatements} runs it before each
+   * `spec/interaction-events.md:250-265`). While set, {@link executeStatements} runs it before each
    * statement, giving a queued `every` occurrence the chance to run that the ruling requires: "run it
    * once the handler is free" for as long as the main line has not finished.
    *
@@ -400,7 +450,7 @@ export interface Environment {
    * `input` is tested by mocking the answer with no new event kind). A **FIFO queue**: the first
    * `input` call takes entry 0, the second entry 1, and so on ({@link takeInputResponse}). Empty
    * (frozen `[]`) for every ordinary headless run, in which case the first `input` has no answer to
-   * take and the read ends the only other way `spec/interaction-events.md:110-111` allows — as a
+   * take and the read ends the only other way `spec/interaction-events.md:171-172` allows — as a
    * cancelled program ({@link runtimeDiag.cancelled}). Headless execution *input*, never
    * observable in any event payload: the `primitive` event a read emits carries only the name
    * `input`, never the prompt or the submitted text.
@@ -422,7 +472,7 @@ export interface Environment {
    * `responses` the single JSON-expressible convention the #657 ruling asked for.
    *
    * The read is outstanding for exactly the duration of this call, and the call is synchronous, so
-   * `spec/interaction-events.md:108-111`'s "MUST NOT run new OpenLogo instructions or event handler
+   * `spec/interaction-events.md:169-172`'s "MUST NOT run new OpenLogo instructions or event handler
    * blocks" holds by construction: there is no suspension point at which anything else could run.
    */
   readonly hostReader?: HostInputReader;
@@ -456,7 +506,7 @@ export interface TurtleState {
 }
 
 /**
- * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1189`):
+ * The turtle's state at program start (`spec/rendering.md:78`, `spec/commands.md:1210`):
  * position `(0,0)`, heading `0`, pen down, color `"black"`, width `1`, visible, shape `"turtle"`
  * (`spec/rendering.md`'s "Turtle avatar and shapes" section lists `"turtle"` first in the portable
  * set, matching `@openlogo/turtle`'s `INITIAL_TURTLE_STATE.shape`). Exported so
@@ -596,6 +646,12 @@ export function createEnvironment(): Environment {
   const mainTurtleState = createDefaultTurtleState();
   return {
     frames: [new Map()],
+    procedure: undefined,
+    globals: new Set(),
+    // No real parsed program backs this bare environment (see `program` below), so no top-level
+    // statement binds anything and nothing can be boundary-hidden. `execute-internal.ts`'s
+    // `createExecutionEnvironment` is the only place a real document's set is computed.
+    rootScopeNames: new Set(),
     repeatTurns: [],
     mainLineBoundary: { fn: undefined },
     procedures: EMPTY_PROCEDURES,
@@ -754,54 +810,41 @@ export function chargeHandlerFiring(
   return undefined;
 }
 
-/** Look up `name` nearest frame to root; `undefined` when no frame binds it. */
-function lookupVar(
-  environment: Environment,
-  name: string,
-): OLValue | undefined {
-  const key = name.toLowerCase();
-  for (const frame of environment.frames) {
-    const value = frame.get(key);
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
 /**
- * `:name = value` / `set name to value`: mutate the nearest existing binding, or create one in
- * the root (last) frame when no frame binds `name` yet (`spec/execution-model.md:322-324`).
- * Assignment to an unbound name never fails — it always creates a global. `createEnvironment` is
- * the only way to build an {@link Environment} and always seeds at least the root frame, so the
- * cast below (rather than a defensive throw no caller could ever trigger) is safe.
+ * The diagnostic for a read that found no visible binding — the single place this package turns
+ * `scope.ts`'s `VariableRead` verdict into one of the two codes `spec/error-model.md:102,132`
+ * distinguishes. `hiddenBy` names the procedure whose sealed boundary hid an existing binding
+ * (`ol-var-not-visible`, whose message must name that boundary and the `global` fix); every other
+ * failed read is the ordinary `ol-undefined-var`.
+ *
+ * Both are raised at `stage: "runtime"` even though the registry stage of `ol-var-not-visible` is
+ * `semantic` — the same convention as `ol-not-a-place`/`ol-repcount-outside-repeat` here, since
+ * `execute()` never runs `check()`. The checker's own `ol-var-not-visible` (issue #825) is the
+ * lexical, conservative statement of the same rule; the two agree on `code` and `params`, which is
+ * a diagnostic's identity.
  */
-function assignVar(
-  environment: Environment,
+function failedRead(
+  source_span: SourceSpan,
   name: string,
-  value: OLValue,
-): void {
-  const key = name.toLowerCase();
-  for (const frame of environment.frames) {
-    if (frame.has(key)) {
-      frame.set(key, value);
-      return;
-    }
-  }
-  const root = environment.frames[environment.frames.length - 1] as Frame;
-  root.set(key, value);
+  hiddenBy: string | undefined,
+): Diagnostic {
+  return hiddenBy === undefined
+    ? runtimeDiag.undefinedVar(source_span, name)
+    : runtimeDiag.varNotVisible(source_span, { name, procedure: hiddenBy });
 }
 
-// --- Loop/comprehension binder helpers (spec/execution-model.md:435-439) --------------------
+// --- Loop/comprehension binder helpers (spec/execution-model.md:769-808) --------------------
 //
 // Shared by `execute-internal.ts`'s `ForIn` statement handling (issue #103) and this module's
 // comprehension evaluation (`map`/`filter`/`reduce`, issue #105) — both bind one iterated element
 // against the same `Binder` shape (a bare name, or a destructuring pattern), so the logic lives
 // here rather than duplicated in both files. `execute-internal.ts` already imports this module,
-// so keeping the shared helpers here (never the reverse) is the only cycle-free placement.
+// so keeping the shared helpers here (never the reverse) is the only cycle-free placement. The
+// frame the bound names land in is pushed by `scope.ts`'s `pushLoopFrame`, so a binder's names get
+// the same fresh-per-entry block scope every other body does.
 
 /**
- * A `for ... in`/comprehension binder (`spec/grammar.md:136-137`): a bare name, or a
+ * A `for ... in`/comprehension binder (`spec/grammar.md:137-138`): a bare name, or a
  * destructuring pattern. The pattern node itself (`DestructuringBinderNode`) is not part of
  * `@openlogo/parser`'s public export list, so it is named here via `Extract` off the
  * already-exported {@link ComprehensionNode} rather than importing it directly —
@@ -813,24 +856,6 @@ export type DestructuringBinder = Extract<
   Binder,
   { kind: "DestructuringBinder" }
 >;
-
-/**
- * Push a fresh body-local frame binding `bindings` (name → value) onto `environment`, nearest-first, for
- * a `for`/comprehension binder's own name(s) — `spec/execution-model.md:435-437` ("body-local
- * bindings that shadow outer names only for the body"). Returns a *new* {@link Environment};
- * `environment` itself is never mutated, so once the caller stops using the returned value the binding is
- * gone — there is no explicit "pop" step, unlike `repeatTurns` (a plain mutable array shared by
- * every recursive call). `repeatTurns`/`callDepth` are threaded through unchanged (same array
- * reference) so a loop/comprehension nested inside a `repeat`/procedure call still sees the right
- * `repcount`/call depth.
- */
-export function pushLoopFrame(
-  environment: Environment,
-  bindings: ReadonlyMap<string, OLValue>,
-): Environment {
-  const frame: Frame = new Map(bindings);
-  return { ...environment, frames: [frame, ...environment.frames] };
-}
 
 /**
  * The first name in a destructuring pattern that repeats an earlier one in the same pattern
@@ -855,7 +880,7 @@ export function findDuplicateBinderName(
 
 /**
  * Bind one iterated element against `binder`: a bare name binds the whole element, while a
- * destructuring pattern destructures it positionally (`spec/execution-model.md:435-439`). A list
+ * destructuring pattern destructures it positionally (`spec/execution-model.md:802-806`). A list
  * element destructures by index; an {@link OLRecord} element destructures by its declared field
  * order (`fields()`/`get()`, `spec/data-structures.md:329-345`) — derived into a plain values array
  * *before* the arity check below, so a record whose field count disagrees with the pattern's arity
@@ -1295,11 +1320,11 @@ export function evaluate(
       return ok(values);
     }
     case "VarRef": {
-      const value = lookupVar(environment, node.name);
-      if (value === undefined) {
-        return fail(runtimeDiag.undefinedVar(node.source_span, node.name));
+      const read = readVariable(environment, node.name);
+      if (!read.found) {
+        return fail(failedRead(node.source_span, node.name, read.hiddenBy));
       }
-      return ok(value);
+      return ok(read.value);
     }
     case "Place":
       return readPlace(node, environment);
@@ -1343,7 +1368,7 @@ function evaluateDictLit(
 }
 
 /**
- * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:213`) — the Heritage dict
+ * `value of <dictionary> for key <key>` (issue #322, `spec/grammar.md:215`) — the Heritage dict
  * reader, read-only and a **dict-only** read: `spec/data-structures.md:268` types its operand
  * `dictExpr`, so unlike the Core `[key]` selector (which also indexes lists) it accepts nothing but
  * a dict. Heritage is "alternate spellings only, no new semantics" (`spec/conformance.md:150`), so
@@ -1363,7 +1388,7 @@ function evaluateDictLit(
  * — byte-identical, for every operand type but `record` (below), to what the twin Core `:x.tom`
  * prints. That identical prose is a *consequence* of reusing the Core builder rather than the
  * requirement itself: what the spec fixes is the machine-readable half — identity is `code` plus
- * `params` and prose is presentation (`spec/error-model.md:254-259`) — so reusing the one builder
+ * `params` and prose is presentation (`spec/error-model.md:256-261`) — so reusing the one builder
  * is what makes the Heritage guarantee hold where it is actually asserted.
  *
  * A **record** operand is the one container type with no Core twin: `dictExpr` excludes it, so the
@@ -1410,14 +1435,14 @@ function evaluateValueOfKey(
  * `spec/data-structures.md:191`).
  */
 function readPlace(node: PlaceNode, environment: Environment): EvalResult {
-  const base = lookupVar(environment, node.base.name);
-  if (base === undefined) {
+  const read = readVariable(environment, node.base.name);
+  if (!read.found) {
     return fail(
-      runtimeDiag.undefinedVar(node.base.source_span, node.base.name),
+      failedRead(node.base.source_span, node.base.name, read.hiddenBy),
     );
   }
 
-  let current: OLValue = base;
+  let current: OLValue = read.value;
   for (const segment of node.segments) {
     const step = resolvePlaceSegment(current, segment, environment, false);
     if (!step.ok) {
@@ -1746,15 +1771,17 @@ function evaluateThing(
       }),
     );
   }
-  const value = lookupVar(environment, argResult.value);
-  if (value === undefined) {
-    return fail(runtimeDiag.undefinedVar(argNode.source_span, argResult.value));
+  const read = readVariable(environment, argResult.value);
+  if (!read.found) {
+    return fail(
+      failedRead(argNode.source_span, argResult.value, read.hiddenBy),
+    );
   }
-  return ok(value);
+  return ok(read.value);
 }
 
 /**
- * `repcount` (`spec/commands.md:776-793`): reports the nearest-enclosing `repeat`'s current
+ * `repcount` (`spec/commands.md:797-814`): reports the nearest-enclosing `repeat`'s current
  * 1-based turn — the top of {@link Environment.repeatTurns}, since the `Repeat` handling
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
@@ -1800,7 +1827,7 @@ export function executeAssign(
     // The parser structurally accepts any of `RenderableNode`'s kinds (a reporter/command call,
     // or a bare literal/list) in target position, precisely so this rule — not a blunt parse
     // error — can explain the mistake (`checker-not-a-place.ts`'s doc comment, `spec/grammar.md`,
-    // `spec/tooling.md:213-219`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
+    // `spec/tooling.md:216-222`): `first :x = 5`, `count :nums = 3`, `3 = 5`, `[1 2] = 5` all
     // reach here as a non-`Place` `node.place`.
     return {
       ok: false,
@@ -1828,10 +1855,96 @@ export function executeAssign(
   }
 
   if (place.segments.length === 0) {
-    assignVar(environment, place.base.name, valueResult.value);
+    assignVariable(environment, place.base.name, valueResult.value);
     return { ok: true };
   }
   return writeIndexedPlace(place, valueResult.value, environment);
+}
+
+/**
+ * `local name` / `local name = value` / `(local a b …)` — declare names in the **current scope**
+ * (`spec/commands.md:103-122`, `spec/execution-model.md:501-543`).
+ *
+ * The whole subtlety is the order of the two steps for the initializer form: **evaluate first, bind
+ * second.** The initializer is evaluated with exactly the visibility the `local` statement itself
+ * has — the current scope *minus* the binding it is about to create — which is what lets
+ * `local count = :count + 1` read the `count` the statement could already see (a parameter, an
+ * earlier binding of the same scope, an enclosing block's binding, or a `global`) rather than
+ * raising `ol-undefined-var` on the binding being declared. Snapshotting a shared value into a
+ * same-named local is the reason that rule exists, and doing the two steps the other way round
+ * would break exactly it.
+ *
+ * The initializer belongs to the single-name form only (`spec/execution-model.md:517-518`), so the
+ * grammar guarantees `names` holds exactly one name whenever `value` is present; the parenthesized
+ * multi-name form never carries one.
+ *
+ * Lives here beside {@link executeAssign} rather than in `execute-internal.ts` because a
+ * comprehension body is a scope like any other and may declare a `local`
+ * (`spec/execution-model.md:367-369`): `runComprehensionBody` is in this module, and
+ * `execute-internal.ts` already imports it, so this is the one placement both callers can reach.
+ */
+export function executeLocal(
+  statement: LocalNode,
+  environment: Environment,
+): AssignResult {
+  if (statement.value === undefined) {
+    declareLocalNames(
+      environment,
+      statement.names.map((name) => name.name),
+    );
+    return { ok: true };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareLocalWithValue(
+    environment,
+    (statement.names[0] as SpannedName).name,
+    result.value,
+  );
+  return { ok: true };
+}
+
+/**
+ * `global name = value` — mark the root scope's binding of `name` shared and assign the initializer
+ * (`spec/commands.md:123-143`, `spec/execution-model.md:545-583`).
+ *
+ * The declaration is **legal only at the root scope** and raises `ol-global-outside-root` anywhere
+ * else — inside a procedure body, a control-form body, a handler block, or a comprehension body.
+ * {@link isRootScope} is that whole test: the root scope is the one place where the frame chain is
+ * the root frame alone, so every nested position fails it without a per-form list to keep in sync.
+ * The placement is checked **before** the initializer runs, so a misplaced declaration has no effect
+ * at all.
+ *
+ * `global` "takes effect when it runs" like any other top-level instruction, so a read that happens
+ * before the declaration line — including an early-firing handler — finds no binding and raises
+ * `ol-undefined-var`, which needs no code here: nothing is bound until this runs.
+ */
+export function executeGlobal(
+  statement: GlobalNode,
+  environment: Environment,
+): AssignResult {
+  if (!isRootScope(environment)) {
+    return {
+      ok: false,
+      diagnostic: runtimeDiag.globalOutsideRoot(statement.name.source_span, {
+        name: statement.name.name,
+      }),
+    };
+  }
+  if (!isSupportedArgument(statement.value, environment)) {
+    return { ok: true };
+  }
+  const result = evaluate(statement.value, environment);
+  if (!result.ok) {
+    return { ok: false, diagnostic: result.diagnostic };
+  }
+  declareGlobal(environment, statement.name.name, result.value);
+  return { ok: true };
 }
 
 /**
@@ -1849,19 +1962,20 @@ function writeIndexedPlace(
   value: OLValue,
   environment: Environment,
 ): AssignResult {
-  const base = lookupVar(environment, place.base.name);
-  if (base === undefined) {
+  const read = readVariable(environment, place.base.name);
+  if (!read.found) {
     return {
       ok: false,
-      diagnostic: runtimeDiag.undefinedVar(
+      diagnostic: failedRead(
         place.base.source_span,
         place.base.name,
+        read.hiddenBy,
       ),
     };
   }
 
   const segments = place.segments;
-  let container: OLValue = base;
+  let container: OLValue = read.value;
   for (let i = 0; i < segments.length - 1; i++) {
     const step = resolvePlaceSegment(
       container,
@@ -1889,7 +2003,7 @@ function writeIndexedPlace(
  * TARGET`, `insert … in TARGET at …`) to the shared list it must mutate in place. Evaluating a
  * supported target (`:name`, a postfix `:l[i]`, or any list-valued reporter) yields the *same*
  * array reference the binding holds, so a `push`/`splice`/`length = 0` on it is observed through
- * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:471-481`). A target that
+ * every alias (`spec/data-structures.md:47`, `spec/execution-model.md:838-848`). A target that
  * does not evaluate to a list raises `ol-type` (`spec/data-structures.md:79`). `OLValue`'s list
  * arm is `readonly`, so the cast to a mutable array mirrors {@link writeIndexedPlace}'s own
  * in-place write. `clear`'s target may also be a dict (issue #322), so it uses its own sibling
@@ -1922,7 +2036,7 @@ function evaluateListTarget(
 }
 
 /**
- * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:471-481`):
+ * Execute `add value to target` (`spec/data-structures.md:79`, `spec/execution-model.md:838-848`):
  * append `value` to the list `target` in place. `value` then `target` are evaluated left to right;
  * either operand being an expression kind this profile does not yet evaluate leaves the whole
  * statement a deferred no-op — matching {@link executeAssign}/`print`, so an unimplemented operand
@@ -2654,7 +2768,7 @@ function evaluateNot(
  * (`packages/parser/src/parser.ts`'s `parseParenthesized` gathers every operand up to it) and the
  * static checker never arity-checks a grammar operator callee (`checker-arity.ts`), so `(and)`
  * and `(and :a)` parse clean with zero or one operand. `and`/`or`'s signature is `boolean and
- * boolean` (`spec/commands.md:566,585`) — two operands minimum — so fewer than two would
+ * boolean` (`spec/commands.md:587,606`) — two operands minimum — so fewer than two would
  * otherwise silently report the identity value (`true` for `and`, `false` for `or`) without ever
  * checking a single operand's type; `execute()` runs `parse()` only, so this is the sole guard.
  */
@@ -2696,11 +2810,11 @@ function evaluateLogical(
 
 // --- Comparisons: equality (`== !=`), ordering (`< > <= >=`), and chains --------------------
 //
-// spec/execution-model.md:483-510. `==`/`!=` compare any two values to a boolean and never
+// spec/execution-model.md:850-877. `==`/`!=` compare any two values to a boolean and never
 // raise; ordering is defined only for two numbers or two words and raises `ol-type` otherwise.
 
 /**
- * The canonical printed form of a number (`spec/execution-model.md:19,498-500`): whole values
+ * The canonical printed form of a number (`spec/execution-model.md:19,865-867`): whole values
  * print without a decimal, non-whole values are trimmed to at most 10 significant digits. So
  * `5 == "5"` is `true`, `5 == "05"` is `false` (5 prints as `"5"`, not `"05"`), and a word
  * carrying more than 10 significant digits cannot equal the number it looks like.
@@ -2718,7 +2832,7 @@ export function formatNumber(value: number): string {
 
 /**
  * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
- * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * `print`/`show` in `spec/commands.md:163-196` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -2771,7 +2885,7 @@ function primitivePrintedForm(value: OLValue): string | undefined {
   }
   if (value instanceof OLTurtle) {
     // A turtle's printed form is its stable, deterministic identity tag `turtle #<id>`
-    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:540`): a turtle is an opaque
+    // (`spec/turtles-and-sprites.md:13`, `spec/execution-model.md:907`): a turtle is an opaque
     // identity, not a container, so it renders as a single leaf token — never its (mutable) drawing
     // state, which would make `print :t` non-deterministic across movement/pen changes.
     return `turtle #${formatNumber(value.id)}`;
@@ -2824,7 +2938,7 @@ function finishPrintFrame(frame: PrintFrame): string {
 
 /**
  * The canonical printed form of any Core value (`spec/execution-model.md:19` for numbers;
- * `print`/`show` in `spec/commands.md:142-175` for the command surface). Used to render the
+ * `print`/`show` in `spec/commands.md:163-196` for the command surface). Used to render the
  * `print value`/`(print …)` trace event as learner-visible text: numbers follow
  * {@link formatNumber}; a word prints verbatim (no surrounding quotes); a boolean prints
  * `true`/`false`; a list prints space-separated and bracketed, recursively, so a nested list
@@ -2987,7 +3101,7 @@ function storeSnapshotChild(frame: SnapshotFrame, childClone: OLValue): void {
  * but it is an opaque *identity* value, not an aliasable container: its own per-turtle drawing state
  * is captured into trace events at the moment each effect is emitted, never through this
  * value-graph copy, and its identity must be preserved so a snapshotted turtle still `==` the
- * original (`spec/execution-model.md:540`). So a turtle is copied by keeping the same reference,
+ * original (`spec/execution-model.md:907`). So a turtle is copied by keeping the same reference,
  * exactly like a primitive — only lists/dicts/records are structurally cloned below.
  */
 function isSnapshotLeaf(
@@ -3067,7 +3181,7 @@ export function snapshotValue(
 }
 
 /**
- * Normative `==` for OpenLogo's value types (`spec/execution-model.md:483-510` matrix): numeric
+ * Normative `==` for OpenLogo's value types (`spec/execution-model.md:850-877` matrix): numeric
  * equality for two numbers; number↔word by canonical printed form; case-sensitive word equality;
  * boolean identity; structural list equality; structural dict equality (same key set, pairwise
  * `==`, order-independent — issue #322); every other cross-type pair is `false`. List/dict
@@ -3112,7 +3226,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
     return b instanceof OLRecord ? recordEqual(a, b, inProgress) : false;
   }
   if (a instanceof OLTurtle) {
-    // Turtles compare by identity, never by state (`spec/execution-model.md:540`): a turtle equals
+    // Turtles compare by identity, never by state (`spec/execution-model.md:907`): a turtle equals
     // only the same turtle. Identity is the turtle's stable `id`, not the JS instance — so the
     // guarantee holds even if a turtle value reaches this comparison through two different routes
     // (`who`, `turtles`, `ask`/`each` binding, a snapshot round-trip) that hand back separate
@@ -3130,7 +3244,7 @@ function equalRec(a: OLValue, b: OLValue, inProgress: EqualityMemo): boolean {
 
 /**
  * Structural list equality that terminates on cyclic or shared structure
- * (`spec/execution-model.md:502-506`). `inProgress` holds the reference pairs currently on the
+ * (`spec/execution-model.md:869-873`). `inProgress` holds the reference pairs currently on the
  * comparison stack; re-encountering a pair while it is still in progress is the cyclic back-edge,
  * treated as equal for that branch (bisimulation, not identity short-circuiting). Each pair is
  * removed once its comparison completes, so `inProgress` stays a faithful stack rather than a
@@ -3169,7 +3283,7 @@ function listEqual(
 }
 
 /**
- * Structural dict equality (issue #322, `spec/execution-model.md:494`): same key set and pairwise
+ * Structural dict equality (issue #322, `spec/execution-model.md:861`): same key set and pairwise
  * `==`, order-independent. Sibling of {@link listEqual} — same cyclic/shared-structure memoization
  * strategy, reusing the same `inProgress` stack since a dict can nest lists and vice versa.
  */
@@ -3249,7 +3363,7 @@ function recordEqual(
 
 /**
  * Lexicographic comparison of two words by Unicode code point
- * (`spec/execution-model.md:509`). `Array.from` iterates by code point (not UTF-16 code unit),
+ * (`spec/execution-model.md:876`). `Array.from` iterates by code point (not UTF-16 code unit),
  * so astral characters sort by their true scalar value. Returns a negative number, `0`, or a
  * positive number when `a` sorts before, equal to, or after `b`.
  */
@@ -3306,7 +3420,7 @@ function numberOrdering(
 /**
  * Ordering (`< > <= >=`) is defined only for two numbers (compared numerically) or two words
  * (compared lexicographically); every other pair raises `ol-type`
- * (`spec/execution-model.md:508-510`). When the left operand is itself non-orderable
+ * (`spec/execution-model.md:875-877`). When the left operand is itself non-orderable
  * (boolean/list) the diagnostic points at it and names the expected concept `"number or word"`;
  * otherwise the right operand does not match the left's type and the diagnostic points at the
  * right, naming the left's concept.
@@ -3733,7 +3847,7 @@ function evaluateIsPredicate(
   }
 }
 
-/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md:655-669`). */
+/** `empty? value` — the prefix equivalent of `<value> is empty` (`spec/commands.md:676-690`). */
 function evaluatePrefixEmpty(
   node: ArithmeticCallNode,
   environment: Environment,
@@ -3752,7 +3866,7 @@ function evaluatePrefixEmpty(
 
 /**
  * `member? value collection` — the prefix equivalent of `<value> is member of <collection>`
- * (`spec/commands.md:673-687`).
+ * (`spec/commands.md:694-708`).
  */
 function evaluatePrefixMember(
   node: ArithmeticCallNode,
@@ -3778,7 +3892,7 @@ function evaluatePrefixMember(
 
 /**
  * `is_a? value type` — the prefix equivalent of `<value> is a <type-word>`
- * (`spec/commands.md:691-705`), whose `type` argument is dynamically evaluated
+ * (`spec/commands.md:712-726`), whose `type` argument is dynamically evaluated
  * (see {@link evaluateIsAValue}).
  */
 function evaluatePrefixIsA(
@@ -3808,12 +3922,12 @@ function evaluatePrefixIsA(
 }
 
 // --- Core list reporters: first/last/butfirst/butlast/fput/lput/sentence/word/count (issue #101,
-// #234; spec/commands.md "Words and lists", spec/execution-model.md:447-482) ---------------------
+// #234; spec/commands.md "Words and lists", spec/execution-model.md:814-849) ---------------------
 //
 // Every reporter below is a plain `Call`/`ParenCall` — no dedicated AST node — dispatched by
 // lowercased callee name, same as the is-predicates above. `fput`/`lput`/`sentence`/`word` always
 // return a *fresh* value (never mutate an argument list in place); nested element references
-// are shared, only the outer array is copied (`spec/execution-model.md:447-482`'s
+// are shared, only the outer array is copied (`spec/execution-model.md:814-849`'s
 // mutation-vs-copy distinction). `reverse`/`pick`/`sort` are Data-profile derived reporters
 // (`spec/data-structures.md:125-141`), not Core — they are evaluated just below `count`, sharing
 // this section's `isWordOrList`/`listReporterType` helpers, but kept in their own issue #190 doc
@@ -3968,7 +4082,7 @@ function evaluateButlast(
 
 /**
  * `fput`/`lput` — a *fresh* list with `value` prepended/appended to `list`
- * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:447-482` — never mutates `list`).
+ * (`spec/commands.md` "fput"/"lput"; `spec/execution-model.md:814-849` — never mutates `list`).
  * A non-list second argument raises `ol-type`.
  */
 function evaluateFputOrLput(
@@ -4092,7 +4206,7 @@ function evaluateWord(
 
 /**
  * `count` — the number of elements in a list, entries in a dict (issue #322), or characters in a
- * word (`spec/commands.md:1141` — accepts a word, list, or dict). Any other input raises
+ * word (`spec/commands.md:1162` — accepts a word, list, or dict). Any other input raises
  * `ol-type`.
  */
 function evaluateCount(
@@ -4583,7 +4697,7 @@ function evaluatePos(
  * `towards x y` — the heading (`[0,360)`) from the turtle's current position toward `(x, y)`
  * (`spec/commands.md` "towards"). `Math.atan2(dx, dy)` (arguments in `(x, y)` order, not the usual
  * `(y, x)`) directly yields OL's compass-bearing convention — `0` points up/`+y`, `right`/clockwise
- * is positive — matching `spec/execution-model.md:538` and verified against the spec's own worked
+ * is positive — matching `spec/execution-model.md:905` and verified against the spec's own worked
  * example: `towards 100 0` from the origin is `90` (dx=100, dy=0 → atan2(100,0) = 90°).
  * {@link normalizeHeading} folds the `atan2` result's `(-180,180]` range into `[0,360)`, same as
  * every other heading-producing path. Non-number `x`/`y` raise `ol-type`
@@ -4756,9 +4870,9 @@ function evaluateTurtles(
 
 /**
  * `input <prompt>` (Interaction & Events profile, issue #681, slice I2 —
- * `spec/interaction-events.md:126-137`): a Kind-R reporter taking one prompt that displays the
+ * `spec/interaction-events.md:187-198`): a Kind-R reporter taking one prompt that displays the
  * prompt, waits for the learner to enter one value, and reports it as a word or a number. It is
- * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:134-135`,
+ * "the only blocking read in OpenLogo v0.1 and belongs to this profile, not Core" (`:195-196`,
  * `spec/conformance.md:167-169`).
  *
  * Four steps, in this order:
@@ -4771,13 +4885,13 @@ function evaluateTurtles(
  *      {@link InputPromptNotWordParams} for the #768 ruling that narrowed this from #681's scalars.
  *   3. **The read** — take the next scripted answer ({@link takeInputResponse}) from the run's FIFO
  *      queue (`ExecuteOptions.hostInput.responses`, the #657 ruling). With no answer left the read
- *      can never finish, so it takes the only other ending `:110-111` allows and the program is
+ *      can never finish, so it takes the only other ending `:171-172` allows and the program is
  *      cancelled ({@link runtimeDiag.cancelled}).
  *   4. **The after-effect event** — one `primitive` event naming `input`, emitted *after* the answer
- *      is in hand ({@link emitInputPrimitive}), then the value is reported per `:136-137`
- *      ({@link interpretSubmittedText}).
+ *      is in hand ({@link emitInputPrimitive}), then the value is reported per
+ *      `spec/interaction-events.md:197-198` ({@link interpretSubmittedText}).
  *
- * The **blocking** property (`:108-111` — while the read waits, no new OpenLogo instruction and no
+ * The **blocking** property (`:169-172` — while the read waits, no new OpenLogo instruction and no
  * event handler block may run) is upheld by what this function does *not* do: it reaches no
  * {@link yieldToEventLoop} checkpoint and never advances the tick clock, so no `when`/`on_key`/
  * `on_click`/`every` handler can be delivered across a read, and the next instruction cannot start
@@ -4813,7 +4927,7 @@ function evaluateInput(
     // The read can never finish, so it takes the only other ending `spec/interaction-events.md:
     // 110-111` allows — "until the read finishes or the program is cancelled" — through the SHARED
     // cancellation diagnostic, not a lookalike of its own. Identity is code + params and prose is
-    // presentation (`spec/error-model.md:254-259`), so what a second builder would risk is a drift
+    // presentation (`spec/error-model.md:256-261`), so what a second builder would risk is a drift
     // in the half the spec actually fixes; reusing this one keeps `ol-limit` / `{ limit:
     // "cancelled" }` identical to an externally cancelled run in any build, localized or not. The
     // span still points at the waiting `input`, which tells a learner *where* the run stopped.
@@ -4825,7 +4939,7 @@ function evaluateInput(
 
 /**
  * Perform the read itself: display `promptText` to the host and wait for the one value the learner
- * enters (`spec/interaction-events.md:134`). Reports the submitted text, or `undefined` when the
+ * enters (`spec/interaction-events.md:195`). Reports the submitted text, or `undefined` when the
  * read cannot be answered at all.
  *
  * Two hosts, one meaning. A caller that supplied a live reader
@@ -4836,7 +4950,7 @@ function evaluateInput(
  * reader wins when both are present: a run with a real host must never quietly prefer a stale
  * script.
  *
- * Either way the read is **synchronous**, which is how `spec/interaction-events.md:108-111`'s "MUST
+ * Either way the read is **synchronous**, which is how `spec/interaction-events.md:169-172`'s "MUST
  * NOT run new OpenLogo instructions or event handler blocks until the read finishes" is upheld —
  * not by a check, but by there being no suspension point at which anything else could be scheduled.
  * `interaction-input-blocking.test.mjs` probes that window from inside the reader.
@@ -4942,10 +5056,10 @@ function evaluateRandom(
   );
 }
 
-// --- Comprehensions: map / filter / reduce (spec/execution-model.md:380-479, issue #105) ------
+// --- Comprehensions: map / filter / reduce (spec/execution-model.md:734-846, issue #105) ------
 //
 // Comprehensions are value-producing *expressions* usable anywhere an expression is
-// (`spec/execution-model.md:380-384`), so — unlike a procedure body, which can contain arbitrary
+// (`spec/execution-model.md:734-738`), so — unlike a procedure body, which can contain arbitrary
 // control flow and genuinely needs `execute-internal.ts`'s full `executeStatements` dispatcher —
 // every spec worked example and acceptance criterion for a comprehension body is a single
 // bracketed expression-block whose *last* statement supplies the result
@@ -5017,9 +5131,14 @@ function isValueProducingStatement(statement: StatementNode): boolean {
  * `Return`/`Stop` are structurally supported (they become `ol-return-in-comprehension` when
  * actually reached, in {@link runComprehensionBody} — not silently deferred); `Assign` is always
  * supported (an unsupported assignment target/value is itself silently a no-op, per
- * {@link executeAssign}'s own convention); any expression-shaped statement is
- * supported when {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/
- * `For`/`Forever`/`ProcedureDef`) is not.
+ * {@link executeAssign}'s own convention), and so are the two binding declarations `Local`/`Global`
+ * for the same reason — a comprehension body is a **block scope**
+ * (`spec/execution-model.md:367-369`), so `local` declares in it like anywhere else and a `global`
+ * written in one raises `ol-global-outside-root`. Omitting them here would not merely skip the
+ * declaration: an unsupported leading statement makes the whole comprehension a silent no-op, which
+ * is a wrong answer with no diagnostic at all. Any expression-shaped statement is supported when
+ * {@link isSupportedExpression} says so. Anything else (`If`/`While`/`Repeat`/`For`/`Forever`/
+ * `ProcedureDef`) is not.
  */
 function isSupportedLeadingBodyStatement(
   statement: StatementNode,
@@ -5029,7 +5148,9 @@ function isSupportedLeadingBodyStatement(
   if (
     statement.kind === "Return" ||
     statement.kind === "Stop" ||
-    statement.kind === "Assign"
+    statement.kind === "Assign" ||
+    statement.kind === "Local" ||
+    statement.kind === "Global"
   ) {
     return true;
   }
@@ -5045,15 +5166,30 @@ function isSupportedLeadingBodyStatement(
  * structurally supported (as above). A **Command** call is also structurally supported even though
  * {@link evaluate} never gives it a value — {@link runComprehensionBody} correctly turns it into
  * `ol-no-value` (it is command-shaped, not a not-yet-implemented shape), reproducing the spec's own
- * worked example `map num in :nums [ print :num ]` → `ol-no-value`. Any other expression-shaped
- * statement is supported when {@link isSupportedExpression} says so.
+ * worked example `map num in :nums [ print :num ]` → `ol-no-value`. The three **binding** statements
+ * `Assign`/`Local`/`Global` are supported for exactly the same reason and reach exactly the same
+ * outcome: they are ordinary statements that produce no value, so a body ending in one violates the
+ * block-result rule (`spec/execution-model.md:217-230`) and MUST raise `ol-no-value` — not vanish.
+ *
+ * "Not supported" is not a soft failure here: an unsupported final statement makes
+ * `isSupportedComprehensionBody` reject the whole comprehension, and the enclosing expression then
+ * evaluates to nothing at all, silently, with no diagnostic — a wrong answer rather than a missing
+ * feature. That is what `print map n in [1] [ local x = :n ]` used to do, found by the review gate's
+ * logic/spec reviewer. Any other expression-shaped statement is supported when
+ * {@link isSupportedExpression} says so.
  */
 function isSupportedFinalBodyStatement(
   statement: StatementNode,
   procedures: ProcedureRegistry,
   structs: StructRegistry = EMPTY_STRUCTS,
 ): boolean {
-  if (statement.kind === "Return" || statement.kind === "Stop") {
+  if (
+    statement.kind === "Return" ||
+    statement.kind === "Stop" ||
+    statement.kind === "Assign" ||
+    statement.kind === "Local" ||
+    statement.kind === "Global"
+  ) {
     return true;
   }
   if (
@@ -5176,6 +5312,19 @@ function runComprehensionBody(
       }
       continue;
     }
+    // A comprehension body is a block scope like any other, so it may declare a `local` — and a
+    // `global` written in one is off the root scope and raises `ol-global-outside-root`
+    // (`spec/execution-model.md:367-369,561-563`). Both share `Assign`'s outcome shape.
+    if (statement.kind === "Local" || statement.kind === "Global") {
+      const result =
+        statement.kind === "Local"
+          ? executeLocal(statement, environment)
+          : executeGlobal(statement, environment);
+      if (!result.ok) {
+        return { kind: "halt", diagnostic: result.diagnostic };
+      }
+      continue;
+    }
     const expression = asExpressionStatement(statement) as ExpressionNode;
     const result = evaluate(expression, environment);
     if (!result.ok) {
@@ -5278,19 +5427,19 @@ function comprehensionDuplicateBinder(
 }
 
 /**
- * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:380-479`, worked
- * examples `:695-741`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
+ * Evaluate a `map`/`filter`/`reduce` comprehension (`spec/execution-model.md:734-846`, worked
+ * examples `:1062-1108`): binder-duplicate check first ({@link comprehensionDuplicateBinder}), then
  * the iterable (must be a list — `ol-type` otherwise, mirroring `ForIn`'s own `forInNotList`),
  * then one {@link runComprehensionBody} pass per element (each in its own fresh body-local frame,
  * {@link pushLoopFrame}) — collecting every body value for `map`, keeping elements whose boolean
  * body value is `true` for `filter` (`ol-not-boolean` for a non-boolean body value), or folding
  * into an accumulator seeded by `initial` for `reduce` (returned unchanged when `elements` is
- * empty, `spec/execution-model.md:402`).
+ * empty, `spec/execution-model.md:769`).
  */
 /**
  * Run the main line's statement-boundary hook at a comprehension iteration and report a halting
  * diagnostic, or `undefined` to continue (maintainer ruling #984,
- * `spec/interaction-events.md:189-204`).
+ * `spec/interaction-events.md:250-265`).
  *
  * A comprehension body is an **expression**, so it never reaches `executeStatements` and never sees
  * that function's per-statement boundary — yet each iteration is main-line progress exactly as a

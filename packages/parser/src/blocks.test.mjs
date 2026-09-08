@@ -2,7 +2,7 @@
 // bracketed `[ ... ]` blocks (empty and non-empty, with and without newlines), long
 // `... end` blocks, top-level statement separation (including consecutive/blank-line
 // terminators and the optional final newline), and the bracket-block vs expression-block
-// distinction — per spec/grammar.md:34,75,140-142,267,277,279. These validate the
+// distinction — per spec/grammar.md:34,75,141-143,269,279,281. These validate the
 // already-merged parser; they do not change it. Short bracketed CONTROL bodies for
 // if/while/repeat/forever are already covered by control-short.test.mjs (issue #57) and
 // are not re-tested here.

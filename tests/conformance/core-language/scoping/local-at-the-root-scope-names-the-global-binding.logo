@@ -1,0 +1,7 @@
+global count = 1
+local count = 5
+define peek
+  print :count
+end
+peek
+print :count

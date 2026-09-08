@@ -1,0 +1,19 @@
+{
+  "description": "ol-global-outside-root inside a control-form body. A block scope is one of the three scopes spec/execution-model.md:361-369 defines, and it is not the root scope, so a global written in a top-level repeat block is rejected exactly as one inside a procedure is — the rule is about the scope, not about procedures.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-global-outside-root",
+      "source_span": {
+        "document": "core-language/check/global-outside-root-block",
+        "start": [1, 19],
+        "end": [1, 24]
+      },
+      "params": { "name": "count" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

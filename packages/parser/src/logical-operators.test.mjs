@@ -4,7 +4,7 @@
 // missing-operand diagnostic, and the paren-variadic callee/arg-count/span for `and`/`or`; this
 // file targets what that leaves untested: full node spans for the infix desugaring, the
 // interaction of the whole precedence ladder (`not` > comparison > `and` > `or`, per
-// spec/grammar.md:218-226) in one expression, `not`'s right-associative nesting, and the parser's
+// spec/grammar.md:220-228) in one expression, `not`'s right-associative nesting, and the parser's
 // current (permissive) behavior for degenerate paren-variadic arities `(and)`/`(and :a)` — the
 // arity floor for these variadic logic forms is a semantic-stage concern (no checker is merged
 // yet at M1), so the parser accepts them with no diagnostic; this is documented behavior, not a

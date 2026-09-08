@@ -1,0 +1,81 @@
+{
+  "description": "\"Dynamic loop state does not cross the procedure boundary any more than a variable does\" (spec/execution-model.md:673-680): `repcount` reports the turn of the `repeat` that LEXICALLY encloses it, and `h`'s body encloses none, so calling it from inside a live `repeat` body raises `ol-repcount-outside-repeat` (spec/error-model.md:120) rather than reporting the caller's turn. Measured: a runtime that lets a call inherit the caller's turn stack prints `1` and then `2` here, with no diagnostic, and passes every other `repcount` fixture in the corpus. The existing `repcount-in-a-handler-has-no-enclosing-repeat` pins the deferred-handler shape; this is the procedure-boundary shape, which is a different sentence of the same section.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [4, 1],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [4, 12],
+        "end": [4, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [4, 12],
+        "end": [4, 13]
+      },
+      "payload": {
+        "name": "h",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [2, 3],
+        "end": [2, 17]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/scoping/repcount-does-not-cross-the-procedure-boundary",
+        "start": [2, 9],
+        "end": [2, 17]
+      },
+      "params": {},
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

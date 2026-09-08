@@ -1,0 +1,5 @@
+define never_called
+  print repcount
+end
+on_key "a" [ print repcount ]
+print 1

@@ -1,0 +1,104 @@
+{
+  "description": "The other half of the block rule, and the reason a block is NOT a write boundary (spec/execution-model.md:595-601): a block MAY update any binding visible from its enclosing scope. `:total` is born at the top level, so all four turns update one binding and the accumulator idiom works. This is the non-regression that a too-eager seal would break.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [1, 1],
+        "end": [1, 11]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [2, 1],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [2, 12],
+        "end": [2, 31]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-block-updates-what-it-can-see",
+        "start": [3, 1],
+        "end": [3, 13]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}

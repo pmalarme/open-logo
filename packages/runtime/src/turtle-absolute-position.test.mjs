@@ -1,6 +1,6 @@
 // Unit tests for `home`/`set_xy`/`set_heading` (issue #202, spec/commands.md's Turtle movement
 // table — `home`/`set_xy` reposition the turtle at an absolute point; `set_heading` sets an
-// absolute heading, normalized to `[0,360)` per spec/commands.md:1300). `home` resets both
+// absolute heading, normalized to `[0,360)` per spec/commands.md:1321). `home` resets both
 // position and heading, so it emits `move`/conditional `draw-segment` (like `forward`/`back`,
 // issue #200) followed by `turn` (like `left`/`right`, issue #201); `set_xy` only emits
 // `move`/`draw-segment` (heading untouched); `set_heading` only emits `turn` (position untouched).

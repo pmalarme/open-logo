@@ -1,0 +1,106 @@
+{
+  "description": "VISIBILITY decides which binding an assignment reaches, never statement order (spec/execution-model.md:483-490). `reset`'s first — and only — touch of `count` is a WRITE, but `count` IS visible to it, so the assignment updates the global rather than shadowing it with a procedure-local. An unqualified \"write-first creates a local\" implementation prints `5` here and leaves `global` readable-but-not-writable, silently defeating the whole point of the declaration.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "name": "reset",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [3, 3],
+        "end": [3, 13]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [5, 1],
+        "end": [5, 6]
+      },
+      "payload": {
+        "name": "reset",
+        "result": null
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-visible-global-is-updated-by-a-write-first-procedure",
+        "start": [6, 1],
+        "end": [6, 13]
+      },
+      "payload": {
+        "values": [0]
+      }
+    }
+  ],
+  "diagnostics": []
+}

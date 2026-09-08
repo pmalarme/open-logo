@@ -1,0 +1,7 @@
+struct point [ x y ]
+define move_x :p
+  :p.x = 99
+end
+:q = point 1 2
+move_x :q
+print :q.x

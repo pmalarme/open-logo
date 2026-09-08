@@ -1,0 +1,19 @@
+{
+  "description": "The code split, from the other side (issue #825): a name only a top-level BLOCK binds is NOT boundary-hidden, so a procedure reading it earns `ol-undefined-var`, not `ol-var-not-visible` (spec/error-model.md:102,132). A procedure body's only lexically enclosing scope is the root scope — a `define` is registered in phase 1 and never nested in the scope it is written in (spec/execution-model.md:651-655) — and the `repeat` body encloses no procedure body, so the boundary is not the reason this read failed. Getting it wrong in the other direction would be actively misleading: the message would offer `global temp = ...` as the fix for a name that is not a top-level name at all. The matching runtime case is tests/conformance/core-language/scoping/a-name-only-a-top-level-block-binds-is-not-boundary-hidden.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-a-block-name-is-not-boundary-hidden",
+        "start": [3, 9],
+        "end": [3, 14]
+      },
+      "params": { "name": "temp" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

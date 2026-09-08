@@ -1,0 +1,35 @@
+{
+  "description": "The two scoping codes side by side in one program, each on the read that earns it: `:count` is bound by the root scope and hidden by `draw_steps`'s boundary, so it is `ol-var-not-visible` naming that procedure; `:multiplier` is bound only by a block that has ended, so it is `ol-undefined-var` (spec/error-model.md:102,132). Both are asserted, in source order — measured, a checker that reports only the first scoping diagnostic it finds satisfies every single-diagnostic fixture in this corpus and fails this one. `draw_steps` is never called, so the runtime never reaches its body at all and only the semantic stage can make this assertion.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-and-undefined-var-in-one-program",
+        "start": [3, 11],
+        "end": [3, 17]
+      },
+      "params": {
+        "name": "count",
+        "procedure": "draw_steps"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-and-undefined-var-in-one-program",
+        "start": [6, 7],
+        "end": [6, 18]
+      },
+      "params": {
+        "name": "multiplier"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

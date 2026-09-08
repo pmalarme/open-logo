@@ -1,5 +1,5 @@
 {
-  "description": "issue #932's reporter control, the half a blanket \"treat every call as a command\" fix would have destroyed silently. `xcor` is a Reporter (`spec/commands.md:1315,1317`: Kind Reporter, Result number), so the same `map` shape as `command-body-no-value-check` — same profile, same style setting, same value position — is CLEAN. Pairing the two is what makes the fixture pair evidence of a classification rather than of a suppression.",
+  "description": "issue #932's reporter control, the half a blanket \"treat every call as a command\" fix would have destroyed silently. `xcor` is a Reporter (`spec/commands.md:1336,1338`: Kind Reporter, Result number), so the same `map` shape as `command-body-no-value-check` — same profile, same style setting, same value position — is CLEAN. Pairing the two is what makes the fixture pair evidence of a classification rather than of a suppression.",
   "profiles": ["core-language", "turtle-rendering"],
   "check": true,
   "style": true,

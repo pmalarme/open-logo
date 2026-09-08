@@ -1,0 +1,144 @@
+{
+  "description": "The `on_click` × `return` cell; see `an-every-handler-stop-is-not-consumed-by-its-registering-call` for the rationale. `ol-return-outside-proc` (spec/error-model.md:116) while `setup` is still on the stack, with the click delivered by `hostInput.events` inside the enclosing `wait`. With this fixture the on-stack half of the rule is pinned for all four handler kinds and both signals: `when` × `stop` is `a-when-handler-stop-is-not-consumed-by-its-registering-call` and `when` × `return` is the pre-existing `interaction-events/when/when-return-in-handler-inside-proc`.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "executeOptions": {
+    "hostInput": {
+      "events": [
+        {
+          "tick": 1,
+          "kind": "click"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [1, 1],
+        "end": [5, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [6, 1],
+        "end": [6, 6]
+      },
+      "payload": {
+        "name": "setup",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 24]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 24]
+      },
+      "payload": {
+        "name": "on_click"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [3, 3],
+        "end": [3, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 3],
+        "end": [2, 11]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "on_click"
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 14],
+        "end": [2, 22]
+      },
+      "payload": {
+        "statement_kind": "Return"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "return",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 14],
+        "end": [2, 22]
+      },
+      "payload": {
+        "value": 5
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/scoping/an-on-click-handler-return-is-not-consumed-by-its-registering-call",
+        "start": [2, 14],
+        "end": [2, 22]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "description": "A block is a LIFETIME boundary (spec/execution-model.md:603-605): a name born inside it goes out of scope at the end of that block, so no code outside can name that binding. `:i` is created in the `repeat` body, so the later `print :i` finds nothing bound anywhere it can reach — `ol-undefined-var`, the ordinary failed read (spec/error-model.md:102).",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [1, 1],
+        "end": [1, 20]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [1, 12],
+        "end": [1, 18]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [2, 1],
+        "end": [2, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/scoping/a-block-local-name-dies-at-the-bracket",
+        "start": [2, 7],
+        "end": [2, 9]
+      },
+      "params": {
+        "name": "i"
+      },
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

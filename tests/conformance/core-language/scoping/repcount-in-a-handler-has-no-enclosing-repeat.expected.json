@@ -1,0 +1,96 @@
+{
+  "description": "A handler invocation is a separate, DEFERRED instruction rather than part of the loop that registered it, so a `repcount` whose nearest lexically enclosing `repeat` is outside the handler block raises `ol-repcount-outside-repeat` \"however the loop is placed and whether or not it has finished\" (spec/execution-model.md:682-690). Here the enclosing `repeat` is still running when the handler fires — the `wait` is inside the loop body — so a runtime that simply let the handler body inherit the registering scope's active turn stack would print a turn number instead. A `repeat` written INSIDE a handler block is unaffected and is covered separately by the runtime's unit suite.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 1],
+        "end": [1, 49]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 12],
+        "end": [1, 38]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 12],
+        "end": [1, 38]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 41],
+        "end": [1, 47]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 12],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 22],
+        "end": [1, 36]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/scoping/repcount-in-a-handler-has-no-enclosing-repeat",
+        "start": [1, 28],
+        "end": [1, 36]
+      },
+      "params": {},
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

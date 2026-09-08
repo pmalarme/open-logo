@@ -404,7 +404,7 @@ function nameCaseNames(source, profiles = ALL_PROFILES) {
 test("ol-style-name-case: every silent row of issue #854's reported table now warns", () => {
   // The defect table verbatim. The first three rows already warned before #854 and must keep
   // warning (a widening must not trade one gap for another); the last four were silent, which is
-  // the bug: `spec/tooling.md:241` requires that "built-ins should be shown lowercase", and
+  // the bug: `spec/tooling.md:244` requires that "built-ins should be shown lowercase", and
   // `forward` is the first command a learner ever types.
   const cases = [
     ["TO f\nreturn 1\nend", ["TO"]],
@@ -637,7 +637,7 @@ test("ol-style-name-case: an uppercase word that is no registry's built-in is le
 });
 
 test("ol-style-name-case: a built-in keeps its identity even when a program illegally declares it", () => {
-  // `spec/grammar.md:363` is "a program may not declare a built-in name", so `define print … end`
+  // `spec/grammar.md:365` is "a program may not declare a built-in name", so `define print … end`
   // is an `ol-reserved-word` error rather than a shadowing. The casing warning must therefore
   // survive it — an invalid declaration cannot buy silence for `PRINT`.
   const source = "define print :x\nreturn 1\nend\nPRINT 1";
@@ -650,7 +650,7 @@ test("ol-style-name-case: a built-in keeps its identity even when a program ille
 });
 
 test("ol-style-name-case: a bare word-literal key is data, never a miscased built-in", () => {
-  // Dictionary and selector keys may be written bare, and `spec/grammar.md:386` makes a keyword
+  // Dictionary and selector keys may be written bare, and `spec/grammar.md:390` makes a keyword
   // free in every binding position — a key included. A learner writing `{ PRINT: 1 }` has named a
   // key, not miscased the `print` primitive. Reporting it would also be inconsistent, since
   // `{ Alpha: 1 }` (no built-in collision) is left alone; the control pins that symmetry.
@@ -687,7 +687,7 @@ test("ol-style-name-case: a built-in callee is reported once, keeping the identi
 });
 
 test("ol-style-name-case: built-in casing is judged the same under any profile set", () => {
-  // A built-in name's *identity* is profile-independent (`spec/grammar.md:408`: a program cannot
+  // A built-in name's *identity* is profile-independent (`spec/grammar.md:412`: a program cannot
   // declare which profiles it requires, so "what a profile decides is whether a name *works*,
   // never whether a program may declare it"). Whether `forward` is available is
   // `ol-unknown-command`'s job; its casing is not. This also pins that a Core-only caller keeps
@@ -1098,8 +1098,8 @@ test("ol-style-name-case: a mis-cased Heritage keyword's span covers exactly tha
 // instruction budget (PR #910) -- already makes the program safe, so these are warnings that never
 // change program meaning. Message wording is asserted HERE and not in a conformance fixture, and
 // not because the harness cannot compare it: a fixture opts in with `"compareMessages": true`
-// (issue #1025). This wording deliberately does not opt in. `spec/error-model.md:256-259` makes
-// identity `code` plus `params` and asks tests to assert those, and `:261-263` positively permits a
+// (issue #1025). This wording deliberately does not opt in. `spec/error-model.md:258-261` makes
+// identity `code` plus `params` and asks tests to assert those, and `:263-265` positively permits a
 // template author to reorder, inflect, or soften prose -- so freezing a style lint's English in a
 // stack-neutral fixture would oblige every conforming implementation to emit it verbatim. The
 // opt-in is for the messages the spec fixes itself; a unit test is where ours belong.

@@ -1,0 +1,30 @@
+{
+  "description": "ol-var-not-visible (issue #825) is NOT suppressed by a misplaced `global`. A `global` written inside a procedure body declares nothing and raises `ol-global-outside-root` (spec/execution-model.md:561-563), and this rule normally answers that one mistake with one diagnostic — it suppresses the `ol-undefined-var` a read of the same name would otherwise earn. **That suppression must stop at the generic code.** Here the root scope really does bind `count`, so the read is boundary-hidden, and the learner who put `global` in the wrong place is exactly the learner who needs the message that names the top-level fix. Both diagnostics are therefore reported. The paired control is check/global-outside-root-suppresses-undefined-var-style coverage in packages/parser/src/global-variables.test.mjs, where the root binds nothing and only `ol-global-outside-root` is reported.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-var-not-visible",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-survives-a-misplaced-global",
+        "start": [4, 9],
+        "end": [4, 15]
+      },
+      "params": { "name": "count", "procedure": "f" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-global-outside-root",
+      "source_span": {
+        "document": "core-language/check/var-not-visible-survives-a-misplaced-global",
+        "start": [3, 10],
+        "end": [3, 15]
+      },
+      "params": { "name": "count" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

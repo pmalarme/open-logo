@@ -1,0 +1,4 @@
+define h
+  print repcount
+end
+repeat 2 [ h ]

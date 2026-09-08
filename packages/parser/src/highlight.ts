@@ -43,6 +43,7 @@ import type {
 import { walk } from "./ast.js";
 import type { CheckProfile } from "./check.js";
 import { DEFAULT_CHECK_PROFILES } from "./check.js";
+import { resolveVariableOccurrences } from "./global-variable-resolution.js";
 import { parse } from "./parser.js";
 import { isKeyword } from "./keywords.js";
 import type { LexToken, LexTokenKind } from "./tokens.js";
@@ -102,16 +103,51 @@ export interface Token {
    * `procedure-name`, `type-name`, `field-name`, and `:variable` (a procedure's own `:param`)
    * — `true` at the binding site, `false` at every other (use/call) site. Consumed by
    * `semantic-tokens.ts` (issue #121) to compute the LSP `declaration`/`reference` modifiers
-   * from `spec/tooling.md:279`; absent on classes with no such split (e.g. `keyword`, `number`).
+   * from `spec/tooling.md:282`; absent on classes with no such split (e.g. `keyword`, `number`).
    */
   readonly declaration?: boolean;
+  /**
+   * Marks a token that **uses** a variable name: `true` when that use resolves to a binding the
+   * program declared `global`.
+   *
+   * **Where it appears is asymmetric, and so is what its two values mean. Read this before
+   * relying on either.**
+   *
+   *  - On a `:variable` token it is **total** — always `true` or `false`, because that class is
+   *    never anything but a variable. So `false` there is the whole **non-global** result and not a
+   *    claim about resolution: it covers a use that resolves to a parameter, a shadowing `local`, a
+   *    binder or an ordinary top-level name, a use that resolves to **nothing at all**
+   *    (`ol-undefined-var`'s subject), and a `:param` **binding site**, which is not a use in the
+   *    first place and reads `false` only as a by-product of the totality.
+   *  - On a `primitive` or `word/string` token it is present **only at a use** the resolver
+   *    reported: a `set` target's bare place head (`set count to 1`), and a `make` target or
+   *    `thing` argument's word literal (`make "count" 1`, `thing "count"`). Absent on those classes
+   *    therefore means "not a resolver-reported use" — which is **not** the same as "not a
+   *    variable", since `global count = 0`, `local count`, and a `for`/comprehension binder all
+   *    write a bare name that names a variable while *introducing* a binding rather than resolving
+   *    one, and none of them is marked.
+   *
+   * The three spellings are marked together because `spec/execution-model.md:478-481` makes them
+   * resolve identically, and they can be marked at all because a modifier **decorates whatever class
+   * a token already has**: marking a `primitive` or a `word/string` invents no class and, for the
+   * word literal, classifies nothing *inside* the string (`spec/tooling.md:25-26`'s MUST NOT is
+   * about classification). Whether those tokens should carry a variable-ish *class* is the separate
+   * `spec/` question in issue #1107.
+   *
+   * **It follows resolution, not spelling** (issue #826): see `global-variable-resolution.ts` for
+   * the scope model, the spec clauses behind it, and the one case it knowingly cannot decide (a
+   * deferred handler body). `semantic-tokens.ts` surfaces it as the `global` semantic-token
+   * modifier, which is the channel an editor should consume; the token **class** is untouched, the
+   * way `spec/tooling.md:83-84` keeps the bracket roles off the class axis and on the modifier one.
+   */
+  readonly global?: boolean;
 }
 
 /**
  * Word-spelled operators (`spec/tooling.md:39`): `and`, `or`, `not`, and `mod` — always
  * `operator`, never `keyword`. Consulted before the {@link isKeyword} lookup so none of the four
- * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:373`), and
- * `spec/grammar.md:378` makes that list and the `keyword` **token class** "different sets on
+ * falls through to `keyword`: all four are on the keyword list (`spec/grammar.md:375`), and
+ * `spec/grammar.md:380` makes that list and the `keyword` **token class** "different sets on
  * purpose", so membership here is what decides the class.
  *
  * **Exported as the set classification actually reads, not as a copy of it.** The four are built-in
@@ -433,6 +469,34 @@ export function highlight(
   // (see `ast.ts`'s `ProcedureParam` vs. `ForInNode.binder`/`ComprehensionBase.binder`), so they
   // never reach this `:variable`-classed set at all — only a real `variable`-kind token can.
   const paramDeclIndexes = new Set<number>();
+  // Which tokens use a variable name, and which of those resolve to a `global` binding (issue #826).
+  // Computed from the AST by its own module rather than inline here, because the answer needs an
+  // ordered, scope-aware walk (a `local` shadows from its own statement onward) that the `visit()`
+  // pass below — a generic, order-free `walk` — cannot express. Positions are mapped back to raw
+  // token indexes through the same `byStart` lookup every other marker uses.
+  //
+  // Three lexer kinds can carry the answer, because `spec/grammar.md:106-108` gives assignment three
+  // spellings: `variable` for a colon place (`:count = 1`, and every read), `name` for a `set`
+  // target's bare place head, and `word` for a `make` target or a `thing` read.
+  //
+  // **The kind check is redundant defensive code, not a discriminating filter, and QA proved it
+  // twice** (issue #826 review, round 3, surviving mutant M4): the map is read at exactly three
+  // sites below — the `word`, `variable`, and `name` arms — so an entry of any other kind is
+  // unreachable by construction, and dropping the check leaves the marked-token stream byte-identical
+  // across every `.logo` file and fenced block in the repository. It stays because it keeps the map
+  // honest at its own boundary: a future AST or lexer change that moved a span would otherwise
+  // silently mark a *neighbouring* token, and a wrong mark at a wrong span is worse than none.
+  const variableGlobalByIndex = new Map<number, boolean>();
+  for (const occurrence of resolveVariableOccurrences(program)) {
+    const index = byStart.get(posKey(occurrence.position));
+    const kind = index === undefined ? undefined : lex[index]?.kind;
+    if (
+      index !== undefined &&
+      (kind === "variable" || kind === "name" || kind === "word")
+    ) {
+      variableGlobalByIndex.set(index, occurrence.global);
+    }
+  }
 
   /**
    * Tag the raw token starting at `name`'s span with `target`, when it is a real token of
@@ -638,7 +702,7 @@ export function highlight(
   }
 
   /**
-   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:217`'s
+   * `of` in the Heritage `value of <dict> for key <key>` reader (`spec/grammar.md:219`'s
    * `value-of-reader`) is `keyword`, alongside the `is`-predicate's `of` above.
    *
    * `spec/tooling.md:97-99` is the normative highlighter instruction and names **both** positions:
@@ -654,17 +718,17 @@ export function highlight(
    * `value of dict for key key_value` among the Heritage grammar forms and states these forms "can
    * contain structural words such as `to`, `of`, `for`, and `key` in fixed grammar slots" — naming
    * `of` a structural word of this production, beside the three siblings that are reserved and so
-   * already `keyword`; and `spec/grammar.md:380` calls this `of` "the contextual preposition in the
+   * already `keyword`; and `spec/grammar.md:382` calls this `of` "the contextual preposition in the
    * heritage `value of … for key` reader".
    *
-   * Those passages now match. `spec/grammar.md:234`, `spec/execution-model.md:156-159`, and
-   * `spec/commands.md:461` each keep their "after `is`" claim scoped to their own subject and
-   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:380` had already
+   * Those passages now match. `spec/grammar.md:236`, `spec/execution-model.md:156-159`, and
+   * `spec/commands.md:482` each keep their "after `is`" claim scoped to their own subject and
+   * name this reader as `of`'s other structural position (#856); `spec/grammar.md:382` had already
    * folded its reader parenthetical into the sentence (#875), ending the tension it had carried
    * since the spec's initial commit. None of them governs token class in any case:
    * `spec/grammar.md:7` scopes that document to "lexis, reader-visible syntax, expression
    * precedence, bracket roles, assignable places, keywords, and the built-in names a program may
-   * not declare", and `spec/commands.md:461` draws its contrast in keyword-membership terms ("Only
+   * not declare", and `spec/commands.md:482` draws its contrast in keyword-membership terms ("Only
    * `is`, `strictly`, and `between` are keywords") — the *reservation* half of the claim comes
    * from `spec/tooling.md:100` ("`is`, `between`, and `strictly` are globally reserved"). The
    * normative token-class model is `spec/tooling.md`'s.
@@ -1027,6 +1091,19 @@ export function highlight(
     return role === undefined ? base : { ...base, role };
   }
 
+  /**
+   * Attach `global` to a `name`/`word` token the resolver reported as a **use** of a variable name —
+   * a `set` target's bare place head, or a `make`/`thing` word literal (issue #826, round-2 review).
+   * A token it reported no use for keeps no field at all, which distinguishes "a use that is not
+   * shared" from "no use reported here" — the latter including a bare **binding site** such as
+   * `global count = 0`'s own name, which names a variable and is deliberately not a use.
+   * `:variable` tokens are handled directly below instead, because the field is total there.
+   */
+  function withGlobalFlag(base: Token, index: number): Token {
+    const resolved = variableGlobalByIndex.get(index);
+    return resolved === undefined ? base : { ...base, global: resolved };
+  }
+
   function classifyToken(index: number, token: ContentToken): Token {
     if (negativeMergeStarts.has(index)) {
       const numberToken = lex[index + 1] as LexToken;
@@ -1048,17 +1125,21 @@ export function highlight(
           source_span: token.source_span,
         };
       case "word":
-        return {
-          class: "word/string",
-          text: token.text,
-          source_span: token.source_span,
-        };
+        return withGlobalFlag(
+          {
+            class: "word/string",
+            text: token.text,
+            source_span: token.source_span,
+          },
+          index,
+        );
       case "variable":
         return {
           class: ":variable",
           text: token.text,
           source_span: token.source_span,
           declaration: paramDeclIndexes.has(index),
+          global: variableGlobalByIndex.get(index) ?? false,
         };
       case "lbrace":
       case "rbrace":
@@ -1110,7 +1191,7 @@ export function highlight(
         return withRole(base, role);
       }
       case "name":
-        return classifyName(index, token);
+        return withGlobalFlag(classifyName(index, token), index);
     }
   }
 

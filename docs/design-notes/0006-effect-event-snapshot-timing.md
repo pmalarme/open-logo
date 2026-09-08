@@ -14,7 +14,7 @@ instruction observes more than one value and at least one of those values is a s
 reference that another part of the same instruction can mutate before the instruction finishes:
 
 ```logo
-:l = [1]
+global l = [1]
 define mutate
   add 2 to :l
   return 0
@@ -27,6 +27,13 @@ mutates that same list as a side effect and then returns `0`. Both arguments mus
 left to right, before the `print` effect event's payload can be assembled — but *when*, relative to
 that evaluation, is each argument's contribution to the payload actually captured? Two answers are
 possible, and they disagree on this exact example:
+
+(The list is declared `global` because the scoping ruling of issue #821 seals the procedure
+boundary: a procedure body sees only its own parameters, the bindings it has made, and names
+declared `global` (`spec/execution-model.md`, § *What a scope can see*), so a plain top-level `:l`
+would not be visible inside `mutate` at all. That is a change to how `mutate` **reaches** the list,
+not to anything this decision is about — the shared mutable list, and the timing question it poses,
+are exactly as they were.)
 
 - **Emission-time:** evaluate every argument first (running every side effect, in order), then take
   one snapshot of the whole assembled payload immediately before the event is emitted. Every value
@@ -59,7 +66,7 @@ evaluating.
 Concretely, for:
 
 ```logo
-:l = [1]
+global l = [1]
 define mutate
   add 2 to :l
   return 0
@@ -91,13 +98,16 @@ the `print` event's payload is `{values: [[1, 2, 3]]}`, permanently, regardless 
 does to `:x`.
 
 ```logo
-:x = [1 2 3]
+global x = [1 2 3]
 define mutateAndTag
   add 99 to :x
   return "tagged"
 end
 (print :x mutateAndTag)
 ```
+
+(As in the first example, `x` is declared `global` because the sealed procedure boundary is what
+lets `mutateAndTag` name it at all; the shared mutable list, and the timing question, are unchanged.)
 
 Here, by contrast, the mutation happens *as part of the same instruction's* argument evaluation —
 `(print :x mutateAndTag)` is one instruction whose two arguments are both evaluated, left to right,

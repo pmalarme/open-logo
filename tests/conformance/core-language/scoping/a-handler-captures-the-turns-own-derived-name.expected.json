@@ -1,0 +1,320 @@
+{
+  "description": "The same MUST as spec/execution-model.md:619-633 — each turn's registration captures its own binding, so the handlers print `10`, `20`, `30` — written with BOTH halves of the block rule at once: `:i` is born outside the loop and is one binding all three turns update, while `:n` is born inside it and is fresh per turn. The existing `a-handler-captures-its-own-turn-of-the-loop` derives the captured value from `repcount`, which needs no outer binding at all; this one is the shape where a runtime that scopes the block correctly but misroutes the outer write into the fresh block scope prints `10 10 10` instead.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [2, 1],
+        "end": [6, 2]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [3, 3],
+        "end": [3, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [3, 3],
+        "end": [3, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [3, 3],
+        "end": [3, 14]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [4, 3],
+        "end": [4, 15]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 23]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [7, 1],
+        "end": [7, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 5
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "values": [10]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 5
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "values": [20]
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 3],
+        "end": [5, 8]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 5
+        }
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [5, 13],
+        "end": [5, 21]
+      },
+      "payload": {
+        "values": [30]
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-captures-the-turns-own-derived-name",
+        "start": [7, 1],
+        "end": [7, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

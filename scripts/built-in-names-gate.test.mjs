@@ -657,7 +657,7 @@ test("every Turtle & Rendering one-word spelling resolves to a canonical of equa
   assert.equal(realParserApi.canonicalOfTurtleAlias("SETXY"), "set_xy");
   assert.equal(realParserApi.canonicalOfTurtleAlias("forward"), undefined);
   assert.equal(realParserApi.canonicalOfTurtleAlias("fd"), undefined);
-  // Both spellings still enumerate: `spec/grammar.md:414` makes every alias spelling a built-in
+  // Both spellings still enumerate: `spec/grammar.md:418` makes every alias spelling a built-in
   // name, so a consumer asking what the profile registers must be told about `setxy` too.
   const names = realParserApi.profilePrimitiveNames("turtle-rendering");
   assert.equal(names.includes("setxy"), true);
@@ -2270,12 +2270,22 @@ test("one registry's two alias accessors disagreeing is reported exactly once", 
 
 test("INJECTED DRIFT: a specVersion that no longer matches openlogo.version is caught", () => {
   const manifest = manifestCopy();
-  manifest.specVersion = "0.2.0";
+  // Derived from the real version, never a literal. A hardcoded string here stops being drift the
+  // moment the contract version moves onto it — which is what happened when `0.1.0` became `0.2.0`
+  // (docs/adr/0033-contract-version-moves-with-the-contract.md), leaving an "injection" whose value
+  // equalled the real one. That would have failed loudly rather than silently — with both values
+  // equal the gate reports no finding, so `assert.equal(result.ok, false)` below fails — but a loud
+  // failure in a test whose name says INJECTED DRIFT invites repair at the assertion rather than at
+  // the injection, and the repaired test would no longer inject anything. Deriving the value keeps
+  // it drifted at every future bump.
+  const drifted = `${realParserApi.OPENLOGO_VERSION}-drifted`;
+  assert.notEqual(drifted, realParserApi.OPENLOGO_VERSION);
+  manifest.specVersion = drifted;
   const result = runBuiltInNamesGate({ manifest });
   assert.equal(result.ok, false);
   assert.equal(
     result.findings.includes(
-      'specVersion "0.2.0" does not match openlogo.version "0.1.0" — the list is versioned WITH the specification',
+      `specVersion "${drifted}" does not match openlogo.version "${realParserApi.OPENLOGO_VERSION}" — the list is versioned WITH the specification`,
     ),
     true,
     result.findings.join("\n"),
@@ -2331,7 +2341,9 @@ test("INJECTED DRIFT: a keyword in the block that the manifest does not list is 
 
 test("INJECTED DRIFT: the exact regression that already happened — the C19 mirror losing `mod`", () => {
   // spec/tooling.md's mirror had silently drifted to 43 words before issue #855 restored it. This
-  // is that drift, replayed against the gate.
+  // is that drift, replayed against the gate. The absolute number moves whenever the keyword list
+  // grows — `global` (issue #823) took it from 44 words to 45 — so what is pinned is the mirror
+  // standing exactly one word short of the block.
   const io = proseIo(TOOLING_PATH, (text) =>
     text.replace(
       "`and`, `or`, `not`, `mod`, `true`, `false`,",
@@ -2342,7 +2354,7 @@ test("INJECTED DRIFT: the exact regression that already happened — the C19 mir
   assert.equal(
     findings.some((finding) =>
       finding.startsWith(
-        `${TOOLING_PATH}: the C19 mirror (43 words) does not carry the same words in the same order`,
+        `${TOOLING_PATH}: the C19 mirror (44 words) does not carry the same words in the same order`,
       ),
     ),
     true,
@@ -3659,8 +3671,8 @@ test("INJECTED DRIFT: a name a Record registry lists under two profiles at once"
 test("INJECTED DRIFT: a keyword duplicated in BOTH normative lists at once", () => {
   // `missing`/`extra` are set semantics and the mirror compares joined strings, so duplicating a
   // word in the grammar block AND the C19 mirror satisfied all three checks: the normative keyword
-  // list shipped 45 entries with 44 unique and the gate said nothing. That is this module's own
-  // founding defect with the opposite sign — the mirror silently standing at 43 words.
+  // list shipped one more entry than it had unique words and the gate said nothing. That is this
+  // module's own founding defect with the opposite sign — the mirror silently standing at 43 words.
   const grammar = REAL_IO.readText(GRAMMAR_PATH).replace(
     "is between strictly",
     "is between strictly strictly",
@@ -3674,21 +3686,21 @@ test("INJECTED DRIFT: a keyword duplicated in BOTH normative lists at once", () 
     exists: REAL_IO.exists,
     isStdlibFile: REAL_IO.isStdlibFile,
   };
-  // Sanity: both lists really are 45-with-44-unique, or this proves nothing.
-  assert.equal(extractGrammarKeywordBlock(grammar).length, 45);
-  assert.equal(new Set(extractGrammarKeywordBlock(grammar)).size, 44);
-  assert.equal(extractToolingC19Mirror(tooling).length, 45);
+  // Sanity: both lists really are 46-with-45-unique, or this proves nothing.
+  assert.equal(extractGrammarKeywordBlock(grammar).length, 46);
+  assert.equal(new Set(extractGrammarKeywordBlock(grammar)).size, 45);
+  assert.equal(extractToolingC19Mirror(tooling).length, 46);
   const findings = proseFindings(REAL_MANIFEST, both);
   assert.equal(
     findings.includes(
-      `${GRAMMAR_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+      `${GRAMMAR_PATH}: the keyword list names strictly more than once — 46 entries, 45 unique`,
     ),
     true,
     findings.join("\n"),
   );
   assert.equal(
     findings.includes(
-      `${TOOLING_PATH}: the keyword list names strictly more than once — 45 entries, 44 unique`,
+      `${TOOLING_PATH}: the keyword list names strictly more than once — 46 entries, 45 unique`,
     ),
     true,
     findings.join("\n"),

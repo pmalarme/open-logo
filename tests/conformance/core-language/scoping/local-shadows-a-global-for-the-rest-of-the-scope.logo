@@ -1,0 +1,7 @@
+global count = 0
+define f
+  local count = 5
+  print :count
+end
+f
+print :count

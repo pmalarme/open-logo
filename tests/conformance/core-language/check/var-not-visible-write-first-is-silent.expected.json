@@ -1,0 +1,7 @@
+{
+  "description": "NEGATIVE (issue #825): a procedure whose FIRST touch of a name it cannot see is a WRITE earns no diagnostic, and that silence is the ruling, not an oversight. `:count = 1` creates a procedure-local binding — a genuinely different variable from the top-level `:count` (spec/execution-model.md:443-446) — so the read that follows it resolves and the whole body is clean. This is the one place the ruling is deliberately silent; #826's `global` token class is its only reader-facing guard, which is why it is pinned explicitly rather than left to be inferred from the absence of a fixture. The paired positive is var-not-visible-worked-example, where the read comes first.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

@@ -1,5 +1,5 @@
 {
-  "description": "`is_a?`'s type argument evaluates to a word that is not a recognized Core type, raising `ol-unknown-type` naming the word — the same code+params as the worded form's rule, at stage=runtime since `execute()` never runs `check()` (issues #94/#104/#114 convention) (spec/commands.md:691-705, error-model.md `ol-unknown-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
+  "description": "`is_a?`'s type argument evaluates to a word that is not a recognized Core type, raising `ol-unknown-type` naming the word — the same code+params as the worded form's rule, at stage=runtime since `execute()` never runs `check()` (issues #94/#104/#114 convention) (spec/commands.md:712-726, error-model.md `ol-unknown-type`). Execution halts, so only the `instruction` event is kept. Issue #99.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

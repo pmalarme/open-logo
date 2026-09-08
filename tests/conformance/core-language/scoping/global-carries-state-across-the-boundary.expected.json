@@ -1,0 +1,156 @@
+{
+  "description": "`global name = value` declares a SHARED binding in the root scope (spec/execution-model.md:545-569) — the one variable a procedure can see besides its own parameters and locals, for reading and for writing alike, with no ceremony at the point of assignment. This is the `global` section's own worked example: `bump` says only `:count = :count + 1`, and two calls accumulate to `2`.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [5, 1],
+        "end": [5, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "args": []
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [3, 3],
+        "end": [3, 22]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [6, 1],
+        "end": [6, 5]
+      },
+      "payload": {
+        "name": "bump",
+        "result": null
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/global-carries-state-across-the-boundary",
+        "start": [7, 1],
+        "end": [7, 13]
+      },
+      "payload": {
+        "values": [2]
+      }
+    }
+  ],
+  "diagnostics": []
+}

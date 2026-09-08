@@ -1,5 +1,5 @@
 // Guard tests for a **profile word read as a callee** (issue #864) — the profile-conditional half
-// of `spec/grammar.md:390`: "A keyword in a position none of these cover has no derivation at all
+// of `spec/grammar.md:394`: "A keyword in a position none of these cover has no derivation at all
 // and is a parse error, never a silently accepted name".
 //
 // Issue #853 closed that hole for the six globally reserved words (`reserved-word-value-position.
@@ -16,7 +16,7 @@
 // reader is profile-blind by design (`parser.ts`'s `PROFILE_STATEMENT_FORMS`), so a program that
 // declares `ask` is shaped as an ordinary `define`/call pair; whether that declaration is *legal*
 // is `checker-reserved-word.ts`'s question, and since issue #841 the answer is no, in every profile
-// set (`spec/grammar.md:408`). This rule still asks its own question with the profile set, because
+// set (`spec/grammar.md:412`). This rule still asks its own question with the profile set, because
 // `ol-bad-token` is about a word used where an ACTIVE profile's grammar gives it no callable form.
 //
 // The sweeps run off `OL.OL_PROFILE_KEYWORDS` rather than a hand-written list, so a profile slice
@@ -94,7 +94,7 @@ test("the registry still contributes the seven words this rule is about", () => 
 });
 
 test("every registry word is deliberately classified Kind S or Kind C — no default", () => {
-  // The drift guard for the rule's `SPECIAL_FORM_PROFILE_WORDS`. `spec/grammar.md:390` matches a
+  // The drift guard for the rule's `SPECIAL_FORM_PROFILE_WORDS`. `spec/grammar.md:394` matches a
   // keyword as `callable-name` "only where the C3 primitive matrix also gives that word a callable
   // form", so the C3 Kind column decides whether this rule may reject a word — and that column has
   // no representation in `signatures.ts` today. A future profile keyword nobody classifies must fail
@@ -113,7 +113,7 @@ test("every registry word is deliberately classified Kind S or Kind C — no def
 
 test("every special-form word is rejected in value position when its profile is active", () => {
   // The three positions issue #864 measured: a call argument, an assignment right-hand side, and
-  // the `repeat` count from `spec/grammar.md:390`'s own worked example.
+  // the `repeat` count from `spec/grammar.md:394`'s own worked example.
   for (const { profile, word } of SPECIAL_FORM_PROFILE_WORDS) {
     const profiles = activeSetFor(profile);
     for (const source of [
@@ -152,8 +152,8 @@ test("the message names the word and the closest legal form, in the lowercase Lo
   // harness cannot compare prose. It can: a fixture opts in with `"compareMessages": true` (issue
   // #1025). This wording deliberately does not opt in. `spec/error-model.md:110` makes the
   // `ol-bad-token` message a SHOULD ("point at the unexpected text and mention the closest legal
-  // form when clear"), `:256-259` makes identity `code` plus `params` and asks tests to assert
-  // those, and `:261-263` positively permits a template author to reorder, inflect, or soften this
+  // form when clear"), `:258-261` makes identity `code` plus `params` and asks tests to assert
+  // those, and `:263-265` positively permits a template author to reorder, inflect, or soften this
   // prose — so freezing this English sentence in a stack-neutral fixture would oblige every
   // conforming implementation to emit it verbatim. The opt-in is for messages the spec fixes
   // itself, such as `:125`'s `ol-reserved-word`. Swept over every rejected word rather than
@@ -170,9 +170,9 @@ test("the message names the word and the closest legal form, in the lowercase Lo
 test("`tell` is a COMMAND, not a special form — `( tell :t )` stays legal", () => {
   // The regression this slice's first revision introduced and a review caught. The C3 Sprites row
   // gives `tell <turtle|turtle-list>` Kind **C** (`spec/turtles-and-sprites.md`'s canonical-forms
-  // table: "The C3 Sprites rows are authoritative"), and `spec/grammar.md:408` calls it "the Sprites
+  // table: "The C3 Sprites rows are authoritative"), and `spec/grammar.md:412` calls it "the Sprites
   // command `tell` — a mode switch that takes no block". A command HAS a callable form, so
-  // `spec/grammar.md:390` matches `tell` as a `callable-name` and `( tell :t )` is a legitimate
+  // `spec/grammar.md:394` matches `tell` as a `callable-name` and `( tell :t )` is a legitimate
   // `parenthesized-call`, exactly as `( forward 5 )` is. Rejecting it turned a valid program into an
   // error: measured, this source checked clean before the rule existed.
   const profiles = activeSetFor("sprites");
@@ -235,8 +235,8 @@ test("the word is quoted back in the learner's own spelling, and matching is cas
 });
 
 test("a profile word is rejected as a parenthesized-call callee too, in either position", () => {
-  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:215`), and
-  // `spec/grammar.md:390` matches a keyword as `callable-name` "only where the C3 primitive matrix
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:217`), and
+  // `spec/grammar.md:394` matches a keyword as `callable-name` "only where the C3 primitive matrix
   // also gives that word a callable form" — which none of the six Kind-S words has. (`tell` DOES,
   // which is why it is exempt; see its own test above.) The Core control `( key 1 )` is already a
   // reader-side `ol-bad-token`; before this rule the profile spelling was clean in BOTH a value slot
@@ -292,7 +292,7 @@ test("without its profile, a profile word stays an ordinary name in VALUE positi
   //
   // The DECLARATION half is the opposite and is asserted below: since #841 a Core-only
   // `define when` raises `ol-reserved-word`, which is why the two axes are pinned in one test —
-  // `spec/grammar.md:408` moved one of them and not the other.
+  // `spec/grammar.md:412` moved one of them and not the other.
   for (const { word } of PROFILE_WORDS) {
     assert.deepEqual(
       badTokenTexts(`print ${word}\n`, CORE_ONLY),
@@ -352,8 +352,8 @@ test("legitimate profile statements are untouched — the head is not a callee",
 });
 
 test("profile words stay legal as data and in every binding position", () => {
-  // `spec/grammar.md:386` makes accepting any name in a binding position a normative MUST, and
-  // `:406` makes dictionary keys and bare selector keys data. None of these lowers the word into a
+  // `spec/grammar.md:390` makes accepting any name in a binding position a normative MUST, and
+  // `:410` makes dictionary keys and bare selector keys data. None of these lowers the word into a
   // callee, so the rule must not reach them — asserted rather than assumed, because that is the
   // half a position-blind fix would have broken.
   const profiles = activeSetFor("interaction-events");

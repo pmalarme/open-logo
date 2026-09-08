@@ -1,5 +1,5 @@
 {
-  "description": "Core for <var> from <start> to <end> [ body ] is an inclusive numeric range; default step is 1 (spec/execution-model.md:392-394). Issue #103.",
+  "description": "Core for <var> from <start> to <end> [ body ] is an inclusive numeric range; default step is 1 (spec/execution-model.md:759-761). Issue #103.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

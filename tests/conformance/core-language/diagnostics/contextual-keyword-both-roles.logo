@@ -1,4 +1,4 @@
-# The reader disambiguates a contextual keyword purely by grammatical position (spec/grammar.md:234,
+# The reader disambiguates a contextual keyword purely by grammatical position (spec/grammar.md:236,
 # 380): the SAME word `empty` is an ordinary place/variable when it follows `:`, and the predicate
 # keyword when it immediately follows `is`. Likewise `member` names a variable AND heads the
 # `is member of` predicate. Both roles coexist in one program with no parse diagnostic.

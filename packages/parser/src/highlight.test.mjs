@@ -9,7 +9,7 @@
 //   * all 5 bracket delimiter roles: list, instruction-block, selector, pattern, field-list;
 //   * contextual reserved words in/out of `is`-predicate position (spec/tooling.md:96-99); `of`'s
 //     second reader-recognized position, the Heritage `value of … for key` reader
-//     (spec/grammar.md:380), is proven in `heritage-tooling.test.mjs` (issue #785);
+//     (spec/grammar.md:382), is proven in `heritage-tooling.test.mjs` (issue #785);
 //   * comment/string atomicity (spec/tooling.md:25-26);
 //   * negative-literal-as-number merging vs. genuine binary subtraction; and
 //   * the semantic bucket (#120): procedure-name (declaration + resolved calls), type-name
@@ -506,7 +506,7 @@ test("role field-list vs role list: `struct` is not special-cased when the brack
   );
 });
 
-// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:380) --------
+// --- Contextual reserved words (spec/tooling.md:96-99; `of` also spec/grammar.md:382) --------
 
 test("contextual: empty/member/a are keyword only immediately after is, and so is `of` there", () => {
   assert.equal(

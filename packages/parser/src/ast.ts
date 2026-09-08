@@ -38,6 +38,7 @@ export const OL_NODE_KINDS = [
   "PostfixExpression",
   "Assign",
   "Local",
+  "Global",
   "Call",
   "ParenCall",
   "ComparisonChain",
@@ -142,7 +143,7 @@ export interface DictLitNode extends NodeBase {
 
 /**
  * The Heritage dict reader `value of <dictionary> for key <key>` (Data profile,
- * `spec/grammar.md:217`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
+ * `spec/grammar.md:219`'s `value-of-reader ::= "value" "of" expression "for" "key" expression`).
  * Read-only, equivalent to `dictionary.key`/`dictionary[key]` at runtime
  * (`spec/data-structures.md:183-195`). Both `dictionary` and `key` are full expressions, not the
  * narrower {@link SelectorSegment} key-term grammar.
@@ -186,7 +187,7 @@ export interface ParenCallNode extends NodeBase {
 
 /**
  * One postfix segment of a place written as `.identifier`: a literal field or key that is never
- * evaluated (`spec/grammar.md:109,256`). Its sibling {@link SelectorSegment} covers the bracketed
+ * evaluated (`spec/grammar.md:110,258`). Its sibling {@link SelectorSegment} covers the bracketed
  * `[ key-term ]` form.
  */
 export interface FieldSegment {
@@ -197,7 +198,7 @@ export interface FieldSegment {
 
 /**
  * One postfix segment of a place written as a bracketed selector `[ key-term ]`
- * (`spec/grammar.md:110-111`). Unlike a {@link FieldSegment}, the key is a first-class
+ * (`spec/grammar.md:111-112`). Unlike a {@link FieldSegment}, the key is a first-class
  * expression: a `number`/`word` literal, a `:name` read ({@link VarRefNode}), a bare identifier
  * (a literal word key, carried as a {@link WordLitNode}), or a parenthesized expression. It
  * carries its own span so tooling can point at exactly the `[ … ]`.
@@ -228,7 +229,7 @@ export interface PlaceNode extends NodeBase {
 }
 
 /**
- * A postfix read over an arbitrary expression base — `spec/grammar.md:192`'s
+ * A postfix read over an arbitrary expression base — `spec/grammar.md:194`'s
  * `postfix-expression ::= primary { selector | "." identifier }`, which permits a postfix after
  * *any* primary, not only a `:name` (that narrower, variable-rooted case stays a {@link PlaceNode}
  * so assignment targets are unaffected). Covers a selector/field read directly off a list/dict
@@ -263,13 +264,13 @@ export interface PostfixExpressionNode extends NodeBase {
  * preserves the surface spelling. `make` is a Heritage-profile *alternate spelling only* with no
  * new semantics (`spec/conformance.md:270`, `spec/execution-model.md:318`), so it lowers to the
  * exact same {@link AssignNode} shape as `set … to` — its target is the bare name carried by the
- * word literal (`spec/grammar.md:107`, `make-assignment ::= "make" word-literal expression`),
+ * word literal (`spec/grammar.md:108`, `make-assignment ::= "make" word-literal expression`),
  * grown into a zero-segment {@link PlaceNode} just like `set name to …`.
  *
  * A well-formed target is always a {@link PlaceNode} (even a bare `:x` grows into a zero-segment
  * place). The parser also accepts a non-place expression here — a reporter/command call such as
  * `first :x = 5`, or a bare literal/list such as `3 = 5`/`count :nums = 3` — purely so the
- * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:213-219`)
+ * semantic checker can raise `ol-not-a-place` (`spec/error-model.md`, `spec/tooling.md:216-222`)
  * at `stage: "semantic"` instead of a blunt parse error. The runtime only ever sees a `Place`,
  * because `check()` rejects every non-place target first.
  */
@@ -281,14 +282,64 @@ export interface AssignNode extends NodeBase {
 }
 
 /**
- * A `local name` or `(local name {name})` — declare one or more names in the current scope. The
- * names carry their own spans so the checker can point `ol-duplicate-binder`
+ * A `local name`, `local name = value`, or `(local name {name})` — declare one or more names in the
+ * current scope. The names carry their own spans so the checker can point `ol-duplicate-binder`
  * at each one. (`local` is a **binding** form, not a declaration slot, so it never raises
- * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:386`.)
+ * `ol-reserved-word` — maintainer ruling #833, `spec/grammar.md:390`.)
+ *
+ * `value` is the optional initializer of the **single-name** form — `spec/grammar.md:156` reads
+ * `local-statement ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"`. The
+ * parenthesized multi-name form takes none, so a node with two or more
+ * `names` never carries one. It stays an optional field rather than a second node kind because
+ * `local count` and `local count = 0` are one production and one declaration; only the initializer
+ * differs (`spec/execution-model.md:508-518`).
+ *
+ * **Until issue #824 the initializer is parsed and checked but never evaluated**, because
+ * `@openlogo/runtime` gives a `Local` no effect at all — as it already gave a bare `local count`
+ * none. Where nothing of that name is bound yet the failure is loud (`ol-undefined-var` on the
+ * first read), but where the declaration **shadows** a binding that already exists, the read finds
+ * the outer one and the program runs to completion with the wrong value and no diagnostic:
+ * `:count = 0` / `local count = 5` / `print :count` prints `0`. That is measured, not predicted,
+ * and it is a *regression in kind* — before this slice the same program was a parse error. It is
+ * recorded here rather than guarded, because the fix is the scoping runtime #824 owns and a guard
+ * would be a second, wrong model of it. {@link GlobalNode} carries the same hole for the same
+ * reason; see its own note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
   readonly names: readonly SpannedName[];
+  readonly value?: ExpressionNode;
+}
+
+/**
+ * A `global name = value` — declare a **shared** binding in the root scope and give it an initial
+ * value (`global-statement ::= "global" name "=" expression`, `spec/grammar.md:157`).
+ *
+ * It is deliberately **not** an {@link AssignNode}. An assignment targets a *place* — a
+ * colon-form `:name`, possibly postfixed — and updates the nearest visible binding; a `global`
+ * declaration takes a **bare** name, requires its initializer, and states that the root scope's
+ * binding of that name is shared across the sealed procedure boundary
+ * (`spec/execution-model.md:545-583`). Folding it into `Assign` would erase exactly the fact the
+ * form exists to record, and would make the `ol-global-outside-root` placement rule unable to see
+ * its own subject.
+ *
+ * The name is a {@link SpannedName} rather than a {@link PlaceNode}: it is a binding, so the
+ * checker never raises `ol-reserved-word` for it (`spec/grammar.md:390`), and its own span is what
+ * `ol-global-outside-root`'s `name` param and diagnostics point at.
+ *
+ * **Until issue #824 this declaration has no runtime effect either**, exactly as {@link LocalNode}'s
+ * initializer has none, and the consequence is the same rather than milder. `spec/execution-model.md:576-580`
+ * lets a root binding of the name already exist — "`:count = 5` followed by `global count = 0`
+ * leaves one binding, now shared and holding `0`" — and in that case the dropped initializer is
+ * silent: `:count = 5` / `global count = 0` / `print :count` prints `5`, with no diagnostic. With no
+ * prior binding it fails loudly (`ol-undefined-var`) instead. The rule across both node kinds is one
+ * rule: a dropped initializer degrades silently wherever the name is already bound, and loudly
+ * wherever it is not.
+ */
+export interface GlobalNode extends NodeBase {
+  readonly kind: "Global";
+  readonly name: SpannedName;
+  readonly value: ExpressionNode;
 }
 
 /**
@@ -357,7 +408,7 @@ export interface ForeverNode extends NodeBase {
 /**
  * A `for … in` / `map` / `filter` / `reduce` binder: either a bare `name`, or a destructuring
  * `[ :name { :name } ]` pattern that binds one or more names positionally
- * (`spec/grammar.md:136-137`).
+ * (`spec/grammar.md:137-138`).
  */
 export interface DestructuringBinderNode extends NodeBase {
   readonly kind: "DestructuringBinder";
@@ -463,7 +514,7 @@ export interface ThrowNode extends NodeBase {
 /**
  * `add value to target` — append `value` to the list `target` (Data profile,
  * `spec/grammar.md`'s `add-statement ::= "add" expression "to" expression`;
- * `spec/execution-model.md:447-482`). A statement, never a reporter — it mutates in place and
+ * `spec/execution-model.md:814-849`). A statement, never a reporter — it mutates in place and
  * returns nothing. Runtime evaluation lands in its own Data-profile slice.
  */
 export interface AddNode extends NodeBase {
@@ -521,7 +572,7 @@ export interface ClearNode extends NodeBase {
 
 /**
  * `struct type-name "[" identifier { identifier } "]"` — declares a record type, its fixed field
- * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:155-156`'s
+ * set, and a same-named constructor reporter (Data profile, `spec/grammar.md:159-160`'s
  * `struct-declaration`/`field-list`; `spec/data-structures.md:252-266`). Both `name` and each
  * `field` are {@link SpannedName} metadata, not walkable nodes: the bracketed field list contains
  * bare field names that perform no evaluation (`spec/data-structures.md:264`), so a `StructDef` has
@@ -589,6 +640,7 @@ export type StatementNode =
   | ExpressionNode
   | AssignNode
   | LocalNode
+  | GlobalNode
   | BlockNode
   | IfNode
   | WhileNode
@@ -693,8 +745,21 @@ export const ast = {
   ): AssignNode {
     return { kind: "Assign", source_span: span, place, value, form };
   },
-  local(names: readonly SpannedName[], span: SourceSpan): LocalNode {
-    return { kind: "Local", source_span: span, names };
+  local(
+    names: readonly SpannedName[],
+    span: SourceSpan,
+    value?: ExpressionNode,
+  ): LocalNode {
+    return value === undefined
+      ? { kind: "Local", source_span: span, names }
+      : { kind: "Local", source_span: span, names, value };
+  },
+  global(
+    name: SpannedName,
+    value: ExpressionNode,
+    span: SourceSpan,
+  ): GlobalNode {
+    return { kind: "Global", source_span: span, name, value };
   },
   comparisonChain(
     operands: readonly ExpressionNode[],
@@ -990,6 +1055,15 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     }
     case "Assign":
       return [node.place, node.value];
+    case "Local":
+      // The single-name form's optional initializer (`local count = 0`) is the only walkable child
+      // a `Local` ever has; the names themselves are `SpannedName` metadata, and the parenthesized
+      // multi-name form carries no initializer at all (`spec/grammar.md:156`).
+      return node.value === undefined ? [] : [node.value];
+    case "Global":
+      // The declared name is `SpannedName` metadata, like `Local`'s; the required initializer is
+      // the one walkable child (`spec/grammar.md:157`).
+      return [node.value];
     case "Place":
       return node.segments.flatMap(segmentChildren);
     case "PostfixExpression":
@@ -1065,7 +1139,6 @@ export function childrenOf(node: AnyNode): readonly AnyNode[] {
     case "WordLit":
     case "BooleanLit":
     case "VarRef":
-    case "Local":
     case "Stop":
     case "StructDef":
       return [];

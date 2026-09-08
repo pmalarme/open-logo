@@ -1,0 +1,7 @@
+{
+  "description": "The single-name local-statement takes an optional initializer (spec/grammar.md:156, local-statement ::= \"local\" name [ \"=\" expression ] | ...), so local total = 1 + 2 parses clean as one declaration carrying a full expression. The parenthesized multi-name form takes none.",
+  "profiles": ["core-language"],
+  "expect": "match",
+  "events": [],
+  "diagnostics": []
+}

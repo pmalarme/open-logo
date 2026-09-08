@@ -1,0 +1,32 @@
+{
+  "description": "The semantic stage decides this rule too, and by the same reasoning the runtime uses: a handler block is not a procedure body, so `return` and `stop` inside one are outside any procedure even when the `every`/`on_click` sits inside a `define` (spec/execution-model.md:657-660, spec/error-model.md:116,119). Both codes are asserted in one program because the checker reports every occurrence, which the executing fixtures cannot do — execution stops at the first error. Added at the logic/spec reviewer's request during review round 3, which found the corpus had no `check: true` fixture carrying a `stop` inside a handler block at all: measured, the four that mention `stop` (`check/stop-outside-proc`, `check/stop-in-comprehension`, `check/control-flow-in-procedure-clean`, `heritage/check/a-genuinely-unmatched-delimiter-is-still-reported`) place it at the top level, in a comprehension, or inside a procedure body.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-return-outside-proc",
+      "source_span": {
+        "document": "core-language/check/a-handler-block-is-not-a-procedure-body",
+        "start": [2, 13],
+        "end": [2, 19]
+      },
+      "params": {
+        "keyword": "return"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-stop-outside-proc",
+      "source_span": {
+        "document": "core-language/check/a-handler-block-is-not-a-procedure-body",
+        "start": [5, 14],
+        "end": [5, 18]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

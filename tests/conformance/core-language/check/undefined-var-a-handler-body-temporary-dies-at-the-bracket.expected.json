@@ -1,0 +1,21 @@
+{
+  "description": "The semantic-stage half of `core-language/scoping/a-handler-body-temporary-dies-at-the-bracket`. A deferred handler block reads through a different chain than an eager block — it may see a binding the enclosing scope creates AFTER the registration (spec/execution-model.md:401-403) — so the checker's handling of it is separate code from the `repeat`/`if`/`while` path, and the outward direction it must still reject is this one: a name the handler body itself binds is not visible to the enclosing scope at any time (spec/execution-model.md:603-605, spec/error-model.md:102).",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-a-handler-body-temporary-dies-at-the-bracket",
+        "start": [3, 7],
+        "end": [3, 11]
+      },
+      "params": {
+        "name": "tmp"
+      },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

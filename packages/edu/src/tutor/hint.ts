@@ -9,7 +9,7 @@
  *
  * Every stage is built only from data already on the context (the learner's level and, when
  * known, the target callee's metadata) — never from the learner's actual challenge parameters —
- * so the guardrail in `spec/execution-model.md:629-639` holds unconditionally: no stage, not even
+ * so the guardrail in `spec/execution-model.md:996-1006` holds unconditionally: no stage, not even
  * `"last-resort"`, can ever assemble into a complete, ready-to-run OpenLogo program. Stage 3
  * ("partial") and stage 4 ("last-resort") each surface a worked *skeleton* for the learner's
  * current level's concept, but every skeleton uses `‹placeholder›` markers (guillemets are not
@@ -25,7 +25,7 @@ import type {
   TutorOutput,
 } from "../tutor-context.js";
 
-/** The nudge -> concept -> partial -> last-resort order (`spec/educational-model.md:496-501`). */
+/** The nudge -> concept -> partial -> last-resort order (`spec/educational-model.md:515-520`). */
 const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
   "nudge",
   "concept",
@@ -35,7 +35,7 @@ const HINT_STAGE_ORDER: readonly TutorHintStage[] = [
 
 /**
  * Computes the next stage in the progression given the previously shown stage for this
- * `target-source-span`, per `spec/execution-model.md:640-652`: absent -> `"nudge"`; each known
+ * `target-source-span`, per `spec/execution-model.md:1007-1019`: absent -> `"nudge"`; each known
  * stage escalates by one; `"last-resort"` (or any stage past it) stays at `"last-resort"` rather
  * than fabricating a fifth stage.
  */
@@ -78,7 +78,7 @@ const LEVEL_CONCEPTS: Record<
     skeleton: "if :‹name› > ‹value› [ forward :‹name› ]",
   },
   "5": {
-    name: "procedures (`define … end`)",
+    name: "procedures (`define … end`), and `global` when calls must share a value",
     skeleton: "define ‹name› :‹parameter›\n  ‹body›\nend",
   },
   "6": {
@@ -111,7 +111,7 @@ const LEVEL_CONCEPTS: Record<
 /**
  * A short, learner-facing label for the target the hint is about — the callee name when the
  * context identifies one, otherwise a generic reference to the selected instruction
- * (`spec/educational-model.md:498`'s "point attention to the relevant place").
+ * (`spec/educational-model.md:517`'s "point attention to the relevant place").
  */
 function describeTarget(
   commandMetadata: TutorCommandMetadata | undefined,
@@ -127,7 +127,7 @@ function describeTarget(
 
 /**
  * Builds the single learner-facing segment for `stage`, following the four progression bullets
- * verbatim from `spec/educational-model.md:498-501`.
+ * verbatim from `spec/educational-model.md:517-520`.
  */
 function segmentForStage(
   stage: TutorHintStage,

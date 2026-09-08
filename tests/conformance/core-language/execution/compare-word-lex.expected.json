@@ -1,5 +1,5 @@
 {
-  "description": "Ordering two words compares them lexicographically by Unicode code point (spec/execution-model.md:509): `\"apple\" < \"banana\"` is `true`. Issue #96.",
+  "description": "Ordering two words compares them lexicographically by Unicode code point (spec/execution-model.md:876): `\"apple\" < \"banana\"` is `true`. Issue #96.",
   "profiles": ["core-language"],
   "execute": true,
   "events": [

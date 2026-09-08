@@ -1,0 +1,10 @@
+global count = 1
+define peek
+  print :count
+end
+repeat 1 [
+  local count = 42
+  print :count
+  peek
+]
+print :count

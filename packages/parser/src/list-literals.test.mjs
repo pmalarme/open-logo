@@ -1,5 +1,5 @@
 // Unit tests for Core list literals `[ ... ]` in expression position and parenthesized
-// expressions `( expr )` as a primary, per spec/grammar.md:188-209 (issue #47). These validate
+// expressions `( expr )` as a primary, per spec/grammar.md:190-211 (issue #47). These validate
 // the already-merged parser; they do not change it.
 //
 // `blocks.test.mjs` already covers bracketed control/comprehension BLOCK bodies (`repeat n [ ]`,

@@ -116,7 +116,7 @@ export interface RecordedAnswerResolution {
  * A Worker host (#876) never consults it to *replay* a read, because it never replays to answer one:
  * it suspends the read in place and resumes it. Since **#976** it does consult it on the other path
  * — a chain that has asked a question now keeps accepting host input
- * (`spec/interaction-events.md:108-111` blocks handlers only "until the read finishes"), so a
+ * (`spec/interaction-events.md:169-172` blocks handlers only "until the read finishes"), so a
  * delivery replay under that host re-runs a program whose questions are already answered.
  * `execution-worker-runner.ts` resolves each read from this FIFO first and parks only on a question
  * the chain has no answer for, which is what stops a key press re-asking everything the learner has

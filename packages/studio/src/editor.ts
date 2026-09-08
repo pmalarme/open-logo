@@ -50,7 +50,25 @@ import type { Selection, StudioStateStore } from "./state-model.js";
 /** One highlighted span the editor can render for syntax coloring. */
 export interface HighlightToken {
   readonly text: string;
+  /** The token's normative token class, as a stable CSS class (`highlighter.ts`'s `ol-tok-*`). */
   readonly class: string;
+  /**
+   * Additional CSS classes for the token's **semantic-token modifiers** (`highlighter.ts`'s
+   * `ol-mod-*`), a second axis independent of {@link class} — #1106. Additive and optional: a token
+   * always carries its own {@link class}, so a renderer or theme that ignores this field paints a
+   * modified token exactly like an unmodified one, which is the graceful degradation
+   * `spec/tooling.md:83-84` contemplates for the bracket roles.
+   */
+  readonly modifiers?: readonly string[];
+  /**
+   * A plain-language description of what this token's modifiers mean, for a renderer to surface as
+   * the span's `title` — a hover tooltip, and a **best-effort** accessible description. Be honest
+   * about its reach: `title` on a non-interactive `<span>` is inconsistently surfaced by assistive
+   * technology and is not keyboard-reachable, so it is a supplementary channel, never the one a
+   * distinction rests on. The channels that must carry the meaning are the visual ones a
+   * `.ol-mod-*` rule provides (see `web/styles.css`), which is why those deliberately avoid color.
+   */
+  readonly description?: string;
   readonly start: Position;
   readonly end: Position;
 }

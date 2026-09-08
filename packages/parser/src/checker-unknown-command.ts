@@ -3,7 +3,7 @@
  * `check()`'s dispatch (`check.ts`). It walks every call site (`Call`/`ParenCall` — a bare
  * variable read or non-callable node is never in scope here; that is `ol-undefined-var`'s job,
  * #113) and flags a callee name that is not in {@link collectVisibleNames}'s visible set, with a
- * Levenshtein did-you-mean suggestion per `spec/error-model.md:129-151` /
+ * Levenshtein did-you-mean suggestion per `spec/error-model.md:129-153` /
  * `spec/tooling.md:178-180`.
  */
 
@@ -28,7 +28,7 @@ import { heritageAliasNames } from "./signatures.js";
 /**
  * The ten Heritage short command aliases (`fd`/`bk`/…/`pr`, issue #668) as a lookup set, so the
  * did-you-mean tie-break can rank a full canonical name ahead of the short alias that spells it —
- * the "full canonical names over short aliases" step of `spec/error-model.md:145-146`.
+ * the "full canonical names over short aliases" step of `spec/error-model.md:147-148`.
  */
 const HERITAGE_ALIAS_NAMES: ReadonlySet<string> = new Set(heritageAliasNames());
 
@@ -48,7 +48,7 @@ function isDemotableHeritageAlias(
 
 /**
  * Grammar operator symbols/words the reader lowers to a {@link CallNode} with the operator as
- * callee (`spec/grammar.md:179-186`, and `signatures.ts`'s file doc comment). These come from
+ * callee (`spec/grammar.md:181-188`, and `signatures.ts`'s file doc comment). These come from
  * dedicated precedence-ladder grammar productions, not a learner-typed identifier in call
  * position, so `ol-unknown-command` must never flag them — they are structural tokens, always
  * "visible", regardless of the active profile set or any user declaration.
@@ -94,7 +94,7 @@ function isProfileStatement(node: AnyNode): node is ProfileStatementNode {
 
 /**
  * The best did-you-mean candidate for `name` among `candidates`, or `undefined` when none is
- * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:145-146`:
+ * within {@link MAX_SUGGESTION_DISTANCE}. Deterministic tie-break per `spec/error-model.md:147-148`:
  * lowest Levenshtein distance first; on a distance tie, a Core Language candidate outranks an
  * optional-profile one ({@link isOptionalProfileName}); within the same profile tier a full
  * canonical name outranks a short Heritage alias ({@link isDemotableHeritageAlias}); and only then
@@ -129,7 +129,7 @@ function bestSuggestion(
 
 /**
  * Whether `candidate` should replace `current` as the did-you-mean pick when both are tied at the
- * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:145-146`:
+ * same Levenshtein distance. Three ordered rungs, per `spec/error-model.md:147-148`:
  *
  * 1. A Core Language word beats an optional-profile word ({@link isOptionalProfileName}). A name the
  *    program itself declares (a user `define fd … end` or a struct constructor, tracked in
@@ -225,7 +225,7 @@ export function unknownCommandRule(
 
     const suggestion = bestSuggestion(lower, visible, declared);
     // OpenLogo identifiers are case-insensitive, so the call site's spelling can never be the
-    // diagnostic's identity (`spec/error-model.md:254-259`): `Mystery`, `MYSTERY`, and `mystery`
+    // diagnostic's identity (`spec/error-model.md:256-261`): `Mystery`, `MYSTERY`, and `mystery`
     // are one absent callable and must report one `params.name`. Emit the case-folded resolution
     // name, not the source spelling (issue #1005).
     const params: Record<string, unknown> =

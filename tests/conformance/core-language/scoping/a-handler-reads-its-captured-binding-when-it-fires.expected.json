@@ -1,0 +1,120 @@
+{
+  "description": "A handler captures THE SCOPE ITSELF, \"not a snapshot of the values in it\" (spec/execution-model.md:619-623), and resolves the names it reads when it fires. `:x` holds `1` at registration and `99` by the time the handler runs, so the program prints `99`. An implementation that copied the values it could see at registration — the obvious way to make capture work — prints `1` and passes every other handler fixture in this corpus.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [2, 1],
+        "end": [2, 21]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [3, 1],
+        "end": [3, 8]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [4, 1],
+        "end": [4, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [2, 1],
+        "end": [2, 6]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 5
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [2, 11],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [2, 11],
+        "end": [2, 19]
+      },
+      "payload": {
+        "values": [99]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/a-handler-reads-its-captured-binding-when-it-fires",
+        "start": [4, 1],
+        "end": [4, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

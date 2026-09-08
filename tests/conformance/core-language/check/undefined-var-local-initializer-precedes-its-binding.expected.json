@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #1102): a `local` initializer is evaluated BEFORE the new binding is created, \"with exactly the visibility the `local` statement itself has — the current scope minus any new binding the declaration creates\" (spec/execution-model.md:508-515). With no other visible `x`, `local x = :x` therefore reads a name nothing has bound yet. Until issue #825 replaced this rule's order-free per-frame set with a per-statement scope model, `x` was a lexical member of the frame and the read checked clean. The conforming snapshot idiom the same spec text exists to allow — `local x = 1` then `local x = :x`, where the second initializer reads the FIRST binding — stays clean, and is pinned in packages/parser/src/variable-visibility.test.mjs alongside the parameter and `global` cases; a fix that excluded the declared name unconditionally would satisfy this fixture and reject that conforming program.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-local-initializer-precedes-its-binding",
+        "start": [1, 11],
+        "end": [1, 13]
+      },
+      "params": { "name": "x" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

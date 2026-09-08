@@ -1,0 +1,4 @@
+repeat 2 [
+  if repcount > 1 [ print :carried ]
+  :carried = 7
+]

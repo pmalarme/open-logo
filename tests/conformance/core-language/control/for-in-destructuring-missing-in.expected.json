@@ -1,5 +1,5 @@
 {
-  "description": "A destructuring `for [:x] …` binder not followed by `in` raises `ol-bad-token` at parse stage (spec/grammar.md:127).",
+  "description": "A destructuring `for [:x] …` binder not followed by `in` raises `ol-bad-token` at parse stage (spec/grammar.md:128).",
   "profiles": ["core-language"],
   "events": [],
   "diagnostics": [

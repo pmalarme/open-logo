@@ -1,5 +1,5 @@
 # `and`, `or`, `mod` and `is` are legal dictionary keys, so after a complete entry value a worded
-# operator is genuinely ambiguous. `spec/grammar.md:314`'s **Entry lookahead** rule settles it by
+# operator is genuinely ambiguous. `spec/grammar.md:316`'s **Entry lookahead** rule settles it by
 # the token that follows, *"ignoring any line breaks between the two — so a dictionary written on
 # one line and the same dictionary written across several lines always read alike"* (issue #944,
 # maintainer ruling option 4; this file was written for #933's narrower rule and is re-derived here).

@@ -251,7 +251,7 @@
  *   {@link InputPromptView} a renderer paints and the {@link INPUT_PROMPT_FOCUS_ORDER} focus scope
  *   that keeps it keyboard-operable. `submit()`/`cancel()` are the learner's two endings, and
  *   `cancel()` maps onto the runtime reader's own `undefined` — the read ends unanswered, which
- *   cancels the run (`spec/interaction-events.md:110-111`).
+ *   cancels the run (`spec/interaction-events.md:171-172`).
  * - {@link RunControllerOptions.inputPrompt} is how that host reaches the run controller. Supplying
  *   it installs `ExecuteOptions.hostInput.read`; omitting it changes nothing at all. The runtime's
  *   reader is synchronous and `execute()` never yields, so the run controller reconciles the two
@@ -354,6 +354,7 @@ export {
   editorFocusStop,
   externalSync,
   handleViewUpdate,
+  highlightTokenClass,
   isExternalSyncTransaction,
   needsExternalSync,
   openLogoFoldService,
@@ -364,8 +365,11 @@ export {
 
 export type { ParserHighlighterOptions } from "./highlighter.js";
 export {
+  OL_GLOBAL_VARIABLE_DESCRIPTION,
   OL_HIGHLIGHT_CSS_CLASS,
   OL_HIGHLIGHT_CSS_CLASS_PREFIX,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS,
+  OL_HIGHLIGHT_MODIFIER_CSS_CLASS_PREFIX,
   createParserHighlighter,
 } from "./highlighter.js";
 

@@ -1,0 +1,6 @@
+define setup
+  on_click [ stop ]
+  wait 3
+  print 99
+end
+setup

@@ -1,5 +1,5 @@
 # The parenthesized call form `(name arg1 arg2 arg3)` may supply an argument for the optional
-# parameter that the fixed-arity bare form cannot reach (spec/execution-model.md:363-365; this is
+# parameter that the fixed-arity bare form cannot reach (spec/execution-model.md:706-708; this is
 # the `(star 5 100 3)` shape called out in issue #97's acceptance criteria).
 define star :size :angle (:sides 5)
   print :size

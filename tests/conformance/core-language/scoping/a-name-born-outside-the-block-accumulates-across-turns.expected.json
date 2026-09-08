@@ -1,0 +1,176 @@
+{
+  "description": "The second line of the two-line contrast spec/execution-model.md:607-615 draws, printed turn by turn: `:x` is born outside the block, so all four turns update ONE binding and the loop prints `1 2 3 4`. Its twin `a-fresh-binding-on-every-loop-turn` runs the first line — the same loop with `:x = 0` moved inside — and prints `1 1 1 1`. The existing `a-block-updates-what-it-can-see` reports only the accumulated total after the loop, so it cannot distinguish `1 2 3 4` from any other sequence summing the same way; this fixture pins the per-turn values the curriculum teaches from.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [1, 1],
+        "end": [1, 7]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 1],
+        "end": [2, 36]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 12],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 12],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 12],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 12],
+        "end": [2, 23]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-name-born-outside-the-block-accumulates-across-turns",
+        "start": [2, 26],
+        "end": [2, 34]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}

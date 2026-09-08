@@ -1,0 +1,19 @@
+{
+  "description": "ol-undefined-var (issue #825, block lifetime): a name born INSIDE a block goes out of scope at the end of that block, so no code outside it can name that binding (spec/execution-model.md:603-615). `:i` is created in the `repeat` body — fresh on every turn — and the read after the `]` resolves against nothing, at the read's own span. It is `ol-undefined-var`, not `ol-var-not-visible`: the read is at the top level, where there is no procedure boundary to be the cause. The non-regression this must not break is the accumulator idiom, where `:total` is born OUTSIDE the block and all four turns update one binding — pinned by tests/conformance/core-language/scoping/a-block-updates-what-it-can-see.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-undefined-var",
+      "source_span": {
+        "document": "core-language/check/undefined-var-block-local-dies-at-the-bracket",
+        "start": [2, 7],
+        "end": [2, 9]
+      },
+      "params": { "name": "i" },
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

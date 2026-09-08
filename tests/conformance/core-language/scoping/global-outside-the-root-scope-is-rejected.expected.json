@@ -1,0 +1,73 @@
+{
+  "description": "A `global` declaration is legal ONLY at the root scope — never inside a procedure body, a block, or a handler — and raises `ol-global-outside-root` anywhere else (spec/execution-model.md:561-563, spec/commands.md:143). The placement is judged before the initializer runs, so a misplaced declaration has no effect at all. Registry stage is `semantic` and `checker-global-placement.ts` decides it lexically; this is the runtime's own guard for the same defect, carrying the same `name` param so the two stages report one identity.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "compareMessages": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-outside-the-root-scope-is-rejected",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-outside-the-root-scope-is-rejected",
+        "start": [4, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/global-outside-the-root-scope-is-rejected",
+        "start": [4, 1],
+        "end": [4, 2]
+      },
+      "payload": {
+        "name": "f",
+        "args": []
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-outside-the-root-scope-is-rejected",
+        "start": [2, 3],
+        "end": [2, 19]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ol-global-outside-root",
+      "source_span": {
+        "document": "core-language/scoping/global-outside-the-root-scope-is-rejected",
+        "start": [2, 10],
+        "end": [2, 15]
+      },
+      "params": {
+        "name": "count"
+      },
+      "message": "global count belongs at the top level of your program. to make a private name here, write local count = ...",
+      "stage": "runtime",
+      "severity": "error"
+    }
+  ]
+}

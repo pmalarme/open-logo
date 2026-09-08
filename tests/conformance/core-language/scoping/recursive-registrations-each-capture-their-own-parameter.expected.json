@@ -1,0 +1,436 @@
+{
+  "description": "A procedure frame is created by each CALL (spec/execution-model.md:365-366) with its own parameters, and a handler registered inside a frame captures that frame (spec/execution-model.md:635-637). Three nested calls therefore leave three live registrations over three distinct `:n` bindings, and the firings print `3`, `2`, `1`. Parameters were already per-frame before the sealed boundary landed, so this is the non-regression side of the recursion repair `recursion-binds-once-per-frame` pins for a body-created name.",
+  "profiles": ["core-language", "interaction-events"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [1, 1],
+        "end": [3, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "name": "f",
+        "args": [3]
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "args": [2]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "args": [1]
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement"
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 35]
+      },
+      "payload": {
+        "name": "every"
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "args": [0]
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 3],
+        "end": [3, 1]
+      },
+      "payload": {
+        "statement_kind": "If"
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 38],
+        "end": [2, 46]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [4, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "name": "f",
+        "result": null
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 24,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 25,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 26,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 27,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 28,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 29,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 30,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 15],
+        "end": [2, 20]
+      },
+      "payload": {
+        "statement_kind": "ProfileStatement",
+        "handler": {
+          "kind": "every",
+          "interval": 4
+        }
+      }
+    },
+    {
+      "seq": 31,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 32,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [2, 25],
+        "end": [2, 33]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 33,
+      "kind": "primitive",
+      "source_span": {
+        "document": "core-language/scoping/recursive-registrations-each-capture-their-own-parameter",
+        "start": [5, 1],
+        "end": [5, 7]
+      },
+      "payload": {
+        "name": "wait"
+      }
+    }
+  ],
+  "diagnostics": []
+}

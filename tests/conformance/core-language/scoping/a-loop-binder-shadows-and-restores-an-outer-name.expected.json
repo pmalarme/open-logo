@@ -1,0 +1,128 @@
+{
+  "description": "A `for … in` binder names the loop's own block scope, one fresh binding per turn (spec/execution-model.md:367-369,377-379), so the loop prints `1 2 3` and the outer `:k` — a different binding of the same name — still holds `99` afterwards. The last value is the load-bearing one: measured, a binder that binds into the enclosing scope instead of its own prints the same `1 2 3` and then `3`, so a fixture that stopped at the end of the loop could not tell the two apart.",
+  "profiles": ["core-language"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [1, 1],
+        "end": [1, 8]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [2, 1],
+        "end": [4, 4]
+      },
+      "payload": {
+        "statement_kind": "ForIn"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [1]
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [2]
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [3, 3],
+        "end": [3, 11]
+      },
+      "payload": {
+        "values": [3]
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/a-loop-binder-shadows-and-restores-an-outer-name",
+        "start": [5, 1],
+        "end": [5, 9]
+      },
+      "payload": {
+        "values": [99]
+      }
+    }
+  ],
+  "diagnostics": []
+}

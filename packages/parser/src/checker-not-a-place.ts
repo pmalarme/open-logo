@@ -4,9 +4,9 @@
  * structurally accepts a reporter/command call or a bare literal/list in target position —
  * `first :x = 5`, `count :nums = 3`, `3 = 5` — so this rule can explain the mistake with the exact
  * shape the spec's worked example mandates instead of a blunt parse error
- * (`spec/error-model.md`, `spec/tooling.md:213-219`).
+ * (`spec/error-model.md`, `spec/tooling.md:216-222`).
  *
- * `spec/tooling.md:213-219` mandates `count :nums = 3` → `ol-not-a-place`,
+ * `spec/tooling.md:216-222` mandates `count :nums = 3` → `ol-not-a-place`,
  * `params: { text: "count :nums" }` — the FULL target surface text, not just the callee name.
  *
  * Two text-recovery paths, in priority order:
@@ -23,7 +23,7 @@
  *    It handles every `ExpressionNode` kind, exhaustively — not just the ones that can appear as
  *    the top-level assignment target, but every kind that can nest inside one as a call
  *    argument/list element/dict entry value/postfix base/postfix selector key (a `PostfixExpression`
- *    base can be *any* primary per `spec/grammar.md:188`, including a comprehension, `is`-predicate,
+ *    base can be *any* primary per `spec/grammar.md:190`, including a comprehension, `is`-predicate,
  *    comparison chain, or `value of … for key …` reader — issue #407/F7). It also recognizes the
  *    fixed set of two-argument operator callees the parser only ever builds infix
  *    (`+ - * / mod == != < > <= >=`/`and`/`or` —
@@ -66,7 +66,7 @@ function isAssign(node: AnyNode): node is AssignNode {
 /**
  * Every expression kind the parser can build in non-place assignment-target position, or nest
  * inside one as a call argument/list element/dict entry value/postfix base/postfix selector key —
- * this is exactly {@link ExpressionNode} (`spec/grammar.md:244-258`, the `AssignNode` doc comment
+ * this is exactly {@link ExpressionNode} (`spec/grammar.md:246-260`, the `AssignNode` doc comment
  * in `ast.ts`), so the alias documents that {@link renderNode}'s switch must stay exhaustive over
  * every `ExpressionNode` kind rather than a hand-picked subset. `DictLitNode` joined this set with
  * `PostfixExpressionNode` (issue #407/F7): a postfix read's base can be any primary, including a
@@ -349,7 +349,7 @@ function messageFor(text: string): string {
 /**
  * The `ol-not-a-place` rule: every assignment whose target is not a `Place` raises one diagnostic
  * at the target's span, with its exact surface text carried as the `text` param
- * (`spec/tooling.md:213-219`). Prefers slicing `source` (exact for any shape); falls back to
+ * (`spec/tooling.md:216-222`). Prefers slicing `source` (exact for any shape); falls back to
  * reconstructing the text from the AST when no `source` is available — see the module doc
  * comment.
  */

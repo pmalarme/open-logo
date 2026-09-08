@@ -108,7 +108,7 @@ test("explain: falls back to the AST node kind for a special form with no comman
   assert.equal(output.segments[0], "`repeat` is a special form.");
 });
 
-test("explain: falls back to the AST node kind for If/While/Forever/ProcedureDef/Return/Local/Assign", () => {
+test("explain: falls back to the AST node kind for If/While/Forever/ProcedureDef/Return/Local/Global/Assign", () => {
   const cases = [
     { source: "if true [ forward 1 ]", name: "if" },
     { source: "while true [ forward 1 ]", name: "while" },
@@ -116,6 +116,7 @@ test("explain: falls back to the AST node kind for If/While/Forever/ProcedureDef
     { source: "define square :size\n forward :size\nend", name: "define" },
     { source: "define f\n return 1\nend", name: "return" },
     { source: "local x", name: "local" },
+    { source: "global count = 0", name: "global" },
     { source: ":x = 1", name: "set" },
   ];
 
@@ -131,6 +132,28 @@ test("explain: falls back to the AST node kind for If/While/Forever/ProcedureDef
       `expected ${name} for ${source}`,
     );
   }
+});
+
+// Issue #829 made `global` the headline new Level 5 command, and round 2 of the review gate
+// found this entry measured by nothing: a reviewer replaced the description with nonsense AND
+// deleted the `Global` mapping, confirmed both reached `dist`, and the whole suite stayed green
+// at 100% coverage — because these are object-literal data entries, "covered" the instant the
+// module loads whatever they contain. `explain`'s output is learner-facing prose, so it is held
+// to the same measured-not-asserted standard as the lessons themselves.
+test("explain: describes `global` in the terms the Level 5 lesson teaches", () => {
+  const program = parse("global count = 0");
+  const context = baseContext({
+    program,
+    target: program.body[0],
+    level: "5",
+  });
+
+  const output = explain(context);
+  assert.deepEqual(output.segments.slice(0, 3), [
+    "`global` is a special form.",
+    "Its input is the variable name and its starting value.",
+    "Running it shares one variable with the procedures in this program, so they can read and change it.",
+  ]);
 });
 
 test("explain: resolves a Call node's name from its callee when no commandMetadata is supplied", () => {

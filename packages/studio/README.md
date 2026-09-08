@@ -89,6 +89,55 @@ slice may swap in a real renderer without changing this contract.
   46.11 KB to 141.01 KB gzip (~+95 KB gzip) — see the ADR's KISS section for the full before/after
   table and why the real number landed above the ADR's original 50-80 KB estimate.
 
+## Shared (`global`) variables look different from private ones (#1106)
+
+A learner reading `:score = :score + 1` inside a procedure cannot tell whether it changes state the
+whole program shares or a private binding that vanishes when the procedure returns — the line is
+byte-identical either way, and `spec/execution-model.md:441-446` deliberately rules the private case
+**correct**, so no diagnostic will ever mention it. `@openlogo/parser` already answers the question
+(the `global` semantic-token modifier from #826, resolved by a scope-aware AST walk); this slice is
+the half a learner can see.
+
+- **`src/highlighter.ts` consumes `semanticTokens()`**, not `highlight()`, and maps painted
+  modifiers onto a stable `ol-mod-*` CSS namespace (`OL_HIGHLIGHT_MODIFIER_CSS_CLASS`), kept
+  separate from the 15 normative `ol-tok-*` classes because class and modifier are two independent
+  axes (ADR-0032). It **never re-derives the resolution** — a second scope model in the studio is
+  exactly the divergence saga #819 exists to prevent.
+- **Additive, never substitutive.** A painted token still carries its own `ol-tok-*` class, so a
+  theme that styles no `ol-mod-*` rule renders it exactly like an ordinary variable — the same
+  graceful degradation `spec/tooling.md:83-84` contemplates for the bracket roles. The mapping table
+  is deliberately partial: the modifier vocabulary is open, and an unmapped modifier is dropped
+  rather than leaking a class. The cost, stated rather than glossed: unlike the class axis — whose
+  total `Record<TokenClass, string>` would not compile until a new class was mapped — the modifier
+  axis has **no forcing function**, so a future paintable modifier is a silent no-op until someone
+  adds a row and a CSS rule. That is the accepted price of an open vocabulary. Today only `global`
+  earns paint; `declaration`/`reference`/`readonly`/`defaultLibrary` and the bracket roles are true
+  of nearly every token, so painting them would be noise — and dropping `defaultLibrary` also avoids
+  propagating #831's known deviation, which would otherwise render a learner's typo as a
+  standard-library call.
+- **All three assignment spellings are painted**, each keeping its own class: `:score` (`:variable`),
+  `set score to …`'s place head (`primitive`), and `make "score" …`/`thing "score"`'s word literal
+  (`word/string`). A *declaration* is not painted — `global score = 0` introduces the name rather
+  than resolving one, and the `global` keyword stays a `keyword`.
+- **Accessibility: the treatment uses no colour at all.** `.ol-mod-global` (`web/styles.css`) sets
+  no `color` and no `background`; the token keeps its class's already-contrast-checked colour, and
+  the distinction is carried by two channels that survive greyscale, a recoloured theme, and
+  forced-colors mode — **font weight**, and a **dotted underline** in `currentColor` (dotted, never
+  the `wavy` of #317's error squiggles, so a shared variable can never read as an error). A third,
+  **supplementary** channel rides along: `OL_GLOBAL_VARIABLE_DESCRIPTION` becomes the mark's `title`,
+  i.e. a hover tooltip and a best-effort accessible description. It is deliberately not load-bearing
+  — `title` on a non-interactive span is inconsistently surfaced by assistive technology and is not
+  keyboard-reachable — which is precisely why the visual channels avoid colour rather than leaning on
+  it. Like every other highlight decoration it is a
+  `class`/`title` pair on a CM6 `mark`, so the accessible text, DOM reading order and focus model are
+  unchanged.
+- **Proven in a real browser, not asserted.** `e2e/global-variable-highlight.spec.ts` renders the
+  maintainer's own program in headless Chromium and reads `getComputedStyle` off the painted spans:
+  the shadowed and shared `:score` come back with the **same colour** and different weight/underline,
+  which is what makes "not conveyed by colour alone" a measurement rather than a claim. It commits
+  two **unmasked** editor-pane snapshots — `layout.spec.ts` masks `.pane-editor`, so that suite is
+  structurally blind to everything this slice changes.
+
 ## Persistence (#128)
 
 - `attachPersistence(state, options?)` (`src/persistence.ts`) — the smallest mechanism that
@@ -183,7 +232,7 @@ shapes with an **attempt chain**.
   `InputPromptHost`: the run controller `present()`s one outstanding question through it, and the
   learner ends it with `submit(answer)` or `cancel()`. `cancel()` *is* the runtime reader's own
   `undefined` — the read ends unanswered, which cancels the run
-  (`spec/interaction-events.md:110-111`). `dismiss()` is the third path: Stop/Reset withdraw a
+  (`spec/interaction-events.md:171-172`). `dismiss()` is the third path: Stop/Reset withdraw a
   question without answering it, so the responder is dropped rather than called.
   `mapInputPromptRequestToView` is the one place the visible/hidden + label decisions are made, so
   `web/main.ts` stays a branch-free wiring layer.
@@ -295,7 +344,7 @@ appends to live, so the stream is readable **during** execution rather than only
 returns. Rely on its contents, not on identity: for a program that runs it is the same array
 `ExecuteResult.events` reports, but a call returning before an execution environment exists — a
 parse failure, say — never reaches the sink and reports its own separate empty array.
-`spec/interaction-events.md:108-110` explicitly permits continuing to render
+`spec/interaction-events.md:169-171` explicitly permits continuing to render
 already-emitted events while `input` waits, and this is the seam that makes that allowance reachable.
 
 **A settlement carries reduced output, not just events.** Structured clone drops class prototypes: an
@@ -345,7 +394,7 @@ parsed and executed, never that any of its interaction did anything.
 installs it as `ExecuteOptions.hostInput.events`, and `RunController` gains two deliveries:
 
 - `deliverKey(keyWord)` — one key press, as the lowercase word
-  `spec/interaction-events.md:221-225` defines.
+  `spec/interaction-events.md:282-286` defines.
 - `deliverClick()` — one activation of the drawing surface.
 
 `deliverKey` and `deliverClick` both report whether **that delivery actually ran a handler** — read
@@ -470,9 +519,9 @@ announcing it would file a run-log entry per keystroke.
   (measured: `step()` then `run()` leaves `runStatus` at `"running"` and refuses delivery). That
   fails safe — it refuses, never intercepts;
 - the program actually registered a handler of that kind, according to its own `primitive` trace
-  event (`spec/interaction-events.md:120-122`), so a non-interactive program is never re-executed by
+  event (`spec/interaction-events.md:181-183`), so a non-interactive program is never re-executed by
   a stray keystroke;
-- **no `input` question is outstanding right now.** `spec/interaction-events.md:108-111` blocks
+- **no `input` question is outstanding right now.** `spec/interaction-events.md:169-172` blocks
   handlers *until the read finishes*, and this is exactly that — a transient block, matching the
   spec's "until". Until #976 the studio was stricter: a chain that had *ever* asked a question
   refused delivery for the rest of its life, because a delivery was then scheduled at a synthetic
@@ -489,7 +538,7 @@ announcing it would file a run-log entry per keystroke.
 | --- | --- | --- |
 | `occurrence.tick` | a learner cannot press a key earlier than their previous press. **Not** because the runtime requires order: `packages/runtime/src/execute-internal.ts:5565` sorts, so it normalises an unsorted schedule | yes, 1 test — but it took ten rounds; see below |
 | `tickAtEventIndex(chainTickTimeline, drawnEventCount)` | never deliver into a picture the learner has already seen — that is the history-rewrite the old permanent gate was blocking | yes |
-| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:108-111`: a delivery must not land at or before a read it should have followed | yes, 1 test |
+| `lastAnsweredReadTick + 1` | `spec/interaction-events.md:169-172`: a delivery must not land at or before a read it should have followed | yes, 1 test |
 
 **The first term took ten rounds to pin, and the story is the point.** It is the only floor covering
 an occurrence appended **re-entrantly during** `drainDeliveredInput`'s loop — the re-clamp runs once
@@ -517,7 +566,7 @@ re-derive them — that enumeration is what caught the bug below:
 Deleting the schedule-time copy without adding the second call was
 a regression review caught: `stop()` does not drain, so its `when "stop"` notification kept tick 0,
 was consumed during a leading `wait` before the handler had registered, and the pre-termination
-notification `spec/interaction-events.md:152-156` requires was lost with no diagnostic. One function
+notification `spec/interaction-events.md:213-217` requires was lost with no diagnostic. One function
 called twice rather than a floor duplicated at each site, because duplication is exactly the
 redundancy the deletion removed. Both call sites are load-bearing and cover disjoint tests.
 
@@ -570,7 +619,7 @@ one and costs 2. An ordinary drawing step spends no tick and costs exactly 1, so
 the Interaction profile paces exactly as it did before.
 
 The step is priced **before** it runs, from `TurtleAnimationController.nextStepEndIndex()`, not
-after. That matters for `spec/interaction-events.md:116-118` — "hold itself open with a long `wait`
+after. That matters for `spec/interaction-events.md:177-179` — "hold itself open with a long `wait`
 while those handlers drive the animation" — because that is a *trailing* `wait`, and a trailing step
 has no successor to charge: pricing backwards left `wait 20` and `wait 1` both at 1010. Asking the
 animation controller rather than re-deriving the step boundary keeps #1022's single definition
@@ -583,10 +632,10 @@ Two consequences, both deliberate:
   an artifact of the counter rather than a decision.
 
   **Delivery closes for a program whose clock offers no further yield (#1039).** An earlier version
-  of this bullet argued from `spec/interaction-events.md:381-384` that *cancellation* is what "stops future
+  of this bullet argued from `spec/interaction-events.md:442-445` that *cancellation* is what "stops future
   handler delivery" and nothing names tick exhaustion. Review rejected that reading, correctly:
-  `:381-384` says cancellation stops delivery, it does **not** say cancellation is the only way a run
-  closes — and `:198-200` says plainly that once the main line has finished "the run closes". The
+  `:442-445` says cancellation stops delivery, it does **not** say cancellation is the only way a run
+  closes — and `:259-261` says plainly that once the main line has finished "the run closes". The
   maintainer then ruled: *"If the program is ended it should refuse it. If there is a `wait` the
   program is not ended — it is still running."*
 
@@ -623,7 +672,7 @@ Two consequences, both deliberate:
   whose `input` finished on the program's last tick is refused up front instead of losing the press
   silently.
 
-  **"Ended" here means the clock offers no further yield**, which is narrower than `:198-204`'s "the
+  **"Ended" here means the clock offers no further yield**, which is narrower than `:259-265`'s "the
   run closes once the main line has finished". The shapes that fall in the gap are enumerated here
   rather than counted — an earlier revision said "three" and `@interpreter` then measured a fourth.
   All are measured identical at `492cdff7`, so this predicate neither causes nor fixes them, and
@@ -677,13 +726,13 @@ settlement has landed, a delivery arriving while a later attempt is in flight �
 host that settles across event-loop turns — is still *scheduled* and replayed when that attempt lands.
 Refusing it made the recorded schedule depend on
 settlement pacing (measured: the same two calls recorded two entries under a synchronous host and one
-under a deferred one) and dropped the key, where `:91-93` requires the most recent key and click state
+under a deferred one) and dropped the key, where `:152-154` requires the most recent key and click state
 to be preserved. *Before* that first settlement the registration gate has nothing to read, so a
 delivery in that one-settlement-wide window is refused and dropped — it fails safe, but the
 pacing-independence claim is genuinely "after the run's first settlement".
 
 **Stop notifies the program first.** `"stop"` is "a requested stop notification **before**
-termination" (`:152-156`), so `stop()` schedules it as a named event and replays once before latching
+termination" (`:213-217`), so `stop()` schedules it as a named event and replays once before latching
 the cancellation signal — but only for a program that registered a `when` handler, so every other
 Stop is byte-for-byte the Stop it always was. Subject to the tick limit above: a program with no
 `wait` never reaches the notification's tick. If the notification block itself reaches an `input`,
@@ -691,7 +740,7 @@ that read is withdrawn rather than left answerable over a `"stopped"` run.
 
 ### Supported key words
 
-`spec/interaction-events.md:224-225` asks implementations to document theirs.
+`spec/interaction-events.md:285-286` asks implementations to document theirs.
 `src/key-words.ts`'s `normalizeKeyWord` maps a browser `KeyboardEvent.key` onto:
 
 | Key | Word |
@@ -720,7 +769,7 @@ wait 300
 ### The pointer, and its accessible equivalent
 
 `on_click` fires when the surface "is clicked **or activated by an equivalent accessible action**"
-(`:214-215`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
+(`:275-276`). `src/canvas-interaction.ts` wires both, and neither is a fallback for the other:
 
 - the canvas's own pointer `click`;
 - `#canvas-activate-button`, a real, labelled, tab-reachable button the browser natively operates
@@ -730,7 +779,7 @@ wait 300
 It is a **separate control** rather than Enter/Space on the focused canvas because the canvas is also
 the keyboard surface: `"enter"` and `"space"` are key words in their own right, so a learner writing
 `on_key "space"` must receive a space press, not an activation. Carrying no click *position* is not a
-shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:216-218`), which
+shortcut either — OpenLogo v0.1 "does not standardize click coordinate reporters" (`:277-279`), which
 is precisely what makes a keyboard activation an *equal* click rather than a degraded one.
 
 Arrows, space, and the paging keys have their browser default suppressed — but **only on synchronous

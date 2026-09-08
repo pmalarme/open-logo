@@ -1,5 +1,5 @@
 {
-  "description": "Issue #543: a `(print …)` statement's snapshot rule applies to the whole statement's evaluation, not each argument's own evaluation instant — a later argument's evaluation (calling `mutate`, which does `add 2 to :l`) mutates a live value an earlier argument (`:l`) also reads, so the `print` event's payload must show `:l` as `[1 2]` (post-mutation), not `[1]` (its value when only that argument had been evaluated). Both operands are snapshotted together, sharing one memo, only after every argument in the statement has finished evaluating.",
+  "description": "Issue #543: a `(print …)` statement's snapshot rule applies to the whole statement's evaluation, not each argument's own evaluation instant — a later argument's evaluation (calling `mutate`, which does `add 2 to :items`) mutates a live value an earlier argument (`:l`) also reads, so the `print` event's payload must show `:l` as `[1 2]` (post-mutation), not `[1]` (its value when only that argument had been evaluated). Both operands are snapshotted together, sharing one memo, only after every argument in the statement has finished evaluating. Issue #1099/#824: the list reaches `mutate` as a PARAMETER rather than as a top-level name the body reads — the sealed procedure boundary (`spec/execution-model.md:389-394`) hides the caller's `:l`, while `spec/execution-model.md:455-474` (\"the boundary seals names, not values\") still lets the procedure mutate the list it was handed. The mutation this fixture is about is unchanged; only how the value gets in is.",
   "profiles": ["core-language", "data"],
   "execute": true,
   "events": [
@@ -29,7 +29,7 @@
       "source_span": {
         "document": "data/snapshot-identity/print-multi-arg-later-mutation",
         "start": [6, 1],
-        "end": [6, 18]
+        "end": [6, 21]
       },
       "payload": { "statement_kind": "ParenCall" }
     },
@@ -39,9 +39,9 @@
       "source_span": {
         "document": "data/snapshot-identity/print-multi-arg-later-mutation",
         "start": [6, 11],
-        "end": [6, 17]
+        "end": [6, 20]
       },
-      "payload": { "name": "mutate", "args": [] }
+      "payload": { "name": "mutate", "args": [[1]] }
     },
     {
       "seq": 4,
@@ -49,7 +49,7 @@
       "source_span": {
         "document": "data/snapshot-identity/print-multi-arg-later-mutation",
         "start": [2, 3],
-        "end": [2, 14]
+        "end": [2, 18]
       },
       "payload": { "statement_kind": "Add" }
     },
@@ -79,7 +79,7 @@
       "source_span": {
         "document": "data/snapshot-identity/print-multi-arg-later-mutation",
         "start": [6, 11],
-        "end": [6, 17]
+        "end": [6, 20]
       },
       "payload": { "name": "mutate", "result": 0 }
     },
@@ -89,7 +89,7 @@
       "source_span": {
         "document": "data/snapshot-identity/print-multi-arg-later-mutation",
         "start": [6, 1],
-        "end": [6, 18]
+        "end": [6, 21]
       },
       "payload": { "values": [[1, 2], 0] }
     }

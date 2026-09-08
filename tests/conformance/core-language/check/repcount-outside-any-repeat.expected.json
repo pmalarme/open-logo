@@ -1,0 +1,41 @@
+{
+  "description": "The semantic stage decides the `ol-repcount-outside-repeat` row too (spec/tooling.md:195), and by the same reasoning the runtime uses: `repcount` reports the turn of the `repeat` that LEXICALLY encloses it, so a procedure body is never inside its caller's `repeat` (spec/execution-model.md:673-678), a `repcount` with no `repeat` anywhere has nothing to report, and a `forever` is not an enclosing loop — it runs a block without a turn number, and spec/commands.md:804 ties `repcount` to \"the innermost `repeat`\" (measured: `forever [ print repcount ]` raises at run time too). All three shapes are asserted in one program because the checker reports EVERY occurrence, which the executing twins cannot do — measured, `execute()` on this exact program reports only the line-2 read and stops, so `scoping/repcount-does-not-cross-the-procedure-boundary` and `execution/repcount-outside-repeat` each need a program of their own. Measured before this slice: check() reported NOTHING here; the whole row was unimplemented at Layer 2, so a learner was told about this only by running.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-outside-any-repeat",
+        "start": [2, 9],
+        "end": [2, 17]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-outside-any-repeat",
+        "start": [5, 7],
+        "end": [5, 15]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-outside-any-repeat",
+        "start": [6, 17],
+        "end": [6, 25]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

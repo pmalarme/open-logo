@@ -1,0 +1,7 @@
+{
+  "description": "The semantic-stage half of the required negatives: a procedure that mutates a value its caller owns, through a list parameter and through a record field, \"is doing what the language promises and MUST NOT be diagnosed\" (spec/execution-model.md:473-474). The check stage is where the risk actually lives — `ol-var-not-visible` is decided lexically (spec/error-model.md:132), so a checker that treated a postfix write as needing a visible OUTER base, rather than a visible base, flags `:p.x = 99` even though `:p` is a parameter; measured, such a checker reports `ol-undefined-var` on `:p` here. The sibling `var-not-visible-postfix-base-but-not-a-plain-write` is the same syntax over a base the boundary really does hide; a checker cannot pass both by guessing.",
+  "profiles": ["core-language", "data"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

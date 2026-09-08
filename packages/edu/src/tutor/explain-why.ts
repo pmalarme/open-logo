@@ -154,6 +154,12 @@ const KNOWN_COMMAND_DESCRIPTIONS: Readonly<Record<string, CommandDescription>> =
       effect: "declares a new variable in the current scope",
       inputs: "the variable name(s) to declare",
     },
+    global: {
+      kind: "special-form",
+      effect:
+        "shares one variable with the procedures in this program, so they can read and change it",
+      inputs: "the variable name and its starting value",
+    },
     set: {
       kind: "special-form",
       effect: "changes the value stored in a place",
@@ -164,7 +170,7 @@ const KNOWN_COMMAND_DESCRIPTIONS: Readonly<Record<string, CommandDescription>> =
 /**
  * Maps an AST node kind that is a control/binding special form (rather than a `Call`) to its
  * canonical name, for {@link resolveCommandName} when the caller's {@link TutorContext} does not
- * supply {@link TutorCommandMetadata} (`spec/educational-model.md:451`'s "Name the command or
+ * supply {@link TutorCommandMetadata} (`spec/educational-model.md:470`'s "Name the command or
  * special form" requirement covers these forms too).
  */
 const SPECIAL_FORM_NAMES: Readonly<Partial<Record<AnyNode["kind"], string>>> = {
@@ -175,6 +181,7 @@ const SPECIAL_FORM_NAMES: Readonly<Partial<Record<AnyNode["kind"], string>>> = {
   ProcedureDef: "define",
   Return: "return",
   Local: "local",
+  Global: "global",
   Assign: "set",
 };
 
@@ -226,7 +233,7 @@ function describeCommand(resolved: ResolvedCommand): CommandDescription {
 /**
  * Short curriculum-level concept phrases, one per {@link TutorLearnerLevel}, drawn verbatim from
  * `spec/educational-model.md`'s "Concept to command map" table so `explain`'s level-link bullet
- * (`spec/educational-model.md:454`) stays grounded in the normative level table rather than
+ * (`spec/educational-model.md:473`) stays grounded in the normative level table rather than
  * inventing new wording per command.
  */
 const LEVEL_CONCEPTS: Readonly<Record<TutorLearnerLevel, string>> = {
@@ -453,7 +460,7 @@ function findInstructionAtSpan(
 
 /**
  * The two `kind`s the runtime pushes as bookkeeping *before* their effect
- * (`spec/execution-model.md:575`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
+ * (`spec/execution-model.md:942`, `packages/core/src/events.ts`'s `OL_EVENT_KINDS`): every
  * statement — including the `why`/`explain` meta-command's own — gets an `instruction` start
  * event, and every procedure call gets a `procedure-enter` start event before its body runs.
  * Neither describes anything that actually happened yet, so `findRelevantEvent` must never

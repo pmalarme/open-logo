@@ -1,0 +1,11 @@
+define f :a
+  local a
+  :a = 99
+  print :a
+end
+define g :a
+  local a
+  print :a
+end
+f 1
+g 1

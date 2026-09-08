@@ -19,8 +19,43 @@ bracket roles from [`tooling.md`](../../spec/tooling.md#L28-L84). `semanticToken
 options)` (`src/semantic-tokens.ts`) layers an LSP `textDocument/semanticTokens`-shaped response on
 top of that: each returned token keeps `highlight()`'s `class`/`role`/span fields and adds a
 `modifiers` array drawn from the modifier vocabulary in
-[`tooling.md:278-280`](../../spec/tooling.md#L278-L280) — `declaration`, `reference`, `readonly`,
-`defaultLibrary`, `listRole`, `blockRole`, `selectorRole`.
+[`tooling.md:281-283`](../../spec/tooling.md#L281-L283) — `declaration`, `reference`, `readonly`,
+`defaultLibrary`, `listRole`, `blockRole`, `selectorRole` — plus one extension, `global`.
+
+`global` marks a **use** of a variable name that resolves to a name the program declared `global`
+(issue #826). It is the reader-facing half of the variable-scoping ruling: a procedure's first
+*write* to a name it cannot see silently creates a private binding — correct, and deliberately never
+diagnosed ([`execution-model.md:441-446`](../../spec/execution-model.md#L441-L446)) — so nothing but
+the paint can tell a learner that `:private = 1` and `:shared = 1` in one body mean different things.
+It is a **modifier rather than a sixteenth token class** because that is how `tooling.md` already
+models a grammar-derived sub-distinction: five bracket roles across two classes, exposed "as
+semantic-token modifiers where possible, even when the visible theme maps all roles to the same
+bracket color" ([`:83-84`](../../spec/tooling.md#L83-L84)), with the LSP list open — "optional
+modifiers **such as** …". The normative class table is unchanged; see
+[ADR-0032](../../docs/adr/0032-semantic-token-modifiers-extend-the-informative-list.md).
+
+Because a modifier decorates whatever class a token already has, it is **not tied to `:variable`**.
+All three assignment spellings resolve identically
+([`execution-model.md:478-481`](../../spec/execution-model.md#L478-L481)), so all three are marked:
+a `:variable` token (`:count = 1`, and every read), a `set` target's bare place head (`primitive`),
+and a `make` target or `thing` argument's word literal (`word/string`). Marking a word literal
+classifies nothing *inside* the string, so `tooling.md:25-26`'s MUST NOT is untouched. A name a
+program only **declares** — `global count = 0`, `local count` — carries nothing, because those
+tokens introduce a binding rather than resolve to one.
+
+**Consume it through `semanticTokens()`.** `highlight()` also exposes the same answer as
+`Token.global`, but only for a caller that keeps the whole `Token`: a consumer that reduces a token
+to its class — which is exactly what `packages/studio/src/highlighter.ts` does today, mapping class
+to a CSS name and discarding every other field, `role` included — cannot see it, and **no renderer
+in this repository consumes it yet** (issue #1106 is the studio slice that will).
+
+It follows **resolution, not spelling**: a `local` that shadows a global does not carry it, a
+procedure parameter of the same name does not, and a root-scope `local` — which
+[`execution-model.md:520-526`](../../spec/execution-model.md#L520-L526) says "leaves it global" —
+does not remove it. `src/global-variable-resolution.ts` owns that scope walk, documents each clause
+behind it, and names the one case it knowingly cannot decide: a deferred handler body, which
+[`:401-403`](../../spec/execution-model.md#L401-L403) resolves at fire time, so one token can have
+two resolutions (issue #1108).
 
 `options` is optional on both (`HighlightOptions`); `document` is **required** on both, and that is
 a rule rather than an accident. **A `document` parameter may keep a default only where it is the

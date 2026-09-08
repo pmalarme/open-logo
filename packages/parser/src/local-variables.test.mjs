@@ -1,15 +1,15 @@
 // Unit tests for the `local` binding statement (issue #56). `local` is a BINDING form, not one of
-// the grammar's four declaration slots (spec/grammar.md:382,386 — maintainer ruling #833), so it
+// the grammar's four declaration slots (spec/grammar.md:384,390 — maintainer ruling #833), so it
 // registers nothing callable and never raises `ol-reserved-word`; `keyword-binding-forms.test.mjs`
 // pins that. This file confirms the merged parser's exact AST shape for both local-statement forms
-// defined by spec/grammar.md:155
-// (`local-statement ::= "local" name | "(" "local" name { name } ")"`) — a `Local` node whose
-// `names` are `SpannedName`s, not colon-places or `VarRef`s — plus documents, as known-gap unit
-// tests (not conformance fixtures, since the M1 harness is parse-only), that: (a) an initializer
-// form `local x = 1` is not supported — the parser stops after the bare name and reports
-// `ol-bad-token` at `=`; and (b) using the keyword `local` as an ordinary identifier (procedure
+// defined by spec/grammar.md:156
+// (`local-statement ::= "local" name [ "=" expression ] | "(" "local" name { name } ")"`) — a
+// `Local` node whose `names` are `SpannedName`s, not colon-places or `VarRef`s, carrying the
+// single-name form's optional initializer as `value` (issue #823) — plus documents, as known-gap
+// unit tests (not conformance fixtures, since the M1 harness is parse-only), that using the
+// keyword `local` as an ordinary identifier (procedure
 // name, variable read) is accepted with zero diagnostics at the parse stage, which
-// spec/grammar.md:390 states normatively: the declaration slots "admit them too — `define end` and
+// spec/grammar.md:394 states normatively: the declaration slots "admit them too — `define end` and
 // `struct if` **parse**, and are then rejected by the rule above; that is precisely why
 // `ol-reserved-word` is a semantic diagnostic".
 //
@@ -76,23 +76,71 @@ test("local binds in a procedure body and the same name is usable as a colon-pla
   assert.equal(body[2].value.name, "x");
 });
 
-test("known gap: local has no initializer form — local x = 1 parses only the bare binding, then reports ol-bad-token at '='", () => {
+test("local x = 1 parses the initializer form: one Local node carrying the expression as `value`", () => {
   const { ast, diagnostics } = OL.parse("local x = 1", doc);
 
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "ol-bad-token");
-  assert.deepEqual(diagnostics[0].params, { text: "=" });
-  assert.deepEqual(diagnostics[0].source_span, span([1, 9], [1, 10]));
-
-  // The binding itself still parses as a valid, single-name Local node.
+  assert.deepEqual(diagnostics, []);
+  assert.equal(ast.body.length, 1);
   const local = ast.body[0];
   assert.equal(local.kind, "Local");
   assert.equal(local.names.length, 1);
   assert.equal(local.names[0].name, "x");
-  // The stray "= 1" is resynced as an unrelated NumberLit expression statement, confirming the
-  // parser does not fold it into the Local node.
-  assert.equal(ast.body[1].kind, "NumberLit");
-  assert.equal(ast.body[1].value, 1);
+  // The node's span runs from `local` to the end of the initializer, not to the end of the name.
+  assert.deepEqual(local.source_span, span([1, 1], [1, 12]));
+  assert.equal(local.value.kind, "NumberLit");
+  assert.equal(local.value.value, 1);
+});
+
+test("the initializer is a full expression, and its reads resolve like any other", () => {
+  const source = "define grow :n\n  local total = :n + 1\n  return :total\nend";
+  const { ast, diagnostics } = OL.parse(source, doc);
+
+  assert.deepEqual(diagnostics, []);
+  const local = ast.body[0].body.body[0];
+  assert.equal(local.kind, "Local");
+  assert.equal(local.value.kind, "Call");
+  assert.equal(local.value.callee.name, "+");
+  assert.deepEqual(OL.check(ast, { source }).diagnostics, []);
+});
+
+test("`local x` on its own line stays a complete statement — a following line's `=` is not folded into it", () => {
+  // The initializer's `=` must be the very next token. Reading one across the newline would
+  // silently join two instructions into one.
+  const { ast, diagnostics } = OL.parse("local x\n= 1", doc);
+
+  assert.equal(ast.body[0].kind, "Local");
+  assert.equal(ast.body[0].value, undefined);
+  assert.ok(diagnostics.some((d) => d.code === "ol-bad-token"));
+});
+
+test("local x = with no initializer expression reports ol-bad-token and builds no Local node", () => {
+  const { ast, diagnostics } = OL.parse("local x =", doc);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "ol-bad-token");
+  assert.deepEqual(ast.body, []);
+});
+
+test("`local x 5` takes the bare declaration and then rejects the stray operand", () => {
+  // The twin of `global count 5`, and they differ on purpose: `local`'s initializer is OPTIONAL, so
+  // the statement is already complete at the name and the `5` is a stray — where `global count 5`
+  // fails because the `=` its own production requires is missing. The pair pins that the optional
+  // tail did not become a silently-accepted juxtaposition.
+  const { ast, diagnostics } = OL.parse("local x 5", doc);
+
+  assert.equal(ast.body[0].kind, "Local");
+  assert.equal(ast.body[0].value, undefined);
+  assert.deepEqual(
+    diagnostics.map((d) => d.code),
+    ["ol-bad-token"],
+  );
+});
+
+test("the parenthesized multi-name form takes no initializer (spec/grammar.md:156)", () => {
+  const { diagnostics } = OL.parse("(local a = 1)", doc);
+
+  assert.ok(diagnostics.length > 0);
+  assert.ok(diagnostics.every((d) => d.code === "ol-bad-token"));
 });
 
 test("known gap: local :x is not the colon-place form spec/grammar.md expects only a bare name, so the colon-name token is rejected with ol-bad-token", () => {
@@ -122,7 +170,7 @@ test("known gap: (local) with zero names reports ol-bad-token at the closing par
   assert.deepEqual(local.names, []);
 });
 
-test("local is a keyword per spec/grammar.md:369, and the reader still admits it as an identifier — the rejection is semantic, not lexical", () => {
+test("local is a keyword per spec/grammar.md:371, and the reader still admits it as an identifier — the rejection is semantic, not lexical", () => {
   const asVarRead = OL.parse("print :local", doc);
   assert.deepEqual(asVarRead.diagnostics, []);
   assert.equal(asVarRead.ast.body[0].args[0].kind, "VarRef");
@@ -138,6 +186,6 @@ test("local is a keyword per spec/grammar.md:369, and the reader still admits it
   // name would; the keyword spelling changes nothing either way. `define local` is a DECLARATION
   // slot and raises `ol-reserved-word` from `checker-reserved-word.ts` regardless of any binding.
   // That both spellings still *parse* is what `declared-callable-name` expanding to plain
-  // `identifier` buys (spec/grammar.md:165,390). Binding positions proper — `local local`,
+  // `identifier` buys (spec/grammar.md:167,394). Binding positions proper — `local local`,
   // `:local = 1` — are pinned in `keyword-binding-forms.test.mjs`.
 });

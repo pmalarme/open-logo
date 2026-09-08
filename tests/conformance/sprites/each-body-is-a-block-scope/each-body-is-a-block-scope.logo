@@ -1,0 +1,5 @@
+:a = new_turtle
+:b = new_turtle
+tell [ :a :b ]
+each [ :tmp = 7 ]
+print :tmp

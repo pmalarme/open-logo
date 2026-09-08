@@ -1,7 +1,7 @@
 // Guard tests for keywords in **expression position** (issue #853). A keyword is "a word the
 // grammar itself gives meaning to rather than a name a program can introduce"
-// (`spec/grammar.md:358`) — so, apart from the handful the `expression`
-// production itself admits (`spec/grammar.md:193-206`), none of them may be read as a bare call.
+// (`spec/grammar.md:360`) — so, apart from the handful the `expression`
+// production itself admits (`spec/grammar.md:195-208`), none of them may be read as a bare call.
 //
 // The bug this file locks shut: `repeat value [ ]` and `repeat key [ ]` — plus the Data mutation
 // heads `add`/`remove`/`insert`/`clear` — were lowered into a zero-argument `Call` node that no
@@ -30,8 +30,8 @@ const doc = "reserved-word-value-position.logo";
 
 /**
  * The keywords the `expression` production genuinely admits, and therefore the only ones a
- * sweep must exempt: `true`/`false` are the `boolean-literal` production (`spec/grammar.md:206`),
- * `map`/`filter`/`reduce` open a `comprehension` (`spec/grammar.md:133-136`), and `thing` is the one
+ * sweep must exempt: `true`/`false` are the `boolean-literal` production (`spec/grammar.md:208`),
+ * `map`/`filter`/`reduce` open a `comprehension` (`spec/grammar.md:134-137`), and `thing` is the one
  * keyword that is also a Core primitive reporter, so it is a real `fixed-call` callee.
  */
 const EXPRESSION_INITIAL = new Set([
@@ -129,7 +129,7 @@ test("`thing` — the one keyword that is also a Core primitive — still reads 
 test("a keyword with no expression-head role reports ol-bad-token naming it", () => {
   for (const word of OL.OL_KEYWORDS) {
     if (EXPRESSION_INITIAL.has(word) || word === "not") {
-      // `not` is consumed as the prefix operator (`spec/grammar.md:191`) before the reader reaches
+      // `not` is consumed as the prefix operator (`spec/grammar.md:193`) before the reader reaches
       // a primary, so its diagnostic names the missing operand rather than `not` itself.
       continue;
     }
@@ -159,7 +159,7 @@ test("the six silently-accepted words are rejected in the issue's own `repeat` p
 });
 
 test("no keyword except `thing`, `and`, and `or` is a parenthesized-call callee", () => {
-  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:215`). Three
+  // `parenthesized-call ::= "(" callable-name { expression } ")"` (`spec/grammar.md:217`). Three
   // keywords legitimately reach a `ParenCall` callee, by two different routes:
   //
   // - `thing` — the only one that passes `isCalleeName`, because it is the one keyword that is
@@ -168,7 +168,7 @@ test("no keyword except `thing`, `and`, and `or` is a parenthesized-call callee"
   //   layer up.
   // - `and`/`or` — `isCalleeName` returns FALSE for both (they are in `NON_PRIMARY_NAMES`); they are
   //   rescued by an explicit disjunct in `parseParenthesized`, because their variadic paren form is
-  //   normative: "`(and …)` for multiple operands" (`spec/commands.md:567`, `:586`) with
+  //   normative: "`(and …)` for multiple operands" (`spec/commands.md:588`, `:607`) with
   //   short-circuit semantics (`spec/execution-model.md:143`).
   //
   // `not` is deliberately absent: it never reaches this position at all — see the next test.
@@ -187,10 +187,10 @@ test("no keyword except `thing`, `and`, and `or` is a parenthesized-call callee"
 });
 
 test("`( not 1 )` stays a grouped unary, never a parenthesized call", () => {
-  // `unary ::= "not" unary` (`spec/grammar.md:191`) inside a `parenthesized-expression`
-  // (`spec/grammar.md:213`) — parenthesising groups the unary expression, it does not make `not` a
+  // `unary ::= "not" unary` (`spec/grammar.md:193`) inside a `parenthesized-expression`
+  // (`spec/grammar.md:215`) — parenthesising groups the unary expression, it does not make `not` a
   // `callable-name`, and unlike `and`/`or` the spec gives `not` no paren form at all
-  // (`spec/commands.md:605-607`: "Signature: `not boolean`", "Kind: Reporter unary prefix").
+  // (`spec/commands.md:626-628`: "Signature: `not boolean`", "Kind: Reporter unary prefix").
   // Asserted separately so the sweep above cannot pass by conflating the two node kinds.
   const { ast } = OL.parse("print ( not true )\n", doc);
 
@@ -231,8 +231,8 @@ test("the Data mutation statement heads still parse as statements", () => {
 
 test("keywords are still legal data — dict keys, fields, and bare selector keys", () => {
   // "Dictionary keys and selector bare keys are data, not declarations, so built-in names are legal
-  // keys" (`spec/grammar.md:406`). `[key]` is the BARE `identifier` alternative of `key-term`
-  // (`spec/grammar.md:113`) — the case that actually routes through `parseKeyTerm`'s `name` branch,
+  // keys" (`spec/grammar.md:410`). `[key]` is the BARE `identifier` alternative of `key-term`
+  // (`spec/grammar.md:114`) — the case that actually routes through `parseKeyTerm`'s `name` branch,
   // which a quoted `["key"]` word literal would not exercise.
   const sources = [
     ":settings = { key: 1 value: 2 }",
@@ -246,7 +246,7 @@ test("keywords are still legal data — dict keys, fields, and bare selector key
     assert.deepEqual(
       OL.parse(source, doc).diagnostics,
       [],
-      `\`${source}\` uses a keyword as data, which stays legal (spec/grammar.md:406)`,
+      `\`${source}\` uses a keyword as data, which stays legal (spec/grammar.md:410)`,
     );
   }
 });
@@ -255,11 +255,11 @@ test("a keyword as a bare place still parses, and binding it is legal", () => {
   // `set value to 1` is a BINDING, not data: `bare-place` reads a raw `name` token, so the reader
   // is unaffected by the expression-position guard. This test asserted the checker REJECTED that
   // binding when #853 landed, which was true then; maintainer ruling #833 (spec merged in #875,
-  // implemented for the parser by #837) reverses it. `spec/grammar.md:386` now makes accepting any
+  // implemented for the parser by #837) reverses it. `spec/grammar.md:390` now makes accepting any
   // name in a binding position a normative MUST — "An implementation MUST NOT raise
   // `ol-reserved-word` — or any other diagnostic — for the name alone in any of those positions, at
   // any stage" — and enforcement moved to the four declaration slots, which `bare-place` is not
-  // (`spec/grammar.md:382`). So both halves are clean, and the reader half is unchanged either way.
+  // (`spec/grammar.md:384`). So both halves are clean, and the reader half is unchanged either way.
   assert.deepEqual(OL.parse("set value to 1", doc).diagnostics, []);
   assert.deepEqual(allDiagnostics("set value to 1\n"), []);
   // The contrast that keeps this test honest: the same word in a DECLARATION slot still raises.

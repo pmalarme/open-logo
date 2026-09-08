@@ -1,0 +1,318 @@
+{
+  "description": "\"The fix is one word at the top level: `global count = 0`\" (spec/execution-model.md:447). This is `procedure-boundary-hides-a-top-level-read`'s source with that single word applied: the diagnostic is gone, the procedure both reads and writes the shared binding with no ceremony at the assignment (spec/execution-model.md:565-569), the turtle draws the same `0 10 20 30` the top-level `a-top-level-accumulator-drives-the-turtle` draws, and the counter survives the call at `4`. A `global` a procedure can read but not reliably write would still print `0` here.",
+  "profiles": ["core-language", "turtle-rendering"],
+  "execute": true,
+  "events": [
+    {
+      "seq": 0,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [1, 1],
+        "end": [1, 17]
+      },
+      "payload": {
+        "statement_kind": "Global"
+      }
+    },
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [2, 1],
+        "end": [7, 4]
+      },
+      "payload": {
+        "statement_kind": "ProcedureDef"
+      }
+    },
+    {
+      "seq": 2,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 3,
+      "kind": "procedure-enter",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "name": "draw_steps",
+        "args": []
+      }
+    },
+    {
+      "seq": 4,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [3, 3],
+        "end": [6, 4]
+      },
+      "payload": {
+        "statement_kind": "Repeat"
+      }
+    },
+    {
+      "seq": 5,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 6,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 7,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 0],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 8,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [5, 5],
+        "end": [5, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 9,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 10,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 11,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 0],
+        "to": [0, 10],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 12,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [5, 5],
+        "end": [5, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 13,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 14,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 30],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 15,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 10],
+        "to": [0, 30],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 16,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [5, 5],
+        "end": [5, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 17,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 18,
+      "kind": "move",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 30],
+        "to": [0, 60],
+        "heading": 0
+      }
+    },
+    {
+      "seq": 19,
+      "kind": "draw-segment",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [4, 5],
+        "end": [4, 24]
+      },
+      "payload": {
+        "from": [0, 30],
+        "to": [0, 60],
+        "color": "black",
+        "width": 1
+      }
+    },
+    {
+      "seq": 20,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [5, 5],
+        "end": [5, 24]
+      },
+      "payload": {
+        "statement_kind": "Assign"
+      }
+    },
+    {
+      "seq": 21,
+      "kind": "procedure-exit",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [8, 1],
+        "end": [8, 11]
+      },
+      "payload": {
+        "name": "draw_steps",
+        "result": null
+      }
+    },
+    {
+      "seq": 22,
+      "kind": "instruction",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [9, 1],
+        "end": [9, 13]
+      },
+      "payload": {
+        "statement_kind": "Call"
+      }
+    },
+    {
+      "seq": 23,
+      "kind": "print",
+      "source_span": {
+        "document": "core-language/scoping/global-repairs-the-boundary-worked-example",
+        "start": [9, 1],
+        "end": [9, 13]
+      },
+      "payload": {
+        "values": [4]
+      }
+    }
+  ],
+  "diagnostics": []
+}
