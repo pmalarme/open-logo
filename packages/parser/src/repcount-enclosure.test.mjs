@@ -237,10 +237,10 @@ test("a `repcount` in a handler that never fires is still reported", () => {
 
 test("a program that declares its own `repcount` is left to `ol-reserved-word` alone", () => {
   // `repcount` is a built-in name, so `define repcount … end` is already rejected
-  // (`ol-reserved-word`), and `@openlogo/runtime`'s dispatch resolves a call to a same-named user
-  // procedure ahead of the primitive — so these call sites are not reads of the reporter at all.
-  // The reason is structural, not a general "no cascades" policy: `spec/tooling.md:199-200`'s
-  // MUST NOT is narrower, covering speculative *type* errors when dynamic values are unknown.
+  // (`ol-reserved-word`) at both stages — attaching a second, unrelated code to every call of one
+  // already-diagnosed name helps nobody. The reason is structural, not a general "no cascades"
+  // policy: `spec/tooling.md:199-200`'s MUST NOT is narrower, covering speculative *type* errors
+  // when dynamic values are unknown.
   assert.deepEqual(codes("define repcount\n  return 7\nend\nprint repcount"), [
     "ol-reserved-word",
   ]);

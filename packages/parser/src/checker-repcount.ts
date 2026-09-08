@@ -61,10 +61,9 @@
  *   never reaches an uncalled body at all.
  * - A program that **declares its own `repcount`** is left alone ({@link collectDeclaredNames}).
  *   `repcount` is a built-in name, so `define repcount …` is already rejected with
- *   `ol-reserved-word`; and `@openlogo/runtime`'s own dispatch resolves a call to a same-named user
- *   procedure ahead of the primitive, so those call sites are not reads of the reporter at all.
- *   Reporting them would attach a second, unrelated code to every call of one already-diagnosed
- *   name.
+ *   `ol-reserved-word` — measured, at both stages, and `execute()` halts there. Attaching a second,
+ *   unrelated code to every call of one already-diagnosed name would help nobody. (Note the guard
+ *   is a courtesy, not a correctness requirement: no legal program reaches it.)
  * - A `repcount` in the **target** of an `=`/`set`/`make` (`repcount = 100`) is a write position,
  *   not a read; `checker-not-a-place.ts` already reports `ol-not-a-place` there, and the evaluator
  *   never runs the reporter. Same reason, same silence — found by

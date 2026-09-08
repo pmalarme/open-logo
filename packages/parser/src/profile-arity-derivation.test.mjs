@@ -63,6 +63,14 @@ function parenCall(name, count) {
  * *second* such primitive then needs no edit here at all — which is the property this file exists
  * to have. Verified across all 81 finite-arity primitives the DAG registers: wrapping changes no
  * other name's answer, and `challenge` stays `ol-unknown-command` alone.
+ *
+ * **What this trades away, stated rather than left implicit.** The deleted exact-set assertion
+ * *surfaced* the exceptional name — its own comment said a second one "must not appear unremarked".
+ * The wrap gives that up: a future primitive whose legality also depends on where it is written is
+ * simply **absorbed here without comment**, because the probe context already satisfies it. That is
+ * the right trade for this file, whose subject is arity rather than placement, but it is a blind
+ * spot and not a free win — a positional constraint that ought to be noticed will not be noticed
+ * here.
  */
 function probe(name, count) {
   return `repeat 1 [ ${parenCall(name, count)} ]`;
