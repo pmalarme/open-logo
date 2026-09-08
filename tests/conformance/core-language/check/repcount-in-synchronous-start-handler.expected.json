@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a literal `when \"start\"` is the ONE handler head whose body is judged statically, because the evaluator runs it synchronously at registration rather than dispatching it later (issue #1155). Measured on the evaluator: this program faults after 4 events; `repeat 2 [ when \"start\" [ print repcount ] ]` prints 1 then 2 and completes; and the same handler inside a procedure called from a `repeat` faults after 8 events. Meanwhile `when \"stop\"`, `when \"START\"` (event words are case-sensitive), `every`, `on_key` and `on_click` never fire in those runs, which is why their bodies stay dispatch-dependent. This fixture is the wall for a rule that treats every handler head alike — an earlier draft table-drove the four heads to close an `on_click` coverage gap and thereby asserted a uniformity it had never measured, silently losing this case. Its clean counterpart, `repeat 2 [ when \"start\" [ … ] ]`, is asserted in the unit suite; together they pin that the body inherits the REGISTERING context rather than being deferred.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-synchronous-start-handler",
+        "start": [1, 22],
+        "end": [1, 30]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

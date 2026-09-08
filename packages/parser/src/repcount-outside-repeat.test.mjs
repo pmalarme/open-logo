@@ -134,15 +134,21 @@ test("a comprehension body is transparent in both directions", () => {
 
 /**
  * Every block head whose body is dispatch-dependent, paired with a source putting a bare
- * `repcount` directly in that body. Table-driven over the WHOLE derived set:
+ * `repcount` directly in that body. Table-driven over the whole set:
  * `interactionEventsBlockHeadNames()` returns four heads, and covering only three let a mutation
  * that drops one member pass unnoticed.
+ *
+ * A literal `when "start"` is deliberately NOT here — the evaluator runs it synchronously at
+ * registration, so it has its own test below. The earlier version of this table listed it
+ * alongside the others and thereby asserted the heads were uniform, which measurement refuted:
+ * that is "a count of cases is not a count of mechanisms" reappearing inside the fix for it.
  */
 const HANDLER_BODY_SOURCES = [
-  ["when", 'when "start" [ print repcount ]'],
   ["every", "every 10 [ print repcount ]"],
   ["on_key", 'on_key "a" [ print repcount ]'],
   ["on_click", "on_click [ print repcount ]"],
+  ['when "stop"', 'when "stop" [ print repcount ]'],
+  ['when "START"', 'when "START" [ print repcount ]'],
 ];
 
 test("a repcount read DIRECTLY in a handler body is dispatch-dependent, so silent", () => {
@@ -164,10 +170,37 @@ test("a repcount read DIRECTLY in a handler body is dispatch-dependent, so silen
   }
 });
 
+test('a literal `when "start"` runs SYNCHRONOUSLY, so its body IS judged statically', () => {
+  // The one head whose body is not dispatch-dependent. Measured on the evaluator: top level
+  // faults after 4 events; `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and
+  // completes; inside a procedure called from a repeat it faults after 8. Meanwhile `when "stop"`,
+  // `when "START"` (event words are case-sensitive), `every`, `on_key` and `on_click` never fire
+  // in those runs, which is why they stay deferred.
+  assert.equal(
+    repcountFindings('when "start" [ print repcount ]', HANDLER_PROFILES)
+      .length,
+    1,
+  );
+  assert.deepEqual(
+    repcountFindings(
+      'repeat 2 [ when "start" [ print repcount ] ]',
+      HANDLER_PROFILES,
+    ),
+    [],
+  );
+  assert.equal(
+    repcountFindings(
+      'define f\n  when "start" [ print repcount ]\nend\nrepeat 2 [ f ]',
+      HANDLER_PROFILES,
+    ).length,
+    1,
+  );
+});
+
 test("but a `define` inside a handler body RESTORES certainty and IS reported", () => {
   // dispatch-dependent is not unknowable. A callee's repeat-turn stack starts empty however the
-  // handler fired, so this is statically outside any repeat and the evaluator agrees (runtime
-  // fault). The control — the same procedure carrying its OWN repeat — runs clean, which is what
+  // handler fired, so this is statically outside any repeat and the evaluator agrees (it rejects
+  // the program). The control — the same procedure carrying its OWN repeat — runs clean, which
   // isolates the procedure boundary as the cause rather than the handler nesting.
   assert.equal(
     repcountFindings(
@@ -211,10 +244,34 @@ test("a bare `repcount` assignment target raises ol-not-a-place ALONE", () => {
 });
 
 test("`set repcount to 100` is not a read either", () => {
-  // Guards a plausible wrong implementation rather than being a smoke test: a rule that matched
-  // the WORD `repcount` anywhere, instead of a zero-argument call node, would fire on this bare
-  // place base. The `=` spelling above cannot catch that — there the word really is a Call node.
+  // NOTE, measured: no mutation of the current rule can falsify this assertion. `set repcount to
+  // 100` parses to `Assign{ place: Place{ base: {name:"repcount"} } }`; the `Place` root carries
+  // `rootIsRead: false` and `base` is never yielded as a visitable child, so no matching strategy
+  // reaches it. An earlier comment here named "a rule matching the WORD repcount anywhere" as the
+  // falsifier; that mutation was built and this test did not fail, so the claim was wrong.
+  // It is kept because it pins a real asymmetry worth stating — `repcount = 100` parses the word
+  // as a `Call`, `set repcount to 100` parses it as a `Place` base — not because it bites.
   assert.deepEqual(repcountFindings("set repcount to 100"), []);
+});
+
+test("a repcount in code this run never executes is still reported — deliberately", () => {
+  // A measured over-report, disclosed rather than hidden. With the static rule disabled the
+  // evaluator accepts all of these: an uncalled procedure body is never entered, and
+  // `while false` never runs its body. Reporting anyway is the checker's established convention,
+  // not a choice this rule makes — on the same build `define f  print :nope  end` (uncalled)
+  // reports ol-undefined-var, `while false [ stop ]` reports ol-stop-outside-proc, and
+  // `if false [ return 1 ]` reports ol-return-outside-proc. Exempting repcount would make it the
+  // only rule in the checker that goes quiet in dead code.
+  //
+  // This does not contradict handler deferral: dead code is KNOWABLE but unreached, whereas a
+  // dispatch-dependent handler body is UNKNOWABLE — identical text, correct or faulty depending
+  // on what is running when the event arrives.
+  assert.equal(repcountFindings("define f\n  print repcount\nend").length, 1);
+  assert.equal(
+    repcountFindings("define f\n  print repcount\nend\nprint 1").length,
+    1,
+  );
+  assert.equal(repcountFindings("while false [ print repcount ]").length, 1);
 });
 
 test("a read nested inside a MALFORMED target is an independent finding", () => {

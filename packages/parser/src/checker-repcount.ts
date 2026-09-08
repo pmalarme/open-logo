@@ -19,9 +19,11 @@
  *
  * ## The scoping rule, measured against the evaluator rather than assumed
  *
- * The rule this walk implements is exactly what `@openlogo/runtime` already does, so `check()`
- * never refuses a program the evaluator would have run. Each clause below was measured on the
- * evaluator before it was written here:
+ * Each clause below was measured on the evaluator before it was written here. What the rule does
+ * NOT claim is that `check()` only ever refuses programs the evaluator would also reject — see
+ * "Unreached is not unknowable" below, which states the one deliberate over-report and its
+ * numbers. (An earlier draft did claim that, and it was false in the same way for every sibling
+ * rule in the checker.)
  *
  * - **A `repeat` body encloses; nothing else does.** `for … in`, `for … from … to`, `while`,
  *   `if`, `forever`, and a `map`/`filter`/`reduce` body are all transparent — they neither
@@ -44,8 +46,14 @@
  *   `define … end` inside a handler body restores certainty — a callee's repeat-turn stack starts
  *   empty however the handler was dispatched — so
  *   `on_key "a" [ define f  print repcount  end  f ]` is a fault even though the handler itself is
- *   dispatch-dependent, and the evaluator agrees (`runtime`). Treating the body as wholly opaque
- *   missed exactly that.
+ *   dispatch-dependent, and the evaluator agrees. Treating the body as wholly opaque missed
+ *   exactly that.
+ *
+ *   The **one exception among the heads** is a literal `when "start"`, which the evaluator runs
+ *   *synchronously at registration* — so its body really is in the registering context and is
+ *   judged there ({@link isSynchronousStartHandler}). A four-head table written to close an
+ *   `on_click` coverage gap asserted that the heads were uniform; they are not, and measurement
+ *   is what recovered the case.
  * - **A `repeat`'s own count expression sits OUTSIDE its body.** `repeat repcount [ … ]` at top
  *   level is a fault; `repeat 2 [ repeat repcount [ … ] ]` is not. The count is evaluated before
  *   the turn is pushed, the same shape as {@link controlFlowRule} visiting a comprehension's
@@ -61,8 +69,35 @@
  *   rather than deciding the open question.
  *
  * The shapes this rule deliberately does not reach are those left `dispatch-dependent`: a
- * `repcount` read directly in an event-handler body, with no intervening construct that restores
- * certainty. Those stay exactly as they are today — a `runtime` finding if the handler fires.
+ * `repcount` read directly in an event-handler body other than a literal `when "start"`, with no
+ * intervening construct that restores certainty. Those stay exactly as they are today — a
+ * `runtime` finding if the handler fires.
+ *
+ * ## Unreached is not unknowable — the one deliberate over-report
+ *
+ * This rule reports a `repcount` in code that a given run never executes, and that is a genuine,
+ * measured over-report rather than an oversight. With the static rule disabled so only the
+ * evaluator judges:
+ *
+ * - `define f  print repcount  end` with no call — evaluator: 1 event, **no diagnostic**.
+ * - `repeat 2 [ define f  print repcount  end ]` (uncalled) — evaluator: 3 events, **clean**.
+ * - `define f  print repcount  end` followed by `print 1` — evaluator: 3 events, prints `1`,
+ *   **clean**; `check()` reports, so the check-before-execution gate refuses the run.
+ * - `while false [ print repcount ]` — evaluator: never enters the body, **clean**.
+ *
+ * That is deliberate, and it is the checker's established convention rather than a choice this
+ * rule makes: measured on the same build, `define f  print :nope  end` with no call reports
+ * `ol-undefined-var`, `while false [ stop ]` reports `ol-stop-outside-proc`, and
+ * `if false [ return 1 ]` reports `ol-return-outside-proc`. Exempting `repcount` would make it the
+ * only rule in the checker that goes quiet in dead code.
+ *
+ * It does **not** contradict the handler argument above, and the distinction is the whole point of
+ * the three-state context. A `repcount` in dead code is **knowable but unreached**: the fault is
+ * decided by the program text, and only the schedule of this particular run leaves it unvisited.
+ * A `repcount` in a dispatch-dependent handler body is **unknowable**: the identical text is
+ * correct or faulty depending on what is running when the event arrives, so there is no static
+ * answer to report. Reporting the first is early diagnosis; reporting the second would be
+ * inventing knowledge, and it is what refuses a program that prints correctly.
  *
  * ## Read position versus place position
  *
@@ -97,6 +132,7 @@ import type {
   AssignNode,
   CallNode,
   ParenCallNode,
+  ProfileStatementNode,
   ProgramNode,
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
@@ -121,15 +157,44 @@ type RepeatContext = "outside" | "inside" | "dispatch-dependent";
 const REPCOUNT = "repcount";
 
 /**
- * The event-handler block-head keywords whose block body this rule treats as **opaque** — see the
- * module doc comment. Derived from the parser's single source of truth
+ * The event-handler block-head keywords whose block body is judged `dispatch-dependent` rather
+ * than lexically — see the module doc comment. Derived from the parser's single source of truth
  * ({@link interactionEventsBlockHeadNames}) rather than a second hardcoded copy, so a head added
- * by a later slice is covered without an edit here. Same derivation
- * `checker-control-flow.ts` uses, for the same reason. Case-insensitive lookup.
+ * by a later slice is covered without an edit here. Same derivation `checker-control-flow.ts`
+ * uses, for the same reason. Case-insensitive lookup.
+ *
+ * `when "start"` is the documented exception and is NOT judged by this set alone — see
+ * {@link isSynchronousStartHandler}.
  */
 const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
   interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
 );
+
+/**
+ * Is this the one handler form the evaluator runs **synchronously, at registration** — a `when`
+ * whose event word is the literal `"start"`?
+ *
+ * Every other handler body is `dispatch-dependent`, but a literal `when "start"` body runs then
+ * and there, in the registering context, so its turn IS statically knowable. Measured, which is
+ * how this exception was found at all (a four-head table had asserted the heads were uniform):
+ * `when "start" [ print repcount ]` at top level faults after 4 events;
+ * `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and completes; and the same
+ * handler inside a procedure called from a `repeat` faults after 8. By contrast
+ * `when "stop"`, `when "START"` (the spec's event words are case-sensitive), `every`, `on_key`
+ * and `on_click` never fire during those runs.
+ *
+ * The match is deliberately narrow — a `WordLit` argument spelled exactly `start` — because a
+ * non-literal event word is not statically known, and a wrong case is a different event. Anything
+ * this does not recognize falls through to `dispatch-dependent`, which under-reports rather than
+ * over-reports.
+ */
+function isSynchronousStartHandler(node: ProfileStatementNode): boolean {
+  if (node.keyword.name.toLowerCase() !== "when") {
+    return false;
+  }
+  const [eventWord] = node.args;
+  return eventWord?.kind === "WordLit" && eventWord.value === "start";
+}
 
 /**
  * Is this node a zero-argument call to `repcount`? Both call shapes reach the reporter — the bare
@@ -234,7 +299,10 @@ export function repcountRule(
           for (const arg of node.args) {
             visit(arg, context);
           }
-          visit(node.body, "dispatch-dependent");
+          visit(
+            node.body,
+            isSynchronousStartHandler(node) ? context : "dispatch-dependent",
+          );
           return;
         }
         for (const child of childrenOf(node)) {
