@@ -356,7 +356,7 @@ export function describeAccessor(resolved) {
  * Per accessor, not per tag, because a tag can be **split** — one registry's `lookup` resolving
  * while its `enumerate` does not exist. A per-tag status could not express that, and either reading
  * of it fails: call the tag `declared` and a resolving lookup reads as drift; call it `present` and
- * a missing enumerator goes unnoticed. At `0.1.0` no tag is split and every accessor is `present`;
+ * a missing enumerator goes unnoticed. At `0.2.0` no tag is split and every accessor is `present`;
  * ADR-0021 recorded ten as `declared` at its own date, and #837/#838/#874 closed all ten before
  * this gate landed.
  */
@@ -536,7 +536,7 @@ export function duplicatedNames(names) {
  * precedence `invariants.precedence` states: `keyword` beats `primitive` by category, then the
  * earlier key in `registries` wins among tags of the same category.
  *
- * Only the summary is derived; the full membership stays on the entry, because six names at `0.1.0`
+ * Only the summary is derived; the full membership stays on the entry, because six names at `0.2.0`
  * are reachable from two registries and one `category`/`profile` pair cannot express that.
  */
 export function deriveSummary(manifest, tags, profileByTag) {
@@ -820,7 +820,7 @@ export function aliasFindings(manifest, api) {
       continue;
     }
     if (carrying.length > 1) {
-      // No entry carries two edge registries at `0.1.0`, and none should: the verdict below would
+      // No entry carries two edge registries at `0.2.0`, and none should: the verdict below would
       // otherwise depend on the order of `registries[]`, so a cosmetic reorder could flip the gate.
       findings.push(
         `${entry.name}: is in ${carrying.length} registries that each carry alias edges (${carrying.join(", ")}) — one name has one canonical, so this is ambiguous rather than merely unusual`,
