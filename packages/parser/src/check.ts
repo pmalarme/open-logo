@@ -24,9 +24,9 @@
  * `ol-global-outside-root` (`checker-global-placement.ts`) registers after them: it judges *where*
  * a `global` declaration stands, which is meaningful only once the declaration itself parsed.
  * #1097's `ol-repcount-outside-repeat` (`checker-repcount.ts`) registers last, for the same reason
- * and about the other Core word whose legality is a question of *where it is written*: whether a
+ * and about another Core word whose legality is a question of *where it is written*: whether a
  * `repcount` read sits on a turn of a `repeat` whose body it runs as part of
- * (`spec/tooling.md:195`).
+ * (`spec/tooling.md:195`). `controlFlowRule` above already judges `return` and `stop` the same way.
  *
  * Layer-3 style lints (issue #115) are a **separate, opt-in** {@link STYLE_RULES} array, run
  * only when `options.style === true` (default off). Style rules MUST NOT run unconditionally:
