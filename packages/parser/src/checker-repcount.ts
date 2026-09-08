@@ -44,9 +44,8 @@
  *   therefore errs in both directions, and the over-report direction is the damaging one: it
  *   refuses a program that prints correctly.
  *
- *   But `dispatch-dependent` is **not** "unknowable", which is why the body is still walked. A
- *   `define … end` inside a handler body restores certainty — a callee's repeat-turn stack starts
- *   empty however the handler was dispatched — so
+ *   A `define … end` inside a handler body restores certainty — `execute-internal.ts` creates each
+ *   callee frame with `repeatTurns: []` — so
  *   `on_key "a" [ define f  print repcount  end  f ]` is a fault even though the handler itself is
  *   dispatch-dependent, and the evaluator agrees. Treating the body as wholly opaque missed
  *   exactly that.
@@ -154,8 +153,7 @@ import { interactionEventsBlockHeadNames } from "./signatures.js";
  * `dispatch-dependent` into `inside` survives the whole unit suite and the full fixture corpus,
  * while collapsing it into `outside` is caught by two fixtures. It is produced at one site and
  * consumed only by the `context === "outside"` test, so a boolean would reproduce current
- * behaviour. It is kept because `ProcedureDef` resetting to `outside` and a future rule that
- * distinguished the two silences would both need the name.
+ * behaviour. It is kept because a future rule distinguishing the two silences would need the name.
  */
 type RepeatContext = "outside" | "inside" | "dispatch-dependent";
 

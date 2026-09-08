@@ -18,8 +18,8 @@
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
  * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
  * fourth. Issue #1155's `checker-repcount.ts` (`ol-repcount-outside-repeat`) registers last: it is
- * the other enclosing-construct static, judging a `repcount` by the `repeat` that lexically
- * encloses it exactly as #114's rules judge an escape by its procedure. Issue #667's Heritage
+ * the other enclosing-construct static, judging a `repcount` by its enclosing `repeat` much as
+ * #114's rules judge an escape by its procedure. Issue #667's Heritage
  * form-head gate
  * (`checker-heritage-form.ts`) registers second, right after `ol-unknown-command`, since it too
  * reports an `ol-unknown-command` for an unrecognized command spelling — the Heritage

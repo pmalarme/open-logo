@@ -20,9 +20,10 @@ const REGISTERED_BLOCK_HEADS = interactionEventsBlockHeadNames();
  * resist a change the spec allows.
  *
  * These cover the rule's decision points. Agreement with `@openlogo/runtime`'s evaluator is
- * asserted only by the fixtures that actually run it — the five `execute: true` ones under
- * `tests/conformance/core-language/execution/`; the 13 `check: true` fixtures call the checker
- * alone and return before `execute()` (`scripts/harness/index.mjs`).
+ * asserted only by the fixtures that actually run it — the `execute: true` ones, which include
+ * `core-language/execution/procedure-stop-exits-nested-loop`, whose filename does not carry the
+ * word. A `check: true` fixture calls the checker alone and returns before `execute()`
+ * (`scripts/harness/index.mjs:814`).
  */
 
 const CODE = "ol-repcount-outside-repeat";
@@ -279,7 +280,7 @@ test("both axes of the start discriminator are load-bearing", () => {
   // bite: the reader normalises `ON_KEY` to `on_key` in the AST, so removing either of the
   // block-head lookup's two lowercasing calls is an equivalent mutant — both were built and
   // measured. A review finding claimed such a mutation would make this program
-  // report; it was built and nothing changed, and the finding was withdrawn.
+  // report; it was built and nothing changed.
   assert.deepEqual(
     repcountFindings('ON_KEY "a" [ print repcount ]', HANDLER_PROFILES),
     [],
@@ -350,8 +351,8 @@ test("the deferred-head table covers every registered block head", () => {
 });
 
 test("but a `define` inside a handler body RESTORES certainty and IS reported", () => {
-  // dispatch-dependent is not unknowable. A callee's repeat-turn stack starts empty however the
-  // handler fired, so this is statically outside any repeat and the evaluator agrees (it rejects
+  // `execute-internal.ts` creates each callee frame with `repeatTurns: []`, so this is statically
+  // outside any repeat and the evaluator agrees (it rejects
   // the program). The control — the same procedure carrying its OWN repeat — runs clean, which
   // isolates the procedure boundary as the cause rather than the handler nesting.
   assert.equal(
