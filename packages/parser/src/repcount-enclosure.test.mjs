@@ -19,11 +19,11 @@
 // kinds of exception, both stated because neither "reported nothing at the base" nor "the runtime
 // already decided every one" would be true of the file as a whole:
 //
-//   - Six programs here are ones the runtime can NEVER reach: five handler blocks with no `wait` to
-//     let them fire, and one uncalled procedure. The two "…is still reported" tests near the end
-//     exist to make that explicit — an uncalled procedure and a handler that never fires — and are
-//     the reason this row is worth having at all. (Named, not positioned: they are no longer the
-//     last two tests, and they are examples of the kind, not the whole of it.)
+//   - Some tests exercise reads the runtime does not reach in these executions: an uncalled
+//     procedure, and handler blocks that never fire under the timing and host input these programs
+//     supply. The two "…is still reported" tests near the end make that explicit and are the reason
+//     this row is worth having at all. (Named, not positioned: they are no longer the last two
+//     tests, and they are examples of the kind rather than the whole of it.)
 //   - A few programs are deliberately malformed in some OTHER way, to pin what this rule must not
 //     claim. Those already carried unrelated codes at the base, from rules this slice does not
 //     touch — measured, four distinct ones: `ol-not-a-place`, `ol-too-many-inputs`,
