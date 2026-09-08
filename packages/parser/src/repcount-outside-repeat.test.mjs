@@ -466,14 +466,28 @@ test("an ordinary assignment to a valid place stays clean", () => {
   assert.deepEqual(repcountFindings("repeat 2 [ set n to repcount ]"), []);
 });
 
-test("an assignment's VALUE is a read, in both spellings", () => {
-  // The fault direction, which the clean control above does not cover: suppressing the check of
-  // assignment values leaves the whole unit suite and the full corpus green while restoring
-  // partial execution. `set n to` and `:n =` parse to the same `Assign` node, differing only in
-  // `form`, so this is one mechanism in two spellings rather than two mechanisms.
+test("an assignment's VALUE is a read, in all three `Assign.form` spellings", () => {
+  // The fault direction, which the clean control above does not cover. Measured before this test
+  // existed: suppressing the check of assignment values left the whole unit suite and the full
+  // corpus green while restoring partial execution.
+  //
+  // `set n to` and `:n =` are ONE mechanism — the same `Assign` node, differing only in `form` —
+  // so they need one fixture, not two. Heritage `make` is a THIRD value of that same field, and a
+  // form-selective mutant (`rootIsRead: node.form !== "make"`) survived everything until this
+  // assertion existed. Whether two things are one mechanism or two is decided by what can
+  // discriminate between them.
   assert.equal(repcountFindings("set n to repcount").length, 1);
   assert.equal(repcountFindings(":n = repcount").length, 1);
   assert.equal(repcountFindings("set n to repcount + 1").length, 1);
+  const heritageProfiles = ["core-language", "data", "heritage"];
+  assert.equal(
+    repcountFindings('make "n" repcount', heritageProfiles).length,
+    1,
+  );
+  assert.deepEqual(
+    repcountFindings('repeat 2 [ make "n" repcount ]', heritageProfiles),
+    [],
+  );
 });
 
 test("the mutation statements' value expressions are reads too", () => {

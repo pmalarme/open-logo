@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: `make` is a THIRD `Assign.form`, and its value is a read like the other two (issue #1155). This fixture exists because of a mistake worth recording: `set n to repcount` and `:n = repcount` are correctly ONE mechanism — same `Assign` node, differing only in `form` — so a twin fixture for `:n =` would count one mechanism twice, and the Core fixture's prose says so. But treating `form` as therefore non-discriminating was inference, not measurement: a form-selective mutant, `rootIsRead: node.form !== \"make\"`, passed the whole unit suite and the entire fixture corpus while making `make \"n\" repcount` checker-silent and partially executed — one event and a `runtime` diagnostic in place of semantic refusal. Whether two things are one mechanism or two is decided by what can discriminate between them, not by how alike they look. Its Core counterpart is `core-language/check/repcount-in-assignment-value`; the clean control `repeat 2 [ make \"n\" repcount ]` is asserted in the unit suite.",
+  "profiles": ["core-language", "data", "heritage"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "heritage/check/repcount-in-make-assignment-value",
+        "start": [1, 10],
+        "end": [1, 18]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

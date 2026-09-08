@@ -65,7 +65,7 @@
  *   All three were measured on the evaluator. The spec does **not** settle `repcount`
  *   across a call boundary — `spec/execution-model.md:340-342` fixes lexical frame scoping for
  *   *bindings* ("invisible to callees unless explicitly passed as values"), and the evaluator
- *   extends the same reasoning to the repeat-turn stack by starting each callee frame's empty
+ *   extends the same reasoning to the repeat-turn stack by starting each callee frame's stack empty
  *   (`execute-internal.ts`, which flags it as an assumption). This rule follows the evaluator
  *   rather than deciding the open question.
  *
