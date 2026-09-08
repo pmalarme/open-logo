@@ -1,5 +1,5 @@
 {
-  "description": "MECHANISM: a `define … end` body is a `repcount` boundary EVEN WHEN the procedure is called from inside a `repeat` (issue #1155). `show_turn` is only ever called from `repeat 2 [ … ]`, yet its `repcount` is still a fault. Measured against the evaluator before the rule was written: this exact program raised `ol-repcount-outside-repeat` at `runtime` after 5 events; it now raises the same code at `semantic`, before any of them. Note what settles this and what does not: `spec/commands.md:783` ties `repcount` to the ENCLOSING `repeat`, and `spec/execution-model.md:340-342` fixes lexical frame scoping for BINDINGS — but neither spells out `repcount` across a call boundary, and `execute-internal.ts` flags its empty-per-callee repeat-turn stack as an assumption. This fixture therefore characterizes the evaluator's existing behaviour rather than deciding the open question; it was reported to `@orchestrator` at implementation time. A walk without the procedure boundary would call this program clean, so this fixture is what fails if the boundary is removed.",
+  "description": "MECHANISM: a `define … end` body is a `repcount` boundary EVEN WHEN the `define` is lexically nested inside a `repeat` and called from inside it (issue #1155). This shape is chosen deliberately, because it is the ONLY one that falsifies the boundary. An earlier draft of this fixture used a top-level `define` called from a `repeat`; that reads clean under a purely lexical walk too, so removing the boundary left the whole 1011-fixture corpus green and the fixture proved nothing — caught in review by mutation, not by reading. Here the procedure body sits inside the `repeat`'s brackets, so without the boundary it would be judged enclosed and this fixture goes green in error. Measured against the evaluator: this exact program raises `ol-repcount-outside-repeat` at `runtime` after 5 events, because a callee's repeat-turn stack starts empty. Note what settles that and what does not: `spec/commands.md:783` ties `repcount` to the ENCLOSING `repeat`, and `spec/execution-model.md:340-342` fixes lexical frame scoping for BINDINGS — but neither spells out `repcount` across a call boundary, and `execute-internal.ts` flags its empty-per-callee stack as an assumption. So this characterizes the evaluator rather than deciding the open question; it was reported to `@orchestrator` at implementation time.",
   "profiles": ["core-language"],
   "check": true,
   "events": [],
@@ -8,8 +8,8 @@
       "code": "ol-repcount-outside-repeat",
       "source_span": {
         "document": "core-language/check/repcount-in-procedure-called-from-repeat",
-        "start": [2, 9],
-        "end": [2, 17]
+        "start": [3, 11],
+        "end": [3, 19]
       },
       "params": {},
       "stage": "semantic",

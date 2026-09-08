@@ -1,4 +1,6 @@
-define show_turn
-  print repcount
-end
-repeat 2 [ show_turn ]
+repeat 2 [
+  define show_turn
+    print repcount
+  end
+  show_turn
+]

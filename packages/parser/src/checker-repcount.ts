@@ -12,9 +12,10 @@
  * the earlier stage, keeping the same `code`. Reporting it here means the check-before-execution
  * gate (`spec/execution-model.md:632`) refuses the program instead of letting it half-execute:
  * before this rule, `print "start" / print repcount / print "done"` printed `start` and three
- * events' worth of effects before stopping, while the two sibling codes the registry classifies
- * identically — `ol-return-outside-proc` (`:116`) and `ol-stop-outside-proc` (`:119`) — already
- * refused their programs with zero events.
+ * events' worth of effects before stopping, while the two sibling codes the registry gives the same
+ * usual stage — `ol-return-outside-proc` (`spec/error-model.md:116`) and `ol-stop-outside-proc`
+ * (`spec/error-model.md:119`) — already refused their programs with zero events. Only the *stage*
+ * is shared; their required params differ (`keyword`, `none or keyword`, and `none` respectively).
  *
  * ## The scoping rule, measured against the evaluator rather than assumed
  *
@@ -23,11 +24,23 @@
  * evaluator before it was written here:
  *
  * - **A `repeat` body encloses; nothing else does.** `for … in`, `for … from … to`, `while`,
- *   `if`, `forever`, a `map`/`filter`/`reduce` body, and an event-handler block are all
- *   transparent — they neither introduce nor hide a turn — because the evaluator threads the same
- *   `repeatTurns` stack through them and only `Repeat` pushes onto it. `forever [ print repcount ]`
+ *   `if`, `forever`, and a `map`/`filter`/`reduce` body are all transparent — they neither
+ *   introduce nor hide a turn — because the evaluator threads the same `repeatTurns` stack through
+ *   them and only `Repeat` pushes onto it. `forever [ print repcount ]`
  *   is therefore a fault (`forever` is not `repeat`), while
  *   `repeat 2 [ print map i in [ 1 2 ] [ repcount ] ]` is not.
+ * - **An event-handler BODY is opaque — this rule says nothing about it.** A handler body is the
+ *   one place where the question is not lexical at all: its `repcount` reads whatever turn is on
+ *   the stack when the handler is *dispatched*, which no static walk can know. Measured on the
+ *   evaluator, one handler in one lexical position, two outcomes:
+ *   `repeat 1 [ on_key "a" [ print repcount ] ]` followed by `repeat 3 [ wait 1 ]` **prints 1** —
+ *   the *dispatching* loop's turn, not the enclosing one — while the same program followed by a
+ *   bare `wait 1` raises `ol-repcount-outside-repeat` at `runtime`. Judging a handler body
+ *   lexically therefore errs in both directions, and the over-report direction is the damaging
+ *   one: it would refuse `on_key "a" [ print repcount ]` at top level, a program that prints
+ *   correctly whenever the key arrives during a `repeat`. So the body is skipped entirely and left
+ *   to the evaluator, which is the only party that can see the answer. Handler *head* arguments
+ *   are ordinary expressions and are still checked in the enclosing context.
  * - **A `repeat`'s own count expression sits OUTSIDE its body.** `repeat repcount [ … ]` at top
  *   level is a fault; `repeat 2 [ repeat repcount [ … ] ]` is not. The count is evaluated before
  *   the turn is pushed, the same shape as {@link controlFlowRule} visiting a comprehension's
@@ -42,26 +55,28 @@
  *   (`execute-internal.ts`, which flags it as an assumption). This rule follows the evaluator
  *   rather than deciding the open question.
  *
- * The one shape this rule deliberately does not reach is a handler block registered inside a
- * `repeat` but dispatched after it has finished (`repeat 2 [ on_key "a" [ print repcount ] ]`).
- * Whether that handler's `repcount` has a turn depends on *when the key arrives*, which is not a
- * static property, so it stays exactly as it is today: a `runtime` finding if the handler ever
- * fires. Treating a handler block as a boundary instead would refuse
- * `repeat 2 [ when "start" [ print repcount ] ]`, which the evaluator runs clean — an over-report
- * is strictly worse than leaving a genuinely dynamic case to the evaluator.
+ * The one shape this rule deliberately does not reach is any `repcount` inside an event-handler
+ * body, for the reason given above. It stays exactly as it is today: a `runtime` finding if the
+ * handler ever fires.
  *
  * ## Read position versus place position
  *
  * The fault is *reading* a turn number that does not exist — `spec/error-model.md:120` says
- * `repcount` "was used" outside any enclosing `repeat`. In `repcount = 100` the word is an
- * assignment **target**, not a read: the parser keeps it as a `Call` in `place` position, and
- * `ol-not-a-place` (`checker-not-a-place.ts`) already describes that fault completely — the
- * program is refused before anything is evaluated, so the "read" never happens. Adding a second
- * finding there would break one-fault-one-diagnostic
- * (`spec/execution-model.md:737`). So an `Assign` whose target is
- * not a well-formed {@link PlaceNode} has that target skipped. A target that *is* a `PlaceNode`
- * is visited normally: its own children are just its `[key]` segment expressions, which are
- * genuine reads (`:xs[repcount] = 5`).
+ * `repcount` "was used" outside any enclosing `repeat`. In `repcount = 100` the word is the
+ * assignment **target itself**, not a read: the parser keeps it as a `Call` in `place` position,
+ * and `ol-not-a-place` (`checker-not-a-place.ts`) already describes that fault completely. So the
+ * **root** of a target that is not a well-formed {@link PlaceNode} is not treated as a read.
+ *
+ * Only the root. Its children are still visited, because a read nested inside a malformed target
+ * is an **independent** fault: `first repcount = 5` is two separate mistakes, and fixing either
+ * leaves the other standing. That is the checker's existing policy rather than a new invention —
+ * `first :undefined_name = 5` already reports `ol-not-a-place` **and** `ol-undefined-var`
+ * (`checker-undefined-var.ts`). An earlier draft skipped the whole subtree and cited
+ * `spec/execution-model.md:737` for it; that section governs which of two *competing* diagnostics
+ * about one fault wins, not whether an unrelated finding elsewhere in the subtree may be
+ * suppressed, so it never supported the wider claim. A target that *is* a `PlaceNode` is visited
+ * normally: its own children are just its `[key]` segment expressions, which are genuine reads
+ * (`:xs[(repcount)] = 5`).
  *
  * ## Profile gating
  *
@@ -77,14 +92,25 @@ import type {
   AssignNode,
   CallNode,
   ParenCallNode,
-  PlaceNode,
   ProgramNode,
 } from "./ast.js";
 import { childrenOf } from "./ast.js";
 import type { CheckProfile } from "./check.js";
+import { interactionEventsBlockHeadNames } from "./signatures.js";
 
 /** The Core reporter this rule judges. Compared case-insensitively, as name lookup is. */
 const REPCOUNT = "repcount";
+
+/**
+ * The event-handler block-head keywords whose block body this rule treats as **opaque** — see the
+ * module doc comment. Derived from the parser's single source of truth
+ * ({@link interactionEventsBlockHeadNames}) rather than a second hardcoded copy, so a head added
+ * by a later slice is covered without an edit here. Same derivation
+ * `checker-control-flow.ts` uses, for the same reason. Case-insensitive lookup.
+ */
+const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
+  interactionEventsBlockHeadNames().map((name) => name.toLowerCase()),
+);
 
 /**
  * Is this node a zero-argument call to `repcount`? Both call shapes reach the reporter — the bare
@@ -115,14 +141,18 @@ function repcountOutsideRepeatDiagnostic(
 }
 
 /**
- * The subtrees of an `Assign` that are genuine reads. The `value` always is. The `place` is only
- * when it is a well-formed {@link PlaceNode} — see the module doc comment's read-versus-place
- * section.
+ * The subtrees of an `Assign`, and whether each may itself be read as a `repcount`. The `value`
+ * always may. The `place` may not at its **root** — that root is precisely what `ol-not-a-place`
+ * describes — but is still descended into, so a read nested inside it is found. See the module
+ * doc comment's read-versus-place section.
  */
-function assignReadChildren(node: AssignNode): readonly AnyNode[] {
-  const place: readonly PlaceNode[] =
-    node.place.kind === "Place" ? [node.place] : [];
-  return [...place, node.value];
+function assignChildren(
+  node: AssignNode,
+): readonly { readonly node: AnyNode; readonly rootIsRead: boolean }[] {
+  return [
+    { node: node.place, rootIsRead: false },
+    { node: node.value, rootIsRead: true },
+  ];
 }
 
 /**
@@ -138,8 +168,16 @@ export function repcountRule(
   }
   const diagnostics: Diagnostic[] = [];
 
-  const visit = (node: AnyNode, insideRepeatBody: boolean): void => {
-    if (isRepcountRead(node) && !insideRepeatBody) {
+  /**
+   * `rootIsRead` is `false` only for the root of an assignment target; it never propagates to
+   * children, so a read nested inside a malformed target is still found.
+   */
+  const visit = (
+    node: AnyNode,
+    insideRepeatBody: boolean,
+    rootIsRead = true,
+  ): void => {
+    if (rootIsRead && isRepcountRead(node) && !insideRepeatBody) {
       diagnostics.push(repcountOutsideRepeatDiagnostic(node));
       return;
     }
@@ -156,7 +194,26 @@ export function repcountRule(
         return;
       }
       case "Assign": {
-        for (const child of assignReadChildren(node)) {
+        for (const child of assignChildren(node)) {
+          visit(child.node, insideRepeatBody, child.rootIsRead);
+        }
+        return;
+      }
+      case "ProfileStatement": {
+        // An event-handler body is OPAQUE to this rule: its `repcount` resolves against the repeat
+        // stack at DISPATCH time, which no static walk can know (module doc comment). The head
+        // arguments are ordinary expressions and are still checked in the enclosing context. A
+        // non-handler ProfileStatement, or one with no block, walks its children unchanged.
+        if (
+          node.body !== undefined &&
+          HANDLER_BLOCK_HEADS.has(node.keyword.name.toLowerCase())
+        ) {
+          for (const arg of node.args) {
+            visit(arg, insideRepeatBody);
+          }
+          return;
+        }
+        for (const child of childrenOf(node)) {
           visit(child, insideRepeatBody);
         }
         return;

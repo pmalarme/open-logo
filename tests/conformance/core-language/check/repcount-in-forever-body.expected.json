@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: ONLY a `repeat` body encloses — `forever` does not (issue #1155). The checker's headline claim is \"a `repeat` body encloses; nothing else does\", and until this fixture nothing in the corpus tested the negative half of it: a rule that treated any loop as enclosing would pass every other repcount fixture. `forever` is the sharpest case because it IS a loop and reads like one, yet the evaluator only ever pushes a turn for `Repeat`, so `repcount` inside it has nothing to report. Measured against the evaluator: this program raises `ol-repcount-outside-repeat` at `runtime` after 2 events. `check: true` rather than `execute: true` deliberately — a real `forever` never terminates, so it cannot be an executed fixture (see `packages/runtime/src/repeat-forever-repcount.test.mjs`, which reaches `forever`'s mechanics only through a test-only iteration cap).",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-forever-body",
+        "start": [1, 17],
+        "end": [1, 25]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

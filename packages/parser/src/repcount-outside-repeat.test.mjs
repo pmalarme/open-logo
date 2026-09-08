@@ -6,8 +6,11 @@ import * as OL from "@openlogo/parser";
  * Unit tests for issue #1155 — `ol-repcount-outside-repeat` reported at `stage: "semantic"`.
  *
  * Behavior is verified through the public `@openlogo/parser` surface (`parse` + `check`), matching
- * the package's black-box test convention, and assertions check diagnostic identity — code,
- * params, stage, severity, span — never the non-normative English message.
+ * the package's black-box test convention. Assertions check diagnostic identity — code, params,
+ * stage, severity, span — and deliberately NOT the English message: `tests/conformance/README.md`
+ * records that `spec/error-model.md:255-260` makes identity `code` plus `params`, and `:262-264`
+ * positively permits a template author to reword, so pinning prose here would make this suite
+ * resist a change the spec allows.
  *
  * These cover the rule's decision points; the cross-package claim that each verdict AGREES with
  * `@openlogo/runtime`'s evaluator is asserted by the conformance fixtures under
@@ -48,11 +51,6 @@ test("reports `repcount` outside any repeat at stage semantic, params none", () 
     start: [2, 7],
     end: [2, 15],
   });
-});
-
-test("its message uses the warm lowercase Logo voice", () => {
-  const [finding] = repcountFindings("print repcount");
-  assert.match(finding.message, /^repcount only reports a turn number/);
 });
 
 test("matches the reporter name case-insensitively, as name lookup is", () => {
@@ -127,19 +125,43 @@ test("a comprehension body is transparent in both directions", () => {
   );
 });
 
-test("an event-handler block is transparent, not a boundary", () => {
+test("an event-handler body is OPAQUE — dispatch-time, so the static rule says nothing", () => {
+  // Measured on the evaluator: one handler, one lexical position, two outcomes.
+  //   repeat 1 [ on_key "a" [ print repcount ] ] + repeat 3 [ wait 1 ]  -> prints 1
+  //   repeat 1 [ on_key "a" [ print repcount ] ] + wait 1               -> runtime fault
+  // A handler body resolves against the repeat stack at DISPATCH time, so judging it lexically
+  // errs in both directions; reporting here would refuse a program that runs correctly.
+  const handlerProfiles = ["core-language", "interaction-events"];
+  assert.deepEqual(
+    repcountFindings('on_key "a" [ print repcount ]', handlerProfiles),
+    [],
+  );
+  assert.deepEqual(
+    repcountFindings(
+      'repeat 2 [ on_key "a" [ print repcount ] ]',
+      handlerProfiles,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    repcountFindings('when "start" [ print repcount ]', handlerProfiles),
+    [],
+  );
+});
+
+test("a handler's HEAD arguments are still checked in the enclosing context", () => {
+  // Only the body is opaque. The head is an ordinary expression position, evaluated where the
+  // handler is registered, so a repcount there is judged normally.
+  const handlerProfiles = ["core-language", "interaction-events"];
   assert.equal(
-    repcountFindings('when "start" [ print repcount ]', [
-      "core-language",
-      "interaction-events",
-    ]).length,
+    repcountFindings("every repcount [ print 1 ]", handlerProfiles).length,
     1,
   );
   assert.deepEqual(
-    repcountFindings('repeat 2 [ when "start" [ print repcount ] ]', [
-      "core-language",
-      "interaction-events",
-    ]),
+    repcountFindings(
+      "repeat 2 [ every repcount [ print 1 ] ]",
+      handlerProfiles,
+    ),
     [],
   );
 });
@@ -155,7 +177,25 @@ test("a bare `repcount` assignment target raises ol-not-a-place ALONE", () => {
 });
 
 test("`set repcount to 100` is not a read either", () => {
+  // Guards a plausible wrong implementation rather than being a smoke test: a rule that matched
+  // the WORD `repcount` anywhere, instead of a zero-argument call node, would fire on this bare
+  // place base. The `=` spelling above cannot catch that — there the word really is a Call node.
   assert.deepEqual(repcountFindings("set repcount to 100"), []);
+});
+
+test("a read nested inside a MALFORMED target is an independent finding", () => {
+  // Only the target ROOT is exempt from being read. `first repcount = 5` is two separate
+  // mistakes, and this matches the checker's existing policy: `first :undefined_name = 5`
+  // already reports ol-not-a-place AND ol-undefined-var.
+  const diagnostics = allFindings("first repcount = 5");
+  assert.deepEqual(diagnostics.map((finding) => finding.code).sort(), [
+    "ol-not-a-place",
+    "ol-repcount-outside-repeat",
+  ]);
+  assert.deepEqual(
+    repcountFindings("repeat 2 [ first repcount = 5 ]").length,
+    0,
+  );
 });
 
 test("a read nested inside a WELL-FORMED place is still reported", () => {
@@ -176,6 +216,7 @@ test("a read nested inside a WELL-FORMED place is still reported", () => {
 
 test("an ordinary assignment to a valid place stays clean", () => {
   assert.deepEqual(repcountFindings("set n to 1\n:n = 2"), []);
+  assert.deepEqual(repcountFindings("repeat 2 [ set n to repcount ]"), []);
 });
 
 // --- profile gating ---------------------------------------------------------
