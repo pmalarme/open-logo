@@ -64,13 +64,18 @@ function parenCall(name, count) {
  * to have. Verified across all 81 finite-arity primitives the DAG registers: wrapping changes no
  * other name's answer, and `challenge` stays `ol-unknown-command` alone.
  *
- * **What this trades away, stated rather than left implicit.** The deleted exact-set assertion
- * *surfaced* the exceptional name — its own comment said a second one "must not appear unremarked".
- * The wrap gives that up: a future primitive whose legality also depends on where it is written is
- * simply **absorbed here without comment**, because the probe context already satisfies it. That is
- * the right trade for this file, whose subject is arity rather than placement, but it is a blind
- * spot and not a free win — a positional constraint that ought to be noticed will not be noticed
- * here.
+ * **What this trades away, stated rather than left implicit — and stated narrowly.** The deleted
+ * exact-set assertion *surfaced* the exceptional name; its own comment said a second one "must not
+ * appear unremarked". The wrap gives that up, but only for one half of the space, and the halves
+ * behave oppositely. A future primitive whose positional constraint `repeat 1 [ … ]` happens to
+ * **satisfy** — as it satisfies `repcount`'s — is **absorbed here without comment**: that is the
+ * real blind spot. A constraint the wrap **violates** is not absorbed at all; it is surfaced
+ * loudly, because it adds a second finding and fails the exact-one assertion below. (Measured with
+ * a root-scope constraint as the demonstration: `global x = 1` is clean bare and raises
+ * `ol-global-outside-root` inside `repeat 1 [ … ]`. `global` is a keyword rather than a registered
+ * primitive, so it is outside this sweep — it only shows the mechanism.) The trade is right for a
+ * file whose subject is arity rather than placement, but it is a trade: a `repeat`-satisfiable
+ * positional constraint that ought to be noticed will not be noticed here.
  */
 function probe(name, count) {
   return `repeat 1 [ ${parenCall(name, count)} ]`;
