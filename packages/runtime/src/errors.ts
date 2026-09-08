@@ -1081,20 +1081,24 @@ export const runtimeDiag = {
    * registry's usual stage `semantic` (`spec/error-model.md:120`) wherever it is statically
    * knowable, and the check-before-execution gate refuses such a program.
    *
-   * This factory is still reached, for two kinds of caller. One is a caller driving `evaluate()`
-   * directly, which runs no checker. The other is any `repcount` the checker leaves
-   * **dispatch-dependent** — a read directly inside an event-handler body whose turn is whatever
-   * is on the stack when the handler fires. Measured on this build:
-   * `on_key "a" [ print repcount ]` with the key delivered during a bare `wait 3` raises this code
-   * at `runtime` after 5 events, while the same handler dispatched from inside
-   * `repeat 3 [ wait 1 ]` prints the active turn and raises nothing — which is why the checker
-   * cannot decide it and this factory must stay.
+   * This factory is still reached, by three paths. One is a caller driving `evaluate()` directly,
+   * which runs no checker. One is `execute(…, { runUnchecked: true })`, the opt-out
+   * `spec/execution-model.md:687-694` permits, which runs the program despite `error`-severity
+   * semantic findings — measured, a literal `when "start" [ print repcount ]` then reaches this
+   * factory after 4 events, though the delivered diagnostic stays the earlier `semantic` copy. And
+   * one is default checked execution of any `repcount` the checker leaves **dispatch-dependent** —
+   * a read directly inside an event-handler body whose turn is whatever is on the stack when the
+   * handler fires. Measured on this build: `on_key "a" [ print repcount ]` with the key delivered
+   * during a bare `wait 3` raises this code at `runtime` after 5 events, while the same handler
+   * dispatched from inside `repeat 3 [ wait 1 ]` prints the active turn and raises nothing — which
+   * is why the checker cannot decide it and this factory must stay.
    *
-   * A literal `when "start"` is NOT an example of that class: issue #1155 made it statically known,
-   * because the evaluator runs it synchronously at registration, so `check()` now reports it at
-   * `semantic` and the program never reaches here. An earlier draft of this comment used it as the
-   * lead example, which the same slice's own change had already falsified. Params are `none` per
-   * the registry.
+   * A literal `when "start"` is not an example of that dispatch-dependent class: issue #1155 made
+   * that head-and-argument shape statically known, because the evaluator runs a `"start"` handler
+   * synchronously at registration, so `check()` reports it at `semantic` and **default checked
+   * execution** never reaches here. An earlier draft of this comment used it as the lead example of
+   * the class, which the same slice's own change had already falsified, and enumerated two callers
+   * where there are three. Params are `none` per the registry.
    */
   repcountOutsideRepeat(source_span: SourceSpan): Diagnostic {
     return runtimeError(

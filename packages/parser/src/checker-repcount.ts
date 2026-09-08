@@ -49,7 +49,7 @@
  *   dispatch-dependent, and the evaluator agrees. Treating the body as wholly opaque missed
  *   exactly that.
  *
- *   The **one exception among the heads** is a literal `when "start"`, which the evaluator runs
+ *   The one head-and-argument shape the checker places statically is a literal `when "start"`, which the evaluator runs
  *   *synchronously at registration* — so its body really is in the registering context and is
  *   judged there ({@link isStaticallyKnownStartHandler}). A four-head table written to close an
  *   `on_click` coverage gap asserted that the heads were uniform; they are not, and measurement
@@ -189,7 +189,7 @@ const HANDLER_BLOCK_HEADS: ReadonlySet<string> = new Set(
  * The match is narrow on both axes, and both are load-bearing rather than incidental. The keyword
  * must be `when`: without that guard `on_key "start" [ print repcount ]` — a legal program the
  * evaluator accepts — would be reported. And the word must be spelled exactly `start`, because
- * event words compare case-sensitively; measured, `when "START" [ print repcount ]` never fires.
+ * event words compare case-sensitively — `execute-internal.ts` fires a start handler on a strict `===` against the word `start`, so `when "START" [ print repcount ]` does not fire (measured: 2 events, no print, no diagnostic).
  *
  * Naming note: an earlier draft called this `isSynchronousStartHandler` and its prose called a
  * literal "the one handler form the evaluator runs synchronously". That described the *checker's

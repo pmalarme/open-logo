@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as OL from "@openlogo/parser";
 // Not re-exported by `index.ts`, so this deep relative import into the package's own build output
-// is the only way to reach the block-head registry the checker derives its handler set from — the
+// is the only way to reach the block-head registry that does not change the package public surface — the
 // same convention `packages/runtime/src/repeat-forever-repcount.test.mjs` uses for its own
 // test-only reach into `execute-internal.js`.
 import { interactionEventsBlockHeadNames } from "../dist/signatures.js";
@@ -178,7 +178,8 @@ test("a repcount read DIRECTLY in a handler body is dispatch-dependent, so silen
 });
 
 test('a literal `when "start"` runs SYNCHRONOUSLY, so its body IS judged statically', () => {
-  // The one head the checker places statically. Measured on the evaluator: top level faults after
+  // The one head-and-argument SHAPE the checker places statically. `when` is the head, and its other
+  // arguments (`when "stop"`, `when "START"`, `when :e`) stay deferred. Measured: top level faults after
   // 4 events; `repeat 2 [ when "start" [ print repcount ] ]` prints 1 then 2 and completes; inside
   // a procedure called from a repeat it faults after 8.
   assert.equal(
@@ -242,8 +243,9 @@ test("both axes of the start discriminator are load-bearing", () => {
     repcountFindings('on_key "start" [ print repcount ]', HANDLER_PROFILES),
     [],
   );
-  // The exact-case value test: event words compare case-sensitively, and `when "START"` never
-  // fires, so its body must stay deferred like any other unrecognized event.
+  // The exact-case value test: the evaluator fires a start handler on a strict `===` against the
+  // word `start` (`execute-internal.ts`), so `when "START"` does not fire and its body must stay
+  // deferred like any other unrecognized event.
   assert.deepEqual(
     repcountFindings('when "START" [ print repcount ]', HANDLER_PROFILES),
     [],
@@ -273,6 +275,35 @@ test("only a ZERO-argument call is the reporter", () => {
       (finding) => finding.code,
     ),
     ["ol-too-many-inputs"],
+  );
+});
+
+test("a NON-handler profile block is judged in the enclosing context", () => {
+  // The handler carve-out is keyed on the block-head registry, and this pins the BOUNDARY rather
+  // than the set: `each` and `ask` carry blocks but are not event handlers, so their bodies run
+  // where they are written and are judged there. Measured on the evaluator for `each`:
+  // `each [ print repcount ]` faults, `repeat 2 [ each [ print repcount ] ]` prints 1 then 2.
+  // Without these assertions, widening the carve-out to EVERY block-bearing profile statement
+  // leaves the unit suite and the full conformance corpus green while silently deferring both.
+  const spriteProfiles = ["core-language", "turtle-rendering", "sprites"];
+  assert.equal(
+    repcountFindings("each [ print repcount ]", spriteProfiles).length,
+    1,
+  );
+  assert.deepEqual(
+    repcountFindings("repeat 2 [ each [ print repcount ] ]", spriteProfiles),
+    [],
+  );
+  // `ask` likewise at this layer. Note the caveat, measured: `ask 1 [ … ]` additionally raises
+  // `ol-type` at RUNTIME because `1` is not a sprite, so this assertion is about the static
+  // boundary only and says nothing about that program's runtime outcome.
+  assert.equal(
+    repcountFindings("ask 1 [ print repcount ]", spriteProfiles).length,
+    1,
+  );
+  assert.deepEqual(
+    repcountFindings("repeat 2 [ ask 1 [ print repcount ] ]", spriteProfiles),
+    [],
   );
 });
 
@@ -340,11 +371,14 @@ test("a bare `repcount` assignment target raises ol-not-a-place ALONE", () => {
 });
 
 test("`set repcount to 100` is not a read either", () => {
-  // NOTE, measured: no mutation of the current rule can falsify this assertion. `set repcount to
+  // NOTE, measured: this assertion survived every mutation run against the rule so far, and both
+  // reviewers independently confirmed it is non-biting. The mechanism is that `set repcount to
   // 100` parses to `Assign{ place: Place{ base: {name:"repcount"} } }`; the `Place` root carries
-  // `rootIsRead: false` and `base` is never yielded as a visitable child, so no matching strategy
-  // reaches it. An earlier comment here named "a rule matching the WORD repcount anywhere" as the
-  // falsifier; that mutation was built and this test did not fail, so the claim was wrong.
+  // `rootIsRead: false`, and `childrenOf` a `Place` yields only its segment children (`ast.ts`),
+  // never `base` — so a mutation of the MATCHING strategy cannot reach it. An earlier comment
+  // named "a rule matching the WORD repcount anywhere" as its falsifier; that mutation was built
+  // and this test did not fail, so the named falsifier was wrong. A later draft replaced it with
+  // "no mutation can falsify this", which claims more than any run establishes.
   // It is kept because it pins a real asymmetry worth stating — `repcount = 100` parses the word
   // as a `Call`, `set repcount to 100` parses it as a `Place` base — not because it bites.
   assert.deepEqual(repcountFindings("set repcount to 100"), []);
@@ -356,8 +390,9 @@ test("a repcount in code this run never executes is still reported — deliberat
   // `while false` never runs its body. Reporting anyway is the checker's established convention,
   // not a choice this rule makes — on the same build `define f  print :nope  end` (uncalled)
   // reports ol-undefined-var, `while false [ stop ]` reports ol-stop-outside-proc, and
-  // `if false [ return 1 ]` reports ol-return-outside-proc. Exempting repcount would make it the
-  // only rule in the checker that goes quiet in dead code.
+  // `if false [ return 1 ]` reports ol-return-outside-proc. Of the rules sampled — those three
+  // plus ol-unknown-command and ol-not-a-place — none goes quiet in dead code, so exempting
+  // repcount would make it the odd one out.
   //
   // This does not contradict handler deferral: dead code is KNOWABLE but unreached, whereas a
   // dispatch-dependent handler body is UNKNOWABLE — identical text, correct or faulty depending
