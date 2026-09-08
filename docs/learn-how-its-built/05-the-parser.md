@@ -101,8 +101,8 @@ Still one statement, still `3`. The parser sees `+ 2` at the start of a new line
 an operator that needs a left side, and reaches back to `1` on the previous line.
 
 Both placements work because an operator is a **continuation trigger** — a token that syntactically
-*demands* more input. An unclosed bracket `(`, `[`, or `{` works the same way: everything inside
-stays one expression, no matter how many lines it spans. The complete rule lives in
+*demands* more input. An unclosed delimiter `(`, `[`, or `{` works similarly: newlines inside it
+don't close the enclosing construct, no matter how many lines it spans. The complete rule lives in
 [`spec/grammar.md`](../../spec/grammar.md), and
 [LDR-0008](../design-notes/0008-statement-delimitation-and-continuation.md) explains *why* the
 language was designed this way.
@@ -115,17 +115,26 @@ one line and `abs 3` on the next, surely `print` just grabs `abs 3` as its input
 It doesn't. The parser sees `print` at the end of a line, and `print` is a *command name*, not an
 operator — it isn't a token that syntactically demands more. So the newline ends the statement.
 You get two separate statements: a bare `print` (which errors because it got zero inputs instead
-of one) and a standalone `abs 3`.
+of one) and a standalone `abs 3` that the runtime never reaches.
 
 ```text
 print       ← statement 1: no argument → ol-not-enough-inputs
-abs 3       ← statement 2: computes 3, result goes nowhere
+abs 3       ← statement 2: parsed separately, but execution already stopped
 ```
 
-Compare that with the `+` case: an operator is a continuation trigger; a command that happens to
-want more arguments is not. The rule is driven by the *tokens at the line boundary*, not by how
-many arguments a command still needs — so you can always tell whether a newline ends a statement
-by looking at those boundary tokens, without needing to know any command's arity.
+A less dramatic version of the same split — where both statements *do* run — is this:
+
+```logo
+print 10
+abs 3
+```
+
+`print 10` prints `10` and completes normally; `abs 3` computes `3` on its own, but nothing uses
+the result.
+
+Either way, the dividing line is the same: an operator is a continuation trigger; a command that
+happens to want more arguments is not. The rule is driven by the *tokens at the line boundary*,
+not by how many arguments a command still needs.
 
 ## What's real today
 
