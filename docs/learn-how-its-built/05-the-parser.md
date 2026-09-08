@@ -68,6 +68,65 @@ back, then asks it for the right side — which reads `3 * 4` as one tightly-bou
 `+` combines it with the `2`. The ladder guarantees multiplication happens first, purely from which
 rule calls which.
 
+## What about newlines?
+
+Everything above happened on a single line. But what if your program is longer than one line — does
+the parser just ignore the Enter key, the way it ignores extra spaces?
+
+Not quite. **A newline normally ends a statement.** So if you write:
+
+```logo
+print 1 + 2
+```
+
+that's one statement. But split it across two lines and put the `+` at the end of the first:
+
+```logo
+print 1 +
+  2
+```
+
+It's *still* one statement — and it still prints `3`. The parser sees the trailing `+` at the end
+of line one and knows that operator needs something on its right side, so it keeps reading into the
+next line. The `+` holds the door open.
+
+The same works the other way around — put the operator at the *start* of the second line:
+
+```logo
+print 1
+  + 2
+```
+
+Still one statement, still `3`. The parser sees `+ 2` at the start of a new line, recognizes `+` as
+an operator that needs a left side, and reaches back to `1` on the previous line.
+
+Both placements work because an operator is a **continuation trigger** — a token that syntactically
+*demands* more input. An unclosed bracket `(`, `[`, or `{` works the same way: everything inside
+stays one expression, no matter how many lines it spans. The complete rule lives in
+[`spec/grammar.md`](../../spec/grammar.md), and
+[LDR-0008](../design-notes/0008-statement-delimitation-and-continuation.md) explains *why* the
+language was designed this way.
+
+### The trap: arity alone doesn't continue
+
+Here's the assumption that catches people. `print` needs one argument — so if you write `print` on
+one line and `abs 3` on the next, surely `print` just grabs `abs 3` as its input?
+
+It doesn't. The parser sees `print` at the end of a line, and `print` is a *command name*, not an
+operator — it isn't a token that syntactically demands more. So the newline ends the statement.
+You get two separate statements: a bare `print` (which errors because it got zero inputs instead
+of one) and a standalone `abs 3`.
+
+```text
+print       ← statement 1: no argument → ol-not-enough-inputs
+abs 3       ← statement 2: computes 3, result goes nowhere
+```
+
+Compare that with the `+` case: an operator is a continuation trigger; a command that happens to
+want more arguments is not. The rule is driven by the *tokens at the line boundary*, not by how
+many arguments a command still needs — so you can always tell whether a newline ends a statement
+by looking at those boundary tokens, without needing to know any command's arity.
+
 ## What's real today
 
 ✅ **The parser is real, hand-written recursive descent** — `@openlogo/parser`'s `parse()` walks the
@@ -77,6 +136,11 @@ AST from the last page for our square, node for node.
 ✅ **Arity-driven argument reading is real** — `forward` reads exactly one argument from OpenLogo's
 shared command table, the same one the checker uses. Keywords like `set` and `repeat` skip that
 table entirely — each has its own hand-written rule for its exact shape.
+
+✅ **Newline-as-statement-terminator is real** — the continuation triggers described above (trailing
+operator, leading operator, unclosed bracket) are the shipped behaviour in `@openlogo/parser`, and
+the arity-doesn't-continue rule is what makes a bare `print` on its own line report
+`ol-not-enough-inputs` instead of silently grabbing the next line.
 
 ℹ️ **Bad input never crashes the parser** — a missing `]` or an incomplete `repeat` doesn't throw and
 give up; the parser collects a diagnostic (page 09's error codes) and keeps going with a best-effort
