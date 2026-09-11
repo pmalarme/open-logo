@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a `define … end` body is a `repcount` boundary EVEN WHEN the `define` is lexically nested inside a `repeat` and called from inside it (issue #1155). Lexical nesting of the DEFINITION is the axis that makes this bite, not the call: an uncalled nested `define` falsifies the boundary too, which `packages/parser/src/repcount-outside-repeat.test.mjs` asserts so the point is not left as unchecked prose. What this fixture proves, by measured mutation, is narrower and exact: remove the procedure boundary and this fixture goes green in error. An earlier draft used a TOP-LEVEL `define` called from a `repeat`; that reads clean under a purely lexical walk too, so removing the boundary left it green and the fixture proved nothing while its prose claimed to be the thing that would fail. Replayed against the commit that shipped that draft, `656ddbb8`, removing the boundary failed no fixture at all. Measured: the evaluator rejects this program too, stopping after 5 events with no `print` reaching the trace, because a callee's repeat-turn stack starts empty. Note what settles that and what does not: `spec/commands.md:783` ties `repcount` to the ENCLOSING `repeat`, and `spec/execution-model.md:340-342` fixes lexical frame scoping for BINDINGS — but neither spells out `repcount` across a call boundary, and `execute-internal.ts` flags its empty-per-callee stack as an assumption. So this characterizes the evaluator rather than deciding the open question; it was reported to `@orchestrator` at implementation time.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-procedure-called-from-repeat",
+        "start": [3, 11],
+        "end": [3, 19]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

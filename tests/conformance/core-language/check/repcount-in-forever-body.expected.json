@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: ONLY a `repeat` body encloses — `forever` does not (issue #1155). The checker's headline claim is \"a `repeat` body encloses; nothing else does\", and until this fixture nothing in the corpus tested the negative half of it: a rule that treated any loop as enclosing would pass every other repcount fixture. `forever` is the sharpest case because it IS a loop and reads like one, yet the evaluator only ever pushes a turn for `Repeat`, so `repcount` inside it has nothing to report. Measured: this program stops after 2 events — it does NOT hang, because the fault ends the first pass. That is why it needs no `forever` iteration cap. `check: true` rather than `execute: true` because a check-only fixture pins the STATIC verdict on its own, without also asserting the refusal shape of the check-before-execution gate; the executed counterpart of that gate is already asserted by `core-language/execution/repcount-outside-repeat`. (An earlier draft justified `check: true` by claiming a real `forever` never terminates, which is false for this program and contradicted the sentence before it.)",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-forever-body",
+        "start": [1, 17],
+        "end": [1, 25]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a `map`/`filter`/`reduce` body is TRANSPARENT to `repcount` — it neither introduces a turn nor hides one (issue #1155). With no enclosing `repeat` anywhere, the `repcount` in this comprehension body is a fault. Its mirror image — the same body nested inside a `repeat`, which is clean and reads the enclosing turn — is `core-language/execution/repcount-in-comprehension-inside-repeat`; the pair is what pins transparency in both directions, since a fault-only fixture also passes under a rule that treats a comprehension body as a boundary. Measured against the evaluator before the rule was written: this program raised `ol-repcount-outside-repeat` at `runtime`, and its mirror ran clean. Note the spec does not rule on `repcount` inside a comprehension body: `spec/error-model.md:117` makes a comprehension a value context for control-flow ESCAPES (`return`/`output`/`op`/`stop`), and `repcount` is a reporter, not an escape. This pair therefore characterizes the evaluator's existing behaviour rather than deciding the question — reported to `@orchestrator` at implementation time rather than settled here.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-comprehension-outside-repeat",
+        "start": [1, 26],
+        "end": [1, 34]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

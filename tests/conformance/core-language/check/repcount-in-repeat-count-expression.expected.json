@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a `repeat`'s own count expression sits OUTSIDE its body (issue #1155). `repeat repcount [ … ]` at top level is a fault: the count is evaluated before the turn it would report exists. Measured against the evaluator before the rule was written: this program raised `ol-repcount-outside-repeat` at `runtime` after 1 event. A rule that treated the whole `Repeat` node as enclosing — rather than only its body — would call this program clean, so this fixture is what fails if the count expression is folded into the body context. The companion clean case, `repeat 2 [ repeat repcount [ … ] ]`, is asserted by `packages/parser/src/repcount-outside-repeat.test.mjs` rather than here; note that `core-language/execution/repeat-nested-repcount` does NOT cover it — that fixture is `repeat 2 [ repeat 2 [ print repcount ] ]`, a nested body, not a nested COUNT expression.",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-repeat-count-expression",
+        "start": [1, 8],
+        "end": [1, 16]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

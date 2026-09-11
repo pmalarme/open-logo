@@ -17,7 +17,9 @@
  * follows it; #113's `ol-undefined-var`/`ol-reserved-word` (alongside #79/#113's completed
  * `ol-not-a-place`) are the third; #114's `ol-return-outside-proc`/`ol-stop-outside-proc`/
  * `ol-return-in-comprehension`/`ol-no-value`/`ol-duplicate-binder` control-flow statics are the
- * last Layer-2 (error) rule registered. Issue #667's Heritage form-head gate
+ * fourth. Issue #1155's `checker-repcount.ts` (`ol-repcount-outside-repeat`) registers last: it is
+ * the other enclosing-construct static, judging a `repcount` by its enclosing `repeat` much as
+ * #114's rules judge an escape by its procedure. Issue #667's Heritage form-head gate
  * (`checker-heritage-form.ts`) registers second, right after `ol-unknown-command`, since it too
  * reports an `ol-unknown-command` for an unrecognized command spelling — the Heritage
  * `make`/`to`/`output`/`op` heads when the Heritage profile is inactive. Issue #815's
@@ -41,6 +43,7 @@ import { controlFlowRule } from "./checker-control-flow.js";
 import { heritageFormRule } from "./checker-heritage-form.js";
 import { notAPlaceRule } from "./checker-not-a-place.js";
 import { profileWordPositionRule } from "./checker-profile-word-position.js";
+import { repcountRule } from "./checker-repcount.js";
 import { declarationSlotRule } from "./checker-reserved-word.js";
 import { STYLE_RULES } from "./checker-style.js";
 import { undefinedVarRule } from "./checker-undefined-var.js";
@@ -152,6 +155,7 @@ const RULES: readonly CheckRule[] = [
   undefinedVarRule,
   declarationSlotRule,
   controlFlowRule,
+  repcountRule,
 ];
 
 /** Dispatches `program`/`profiles`/`source` to every registered rule and concatenates their findings. */

@@ -201,14 +201,6 @@
       "issue": "#948",
       "why": "Lands on blank space in data-structures.md: the nearest text above is line 126 (\"### Derived list reporters in the Data profile\") and below is line 128 (\"| Primitive | Kind | Args | Result | Errors | Semantics |\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
       "fingerprint": "e60078fc47f9b8f5"
-    },
-    {
-      "subject": "spec/commands.md:792",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 791 (\"```\") and below is line 793 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "096ae2ab5caec0b5"
     }
   ],
   "packages/runtime/src/evaluate.ts": [
@@ -609,16 +601,6 @@
       "issue": "#948",
       "why": "Lands on blank space in execution-model.md: the nearest text above is line 141 (\"| 7 | `or` | Left-associative, short-circuit. |\") and below is line 143 (\"Thus `:count > 0 and :count < 10` means\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
       "fingerprint": "ce7ea98fdeb198b4"
-    }
-  ],
-  "tests/conformance/core-language/execution/repcount-outside-repeat.expected.json": [
-    {
-      "subject": "spec/commands.md:792",
-      "observed": "blank-region",
-      "kind": "stale-citation",
-      "issue": "#948",
-      "why": "Lands on blank space in commands.md: the nearest text above is line 791 (\"```\") and below is line 793 (\"- **Possible errors:** `ol-repcount-outside-repeat` when `repc…\"). Which of the two the citing claim means cannot be decided mechanically — the repeat-zero-times case in #934 shows a blind range-replacement producing a confident, wrong citation — so re-pointing it is deferred to the corpus sweep, which runs once spec/ freezes.",
-      "fingerprint": "ba4a326e3a7b0ebf"
     }
   ],
   "tests/conformance/data/check/struct-constructor-unknown-field-read.expected.json": [

@@ -1,0 +1,6 @@
+on_key "a" [
+  define show_turn
+    print repcount
+  end
+  show_turn
+]

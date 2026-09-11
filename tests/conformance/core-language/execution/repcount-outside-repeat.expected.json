@@ -1,19 +1,8 @@
 {
-  "description": "`print repcount` outside any enclosing `repeat` raises `ol-repcount-outside-repeat` (`spec/commands.md:792`, `spec/error-model.md:118`) — registry stage `semantic`, raised here at `stage: \"runtime\"` since `execute()` never runs `check()` (same convention as `ol-not-a-place`/`ol-undefined-var`).",
+  "description": "`print repcount` outside any enclosing `repeat` raises `ol-repcount-outside-repeat` at the registry's usual stage `semantic` (`spec/error-model.md:120`, `spec/commands.md:793`) — issue #1155. This occurrence is placeable by reading the source, so `check()` decides it and the check-before-execution gate (`spec/execution-model.md:632`) refuses the program: ZERO events, nothing half-executed. (Not every occurrence is placeable — a read inside an event-handler body is left to runtime; see `packages/parser/src/checker-repcount.ts`.) This description previously carried three separate faults, corrected together. (1) It asserted `stage: \"runtime\"` and one `instruction` event — the program printed part of itself before stopping. (2) It justified that with `execute() never runs check()`, which #815 made false, measurably: a top-level `stop` returns a `semantic` diagnostic and 0 events. (3) Both of its citations were wrong: `spec/error-model.md:118` is `ol-duplicate-binder`, not this code, and its `spec/commands.md` citation pointed at line 792, a BLANK line between the example fence and the `Possible errors` bullet — it resolved to nothing and supported nothing. That second half was found by re-checking every claim here, not only the ones the issue named. It had been deferred to the #948 sweep as undecidable between lines 791 and 793; reading it decides it, since the claim is about the error this code raises and 791 is a code fence, so the exception is deleted rather than re-fingerprinted.",
   "profiles": ["core-language"],
   "execute": true,
-  "events": [
-    {
-      "seq": 0,
-      "kind": "instruction",
-      "source_span": {
-        "document": "core-language/execution/repcount-outside-repeat",
-        "start": [1, 1],
-        "end": [1, 15]
-      },
-      "payload": { "statement_kind": "Call" }
-    }
-  ],
+  "events": [],
   "diagnostics": [
     {
       "code": "ol-repcount-outside-repeat",
@@ -23,7 +12,7 @@
         "end": [1, 15]
       },
       "params": {},
-      "stage": "runtime",
+      "stage": "semantic",
       "severity": "error"
     }
   ]

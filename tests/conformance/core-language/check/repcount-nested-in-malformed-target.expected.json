@@ -1,0 +1,30 @@
+{
+  "description": "MECHANISM: a `repcount` READ nested inside a MALFORMED assignment target is an independent finding, reported ALONGSIDE `ol-not-a-place` (issue #1155). `first repcount = 5` is two separate mistakes — the target is not a place, AND the `repcount` in it reads a turn that does not exist — and fixing either leaves the other standing. This matches the checker's existing policy rather than inventing one: `first :undefined_name = 5` already reports `ol-not-a-place` and `ol-undefined-var` together. Only the target's ROOT is exempt from being read, which is what keeps the trap fixture `core-language/assignment/bare-place-invalid` (`repcount = 100`, where the word IS the root) reporting `ol-not-a-place` alone. An earlier draft suppressed the whole target subtree and cited `spec/execution-model.md:737` for it; that section governs which of two COMPETING diagnostics about one fault wins, not whether an unrelated finding elsewhere in the subtree may be suppressed. Measured falsification: suppressing the target subtree ONLY when its root is not a place kills this fixture and no other, so that is the wrong implementation this fixture walls. (A blunter mutation — never descending into a target at all — also kills `check/repcount-in-place-index-key`, so an earlier draft's claim that this was the sole wall for it, and that the rest of the corpus stayed green, was false; replayed against the very commit it named, that draft failed `repcount-in-place-index-key`.)",
+  "profiles": ["core-language"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-not-a-place",
+      "source_span": {
+        "document": "core-language/check/repcount-nested-in-malformed-target",
+        "start": [1, 1],
+        "end": [1, 15]
+      },
+      "params": { "text": "first repcount" },
+      "stage": "semantic",
+      "severity": "error"
+    },
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-nested-in-malformed-target",
+        "start": [1, 7],
+        "end": [1, 15]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

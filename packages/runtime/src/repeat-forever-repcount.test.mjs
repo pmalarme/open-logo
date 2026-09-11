@@ -1,5 +1,5 @@
 // Unit tests for `repeat`/`forever` loop mechanics and the `repcount` reporter (issue #104,
-// spec/execution-model.md:389-392, spec/commands.md:775-792). Conformance fixtures under
+// spec/execution-model.md:389-392, spec/commands.md:776-793). Conformance fixtures under
 // tests/conformance/core-language/execution/repeat-*.expected.json and
 // repcount-outside-repeat.expected.json cover the event/diagnostic shape end to end; these unit
 // tests fill in what a fixture cannot: `forever`'s loop mechanics (a real, unbounded `forever`
@@ -9,7 +9,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { execute } from "@openlogo/runtime";
+import { parse } from "@openlogo/parser";
+import { evaluate, execute } from "@openlogo/runtime";
 // **Not** imported via the `"@openlogo/runtime"` package specifier: `execute-internal.js` is
 // never re-exported by `index.ts`, so this deep relative import into the package's own build
 // output is the only way to reach the test-only `forever` iteration limit — see
@@ -102,12 +103,32 @@ test("repcount inside a nested repeat reads the innermost loop's turn", () => {
   assert.deepEqual(printedValues, [1, 2, 3, 1, 2, 3]);
 });
 
-test("repcount used outside any enclosing repeat raises ol-repcount-outside-repeat", () => {
+test("execute() now REFUSES `print repcount` at stage semantic, with no events", () => {
+  // Since issue #1155 `check()` decides this statically and the check-before-execution gate
+  // refuses the program, so the code arrives at `stage: "semantic"` and nothing runs. Before that
+  // slice this same program printed nothing but still emitted its `instruction` event and stopped
+  // at `stage: "runtime"` — the half-execution the issue was filed about.
   const result = execute("print repcount", doc);
   assert.equal(result.diagnostics.length, 1);
   assert.equal(result.diagnostics[0].code, "ol-repcount-outside-repeat");
-  assert.equal(result.diagnostics[0].stage, "runtime");
+  assert.equal(result.diagnostics[0].stage, "semantic");
   assert.deepEqual(result.diagnostics[0].params, {});
+  assert.deepEqual(result.events, []);
+});
+
+test("the evaluator keeps its OWN copy of the rule, at stage runtime", () => {
+  // `evaluate()` is the seam a caller can drive without a checker in front of it, and it is also
+  // how a `repcount` the checker leaves dispatch-dependent is reached — a read directly inside an
+  // event-handler body, wherever that handler was registered. The static rule does not replace
+  // this check; it precedes it.
+  const { ast } = parse("print repcount", doc);
+  const [statement] = ast.body;
+  const [repcountCall] = statement.args;
+  const result = evaluate(repcountCall);
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostic.code, "ol-repcount-outside-repeat");
+  assert.equal(result.diagnostic.stage, "runtime");
+  assert.deepEqual(result.diagnostic.params, {});
 });
 
 test("repcount reads the outer repeat's turn again once a nested repeat completes", () => {

@@ -1,0 +1,19 @@
+{
+  "description": "MECHANISM: a `define … end` body is `outside` from EVERY state — including inside an event-handler body, whose own `repcount` is dispatch-dependent (issue #1155). This is the fixture that stops the handler body's own `dispatch-dependent` context from being propagated into constructs nested inside it. `execute-internal.ts` creates each callee frame with `repeatTurns: []`, so `show_turn`'s `repcount` is statically outside any `repeat` even though the handler around it is not statically judgeable at all. Measured with the key delivered at tick 1 during a following `repeat 3 [ wait 1 ]`: the evaluator rejects this program — 9 events, no `print` ever reaches the trace. The control that isolates the cause is the SAME program with `show_turn` carrying its own `repeat`, which runs clean and prints 1 then 2 across 19 events; so the fault is the procedure boundary, not the handler nesting. An earlier draft of the rule skipped handler bodies wholesale and missed this entirely; that draft passes every other fixture in the corpus, so this one is its only wall.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": [
+    {
+      "code": "ol-repcount-outside-repeat",
+      "source_span": {
+        "document": "core-language/check/repcount-in-procedure-inside-handler",
+        "start": [3, 11],
+        "end": [3, 19]
+      },
+      "params": {},
+      "stage": "semantic",
+      "severity": "error"
+    }
+  ]
+}

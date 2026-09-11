@@ -1,0 +1,7 @@
+{
+  "description": "REGRESSION WALL for the exact-case half of the `when \"start\"` discriminator (issue #1155). The evaluator fires a start handler on a strict `===` against the word `start`, so `when \"START\"` is a different event and does not fire — measured: this program runs to completion with no print and no diagnostic. Its body therefore stays dispatch-dependent like any other unrecognized event, and `check()` must say nothing. This fixture exists because the corpus could not otherwise tell a case-SENSITIVE match from a case-INSENSITIVE one. Measured both ways: WITHOUT this fixture, a mutation lower-casing the comparison leaves the corpus green (1017/1017) and is caught only by the unit suite; WITH it, the mutation fails here. A stack-neutral fixture is what an independent implementation is validated against. Its positive twin is `check/repcount-in-synchronous-start-handler`; together they pin that the discriminator turns on the head AND its argument, not on the head `when` alone — `when \"stop\"` and `when :e` are the same head and are also deferred.",
+  "profiles": ["core-language", "interaction-events"],
+  "check": true,
+  "events": [],
+  "diagnostics": []
+}

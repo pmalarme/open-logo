@@ -1590,8 +1590,13 @@ function evaluateThing(
  * 1-based turn — the top of {@link Environment.repeatTurns}, since the `Repeat` handling
  * pushes each pass's turn before running the body and pops it after, so nested `repeat`s naturally
  * stack and the innermost one is always last. `ol-repcount-outside-repeat` when the stack is empty
- * (no enclosing `repeat`) — registry stage `semantic`, but raised here at `stage: "runtime"` since
- * a caller driving `evaluate()` directly runs no checker (same convention as `ol-not-a-place`/`ol-undefined-var`).
+ * (no enclosing `repeat`). Since issue #1155 `check()` decides this statically at `stage:
+ * "semantic"` wherever it is statically knowable, and the check-before-execution gate refuses such
+ * a program. This path remains the evaluator's own copy of the rule, reached by a caller driving
+ * `evaluate()` directly — which runs no checker — by `execute(…, { runUnchecked: true })`, and by
+ * default checked execution of any `repcount` the checker leaves **dispatch-dependent**: a read
+ * directly inside an event-handler body whose turn depends on what is running when the handler
+ * fires, wherever that handler was registered.
  */
 function evaluateRepcount(
   node: ArithmeticCallNode,

@@ -1,0 +1,6 @@
+repeat 2 [
+  define show_turn
+    print repcount
+  end
+  show_turn
+]
