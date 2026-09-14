@@ -294,16 +294,18 @@ export interface AssignNode extends NodeBase {
  * `local count` and `local count = 0` are one production and one declaration; only the initializer
  * differs (`spec/execution-model.md:508-518`).
  *
- * **Until issue #824 the initializer is parsed and checked but never evaluated**, because
- * `@openlogo/runtime` gives a `Local` no effect at all — as it already gave a bare `local count`
- * none. Where nothing of that name is bound yet the failure is loud (`ol-undefined-var` on the
- * first read), but where the declaration **shadows** a binding that already exists, the read finds
- * the outer one and the program runs to completion with the wrong value and no diagnostic:
- * `:count = 0` / `local count = 5` / `print :count` prints `0`. That is measured, not predicted,
- * and it is a *regression in kind* — before this slice the same program was a parse error. It is
- * recorded here rather than guarded, because the fix is the scoping runtime #824 owns and a guard
- * would be a second, wrong model of it. {@link GlobalNode} carries the same hole for the same
- * reason; see its own note.
+ * Issue #824 shipped the scoping runtime, so the declaration and its initializer both take effect.
+ * Away from the root scope `local name` creates a fresh binding holding no value, shadowing
+ * anything of that name that was visible, so reading it before anything assigns it is an ordinary
+ * `ol-undefined-var` — and an enclosing binding of the same name keeps its own value untouched. At
+ * the **root** scope it instead names the root scope's own binding
+ * (`spec/execution-model.md:520-526`), so `:count = 0` / `local count = 5` / `print :count` prints
+ * `5`: the initializer is assigned to the binding already there rather than to a second one beside
+ * it. Either way the initializer is evaluated *before* the new binding exists, with exactly the
+ * visibility the `local` statement itself has (`spec/execution-model.md:508-518`). None of this is
+ * asserted here — `packages/runtime/src/scoping.test.mjs` pins each case, so changing the behaviour
+ * reddens a test instead of outliving a comment. {@link GlobalNode} is the same shape; see its own
+ * note.
  */
 export interface LocalNode extends NodeBase {
   readonly kind: "Local";
@@ -327,14 +329,15 @@ export interface LocalNode extends NodeBase {
  * checker never raises `ol-reserved-word` for it (`spec/grammar.md:390`), and its own span is what
  * `ol-global-outside-root`'s `name` param and diagnostics point at.
  *
- * **Until issue #824 this declaration has no runtime effect either**, exactly as {@link LocalNode}'s
- * initializer has none, and the consequence is the same rather than milder. `spec/execution-model.md:576-580`
- * lets a root binding of the name already exist — "`:count = 5` followed by `global count = 0`
- * leaves one binding, now shared and holding `0`" — and in that case the dropped initializer is
- * silent: `:count = 5` / `global count = 0` / `print :count` prints `5`, with no diagnostic. With no
- * prior binding it fails loudly (`ol-undefined-var`) instead. The rule across both node kinds is one
- * rule: a dropped initializer degrades silently wherever the name is already bound, and loudly
- * wherever it is not.
+ * Issue #824 shipped the scoping runtime here too, so the declaration both binds and initializes.
+ * `spec/execution-model.md:576-580` lets a root binding of the name already exist — "`:count = 5`
+ * followed by `global count = 0` leaves one binding, now shared and holding `0`" — and the runtime
+ * does exactly that: `:count = 5` / `global count = 0` / `print :count` prints `0`. With no prior
+ * binding the declaration simply creates the shared binding, so `global count = 0` / `print :count`
+ * prints `0` as well; there is no case in which the initializer is dropped. Being shared is what
+ * the form exists to record, so a procedure's own `:count = 5` afterwards updates that same binding
+ * rather than a procedure-local one. `packages/runtime/src/scoping.test.mjs` pins each of these, so
+ * they stay measured rather than asserted.
  */
 export interface GlobalNode extends NodeBase {
   readonly kind: "Global";

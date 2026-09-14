@@ -61,7 +61,8 @@ function runFindings(source) {
  * Both stages must report the same identity at the same place. The runtime stops at the first
  * failure, so `expected` describes that first finding — and the checker never reports *earlier* than
  * the runtime fails, which is what `spec/execution-model.md:416-419` means by "within one scope's
- * straight-line statement list the two agree exactly".
+ * straight-line statement list the two agree exactly on **visibility**, which is all the checker
+ * resolves".
  *
  * `expected.count` closes the one hole a first-finding comparison would otherwise leave: the checker
  * could agree on finding 1 and still **over-report** afterwards, which is the direction a false

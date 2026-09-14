@@ -46,8 +46,13 @@
  * name visible at the read". That splits cleanly in two, and the split is this module's whole
  * design:
  *
- * - **Within one scope's own straight-line statement list the two agree exactly**, so a read is
- *   resolved against the bindings that scope has made *so far* ({@link Scope.boundSoFar}). This is
+ * - **Within one scope's own straight-line statement list the two agree exactly on *visibility***
+ *   (`spec/execution-model.md:416-419`) — which is all this module resolves — so a read is
+ *   resolved against the bindings that scope has made *so far* ({@link Scope.boundSoFar}). The
+ *   qualifier is load-bearing: a bare `local name` makes the name **visible while leaving it
+ *   unbound**, so the evaluator still fails that read (`ol-undefined-var`) where this module is
+ *   correctly silent. Whether that gap should be closed here is issue #1173's open question, not
+ *   something this comment decides. This is
  *   what makes the headline diagnostic fire on the **read**: in
  *   `repeat 4 [ forward :count * 10   :count = :count + 1 ]` the write creates a binding in the
  *   `repeat` body — born fresh on every turn, a genuinely different variable — and the read comes
