@@ -43,9 +43,8 @@ matching it exactly and catching the common "classic Logo" mistakes.
 ## Citing the spec — by section anchor, not by line
 
 **Write `spec/<file>.md#a-heading`.** A heading does not move when text is inserted above it; a line
-number does, so every `spec/` edit used to drag a mechanical re-pointing pass behind it (PR #1084
-touched ~74 files for one 4-file spec change, then redid the pass when a sentence changed). The
-decision and its evidence are in
+number does, so every `spec/` edit used to drag a mechanical re-pointing pass behind it. The
+decision, the measured churn and the rejected alternatives are in
 [ADR-0034](../../../../docs/adr/0034-cite-the-spec-by-section-anchor.md).
 
 - **Default:** the anchor alone — `spec/conformance.md#educational`.
@@ -57,19 +56,20 @@ decision and its evidence are in
 - **Quote the words you rely on** where it is natural — the anchor, then the fragment your claim
   rests on in quotation marks. Recommended, not required.
 - **Keep a citation on one line**, even if the line runs long. Anchors are long, and an anchor split
-  by a line wrap silently becomes a different, non-existent one (a live site read as
-  `#collections-`).
+  by a line wrap becomes a different, non-existent one — a site in this tree already reads as
+  `#collections-`. Today that passes unseen; after #1181 it fails.
 - **`#L30` / `#L28-L84` is not an anchor.** GitHub's line fragment is a line claim in anchor
   clothing: it names a position, not a section, and drifts exactly the way a line number does. Not
   the durable form.
 
-**What the gate proves.** Slice #1181 makes `npm run spec-citations` resolve an anchor against the
-headings of the file it names, so a renamed or misspelled heading fails loudly instead of passing
-unseen as it does before that lands. It proves **the heading exists and nothing more**. A resolving
-anchor does **not** mean the section supports the claim beside it, and a quote check proves the words
-are still present, not that they mean what your sentence says — the wrong-passage and
-misstating-prose modes survive an anchor exactly as they survived a line number. Read the coverage
-statement the gate prints; never read a green run as "every citation is right".
+**What the gate proves.** Anchor resolution is slice #1181 and **does not exist yet**: today
+`npm run spec-citations` enumerates an anchor as a mention and never resolves it, so a renamed or
+misspelled heading passes unseen. When #1181 lands, the gate reads the headings of the file an
+anchor names and fails when none matches — proving **the heading exists and nothing more**. A
+resolving anchor does **not** mean the section supports the claim beside it, and a quote check
+proves the words are still present, not that they mean what your sentence says — the wrong-passage
+and misstating-prose modes survive an anchor exactly as they survived a line number. Read the
+coverage statement the gate prints; never read a green run as "every citation is right".
 
 ## Procedure
 
