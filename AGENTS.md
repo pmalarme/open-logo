@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # citations resolve, quoted productions match, status claims name an issue; anchors pending #1181
+npm run spec-citations # citations resolve, quoted productions match, status claims name an issue; section anchors pending #1181
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -239,7 +239,8 @@ checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md)
 `npm run spec-citations` (issue #934, logic in `scripts/spec-citations-gate.mjs`) checks the other
 ungated prose surface: the **thousands of** `spec/` citations hand-written into comments,
 tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
-nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
+nothing checked a single one — so one `spec/` edit silently shifted 113 of them across 68 files
+(#846), and #885
 merged green carrying ten that pointed at the wrong lines.
 
 **Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
