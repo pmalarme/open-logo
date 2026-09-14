@@ -18,14 +18,17 @@ We write them by **line**: `spec/<file>.md:<line>`. A line number is a position 
 reference to an idea, and it is invalidated by any edit above it. That has cost us twice.
 
 **Churn on every spec edit.** Inserting a paragraph shifts every line number below it. Issue #846
-shifted 665 citations in a single edit. PR #1084 corrected four spec files and then carried a
-dedicated commit for the consequences — `51cb3428`, *"re-point every spec citation the #814 spec
-edit shifted"* — **139 files, 241 insertions and 241 deletions**, every hunk a line number moving
-and nothing else; the pass then had to be **redone** when one sentence was corrected later in
-review. (Those figures are re-derivable from that commit. #1142 and #1085 quote a smaller slicing of
-the same pass; take the commit, not the prose.) That is the friction the maintainer named when
-filing #1142: *"maybe we should rethink this entirely as it causes issues and a lot of changes each
-time."*
+exists because a single spec amendment shifted 113 citations across 68 files, and a measurement on
+its own thread then put a later slice's impact several times higher again. PR #1084 corrected four
+spec files and carried a dedicated commit for the consequences — `51cb3428`, *"re-point every spec
+citation the #814 spec edit shifted"* — **139 files, 241 insertions and 241 deletions**, all but ten
+of them a line number moving and nothing else. The ten are worth naming, because they are the
+argument rather than an exception to it: exception-manifest fingerprints and rationale prose that
+had to be re-read and rewritten because the text beside a cited line had changed. The pass then had
+to be **redone** when one sentence was corrected later in review. (Those figures re-derive from that
+commit. #1142 and #1085 quote a smaller slicing of the same pass; take the commit, not the prose.)
+That is the friction the maintainer named when filing #1142: *"maybe we should rethink this entirely
+as it causes issues and a lot of changes each time."*
 
 **The re-pointing pass is not a check.** Saga #811's review gate found **seven** citations that
 resolved cleanly and were wrong anyway. The seventh is the one that decides this record: a citation
