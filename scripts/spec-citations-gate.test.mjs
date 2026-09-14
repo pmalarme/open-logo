@@ -37,6 +37,7 @@ import {
   closestHeadingSlug,
   collectCitations,
   collectStatusClaims,
+  containerContent,
   documentHeadings,
   editDistance,
   expandCommaTail,
@@ -862,7 +863,9 @@ test("headingSlug slugs a heading's markdown SOURCE, and unwraps nothing", () =>
     unsupportedConstructs(["## [text](target)"]).map(
       ({ construct }) => construct,
     ),
-    ["`[` or `]` in a heading, which may be a link"],
+    [
+      'a heading character this reader cannot prove it slugs the way GitHub does ("[")',
+    ],
   );
 });
 
@@ -1152,11 +1155,27 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   refuses("named entity", ["## A &amp; B"]);
   refuses("decimal entity", ["## A &#38; B"]);
   refuses("HEX entity", ["## A &#x26; B"]);
+  refuses("emoji shortcode", ["## :smile: Hello"]);
   refuses("inline tag", ["## A <br> B"]);
   refuses("inline comment", ["## A <!-- hidden --> B"]);
   refuses("plain link", ["## [Text](target)"]);
   refuses("reference link", ["## See [it][ref]"]);
   refuses("NESTED-label link", ["## See [a [b]](target)"]);
+  // `_` emphasis is the construct that proved a blacklist could not be trusted: it renders as
+  // emphasis (GitHub publishes `#text`) but survives the slug rule, which keeps `_` so that
+  // `set_xy` is right. The rule that makes the corpus correct is the rule that makes this wrong.
+  refuses("_emphasis_ in a heading", ["## _Text_"]);
+  refuses("__strong__ in a heading", ["## __Bold__"]);
+  refuses("mid-heading emphasis", ["## A _B_ C"]);
+  // A mismatched backtick run is NOT a code span, so the link it surrounds must still be seen.
+  refuses("a link hidden behind a mismatched run", ["## `[Text](target)``"]);
+  // Containers nest arbitrarily; encoding one marker in one position missed all of these.
+  refuses("blockquoted setext `---`", ["> Title", "> ---"]);
+  refuses("blockquoted setext `===`", ["> Title", "> ==="]);
+  refuses("blockquoted HTML block", ["> <div>"]);
+  refuses("ordered list inside a quote", ["> 1. # Nested"]);
+  refuses("ordered list inside a list", ["- 1. # Nested"]);
+  refuses("a deeply indented nested heading", ["- outer", "    - ## Notes"]);
 
   // What must NOT fire, or the canary would refuse the corpus it exists to protect.
   const allows = (label, lines) =>
@@ -1164,13 +1183,23 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
   allows("a thematic break after a blank line", ["para", "", "---"]);
   allows("a table separator row", ["| a | b |", "| --- | --- |"]);
   allows("a bare ampersand", ["## Turtle & Rendering"]);
-  allows("a less-than with a space", ["## a < b"]);
   allows("angle brackets in a code span", ["### `<place> = <value>`"]);
   allows("brackets in a code span", ["### `if … [else …]`"]);
   // Backtick RUNS, not just single backticks: ``<b>`` is code, and refusing it would block valid
   // markdown over a construct the reader handles correctly.
   allows("a double-backtick code span", ["## ``<b>``"]);
-  allows("an underscored name", ["## `set_xy`"]);
+  allows("a single run containing a double", ["## `a``b`"]);
+  allows("a double run containing a single", ["## ``a`b``"]);
+  allows("an underscore inside a code span", ["## `set_xy`"]);
+  allows("an underscore inside a span, mid-heading", [
+    "## Names use `snake_case`",
+  ]);
+  allows("parentheses", ["### Tutor (AI)"]);
+  allows("commas", ["## Keywords, primitives, and built-in names"]);
+  allows("an em dash", ["## Level 1 — movement and drawing"]);
+  allows("a colon that is not a shortcode", ["## Note: something"]);
+  allows("an apostrophe", ["## What's next"]);
+  allows("slashes", ["## Run/Stop/Reset"]);
   allows("anything inside a fence", [
     "```logo",
     "<div>",
@@ -1179,7 +1208,11 @@ test("the canary refuses a document whose markdown this reader cannot follow", (
     "> ## Quoted",
     "```",
   ]);
-  assert.equal(stripCodeSpans("a ``<b>`` c"), "a   c");
+  // Unmatched runs are left intact so the heading rule still sees what they surround.
+  assert.equal(stripCodeSpans("a ``<b>`` c"), "a         c");
+  assert.equal(stripCodeSpans("a ` b"), "a ` b");
+  assert.equal(containerContent("plain"), null);
+  assert.equal(containerContent("> 1. # X"), "# X");
 });
 
 test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {

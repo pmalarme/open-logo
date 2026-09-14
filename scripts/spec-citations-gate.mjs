@@ -142,11 +142,13 @@
  *
  * So {@link unsupportedConstructs} refuses to answer: a cited document containing any such construct
  * fails outright, naming it and its line, rather than being resolved against a slug this reader is
- * not entitled to compute. **It is a whitelist, not an enumeration** — two enumerating versions were
- * defeated by constructs they did not list, and an open grammar loses that game one construct at a
- * time. `spec/` is clean today, kept so by the canary itself rather than by an assertion here. Issue
- * #1190 decides whether to replace the whole reader with a CommonMark parse; until it does, `spec/`
- * cannot adopt a `<details>` block, a linked heading, or a setext heading without turning the gate
+ * not entitled to compute. **It is a permit-list, not an enumeration** — three enumerating versions
+ * were defeated by constructs they did not list, most tellingly `_` emphasis, which slips through
+ * *because* the slug rule keeps `_` so that `` `set_xy` `` is right. A heading may therefore contain
+ * only characters proven to survive rendering unchanged; everything else is refused. `spec/` is clean
+ * today, kept so by the canary itself rather than by an assertion here. Issue #1190 decides whether
+ * to replace the whole reader with a CommonMark parse; until it does, `spec/` cannot adopt a
+ * `<details>` block, a linked or emphasised heading, or a setext heading without turning the gate
  * red, which is a deliberate trade and not an accident.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
@@ -411,9 +413,11 @@ function mentionPattern(specDirectory) {
  * space after `](`, then a balanced `(foo)` inside the destination); the asymmetric rule has no
  * destination to get wrong, which is why it replaced it.
  *
- * One stated limit: `_` is a legal slug character, so `_x.md#a-heading_` cannot be told from a
- * fragment genuinely ending in `_`. Underscore emphasis around a citation therefore fails — loudly,
- * and this corpus emphasises with `*`.
+ * One stated limit, and it is the same character that forces the heading permit-list: `_` is a legal
+ * slug character, so `_x.md#a-heading_` cannot be told from a fragment genuinely ending in `_`.
+ * Underscore emphasis around a citation therefore fails — loudly, and this corpus emphasises with
+ * `*`. See {@link HEADING_PERMITTED} for the same ambiguity on the cited side, where it is a false
+ * *pass* rather than a false failure and is refused outright.
  */
 const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
 
@@ -576,15 +580,86 @@ export function suggestionDistance(fragment) {
 }
 
 /**
- * Strip inline code spans from one line, honouring backtick **runs** so `` ``<b>`` `` is recognised
- * as code the same way a single-backtick span is.
+ * Strip inline code spans from one line, pairing backtick runs the way CommonMark does: a span is
+ * delimited by two runs of **exactly equal length**, and an unmatched run is literal text.
  *
- * Code spans come out first everywhere the canary looks, because their content is literal text that
- * GitHub renders verbatim — `` `<place> = <value>` `` is a heading this reader handles correctly, and
- * refusing it would block the corpus over a construct that is not a problem.
+ * A regex cannot express that. `/(`+)[\s\S]*?\1/` lets a two-backtick run close a one-backtick
+ * opener, so `` ## `[Text](target)`` `` — which CommonMark reads as literal backticks around a real
+ * link — came out stripped, hiding the `[` from {@link unsupportedConstructs} and restoring exactly
+ * the quiet false pass the canary exists to prevent. So this scans runs and pairs them explicitly,
+ * and **leaves an unmatched run in place** so the heading rule still sees what it surrounds.
  */
 export function stripCodeSpans(text) {
-  return text.replace(/(`+)[\s\S]*?\1/g, " ");
+  const runs = [...text.matchAll(/`+/g)];
+  const characters = [...text];
+  let open = 0;
+  while (open < runs.length) {
+    let close = open + 1;
+    while (
+      close < runs.length &&
+      runs[close][0].length !== runs[open][0].length
+    ) {
+      close += 1;
+    }
+    if (close >= runs.length) {
+      open += 1;
+      continue;
+    }
+    const end = runs[close].index + runs[close][0].length;
+    for (let at = runs[open].index; at < end; at += 1) {
+      characters[at] = " ";
+    }
+    open = close + 1;
+  }
+  return characters.join("");
+}
+
+/**
+ * The characters a heading may contain outside a code span.
+ *
+ * **This is the permit-list, and the whole point is that it is closed.** Blacklisting the constructs
+ * that render differently from their source loses one construct at a time — `_` emphasis was the
+ * fourth to get through, after links, entities and inline HTML, and it gets through precisely
+ * *because* {@link headingSlug} keeps `_` so that `` `set_xy` `` slugs correctly. GitHub renders
+ * `## _Text_` as emphasis and publishes `#text`; this reader publishes `#_text_`. The rule that makes
+ * the corpus's underscored command names right is the rule that makes emphasis wrong, so no
+ * blacklist of *constructs* can be trusted — only a list of characters proven to survive rendering
+ * unchanged.
+ *
+ * `*` and `~` are permitted because rendering **and** the slug rule both delete them, so they cannot
+ * disagree. `&` is permitted for `Turtle & Rendering` and policed separately as an entity, and `:`
+ * likewise for an emoji shortcode. Everything absent — `_`, `[`, `]`, `<`, `>`, `|`, `\`, `{`, `}`, a
+ * stray backtick, an emoji — is refused. Measured across every `spec/` heading, the permitted set is
+ * nowhere near binding: refusing `_` outside a code span costs the corpus nothing today.
+ */
+const HEADING_PERMITTED = /[\p{L}\p{N}\s\-,.;:!?'"()/+=%@$#*~^&—–…]/u;
+
+/** A complete HTML entity, which renders as one character this reader would spell out. */
+const HTML_ENTITY = /&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/;
+
+/** A GFM emoji shortcode, which GitHub replaces with a character the slug rule then deletes. */
+const EMOJI_SHORTCODE = /:[a-z0-9][a-z0-9+-]*:/;
+
+/**
+ * Strip every leading blockquote and list-item marker, returning the content inside them, or `null`
+ * when the line opens no container.
+ *
+ * Containers nest arbitrarily — `> 1. # Nested` and `- 1. # Nested` are both an `<h1>` on GitHub —
+ * so this loops rather than encoding one marker in one position, which is how a pattern that handled
+ * `> ## X` and `- ## X` still missed both of those, and a blockquoted setext rule as well.
+ */
+export function containerContent(line) {
+  let rest = line;
+  let stripped = false;
+  for (;;) {
+    const marker = /^[ \t]*(?:>|[-*+][ \t]+|\d+[.)][ \t]+)/.exec(rest);
+    if (marker === null) {
+      break;
+    }
+    rest = rest.slice(marker[0].length);
+    stripped = true;
+  }
+  return stripped ? rest : null;
 }
 
 /**
@@ -640,42 +715,50 @@ export function unsupportedConstructs(lines) {
       continue;
     }
     const report = (construct) => found.push({ line: index + 1, construct });
+    // Containers nest, so their content is examined by the same rules as the top level: a heading, a
+    // setext rule or an HTML block is published by GitHub wherever it sits, and this reader can only
+    // see it at the top level.
+    const inside = containerContent(line);
+    const content = inside ?? line;
 
     // Any line opening with `<` — a tag, a closing tag, a comment, a declaration, a processing
     // instruction, CDATA, even an autolink. Deciding which of those starts an HTML block is the
-    // enumeration this design refuses to attempt.
-    if (/^ {0,3}</.test(line)) {
+    // enumeration this design refuses to attempt. There is no inline-context exemption, so a
+    // paragraph *beginning* with a bare `<place>` is refused where `` `<place>` `` is not.
+    if (/^ {0,3}</.test(content)) {
       report("a line starting with `<`, which may open a raw-HTML block");
     }
     // A `===`/`---` rule is a setext heading unless a blank line makes it a thematic break. Anything
     // else — after a paragraph, a list item, a table row, an indented code block — is refused rather
     // than classified, because classifying it is the same open-ended parse.
-    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(line) && !previousWasBlank) {
+    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(content) && !previousWasBlank) {
       report("a `=`/`-` rule that may be a setext heading");
     }
+    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(content);
     // GitHub publishes a heading nested in a blockquote or list item; this reader cannot see it, so
     // every later duplicate suffix in the document shifts.
-    if (
-      /^ {0,3}(?:>|[-*+][ \t]|\d+[.)][ \t])[ \t>*+-]*#{1,6}[ \t]/.test(line)
-    ) {
+    if (heading !== null && inside !== null) {
       report("a heading nested in a blockquote or list item");
     }
-    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
-    if (heading !== null) {
+    if (heading !== null && inside === null) {
       const bare = stripCodeSpans(heading[1]);
-      // The gateways to link, HTML and entity semantics. Outside a code span this reader cannot prove
-      // what any of them render as, so it declines to slug the heading at all.
-      if (/[[\]]/.test(bare)) {
-        report("`[` or `]` in a heading, which may be a link");
+      const offender = [...bare].find(
+        (character) => !HEADING_PERMITTED.test(character),
+      );
+      if (offender !== undefined) {
+        report(
+          "a heading character this reader cannot prove it slugs the way GitHub does " +
+            `(${JSON.stringify(offender)})`,
+        );
       }
-      if (/<[/!?]|<[A-Za-z]/.test(bare)) {
-        report("inline HTML in a heading");
-      }
-      if (/&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/.test(bare)) {
+      if (HTML_ENTITY.test(bare)) {
         report("an HTML entity in a heading");
       }
+      if (EMOJI_SHORTCODE.test(bare)) {
+        report("an emoji shortcode in a heading");
+      }
     }
-    previousWasBlank = line.trim() === "";
+    previousWasBlank = content.trim() === "";
   }
   return found;
 }
@@ -1492,7 +1575,7 @@ export function runSpecCitationsGate({
     }
     for (const { line, construct } of unsupportedConstructs(specLines)) {
       fail(
-        `${specDirectory}/${file}:${line}: this document uses ${construct}, which this gate's heading ` +
+        `${specDirectory}/${file}:${line}: this document contains ${construct}, which this gate's heading ` +
           "reader cannot follow — so an anchor into it could name a heading GitHub never publishes, or " +
           "miss one it does. Remove the construct, or cite this document by line instead; issue #1190 " +
           "tracks replacing the reader with a CommonMark parse",
