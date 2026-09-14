@@ -129,23 +129,25 @@
  * `spec/grammar.md` — and counting those as headings would make anchors resolve that GitHub cannot.
  *
  * **Where this reader is not a markdown renderer, and what stops that mattering.** The slug rule
- * works on a heading's markdown **source**. That equals its rendered text for every inline construct
- * in this corpus — code spans, emphasis, `&`, parentheses, `<` and `>` inside code — but not for a
- * markdown **link**, an HTML **entity**, or inline **HTML**; a **raw-HTML block** can also hide an
- * ATX line GitHub never makes a heading; and a **setext** heading is not collected at all.
+ * works on a heading's markdown **source**. That equals its rendered text for the constructs this
+ * corpus uses — code spans, emphasis, `&`, parentheses, `<` and `>` inside code — but not for a
+ * markdown **link**, an HTML **entity**, or inline **HTML**; an **HTML block** can hide an ATX line
+ * GitHub never makes a heading; a **setext** heading is not collected at all; and a heading nested in
+ * a blockquote or list item is published by GitHub and invisible here.
  *
- * Each of those cuts both ways, and the directions are not symmetric. The anchor a reader would
- * actually write — GitHub's — **fails** here, which is loud and safe. But the slug this reader
- * *invents* is citable too, and citing it **passes here and 404s there**: that is the quiet
- * direction, and reviewers demonstrated it on all three rendered-text constructs plus the raw-HTML
- * block. Setext is the same story through the duplicate-suffix positions it shifts.
+ * Each cuts both ways, and only one direction is dangerous. The anchor a reader would actually
+ * write — GitHub's — **fails** here, which is loud and safe. But the slug this reader *invents* is
+ * citable too, and citing it **passes here and 404s there**. That quiet direction is the one a gate
+ * must never have, and stating a known false pass is not the same as not having one.
  *
- * Stating a known false pass is not the same as not having one, so {@link unsupportedConstructs} is
- * a **canary**: a cited document containing any of these fails the gate outright, naming the
- * construct and its line, rather than being answered on a slug the reader is not entitled to compute.
- * `spec/` contains none today — measured, and now kept measured by the canary itself rather than by
- * an assertion in this comment — so it costs nothing until the day it earns its keep. Issue #1190
- * decides whether to replace the whole reader with a CommonMark parse.
+ * So {@link unsupportedConstructs} refuses to answer: a cited document containing any such construct
+ * fails outright, naming it and its line, rather than being resolved against a slug this reader is
+ * not entitled to compute. **It is a whitelist, not an enumeration** — two enumerating versions were
+ * defeated by constructs they did not list, and an open grammar loses that game one construct at a
+ * time. `spec/` is clean today, kept so by the canary itself rather than by an assertion here. Issue
+ * #1190 decides whether to replace the whole reader with a CommonMark parse; until it does, `spec/`
+ * cannot adopt a `<details>` block, a linked heading, or a setext heading without turning the gate
+ * red, which is a deliberate trade and not an accident.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
  * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
@@ -158,9 +160,8 @@
  * Every citation — line form and anchor alike — is found by the literal `<spec-dir>/` prefix, so a
  * **relatively-written** reference is invisible to this gate. `docs/adr/0029-…md` already records
  * that for the line form; the anchor form inherits it, which matters more now that #1180 makes the
- * anchor *preferred*. Such anchors exist today, nearly all of them inside `spec/` itself, and the
- * ones re-resolved during this slice's review all resolved — so nothing is known to be broken,
- * merely unguarded. Write the prefix.
+ * anchor *preferred*. Such anchors exist today, nearly all of them inside `spec/` itself, and nothing
+ * checks any of them. Write the prefix.
  *
  * The scanned set is the **tracked** set ({@link listCitationFiles} shells out to `git ls-files`), and
  * that has a consequence worth stating as a general rule, because it is not specific to this gate:
@@ -390,44 +391,31 @@ function mentionPattern(specDirectory) {
 }
 
 /**
- * What may legally follow a `#fragment`: end of input, a delimiter that closes the token, or sentence
- * punctuation and inline-markup that is itself followed by one of those.
+ * What may legally follow a `#fragment`.
  *
  * This is the boundary check that keeps the fragment class from **truncating** a malformed anchor
- * into a valid prefix. `#a-heading` is written in running prose, so it has to tolerate a trailing
- * `.`, `:`, `,` or a closing `**` — but tolerating that naively means `#a-heading.extra`,
- * `#a-heading%2Dtypo` and `#a-heading/typo` all collect as `a-heading` and **pass**, which is
- * tolerance smuggled in through the tokenizer rather than through a near-miss rule. The distinction
- * is whether the token *ends*: punctuation followed by whitespace is prose, punctuation followed by
- * more text is part of a fragment this gate cannot resolve, and the second must fail.
+ * into a valid prefix: without it `#a-heading.extra`, `#a-heading%2Dtypo` and `#a-heading/typo` all
+ * collect as `a-heading` and **pass**, which is tolerance smuggled in through the tokenizer rather
+ * than through a near-miss rule.
  *
- * Emphasis and dash characters are in the trailing set because #1180 will convert thousands of line
- * citations to anchors, and a bolded one (`**<spec-dir>/x.md#a-heading**`) is correct prose that must
- * not read as a defect.
- */
-const FRAGMENT_BOUNDARY = /^[.,:;!?*~+=…—–]*(?:[\s`'"“”‘’)\]}>|]|$)/u;
-
-/**
- * The same question inside a markdown link destination, where the rules are different: the `)` closes
- * the URL, so punctuation in front of it is **part of the fragment**, not prose.
+ * There are exactly two ways a fragment may end, and the asymmetry between them is the whole rule:
  *
- * `[bad](<spec-dir>/x.md#a-heading.)` names the fragment `a-heading.`, which no heading slugs to —
- * yet the prose rule reads the `.` as a sentence full stop and the `)` as a closing delimiter, and
- * passes it. A destination therefore admits nothing at all between the fragment and its close.
+ * - a **delimiter** closes the token directly — whitespace, end of input, a quote, or a bracket;
+ * - **trailing punctuation** (a sentence full stop, a comma, a closing `**`) counts only when
+ *   whitespace or end-of-line follows it.
+ *
+ * Punctuation followed by anything else is part of a fragment this gate cannot resolve. That single
+ * asymmetry is what makes `[bad](x.md#a-heading.)` fail — the `.` sits inside a link destination
+ * where `)` closes the URL, so it belongs to the fragment — **without parsing link destinations at
+ * all**. Two reviewers defeated a destination-parsing version of this rule in two different ways (a
+ * space after `](`, then a balanced `(foo)` inside the destination); the asymmetric rule has no
+ * destination to get wrong, which is why it replaced it.
+ *
+ * One stated limit: `_` is a legal slug character, so `_x.md#a-heading_` cannot be told from a
+ * fragment genuinely ending in `_`. Underscore emphasis around a citation therefore fails — loudly,
+ * and this corpus emphasises with `*`.
  */
-const FRAGMENT_BOUNDARY_IN_DESTINATION = /^[)\s]|^$/u;
-
-/**
- * Whether the mention at `index` sits inside a markdown link destination — after a `](` with no
- * whitespace or `)` in between, which is exactly what a destination permits.
- */
-export function insideLinkDestination(text, index) {
-  const opener = text.lastIndexOf("](", index);
-  if (opener === -1) {
-    return false;
-  }
-  return !/[)\s]/.test(text.slice(opener + 2, index));
-}
+const FRAGMENT_BOUNDARY = /^(?:[\s`'"“”‘’)\]}>|]|$)|^[.,:;!?*~+=…—–]+(?:\s|$)/u;
 
 /**
  * GitHub's **line fragment** (`#L30`, `#L28-L84`), which names lines rather than a heading.
@@ -588,29 +576,46 @@ export function suggestionDistance(fragment) {
 }
 
 /**
- * Markdown constructs in a document whose **rendered** heading text this reader cannot reproduce, or
- * which create or hide headings it cannot see.
+ * Strip inline code spans from one line, honouring backtick **runs** so `` ``<b>`` `` is recognised
+ * as code the same way a single-backtick span is.
  *
- * This is the **canary**, and it is what lets the gate claim an anchor proves a heading exists. The
- * slug rule works on a heading's markdown source; that equals its rendered text for every inline
- * construct in this corpus, but not for a markdown link, an HTML entity, or inline HTML, and a
- * raw-HTML block can hide an ATX line that GitHub never turns into a heading at all. Left alone,
- * each of those is a **quiet** divergence: the gate invents a slug GitHub does not publish, and an
- * anchor naming the invented slug **passes here and 404s there**. Reviewers demonstrated all three.
+ * Code spans come out first everywhere the canary looks, because their content is literal text that
+ * GitHub renders verbatim — `` `<place> = <value>` `` is a heading this reader handles correctly, and
+ * refusing it would block the corpus over a construct that is not a problem.
+ */
+export function stripCodeSpans(text) {
+  return text.replace(/(`+)[\s\S]*?\1/g, " ");
+}
+
+/**
+ * Markdown in a document that this reader cannot prove it reproduces — the **canary**.
  *
- * Documenting a known false pass is not the same as not having one, so rather than enumerate the
- * cases the gate refuses to answer at all: a cited document containing any of these fails, loudly,
- * naming the construct and its line. `spec/` contains none today, so the canary costs nothing now and
- * converts every one of those quiet divergences into a loud failure the moment one appears. Issue
- * #1190 decides whether to replace it with a real CommonMark parse.
+ * It is what lets the gate claim an anchor proves a heading exists. The slug rule works on a
+ * heading's markdown source; that equals its rendered text for the constructs this corpus uses, but
+ * a markdown **link**, an HTML **entity** and inline **HTML** render differently, an HTML **block**
+ * can hide an ATX line GitHub never publishes, a **setext** heading is not collected at all, and a
+ * heading nested in a blockquote or list item is published by GitHub and invisible here. Each is a
+ * **quiet** divergence: the reader invents a slug GitHub does not publish, and an anchor naming the
+ * invented slug **passes here and 404s there**.
  *
- * A **setext** heading is included even though missing it fails in the safe direction: it also shifts
- * the duplicate-suffix positions of every heading after it, which is not safe at all.
+ * **It is a whitelist, and that is the whole design.** Two earlier versions enumerated the
+ * *unsupported* constructs, and reviewers defeated both — `</div>` and `<![CDATA[` and `<?xml` open
+ * HTML blocks that `<!--`-and-`<letter` never matched; `&#x26;` is an entity that `&#\d+;` never
+ * matched; `## See [a [b]](target)` is a link whose label the link pattern never matched. Enumerating
+ * an open-ended grammar loses by one construct at a time, and each miss is a false pass. So this asks
+ * the opposite question — *is every part of this document drawn from the small subset I can prove I
+ * slug identically?* — and refuses everything else. Over-refusing is loud and costs a spec edit;
+ * under-refusing is silent and costs a wrong citation.
+ *
+ * The cost is real and worth stating: until issue #1190 replaces this reader with a CommonMark parse,
+ * `spec/` cannot adopt a `<details>` block, a linked heading, or a setext heading without turning the
+ * gate red. `spec/**` is CODEOWNERS-gated and the failure message names the alternatives, so that
+ * trade is deliberate rather than an accident.
  */
 export function unsupportedConstructs(lines) {
   const found = [];
   let fence = null;
-  let previous = "";
+  let previousWasBlank = true;
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
     const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
@@ -627,42 +632,50 @@ export function unsupportedConstructs(lines) {
       ) {
         fence = null;
       }
-      previous = line;
+      previousWasBlank = false;
       continue;
     }
     if (fence !== null) {
-      previous = line;
+      previousWasBlank = false;
       continue;
     }
     const report = (construct) => found.push({ line: index + 1, construct });
-    // A `===`/`---` rule directly under paragraph text is a setext heading. Under a blank line it is
-    // a thematic break, and a table's separator row carries pipes, so neither is caught here.
-    if (
-      /^ {0,3}(?:=+|-+)[ \t]*$/.test(line) &&
-      previous.trim() !== "" &&
-      !/^ {0,3}(?:#{1,6}[ \t]|[-*+>|][ \t]?|\d+[.)][ \t])/.test(previous)
-    ) {
-      report("setext heading");
+
+    // Any line opening with `<` — a tag, a closing tag, a comment, a declaration, a processing
+    // instruction, CDATA, even an autolink. Deciding which of those starts an HTML block is the
+    // enumeration this design refuses to attempt.
+    if (/^ {0,3}</.test(line)) {
+      report("a line starting with `<`, which may open a raw-HTML block");
     }
-    if (/^ {0,3}<(?:!--|[A-Za-z])/.test(line)) {
-      report("raw-HTML block");
+    // A `===`/`---` rule is a setext heading unless a blank line makes it a thematic break. Anything
+    // else — after a paragraph, a list item, a table row, an indented code block — is refused rather
+    // than classified, because classifying it is the same open-ended parse.
+    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(line) && !previousWasBlank) {
+      report("a `=`/`-` rule that may be a setext heading");
+    }
+    // GitHub publishes a heading nested in a blockquote or list item; this reader cannot see it, so
+    // every later duplicate suffix in the document shifts.
+    if (
+      /^ {0,3}(?:>|[-*+][ \t]|\d+[.)][ \t])[ \t>*+-]*#{1,6}[ \t]/.test(line)
+    ) {
+      report("a heading nested in a blockquote or list item");
     }
     const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
     if (heading !== null) {
-      // Code spans are stripped first: `<place>` and `[else …]` inside backticks are literal text
-      // that GitHub renders verbatim, which the slug rule already handles correctly.
-      const bare = heading[1].replace(/`[^`]*`/g, "");
-      if (/\[[^\]]*\]\(|\[[^\]]*\]\[/.test(bare)) {
-        report("markdown link in a heading");
+      const bare = stripCodeSpans(heading[1]);
+      // The gateways to link, HTML and entity semantics. Outside a code span this reader cannot prove
+      // what any of them render as, so it declines to slug the heading at all.
+      if (/[[\]]/.test(bare)) {
+        report("`[` or `]` in a heading, which may be a link");
       }
-      if (/&(?:[A-Za-z][A-Za-z0-9]*|#\d+);/.test(bare)) {
-        report("HTML entity in a heading");
-      }
-      if (/<\/?[A-Za-z]/.test(bare)) {
+      if (/<[/!?]|<[A-Za-z]/.test(bare)) {
         report("inline HTML in a heading");
       }
+      if (/&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);/.test(bare)) {
+        report("an HTML entity in a heading");
+      }
     }
-    previous = line;
+    previousWasBlank = line.trim() === "";
   }
   return found;
 }
@@ -837,11 +850,7 @@ export function collectCitations(path, text, specDirectory = SPEC_DIRECTORY) {
         // anchor is still collected — dropping it would be the silent tolerance this gate forbids —
         // and carries the flag so {@link resolveAnchor} fails it as unresolvable rather than
         // resolving the prefix that happened to survive truncation.
-        malformed: !(
-          insideLinkDestination(text, mention.index)
-            ? FRAGMENT_BOUNDARY_IN_DESTINATION
-            : FRAGMENT_BOUNDARY
-        ).test(text.slice(mention.end)),
+        malformed: !FRAGMENT_BOUNDARY.test(text.slice(mention.end)),
       });
     }
     if (mention.start !== undefined) {
@@ -1466,10 +1475,11 @@ export function runSpecCitationsGate({
   };
 
   // The canary fires once per cited document, not once per anchor: a construct this reader cannot
-  // follow is a property of the document, and repeating it for all 41 citations of one section would
+  // follow is a property of the document, and repeating it for every citation of one section would
   // bury the one fact a maintainer needs. It is a bare failure rather than an excusable finding on
-  // purpose — it reports that the gate cannot answer, which is not something a per-citation manifest
-  // entry should be able to wave through.
+  // purpose — an exception entry is fingerprinted over the CITING line, so it could only ever excuse
+  // one of many identical exposures, and folding an instrument-capability failure into UNRESOLVED
+  // would make that audit count mean two different things.
   const canaried = new Set();
   const canaryFor = (file) => {
     if (canaried.has(file)) {
@@ -1482,10 +1492,10 @@ export function runSpecCitationsGate({
     }
     for (const { line, construct } of unsupportedConstructs(specLines)) {
       fail(
-        `${specDirectory}/${file}:${line}: this document uses a ${construct}, which this gate's heading ` +
+        `${specDirectory}/${file}:${line}: this document uses ${construct}, which this gate's heading ` +
           "reader cannot follow — so an anchor into it could name a heading GitHub never publishes, or " +
-          "miss one it does. Anchors into this document are not trustworthy until issue #1190 replaces " +
-          "the reader with a CommonMark parse",
+          "miss one it does. Remove the construct, or cite this document by line instead; issue #1190 " +
+          "tracks replacing the reader with a CommonMark parse",
       );
     }
   };
@@ -1703,7 +1713,7 @@ export function runSpecCitationsGate({
   lines.push(
     "  This gate checks that a citation RESOLVES to text, that a section anchor (<file>.md#a-heading) names " +
       "a heading that exists in the file it cites, that a quoted EBNF production is in the range cited, and " +
-      "that a forward-looking status claim names a tracking issue. Resolving an anchor proves THE HEADING " +
+      "that a forward-looking status claim names a tracking issue. Resolving an anchor proves A HEADING " +
       "EXISTS and nothing further: it does NOT prove the section supports the claim written beside it. The " +
       "wrong-passage and misstating-prose modes of issue #934 survive an anchor exactly as they survive a " +
       "line number — a citation that resolves may still paraphrase a passage that does not support it, and " +

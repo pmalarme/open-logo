@@ -44,7 +44,6 @@ import {
   formatAnchor,
   formatCitation,
   headingSlug,
-  insideLinkDestination,
   isProseLine,
   lineLookup,
   listCitationFiles,
@@ -60,6 +59,7 @@ import {
   runSpecCitationsGate,
   siteFingerprint,
   splitLines,
+  stripCodeSpans,
   suggestException,
   suggestionDistance,
   toPosixPath,
@@ -862,7 +862,7 @@ test("headingSlug slugs a heading's markdown SOURCE, and unwraps nothing", () =>
     unsupportedConstructs(["## [text](target)"]).map(
       ({ construct }) => construct,
     ),
-    ["markdown link in a heading"],
+    ["`[` or `]` in a heading, which may be a link"],
   );
 });
 
@@ -1090,10 +1090,10 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   // and PASSED, because the fragment class simply stopped at the `.`. Prose punctuation still has to
   // be tolerated, so the test is whether the token ENDS — punctuation then whitespace is prose,
   // punctuation then more text is a fragment this gate cannot resolve.
-  const malformedFor = (suffix, prefix = "see ") => {
+  const malformedFor = (suffix) => {
     const { anchors } = collectCitations(
       "a.md",
-      `${prefix}${CONTRACT}/doc.md#real-heading${suffix} tail`,
+      `see ${CONTRACT}/doc.md#real-heading${suffix} tail`,
       CONTRACT,
     );
     return anchors[0].malformed;
@@ -1109,59 +1109,77 @@ test("a fragment truncated by a character no slug can hold is malformed, not a v
   for (const suffix of ["**", "*", "~~", "…", " — dash"]) {
     assert.equal(malformedFor(suffix), false, `${suffix} must be accepted`);
   }
-  // Inside a markdown destination the rules differ: the `)` closes the URL, so a `.` in front of it
-  // is part of the fragment, not a sentence full stop. The prose rule read it as prose and passed.
-  assert.equal(malformedFor(".", "[bad]("), true);
-  assert.equal(malformedFor("", "[good]("), false);
-  assert.equal(insideLinkDestination("[a](x/y.md#z)", 4), true);
-  assert.equal(insideLinkDestination("no link here", 4), false);
-  assert.equal(insideLinkDestination("[a](x) then y.md#z", 14), false);
+  // A trailing delimiter closes the token directly; trailing PUNCTUATION counts only when whitespace
+  // or end-of-line follows it. That asymmetry is what makes a link destination work without parsing
+  // one: in `[bad](x.md#a-heading.)` the `.` is followed by `)`, so it belongs to the fragment.
+  const malformedIn = (text) =>
+    collectCitations("a.md", text, CONTRACT).anchors[0].malformed;
+  assert.equal(malformedIn(`[bad](${CONTRACT}/d.md#real-heading.)`), true);
+  assert.equal(malformedIn(`[good](${CONTRACT}/d.md#real-heading)`), false);
+  // Two shapes that defeated an earlier destination-PARSING version of this rule: a space after the
+  // `](`, and a balanced `(foo)` inside the destination. The asymmetric rule has no destination to
+  // get wrong, so both fail correctly.
+  assert.equal(malformedIn(`[bad]( ${CONTRACT}/d.md#real-heading.)`), true);
+  assert.equal(
+    malformedIn(`[bad](pre(foo)/${CONTRACT}/d.md#real-heading.)`),
+    true,
+  );
+  // And an angle-bracket destination is valid markdown with a correct anchor: it must NOT fail.
+  assert.equal(malformedIn(`[good](<${CONTRACT}/d.md#real-heading>)`), false);
 });
 
 test("the canary refuses a document whose markdown this reader cannot follow", () => {
-  // Documenting a known false pass is not the same as not having one. Each construct below lets the
-  // reader invent a slug GitHub never publishes, so an anchor naming the invented slug would pass
-  // here and 404 there. The gate declines to answer instead.
+  // A WHITELIST, not an enumeration. Two enumerating versions were defeated by constructs they did
+  // not list — `</div>`, `<![CDATA[`, `<?xml`, `&#x26;`, an inline comment, a nested-label link —
+  // and every miss was a false pass. All of those reproductions are pinned here.
   const constructs = (lines) =>
     unsupportedConstructs(lines).map(({ construct }) => construct);
-  assert.deepEqual(constructs(["Title", "====="]), ["setext heading"]);
-  assert.deepEqual(constructs(["Title", "-----"]), ["setext heading"]);
-  assert.deepEqual(constructs(["<!-- hidden -->", "## Ghost"]), [
-    "raw-HTML block",
-  ]);
-  assert.deepEqual(constructs(["<div>"]), ["raw-HTML block"]);
-  assert.deepEqual(constructs(["## A &amp; B"]), ["HTML entity in a heading"]);
-  assert.deepEqual(constructs(["## A &#38; B"]), ["HTML entity in a heading"]);
-  assert.deepEqual(constructs(["## A <br> B"]), ["inline HTML in a heading"]);
-  assert.deepEqual(constructs(["## See [it][ref]"]), [
-    "markdown link in a heading",
-  ]);
+  const refuses = (label, lines) =>
+    assert.ok(constructs(lines).length > 0, `must refuse: ${label}`);
 
-  // What must NOT fire, or the canary would refuse the corpus it is meant to protect.
-  assert.deepEqual(
-    constructs(["", "-----"]),
-    [],
-    "a thematic break is not setext",
-  );
-  assert.deepEqual(constructs(["- item", "-----"]), [], "nor a list underline");
-  assert.deepEqual(
-    constructs(["## Heading", "-----"]),
-    [],
-    "nor one under an ATX heading",
-  );
-  assert.deepEqual(
-    constructs(["| a | b |", "| --- | --- |"]),
-    [],
-    "nor a table rule",
-  );
-  assert.deepEqual(
-    constructs(["```logo", "<div>", "Title", "=====", "```"]),
-    [],
-    "and nothing inside a fence counts",
-  );
-  // Angle brackets and brackets inside a code span are literal text the slug rule already handles.
-  assert.deepEqual(constructs(["### `<place> = <value>`"]), []);
-  assert.deepEqual(constructs(["### `if … [else …]`"]), []);
+  refuses("comment block", ["<!-- hidden -->", "## Ghost"]);
+  refuses("open tag block", ["<div>", "## Ghost"]);
+  refuses("CLOSING tag block", ["</div>", "## Ghost"]);
+  refuses("CDATA block", ["<![CDATA[", "## Ghost", "]]>"]);
+  refuses("processing instruction", ["<?xml version='1'?>", "## Ghost"]);
+  refuses("declaration", ["<!DOCTYPE html>", "## Ghost"]);
+  refuses("setext under a paragraph", ["Title", "====="]);
+  refuses("setext under emphasis", ["*Notes*", "---"]);
+  refuses("setext under -not-a-list", ["-not-a-list", "---"]);
+  refuses("setext under |not-a-table", ["|not-a-table", "---"]);
+  refuses("heading in a blockquote", ["> ## Notes"]);
+  refuses("heading in a list item", ["- ## Notes"]);
+  refuses("named entity", ["## A &amp; B"]);
+  refuses("decimal entity", ["## A &#38; B"]);
+  refuses("HEX entity", ["## A &#x26; B"]);
+  refuses("inline tag", ["## A <br> B"]);
+  refuses("inline comment", ["## A <!-- hidden --> B"]);
+  refuses("plain link", ["## [Text](target)"]);
+  refuses("reference link", ["## See [it][ref]"]);
+  refuses("NESTED-label link", ["## See [a [b]](target)"]);
+
+  // What must NOT fire, or the canary would refuse the corpus it exists to protect.
+  const allows = (label, lines) =>
+    assert.deepEqual(constructs(lines), [], `must allow: ${label}`);
+  allows("a thematic break after a blank line", ["para", "", "---"]);
+  allows("a table separator row", ["| a | b |", "| --- | --- |"]);
+  allows("a bare ampersand", ["## Turtle & Rendering"]);
+  allows("a less-than with a space", ["## a < b"]);
+  allows("angle brackets in a code span", ["### `<place> = <value>`"]);
+  allows("brackets in a code span", ["### `if … [else …]`"]);
+  // Backtick RUNS, not just single backticks: ``<b>`` is code, and refusing it would block valid
+  // markdown over a construct the reader handles correctly.
+  allows("a double-backtick code span", ["## ``<b>``"]);
+  allows("an underscored name", ["## `set_xy`"]);
+  allows("anything inside a fence", [
+    "```logo",
+    "<div>",
+    "Title",
+    "===",
+    "> ## Quoted",
+    "```",
+  ]);
+  assert.equal(stripCodeSpans("a ``<b>`` c"), "a   c");
 });
 
 test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
@@ -1184,7 +1202,9 @@ test("the LIVE spec is clean for the canary, which is what licenses the slug rul
     // clean and this assertion pass, so one document that MUST be reported is scanned alongside it.
     ...scan("synthetic.md", ["<div>"]),
   ];
-  assert.deepEqual(offenders, ["synthetic.md:1 raw-HTML block"]);
+  assert.deepEqual(offenders, [
+    "synthetic.md:1 a line starting with `<`, which may open a raw-HTML block",
+  ]);
 });
 
 test("a duplicate slug is positional, so a citation can silently RETARGET — both directions", () => {
@@ -1243,9 +1263,12 @@ test("an anchor into a document the reader cannot follow fails rather than being
   const result = runOverTemp();
   assert.equal(result.ok, false);
   const report = result.lines.join("\n");
+  assert.match(report, /which this gate's heading reader cannot follow/);
+  assert.match(report, /may open a raw-HTML block/);
+  // The remedies a maintainer can actually apply today are named, not only the tracking issue.
   assert.match(
     report,
-    /uses a raw-HTML block, which this gate's heading reader cannot follow/,
+    /Remove the construct, or cite this document by line instead/,
   );
   // Once per document, not once per anchor: two anchors, one report.
   assert.equal(
