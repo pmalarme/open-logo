@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run spec-citations # every spec citation in the tree resolves — anchor form preferred over :line
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -241,6 +241,16 @@ ungated prose surface: the **2,400+ `spec/<file>.md:<line>` citations** hand-wri
 tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
 nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
 merged green carrying ten that pointed at the wrong lines.
+
+**Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
+move when text is inserted above it, which ends the mechanical re-pointing pass every `spec/` edit
+used to force (PR #1084 touched ~74 files for one 4-file spec change). Use a line number only where
+line precision is genuinely required, and write the anchor beside it. Both forms are accepted and
+migration is incremental — convert a file's citations when you are in it for other work, never as a
+mass edit. Slice #1181 adds anchor resolution to the gate, so a renamed or misspelled heading fails
+loudly; that proves the heading exists and nothing more. See
+[ADR-0034](docs/adr/0034-cite-the-spec-by-section-anchor.md) and
+[`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md).
 
 **Read the coverage statement it prints, which names what it does *not* check.** A stale citation
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
