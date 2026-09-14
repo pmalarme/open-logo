@@ -495,6 +495,9 @@ test("a tree of correct citations passes, and the report states what it does not
   assert.match(summary, /names a heading that exists in the file it cites/);
   assert.doesNotMatch(summary, /passes unseen/);
   assert.doesNotMatch(summary, /not checked either/);
+  // The canary's own limit is printed, not just commented: a green run must not read as a complete
+  // block-structure check when it is knowingly incomplete for nested documents.
+  assert.match(summary, /INCOMPLETE for nested block structure/);
   // Nor may it overclaim in the other direction. Resolution proves a slug is CLAIMED, never that the
   // section the citation meant still claims it, and the statement has to say so — otherwise the green
   // signal certifies more than it checks, which is the failure this saga exists to reduce.
@@ -1305,6 +1308,21 @@ test("the reader and the canary share ONE fence scanner, which owns the containe
     "",
     "# Real",
   ]);
+
+  // The refusal is INCOMPLETE and the gate says so out loud. It fires only when a container marker
+  // sits on the fence line; the commoner spelling puts the fence on a list-item CONTINUATION line,
+  // carrying indentation alone, and the execution-model document uses exactly that. Which lines a
+  // fence covers is inherited block state, not a property of the line, so no further pattern closes
+  // this — issue #1190's CommonMark parse is what does. This asserts the KNOWN state, so that when
+  // #1190 lands and the behaviour changes, this test fails and forces the claim to be re-stated.
+  //
+  // (The document is named without its directory prefix on purpose: a literal one here is a real
+  // citation, and it would switch on bare-reference attribution for every `:N` in a comment below.)
+  assert.deepEqual(
+    unsupportedConstructs(["- item", "  ```logo", "  # comment", "", "# Real"]),
+    [],
+    "a continuation-line fence is NOT refused today — known, stated, tracked by #1190",
+  );
 });
 
 test("four-space OR TAB indentation is not stripped into a container, and not read as a fence", () => {
@@ -1323,15 +1341,28 @@ test("four-space OR TAB indentation is not stripped into a container, and not re
   assert.equal(containerContent("   - ## Notes"), "## Notes");
   // A TAB-indented container falls between the three-space bound and a spaces-only refusal, and
   // nothing else in CI would catch it: `.prettierignore` excludes `spec/`, `docs/`, `.github/` and
-  // `*.md`, so markdown is outside `format:check` entirely.
-  assert.ok(
-    unsupportedConstructs(["- outer", "\t- ## Notes"]).length > 0,
-    "a tab-indented nested heading must be refused",
-  );
+  // `*.md`, so markdown is outside `format:check` entirely. CommonMark advances a tab to the next
+  // four-column stop, so the rule must reason in COLUMNS: ` \t-` puts the marker where `    -` does.
+  for (const indent of [
+    "\t",
+    "    ",
+    " \t",
+    "  \t",
+    "   \t",
+    "\t\t",
+    "     ",
+  ]) {
+    assert.ok(
+      unsupportedConstructs(["- outer", `${indent}- ## Notes`]).length > 0,
+      `a nested heading indented ${JSON.stringify(indent)} must be refused`,
+    );
+  }
   assert.ok(
     unsupportedConstructs(["> outer", "\t> ## Notes"]).length > 0,
     "and the blockquote form of it too",
   );
+  // Three spaces is still column 3, so it takes the container path rather than this refusal.
+  assert.equal(containerContent("   - ## Notes"), "## Notes");
 });
 test("the LIVE spec is clean for the canary, which is what licenses the slug rule", () => {
   // The module note's "spec/ contains none today" is kept true by this, not by an assertion in a

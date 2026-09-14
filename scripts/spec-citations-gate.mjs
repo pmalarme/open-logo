@@ -145,11 +145,17 @@
  * not entitled to compute. **It is a permit-list, not an enumeration** — earlier enumerating attempts
  * were each defeated by constructs they did not list, most tellingly `_` emphasis, which slips
  * through *because* the slug rule keeps `_` so that `` `set_xy` `` is right. A heading may therefore
- * contain only characters proven to survive rendering unchanged; everything else is refused. `spec/`
- * is clean today, kept so by the canary itself rather than by an assertion here. Issue #1190 decides
- * whether to replace the whole reader with a CommonMark parse; until it does, `spec/` cannot adopt a
- * `<details>` block, a linked or emphasised heading, or a setext heading without turning the gate
- * red, which is a deliberate trade and not an accident.
+ * contain only characters proven to survive rendering unchanged; everything else is refused.
+ *
+ * **One part of the canary is knowingly incomplete, and it is the block structure.** A fenced block
+ * whose scope ends with its container is refused only when a container marker sits on the fence
+ * line; the commoner spelling — a list-item *continuation* line carrying indentation alone — is
+ * invisible to it, and `spec/execution-model.md` uses exactly that at lines 104 and 117. That is not
+ * a gap a further pattern closes: which lines a fence covers is inherited block state, not a property
+ * of the line, and eight rounds of review established that a line-by-line reader cannot decide it.
+ * Issue #1190 carries the CommonMark parse that replaces this reader; until it lands, treat heading
+ * extraction as sound for flat documents and unproven for nested ones. Anchors are still checked, and
+ * the live corpus is verified clean — but do not read this canary as complete, because it is not.
  *
  * A fragment of the form `#L30` or `#L28-L84` is GitHub's **line fragment**, not a heading: it names
  * lines, so it is resolved against the file's length by {@link resolveCitation} like any other line
@@ -806,16 +812,23 @@ export function unsupportedConstructs(lines) {
   let previousWasBlank = true;
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
-    // Container stripping comes FIRST, so a fence inside a blockquote or list item is recognised as
-    // a fence. Detecting fences on the raw line left `> ```markdown` untracked, and then reported
-    // the perfectly safe heading inside it as a nested one.
     const inside = containerContent(line);
     const content = inside ?? line;
     const transition = advanceFence(fence, line);
     if (transition !== null) {
       // Neither reader can follow where a container-scoped fenced block ends: CommonMark closes it
       // when the container does, and both readers here track one flat fence state. So the document
-      // is refused rather than answered — `spec/` has none, so it costs nothing today.
+      // is refused rather than answered.
+      //
+      // **This refusal is INCOMPLETE, and knowing why is more useful than the rule itself.** It
+      // fires only when a container marker sits on the fence line. The commoner spelling puts the
+      // fence on a list-item *continuation* line, carrying indentation alone — and `spec/` uses
+      // exactly that, at `execution-model.md` lines 104 and 117, where this says nothing. Re-keying
+      // it on real container context would refuse that document and every anchor into it, which is
+      // not available while saga #1180 forbids the mass citation edit that would be needed to go
+      // green. Issue #1190 carries the CommonMark parse that closes the class properly; until it
+      // lands, a fence whose scope ends with its container can still hide a heading GitHub
+      // publishes, or expose one it does not.
       if (transition.openedInContainer) {
         found.push({
           line: index + 1,
@@ -851,12 +864,15 @@ export function unsupportedConstructs(lines) {
     if (heading !== null && inside !== null) {
       report("a heading nested in a blockquote or list item");
     }
-    // The same thing where `containerContent` deliberately stops: an indent of four spaces OR a tab
-    // is either an indented code block or a nested list and this reader cannot tell which, so a
-    // heading reachable through it is refused rather than guessed at. The tab half matters because
-    // markdown is outside `format:check` entirely (`.prettierignore` excludes `spec/`, `docs/`,
-    // `.github/` and `*.md`), so nothing else in CI would ever normalise it away.
-    if (/^(?: {4,}|\t)[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
+    // The same thing where `containerContent` deliberately stops: an indent of four columns — four
+    // spaces, or a tab, or 1–3 spaces then a tab, since CommonMark advances a tab to the next
+    // four-column stop — is either an indented code block or a nested list and this reader cannot
+    // tell which, so a heading reachable through it is refused rather than guessed at. Reasoning in
+    // characters where CommonMark reasons in columns left 25 of the 62 leading-whitespace strings up
+    // to length five unrefused. The tab half matters because markdown is outside `format:check`
+    // entirely (`.prettierignore` excludes `spec/`, `docs/`, `.github/` and `*.md`), so nothing else
+    // in CI would ever normalise it away.
+    if (/^(?: {4,}| {0,3}\t)[ \t>*+\-\d.)]*#{1,6}[ \t]/.test(line)) {
       report("an indented line that may be a heading inside a nested list");
     }
     if (heading !== null && inside === null) {
@@ -1948,7 +1964,9 @@ export function runSpecCitationsGate({
       "renamed heading therefore fails loudly only when the rename leaves its slug unclaimed. A " +
       "citation written without the spec-directory prefix is not seen at all, and a cited document " +
       "using markdown this reader cannot follow fails rather than being answered on a slug it is not " +
-      "entitled to compute. Do not read a green run as 'every citation is right'.",
+      "entitled to compute — though that last check is INCOMPLETE for nested block structure, where a " +
+      "fenced block whose scope ends with its container can still hide a heading GitHub publishes or " +
+      "expose one it does not (issue #1190). Do not read a green run as 'every citation is right'.",
   );
   if (counts.excused > 0) {
     lines.push(
