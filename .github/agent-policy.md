@@ -24,6 +24,11 @@ the layers fit together: [`devops/agent-policy`](skills/devops/agent-policy/SKIL
 
 - **Never edit `spec/`** — maintainer-owned and CODEOWNERS-gated. Raise an issue for
   `@product-owner` instead.
+- **Cite `spec/` by section anchor** — `spec/<file>.md#a-heading`, not `:<line>`. A line number moves
+  on the next spec edit; an anchor survives it, and breaks only on a heading rename, removal or
+  duplicate-slug collision. Never mass-convert existing citations.
+  → [`shared/spec-fidelity`](skills/shared/spec-fidelity/SKILL.md),
+  [ADR-0034](../docs/adr/0034-cite-the-spec-by-section-anchor.md)
 - **Never edit another agent's `.github/agents/*.agent.md`**, and never reach into another package's
   internals — depend on its public API (`src/index.ts`).
 - Declare your write-set up front and stay inside it. Boy Scout fixes are welcome **within** it;

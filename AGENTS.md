@@ -163,7 +163,7 @@ npm run coverage     # node:test 100% line/branch/function gate — verify on No
 npm run conformance  # stack-neutral fixtures (placeholder until issue #6)
 npm run examples     # two gates: every spec/examples/*.logo file, then every ```logo block fenced in spec/ + docs/ markdown
 npm run built-in-names # spec/built-in-names.json vs the parser's registries, both directions + the prose lists
-npm run spec-citations # every spec/<file>.md:<line> citation in the tree, against the text it claims
+npm run spec-citations # citations resolve, quoted productions match, status claims name an issue; section anchors pending #1181
 npm run adr-numbering  # ADR numbers unique, filename↔heading agreement, every ADR reference resolves
 ```
 
@@ -237,10 +237,19 @@ execution stops at a block's first runtime error, so lines below it are parsed a
 checked but not run. See [ADR-0022](docs/adr/0022-documentation-example-gate.md).
 
 `npm run spec-citations` (issue #934, logic in `scripts/spec-citations-gate.mjs`) checks the other
-ungated prose surface: the **2,400+ `spec/<file>.md:<line>` citations** hand-written into comments,
+ungated prose surface: the **thousands of** `spec/` citations hand-written into comments,
 tests, fixture prose, and docs. They are what binds the implementation to the normative contract, and
-nothing checked a single one — so one `spec/` edit silently invalidated 665 of them (#846), and #885
-merged green carrying ten that pointed at the wrong lines.
+nothing checked a single one — so one `spec/` edit silently shifted 113 of them across 68 files
+(#846), and #885 merged green carrying ten that pointed at the wrong lines.
+
+**Cite the spec by section anchor — `spec/<file>.md#a-heading` — not by line.** A heading does not
+move when text is inserted above it. Use a line number only where line precision is genuinely
+required, and write the anchor beside it; never mass-convert existing citations — a file converts
+when you are in it for other work. Slice #1181 adds anchor resolution to the gate; until it lands an
+anchor is enumerated but never resolved, and once it lands it proves the heading exists and nothing
+more. The rule, its limits and the evidence live in
+[`shared/spec-fidelity`](.github/skills/shared/spec-fidelity/SKILL.md) and
+[ADR-0034](docs/adr/0034-cite-the-spec-by-section-anchor.md).
 
 **Read the coverage statement it prints, which names what it does *not* check.** A stale citation
 fails in four ways and only two are mechanically detectable: it **does not resolve** (missing file,
